@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          # No root package-lock.json; backend and frontend have their own. Omit cache to avoid lockfile lookup error.
 
       - name: Backend install and test
         run: |
