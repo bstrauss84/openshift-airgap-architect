@@ -106,10 +106,26 @@ With no registry access, run with bundled Cincinnati and operator data:
 MOCK_MODE=true docker compose up --build
 ```
 
+## Platform and architecture (Apple Silicon / non-x86_64)
+
+Operator scan uses the **oc-mirror** binary from x86_64 (amd64) OpenShift client artifacts. This repo’s **docker-compose.yml** already pins the **backend** service to **linux/amd64**, so the backend runs as amd64 (on Apple Silicon this uses emulation and is slower but supported). After pulling changes to compose or the backend image, a **full rebuild** may be needed so the backend is amd64; otherwise the scan can fail with an error like `qemu-x86_64-static: Could not open '/lib64/ld-linux-x86-64.so.2': No such file or directory`.
+
+Rebuild commands:
+
+```bash
+podman compose down
+podman compose build --no-cache --pull
+podman compose up
+```
+
+(Docker: use `docker compose` in place of `podman compose`.)
+
+See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and future multi-arch options.
+
 ## Troubleshooting
 
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
-- **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). Check backend logs for auth errors.
+- **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). On Apple Silicon / ARM, see **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`. Check backend logs for auth or architecture errors.
 - **Cincinnati or docs stale** — Use **Update** (release channels) or **Update Docs Links** (field manual links) in the UI; the backend refreshes caches on demand.
 - **Validation errors on a step** — Required fields are marked; check Identity & Access (pull secret, SSH key), Networking (CIDRs), and Platform Specifics for your scenario.
 - **SELinux denials (Podman)** — Use `:Z` on volume mounts or adjust context as needed for your host.
