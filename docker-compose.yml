@@ -1,6 +1,7 @@
 version: "3.9"
 services:
   backend:
+    platform: linux/amd64
     build:
       context: ./backend
       dockerfile: Containerfile

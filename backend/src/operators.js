@@ -87,13 +87,22 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
     });
   });
 
+  const ARCH_MISMATCH_SIGNATURES = ["ld-linux-x86-64.so.2", "qemu-x86_64-static"];
+  const isArchMismatch = (stderr) =>
+    typeof stderr === "string" && ARCH_MISMATCH_SIGNATURES.some((sig) => stderr.includes(sig));
+  const ARCH_GUIDANCE =
+    "Operators scan requires a linux/amd64 backend container. On Apple Silicon, set `platform: linux/amd64` for the backend in docker-compose.yml and rebuild (see README).";
+
   child.on("close", (code) => {
     if (authFile) safeUnlink(authFile);
     if (code !== 0) {
+      const userMessage = isArchMismatch(error)
+        ? ARCH_GUIDANCE
+        : `oc-mirror failed (${catalogId}).`;
       updateJob(jobId, {
         status: "failed",
         progress: 100,
-        message: `oc-mirror failed (${catalogId}).`,
+        message: userMessage,
         output: error || output
       });
       return;
