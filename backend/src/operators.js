@@ -1,3 +1,4 @@
+/** Operator catalog scan via oc-mirror list operators; results stored in DB, not credentials. */
 import { spawn } from "node:child_process";
 import { db } from "./db.js";
 import { createJob, updateJob, safeUnlink } from "./utils.js";

@@ -1,3 +1,4 @@
+/** Doc link cache for field manual; version-specific OpenShift docs URLs, refresh via update job. */
 import { db } from "./db.js";
 import { createJob, updateJob } from "./utils.js";
 

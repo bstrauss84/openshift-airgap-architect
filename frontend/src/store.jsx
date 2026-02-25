@@ -1,3 +1,4 @@
+/** App state context; syncs to backend and localStorage. getStateForPersistence strips credentials before persist. */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api.js";
 

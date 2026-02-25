@@ -1,3 +1,4 @@
+/** Cincinnati release channels and patch versions; cached in SQLite. MOCK_MODE uses bundled YAML. */
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";

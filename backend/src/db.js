@@ -1,3 +1,4 @@
+/** SQLite DB for app state cache, jobs, and operator scan results. Path from DATA_DIR. */
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";

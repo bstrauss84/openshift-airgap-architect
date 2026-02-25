@@ -1,3 +1,4 @@
+/** State and job helpers: cache get/set, job CRUD, temp auth file for oc-mirror, run state in SQLite. */
 import fs from "node:fs";
 import path from "node:path";
 import { nanoid } from "nanoid";
