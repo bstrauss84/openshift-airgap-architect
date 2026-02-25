@@ -12,7 +12,7 @@ services:
     volumes:
       - backend-data:/data
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     stop_grace_period: 5s
     stop_signal: SIGTERM
   frontend:
@@ -22,7 +22,7 @@ services:
     environment:
       - VITE_API_BASE=http://localhost:4000
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     depends_on:
       - backend
     stop_grace_period: 5s
