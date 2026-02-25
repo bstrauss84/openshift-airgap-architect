@@ -167,7 +167,7 @@ export default function ToolsDrawer({
               )}
             </section>
 
-            <section className="card" style={{ marginBottom: 0 }}>
+            <section className="card" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>Start over</h3>
               <p className="card-subtitle" style={{ marginTop: 0 }}>
                 Clear all selections and return to the landing page.
@@ -181,6 +181,23 @@ export default function ToolsDrawer({
               >
                 Start Over
               </Button>
+            </section>
+
+            <section className="card" style={{ marginBottom: 0 }}>
+              <h3 className="card-title" style={{ marginTop: 0 }}>About</h3>
+              <p className="card-subtitle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Designed and maintained by Bill Strauss.
+              </p>
+              <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
+                Reach out via{" "}
+                <a href="https://github.com/bstrauss84/openshift-airgap-architect" target="_blank" rel="noopener noreferrer">
+                  GitHub
+                </a>{" "}
+                (Issues or Discussions). Contributions welcome.
+              </p>
+              <p className="note subtle" style={{ marginBottom: 0 }}>
+                For Red Hatters feeling generous 🙂 I can be found on RewardZone: Bill Strauss
+              </p>
             </section>
           </div>
         </FocusTrap>
