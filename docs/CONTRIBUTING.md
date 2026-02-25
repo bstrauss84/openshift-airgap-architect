@@ -29,7 +29,13 @@ cd frontend && npm ci && npm run test
 cd backend && npm ci && npm test
 ```
 
-Optional: `./scripts/check-secrets.sh` to run the secret scanner locally (requires gitleaks).
+**Secret scan (optional):** `./scripts/check-secrets.sh` from the repo root. If **gitleaks** is installed, it runs the full scan; otherwise the script falls back to a ripgrep scan for high-confidence patterns. To install gitleaks:
+
+- **Fedora / RHEL:** `sudo dnf install gitleaks`
+- **macOS:** `brew install gitleaks`
+- **Other:** [gitleaks releases](https://github.com/gitleaks/gitleaks/releases) (place the binary in your PATH)
+
+CI always runs gitleaks on push/PR; the local script is for pre-push checks.
 
 ## Data and frontend copies
 
