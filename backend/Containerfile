@@ -1,7 +1,7 @@
 FROM node:20-bookworm-slim
 
-ARG OCP_CLIENT_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz"
-ARG OCP_MIRROR_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/oc-mirror.tar.gz"
+ARG OCP_CLIENT_URL="https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/openshift-client-linux.tar.gz"
+ARG OCP_MIRROR_URL="https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/oc-mirror.tar.gz"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends curl ca-certificates tar python3 make g++ libgpgme11 openssh-client \
