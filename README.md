@@ -108,25 +108,13 @@ MOCK_MODE=true docker compose up --build
 
 ## Platform and architecture (Apple Silicon / non-x86_64)
 
-Operator scan uses the **oc-mirror** binary from x86_64 (amd64) OpenShift client artifacts. This repo’s **docker-compose.yml** pins the **backend** service to **linux/amd64** (and uses an explicit `localhost/` image name) so the backend runs as amd64; on Apple Silicon that uses emulation (slower but supported). After pulling changes to compose or the backend image, a **full rebuild** may be needed; otherwise the scan can fail with an error like `qemu-x86_64-static: Could not open '/lib64/ld-linux-x86-64.so.2': No such file or directory`.
+Operator scan uses the **oc-mirror** binary inside the backend container. The default backend image is built for the host architecture (e.g. **linux/amd64** on Intel/AMD, **linux/arm64** on Apple Silicon). The baked-in `oc`/`oc-mirror` binaries in the image are x86_64 only, so **Operator scan works out of the box on amd64 Linux**; on **Apple Silicon (aarch64)** the scan will fail with an architecture mismatch or runtime error.
 
-Rebuild commands:
-
-```bash
-podman compose down
-podman compose build --no-cache --pull
-podman compose up
-```
-
-(Docker: use `docker compose` in place of `podman compose`.)
-
-**Important on Podman (especially Mac):** Use **`podman compose`** for both build and run. The compose file uses service-level **platform: linux/amd64** and explicit **localhost/** image names so it validates with the Python `docker-compose` (which Podman may invoke by default) and so the backend runs as amd64.
-
-See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and future multi-arch options.
+A previous workaround that forced the backend to **linux/amd64** (so x86_64 binaries ran under emulation) has been **removed** because **oc-mirror segfaults under amd64 emulation** on Apple Silicon and is not reliable. A proper architecture-aware solution (native aarch64 binary selection and/or `OC_MIRROR_BIN` override) is planned; until then, Apple Silicon users should see **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for current status and options.
 
 ## Troubleshooting
 
-- **“additional properties 'platform' not allowed”** — You’re using the Python **`docker-compose`** with an old schema that rejects `platform` under `build`. This repo uses **service-level** `platform: linux/amd64` (not under `build`) so the file validates. Prefer **`podman compose`** so Podman doesn’t delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container) and [Platform and architecture](#platform-and-architecture-apple-silicon--non-x86_64).
+- **“additional properties 'platform' not allowed”** — You’re using the Python **`docker-compose`** with an old schema. Prefer **`podman compose`** so Podman doesn’t delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container). On macOS, see also the compose-provider workaround in `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md` or CONTRIBUTING.
 - **“no such image” or “image not known” after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
 - **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). On Apple Silicon / ARM, see **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`. Check backend logs for auth or architecture errors.
