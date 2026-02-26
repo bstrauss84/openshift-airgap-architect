@@ -1,11 +1,11 @@
 version: "3.9"
 services:
   backend:
+    platform: linux/amd64
     image: localhost/openshift-airgap-architect-backend:latest
     build:
       context: ./backend
       dockerfile: Containerfile
-      platform: linux/amd64
     environment:
       - PORT=4000
       - DATA_DIR=/data
