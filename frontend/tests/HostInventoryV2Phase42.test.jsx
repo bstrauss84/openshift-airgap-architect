@@ -80,7 +80,9 @@ describe("Phase 4.2: section ordering", () => {
 });
 
 describe("Phase 4.2: compare mode does not modify wizard state", () => {
-  it("compare toggle calls updateState only with ui (no hostInventory, blueprint, methodology)", () => {
+  it.skip("compare toggle calls updateState only with ui (no hostInventory, blueprint, methodology)", () => {
+    // Compare-mode toggle was removed from HostInventoryV2Step UI; section order is always scenario-aware.
+    // If the toggle is re-added, restore this test and remove .skip.
     const updateStateSpy = vi.fn();
 
     render(
