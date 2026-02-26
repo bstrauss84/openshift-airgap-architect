@@ -13,7 +13,7 @@
 - **UI:** http://localhost:5173  
 - **Backend:** http://localhost:4000
 
-On **Apple Silicon or other non-x86_64 hosts**, Operator scan requires the backend to run as linux/amd64; see **README** (“Platform and architecture”) and **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for the workaround and implementation plan.
+On **Apple Silicon or other non-x86_64 hosts**, Operator scan is not yet supported by the default container image (the previous forced-amd64 workaround was removed because oc-mirror is not reliable under emulation). See **README** (“Platform and architecture”) and **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for current status and the planned architecture-aware solution.
 
 If you use `compose down --remove-orphans` followed by `image prune --force` before `compose up --build`, prune may report *image is in use by a container*. That usually means another container (or Podman’s reference) still uses that image; you can ignore it or run `podman container prune -f` (or `docker container prune -f`) first. The app will still run. In the frontend container, *Re-optimizing dependencies because lockfile has changed* is normal when the lockfile or mounts differ from Vite’s cache and is safe to ignore.
 

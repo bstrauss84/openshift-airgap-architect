@@ -4,6 +4,8 @@
 
 **Status:** Plan only. Implementation is tracked here; code and compose changes are done in separate work.
 
+**Rollback (current state):** The forced-**linux/amd64** workaround (Phase 1 in §4 below) was implemented but has been **rolled back**. On Apple Silicon, oc-mirror **segfaults under amd64 emulation**, so that workaround is not reliable. The compose file no longer pins the backend to `platform: linux/amd64`. The correct path forward is an architecture-aware solution (native aarch64 binary and/or `OC_MIRROR_BIN` override), not forced emulation.
+
 ---
 
 ## 1. Problem summary
