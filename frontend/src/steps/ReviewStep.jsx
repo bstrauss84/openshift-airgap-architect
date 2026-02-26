@@ -14,6 +14,16 @@ const DEFAULT_PREVIEW_HEIGHT = 320;
 const MIN_PREVIEW_HEIGHT = 120;
 const MAX_PREVIEW_HEIGHT = 800;
 
+/** Export bundle binary architecture options (mirror path pattern). */
+const EXPORT_BINARY_ARCH_OPTIONS = [
+  { value: "x86_64", label: "x86_64" },
+  { value: "amd64", label: "amd64" },
+  { value: "aarch64", label: "aarch64" },
+  { value: "arm64", label: "arm64" },
+  { value: "ppc64le", label: "ppc64le" },
+  { value: "s390x", label: "s390x" }
+];
+
 function ResizablePreviewPane({ id, content, placeholder = "Not generated yet.", className = "preview" }) {
   const [height, setHeight] = useState(() => DEFAULT_PREVIEW_HEIGHT);
   const [dragging, setDragging] = useState(false);
@@ -104,7 +114,16 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const [credentialsConfirmedThisSession, setCredentialsConfirmedThisSession] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const actionsMenuRef = useRef(null);
+  const [runtimeInfo, setRuntimeInfo] = useState(null);
   const needsReview = state.reviewFlags?.review && state.ui?.visitedSteps?.review;
+
+  useEffect(() => {
+    if (exportOptions.includeClientTools) {
+      apiFetch("/api/runtime-info")
+        .then((info) => setRuntimeInfo(info))
+        .catch(() => setRuntimeInfo(null));
+    }
+  }, [exportOptions.includeClientTools]);
 
   useEffect(() => {
     const close = (e) => {
@@ -318,11 +337,45 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
               <Switch
                 checked={exportOptions.includeClientTools || false}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, includeClientTools: checked } })
+                  updateState({
+                    exportOptions: {
+                      ...exportOptions,
+                      includeClientTools: checked,
+                      exportBinaryArch: checked
+                        ? (exportOptions.exportBinaryArch || runtimeInfo?.localBinaryArch || "x86_64")
+                        : exportOptions.exportBinaryArch
+                    }
+                  })
                 }
                 aria-label="Include oc and oc-mirror binaries"
               />
             </OptionRow>
+            {exportOptions.includeClientTools ? (
+              <OptionRow
+                title="Export bundle binary architecture"
+                description="Which architecture of oc/oc-mirror to include in the downloaded bundle. This does not change the backend's Operators scan binary (that follows the container runtime). By default, the app reuses already-downloaded local binaries when the selected architecture matches. Choosing a different architecture fetches those versions for the bundle."
+              >
+                <select
+                  value={exportOptions.exportBinaryArch || runtimeInfo?.localBinaryArch || ""}
+                  onChange={(e) =>
+                    updateState({
+                      exportOptions: {
+                        ...exportOptions,
+                        exportBinaryArch: e.target.value || null
+                      }
+                    })
+                  }
+                  aria-label="Export bundle binary architecture"
+                >
+                  <option value="">Use local ({runtimeInfo?.localBinaryArch || "detecting…"})</option>
+                  {EXPORT_BINARY_ARCH_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </OptionRow>
+            ) : null}
             <OptionRow
               title="Include version-specific openshift-install"
               description="Download the installer for the confirmed release and add it under tools/openshift-install."

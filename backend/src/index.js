@@ -11,6 +11,12 @@ import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
 import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
 import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
+import {
+  resolveOcMirrorBinary,
+  getRuntimeArch,
+  getLocalBinaryArch,
+  getBinariesForExportArch
+} from "./ocMirrorRuntime.js";
 import { db, dataDir } from "./db.js";
 import { ensureInstaller, getAwsAmi, getAwsRegions, installerPathFor, warmInstallerStream } from "./installer.js";
 import {
@@ -187,6 +193,7 @@ const defaultState = () => ({
     includeCredentials: false,
     includeCertificates: true,
     includeClientTools: false,
+    exportBinaryArch: null,
     includeInstaller: false,
     draftMode: false
   },
@@ -545,15 +552,30 @@ app.post("/api/operators/scan", async (req, res) => {
     const normalized = normalizePullSecret(req.body.pullSecret);
     tempAuthFile = writeTempAuth(normalized);
   }
-  const version = state.release?.channel;
+  const resolved = await resolveOcMirrorBinary(dataDir);
   const jobs = {};
+  if (resolved.error) {
+    for (const catalog of getCatalogs()) {
+      const jobId = createJob("operator-scan", `Scanning ${catalog.id} operators...`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: resolved.error,
+        output: resolved.rawStderr || resolved.error
+      });
+      jobs[catalog.id] = jobId;
+    }
+    return res.json({ jobs });
+  }
+  const version = state.release?.channel;
   for (const catalog of getCatalogs()) {
     const jobId = runScanJob({
       version,
       catalogId: catalog.id,
       catalogImage: catalog.image(version),
       authFile: tempAuthFile,
-      jobType: "operator-scan"
+      jobType: "operator-scan",
+      ocMirrorPath: resolved.path
     });
     jobs[catalog.id] = jobId;
   }
@@ -568,19 +590,49 @@ app.post("/api/operators/prefetch", async (req, res) => {
   if (!authAvailable()) {
     return res.status(400).json({ error: "Registry auth not configured." });
   }
-  const version = state.release?.channel;
+  const resolved = await resolveOcMirrorBinary(dataDir);
   const jobs = {};
+  if (resolved.error) {
+    for (const catalog of getCatalogs()) {
+      const jobId = createJob("operator-prefetch", `Prefetching ${catalog.id} operators...`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: resolved.error,
+        output: resolved.rawStderr || resolved.error
+      });
+      jobs[catalog.id] = jobId;
+    }
+    return res.json({ jobs });
+  }
+  const version = state.release?.channel;
   for (const catalog of getCatalogs()) {
     const jobId = runScanJob({
       version,
       catalogId: catalog.id,
       catalogImage: catalog.image(version),
       jobType: "operator-prefetch",
-      message: `Prefetching ${catalog.id} operators...`
+      message: `Prefetching ${catalog.id} operators...`,
+      ocMirrorPath: resolved.path
     });
     jobs[catalog.id] = jobId;
   }
   res.json({ jobs });
+});
+
+app.get("/api/runtime-info", async (req, res) => {
+  try {
+    await resolveOcMirrorBinary(dataDir);
+    res.json({
+      runtimeArch: getRuntimeArch(),
+      localBinaryArch: getLocalBinaryArch()
+    });
+  } catch (e) {
+    res.json({
+      runtimeArch: getRuntimeArch(),
+      localBinaryArch: getLocalBinaryArch()
+    });
+  }
 });
 
 app.get("/api/operators/status", (req, res) => {
@@ -705,6 +757,17 @@ app.post("/api/ocmirror/run", async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: String(error?.message || error) });
   }
+  const resolved = await resolveOcMirrorBinary(dataDir);
+  if (resolved.error) {
+    const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
+    updateJob(jobId, {
+      status: "failed",
+      progress: 100,
+      message: resolved.error,
+      output: resolved.rawStderr || resolved.error
+    });
+    return res.json({ jobId });
+  }
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
   const configContents = buildImageSetConfig(state);
   const tmpDir = path.join(dataDir, "tmp");
@@ -720,7 +783,7 @@ app.post("/api/ocmirror/run", async (req, res) => {
     ...process.env,
     REGISTRY_AUTH_FILE: authFile || process.env.REGISTRY_AUTH_FILE
   };
-  const child = spawn("oc-mirror", ["--config", configPath, `file://${outputPath}`, "--v2"], { env });
+  const child = spawn(resolved.path, ["--config", configPath, `file://${outputPath}`, "--v2"], { env });
   activeProcesses.set(jobId, child);
   updateJob(jobId, { status: "running", progress: 0, message: "oc-mirror running." });
   child.stdout.on("data", (data) => appendJobOutput(jobId, data.toString()));
@@ -898,13 +961,21 @@ app.get("/api/bundle.zip", async (req, res) => {
     );
   }
   if (state.exportOptions?.includeClientTools) {
-    const ocPath = "/usr/local/bin/oc";
-    const mirrorPath = "/usr/local/bin/oc-mirror";
-    if (fs.existsSync(ocPath)) {
-      archive.file(ocPath, { name: "tools/oc" });
-    }
-    if (fs.existsSync(mirrorPath)) {
-      archive.file(mirrorPath, { name: "tools/oc-mirror" });
+    try {
+      await resolveOcMirrorBinary(dataDir);
+      const exportArch = state.exportOptions?.exportBinaryArch || getLocalBinaryArch();
+      const { ocPath, ocMirrorPath } = await getBinariesForExportArch(exportArch, dataDir);
+      if (ocPath && fs.existsSync(ocPath)) {
+        archive.file(ocPath, { name: "tools/oc" });
+      }
+      if (ocMirrorPath && fs.existsSync(ocMirrorPath)) {
+        archive.file(ocMirrorPath, { name: "tools/oc-mirror" });
+      }
+    } catch (e) {
+      archive.append(
+        `Failed to include oc/oc-mirror: ${String(e?.message || e)}\n`,
+        { name: "tools/oc-mirror.ERROR.txt" }
+      );
     }
   }
   if (state.exportOptions?.includeInstaller) {

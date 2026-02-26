@@ -10,8 +10,12 @@ services:
       - DATA_DIR=/data
       - REGISTRY_AUTH_FILE=/data/registry-auth.json
       - MOCK_MODE=${MOCK_MODE:-false}
+      # Optional: use a custom oc-mirror binary (e.g. native aarch64 on Apple Silicon):
+      # - OC_MIRROR_BIN=/opt/tools/oc-mirror
     volumes:
       - backend-data:/data
+      # Optional: mount a native oc-mirror binary for Operators scan (e.g. Apple Silicon):
+      # - ./path/to/oc-mirror:/opt/tools/oc-mirror:ro
     ports:
       - "127.0.0.1:4000:4000"
     stop_grace_period: 5s

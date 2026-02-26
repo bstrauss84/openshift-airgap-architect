@@ -108,16 +108,20 @@ MOCK_MODE=true docker compose up --build
 
 ## Platform and architecture (Apple Silicon / non-x86_64)
 
-Operator scan uses the **oc-mirror** binary inside the backend container. The default backend image is built for the host architecture (e.g. **linux/amd64** on Intel/AMD, **linux/arm64** on Apple Silicon). The baked-in `oc`/`oc-mirror` binaries in the image are x86_64 only, so **Operator scan works out of the box on amd64 Linux**; on **Apple Silicon (aarch64)** the scan will fail with an architecture mismatch or runtime error.
+**Operators scan** uses a local **oc-mirror** binary inside the backend container. The binary is chosen to match the **backend container runtime architecture** (not the Blueprint/target cluster architecture). The default backend image bakes in **x86_64** `oc`/`oc-mirror`, so **Operator scan works out of the box on amd64/x86_64 Linux**. On **Apple Silicon (aarch64)** the backend runs natively as arm64; the app can auto-download native aarch64 binaries from the OpenShift mirror, or you can provide your own via **`OC_MIRROR_BIN`** or **`OC_MIRROR_URL`** (overrides, not required for standard x86_64 users).
 
-A previous workaround that forced the backend to **linux/amd64** (so x86_64 binaries ran under emulation) has been **removed** because **oc-mirror segfaults under amd64 emulation** on Apple Silicon and is not reliable. A proper architecture-aware solution (native aarch64 binary selection and/or `OC_MIRROR_BIN` override) is planned; until then, Apple Silicon users should see **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for current status and options.
+- **Mirror path pattern:** `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/latest/` (e.g. `oc-mirror.tar.gz`, `openshift-client-linux.tar.gz`). Supported `<arch>`: x86_64, amd64, aarch64, arm64, ppc64le, s390x.
+- **Apple Silicon:** Prefer a **native aarch64** oc-mirror (auto-download or mount a binary and set **`OC_MIRROR_BIN=/opt/tools/oc-mirror`**). Do not use forced linux/amd64 emulation; it was removed because oc-mirror segfaults under emulation.
+- **Export bundle:** The Assets step can include oc/oc-mirror in the download bundle; you can select which **architecture** to include (default: reuse the backend’s local binaries when the selected arch matches). That selection does not change the backend’s Operators scan binary.
+
+See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Podman/macOS notes.
 
 ## Troubleshooting
 
 - **“additional properties 'platform' not allowed”** — You’re using the Python **`docker-compose`** with an old schema. Prefer **`podman compose`** so Podman doesn’t delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container). On macOS, see also the compose-provider workaround in `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md` or CONTRIBUTING.
 - **“no such image” or “image not known” after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
-- **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). On Apple Silicon / ARM, see **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`. Check backend logs for auth or architecture errors.
+- **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). If the job fails with a message about the binary not running, the backend runtime architecture may not have a usable oc-mirror (e.g. Apple Silicon: use native aarch64 binary or set **OC_MIRROR_BIN** / **OC_MIRROR_URL**). See **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`.
 - **Cincinnati or docs stale** — Use **Update** (release channels) or **Update Docs Links** (field manual links) in the UI; the backend refreshes caches on demand.
 - **Validation errors on a step** — Required fields are marked; check Identity & Access (pull secret, SSH key), Networking (CIDRs), and Platform Specifics for your scenario.
 - **SELinux denials (Podman)** — Use `:Z` on volume mounts or adjust context as needed for your host.

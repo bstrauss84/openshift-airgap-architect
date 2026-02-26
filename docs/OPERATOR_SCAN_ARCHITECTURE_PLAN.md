@@ -2,9 +2,17 @@
 
 **Purpose:** Document the Operator scan failure on Apple Silicon (and other non-x86_64 hosts), root cause, and a plan to fix it while moving toward an **OS/CPU architecture–agnostic** posture for the app.
 
-**Status:** Plan only. Implementation is tracked here; code and compose changes are done in separate work.
+**Status:** Architecture-aware solution implemented (Phase 2). Local oc-mirror selection is based on **backend runtime architecture** only, not Blueprint/target architecture.
 
-**Rollback (current state):** The forced-**linux/amd64** workaround (Phase 1 in §4 below) was implemented but has been **rolled back**. On Apple Silicon, oc-mirror **segfaults under amd64 emulation**, so that workaround is not reliable. The compose file no longer pins the backend to `platform: linux/amd64`. The correct path forward is an architecture-aware solution (native aarch64 binary and/or `OC_MIRROR_BIN` override), not forced emulation.
+**Rollback (current state):** The forced-**linux/amd64** workaround (Phase 1 in §4 below) was implemented but has been **rolled back**. On Apple Silicon, oc-mirror **segfaults under amd64 emulation**, so that workaround is not reliable. The compose file no longer pins the backend to `platform: linux/amd64`.
+
+**Current implementation:** The backend resolves the oc-mirror binary in order: **OC_MIRROR_BIN** → baked-in x86_64 (if passes preflight) → runtime-arch mirror download (deterministic candidates: x86_64/amd64, aarch64/arm64, ppc64le, s390x) → **OC_MIRROR_URL**/OC_CLIENT_URL override → fail with actionable message. Preflight runs before each scan. Export bundle can include oc/oc-mirror with a user-selected architecture (default: reuse local when matching). oc-mirror v1 support on aarch64 exists for OCP 4.14+; mirror pattern: `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/latest/`.
+
+**Podman on macOS:** `podman compose` may delegate to the external Python **docker-compose** unless overridden. Workaround:
+- `python3 -m pip install --user podman-compose`
+- `PODMAN_COMPOSE_PROVIDER=podman-compose podman compose down --remove-orphans`
+- `PODMAN_COMPOSE_PROVIDER=podman-compose podman compose up --build`
+Verify backend arch: `podman exec -it openshift-airgap-architect-backend-1 uname -m` — Apple Silicon native should report **aarch64**, x86_64 hosts **x86_64**.
 
 ---
 

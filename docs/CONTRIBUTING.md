@@ -13,7 +13,13 @@
 - **UI:** http://localhost:5173  
 - **Backend:** http://localhost:4000
 
-On **Apple Silicon or other non-x86_64 hosts**, Operator scan is not yet supported by the default container image (the previous forced-amd64 workaround was removed because oc-mirror is not reliable under emulation). See **README** (“Platform and architecture”) and **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for current status and the planned architecture-aware solution.
+On **Apple Silicon or other non-x86_64 hosts**, Operator scan uses the backend’s runtime architecture (native aarch64 binary via auto-download or **OC_MIRROR_BIN**). See **README** (“Platform and architecture”) and **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`**.
+
+**Podman on macOS:** If `podman compose` uses the external Python docker-compose and you hit schema or “image not known” issues, override the provider:
+- `python3 -m pip install --user podman-compose`
+- `PODMAN_COMPOSE_PROVIDER=podman-compose podman compose down --remove-orphans`
+- `PODMAN_COMPOSE_PROVIDER=podman-compose podman compose up --build`
+Verify backend arch: `podman exec -it openshift-airgap-architect-backend-1 uname -m` (Apple Silicon should report **aarch64**).
 
 If you use `compose down --remove-orphans` followed by `image prune --force` before `compose up --build`, prune may report *image is in use by a container*. That usually means another container (or Podman’s reference) still uses that image; you can ignore it or run `podman container prune -f` (or `docker container prune -f`) first. The app will still run. In the frontend container, *Re-optimizing dependencies because lockfile has changed* is normal when the lockfile or mounts differ from Vite’s cache and is safe to ignore.
 

@@ -3,6 +3,10 @@ import { spawn } from "node:child_process";
 import { db } from "./db.js";
 import { createJob, updateJob, safeUnlink } from "./utils.js";
 
+/** Preflight failure message shown when oc-mirror binary cannot run (architecture/runtime). */
+const PREFLIGHT_USER_MESSAGE =
+  "Configured oc-mirror binary cannot run in this container. The Operators scan requires a local oc-mirror binary that matches the backend runtime architecture. On Apple Silicon, use a native aarch64 binary or configure OC_MIRROR_BIN / OC_MIRROR_URL.";
+
 const catalogs = [
   { id: "redhat", image: (v) => `registry.redhat.io/redhat/redhat-operator-index:v${v}` },
   { id: "certified", image: (v) => `registry.redhat.io/redhat/certified-operator-index:v${v}` },
@@ -61,14 +65,19 @@ const authAvailable = () => {
   }
 };
 
-const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "operator-scan", message }) => {
+/**
+ * Run operator scan job. Uses ocMirrorPath when provided (architecture-aware resolution);
+ * otherwise falls back to "oc-mirror" in PATH.
+ */
+const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "operator-scan", message, ocMirrorPath }) => {
   const jobId = createJob(jobType, message || `Scanning ${catalogId} operators...`);
   updateJob(jobId, { status: "running", progress: 5 });
 
+  const binary = ocMirrorPath || "oc-mirror";
   const args = ["--v1", "list", "operators", `--catalog=${catalogImage}`];
   const env = { ...process.env, REGISTRY_AUTH_FILE: authFile || process.env.REGISTRY_AUTH_FILE };
 
-  const child = spawn("oc-mirror", args, { env });
+  const child = spawn(binary, args, { env });
   let output = "";
   let error = "";
 
@@ -90,14 +99,12 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
   const ARCH_MISMATCH_SIGNATURES = ["ld-linux-x86-64.so.2", "qemu-x86_64-static"];
   const isArchMismatch = (stderr) =>
     typeof stderr === "string" && ARCH_MISMATCH_SIGNATURES.some((sig) => stderr.includes(sig));
-  const ARCH_GUIDANCE =
-    "Operators scan requires a linux/amd64 backend container. On Apple Silicon, set `platform: linux/amd64` for the backend in docker-compose.yml and rebuild (see README).";
 
   child.on("close", (code) => {
     if (authFile) safeUnlink(authFile);
     if (code !== 0) {
       const userMessage = isArchMismatch(error)
-        ? ARCH_GUIDANCE
+        ? PREFLIGHT_USER_MESSAGE
         : `oc-mirror failed (${catalogId}).`;
       updateJob(jobId, {
         status: "failed",
