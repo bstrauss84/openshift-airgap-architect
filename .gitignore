@@ -103,3 +103,6 @@ docs/DEEP_DIVE_*
 docs/LANDING_PAGE_CHANGES.md
 docs/PATTERNFLY_SCOPE.md
 docs/REVIEW_NOTES.md
+
+# Local backlog (do not commit; never push)
+LOCAL_BACKLOG.md
