@@ -108,7 +108,7 @@ MOCK_MODE=true docker compose up --build
 
 ## Platform and architecture (Apple Silicon / non-x86_64)
 
-Operator scan uses the **oc-mirror** binary from x86_64 (amd64) OpenShift client artifacts. This repo’s **docker-compose.yml** pins the **backend build** to **linux/amd64** (and uses an explicit image name) so the backend image is amd64 and Podman on Mac can resolve it at run time; on Apple Silicon the backend then runs via emulation (slower but supported). After pulling changes to compose or the backend image, a **full rebuild** may be needed; otherwise the scan can fail with an error like `qemu-x86_64-static: Could not open '/lib64/ld-linux-x86-64.so.2': No such file or directory`.
+Operator scan uses the **oc-mirror** binary from x86_64 (amd64) OpenShift client artifacts. This repo’s **docker-compose.yml** pins the **backend** service to **linux/amd64** (and uses an explicit `localhost/` image name) so the backend runs as amd64; on Apple Silicon that uses emulation (slower but supported). After pulling changes to compose or the backend image, a **full rebuild** may be needed; otherwise the scan can fail with an error like `qemu-x86_64-static: Could not open '/lib64/ld-linux-x86-64.so.2': No such file or directory`.
 
 Rebuild commands:
 
@@ -120,13 +120,14 @@ podman compose up
 
 (Docker: use `docker compose` in place of `podman compose`.)
 
-**Important on Podman (especially Mac):** Use **`podman compose`** for both build and run (not the standalone `docker-compose`). The compose file sets **build** platform to linux/amd64 and an explicit backend **image** name to avoid “image not known” at run time on some Podman/Compose versions.
+**Important on Podman (especially Mac):** Use **`podman compose`** for both build and run. The compose file uses service-level **platform: linux/amd64** and explicit **localhost/** image names so it validates with the Python `docker-compose` (which Podman may invoke by default) and so the backend runs as amd64.
 
 See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and future multi-arch options.
 
 ## Troubleshooting
 
-- **“no such image” or “image not known” after build (Podman)** — Use **`podman compose`** (not `docker-compose`) for the whole workflow. If it still happens with `podman compose`, the compose file uses build-only platform and an explicit backend image name to work around Podman lookup issues; try a clean rebuild: `podman compose down`, `podman rmi openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
+- **“additional properties 'platform' not allowed”** — You’re using the Python **`docker-compose`** with an old schema that rejects `platform` under `build`. This repo uses **service-level** `platform: linux/amd64` (not under `build`) so the file validates. Prefer **`podman compose`** so Podman doesn’t delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container) and [Platform and architecture](#platform-and-architecture-apple-silicon--non-x86_64).
+- **“no such image” or “image not known” after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
 - **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). On Apple Silicon / ARM, see **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`. Check backend logs for auth or architecture errors.
 - **Cincinnati or docs stale** — Use **Update** (release channels) or **Update Docs Links** (field manual links) in the UI; the backend refreshes caches on demand.

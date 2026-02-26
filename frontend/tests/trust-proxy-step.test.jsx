@@ -179,9 +179,9 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Trust & Proxy/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole("checkbox", { name: /Mirror registry uses a private\/self-signed CA/i })).toBeInTheDocument();
-    const checkbox = screen.getByRole("checkbox", { name: /Mirror registry uses a private\/self-signed CA/i });
-    fireEvent.click(checkbox);
+    const mirrorCaSwitch = screen.getByRole("switch", { name: /Mirror registry uses private CA/i });
+    expect(mirrorCaSwitch).toBeInTheDocument();
+    fireEvent.click(mirrorCaSwitch);
     await waitFor(() => {
       expect(screen.getByText(/Mirror registry CA bundle is required when using a private CA/i)).toBeInTheDocument();
     });

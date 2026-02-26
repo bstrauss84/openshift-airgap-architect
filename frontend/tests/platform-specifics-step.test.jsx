@@ -97,8 +97,12 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       },
       { timeout: 3000 }
     );
-    expect(screen.getByRole("heading", { name: /Agent options/i })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    // Agent options (boot artifacts) live inside the "Advanced" collapsible section; expand it first.
+    const advancedButton = screen.getByRole("button", { name: /Expand Advanced/i });
+    fireEvent.click(advancedButton);
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    });
   });
 
   it("when scenario is bare-metal-agent, Platform Specifics shows Agent options and bootArtifactsBaseURL is read/written", () => {
@@ -132,7 +136,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByText(/Control plane hyperthreading/)).toBeInTheDocument();
     expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
     expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
-    expect(screen.getByText(/Minimal ISO/)).toBeInTheDocument();
+    expect(screen.getByText(/Use minimal ISO/i)).toBeInTheDocument();
   });
 
   it("when scenario is bare-metal-ipi, Platform Specifics shows Provisioning network section (Prompt J)", () => {
@@ -348,7 +352,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       </AppContext.Provider>
     );
     expect(screen.getByRole("heading", { name: /AWS GovCloud IPI/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /AWS GovCloud region/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
   });
 
   it("when scenario is aws-govcloud-upi, getScenarioId returns aws-govcloud-upi and validation requires region (Prompt J)", () => {
@@ -386,7 +390,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       </AppContext.Provider>
     );
     expect(screen.getByRole("heading", { name: /AWS GovCloud UPI/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /AWS GovCloud region/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
   });
 
   it("when scenario is azure-government-ipi, getScenarioId returns azure-government-ipi and validation requires cloudName, region, resourceGroupName, baseDomainResourceGroupName (Prompt J)", () => {
@@ -434,9 +438,9 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       </AppContext.Provider>
     );
     expect(screen.getByRole("heading", { name: /Azure Government IPI/i })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("e.g. usgovvirginia")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Existing resource group for cluster")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Resource group containing DNS zone for base domain")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/usgovvirginia/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Existing resource group for cluster/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Resource group containing DNS zone for base domain/i)).toBeInTheDocument();
   });
 
   it("platform-specifics validation returns no errors (catalog has no required params for agent options)", () => {
@@ -490,9 +494,17 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       { timeout: 3000 }
     );
     fireEvent.click(screen.getAllByRole("button", { name: /Platform Specifics/i })[0]);
+    await waitFor(
+      () => {
+        expect(screen.getByRole("heading", { name: /Platform Specifics/i })).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+    // Agent options (boot artifacts) are inside the Advanced section; expand it to confirm Platform Specifics content.
+    const advancedButton = screen.getByRole("button", { name: /Expand Advanced/i });
+    fireEvent.click(advancedButton);
     await waitFor(() => {
-      const agentHeadings = screen.getAllByRole("heading", { name: /Agent options/i });
-      expect(agentHeadings.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
     });
     const hostsButtons = screen.getAllByTitle("Hosts / Inventory");
     expect(hostsButtons.length).toBeGreaterThanOrEqual(1);
