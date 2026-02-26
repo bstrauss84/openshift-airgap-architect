@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   backend:
-    image: openshift-airgap-architect-backend:latest
+    image: localhost/openshift-airgap-architect-backend:latest
     build:
       context: ./backend
       dockerfile: Containerfile
@@ -18,6 +18,7 @@ services:
     stop_grace_period: 5s
     stop_signal: SIGTERM
   frontend:
+    image: localhost/openshift-airgap-architect-frontend:latest
     build:
       context: ./frontend
       dockerfile: Containerfile
