@@ -31,6 +31,14 @@ cd frontend && npm ci && npm run test
 cd backend && npm ci && npm test
 ```
 
+**Compose smoke test (optional):** Verifies podman/docker compose build and run, plus API/frontend reachability:
+
+```bash
+./scripts/test-compose.sh
+```
+
+**npm audit:** Backend has 0 vulnerabilities after `npm audit fix`. Frontend may report moderate vulnerabilities in vite/esbuild; these affect the dev server only, not production builds (static assets served by `serve`).
+
 **Secret scan (optional):** `./scripts/check-secrets.sh` from the repo root. If **gitleaks** is installed, it runs the full scan; otherwise the script falls back to a ripgrep scan for high-confidence patterns. To install gitleaks:
 
 - **Fedora / RHEL:** `sudo dnf install gitleaks`
