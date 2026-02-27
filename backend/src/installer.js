@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-const dataDir = process.env.DATA_DIR || "/data";
+const dataDir = process.env.DATA_DIR || "/tmp/airgap-architect-data";
 const toolsDir = path.join(dataDir, "tools");
 const cacheDir = path.join(dataDir, "cache");
 

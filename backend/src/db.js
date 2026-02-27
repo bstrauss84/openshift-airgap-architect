@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 
-const dataDir = process.env.DATA_DIR || "/data";
+/** Default /tmp/... is writable under OpenShift non-root; set DATA_DIR for persistence. */
+const dataDir = process.env.DATA_DIR || "/tmp/airgap-architect-data";
 const dbPath = path.join(dataDir, "airgap-architect.db");
 
 fs.mkdirSync(dataDir, { recursive: true });

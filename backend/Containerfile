@@ -27,4 +27,9 @@ COPY mock-data ./mock-data
 
 ENV NODE_ENV=production
 EXPOSE 4000
+
+# OpenShift runs as non-root; DATA_DIR defaults to /tmp/airgap-architect-data
+RUN useradd -r -u 1001 -g root -m -d /home/appuser appuser
+USER 1001
+
 CMD ["node", "src/index.js"]

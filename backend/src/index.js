@@ -407,7 +407,7 @@ app.post("/api/start-over", (req, res) => {
     visitedSteps: {}
   };
   setState(next);
-  const tmpDir = path.join(process.env.DATA_DIR || "/data", "tmp");
+  const tmpDir = path.join(process.env.DATA_DIR || "/tmp/airgap-architect-data", "tmp");
   if (fs.existsSync(tmpDir)) {
     fs.readdirSync(tmpDir).forEach((file) => safeUnlink(path.join(tmpDir, file)));
   }

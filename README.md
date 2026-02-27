@@ -71,6 +71,10 @@ The stack is two services (frontend, backend). Ports in `docker-compose.yml` are
 - **Backend:** 4000 (Express API)
 - **State:** Backend uses a named volume for SQLite; run bundles and temp files are under that data path.
 
+## OpenShift deployment
+
+To deploy on OpenShift 4.18+ (non-airgapped cluster), see **[k8s/README.md](k8s/README.md)**. The app is built for OpenShift’s non-root security context: the frontend serves static assets (no Vite dev server), and the backend defaults to a writable data path under `/tmp`. Apply the manifests in `k8s/` and point the Ingress at your built images.
+
 ## Generating assets
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).

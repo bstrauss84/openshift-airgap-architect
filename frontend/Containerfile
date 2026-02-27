@@ -1,9 +1,23 @@
-FROM node:20-bookworm-slim
-
+# Build stage: compile Vite app
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci
 COPY . .
 
-EXPOSE 5173
-CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]
+# Build with empty API base for same-origin; Route will proxy /api to backend
+ARG VITE_API_BASE=
+ENV VITE_API_BASE=${VITE_API_BASE}
+RUN npm run build
+
+# Run stage: serve static files (no Vite dev server, no writable /app)
+# Use serve - works as non-root on OpenShift; nginx requires extra permission setup
+FROM node:20-alpine
+RUN npm install -g serve@14
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+
+# OpenShift runs as non-root; port 8080 is standard
+EXPOSE 8080
+USER 1001
+CMD ["serve", "-s", "dist", "-l", "8080"]

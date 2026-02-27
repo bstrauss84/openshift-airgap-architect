@@ -1,0 +1,28 @@
+# Single Ingress: /api -> backend, / -> frontend on same host
+# OpenShift 4.18+ supports Ingress; omit host to use cluster default domain
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oaa
+  labels:
+    app: oaa
+spec:
+  # Omit ingressClassName to use cluster default
+  rules:
+    # host omitted: uses *.apps.<cluster-domain>
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: oaa-backend
+                port:
+                  number: 4000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oaa-frontend
+                port:
+                  number: 8080
