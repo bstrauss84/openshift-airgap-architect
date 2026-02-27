@@ -24,7 +24,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 
 - **Scenario-driven UI** — Pick install method (e.g. Agent-Based, vSphere IPI); the wizard shows only relevant steps and fields
 - **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.17–4.20)
-- **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion
+- **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion. Helpers generate pull secrets and SSH keypairs locally and are not stored (see [Identity & Access](#screenshots) and [Mirror secret helper](#screenshots)).
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
@@ -124,7 +124,79 @@ A previous workaround that forced the backend to **linux/amd64** (so x86_64 bina
 
 ## Screenshots
 
-_Screenshots will be added here in a future update (landing, wizard steps, Assets & Guide)._
+The wizard walks through Blueprint → Methodology → scenario-specific steps → Operators (optional) → Assets & Guide. Below are key screens in order.
+
+**Landing — Choose workflow.** Install (net-new disconnected), Upgrade (coming soon), or Operator mirroring (coming soon).
+
+![Landing page: Install, Upgrade, Operator mirroring cards](docs/images/landing.png)
+
+**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret.
+
+![Blueprint: platform, architecture, release, pull secret](docs/images/blueprint.png)
+
+**Methodology — Scenario summary and installer type.** After lock-in, the scenario summary shows what will be generated; you pick IPI, UPI, or Agent-Based Installer.
+
+![Methodology: scenario summary and installation type](docs/images/methodology.png)
+
+**Identity & Access — Cluster identity and credentials.** Base domain, cluster name, mirror registry pull secret (paste/upload or generate via helper), SSH key (paste or generate keypair), and FIPS mode. Credentials are not stored by default.
+
+![Identity & Access: cluster identity, pull secret, SSH key, FIPS](docs/images/identity-access.png)
+
+**Mirror registry pull secret helper.** Generates pull secret JSON locally from registry FQDN and credentials; not stored or exported.
+
+![Mirror registry pull secret helper](docs/images/mirror-secret-helper.png)
+
+**SSH keypair helper.** Generate a keypair locally; the app reminds you to save the private key — it is not stored.
+
+![Generate SSH keypair helper](docs/images/ssh-keypair-helper.png)
+
+**Networking — Machine, cluster, and service CIDRs.** IPv4 by default; enable IPv6 for dual-stack and optional cluster/service IPv6 fields.
+
+![Networking: IPv4 only](docs/images/networking-ipv4.png)
+
+![Networking: dual-stack with IPv6](docs/images/networking-dualstack.png)
+
+**Connectivity & Mirroring — Local registry and NTP.** Mirror mapping (source → mirror paths) and NTP servers for install-config and agent-config.
+
+![Connectivity & Mirroring: mirror paths and NTP](docs/images/connectivity-mirroring.png)
+
+**Trust & Proxy — Corporate proxy and CA bundles.** Optional proxy (HTTP/HTTPS/noProxy); mirror and proxy CA bundles; trust bundle policy (Proxyonly / Always).
+
+![Trust & Proxy: proxy and CA bundles](docs/images/trust-proxy.png)
+
+**Platform Specifics — Advanced options.** Boot artifact URI, hyperthreading, capabilities, CPU partitioning, minimal ISO, and other scenario-specific options.
+
+![Platform Specifics: advanced options](docs/images/platform-specifics.png)
+
+**Platform Specifics — vSphere IPI.** The step changes by scenario; for vSphere IPI it shows vCenter server, datacenter, datastore, optional compute cluster and VM network, failure domains, and credentials.
+
+![Platform Specifics: vSphere IPI](docs/images/platform-specifics-vsphere-ipi.png)
+
+**Hosts / Inventory — Bare metal nodes (Agent-Based).** Instructions to gather host info (interfaces, disks), then set node counts and edit each host (role, root device, network, bond/VLAN). You can apply settings from one node to others.
+
+![Hosts: how to gather host info](docs/images/hosts-instructions.png)
+
+![Hosts: node grid and edit panel](docs/images/hosts-grid-edit.png)
+
+![Apply settings to other nodes](docs/images/hosts-apply-settings-modal.png)
+
+**Operators — Catalog strategy and discovery.** Scenario Quick Picks (e.g. Virtualization, GitOps), selected operators, and available catalogs. Enable discovery and run Scan / Update Operators to populate from registry.redhat.io.
+
+![Operators: quick picks and selected operators](docs/images/operators-quick-picks.png)
+
+![Operators: discovery and scan](docs/images/operators-discovery.png)
+
+**Assets & Guide — Export and previews.** Export options (credentials, certificates, oc/oc-mirror, openshift-install), architecture choice for bundle binaries, and previews of install-config.yaml, agent-config.yaml, imageset-config.yaml, and the Field Manual.
+
+![Assets & Guide: export options and install-config preview](docs/images/assets-and-guide.png)
+
+**imageset-config.yaml** (generated for mirroring): platform channel/version and operator packages/channels.
+
+![imageset-config.yaml preview](docs/images/imageset-config-preview.png)
+
+**Tools menu.** Theme (dark mode), Export Run / Import Run, Open Operations (background jobs), and Start Over.
+
+![Tools: theme, export/import, operations, start over](docs/images/tools-menu.png)
 
 ## Architecture
 
