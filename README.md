@@ -128,11 +128,11 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 
 **Landing — Choose workflow.** Install (net-new disconnected), Upgrade (coming soon), or Operator mirroring (coming soon).
 
-![Landing page: Install, Upgrade, Operator mirroring cards](docs/images/landing.png)
+![Landing page: Install, Upgrade, Operator mirroring cards](docs/images/landing.png?v=2)
 
 **Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret.
 
-![Blueprint: platform, architecture, release, pull secret](docs/images/blueprint.png)
+![Blueprint: platform, architecture, release, pull secret](docs/images/blueprint.png?v=2)
 
 **Methodology — Scenario summary and installer type.** After lock-in, the scenario summary shows what will be generated; you pick IPI, UPI, or Agent-Based Installer.
 
