@@ -14,6 +14,8 @@
 - `PODMAN_COMPOSE_PROVIDER=podman-compose podman compose up --build`
 Verify backend arch: `podman exec -it openshift-airgap-architect-backend-1 uname -m` — Apple Silicon native should report **aarch64**, x86_64 hosts **x86_64**.
 
+**Apple Silicon: platform mismatch and frontend crash.** If you see "image platform (linux/amd64) does not match the expected platform (linux/arm64)" and a **fatal Go runtime error** in the frontend (e.g. `runtime: lfstack.push`), the stack was built or pulled for amd64 and is running under emulation. Use the **arm64 compose override** so both frontend and backend build and run natively as linux/arm64: `docker compose -f docker-compose.yml -f docker-compose.arm64.yml up --build` (or `podman compose ...`). See **README** § Platform and architecture and § Troubleshooting.
+
 ---
 
 ## 1. Problem summary

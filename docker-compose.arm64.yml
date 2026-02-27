@@ -1,0 +1,22 @@
+# Optional override for Apple Silicon (aarch64): build and run as linux/arm64.
+# Use when you see "image platform (linux/amd64) does not match expected platform (linux/arm64)"
+# and a fatal Go runtime error in the frontend (lfstack.push under emulation).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.arm64.yml up --build
+#   podman compose -f docker-compose.yml -f docker-compose.arm64.yml up --build
+#
+# Do a clean rebuild if you had previously built for amd64:
+#   docker compose -f docker-compose.yml -f docker-compose.arm64.yml build --no-cache
+#   docker compose -f docker-compose.yml -f docker-compose.arm64.yml up
+#
+version: "3.9"
+services:
+  backend:
+    build:
+      platform: linux/arm64
+    platform: linux/arm64
+  frontend:
+    build:
+      platform: linux/arm64
+    platform: linux/arm64

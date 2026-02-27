@@ -112,6 +112,13 @@ MOCK_MODE=true docker compose up --build
 
 - **Mirror path pattern:** `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/latest/` (e.g. `oc-mirror.tar.gz`, `openshift-client-linux.tar.gz`). Supported `<arch>`: x86_64, amd64, aarch64, arm64, ppc64le, s390x.
 - **Apple Silicon:** Prefer a **native aarch64** oc-mirror (auto-download or mount a binary and set **`OC_MIRROR_BIN=/opt/tools/oc-mirror`**). Do not use forced linux/amd64 emulation; it was removed because oc-mirror segfaults under emulation.
+- **Platform mismatch / frontend crash on Apple Silicon:** If you see **"image platform (linux/amd64) does not match the expected platform (linux/arm64)"** and then a **fatal Go runtime error** in the frontend (e.g. `runtime: lfstack.push`), the stack was built or pulled for amd64 and is running under emulation. Use the **arm64 compose override** so both images build and run natively as linux/arm64:
+  ```bash
+  docker compose -f docker-compose.yml -f docker-compose.arm64.yml up --build
+  # or
+  podman compose -f docker-compose.yml -f docker-compose.arm64.yml up --build
+  ```
+  If you had previously built for amd64, do a clean rebuild: add `build --no-cache` (or run `docker compose -f docker-compose.yml -f docker-compose.arm64.yml build --no-cache` then `up`). The override file is **`docker-compose.arm64.yml`** (optional; only use it on arm64 hosts).
 - **Export bundle:** The Assets step can include oc/oc-mirror in the download bundle; you can select which **architecture** to include (default: reuse the backend’s local binaries when the selected arch matches). That selection does not change the backend’s Operators scan binary.
 
 See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Podman/macOS notes.
@@ -119,6 +126,7 @@ See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Po
 ## Troubleshooting
 
 - **“additional properties 'platform' not allowed”** — You’re using the Python **`docker-compose`** with an old schema. Prefer **`podman compose`** so Podman doesn’t delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container). On macOS, see also the compose-provider workaround in `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md` or CONTRIBUTING.
+- **"image platform (linux/amd64) does not match expected platform (linux/arm64)" and frontend crash (`fatal error: lfstack.push`)** — You're on Apple Silicon (or another arm64 host) but the images were built or pulled for amd64; the frontend runs under emulation and the Go runtime can crash. Use the **arm64 override** so both services build and run as linux/arm64: `docker compose -f docker-compose.yml -f docker-compose.arm64.yml up --build` (or `podman compose ...`). If you already had amd64 images, do a clean rebuild: `docker compose -f docker-compose.yml -f docker-compose.arm64.yml build --no-cache` then `up`. See [Platform and architecture](#platform-and-architecture-apple-silicon--non-x86_64).
 - **“no such image” or “image not known” after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
 - **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). If the job fails with a message about the binary not running, the backend runtime architecture may not have a usable oc-mirror (e.g. Apple Silicon: use native aarch64 binary or set **OC_MIRROR_BIN** / **OC_MIRROR_URL**). See **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`.
