@@ -30,6 +30,8 @@ spec:
             # For persistence, mount a PVC and set: DATA_DIR=/data
             - name: DATA_DIR
               value: /tmp/airgap-architect-data
+            - name: MOCK_MODE
+              value: "true"
           resources:
             requests:
               memory: "256Mi"

@@ -1,5 +1,7 @@
-/** Thin fetch wrapper for backend API; VITE_API_BASE for container/proxy. */
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+/** Thin fetch wrapper for backend API; VITE_API_BASE for container/proxy.
+ * Empty string = same-origin (Ingress proxies /api); unset = localhost for dev. */
+const API_BASE =
+  import.meta.env.VITE_API_BASE !== undefined ? String(import.meta.env.VITE_API_BASE) : "http://localhost:4000";
 
 const apiFetch = async (path, options = {}) => {
   const res = await fetch(`${API_BASE}${path}`, {

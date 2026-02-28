@@ -23,8 +23,8 @@ cd "$(dirname "$0")/.."
 # Clean up previous run (ignore errors)
 $COMPOSE_CMD down --remove-orphans 2>/dev/null || true
 
-# Build and start
-$COMPOSE_CMD up --build -d
+# Build and start (MOCK_MODE for Cincinnati/operator mock data)
+MOCK_MODE=true $COMPOSE_CMD up --build -d
 
 # Wait for backend
 BACKEND_URL="http://127.0.0.1:4000"
@@ -68,7 +68,10 @@ STATE=$(curl -sf "$BACKEND_URL/api/state")
 echo "$STATE" | grep -q 'runId' || { echo "state missing runId"; exit 1; }
 
 echo "Testing /api/schema/stepMap..."
-curl -sf "$BACKEND_URL/api/schema/stepMap" | grep -qE '"steps"|"blueprint"' || { echo "stepMap invalid"; exit 1; }
+curl -sf "$BACKEND_URL/api/schema/stepMap" | grep -qE '"mvpSteps"|"blueprint"' || { echo "stepMap invalid"; exit 1; }
+
+echo "Testing /api/cincinnati/channels (MOCK_MODE)..."
+curl -sf "$BACKEND_URL/api/cincinnati/channels" | grep -qE '"channels"|"4\.' || { echo "cincinnati channels failed"; exit 1; }
 
 echo "Testing frontend HTML..."
 curl -sf "$FRONTEND_URL/" | grep -q 'OpenShift Airgap Architect' || { echo "frontend HTML check failed"; exit 1; }

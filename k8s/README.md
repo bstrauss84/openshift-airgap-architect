@@ -75,6 +75,10 @@ Get the URL:
 oc get ingress oaa -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || oc get route -l app=oaa -o jsonpath='{.items[0].spec.host}'
 ```
 
+## MOCK_MODE
+
+The backend deployment sets `MOCK_MODE=true` by default. This uses bundled mock data for Cincinnati (channels, patches) and operator catalogs, so the Blueprint and Operators steps work without external network access. For production with live Cincinnati, set `MOCK_MODE=false` and ensure the cluster has egress to `api.openshift.com` (or equivalent).
+
 ## Data Persistence (Optional)
 
 By default, the backend stores state in `/tmp/airgap-architect-data` (ephemeral). For persistence across pod restarts:
