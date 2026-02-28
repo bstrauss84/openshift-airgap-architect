@@ -4,9 +4,12 @@ const API_BASE =
   import.meta.env.VITE_API_BASE !== undefined ? String(import.meta.env.VITE_API_BASE) : "http://localhost:4000";
 
 const apiFetch = async (path, options = {}) => {
+  const method = (options.method || "GET").toUpperCase();
+  const body = options.body !== undefined ? options.body : (method === "POST" || method === "PUT" ? "{}" : undefined);
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options
+    ...options,
+    headers: { "Content-Type": "application/json", ...options.headers },
+    ...(body !== undefined && { body })
   });
   if (!res.ok) {
     const text = await res.text();

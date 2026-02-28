@@ -73,6 +73,10 @@ curl -sf "$BACKEND_URL/api/schema/stepMap" | grep -qE '"mvpSteps"|"blueprint"' |
 echo "Testing /api/cincinnati/channels (MOCK_MODE)..."
 curl -sf "$BACKEND_URL/api/cincinnati/channels" | grep -qE '"channels"|"4\.' || { echo "cincinnati channels failed"; exit 1; }
 
+echo "Testing POST /api/operators/confirm (lock flow)..."
+CONFIRM=$(curl -sf -X POST "$BACKEND_URL/api/operators/confirm" -H "Content-Type: application/json" -d "{}")
+echo "$CONFIRM" | grep -qE '"ok":\s*true|"versionConfirmed"' || { echo "operators/confirm failed: $CONFIRM"; exit 1; }
+
 echo "Testing frontend HTML..."
 curl -sf "$FRONTEND_URL/" | grep -q 'OpenShift Airgap Architect' || { echo "frontend HTML check failed"; exit 1; }
 

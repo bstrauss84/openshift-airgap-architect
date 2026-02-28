@@ -152,6 +152,8 @@ const AppShell = () => {
   const [showBlueprintWarning, setShowBlueprintWarning] = useState(false);
   const [showCoreLockWarning, setShowCoreLockWarning] = useState(false);
   const [lockAndProceedLoading, setLockAndProceedLoading] = useState(false);
+  const [lockAndProceedError, setLockAndProceedError] = useState("");
+  const [confirmReleaseError, setConfirmReleaseError] = useState("");
   const [showStartOverConfirm, setShowStartOverConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showSwitchFlowConfirm, setShowSwitchFlowConfirm] = useState(false);
@@ -591,6 +593,7 @@ const AppShell = () => {
   const confirmReleaseAndProceed = async () => {
     if (!releaseReady || confirmingRelease) return;
     setConfirmingRelease(true);
+    setConfirmReleaseError("");
     try {
       const data = await apiFetch("/api/operators/confirm", { method: "POST" });
       setHighlightErrors(false);
@@ -603,6 +606,8 @@ const AppShell = () => {
       const target = pendingNavIndex ?? active + 1;
       setPendingNavIndex(null);
       setActiveStep(target, { skipReviewForStep: "blueprint", markComplete: "blueprint" });
+    } catch (err) {
+      setConfirmReleaseError(err?.message || "Failed to confirm. Check that the backend is reachable.");
     } finally {
       setConfirmingRelease(false);
     }
@@ -619,6 +624,7 @@ const AppShell = () => {
     const ephemeralSecret = (state.blueprint?.blueprintPullSecretEphemeral || "").trim();
     const secretValid = ephemeralSecret && validateBlueprintPullSecretOptional(ephemeralSecret).valid;
     setLockAndProceedLoading(true);
+    setLockAndProceedError("");
     try {
       const data = await apiFetch("/api/operators/confirm", { method: "POST" });
       updateState({
@@ -662,6 +668,8 @@ const AppShell = () => {
       const target = pendingNavIndex ?? active + 1;
       setPendingNavIndex(null);
       setActiveStep(target, { skipReviewForStep: "blueprint", markComplete: "blueprint" });
+    } catch (err) {
+      setLockAndProceedError(err?.message || "Failed to lock. Check that the backend is reachable.");
     } finally {
       setLockAndProceedLoading(false);
     }
@@ -922,6 +930,9 @@ const AppShell = () => {
           <div className="modal-backdrop" role="dialog" aria-modal="true">
             <div className="modal">
               <h3>Lock foundational selections?</h3>
+              {lockAndProceedError ? (
+                <div className="note warning" role="alert">{lockAndProceedError}</div>
+              ) : null}
               <p className="modal-copy subtle">
                 The following will be locked. You will need to use Start Over to change them later.
               </p>
@@ -938,7 +949,7 @@ const AppShell = () => {
                 </dd>
               </dl>
               <div className="actions">
-                <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); }}>
+                <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); setLockAndProceedError(""); }}>
                   No, go back
                 </button>
                 <button type="button" className="primary" onClick={lockAndProceed} disabled={!blueprintReady || !releaseReady || lockAndProceedLoading || blueprintPullSecretBlocking}>
@@ -952,11 +963,14 @@ const AppShell = () => {
           <div className="modal-backdrop" role="dialog" aria-modal="true">
             <div className="modal">
               <h3>Release selection</h3>
+              {confirmReleaseError ? (
+                <div className="note warning" role="alert">{confirmReleaseError}</div>
+              ) : null}
               <p className="subtle">
                 This release selection will be locked from this point, and you&apos;ll need to click Start Over to change it later. Continue?
               </p>
               <div className="actions">
-                <button type="button" className="ghost" onClick={() => setShowReleaseWarning(false)}>No</button>
+                <button type="button" className="ghost" onClick={() => { setShowReleaseWarning(false); setConfirmReleaseError(""); }}>No</button>
                 <button type="button" className="primary" onClick={confirmReleaseAndProceed} disabled={!releaseReady || confirmingRelease}>
                   {confirmingRelease ? "…" : "Yes"}
                 </button>
