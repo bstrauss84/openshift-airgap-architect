@@ -1,5 +1,6 @@
 # Single Ingress: /api -> backend, / -> frontend on same host
-# OpenShift 4.18+ supports Ingress; omit host to use cluster default domain
+# OpenShift 4.18+ supports Ingress; creates Route(s) behind the scenes.
+# TLS enabled via spec.tls for HTTPS through the OpenShift router.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,9 +8,9 @@ metadata:
   labels:
     app: oaa
 spec:
-  # Omit ingressClassName to use cluster default
+  tls:
+    - {}
   rules:
-    # host omitted: uses *.apps.<cluster-domain>
     - http:
         paths:
           - path: /api

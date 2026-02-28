@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: openshift-airgap-architect-frontend:latest
-          imagePullPolicy: IfNotPresent
+          image: oaa-frontend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http

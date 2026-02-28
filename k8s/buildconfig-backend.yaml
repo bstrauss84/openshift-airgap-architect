@@ -1,0 +1,22 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: oaa-backend
+  labels:
+    app: oaa-backend
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/bstrauss84/openshift-airgap-architect.git
+      ref: fix/openshift-deployment
+    contextDir: backend
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: oaa-backend:latest
+  runPolicy: Serial

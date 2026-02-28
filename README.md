@@ -73,7 +73,14 @@ The stack is two services (frontend, backend). Ports in `docker-compose.yml` are
 
 ## OpenShift deployment
 
-To deploy on OpenShift 4.18+ (non-airgapped cluster), see **[k8s/README.md](k8s/README.md)**. The app is built for OpenShift’s non-root security context: the frontend serves static assets (no Vite dev server), and the backend defaults to a writable data path under `/tmp`. Apply the manifests in `k8s/` and point the Ingress at your built images.
+To deploy on OpenShift 4.18+ (non-airgapped cluster), see **[k8s/README.md](k8s/README.md)**.
+
+**Deployment model (in-cluster from Git):**
+
+- Backend and frontend are built in-cluster using BuildConfigs (Git source, `contextDir: backend` / `contextDir: frontend`)
+- Single host with path-based Ingress: `/` → frontend (port 8080), `/api` → backend (port 4000)
+- Backend uses a PVC at `/data`; frontend uses same-origin API (no separate backend route)
+- Image change triggers ensure new builds roll deployments forward; TLS enabled via Ingress `spec.tls`
 
 ## Generating assets
 
