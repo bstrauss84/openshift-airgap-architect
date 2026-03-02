@@ -177,6 +177,12 @@ const AppShell = () => {
   const importRef = useRef(null);
   const runActionsRef = useRef(null);
   const prefsRef = useRef(null);
+  const mainContentRef = useRef(null);
+
+  useEffect(() => {
+    const el = mainContentRef.current;
+    if (el && typeof el.scrollTop === "number") el.scrollTop = 0;
+  }, [active]);
 
   useEffect(() => {
     apiFetch("/api/schema/stepMap")
@@ -630,7 +636,10 @@ const AppShell = () => {
         },
         release: data.release ?? { ...state.release, confirmed: true },
         version: data.version ?? state.version,
-        reviewFlags: { ...(state.reviewFlags || {}), blueprint: false, release: false }
+        reviewFlags: { ...(state.reviewFlags || {}), blueprint: false, release: false },
+        ...(state.blueprint?.blueprintRetainPullSecret && secretValid
+          ? { credentials: { ...state.credentials, pullSecretPlaceholder: ephemeralSecret } }
+          : {})
       });
       setShowCoreLockWarning(false);
       const patchVersion = data.release?.patchVersion ?? state.release?.patchVersion;
@@ -838,7 +847,7 @@ const AppShell = () => {
             </div>
           ) : null}
           <div className="main-layout">
-            <main className="main" id="main-content" aria-label="Wizard step content">
+            <main className="main" id="main-content" aria-label="Wizard step content" ref={mainContentRef}>
               <ErrorBoundary fallbackMessage="Something went wrong in this step; refresh or go back.">
                 <Current
                     previewControls={{ showPreview, setShowPreview }}

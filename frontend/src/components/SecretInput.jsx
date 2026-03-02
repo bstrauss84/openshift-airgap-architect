@@ -42,6 +42,14 @@ function SecretInput({
     if (text != null && text.trim()) onChange(text.trim());
   };
 
+  const handlePaste = (e) => {
+    const v = e.clipboardData?.getData("text");
+    if (v != null) {
+      e.preventDefault();
+      onChange(v.trim ? v.trim() : v);
+    }
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -91,10 +99,7 @@ function SecretInput({
           aria-label={ariaLabel || label}
           value={displayValue}
           onChange={(e) => showSecret && onChange(e.target.value)}
-          onPaste={(e) => {
-            const v = e.clipboardData?.getData("text");
-            if (v != null) onChange(v);
-          }}
+          onPaste={handlePaste}
           placeholder=""
           disabled={disabled}
           readOnly={!showSecret}

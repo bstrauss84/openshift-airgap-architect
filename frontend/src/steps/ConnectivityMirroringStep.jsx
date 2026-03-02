@@ -25,8 +25,16 @@ export default function ConnectivityMirroringStep({ highlightErrors }) {
   const updateMirroring = (patch) =>
     updateStrategy({ mirroring: { ...mirroring, ...patch } });
 
-  const ntpValue = (strategy.ntpServers || []).join(", ");
-  const updateNtpServers = (value) =>
+  const ntpServersArray = Array.isArray(strategy.ntpServers) ? strategy.ntpServers : (typeof strategy.ntpServers === "string" ? strategy.ntpServers.split(",").map((s) => s.trim()).filter(Boolean) : []);
+  const [ntpInput, setNtpInput] = React.useState(() => ntpServersArray.join(", "));
+  React.useEffect(() => {
+    const nextStr = ntpServersArray.join(", ");
+    const parsed = (typeof ntpInput === "string" ? ntpInput : "").split(",").map((s) => s.trim()).filter(Boolean);
+    const same = parsed.length === ntpServersArray.length && parsed.every((s, i) => ntpServersArray[i] === s);
+    if (!same) setNtpInput(nextStr);
+  }, [strategy.ntpServers, ntpInput]);
+  const updateNtpServers = (value) => {
+    setNtpInput(value);
     updateStrategy({
       ntpServers: value
         .split(",")
@@ -34,6 +42,7 @@ export default function ConnectivityMirroringStep({ highlightErrors }) {
         .filter(Boolean)
         .slice(0, 4)
     });
+  };
 
   const handleRegistryFqdnChange = (nextFqdn) => {
     const prevFqdn = mirroring.registryFqdn || "";
@@ -163,7 +172,7 @@ export default function ConnectivityMirroringStep({ highlightErrors }) {
                 required={metaNtp?.required}
               />
               <input
-                value={ntpValue}
+                value={ntpInput}
                 onChange={(e) => updateNtpServers(e.target.value)}
                 placeholder="time.corp.local,10.90.0.10"
               />

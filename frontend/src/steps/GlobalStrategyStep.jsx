@@ -66,8 +66,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
     if (strategy.proxies?.httpProxy && !strategy.proxies.httpProxy.startsWith("http://")) {
       proxyErrors.httpProxy = "HTTP proxy must start with http://";
     }
-    if (strategy.proxies?.httpsProxy && !strategy.proxies.httpsProxy.startsWith("https://")) {
-      proxyErrors.httpsProxy = "HTTPS proxy must start with https://";
+    if (strategy.proxies?.httpsProxy && !strategy.proxies.httpsProxy.startsWith("http://") && !strategy.proxies.httpsProxy.startsWith("https://")) {
+      proxyErrors.httpsProxy = "HTTPS proxy must start with http:// or https:// (use the scheme your proxy supports).";
     }
     const portPattern = /:(\d+)(\/|$)/;
     const httpPort = strategy.proxies?.httpProxy?.match(portPattern)?.[1];
@@ -86,8 +86,16 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
 
   const updateProxy = (field, value) =>
     updateStrategy({ proxies: { ...strategy.proxies, [field]: value } });
-  const ntpValue = (strategy.ntpServers || []).join(",");
-  const updateNtpServers = (value) =>
+  const ntpServersArray = Array.isArray(strategy.ntpServers) ? strategy.ntpServers : (typeof strategy.ntpServers === "string" ? strategy.ntpServers.split(",").map((s) => s.trim()).filter(Boolean) : []);
+  const [ntpInput, setNtpInput] = React.useState(() => ntpServersArray.join(", "));
+  React.useEffect(() => {
+    const nextStr = ntpServersArray.join(", ");
+    const parsed = (typeof ntpInput === "string" ? ntpInput : "").split(",").map((s) => s.trim()).filter(Boolean);
+    const same = parsed.length === ntpServersArray.length && parsed.every((s, i) => ntpServersArray[i] === s);
+    if (!same) setNtpInput(nextStr);
+  }, [strategy.ntpServers, ntpInput]);
+  const updateNtpServers = (value) => {
+    setNtpInput(value);
     updateStrategy({
       ntpServers: value
         .split(",")
@@ -95,6 +103,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
         .filter(Boolean)
         .slice(0, 4)
     });
+  };
   const needsReview = state.reviewFlags?.global && state.ui?.visitedSteps?.global;
 
   const updatePlatformConfig = (patch) =>
@@ -168,6 +177,20 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
     setMirrorHelper((prev) => ({ ...prev, registry: strategy.mirroring?.registryFqdn || prev.registry }));
   }, [strategy.mirroring?.registryFqdn]);
 
+  const anyModalOpen = showKeygen || showMirrorSecretHelper || showAwsHelp;
+  React.useEffect(() => {
+    if (!anyModalOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setShowKeygen(false);
+        setShowMirrorSecretHelper(false);
+        setShowAwsHelp(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [anyModalOpen]);
+
   React.useEffect(() => {
     if (!mirrorUnauth) return;
     updateState({
@@ -184,6 +207,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
   };
 
   const openKeygen = () => {
+    setShowMirrorSecretHelper(false);
+    setShowAwsHelp(false);
     setShowKeygen(true);
     setKeygenError("");
     setKeypair(null);
@@ -469,11 +494,14 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
                 </label>
                 <label>
-                  HTTPS Proxy {proxyRequired ? "(required for jumpbox)" : "(optional)"}
+                  <FieldLabelWithInfo
+                    label={`HTTPS Proxy ${proxyRequired ? "(required for jumpbox)" : "(optional)"}`}
+                    hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                  />
                   <input
                     value={strategy.proxies.httpsProxy}
                     onChange={(e) => updateProxy("httpsProxy", e.target.value)}
-                    placeholder="https://proxy.corp:8443"
+                    placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
                     required={proxyRequired}
                   />
                   {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
@@ -516,6 +544,11 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                 hint="When enabled, IPv6 machine network and per-host IPv6 fields (on the Host Inventory tab when applicable) are shown and included in generated configs."
               />
             </label>
+            {state.hostInventory?.enableIpv6 ? (
+              <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
+                For dual-stack, IPv6 machineNetwork must come after IPv4. Machine network is used for node IP validation.
+              </p>
+            ) : null}
           </div>
           {overlapMessages.length ? (
             <div className="banner warning">
@@ -676,11 +709,6 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                 </label>
               ) : null}
             </div>
-            {state.hostInventory?.enableIpv6 ? (
-              <div className="note">
-                For dual-stack, IPv6 machineNetwork must come after IPv4. Machine network is used for node IP validation.
-              </div>
-            ) : null}
           </div>
         </section>
 
@@ -698,7 +726,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                 hint="Use up to four reliable NTP sources. Time skew is a common install failure."
               />
               <input
-                value={ntpValue}
+                value={ntpInput}
                 onChange={(e) => updateNtpServers(e.target.value)}
                 placeholder="time.corp.local,10.90.0.10"
               />
@@ -828,7 +856,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                 </label>
               ) : null}
               <div className="actions">
-                <button className="ghost" type="button" onClick={() => setShowAwsHelp(true)}>
+                <button className="ghost" type="button" onClick={() => { setShowKeygen(false); setShowMirrorSecretHelper(false); setShowAwsHelp(true); }}>
                   Help me decide
                 </button>
                 {platform === "AWS GovCloud" ? (
@@ -1211,6 +1239,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                 className="ghost"
                 type="button"
                 onClick={() => {
+                  setShowKeygen(false);
+                  setShowAwsHelp(false);
                   if (!mirrorHelper.registry && strategy.mirroring?.registryFqdn) {
                     setMirrorHelper({ ...mirrorHelper, registry: strategy.mirroring.registryFqdn });
                   }
@@ -1269,8 +1299,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         </section>
         {showKeygen ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal">
+          <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowKeygen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3>Generated SSH Keypair</h3>
               <div className="note warning">
                 Save the private key now. It will not be stored and cannot be retrieved later.
@@ -1370,8 +1400,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         ) : null}
         {showMirrorSecretHelper ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal">
+          <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowMirrorSecretHelper(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3>Mirror Registry Pull Secret Helper</h3>
               <div className="note">
                 Credentials entered here are used only to generate the JSON locally. They are not stored or exported.
@@ -1451,8 +1481,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         ) : null}
         {showAwsHelp ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal">
+          <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowAwsHelp(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3>Help me decide</h3>
               <div className="note">Answer these to set publish strategy and credentials mode conservatively.</div>
               <label className="toggle">

@@ -11,6 +11,7 @@ import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
+import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
 const INSTALL_CONFIG = "install-config.yaml";
 
@@ -139,8 +140,8 @@ export default function TrustProxyStep({ highlightErrors }) {
     if (proxies.httpProxy && !proxies.httpProxy.startsWith("http://")) {
       proxyErrors.httpProxy = "HTTP proxy must start with http://";
     }
-    if (proxies.httpsProxy && !proxies.httpsProxy.startsWith("https://")) {
-      proxyErrors.httpsProxy = "HTTPS proxy must start with https://";
+    if (proxies.httpsProxy && !proxies.httpsProxy.startsWith("http://") && !proxies.httpsProxy.startsWith("https://")) {
+      proxyErrors.httpsProxy = "HTTPS proxy must start with http:// or https:// (use the scheme your proxy supports).";
     }
   }
 
@@ -199,11 +200,14 @@ export default function TrustProxyStep({ highlightErrors }) {
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
                 </label>
                 <label>
-                  HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}
+                  <FieldLabelWithInfo
+                    label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
+                    hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                  />
                   <input
                     value={proxies.httpsProxy || ""}
                     onChange={(e) => updateProxy("httpsProxy", e.target.value)}
-                    placeholder="https://proxy.corp:8443"
+                    placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
                   />
                   {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
                 </label>
