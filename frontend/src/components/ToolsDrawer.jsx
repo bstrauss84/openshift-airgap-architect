@@ -10,7 +10,7 @@ import Button from "./Button.jsx";
 
 const DRAWER_Z = 10060;
 
-function FocusTrap({ children, onClose }) {
+function FocusTrap({ children, onClose, className }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ function FocusTrap({ children, onClose }) {
     return () => el.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  return <div ref={ref}>{children}</div>;
+  return <div ref={ref} className={className}>{children}</div>;
 }
 
 export default function ToolsDrawer({
@@ -104,8 +104,9 @@ export default function ToolsDrawer({
           overflow: "hidden"
         }}
       >
-        <FocusTrap onClose={onClose}>
-          <div className="tools-drawer-inner" style={{ padding: 24, overflow: "auto", flex: 1 }}>
+        <FocusTrap onClose={onClose} className="tools-drawer-focus-trap">
+          <div className="tools-drawer-scroll-wrap" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <div className="tools-drawer-inner" style={{ padding: 24, overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
             <div className="tools-drawer-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 id="tools-drawer-title" className="card-title" style={{ margin: 0 }}>Tools</h2>
               <button type="button" className="ghost icon-button" onClick={onClose} aria-label="Close Tools">
@@ -199,6 +200,7 @@ export default function ToolsDrawer({
                 For Red Hatters feeling generous 🙂 I can be found on RewardZone: Bill Strauss
               </p>
             </section>
+            </div>
           </div>
         </FocusTrap>
       </div>

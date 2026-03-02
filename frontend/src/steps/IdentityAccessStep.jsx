@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId } from "../hostInventoryV2Helpers.js";
 import { getFieldMeta } from "../catalogFieldMeta.js";
@@ -44,6 +44,19 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
     password: "",
     email: ""
   });
+
+  const anyModalOpen = showKeygen || showMirrorSecretHelper;
+  useEffect(() => {
+    if (!anyModalOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setShowKeygen(false);
+        setShowMirrorSecretHelper(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [anyModalOpen]);
 
   const installConfig = "install-config.yaml";
   const metaName = getFieldMeta(scenarioId, installConfig, "metadata.name");
@@ -100,6 +113,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   };
 
   const openKeygen = () => {
+    setShowMirrorSecretHelper(false);
     setShowKeygen(true);
     setKeygenError("");
     setKeypair(null);
@@ -212,20 +226,56 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
             </div>
           </div>
           <div className="card-body">
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={usingMirrorRegistry}
-                onChange={(e) => {
-                  const on = e.target.checked;
-                  updateCredentials({
-                    usingMirrorRegistry: on,
-                    ...(on ? { pullSecretPlaceholder: mirrorRegistryPullSecret } : {})
-                  });
-                }}
-              />
-              <span>Using a mirror registry?</span>
-            </label>
+            <div className="credentials-mirror-checkbox-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px 32px", alignItems: "start", marginBottom: 16 }}>
+              <div className="credentials-mirror-cell" style={{ width: "max-content", maxWidth: "100%" }}>
+                <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>Using a mirror registry?</span>
+                <label className="toggle-row" style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                  <input
+                    type="checkbox"
+                    checked={usingMirrorRegistry}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      updateCredentials({
+                        usingMirrorRegistry: on,
+                        ...(on ? { pullSecretPlaceholder: mirrorRegistryPullSecret } : {})
+                      });
+                    }}
+                  />
+                  <span aria-hidden="true" />
+                </label>
+                {usingMirrorRegistry ? (
+                  <p className="note credentials-mirror-helper" style={{ marginTop: 8, marginBottom: 0 }}>
+                    Use mirror registry credentials (not Red Hat pull secret). Not persisted.
+                  </p>
+                ) : null}
+              </div>
+              {usingMirrorRegistry ? (
+                <div className="credentials-mirror-cell credentials-mirror-cell-okd" style={{ width: "max-content", maxWidth: "100%" }}>
+                  <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>Registry allows anonymous pulls</span>
+                  <label className="toggle-row" style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                    <input
+                      type="checkbox"
+                      checked={mirrorRegistryUnauthenticated}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        if (checked) {
+                          setMirrorSecretBackup(mirrorRegistryPullSecret);
+                          updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
+                        } else {
+                          updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
+                        }
+                      }}
+                    />
+                    <span aria-hidden="true" />
+                  </label>
+                  {mirrorRegistryUnauthenticated ? (
+                    <div className="note warning credentials-mirror-okd-warning" style={{ marginTop: 8, marginBottom: 0 }}>
+                      Uses the <a href="https://github.com/orgs/okd-project/discussions/1930" target="_blank" rel="noopener noreferrer">OKD-documented dummy pull secret</a> value for unauthenticated registries: <code>{"auth: \"aWQ6cGFzcwo=\""}</code>. Replace if your registry requires a different format.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
 
             {!usingMirrorRegistry ? (
               <SecretInput
@@ -249,37 +299,15 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                   labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
                   required={requiredPullSecret}
                   errorMessage={fieldErrors.pullSecret}
-                  notPersistedMessage="Use mirror registry credentials (not Red Hat pull secret). Not persisted."
                   placeholder='{"auths":{...}}'
                   rows={5}
                   aria-label="Mirror registry pull secret JSON"
                 />
                 <div className="actions">
-                  <button type="button" className="ghost" onClick={() => { setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry })); setShowMirrorSecretHelper(true); }}>
+                  <button type="button" className="ghost" onClick={() => { setShowKeygen(false); setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry })); setShowMirrorSecretHelper(true); }}>
                     Help me generate
                   </button>
-                  <label className="toggle-row">
-                    <input
-                      type="checkbox"
-                      checked={mirrorRegistryUnauthenticated}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        if (checked) {
-                          setMirrorSecretBackup(mirrorRegistryPullSecret);
-                          updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
-                        } else {
-                          updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
-                        }
-                      }}
-                    />
-                    <span>Registry allows anonymous pulls</span>
-                  </label>
                 </div>
-                {mirrorRegistryUnauthenticated && (
-                  <div className="note warning">
-                    Uses the <a href="https://github.com/orgs/okd-project/discussions/1930" target="_blank" rel="noopener noreferrer">OKD-documented dummy pull secret</a> value for unauthenticated registries: <code>{"auth: \"aWQ6cGFzcwo=\""}</code>. Replace if your registry requires a different format.
-                  </div>
-                )}
               </>
             )}
 
@@ -328,8 +356,8 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
       </div>
 
       {showKeygen ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="modal">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowKeygen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Generate SSH keypair</h3>
             <div className="note warning">
               Save the private key now. It will not be stored and cannot be retrieved later.
@@ -400,8 +428,8 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
       ) : null}
 
       {showMirrorSecretHelper ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="modal">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowMirrorSecretHelper(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Mirror registry pull secret helper</h3>
             <div className="note">
               Credentials entered here are used only to generate the JSON locally. They are not stored or exported.

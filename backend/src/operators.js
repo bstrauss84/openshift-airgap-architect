@@ -61,14 +61,15 @@ const authAvailable = () => {
   }
 };
 
-const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "operator-scan", message }) => {
+const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "operator-scan", message, ocMirrorPath }) => {
   const jobId = createJob(jobType, message || `Scanning ${catalogId} operators...`);
   updateJob(jobId, { status: "running", progress: 5 });
 
   const args = ["--v1", "list", "operators", `--catalog=${catalogImage}`];
   const env = { ...process.env, REGISTRY_AUTH_FILE: authFile || process.env.REGISTRY_AUTH_FILE };
+  const bin = ocMirrorPath || "oc-mirror";
 
-  const child = spawn("oc-mirror", args, { env });
+  const child = spawn(bin, args, { env });
   let output = "";
   let error = "";
 

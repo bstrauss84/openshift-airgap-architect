@@ -5,7 +5,6 @@ import { validateStep } from "../validation.js";
 import { logAction } from "../logger.js";
 import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
-import WarningCallout from "../components/WarningCallout.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
@@ -13,6 +12,25 @@ import Button from "../components/Button.jsx";
 const DEFAULT_PREVIEW_HEIGHT = 320;
 const MIN_PREVIEW_HEIGHT = 120;
 const MAX_PREVIEW_HEIGHT = 800;
+
+const PULLSECRET_PLACEHOLDER_LINE = "pullSecret: '{\"auths\":{}}'";
+
+/** Masks or replaces pullSecret value in install-config YAML. For obscured preview use replacement; for placeholder use replacement. */
+function replacePullSecretInYaml(yamlContent, replacementLine) {
+  if (!yamlContent || typeof yamlContent !== "string") return yamlContent;
+  const lines = yamlContent.split("\n");
+  const i = lines.findIndex((line) => /^pullSecret:\s*/.test(line));
+  if (i < 0) return yamlContent;
+  let j = i + 1;
+  while (j < lines.length && (lines[j].startsWith(" ") || lines[j].startsWith("\t") || lines[j].trim() === "")) j++;
+  const before = lines.slice(0, i).join("\n");
+  const after = (j < lines.length ? "\n" : "") + lines.slice(j).join("\n");
+  return before + "\n" + replacementLine + after;
+}
+
+function maskPullSecretInYaml(yamlContent) {
+  return replacePullSecretInYaml(yamlContent, "pullSecret: '*** REDACTED (click Show to reveal) ***'");
+}
 
 function ResizablePreviewPane({ id, content, placeholder = "Not generated yet.", className = "preview" }) {
   const [height, setHeight] = useState(() => DEFAULT_PREVIEW_HEIGHT);
@@ -72,8 +90,14 @@ function ResizablePreviewPane({ id, content, placeholder = "Not generated yet.",
   );
 }
 
-const downloadZip = async () => {
-  const res = await fetch(`${API_BASE}/api/bundle.zip`);
+const downloadZip = async (stateForBundle) => {
+  const res = stateForBundle
+    ? await fetch(`${API_BASE}/api/bundle.zip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: stateForBundle })
+      })
+    : await fetch(`${API_BASE}/api/bundle.zip`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(body || `Failed to download bundle (HTTP ${res.status})`);
@@ -134,7 +158,10 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     setBlockReason("");
     setLoading(true);
     try {
-      const data = await apiFetch("/api/generate");
+      const includeCreds = exportOptions.includeCredentials;
+      const data = includeCreds
+        ? await apiFetch("/api/generate", { method: "POST", body: JSON.stringify({ state }) })
+        : await apiFetch("/api/generate");
       logAction("generate_review", { stepId: "review" });
       setFiles(data.files || {});
     } catch (error) {
@@ -148,7 +175,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     if (!blocked) {
       refresh().catch(() => {});
     }
-  }, [state.release?.patchVersion, state.operators?.selected?.length, blocked]);
+  }, [state.release?.patchVersion, state.operators?.selected?.length, blocked, exportOptions.includeCredentials]);
 
   const downloadAll = async () => {
     if (blocked) {
@@ -162,8 +189,16 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         method: "POST",
         body: JSON.stringify(getStateForPersistence(state))
       });
-      await downloadZip();
+      await downloadZip(state);
       logAction("download_bundle", { stepId: "review" });
+      updateState({
+        blueprint: { ...state.blueprint, blueprintPullSecretEphemeral: undefined },
+        credentials: {
+          ...state.credentials,
+          pullSecretPlaceholder: "{\"auths\":{}}",
+          mirrorRegistryPullSecret: ""
+        }
+      });
     } catch (error) {
       setGenerateError(String(error?.message || error));
     } finally {
@@ -217,6 +252,23 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
 
   const includeCredentials = exportOptions.includeCredentials || false;
   const includeCertificates = exportOptions.includeCertificates !== false;
+  const [showPullSecretInPreview, setShowPullSecretInPreview] = useState(false);
+
+  useEffect(() => {
+    if (!includeCredentials) setShowPullSecretInPreview(false);
+  }, [includeCredentials]);
+
+  const installConfigContent = files["install-config.yaml"];
+  const installConfigDisplay = (() => {
+    if (!installConfigContent) return installConfigContent;
+    if (!includeCredentials) {
+      return replacePullSecretInYaml(installConfigContent, PULLSECRET_PLACEHOLDER_LINE);
+    }
+    if (!showPullSecretInPreview) {
+      return maskPullSecretInYaml(installConfigContent);
+    }
+    return installConfigContent;
+  })();
 
   return (
     <div className="step">
@@ -286,9 +338,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
             title="Include credentials in export"
             description="Embed pull secrets in generated files. Off by default."
             warning={includeCredentials ? (
-              <WarningCallout>
-                This will embed pull secrets in generated files. Treat the bundle as sensitive.
-              </WarningCallout>
+              <span>This will embed pull secrets in generated files. Treat the bundle as sensitive.</span>
             ) : null}
           >
             <Switch
@@ -375,10 +425,22 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         {loading ? <div className="loading">Generating assets…</div> : null}
 
         <div className="card">
-          <h3>install-config.yaml</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <h3 style={{ margin: 0 }}>install-config.yaml</h3>
+            {includeCredentials && installConfigContent ? (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setShowPullSecretInPreview((v) => !v)}
+                aria-pressed={showPullSecretInPreview}
+              >
+                {showPullSecretInPreview ? "Hide pull secret" : "Show pull secret"}
+              </button>
+            ) : null}
+          </div>
           <ResizablePreviewPane
             id="install-config"
-            content={files["install-config.yaml"]}
+            content={installConfigDisplay}
             placeholder="Not generated yet."
           />
         </div>
