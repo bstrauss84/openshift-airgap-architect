@@ -226,10 +226,19 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
             </div>
           </div>
           <div className="card-body">
-            <div className="credentials-mirror-checkbox-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px 32px", alignItems: "start", marginBottom: 16 }}>
-              <div className="credentials-mirror-cell" style={{ width: "max-content", maxWidth: "100%" }}>
+            <div
+              className="credentials-mirror-checkbox-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: usingMirrorRegistry ? "max-content max-content" : "1fr",
+                gap: "24px 32px",
+                alignItems: "start",
+                marginBottom: 16
+              }}
+            >
+              <div className="credentials-mirror-cell" style={{ minWidth: 0 }}>
                 <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>Using a mirror registry?</span>
-                <label className="toggle-row" style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
                   <input
                     type="checkbox"
                     checked={usingMirrorRegistry}
@@ -250,9 +259,9 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                 ) : null}
               </div>
               {usingMirrorRegistry ? (
-                <div className="credentials-mirror-cell credentials-mirror-cell-okd" style={{ width: "max-content", maxWidth: "100%" }}>
+                <div className="credentials-mirror-cell credentials-mirror-cell-okd" style={{ minWidth: 0 }}>
                   <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>Registry allows anonymous pulls</span>
-                  <label className="toggle-row" style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                  <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
                     <input
                       type="checkbox"
                       checked={mirrorRegistryUnauthenticated}
@@ -277,41 +286,50 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               ) : null}
             </div>
 
-            {!usingMirrorRegistry ? (
-              <SecretInput
-                value={pullSecretPlaceholder}
-                onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
-                label="Pull secret (Red Hat)"
-                labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
-                required={requiredPullSecret}
-                errorMessage={fieldErrors.pullSecret}
-                notPersistedMessage="Red Hat pull secret from OpenShift Cluster Manager. Used in install-config. Not persisted."
-                placeholder='{"auths":{...}}'
-                rows={5}
-                aria-label="Red Hat pull secret JSON"
-              />
-            ) : (
-              <>
-                <SecretInput
-                  value={mirrorRegistryPullSecret}
-                  onChange={(v) => updateCredentials({ mirrorRegistryPullSecret: v })}
-                  label="Pull secret (Mirror registry)"
-                  labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
-                  required={requiredPullSecret}
-                  errorMessage={fieldErrors.pullSecret}
-                  placeholder='{"auths":{...}}'
-                  rows={5}
-                  aria-label="Mirror registry pull secret JSON"
-                />
-                <div className="actions">
-                  <button type="button" className="ghost" onClick={() => { setShowKeygen(false); setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry })); setShowMirrorSecretHelper(true); }}>
-                    Help me generate
-                  </button>
-                </div>
-              </>
-            )}
-
-            {!pullSecretCheck.valid ? <div className="note warning">{pullSecretCheck.error}</div> : null}
+            {(() => {
+              const pullSecretError = fieldErrors.pullSecret || (!pullSecretCheck.valid ? pullSecretCheck.error : null);
+              return (
+                <>
+                  {pullSecretError ? (
+                    <div className="note warning" style={{ marginBottom: 8 }}>
+                      {pullSecretError}
+                    </div>
+                  ) : null}
+                  {!usingMirrorRegistry ? (
+                    <SecretInput
+                      value={pullSecretPlaceholder}
+                      onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
+                      label="Pull secret (Red Hat)"
+                      labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
+                      labelHint="Red Hat pull secret from OpenShift Cluster Manager. Used in install-config. Not persisted."
+                      getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
+                      required={requiredPullSecret}
+                      placeholder='{"auths":{...}}'
+                      rows={5}
+                      aria-label="Red Hat pull secret JSON"
+                    />
+                  ) : (
+                    <>
+                      <SecretInput
+                        value={mirrorRegistryPullSecret}
+                        onChange={(v) => updateCredentials({ mirrorRegistryPullSecret: v })}
+                        label="Pull secret (Mirror registry)"
+                        labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
+                        required={requiredPullSecret}
+                        placeholder='{"auths":{...}}'
+                        rows={5}
+                        aria-label="Mirror registry pull secret JSON"
+                      />
+                      <div className="actions">
+                        <button type="button" className="ghost" onClick={() => { setShowKeygen(false); setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry })); setShowMirrorSecretHelper(true); }}>
+                          Help me generate
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
 
             <label>
               SSH Public Key {metaSshKey?.required ? <span className="required-indicator">(required)</span> : null}

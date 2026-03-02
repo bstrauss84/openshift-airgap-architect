@@ -271,7 +271,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     value={platformConfig.aws?.lbType || ""}
                     onChange={(e) => updateAws({ lbType: e.target.value })}
                   >
-                    <option value="">—</option>
+                    <option value="" disabled>Not set</option>
                     <option value="Classic">Classic</option>
                     <option value="NLB">NLB</option>
                   </select>
@@ -370,7 +370,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     value={platformConfig.credentialsMode || ""}
                     onChange={(e) => updatePlatformConfig({ credentialsMode: e.target.value })}
                   >
-                    <option value="">—</option>
+                    <option value="" disabled>Not set</option>
                     <option value="Mint">Mint</option>
                     <option value="Passthrough">Passthrough</option>
                     <option value="Manual">Manual</option>
@@ -462,7 +462,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     value={platformConfig.credentialsMode || ""}
                     onChange={(e) => updatePlatformConfig({ credentialsMode: e.target.value })}
                   >
-                    <option value="">—</option>
+                    <option value="" disabled>Not set</option>
                     <option value="Mint">Mint</option>
                     <option value="Passthrough">Passthrough</option>
                     <option value="Manual">Manual</option>
@@ -844,7 +844,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         value={platformConfig.computeHyperthreading || ""}
                         onChange={(e) => updatePlatformConfig({ computeHyperthreading: e.target.value || undefined })}
                       >
-                        <option value="">—</option>
+                        <option value="" disabled>Not set</option>
                         {hyperthreadingOptions.map((opt) => (
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
@@ -861,7 +861,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         value={platformConfig.controlPlaneHyperthreading || ""}
                         onChange={(e) => updatePlatformConfig({ controlPlaneHyperthreading: e.target.value || undefined })}
                       >
-                        <option value="">—</option>
+                        <option value="" disabled>Not set</option>
                         {hyperthreadingOptions.map((opt) => (
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
@@ -879,7 +879,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           value={platformConfig.baselineCapabilitySet || (metaBaselineCapability?.default ?? "")}
                           onChange={(e) => updatePlatformConfig({ baselineCapabilitySet: e.target.value || undefined })}
                         >
-                          <option value="">—</option>
+                          <option value="" disabled>Not set</option>
                           {baselineCapabilityOptions.map((opt) => (
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
@@ -912,7 +912,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         value={platformConfig.cpuPartitioningMode || (metaCpuPartitioningMode?.default ?? "None")}
                         onChange={(e) => updatePlatformConfig({ cpuPartitioningMode: e.target.value || undefined })}
                       >
-                        <option value="">—</option>
+                        <option value="" disabled>Not set</option>
                         {cpuPartitioningOptions.map((opt) => (
                           <option key={opt} value={opt}>{opt}</option>
                         ))}

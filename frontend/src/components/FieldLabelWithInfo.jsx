@@ -89,19 +89,22 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp }) {
           <span className="field-label-text">{label}</span>
           {required ? <span className="required-marker" aria-label="required">*</span> : null}
           {hint ? (
-            <button
-              ref={iconRef}
-              type="button"
-              className="field-info-icon"
-              aria-label="More information"
-              aria-describedby={visible ? id : undefined}
-              onClick={() => setVisible((v) => !v)}
-              onBlur={() => setVisible(false)}
-              onMouseEnter={() => setVisible(true)}
-              onMouseLeave={() => setVisible(false)}
-            >
-              <img src="/info-icon.png" alt="" className="field-info-icon-img" />
-            </button>
+            <span className="field-label-icon-wrap" style={{ whiteSpace: "nowrap" }}>
+              {"\u00A0"}
+              <button
+                ref={iconRef}
+                type="button"
+                className="field-info-icon"
+                aria-label="More information"
+                aria-describedby={visible ? id : undefined}
+                onClick={() => setVisible((v) => !v)}
+                onBlur={() => setVisible(false)}
+                onMouseEnter={() => setVisible(true)}
+                onMouseLeave={() => setVisible(false)}
+              >
+                <img src="/info-icon.png" alt="" className="field-info-icon-img" />
+              </button>
+            </span>
           ) : null}
         </span>
       </div>

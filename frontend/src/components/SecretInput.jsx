@@ -1,15 +1,21 @@
 import React, { useRef, useState } from "react";
 
+import FieldLabelWithInfo from "./FieldLabelWithInfo.jsx";
+
 /**
  * Shared pull-secret / credential input: masked by default, show/hide toggle,
  * paste, drag-and-drop, file upload, consistent helper/error placement.
  * Use for all pull secret fields across Blueprint, Identity & Access, Operators, Global Strategy.
+ * When labelHint is provided, the (i) icon shows that text as a tooltip and notPersistedMessage is not shown below.
+ * When getPullSecretUrl is provided, a link button to obtain the Red Hat pull secret is shown (Red Hat login required).
  */
 function SecretInput({
   value = "",
   onChange,
   label = "Pull secret (JSON)",
   labelEmphasis,
+  labelHint,
+  getPullSecretUrl,
   helperText,
   notPersistedMessage,
   errorMessage,
@@ -23,6 +29,7 @@ function SecretInput({
   const [showSecret, setShowSecret] = useState(false);
   const fileRef = useRef(null);
   const id = idProp || `secret-input-${Math.random().toString(36).slice(2, 9)}`;
+  const showNotPersisted = notPersistedMessage && !labelHint;
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -65,11 +72,22 @@ function SecretInput({
   const displayValue = showSecret ? value : (value ? "\u2022".repeat(12) : "");
   const hasError = Boolean(errorMessage);
 
+  const labelContent = labelEmphasis || label;
+  const labelWithRequired = (
+    <>
+      {labelContent}
+      {required ? <span className="required-indicator"> (required)</span> : null}
+    </>
+  );
+
   return (
     <div className="pull-secret-section-inline">
       <div className="pull-secret-label-row">
-        <span className="label-emphasis">{labelEmphasis || label}</span>
-        {required ? <span className="required-indicator">(required)</span> : null}
+        {labelHint ? (
+          <FieldLabelWithInfo label={labelWithRequired} hint={labelHint} />
+        ) : (
+          <span className="label-emphasis">{labelWithRequired}</span>
+        )}
         <button
           type="button"
           className="ghost pull-secret-toggle"
@@ -82,6 +100,17 @@ function SecretInput({
           {showSecret ? "Hide" : "Show"}
         </button>
       </div>
+      {getPullSecretUrl ? (
+        <a
+          href={getPullSecretUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="pull-secret-get-link"
+          style={{ display: "inline-block", marginBottom: 8, fontSize: "0.875rem" }}
+        >
+          Access / download your Red Hat pull secret (Red Hat login required)
+        </a>
+      ) : null}
       <div
         className={`pull-secret-field-wrap ${hasError ? "input-error" : ""}`}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
@@ -131,7 +160,7 @@ function SecretInput({
       {helperText ? (
         <p className="note note-prominent pull-secret-helper">{helperText}</p>
       ) : null}
-      {notPersistedMessage ? (
+      {showNotPersisted && notPersistedMessage ? (
         <p className="note">{notPersistedMessage}</p>
       ) : null}
     </div>

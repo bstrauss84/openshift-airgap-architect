@@ -482,10 +482,12 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
           {strategy.proxyEnabled ? (
             <div className="card-body">
-              <div className="field-grid">
+              <div className="field-grid proxy-fields-grid">
                 <label>
                   HTTP Proxy {proxyRequired ? "(required for jumpbox)" : "(optional)"}
                   <input
+                    type="text"
+                    className="proxy-field-input"
                     value={strategy.proxies.httpProxy}
                     onChange={(e) => updateProxy("httpProxy", e.target.value)}
                     placeholder="http://proxy.corp:8080"
@@ -499,6 +501,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                     hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
                   />
                   <input
+                    type="text"
+                    className="proxy-field-input"
                     value={strategy.proxies.httpsProxy}
                     onChange={(e) => updateProxy("httpsProxy", e.target.value)}
                     placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
@@ -509,6 +513,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                 <label>
                   No Proxy
                   <input
+                    type="text"
+                    className="proxy-field-input"
                     value={strategy.proxies.noProxy}
                     onChange={(e) => updateProxy("noProxy", e.target.value)}
                     placeholder=".cluster.local,.svc,10.128.0.0/14,127.0.0.1"

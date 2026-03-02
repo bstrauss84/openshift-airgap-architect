@@ -189,10 +189,12 @@ export default function TrustProxyStep({ highlightErrors }) {
           </div>
           {strategy.proxyEnabled ? (
             <div className="card-body" style={{ paddingTop: 0 }}>
-              <div className="field-grid">
+              <div className="field-grid proxy-fields-grid">
                 <label>
                   HTTP Proxy {metaHttpProxy?.required ? <span className="required-badge">required</span> : "(optional)"}
                   <input
+                    type="text"
+                    className="proxy-field-input"
                     value={proxies.httpProxy || ""}
                     onChange={(e) => updateProxy("httpProxy", e.target.value)}
                     placeholder="http://proxy.corp:8080"
@@ -205,6 +207,8 @@ export default function TrustProxyStep({ highlightErrors }) {
                     hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
                   />
                   <input
+                    type="text"
+                    className="proxy-field-input"
                     value={proxies.httpsProxy || ""}
                     onChange={(e) => updateProxy("httpsProxy", e.target.value)}
                     placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
@@ -214,6 +218,8 @@ export default function TrustProxyStep({ highlightErrors }) {
                 <label>
                   No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : null}
                   <input
+                    type="text"
+                    className="proxy-field-input"
                     value={proxies.noProxy || ""}
                     onChange={(e) => updateProxy("noProxy", e.target.value)}
                     placeholder=".cluster.local,.svc,10.128.0.0/14,127.0.0.1"

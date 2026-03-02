@@ -806,6 +806,17 @@ body[data-theme="dark"] .step-header-main .subtle {
   min-width: 0;
 }
 
+.proxy-fields-grid {
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+}
+
+.proxy-field-input {
+  min-width: 330px;
+  max-width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
 .read-only-field {
   padding: 8px 12px;
   background: var(--surface-raised, #f5f5f5);
@@ -3615,6 +3626,13 @@ body[data-theme="dark"] .tooltip-info-content::after {
   align-items: baseline;
   gap: 0;
   min-width: 0;
+}
+
+/* In field-grid labels, keep the label+icon block to content width so only the icon triggers tooltip (Phase A #14). */
+.field-grid label > .field-label-with-info {
+  width: max-content;
+  max-width: 100%;
+  flex: 0 0 auto;
 }
 
 .field-label-line {

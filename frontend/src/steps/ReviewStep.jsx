@@ -253,10 +253,17 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const includeCredentials = exportOptions.includeCredentials || false;
   const includeCertificates = exportOptions.includeCertificates !== false;
   const [showPullSecretInPreview, setShowPullSecretInPreview] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState({ runtimeArch: null, localBinaryArch: null });
 
   useEffect(() => {
     if (!includeCredentials) setShowPullSecretInPreview(false);
   }, [includeCredentials]);
+
+  useEffect(() => {
+    apiFetch("/api/runtime-info")
+      .then((data) => setRuntimeInfo({ runtimeArch: data.runtimeArch || null, localBinaryArch: data.localBinaryArch || null }))
+      .catch(() => setRuntimeInfo({ runtimeArch: null, localBinaryArch: null }));
+  }, []);
 
   const installConfigContent = files["install-config.yaml"];
   const installConfigDisplay = (() => {
@@ -276,6 +283,11 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         <div className="step-header-main">
           <h2>Architecture Assets</h2>
           <p className="subtle">Review and export your configuration bundle.</p>
+          {downloading ? (
+            <p className="review-downloading-notice" style={{ marginTop: 8, marginBottom: 0 }}>
+              Generating and streaming your bundle. This can take 20–60 seconds when tools are included.
+            </p>
+          ) : null}
         </div>
         <div className="header-actions">
           <Button variant="primary" onClick={downloadAll} disabled={blocked || downloading}>
@@ -373,6 +385,31 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include oc and oc-mirror binaries"
               />
             </OptionRow>
+            {exportOptions.includeClientTools ? (
+              <OptionRow
+                title="Target architecture for oc/oc-mirror"
+                description={runtimeInfo.localBinaryArch ? `Backend default: ${runtimeInfo.localBinaryArch}. Choose another arch to download that variant for the bundle.` : "Choose which architecture binary to include."}
+              >
+                <select
+                  value={exportOptions.exportBinaryArch ?? ""}
+                  onChange={(e) =>
+                    updateState({
+                      exportOptions: {
+                        ...exportOptions,
+                        exportBinaryArch: e.target.value === "" ? null : e.target.value
+                      }
+                    })
+                  }
+                  aria-label="Target architecture for oc/oc-mirror"
+                >
+                  <option value="">Default (match backend)</option>
+                  <option value="x86_64">x86_64</option>
+                  <option value="aarch64">aarch64</option>
+                  <option value="ppc64le">ppc64le</option>
+                  <option value="s390x">s390x</option>
+                </select>
+              </OptionRow>
+            ) : null}
             <OptionRow
               title="Include version-specific openshift-install"
               description="Download the installer for the confirmed release and add it under tools/openshift-install."
@@ -405,11 +442,6 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 Complete at least: {incompleteStepLabels.join(", ")}.
               </div>
             ) : null}
-          </Banner>
-        ) : null}
-        {downloading ? (
-          <Banner variant="info">
-            Generating and streaming your bundle. This can take 20–60 seconds when tools are included.
           </Banner>
         ) : null}
         {generateError ? (

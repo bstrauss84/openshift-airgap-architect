@@ -37,17 +37,13 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 docker compose up --build
 ```
 
-**Podman:** Use **`podman compose`** (Compose V2), not the standalone `docker-compose` binary, so build and run use the same daemon and you avoid “image not known” after build:
+**Podman:** Use **`podman compose`** (Compose V2), the same `docker-compose.yml` (one file for both Docker and Podman); so build and run use the same daemon and you avoid “image not known” after build:
 
 ```bash
 podman compose up --build
 ```
 
-If your system uses `podman-compose` (Python):
-
-```bash
-podman-compose up --build
-```
+If your system only has `podman-compose` (Python), use that; the project does not ship a separate `podman-compose.yml`.
 
 Then open the UI at **http://localhost:5173** (ports are bound to localhost by default; see [Container run](#container-run) to change that).
 
@@ -62,6 +58,26 @@ If you mount files or folders with Podman, add `:Z` or `:z` to volume mounts as 
 - **Tests:** `npm test` in `backend/` and `frontend/`. See `docs/CONTRIBUTING.md` for contribution and test conventions.
 
 The backend uses SQLite for state and job history; the frontend uses React + Vite.
+
+## Running without Compose
+
+If you prefer not to use Docker Compose or Podman Compose, you can run the frontend and backend yourself on the host.
+
+1. **Backend** (Node 20+):
+   ```bash
+   cd backend && npm install && npm run dev
+   ```
+   The API listens on `http://localhost:4000` by default. Set `DATA_DIR` if you want state in a specific directory (e.g. `./data`).
+
+2. **Frontend** (Node 20+):
+   ```bash
+   cd frontend && npm install && npm run dev
+   ```
+   Set `VITE_API_BASE=http://localhost:4000` if your backend is elsewhere. The UI is served at `http://localhost:5173`.
+
+3. Open **http://localhost:5173** in a browser. The frontend will call the backend at the URL configured by `VITE_API_BASE`.
+
+Operator scan and bundle generation (including oc/oc-mirror binaries) require the same backend environment (Node, oc-mirror resolution, `DATA_DIR`) as when run via Compose; only the process manager differs.
 
 ## Container run
 

@@ -82,9 +82,17 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const needsReview = state.reviewFlags?.operators && hasVisited;
   const staleResults = state.operators?.stale && hasVisited;
   const hasScanJobs = Object.keys(jobs).length > 0;
+  const hasScanJobsFromState = Object.keys(state.operators?.scanJobs || {}).length > 0;
+  const hasRetainedPullSecret = Boolean(
+    state.credentials?.pullSecretPlaceholder &&
+    state.credentials.pullSecretPlaceholder.trim() &&
+    state.credentials.pullSecretPlaceholder !== "{\"auths\":{}}"
+  );
+  const hasCredentialSource = authAvailable || pullSecretInput || hasRetainedPullSecret;
   const anyScanFailed = ["redhat", "certified", "community"].some((id) => jobStatuses[id]?.status === "failed");
   const scansInProgressOrComplete = hasScanJobs && !anyScanFailed;
   const showStaleWarning = staleResults && !scansInProgressOrComplete;
+  const discoveryAlreadyRunningOrDone = hasScanJobs || hasScanJobsFromState;
 
   const version = state.release?.channel;
   const normalizeCatalogs = (data) => ({
@@ -165,7 +173,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   }, [authAvailable, confirmed, version, fastMode, state.operators?.scanJobs]);
 
   const canScan = confirmed;
-  const scanEnabled = canScan && (authAvailable || pullSecretInput);
+  const scanEnabled = canScan && hasCredentialSource;
   const scenarioReady = hasResults;
 
   const ensureSources = (op, source) => {
@@ -266,7 +274,8 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     setLoadingCatalogs(true);
     setScanError("");
     updateState({ operators: { ...state.operators, stale: false } });
-    const payload = pullSecretInput ? { pullSecret: pullSecretInput } : {};
+    const secretToUse = pullSecretInput || (hasRetainedPullSecret ? state.credentials?.pullSecretPlaceholder : "");
+    const payload = secretToUse ? { pullSecret: secretToUse } : {};
     try {
       const data = await apiFetch("/api/operators/scan", { method: "POST", body: JSON.stringify(payload) });
       setJobs(data.jobs || {});
@@ -324,12 +333,12 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         return status && (status.status === "completed" || status.status === "failed");
       });
       const anyFailed = Object.values(nextStatuses).some((item) => item?.status === "failed");
-      if (allDone && pullSecretInput && !anyFailed) {
+      if (allDone && !anyFailed) {
         setState((prev) => ({
           ...prev,
           credentials: { ...prev.credentials, redHatPullSecretConfigured: true }
         }));
-        setPullSecretInput("");
+        if (pullSecretInput) setPullSecretInput("");
       }
       if (!cancelled) {
         setTimeout(poll, 4000);
@@ -404,7 +413,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         {!canScan ? (
           <Banner variant="warning">Operator discovery is disabled until you confirm versions in Release Management.</Banner>
         ) : null}
-        {!authAvailable && !pullSecretInput ? (
+        {!hasCredentialSource && !discoveryAlreadyRunningOrDone ? (
           <Banner variant="info">Operator discovery disabled; provide registry.redhat.io credentials to populate catalogs.</Banner>
         ) : null}
         {warnVersionChange ? (
@@ -436,18 +445,19 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
             {!discoveryEnabled ? (
               <Banner variant="info">Operator discovery is disabled. Enable it above to scan and select operators.</Banner>
             ) : (
-              <CollapsibleSection title="Discovery options" defaultCollapsed={false} wrapInCard={false}>
+              <CollapsibleSection title="Discovery options" defaultCollapsed={discoveryAlreadyRunningOrDone && (hasCredentialSource || hasResults)} wrapInCard={false}>
+                    {hasRetainedPullSecret && discoveryAlreadyRunningOrDone ? (
+                      <p className="note subtle" style={{ marginTop: 0, marginBottom: 12 }}>
+                        Using pull secret from Blueprint. You can scan or re-scan below.
+                      </p>
+                    ) : null}
                     <SecretInput
                       value={pullSecretInput}
                       onChange={setPullSecretInput}
                       label="Red Hat pull secret (optional)"
                       labelEmphasis="Red Hat pull secret (optional)"
-                      helperText={
-                        state.credentials?.redHatPullSecretConfigured
-                          ? "Pull secret configured for operator discovery."
-                          : "Used only for oc-mirror execution. Not stored."
-                      }
-                      notPersistedMessage="Not stored."
+                      labelHint={state.credentials?.redHatPullSecretConfigured ? "Pull secret configured for operator discovery." : "Used only for catalog scan. Not stored. Red Hat login required to obtain."}
+                      getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
                       placeholder="Paste Red Hat pull secret JSON"
                       rows={4}
                       aria-label="Red Hat pull secret JSON for operator discovery"

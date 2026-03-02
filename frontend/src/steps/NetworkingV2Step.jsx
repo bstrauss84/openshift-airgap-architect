@@ -143,6 +143,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 aria-label="Enable IPv6"
               />
             </OptionRow>
+            {enableIpv6 ? (
+              <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
+                For dual-stack, IPv6 machine network follows IPv4. Machine network is used for node IP validation.
+              </p>
+            ) : null}
 
             {showMachineNetwork ? (
             <div className="networking-group">
@@ -301,12 +306,6 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 ) : null}
               </div>
             </div>
-            ) : null}
-
-            {enableIpv6 ? (
-              <p className="note" style={{ marginTop: 12 }}>
-                For dual-stack, IPv6 machine network follows IPv4. Machine network is used for node IP validation.
-              </p>
             ) : null}
           </div>
         </section>

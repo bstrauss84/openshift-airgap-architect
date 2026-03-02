@@ -427,7 +427,7 @@ const buildAgentConfig = (state) => {
     };
   });
 
-  const additionalNTPSources = (state.globalStrategy?.ntpServers || []).map((s) => s.trim()).filter(Boolean);
+  const additionalNTPSources = normalizeNtpServers(state.globalStrategy?.ntpServers);
   const bootArtifactsBaseURL = (state.hostInventory?.bootArtifactsBaseURL || "").trim();
 
   const minimalISO = state.hostInventory?.minimalISO === true;
@@ -490,8 +490,14 @@ const buildNtpMachineConfig = (servers, role) => {
   };
 };
 
+const normalizeNtpServers = (ntpServers) => {
+  if (Array.isArray(ntpServers)) return ntpServers.map((s) => String(s).trim()).filter(Boolean);
+  if (typeof ntpServers === "string") return ntpServers.split(",").map((s) => s.trim()).filter(Boolean);
+  return [];
+};
+
 const buildNtpMachineConfigs = (state) => {
-  const servers = (state.globalStrategy?.ntpServers || []).map((s) => s.trim()).filter(Boolean);
+  const servers = normalizeNtpServers(state.globalStrategy?.ntpServers);
   if (!servers.length) return {};
   return {
     "99-chrony-ntp-master.yaml": yaml.dump(buildNtpMachineConfig(servers, "master"), { lineWidth: 120 }),
@@ -834,7 +840,7 @@ const buildFieldManual = (state, docsLinks) => {
   const mirrorRegistry = state.globalStrategy?.mirroring?.registryFqdn || "unknown";
   const mirrorPrivate = state.trust?.mirrorRegistryUsesPrivateCa ? "Yes" : "No";
   const proxyEnabled = state.globalStrategy?.proxyEnabled ? "Enabled" : "Disabled";
-  const ntpServers = state.globalStrategy?.ntpServers || [];
+  const ntpServers = normalizeNtpServers(state.globalStrategy?.ntpServers);
   const outputPath = state.mirrorWorkflow?.outputPath || "/data/oc-mirror-output";
   const operators = state.operators?.selected || [];
   const operatorList = operators.length

@@ -92,6 +92,29 @@ export function getSectionOrderForRender(scenarioAwareLayout, scenarioId) {
   return DEFAULT_SECTION_ORDER;
 }
 
+/** Collect all interface names (eno0, eno1, bond0, etc.) from primary and additionalInterfaces to compute next enoN. */
+export function getNextEnoName(node) {
+  const names = new Set();
+  const primary = node?.primary;
+  if (primary?.type === "ethernet" || primary?.type === "vlan-on-ethernet") {
+    if (primary.ethernet?.name) names.add(primary.ethernet.name);
+  }
+  if (primary?.bond?.name) names.add(primary.bond.name);
+  if (Array.isArray(primary?.bond?.slaves)) {
+    primary.bond.slaves.forEach((s) => { if (s?.name) names.add(s.name); });
+  }
+  (node?.additionalInterfaces || []).forEach((iface) => {
+    if (iface?.ethernet?.name) names.add(iface.ethernet.name);
+    if (iface?.bond?.name) names.add(iface.bond.name);
+    if (Array.isArray(iface?.bond?.slaves)) {
+      iface.bond.slaves.forEach((s) => { if (s?.name) names.add(s.name); });
+    }
+  });
+  let n = 0;
+  while (names.has(`eno${n}`)) n++;
+  return `eno${n}`;
+}
+
 export const createInterfaceConfig = (overrides = {}) => ({
   type: "ethernet",
   mode: "dhcp",
@@ -99,13 +122,13 @@ export const createInterfaceConfig = (overrides = {}) => ({
   ipv4Gateway: "",
   ipv6Cidr: "",
   ipv6Gateway: "",
-  ethernet: { name: "eth0", macAddress: "" },
+  ethernet: { name: "eno0", macAddress: "" },
   bond: {
     name: "bond0",
     mode: "active-backup",
     slaves: [
-      { name: "eth0", macAddress: "" },
-      { name: "eth1", macAddress: "" }
+      { name: "eno0", macAddress: "" },
+      { name: "eno1", macAddress: "" }
     ]
   },
   vlan: { id: "", baseIface: "", name: "" },
@@ -199,7 +222,7 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
         routes: Array.isArray(srcPrimary.advanced?.routes) ? srcPrimary.advanced.routes.map((r) => ({ ...r })) : []
       };
     }
-    if (selectedFields.has("primary.ethernet")) {
+    if (selectedFields.has("primary.ethernet") || selectedFields.has("primary.ethernet.macAddress")) {
       destPrimary.ethernet = {
         name: srcPrimary.ethernet?.name ?? destPrimary.ethernet?.name,
         macAddress: selectedFields.has("primary.ethernet.macAddress") ? (srcPrimary.ethernet?.macAddress ?? "") : (destPrimary.ethernet?.macAddress ?? "")
@@ -214,7 +237,7 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
     if (selectedFields.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
     if (selectedFields.has("rootDevice")) next.rootDevice = sourceNode.rootDevice ?? "";
     if (selectedFields.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
-    if (["primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.ethernet"].some((k) => selectedFields.has(k))) {
+    if (["primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.ethernet", "primary.ethernet.macAddress"].some((k) => selectedFields.has(k))) {
       next.primary = { ...node.primary };
       copyPrimaryShape(next.primary, sourceNode.primary || {});
     }

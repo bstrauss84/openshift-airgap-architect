@@ -130,14 +130,14 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
         proxyEnabled: true,
         proxies: {
           httpProxy: "https://wrong-scheme:8080",
-          httpsProxy: "http://wrong-scheme:8443",
+          httpsProxy: "ftp://invalid-scheme:8443",
           noProxy: ""
         }
       }
     });
     const result = validateStep(state, "trust-proxy");
     expect(result.errors).toContain("HTTP proxy must start with http://");
-    expect(result.errors).toContain("HTTPS proxy must start with https://");
+    expect(result.errors).toContain("HTTPS proxy must start with http:// or https:// (use the scheme your proxy supports).");
   });
 
   it("validation runs for trust-proxy: no errors when proxy disabled and no trust bundle", () => {

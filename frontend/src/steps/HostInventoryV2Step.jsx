@@ -13,7 +13,8 @@ import {
   SECTION_IDS,
   DEFAULT_SECTION_ORDER,
   SCENARIO_SECTION_ORDER,
-  createInterfaceConfig
+  createInterfaceConfig,
+  getNextEnoName
 } from "../hostInventoryV2Helpers.js";
 import { getCatalogPaths } from "../catalogPaths.js";
 import { getFieldMeta } from "../catalogFieldMeta.js";
@@ -251,10 +252,16 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     });
 
   const addAdditionalInterface = (nodeIndex) =>
-    updateNode(nodeIndex, (node) => ({
-      ...node,
-      additionalInterfaces: [...(node.additionalInterfaces || []), createInterfaceConfig({ type: "ethernet" })]
-    }));
+    updateNode(nodeIndex, (node) => {
+      const nextName = getNextEnoName(node);
+      return {
+        ...node,
+        additionalInterfaces: [
+          ...(node.additionalInterfaces || []),
+          createInterfaceConfig({ type: "ethernet", ethernet: { name: nextName, macAddress: "" } })
+        ]
+      };
+    });
 
   const removeAdditionalInterface = (nodeIndex, ifaceIndex) =>
     updateNode(nodeIndex, (node) => ({
@@ -264,7 +271,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
 
   const primaryBaseIface = (node) => {
     if (node.primary?.type === "bond" || node.primary?.type === "vlan-on-bond") return node.primary.bond?.name || "bond0";
-    return node.primary?.ethernet?.name || "eth0";
+    return node.primary?.ethernet?.name || "eno0";
   };
   const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
 
@@ -363,7 +370,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
                 below to record interface names/MACs/MTU and stable disk IDs before installing OpenShift.
               </p>
               <div className="host-inventory-v2-gather-info-list">
-                <div className="subtle">Interfaces (name, state, MTU, MAC):</div>
+                <div className="host-inventory-v2-gather-hint">Interfaces (name, state, MTU, MAC):</div>
                 <div className="code-block">
                   <div className="code-header">
                     <span>List interfaces and MACs</span>
@@ -390,7 +397,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
 done`}</pre>
                 </div>
 
-                <div className="subtle">Stable disk IDs and drive characteristics:</div>
+                <div className="host-inventory-v2-gather-hint">Stable disk IDs and drive characteristics:</div>
                 <div className="code-block">
                   <div className="code-header">
                     <span>Disk inventory (size, type, speed)</span>
@@ -409,7 +416,7 @@ done`}</pre>
                   Target disks should be at least 300GB when possible.
                 </p>
 
-                <div className="subtle">Find stable by-id paths (use these as Root Device Hint):</div>
+                <div className="host-inventory-v2-gather-hint">Find stable by-id paths (use these as Root Device Hint):</div>
                 <div className="code-block">
                   <div className="code-header">
                     <span>List /dev/disk/by-id</span>
@@ -424,7 +431,7 @@ done`}</pre>
                   <pre className="code">ls -l /dev/disk/by-id/ | grep -v part</pre>
                 </div>
 
-                <div className="subtle">Check if a disk has existing data/signatures:</div>
+                <div className="host-inventory-v2-gather-hint">Check if a disk has existing data/signatures:</div>
                 <div className="code-block">
                   <div className="code-header">
                     <span>Check for signatures (non-destructive)</span>
@@ -439,7 +446,10 @@ done`}</pre>
                   <pre className="code">wipefs -n /dev/sdX</pre>
                 </div>
 
-                <div className="subtle">Wipe a target disk (destructive):</div>
+                <p className="note warning host-inventory-v2-gather-wipe-warning" role="alert">
+                  <strong>Warning: Wiping a disk is destructive and irreversible.</strong> Double-check the device name before running the commands below.
+                </p>
+                <div className="host-inventory-v2-gather-hint">Wipe a target disk (destructive):</div>
                 <div className="code-block">
                   <div className="code-header">
                     <span>Remove all partition/signature data</span>
@@ -454,9 +464,6 @@ done`}</pre>
                   <pre className="code">{`sgdisk --zap-all /dev/sdX
 wipefs -a /dev/sdX`}</pre>
                 </div>
-                <p className="note warning">
-                  Warning: Wiping a disk is destructive and irreversible. Double-check the device name.
-                </p>
               </div>
         </CollapsibleSection>
 
@@ -589,7 +596,7 @@ wipefs -a /dev/sdX`}</pre>
                   <span className="subtle">{selectedIndex + 1} / {nodes.length}</span>
                   <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1}>Next →</button>
                 </div>
-
+                <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
                 {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
                   <div className="host-inventory-v2-validation-summary">
                     <strong>Validation for this node</strong>
@@ -647,9 +654,6 @@ wipefs -a /dev/sdX`}</pre>
                               {" "}Disable BMC certificate verification (e.g. self-signed)
                             </label>
                           </div>
-                          <div className="actions" style={{ marginTop: 16 }}>
-                            <button type="button" className="ghost" onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
-                          </div>
                         </>
                       ) : (
                         <>
@@ -688,7 +692,7 @@ wipefs -a /dev/sdX`}</pre>
                         </label>
                         {(selectedNode.primary?.type === "ethernet" || selectedNode.primary?.type === "vlan-on-ethernet") && (
                           <>
-                            <label>Ethernet interface <input value={selectedNode.primary?.ethernet?.name || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { name: e.target.value })} placeholder="eth0" /></label>
+                            <label>Ethernet interface <input value={selectedNode.primary?.ethernet?.name || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { name: e.target.value })} placeholder="eno0" /></label>
                             <label>Ethernet MAC <input value={selectedNode.primary?.ethernet?.macAddress || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { macAddress: formatMACAsYouType(e.target.value) })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updatePrimaryEthernet(selectedIndex, { macAddress: v }); }} placeholder="52:54:00:aa:11:01" /></label>
                           </>
                         )}
@@ -1010,11 +1014,7 @@ wipefs -a /dev/sdX`}</pre>
                             </div>
                           )}
                         </>
-                      )}
-
-                      <div className="actions" style={{ marginTop: 16 }}>
-                        <button type="button" className="ghost" onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
-                      </div>
+                          )}
                         </>
                       )}
                     </>
@@ -1034,7 +1034,7 @@ wipefs -a /dev/sdX`}</pre>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
                 <h4>Settings to copy</h4>
-                {REPLICATE_OPTIONS.map((opt) => (
+                {REPLICATE_OPTIONS.filter((opt) => (opt.key === "bmc" ? showBmc : true)).map((opt) => (
                   <label key={opt.key} className="toggle-row">
                     <input
                       type="checkbox"
@@ -1047,6 +1047,21 @@ wipefs -a /dev/sdX`}</pre>
               </div>
               <div className="list">
                 <h4>Apply to nodes</h4>
+                <label className="toggle-row" style={{ marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIndex != null && nodes.length > 1 && nodes.every((_, idx) => idx === selectedIndex || replicateTargetIndices.has(idx))}
+                    onChange={(e) => {
+                      if (selectedIndex == null || nodes.length <= 1) return;
+                      if (e.target.checked) {
+                        setReplicateTargetIndices(new Set(nodes.map((_, i) => i).filter((i) => i !== selectedIndex)));
+                      } else {
+                        setReplicateTargetIndices(new Set());
+                      }
+                    }}
+                  />
+                  <span>Apply to all other nodes</span>
+                </label>
                 {nodes.map((node, idx) => (
                   <label key={idx} className="toggle-row">
                     <input

@@ -399,8 +399,8 @@ const validateProxy = (state) => {
   if (httpProxy && !httpProxy.startsWith("http://")) {
     errors.push("HTTP proxy must start with http://");
   }
-  if (httpsProxy && !httpsProxy.startsWith("https://")) {
-    errors.push("HTTPS proxy must start with https://");
+  if (httpsProxy && !httpsProxy.startsWith("http://") && !httpsProxy.startsWith("https://")) {
+    errors.push("HTTPS proxy must start with http:// or https:// (use the scheme your proxy supports).");
   }
   return { errors, warnings: [] };
 };

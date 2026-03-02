@@ -703,6 +703,7 @@ const AppShell = () => {
     const payload = JSON.parse(text);
     const data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
     setState(data.state);
+    setIsToolsOpen(false);
     const imported = data.state?.ui || {};
     const importedLocked = Boolean(
       data.state?.blueprint?.confirmed &&
