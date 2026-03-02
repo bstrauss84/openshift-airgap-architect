@@ -813,8 +813,13 @@ body[data-theme="dark"] .step-header-main .subtle {
 .proxy-field-input {
   min-width: 330px;
   max-width: 100%;
-  overflow-x: auto;
   box-sizing: border-box;
+}
+
+.proxy-field-textarea {
+  resize: vertical;
+  overflow: auto;
+  min-height: 2.5em;
 }
 
 .read-only-field {

@@ -192,12 +192,13 @@ export default function TrustProxyStep({ highlightErrors }) {
               <div className="field-grid proxy-fields-grid">
                 <label>
                   HTTP Proxy {metaHttpProxy?.required ? <span className="required-badge">required</span> : "(optional)"}
-                  <input
-                    type="text"
-                    className="proxy-field-input"
+                  <textarea
+                    className="proxy-field-input proxy-field-textarea"
                     value={proxies.httpProxy || ""}
-                    onChange={(e) => updateProxy("httpProxy", e.target.value)}
+                    onChange={(e) => updateProxy("httpProxy", e.target.value.replace(/\n/g, " ").trim())}
                     placeholder="http://proxy.corp:8080"
+                    rows={2}
+                    spellCheck={false}
                   />
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
                 </label>
@@ -206,23 +207,25 @@ export default function TrustProxyStep({ highlightErrors }) {
                     label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
                     hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
                   />
-                  <input
-                    type="text"
-                    className="proxy-field-input"
+                  <textarea
+                    className="proxy-field-input proxy-field-textarea"
                     value={proxies.httpsProxy || ""}
-                    onChange={(e) => updateProxy("httpsProxy", e.target.value)}
+                    onChange={(e) => updateProxy("httpsProxy", e.target.value.replace(/\n/g, " ").trim())}
                     placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
+                    rows={2}
+                    spellCheck={false}
                   />
                   {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
                 </label>
                 <label>
                   No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : null}
-                  <input
-                    type="text"
-                    className="proxy-field-input"
+                  <textarea
+                    className="proxy-field-input proxy-field-textarea"
                     value={proxies.noProxy || ""}
-                    onChange={(e) => updateProxy("noProxy", e.target.value)}
+                    onChange={(e) => updateProxy("noProxy", e.target.value.replace(/\n/g, " ").trim())}
                     placeholder=".cluster.local,.svc,10.128.0.0/14,127.0.0.1"
+                    rows={2}
+                    spellCheck={false}
                   />
                 </label>
               </div>

@@ -261,7 +261,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               {usingMirrorRegistry ? (
                 <div className="credentials-mirror-cell credentials-mirror-cell-okd" style={{ minWidth: 0 }}>
                   <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>Registry allows anonymous pulls</span>
-                  <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
+                  <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "max-content", maxWidth: "100%" }}>
                     <input
                       type="checkbox"
                       checked={mirrorRegistryUnauthenticated}
