@@ -183,7 +183,7 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     expect(mirrorCaSwitch).toBeInTheDocument();
     fireEvent.click(mirrorCaSwitch);
     await waitFor(() => {
-      expect(screen.getByText(/Mirror registry CA bundle is required when using a private CA/i)).toBeInTheDocument();
+      expect(screen.getByText(/Mirror registry CA bundle is required when using a private or self-signed CA/i)).toBeInTheDocument();
     });
   });
 

@@ -1219,37 +1219,49 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
             </div>
           </label>
           <div>
-            <label className="toggle-row" style={{ marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={mirrorUnauth}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  if (checked) {
+            <fieldset style={{ border: "none", margin: 0, padding: 0, marginBottom: 8 }}>
+              <legend style={{ marginBottom: 6 }}>Mirror registry authentication</legend>
+              <label className="toggle-row" style={{ display: "block", marginBottom: 6 }}>
+                <input
+                  type="radio"
+                  name="mirror-auth-mode-global"
+                  checked={mirrorUnauth}
+                  onChange={() => {
                     setMirrorSecretBackup(mirrorPullSecret);
                     updateState({
                       credentials: {
                         ...state.credentials,
+                        usingMirrorRegistry: true,
                         mirrorRegistryUnauthenticated: true,
                         mirrorRegistryPullSecret: buildUnauthMirrorSecret()
                       }
                     });
-                  } else {
+                  }}
+                />
+                <span>Anonymous pulls</span>
+              </label>
+              <label className="toggle-row" style={{ display: "block" }}>
+                <input
+                  type="radio"
+                  name="mirror-auth-mode-global"
+                  checked={!mirrorUnauth}
+                  onChange={() => {
                     updateState({
                       credentials: {
                         ...state.credentials,
+                        usingMirrorRegistry: true,
                         mirrorRegistryUnauthenticated: false,
                         mirrorRegistryPullSecret: mirrorSecretBackup || ""
                       }
                     });
-                  }
-                }}
-              />
-              <span>Registry allows anonymous pulls</span>
-            </label>
+                  }}
+                />
+                <span>Use mirror-registry credentials (paste or generate)</span>
+              </label>
+            </fieldset>
             {mirrorUnauth ? (
               <div className="note">
-                Anonymous pulls selected. Uncheck above to paste or generate mirror registry credentials.
+                Anonymous pulls selected. Select &quot;Use mirror-registry credentials&quot; above to paste or generate.
               </div>
             ) : (
               <>

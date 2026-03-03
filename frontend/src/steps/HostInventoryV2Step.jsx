@@ -50,6 +50,7 @@ const REPLICATE_OPTIONS = [
   { key: "primary.ethernet.macAddress", label: "Primary ethernet MAC (usually leave unchecked)" },
   { key: "primary.bond.slaves.macAddress", label: "Bond member MACs (usually leave unchecked)" },
   { key: "hostname", label: "Hostname (usually leave unchecked)" },
+  { key: "rootDevice", label: "Root device (usually leave unchecked)" },
   { key: "bmc", label: "BMC credentials (usually leave unchecked)" }
 ];
 

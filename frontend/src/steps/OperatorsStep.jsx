@@ -131,10 +131,14 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   useEffect(() => {
     const catalogIds = ["redhat", "certified", "community"];
     for (const id of catalogIds) {
-      const status = jobStatuses[id]?.status;
+      const job = jobStatuses[id];
+      const status = job?.status;
       const prev = prevStatusesRef.current[id];
       if (status === "running" || status === "queued") {
-        if (prev !== "running" && prev !== "queued") start(id);
+        if (prev !== "running" && prev !== "queued") {
+          const createdAt = job?.created_at ?? job?.createdAt;
+          start(id, typeof createdAt === "number" ? createdAt : null);
+        }
       } else if (status === "completed") {
         complete(id);
       } else if (status === "failed") {
@@ -510,12 +514,19 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
                       : status?.status === "failed"
                         ? (status?.progress ?? 0)
                         : (displayProgress[catalogId] ?? status?.progress ?? 0);
+                  const createdAt = status?.created_at ?? status?.createdAt;
+                  const elapsedMin = typeof createdAt === "number" && (status?.status === "running" || status?.status === "queued")
+                    ? Math.floor((Date.now() - createdAt) / 60_000)
+                    : null;
+                  const elapsedLabel = elapsedMin != null && elapsedMin >= 1
+                    ? ` (started ${elapsedMin} min ago)`
+                    : "";
                   return (
                     <div key={catalogId} className="scan-status-card">
                       <div className="scan-status-card-main">
                         <strong>{catalogId === "redhat" ? "Red Hat" : catalogId === "certified" ? "Certified" : "Community"}</strong>
                         <span className="subtle scan-status-progress">
-                          {status ? `${status.status} • ${progressPercent}%` : "Waiting to scan"}
+                          {status ? `${status.status} • ${progressPercent}%${elapsedLabel}` : "Waiting to scan"}
                         </span>
                       </div>
                       {failedLine ? <div className="subtle scan-status-card-detail">{failedLine}</div> : null}

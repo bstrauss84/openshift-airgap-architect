@@ -246,7 +246,7 @@ export default function TrustProxyStep({ highlightErrors }) {
 
             <OptionRow
               title="Mirror registry uses a private or self-signed CA"
-              description="When enabled, mirror registry CA bundle is recommended."
+              description="When enabled, the mirror registry CA bundle below is required; progress is blocked until you add it."
             >
               <Switch
                 checked={trust.mirrorRegistryUsesPrivateCa || false}
@@ -256,12 +256,15 @@ export default function TrustProxyStep({ highlightErrors }) {
             </OptionRow>
 
             <div className="trust-sections">
-              <div className="trust-section">
-                <h4 className="trust-section-title">Mirror registry CA</h4>
-                <p className="trust-section-desc">For a private or self-signed mirror registry.</p>
+              <div className={`trust-section ${trust.mirrorRegistryUsesPrivateCa && !trust.mirrorRegistryCaPem ? "trust-section-required-incomplete" : ""}`}>
+                <h4 className="trust-section-title">
+                  Mirror registry CA
+                  {trust.mirrorRegistryUsesPrivateCa ? <span className="required-badge" style={{ marginLeft: 8 }}>required</span> : null}
+                </h4>
+                <p className="trust-section-desc">For a private or self-signed mirror registry. {trust.mirrorRegistryUsesPrivateCa ? "You must add the CA certificate(s) here for installs to succeed." : ""}</p>
                 <PemField
                   label="Mirror registry CA bundle"
-                  required={false}
+                  required={trust.mirrorRegistryUsesPrivateCa}
                   value={trust.mirrorRegistryCaPem || ""}
                   onChange={handleMirrorCaText}
                   onFiles={handleMirrorCaFiles}
@@ -269,7 +272,7 @@ export default function TrustProxyStep({ highlightErrors }) {
                   placeholder="Paste or drop .pem/.crt here"
                 />
                 {trust.mirrorRegistryUsesPrivateCa && !trust.mirrorRegistryCaPem ? (
-                  <Banner variant="warning">Mirror registry CA bundle is required when using a private CA.</Banner>
+                  <Banner variant="warning">Mirror registry CA bundle is required when using a private or self-signed CA. Progress to Assets &amp; Guide is blocked until you add the certificate(s) above.</Banner>
                 ) : null}
               </div>
 

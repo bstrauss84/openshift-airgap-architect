@@ -16,10 +16,11 @@ export function useCatalogScanProgress() {
   const startTimesRef = useRef(Object.fromEntries(CATALOG_IDS.map((id) => [id, null])));
   const intervalRef = useRef(null);
 
-  const start = useCallback((catalogId) => {
+  const start = useCallback((catalogId, startedAtMs = null) => {
     if (!CATALOG_IDS.includes(catalogId)) return;
-    startTimesRef.current[catalogId] = Date.now();
-    setDisplayProgress((prev) => ({ ...prev, [catalogId]: 0 }));
+    const t = startedAtMs != null && startedAtMs > 0 ? startedAtMs : Date.now();
+    startTimesRef.current[catalogId] = t;
+    setDisplayProgress((prev) => ({ ...prev, [catalogId]: getDeterministicProgress(Date.now() - t) }));
   }, []);
 
   const complete = useCallback((catalogId) => {

@@ -72,10 +72,15 @@ const buildInstallConfig = (state) => {
   const anonymousPullSecretPayload = JSON.stringify({
     auths: { [registryFqdn]: { auth: "aWQ6cGFzcwo=", email: "" } }
   });
+  const mirrorHasContent = (creds.mirrorRegistryPullSecret || "").trim() && (creds.mirrorRegistryPullSecret || "").trim() !== "{\"auths\":{}}";
+  const redHatHasContent = (creds.pullSecretPlaceholder || "").trim() && (creds.pullSecretPlaceholder || "").trim() !== "{\"auths\":{}}";
+  const useMirrorPath = creds.usingMirrorRegistry || (!redHatHasContent && mirrorHasContent);
   const rawPullSecret = includeCredentials
     ? useAnonymousPullSecret
       ? anonymousPullSecretPayload
-      : creds.pullSecretPlaceholder || "{\"auths\":{}}"
+      : useMirrorPath
+        ? (creds.mirrorRegistryPullSecret || "{\"auths\":{}}")
+        : (creds.pullSecretPlaceholder || "{\"auths\":{}}")
     : "{\"auths\":{}}";
   const pullSecret = normalizePullSecretString(rawPullSecret);
 
@@ -392,7 +397,11 @@ const buildInstallConfig = (state) => {
     }
   }
 
-  return yaml.dump(installConfig, { lineWidth: 120 });
+  let out = yaml.dump(installConfig, { lineWidth: 120 });
+  if (trustBundle) {
+    out = rewriteAdditionalTrustBundleToLiteralBlock(out, trustBundle);
+  }
+  return out;
 };
 
 const normalizePlatformKey = (platform) => {
@@ -507,9 +516,10 @@ const buildNtpMachineConfigs = (state) => {
 
 const extractPemBlocks = (pem) => {
   if (!pem) return [];
-  const matches = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+  const normalized = (typeof pem === "string" ? pem : "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const matches = normalized.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
   if (!matches) return [];
-  return matches.map((block) => block.trim());
+  return matches.map((block) => block.trim().replace(/\r\n/g, "\n").replace(/\r/g, "\n"));
 };
 
 const buildEffectiveTrustBundle = (trust) => {
@@ -517,8 +527,35 @@ const buildEffectiveTrustBundle = (trust) => {
   const proxyBlocks = extractPemBlocks(trust.proxyCaPem);
   if (!mirrorBlocks.length && !proxyBlocks.length) return "";
   const merged = Array.from(new Set([...mirrorBlocks, ...proxyBlocks]));
-  return merged.join("\n");
+  return merged.join("\n\n");
 };
+
+/**
+ * Rewrite additionalTrustBundle in dumped install-config YAML to use literal block scalar (|)
+ * so PEM certs render as readable multi-line blocks instead of folded single-line output.
+ * js-yaml dump() uses folded style (>-) for long multi-line strings, which collapses newlines.
+ * @param {string} yamlString - Full install-config YAML from yaml.dump()
+ * @param {string} trustBundle - Raw PEM bundle string (with \n between certs)
+ * @returns {string} YAML with additionalTrustBundle as literal block
+ */
+function rewriteAdditionalTrustBundleToLiteralBlock(yamlString, trustBundle) {
+  const lines = yamlString.split("\n");
+  const keyPattern = /^additionalTrustBundle\s*:/;
+  const idx = lines.findIndex((line) => keyPattern.test(line));
+  if (idx === -1) return yamlString;
+  let endIdx = idx + 1;
+  while (endIdx < lines.length && (lines[endIdx].startsWith(" ") || lines[endIdx].startsWith("\t") || lines[endIdx].trim() === "")) {
+    endIdx++;
+  }
+  const literalContent = trustBundle
+    .split("\n")
+    .map((line) => (line.length ? `  ${line}` : "  "))
+    .join("\n");
+  const before = lines.slice(0, idx).join("\n");
+  const after = endIdx < lines.length ? lines.slice(endIdx).join("\n") : "";
+  const middle = `additionalTrustBundle: |\n${literalContent}`;
+  return [before, middle, after].filter(Boolean).join("\n");
+}
 
 const buildNmState = (node) => {
   const enableIpv6 = Boolean(node?.enableIpv6 || node?.inventoryEnableIpv6);
