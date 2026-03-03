@@ -456,7 +456,13 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
                       onChange={setPullSecretInput}
                       label="Red Hat pull secret (optional)"
                       labelEmphasis="Red Hat pull secret (optional)"
-                      labelHint={state.credentials?.redHatPullSecretConfigured ? "Pull secret configured for operator discovery." : "Used only for catalog scan. Not stored. Red Hat login required to obtain."}
+                      labelHint={
+                        state.credentials?.redHatPullSecretConfigured
+                          ? "Pull secret configured for operator discovery."
+                          : hasRetainedPullSecret && discoveryAlreadyRunningOrDone
+                            ? "From Blueprint (in memory only). Used for catalog scan; not stored or exported."
+                            : "Used only for catalog scan. Red Hat login required to obtain."
+                      }
                       getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
                       placeholder="Paste Red Hat pull secret JSON"
                       rows={4}

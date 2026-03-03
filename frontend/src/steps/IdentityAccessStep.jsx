@@ -314,21 +314,46 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                     />
                   ) : (
                     <>
-                      <SecretInput
-                        value={mirrorRegistryPullSecret}
-                        onChange={(v) => updateCredentials({ mirrorRegistryPullSecret: v })}
-                        label="Pull secret (Mirror registry)"
-                        labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
-                        required={requiredPullSecret}
-                        placeholder='{"auths":{...}}'
-                        rows={5}
-                        aria-label="Mirror registry pull secret JSON"
-                      />
-                      <div className="actions">
-                        <button type="button" className="ghost" onClick={() => { setShowKeygen(false); setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry })); setShowMirrorSecretHelper(true); }}>
-                          Help me generate
-                        </button>
-                      </div>
+                      {mirrorRegistryUnauthenticated ? (
+                        <p className="note" style={{ marginTop: 0 }}>
+                          Anonymous pulls selected. Uncheck &quot;Registry allows anonymous pulls&quot; above to paste, upload, or generate mirror registry credentials.
+                        </p>
+                      ) : (
+                        <>
+                          <SecretInput
+                            value={mirrorRegistryPullSecret}
+                            onChange={(v) => {
+                              if (mirrorRegistryUnauthenticated) {
+                                updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: v });
+                              } else {
+                                updateCredentials({ mirrorRegistryPullSecret: v });
+                              }
+                            }}
+                            label="Pull secret (Mirror registry)"
+                            labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
+                            required={requiredPullSecret}
+                            placeholder='{"auths":{...}}'
+                            rows={5}
+                            aria-label="Mirror registry pull secret JSON"
+                          />
+                          <div className="actions">
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => {
+                                setShowKeygen(false);
+                                if (mirrorRegistryUnauthenticated) {
+                                  updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: "" });
+                                }
+                                setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry }));
+                                setShowMirrorSecretHelper(true);
+                              }}
+                            >
+                              Help me generate
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                 </>

@@ -46,6 +46,9 @@ config.json
 data/tools/
 data/cache/
 /data/
+# Allow docs-index for CI and canonical source (see docs/DATA_AND_FRONTEND_COPIES.md)
+!/data/docs-index/
+!/data/docs-index/**
 **/openshift-install-*
 **/openshift-install-*.tar.gz
 # When DATA_DIR is backend/ (e.g. local dev)

@@ -237,7 +237,7 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
     if (selectedFields.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
     if (selectedFields.has("rootDevice")) next.rootDevice = sourceNode.rootDevice ?? "";
     if (selectedFields.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
-    if (["primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.ethernet", "primary.ethernet.macAddress"].some((k) => selectedFields.has(k))) {
+    if (["primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Cidr", "primary.ipv6Cidr", "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.ethernet", "primary.ethernet.macAddress"].some((k) => selectedFields.has(k))) {
       next.primary = { ...node.primary };
       copyPrimaryShape(next.primary, sourceNode.primary || {});
     }

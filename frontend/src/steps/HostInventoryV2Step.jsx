@@ -40,6 +40,8 @@ const REPLICATE_OPTIONS = [
   { key: "dnsSearch", label: "DNS search domains" },
   { key: "primary.type", label: "Primary interface type" },
   { key: "primary.mode", label: "IP assignment (DHCP/static)" },
+  { key: "primary.ipv4Cidr", label: "IPv4 CIDR" },
+  { key: "primary.ipv6Cidr", label: "IPv6 CIDR" },
   { key: "primary.ipv4Gateway", label: "IPv4 gateway" },
   { key: "primary.ipv6Gateway", label: "IPv6 gateway" },
   { key: "primary.vlan", label: "VLAN settings" },
@@ -158,6 +160,15 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   useEffect(() => {
     setAdditionalAdvancedOpen({});
   }, [selectedIndex]);
+
+  useEffect(() => {
+    if (!showReplicate) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setShowReplicate(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showReplicate]);
 
   const updateInventory = (patch) => updateState({ hostInventory: { ...inventory, ...patch } });
 
@@ -1029,8 +1040,8 @@ wipefs -a /dev/sdX`}</pre>
       </div>
 
       {showReplicate && sectionOrderSet.has(SECTION_IDS.REPLICATE_MODAL) && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="modal">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowReplicate(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Apply settings to other nodes</h3>
             <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default.</p>
             <div className="host-inventory-v2-replicate-two-cols">

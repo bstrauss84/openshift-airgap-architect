@@ -1,8 +1,9 @@
 /**
  * Connectivity & Mirroring replacement step (segmented flow). Image digest sources (mirror mapping), registry FQDN,
  * and optional NTP (additionalNTPSources for agent-config). State: globalStrategy.mirroring, globalStrategy.ntpServers.
+ * Registry FQDN is auto-hydrated from Identity & Access mirror-registry pull secret when empty (one-way, no overwrite).
  */
-import React from "react";
+import React, { useEffect } from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta } from "../catalogResolver.js";
 import Banner from "../components/Banner.jsx";
@@ -11,6 +12,21 @@ import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
 const INSTALL_CONFIG = "install-config.yaml";
 const AGENT_CONFIG = "agent-config.yaml";
+
+/** Parse mirror registry FQDN from pull secret JSON (auths keys). Returns first registry-like key or null. */
+function getRegistryFqdnFromPullSecret(pullSecretJson) {
+  if (!pullSecretJson || typeof pullSecretJson !== "string") return null;
+  try {
+    const data = JSON.parse(pullSecretJson);
+    const auths = data?.auths;
+    if (!auths || typeof auths !== "object") return null;
+    const keys = Object.keys(auths);
+    if (keys.length === 0) return null;
+    return keys[0] || null;
+  } catch {
+    return null;
+  }
+}
 
 export default function ConnectivityMirroringStep({ highlightErrors }) {
   const { state, updateState } = useApp();
@@ -24,6 +40,14 @@ export default function ConnectivityMirroringStep({ highlightErrors }) {
   const updateStrategy = (patch) => updateState({ globalStrategy: { ...strategy, ...patch } });
   const updateMirroring = (patch) =>
     updateStrategy({ mirroring: { ...mirroring, ...patch } });
+
+  useEffect(() => {
+    const currentFqdn = (mirroring.registryFqdn || "").trim();
+    if (currentFqdn) return;
+    const mirrorPullSecret = state.credentials?.mirrorRegistryPullSecret;
+    const fqdn = getRegistryFqdnFromPullSecret(mirrorPullSecret);
+    if (fqdn) updateMirroring({ registryFqdn: fqdn });
+  }, [state.credentials?.mirrorRegistryPullSecret, mirroring.registryFqdn]);
 
   const ntpServersArray = Array.isArray(strategy.ntpServers) ? strategy.ntpServers : (typeof strategy.ntpServers === "string" ? strategy.ntpServers.split(",").map((s) => s.trim()).filter(Boolean) : []);
   const [ntpInput, setNtpInput] = React.useState(() => ntpServersArray.join(", "));

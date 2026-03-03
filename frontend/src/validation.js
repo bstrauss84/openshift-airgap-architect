@@ -328,6 +328,9 @@ const validateTrust = (state) => {
   const effective = [...mirrorBlocks, ...proxyBlocks];
   const policies = getTrustBundlePolicies(state.version?.selectedVersion || state.release?.patchVersion || "");
 
+  if (trust.mirrorRegistryUsesPrivateCa && !mirrorBlocks.length) {
+    errors.push("Mirror registry CA bundle is required when the mirror registry uses a private or self-signed CA. Add the CA certificate(s) in Trust and Certificates.");
+  }
   if (effective.length && !trust.additionalTrustBundlePolicy) {
     errors.push("additionalTrustBundlePolicy is required when a trust bundle is provided.");
   }

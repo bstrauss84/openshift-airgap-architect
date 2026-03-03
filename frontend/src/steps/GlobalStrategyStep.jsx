@@ -1219,74 +1219,77 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
             </div>
           </label>
           <div>
-            <SecretInput
-              value={mirrorPullSecret}
-              onChange={(v) =>
-                updateState({ credentials: { ...state.credentials, mirrorRegistryPullSecret: v } })
-              }
-              label="Mirror registry pull secret (JSON)"
-              labelEmphasis="Mirror registry pull secret (JSON)"
-              errorMessage={mirrorPullSecret && !mirrorPullSecretCheck.valid ? mirrorPullSecretCheck.error : undefined}
-              notPersistedMessage="Use mirror registry credentials (not your Red Hat pull secret). Stored in the run state unless cleared."
-              placeholder='{"auths":{...}}'
-              rows={3}
-              aria-label="Mirror registry pull secret JSON"
-            />
-            <div className="actions">
-              <button
-                className="ghost"
-                type="button"
-                onClick={() => {
-                  setShowKeygen(false);
-                  setShowAwsHelp(false);
-                  if (!mirrorHelper.registry && strategy.mirroring?.registryFqdn) {
-                    setMirrorHelper({ ...mirrorHelper, registry: strategy.mirroring.registryFqdn });
+            <label className="toggle-row" style={{ marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={mirrorUnauth}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  if (checked) {
+                    setMirrorSecretBackup(mirrorPullSecret);
+                    updateState({
+                      credentials: {
+                        ...state.credentials,
+                        mirrorRegistryUnauthenticated: true,
+                        mirrorRegistryPullSecret: buildUnauthMirrorSecret()
+                      }
+                    });
+                  } else {
+                    updateState({
+                      credentials: {
+                        ...state.credentials,
+                        mirrorRegistryUnauthenticated: false,
+                        mirrorRegistryPullSecret: mirrorSecretBackup || ""
+                      }
+                    });
                   }
-                  setShowMirrorSecretHelper(true);
                 }}
-              >
-                Pull secret helper
-              </button>
-              <label className="toggle-row">
-                <input
-                  type="checkbox"
-                  checked={mirrorUnauth}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    if (checked) {
-                      setMirrorSecretBackup(mirrorPullSecret);
-                      updateState({
-                        credentials: {
-                          ...state.credentials,
-                          mirrorRegistryUnauthenticated: true,
-                          mirrorRegistryPullSecret: buildUnauthMirrorSecret()
-                        }
-                      });
-                    } else {
-                      updateState({
-                        credentials: {
-                          ...state.credentials,
-                          mirrorRegistryUnauthenticated: false,
-                          mirrorRegistryPullSecret: mirrorSecretBackup || ""
-                        }
-                      });
-                    }
-                  }}
-                />
-                <span>Registry allows anonymous pulls</span>
-              </label>
-            </div>
+              />
+              <span>Registry allows anonymous pulls</span>
+            </label>
             {mirrorUnauth ? (
               <div className="note">
-                Anonymous registry selected. oc-mirror will use a dummy auth entry for this registry.
+                Anonymous pulls selected. Uncheck above to paste or generate mirror registry credentials.
               </div>
-            ) : null}
-            {mirrorUnauth ? (
-              <div className="note warning">
-                This uses a minimal auths entry for the mirror registry. If your registry requires a different
-                unauthenticated format, replace it with your documented configuration.
-              </div>
-            ) : null}
+            ) : (
+              <>
+                <SecretInput
+                  value={mirrorPullSecret}
+                  onChange={(v) =>
+                    updateState({
+                      credentials: {
+                        ...state.credentials,
+                        ...(mirrorUnauth ? { mirrorRegistryUnauthenticated: false } : {}),
+                        mirrorRegistryPullSecret: v
+                      }
+                    })
+                  }
+                  label="Mirror registry pull secret (JSON)"
+                  labelEmphasis="Mirror registry pull secret (JSON)"
+                  errorMessage={mirrorPullSecret && !mirrorPullSecretCheck.valid ? mirrorPullSecretCheck.error : undefined}
+                  notPersistedMessage="Use mirror registry credentials (not your Red Hat pull secret). Stored in the run state unless cleared."
+                  placeholder='{"auths":{...}}'
+                  rows={3}
+                  aria-label="Mirror registry pull secret JSON"
+                />
+                <div className="actions">
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setShowKeygen(false);
+                      setShowAwsHelp(false);
+                      if (!mirrorHelper.registry && strategy.mirroring?.registryFqdn) {
+                        setMirrorHelper({ ...mirrorHelper, registry: strategy.mirroring.registryFqdn });
+                      }
+                      setShowMirrorSecretHelper(true);
+                    }}
+                  >
+                    Pull secret helper
+                  </button>
+                </div>
+              </>
+            )}
           </div>
             </div>
             {!sshKey || (!mirrorUnauth && !mirrorPullSecret) ? (
