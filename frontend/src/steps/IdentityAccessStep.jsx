@@ -72,9 +72,6 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
     updateState({ blueprint: { ...state.blueprint, ...patch } });
   const updateCredentials = (patch) => {
     const next = { ...state.credentials, ...patch };
-    if (patch.mirrorRegistryPullSecret !== undefined && usingMirrorRegistry) {
-      next.pullSecretPlaceholder = patch.mirrorRegistryPullSecret;
-    }
     updateState({ credentials: next });
   };
   const updateStrategy = (patch) =>
@@ -245,49 +242,53 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                     checked={usingMirrorRegistry}
                     onChange={(e) => {
                       const on = e.target.checked;
-                      updateCredentials({
-                        usingMirrorRegistry: on,
-                        ...(on ? { pullSecretPlaceholder: mirrorRegistryPullSecret } : {})
-                      });
+                      updateCredentials({ usingMirrorRegistry: on });
                     }}
                     aria-describedby="credentials-mirror-helper"
                   />
                 </label>
                 {usingMirrorRegistry ? (
                   <p id="credentials-mirror-helper" className="note credentials-mirror-helper" style={{ marginTop: 8, marginBottom: 0, textAlign: "left" }}>
-                    Use mirror registry credentials (not Red Hat pull secret). Not persisted.
+                    For disconnected/mirrored installs the cluster pulls images from your mirror registry. Choose how the mirror registry is accessed. Not persisted.
                   </p>
                 ) : null}
               </div>
-              <div className="credentials-mirror-cell credentials-mirror-cell-okd" style={{ minWidth: 0 }}>
-                {usingMirrorRegistry ? (
-                  <>
-                    <label className="credentials-mirror-title-row" style={{ display: "inline", marginBottom: 0 }}>
-                      <span className="credentials-mirror-label">Registry allows anonymous pulls</span>
-                      {" "}
+              {usingMirrorRegistry ? (
+                <div className="credentials-mirror-auth-mode" style={{ gridColumn: "1 / -1", marginTop: 8 }}>
+                  <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
+                    <legend className="credentials-mirror-label" style={{ marginBottom: 6 }}>Mirror registry authentication</legend>
+                    <label className="toggle-row" style={{ display: "block", marginBottom: 6 }}>
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="mirror-auth-mode"
                         checked={mirrorRegistryUnauthenticated}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          if (checked) {
-                            setMirrorSecretBackup(mirrorRegistryPullSecret);
-                            updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
-                          } else {
-                            updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
-                          }
+                        onChange={() => {
+                          setMirrorSecretBackup(mirrorRegistryPullSecret);
+                          updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
                         }}
                         aria-describedby="credentials-mirror-okd-warning"
                       />
+                      <span>Anonymous pulls</span>
                     </label>
                     {mirrorRegistryUnauthenticated ? (
-                      <div id="credentials-mirror-okd-warning" className="note warning credentials-mirror-okd-warning" style={{ marginTop: 8, marginBottom: 0, textAlign: "left" }}>
-                        Uses the <a href="https://github.com/orgs/okd-project/discussions/1930" target="_blank" rel="noopener noreferrer">OKD-documented dummy pull secret</a> value for unauthenticated registries: <code>{"auth: \"aWQ6cGFzcwo=\""}</code>. Replace if your registry requires a different format.
+                      <div id="credentials-mirror-okd-warning" className="note warning credentials-mirror-okd-warning" style={{ marginTop: 4, marginBottom: 8, marginLeft: 24, textAlign: "left" }}>
+                        Uses the <a href="https://github.com/orgs/okd-project/discussions/1930" target="_blank" rel="noopener noreferrer">OKD-documented dummy pull secret</a> for unauthenticated registries. Install-config will emit this value when credentials are included.
                       </div>
                     ) : null}
-                  </>
-                ) : null}
-              </div>
+                    <label className="toggle-row" style={{ display: "block" }}>
+                      <input
+                        type="radio"
+                        name="mirror-auth-mode"
+                        checked={!mirrorRegistryUnauthenticated}
+                        onChange={() => {
+                          updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
+                        }}
+                      />
+                      <span>Use mirror-registry credentials (paste, upload, or generate)</span>
+                    </label>
+                  </fieldset>
+                </div>
+              ) : null}
             </div>
 
             {(() => {
@@ -305,7 +306,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                       onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
                       label="Pull secret (Red Hat)"
                       labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
-                      labelHint="Red Hat pull secret from OpenShift Cluster Manager. Used in install-config. Not persisted."
+                      labelHint="For clusters that access Red Hat registries directly or through allowed egress. From OpenShift Cluster Manager. Used in install-config when not using a mirror registry. Not persisted."
                       getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
                       required={requiredPullSecret}
                       placeholder='{"auths":{...}}'
@@ -316,7 +317,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                     <>
                       {mirrorRegistryUnauthenticated ? (
                         <p className="note" style={{ marginTop: 0 }}>
-                          Anonymous pulls selected. Uncheck &quot;Registry allows anonymous pulls&quot; above to paste, upload, or generate mirror registry credentials.
+                          Anonymous pulls selected. Choose &quot;Use mirror-registry credentials&quot; above to paste, upload, or generate credentials.
                         </p>
                       ) : (
                         <>

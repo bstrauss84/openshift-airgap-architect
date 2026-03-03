@@ -419,11 +419,13 @@ const validateCredentials = (state) => {
   } else {
     warnings.push("SSH public key is missing.");
   }
-  // When mirror registry allows anonymous pulls, we do not persist the dummy secret; treat as valid and backend will inject it.
+  // When mirror registry allows anonymous pulls, backend injects dummy; treat as valid.
   if (creds.usingMirrorRegistry && creds.mirrorRegistryUnauthenticated) {
     return { errors, warnings };
   }
-  const pullSecret = creds.pullSecretPlaceholder || "";
+  const pullSecret = creds.usingMirrorRegistry
+    ? (creds.mirrorRegistryPullSecret || "")
+    : (creds.pullSecretPlaceholder || "");
   const pullSecretResult = isValidPullSecret(pullSecret);
   if (!pullSecretResult.valid) {
     errors.push(pullSecretResult.error);
