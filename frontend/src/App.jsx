@@ -383,13 +383,13 @@ const AppShell = () => {
     }
   }, [showLanding, state, foundationalLocked, active, visibleSteps, updateState]);
 
-  // Required-field highlighting (Workstream D): when landing on a step with errors, show highlights.
+  // Required-field highlighting (Workstream D): when landing on a step with errors, show highlights; clear when step has no errors.
   useEffect(() => {
     const stepId = visibleSteps[active]?.id;
     if (!stepId || !state) return;
     const result = validateStep(state, stepId);
     const hasErrors = (result.errors || []).length > 0;
-    if (hasErrors) setHighlightErrors(true);
+    setHighlightErrors(hasErrors);
   }, [active, visibleSteps, state]);
 
   // Sync active step index from persisted activeStepId only once when state first loads (e.g. from API), so we land on the correct step without undoing user navigation.

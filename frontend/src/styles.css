@@ -20,6 +20,21 @@ body[data-theme="dark"] {
   color: #e2e8f0;
 }
 
+/* Dark mode: links and visited links readable; avoid low-contrast purple default (#27) */
+body[data-theme="dark"] a {
+  color: #93c5fd;
+}
+body[data-theme="dark"] a:visited {
+  color: #a5b4fc;
+}
+body[data-theme="dark"] a:hover {
+  color: #bfdbfe;
+}
+body[data-theme="dark"] a:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
 button,
 input,
 select,
@@ -646,6 +661,10 @@ body[data-theme="dark"] .step-header-main .subtle {
   position: static;
   background: #f5f6f8;
   padding-bottom: 12px;
+}
+
+body[data-theme="dark"] .sticky-panel {
+  background: #0f172a;
 }
 
 .grid {

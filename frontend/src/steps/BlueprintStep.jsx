@@ -199,6 +199,9 @@ const BlueprintStep = () => {
 
         <section className="card">
           <h3>CPU Architecture</h3>
+          <p className="card-subtitle" style={{ marginTop: 4, marginBottom: 12 }}>
+            Target cluster host/node architecture (the machines that will run OpenShift). Not your local workstation or browser machine.
+          </p>
           <div className="grid">
             {archOptions.map((option) => (
               <button
