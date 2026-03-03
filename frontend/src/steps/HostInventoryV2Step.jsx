@@ -677,12 +677,11 @@ wipefs -a /dev/sdX`}</pre>
                         </label>
                         <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} /></label>
                         <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
-                        <label>
-                          <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking." />
+                        <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking.">
                           <select value={selectedNode.primary?.type || "ethernet"} onChange={(e) => updatePrimary(selectedIndex, { type: e.target.value })}>
                             {PRIMARY_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                           </select>
-                        </label>
+                        </FieldLabelWithInfo>
                         <h4>Primary Network</h4>
                         <label>IP assignment
                           <select value={selectedNode.primary?.mode || "dhcp"} onChange={(e) => updatePrimary(selectedIndex, { mode: e.target.value })}>
@@ -699,12 +698,11 @@ wipefs -a /dev/sdX`}</pre>
                         {(selectedNode.primary?.type === "bond" || selectedNode.primary?.type === "vlan-on-bond") && (
                           <>
                             <label>Bond name <input value={selectedNode.primary?.bond?.name || ""} onChange={(e) => updatePrimaryBond(selectedIndex, { name: e.target.value })} placeholder="bond0" /></label>
-                            <label>
-                              <FieldLabelWithInfo label="Bond mode" hint="Bond members: at least 2 required. Add or remove as needed." />
+                            <FieldLabelWithInfo label="Bond mode" hint="Bond members: at least 2 required. Add or remove as needed.">
                               <select value={selectedNode.primary?.bond?.mode || "active-backup"} onChange={(e) => updatePrimaryBond(selectedIndex, { mode: e.target.value })}>
                                 {BOND_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
                               </select>
-                            </label>
+                            </FieldLabelWithInfo>
                             {(selectedNode.primary?.bond?.slaves || []).map((member, mi) => (
                               <React.Fragment key={mi}>
                                 <label>Member interface <input value={member.name} onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, name: e.target.value } : m) } } }))} placeholder={`eth${mi}`} /></label>
@@ -833,10 +831,9 @@ wipefs -a /dev/sdX`}</pre>
                               )}
                               {(iface.type === "vlan-on-ethernet" || iface.type === "vlan-on-bond") && (
                                 <>
-                                  <label>
-                                    <FieldLabelWithInfo label="VLAN ID" hint="VLAN base interface is derived from the selected interface." />
+                                  <FieldLabelWithInfo label="VLAN ID" hint="VLAN base interface is derived from the selected interface.">
                                     <input value={iface.vlan?.id || ""} onChange={(e) => updateAdditionalInterface(selectedIndex, ifaceIndex, { vlan: { ...iface.vlan, id: e.target.value } })} />
-                                  </label>
+                                  </FieldLabelWithInfo>
                                   <label>
                                     VLAN Interface Name (auto)
                                     <input
@@ -966,11 +963,16 @@ wipefs -a /dev/sdX`}</pre>
                             </button>
                           </div>
                           {advancedOpen && (
-                            <div className="field-grid">
-                              <label>MTU <input value={selectedNode.primary?.advanced?.mtu || ""} onChange={(e) => updatePrimaryAdvanced(selectedIndex, { mtu: e.target.value })} placeholder="1500" /></label>
-                              {(selectedNode.primary?.type === "vlan-on-ethernet" || selectedNode.primary?.type === "vlan-on-bond") && (
-                                <label>VLAN MTU <input value={selectedNode.primary?.advanced?.vlanMtu || ""} onChange={(e) => updatePrimaryAdvanced(selectedIndex, { vlanMtu: e.target.value })} placeholder="1500" /></label>
-                              )}
+                            <>
+                              <div className="field-grid">
+                                <label>MTU <input value={selectedNode.primary?.advanced?.mtu || ""} onChange={(e) => updatePrimaryAdvanced(selectedIndex, { mtu: e.target.value })} placeholder="1500" /></label>
+                                {(selectedNode.primary?.type === "vlan-on-ethernet" || selectedNode.primary?.type === "vlan-on-bond") && (
+                                  <label>VLAN MTU <input value={selectedNode.primary?.advanced?.vlanMtu || ""} onChange={(e) => updatePrimaryAdvanced(selectedIndex, { vlanMtu: e.target.value })} placeholder="1500" /></label>
+                                )}
+                              </div>
+                              <p className="note subtle host-inventory-v2-advanced-mtu-note" style={{ marginTop: 6, marginBottom: 0 }}>
+                                MTU and VLAN MTU apply to this node&apos;s primary interface (and its VLAN if present). Each additional interface has its own Advanced section with per-interface MTU.
+                              </p>
                               <div className="list">
                                 <h4><FieldLabelWithInfo label="Additional Routes" hint="Optional static routes beyond the default gateway." /></h4>
                                 {(selectedNode.primary?.advanced?.routes || []).map((route, ri) => {
@@ -1011,7 +1013,7 @@ wipefs -a /dev/sdX`}</pre>
                                 })}
                                 <button type="button" className="ghost" onClick={() => addPrimaryRoute(selectedIndex)}>Add Route</button>
                               </div>
-                            </div>
+                            </>
                           )}
                         </>
                           )}
