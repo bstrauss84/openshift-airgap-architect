@@ -213,12 +213,11 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </div>
               )}
               <div className="field-grid" style={{ marginTop: 12 }}>
-                <label>
-                  <FieldLabelWithInfo
-                    label="AWS GovCloud region"
-                    hint={metaAwsRegion?.description}
-                    required={metaAwsRegion?.required || isRequiredInstall("platform.aws.region")}
-                  />
+                <FieldLabelWithInfo
+                  label="AWS GovCloud region"
+                  hint={metaAwsRegion?.description}
+                  required={metaAwsRegion?.required || isRequiredInstall("platform.aws.region")}
+                >
                   {(() => {
                     const regionsForDropdown = awsRegions.length > 0 ? awsRegions : AWS_GOVCLOUD_ARCHIVED_REGIONS;
                     return (
@@ -233,40 +232,37 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                       </select>
                     );
                   })()}
-                  {showAwsAmiLookup && awsRegions.length === 0 && (
-                    <div className="note subtle">Using archived region list. Installer metadata will replace this when the background download completes.</div>
-                  )}
-                  {showAwsAmiLookup && awsRegions.length > 0 && (
-                    <div className="note subtle">Regions from installer stream metadata.</div>
-                  )}
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Hosted zone ID (optional; omit if not using Route 53)"
-                    hint={metaAwsHostedZone?.description || "Route 53 hosted zone for base domain."}
-                  />
+                </FieldLabelWithInfo>
+                {showAwsAmiLookup && awsRegions.length === 0 && (
+                  <div className="note subtle">Using archived region list. Installer metadata will replace this when the background download completes.</div>
+                )}
+                {showAwsAmiLookup && awsRegions.length > 0 && (
+                  <div className="note subtle">Regions from installer stream metadata.</div>
+                )}
+                <FieldLabelWithInfo
+                  label="Hosted zone ID (optional; omit if not using Route 53)"
+                  hint={metaAwsHostedZone?.description || "Route 53 hosted zone for base domain."}
+                >
                   <input
                     value={platformConfig.aws?.hostedZone || ""}
                     onChange={(e) => updateAws({ hostedZone: e.target.value })}
                     placeholder="Z1234567890"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Hosted zone role ARN (optional; cross-account)"
-                    hint={metaAwsHostedZoneRole?.description || "IAM role for hosted zone in another account."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Hosted zone role ARN (optional; cross-account)"
+                  hint={metaAwsHostedZoneRole?.description || "IAM role for hosted zone in another account."}
+                >
                   <input
                     value={platformConfig.aws?.hostedZoneRole || ""}
                     onChange={(e) => updateAws({ hostedZoneRole: e.target.value })}
                     placeholder="arn:aws-us-gov:iam::123:role/HostedZoneRole"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Load balancer type (optional)"
-                    hint={metaAwsLbType?.description || "AWS load balancer type for default ingress and API."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Load balancer type (optional)"
+                  hint={metaAwsLbType?.description || "AWS load balancer type for default ingress and API."}
+                >
                   <select
                     value={platformConfig.aws?.lbType || ""}
                     onChange={(e) => updateAws({ lbType: e.target.value })}
@@ -275,18 +271,17 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <option value="Classic">Classic</option>
                     <option value="NLB">NLB</option>
                   </select>
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Subnets (optional; comma-separated for existing VPC)"
-                    hint={metaAwsSubnets?.description || "Existing VPC subnet IDs when not using installer-provisioned VPC."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Subnets (optional; comma-separated for existing VPC)"
+                  hint={metaAwsSubnets?.description || "Existing VPC subnet IDs when not using installer-provisioned VPC."}
+                >
                   <input
                     value={platformConfig.aws?.subnets || ""}
                     onChange={(e) => updateAws({ subnets: e.target.value })}
                     placeholder="subnet-abc,subnet-def"
                   />
-                </label>
+                </FieldLabelWithInfo>
                 <div className="platform-specifics-ami-row">
                   <label className="platform-specifics-ami-label">
                     <FieldLabelWithInfo
@@ -324,35 +319,32 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </div>
                 {scenarioId === "aws-govcloud-ipi" && (
                   <>
-                    <label>
-                      <FieldLabelWithInfo
-                        label="Control plane instance type (optional; IPI)"
-                        hint={metaControlPlaneAwsType?.description || "EC2 instance type for control plane."}
-                      />
+                    <FieldLabelWithInfo
+                      label="Control plane instance type (optional; IPI)"
+                      hint={metaControlPlaneAwsType?.description || "EC2 instance type for control plane."}
+                    >
                       <input
                         value={platformConfig.aws?.controlPlaneInstanceType || ""}
                         onChange={(e) => updateAws({ controlPlaneInstanceType: e.target.value })}
                         placeholder="e.g. m5.xlarge"
                       />
-                    </label>
-                    <label>
-                      <FieldLabelWithInfo
-                        label="Worker instance type (optional; IPI)"
-                        hint={metaComputeAwsType?.description || "EC2 instance type for compute."}
-                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Worker instance type (optional; IPI)"
+                      hint={metaComputeAwsType?.description || "EC2 instance type for compute."}
+                    >
                       <input
                         value={platformConfig.aws?.workerInstanceType || ""}
                         onChange={(e) => updateAws({ workerInstanceType: e.target.value })}
                         placeholder="e.g. m5.large"
                       />
-                    </label>
+                    </FieldLabelWithInfo>
                   </>
                 )}
-                <label>
-                  <FieldLabelWithInfo
-                    label="Publish (optional)"
-                    hint={metaPublish?.description || "How to publish API and ingress endpoints."}
-                  />
+                <FieldLabelWithInfo
+                  label="Publish (optional)"
+                  hint={metaPublish?.description || "How to publish API and ingress endpoints."}
+                >
                   <select
                     value={platformConfig.publish || metaPublish?.default || "External"}
                     onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
@@ -360,12 +352,11 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <option value="External">External</option>
                     <option value="Internal">Internal</option>
                   </select>
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Credentials mode (optional)"
-                    hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Credentials mode (optional)"
+                  hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
+                >
                   <select
                     value={platformConfig.credentialsMode || ""}
                     onChange={(e) => updatePlatformConfig({ credentialsMode: e.target.value })}
@@ -375,7 +366,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <option value="Passthrough">Passthrough</option>
                     <option value="Manual">Manual</option>
                   </select>
-                </label>
+                </FieldLabelWithInfo>
               </div>
             </div>
           </section>
@@ -389,12 +380,11 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 12 }}>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Cloud name"
-                    hint={metaAzureCloudName?.description}
-                    required={metaAzureCloudName?.required || isRequiredInstall("platform.azure.cloudName")}
-                  />
+                <FieldLabelWithInfo
+                  label="Cloud name"
+                  hint={metaAzureCloudName?.description}
+                  required={metaAzureCloudName?.required || isRequiredInstall("platform.azure.cloudName")}
+                >
                   <select
                     value={platformConfig.azure?.cloudName || metaAzureCloudName?.default || "AzureUSGovernmentCloud"}
                     onChange={(e) => updateAzure({ cloudName: e.target.value })}
@@ -403,48 +393,44 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                       ? metaAzureCloudName.allowed.map((v) => <option key={v} value={v}>{v}</option>)
                       : <option value="AzureUSGovernmentCloud">AzureUSGovernmentCloud</option>}
                   </select>
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Region"
-                    hint={metaAzureRegion?.description}
-                    required={metaAzureRegion?.required || isRequiredInstall("platform.azure.region")}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Region"
+                  hint={metaAzureRegion?.description}
+                  required={metaAzureRegion?.required || isRequiredInstall("platform.azure.region")}
+                >
                   <input
                     value={platformConfig.azure?.region || ""}
                     onChange={(e) => updateAzure({ region: e.target.value })}
                     placeholder="e.g. usgovvirginia"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Resource group name"
-                    hint={metaAzureResourceGroupName?.description}
-                    required={metaAzureResourceGroupName?.required || isRequiredInstall("platform.azure.resourceGroupName")}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Resource group name"
+                  hint={metaAzureResourceGroupName?.description}
+                  required={metaAzureResourceGroupName?.required || isRequiredInstall("platform.azure.resourceGroupName")}
+                >
                   <input
                     value={platformConfig.azure?.resourceGroupName || ""}
                     onChange={(e) => updateAzure({ resourceGroupName: e.target.value })}
                     placeholder="Existing resource group for cluster"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Base domain resource group"
-                    hint={metaAzureBaseDomainResourceGroupName?.description}
-                    required={metaAzureBaseDomainResourceGroupName?.required || isRequiredInstall("platform.azure.baseDomainResourceGroupName")}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Base domain resource group"
+                  hint={metaAzureBaseDomainResourceGroupName?.description}
+                  required={metaAzureBaseDomainResourceGroupName?.required || isRequiredInstall("platform.azure.baseDomainResourceGroupName")}
+                >
                   <input
                     value={platformConfig.azure?.baseDomainResourceGroupName || ""}
                     onChange={(e) => updateAzure({ baseDomainResourceGroupName: e.target.value })}
                     placeholder="Resource group containing DNS zone for base domain"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Publish (optional)"
-                    hint={metaPublish?.description || "How to publish API and ingress endpoints."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Publish (optional)"
+                  hint={metaPublish?.description || "How to publish API and ingress endpoints."}
+                >
                   <select
                     value={platformConfig.publish || metaPublish?.default || "External"}
                     onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
@@ -452,12 +438,11 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <option value="External">External</option>
                     <option value="Internal">Internal</option>
                   </select>
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Credentials mode (optional)"
-                    hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Credentials mode (optional)"
+                  hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
+                >
                   <select
                     value={platformConfig.credentialsMode || ""}
                     onChange={(e) => updatePlatformConfig({ credentialsMode: e.target.value })}
@@ -467,7 +452,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <option value="Passthrough">Passthrough</option>
                     <option value="Manual">Manual</option>
                   </select>
-                </label>
+                </FieldLabelWithInfo>
               </div>
             </div>
           </section>
@@ -481,41 +466,38 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 12 }}>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Prism Central endpoint"
-                    hint={metaNutanixEndpoint?.description}
-                    required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint")}
-                  />
+                <FieldLabelWithInfo
+                  label="Prism Central endpoint"
+                  hint={metaNutanixEndpoint?.description}
+                  required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint")}
+                >
                   <input
                     value={platformConfig.nutanix?.endpoint || ""}
                     onChange={(e) => updateNutanix({ endpoint: e.target.value })}
                     placeholder="prism.example.com"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Prism Central port (optional; default 9440)"
-                    hint={metaNutanixPort?.description || "API port."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Prism Central port (optional; default 9440)"
+                  hint={metaNutanixPort?.description || "API port."}
+                >
                   <input
                     type="number"
                     value={platformConfig.nutanix?.port ?? ""}
                     onChange={(e) => updateNutanix({ port: e.target.value || undefined })}
                     placeholder="9440"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Prism Central username (optional; emitted when including credentials)"
-                    hint={metaNutanixUsername?.description}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Prism Central username (optional; emitted when including credentials)"
+                  hint={metaNutanixUsername?.description}
+                >
                   <input
                     value={platformConfig.nutanix?.username || ""}
                     onChange={(e) => updateNutanix({ username: e.target.value })}
                     placeholder="admin"
                   />
-                </label>
+                </FieldLabelWithInfo>
                 <label>
                   <span>Prism Central password <span className="subtle">(optional; emitted when including credentials)</span></span>
                   <input
@@ -526,29 +508,27 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     placeholder="••••••••"
                   />
                 </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Subnet UUID or name"
-                    hint={metaNutanixSubnet?.description}
-                    required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
-                  />
+                <FieldLabelWithInfo
+                  label="Subnet UUID or name"
+                  hint={metaNutanixSubnet?.description}
+                  required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
+                >
                   <input
                     value={platformConfig.nutanix?.subnet || ""}
                     onChange={(e) => updateNutanix({ subnet: e.target.value })}
                     placeholder="Subnet UUID or name"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Cluster name (optional; Prism Element for VM placement)"
-                    hint={metaNutanixClusterName?.description || "Optional Nutanix cluster name."}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Cluster name (optional; Prism Element for VM placement)"
+                  hint={metaNutanixClusterName?.description || "Optional Nutanix cluster name."}
+                >
                   <input
                     value={platformConfig.nutanix?.cluster || ""}
                     onChange={(e) => updateNutanix({ cluster: e.target.value })}
                     placeholder="Optional cluster name"
                   />
-                </label>
+                </FieldLabelWithInfo>
               </div>
             </div>
           </section>
@@ -562,102 +542,93 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 12 }}>
-                <label>
-                  <FieldLabelWithInfo
-                    label="vCenter server"
-                    hint={metaVsphereVcenter?.description}
-                    required={metaVsphereVcenter?.required || isRequiredInstall("platform.vsphere.vcenter")}
-                  />
+                <FieldLabelWithInfo
+                  label="vCenter server"
+                  hint={metaVsphereVcenter?.description}
+                  required={metaVsphereVcenter?.required || isRequiredInstall("platform.vsphere.vcenter")}
+                >
                   <input
                     value={platformConfig.vsphere?.vcenter || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: e.target.value } })}
                     placeholder="vcenter.example.com"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Datacenter"
-                    hint={metaVsphereDatacenter?.description}
-                    required={metaVsphereDatacenter?.required || isRequiredInstall("platform.vsphere.datacenter")}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Datacenter"
+                  hint={metaVsphereDatacenter?.description}
+                  required={metaVsphereDatacenter?.required || isRequiredInstall("platform.vsphere.datacenter")}
+                >
                   <input
                     value={platformConfig.vsphere?.datacenter || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: e.target.value } })}
                     placeholder="Datacenter name"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Default datastore"
-                    hint={metaVsphereDefaultDatastore?.description}
-                    required={metaVsphereDefaultDatastore?.required || isRequiredInstall("platform.vsphere.defaultDatastore")}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Default datastore"
+                  hint={metaVsphereDefaultDatastore?.description}
+                  required={metaVsphereDefaultDatastore?.required || isRequiredInstall("platform.vsphere.defaultDatastore")}
+                >
                   <input
                     value={platformConfig.vsphere?.datastore || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: e.target.value } })}
                     placeholder="Datastore name"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Compute cluster (optional; required for failureDomains)"
-                    hint="vSphere compute cluster name; used in failureDomains topology."
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Compute cluster (optional; required for failureDomains)"
+                  hint="vSphere compute cluster name; used in failureDomains topology."
+                >
                   <input
                     value={platformConfig.vsphere?.cluster || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: e.target.value } })}
                     placeholder="e.g. Cluster1"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="VM network (optional; required for failureDomains)"
-                    hint="VM network name; used in failureDomains topology.networks."
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="VM network (optional; required for failureDomains)"
+                  hint="VM network name; used in failureDomains topology.networks."
+                >
                   <input
                     value={platformConfig.vsphere?.network || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, network: e.target.value } })}
                     placeholder="e.g. VM Network"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Folder (optional)"
-                    hint="vSphere VM folder path for cluster VMs."
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Folder (optional)"
+                  hint="vSphere VM folder path for cluster VMs."
+                >
                   <input
                     value={platformConfig.vsphere?.folder || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, folder: e.target.value } })}
                     placeholder="VM folder path"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Resource pool (optional)"
-                    hint="vSphere resource pool path for cluster VMs."
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Resource pool (optional)"
+                  hint="vSphere resource pool path for cluster VMs."
+                >
                   <input
                     value={platformConfig.vsphere?.resourcePool || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, resourcePool: e.target.value } })}
                     placeholder="Resource pool path"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="vCenter username (optional)"
-                    hint="Only included in generated install-config when storing credentials."
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="vCenter username (optional)"
+                  hint="Only included in generated install-config when storing credentials."
+                >
                   <input
                     value={platformConfig.vsphere?.username || ""}
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, username: e.target.value } })}
                     placeholder="administrator@vsphere.local"
                   />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="vCenter password (optional)"
-                    hint="Only included in generated install-config when storing credentials."
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="vCenter password (optional)"
+                  hint="Only included in generated install-config when storing credentials."
+                >
                   <input
                     type="password"
                     autoComplete="new-password"
@@ -665,7 +636,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: e.target.value } })}
                     placeholder="••••••••"
                   />
-                </label>
+                </FieldLabelWithInfo>
               </div>
 
               {showFailureDomainsSection && (

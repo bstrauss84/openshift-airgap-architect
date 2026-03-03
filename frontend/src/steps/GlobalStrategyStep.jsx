@@ -496,11 +496,10 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                   />
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
                 </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label={`HTTPS Proxy ${proxyRequired ? "(required for jumpbox)" : "(optional)"}`}
-                    hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
-                  />
+                <FieldLabelWithInfo
+                  label={`HTTPS Proxy ${proxyRequired ? "(required for jumpbox)" : "(optional)"}`}
+                  hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                >
                   <textarea
                     className="proxy-field-input proxy-field-textarea"
                     value={strategy.proxies.httpsProxy}
@@ -510,8 +509,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                     spellCheck={false}
                     required={proxyRequired}
                   />
-                  {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
-                </label>
+                </FieldLabelWithInfo>
+                {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
                 <label>
                   No Proxy
                   <textarea
@@ -566,11 +565,10 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           ) : null}
           <div className="card-body">
             <div className="field-grid">
-              <label>
-                <FieldLabelWithInfo
-                  label="Machine Network (IPv4 CIDR)"
-                  hint="Node IPs live here; most installs only customize this CIDR."
-                />
+              <FieldLabelWithInfo
+                label="Machine Network (IPv4 CIDR)"
+                hint="Node IPs live here; most installs only customize this CIDR."
+              >
                 <input
                   value={networking.machineNetworkV4 || ""}
                   onChange={(e) =>
@@ -578,19 +576,18 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                   }
                   placeholder="10.90.0.0/24"
                 />
-                {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)
-                  ? <div className="note warning">Overlaps with cluster network.</div>
-                  : null}
-                {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr)
-                  ? <div className="note warning">Overlaps with service network.</div>
-                  : null}
-              </label>
+              </FieldLabelWithInfo>
+              {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)
+                ? <div className="note warning">Overlaps with cluster network.</div>
+                : null}
+              {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr)
+                ? <div className="note warning">Overlaps with service network.</div>
+                : null}
               {state.hostInventory?.enableIpv6 ? (
-                <label>
-                  <FieldLabelWithInfo
-                    label="Machine Network (IPv6 CIDR)"
-                    hint="Only required for dual-stack deployments."
-                  />
+                <FieldLabelWithInfo
+                  label="Machine Network (IPv6 CIDR)"
+                  hint="Only required for dual-stack deployments."
+                >
                   <input
                     value={networking.machineNetworkV6 || ""}
                     onChange={(e) =>
@@ -598,13 +595,12 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                     }
                     placeholder="fd10:90::/64"
                   />
-                </label>
+                </FieldLabelWithInfo>
               ) : null}
-              <label>
-                <FieldLabelWithInfo
-                  label="Cluster Network CIDR"
-                  hint="Pod network; usually safe to keep default."
-                />
+              <FieldLabelWithInfo
+                label="Cluster Network CIDR"
+                hint="Pod network; usually safe to keep default."
+              >
                 <input
                   value={networking.clusterNetworkCidr || ""}
                   onChange={(e) =>
@@ -612,18 +608,17 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                   }
                   placeholder="10.128.0.0/14"
                 />
-                {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr)
-                  ? <div className="note warning">Overlaps with service network.</div>
-                  : null}
-                {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)
-                  ? <div className="note warning">Overlaps with machine network.</div>
-                  : null}
-              </label>
-              <label>
-                <FieldLabelWithInfo
-                  label="Cluster Network Host Prefix"
-                  hint="Determines per-node pod CIDR size."
-                />
+              </FieldLabelWithInfo>
+              {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr)
+                ? <div className="note warning">Overlaps with service network.</div>
+                : null}
+              {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)
+                ? <div className="note warning">Overlaps with machine network.</div>
+                : null}
+              <FieldLabelWithInfo
+                label="Cluster Network Host Prefix"
+                hint="Determines per-node pod CIDR size."
+              >
                 <input
                   type="number"
                   value={networking.clusterNetworkHostPrefix ?? 23}
@@ -633,14 +628,13 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                   min="16"
                   max="28"
                 />
-              </label>
+              </FieldLabelWithInfo>
               {(networking.machineNetworkV6 || "").trim() ? (
                 <>
-                  <label>
-                    <FieldLabelWithInfo
-                      label="Cluster Network IPv6 CIDR (optional)"
-                      hint="Dual-stack: pod network IPv6. Default fd01::/48 if blank."
-                    />
+                  <FieldLabelWithInfo
+                    label="Cluster Network IPv6 CIDR (optional)"
+                    hint="Dual-stack: pod network IPv6. Default fd01::/48 if blank."
+                  >
                     <input
                       value={networking.clusterNetworkCidrV6 || ""}
                       onChange={(e) =>
@@ -653,12 +647,11 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                       }
                       placeholder="fd01::/48"
                     />
-                  </label>
-                  <label>
-                    <FieldLabelWithInfo
-                      label="Cluster Network IPv6 Host Prefix (optional)"
-                      hint="Default 64 if blank."
-                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Cluster Network IPv6 Host Prefix (optional)"
+                    hint="Default 64 if blank."
+                  >
                     <input
                       type="number"
                       value={networking.clusterNetworkHostPrefixV6 ?? 64}
@@ -675,14 +668,13 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                       max={128}
                       placeholder="64"
                     />
-                  </label>
+                  </FieldLabelWithInfo>
                 </>
               ) : null}
-              <label>
-                <FieldLabelWithInfo
-                  label="Service Network CIDR"
-                  hint="ClusterIP range; usually safe to keep default."
-                />
+              <FieldLabelWithInfo
+                label="Service Network CIDR"
+                hint="ClusterIP range; usually safe to keep default."
+              >
                 <input
                   value={networking.serviceNetworkCidr || ""}
                   onChange={(e) =>
@@ -690,19 +682,18 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                   }
                   placeholder="172.30.0.0/16"
                 />
-                {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr)
-                  ? <div className="note warning">Overlaps with machine network.</div>
-                  : null}
-                {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr)
-                  ? <div className="note warning">Overlaps with cluster network.</div>
-                  : null}
-              </label>
+              </FieldLabelWithInfo>
+              {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr)
+                ? <div className="note warning">Overlaps with machine network.</div>
+                : null}
+              {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr)
+                ? <div className="note warning">Overlaps with cluster network.</div>
+                : null}
               {(networking.machineNetworkV6 || "").trim() ? (
-                <label>
-                  <FieldLabelWithInfo
-                    label="Service Network IPv6 CIDR (optional)"
-                    hint="Dual-stack: service IPv6. Default fd02::/112 if blank."
-                  />
+                <FieldLabelWithInfo
+                  label="Service Network IPv6 CIDR (optional)"
+                  hint="Dual-stack: service IPv6. Default fd02::/112 if blank."
+                >
                   <input
                     value={networking.serviceNetworkCidrV6 || ""}
                     onChange={(e) =>
@@ -715,7 +706,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                     }
                     placeholder="fd02::/112"
                   />
-                </label>
+                </FieldLabelWithInfo>
               ) : null}
             </div>
           </div>
@@ -729,17 +720,16 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
             </div>
           </div>
           <div className="card-body">
-            <label>
-              <FieldLabelWithInfo
-                label="NTP Servers (comma-separated)"
-                hint="Use up to four reliable NTP sources. Time skew is a common install failure."
-              />
+            <FieldLabelWithInfo
+              label="NTP Servers (comma-separated)"
+              hint="Use up to four reliable NTP sources. Time skew is a common install failure."
+            >
               <input
                 value={ntpInput}
                 onChange={(e) => updateNtpServers(e.target.value)}
                 placeholder="time.corp.local,10.90.0.10"
               />
-            </label>
+            </FieldLabelWithInfo>
           </div>
         </section>
 
@@ -751,11 +741,10 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
             </div>
           </div>
           <div className="card-body">
-            <label>
-              <FieldLabelWithInfo
-                label="Local Registry FQDN"
-                hint="imageDigestSources in install-config are prepopulated from this section. The authoritative values come from the IDMS manifest generated by oc-mirror v2."
-              />
+            <FieldLabelWithInfo
+              label="Local Registry FQDN"
+              hint="imageDigestSources in install-config are prepopulated from this section. The authoritative values come from the IDMS manifest generated by oc-mirror v2."
+            >
               <input
                 value={strategy.mirroring.registryFqdn}
                 onChange={(e) => {
@@ -771,7 +760,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
                 }}
                 placeholder="registry.corp.local:5000"
               />
-            </label>
+            </FieldLabelWithInfo>
             <div className="mirror-list">
               <div className="mirror-header">
                 <span>Source registry</span>

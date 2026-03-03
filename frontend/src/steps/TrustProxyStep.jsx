@@ -202,11 +202,10 @@ export default function TrustProxyStep({ highlightErrors }) {
                   />
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
                 </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
-                    hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
-                  />
+                <FieldLabelWithInfo
+                  label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
+                  hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                >
                   <textarea
                     className="proxy-field-input proxy-field-textarea"
                     value={proxies.httpsProxy || ""}
@@ -215,8 +214,8 @@ export default function TrustProxyStep({ highlightErrors }) {
                     rows={2}
                     spellCheck={false}
                   />
-                  {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
-                </label>
+                </FieldLabelWithInfo>
+                {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
                 <label>
                   No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : null}
                   <textarea

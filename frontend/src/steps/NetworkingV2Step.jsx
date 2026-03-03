@@ -153,28 +153,31 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <div className="networking-group">
               <h4 className="networking-group-title">Machine network</h4>
               <div className="field-grid">
-                <label className={fieldErrors.machineNetworkV4 ? "input-error" : ""}>
-                  <FieldLabelWithInfo
-                    label="Machine Network (IPv4 CIDR)"
-                    hint="Node IPs; most installs only customize this."
-                    required={isRequired("networking.machineNetwork[].cidr")}
-                  />
+                <FieldLabelWithInfo
+                  label="Machine Network (IPv4 CIDR)"
+                  hint="Node IPs; most installs only customize this."
+                  required={isRequired("networking.machineNetwork[].cidr")}
+                  className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
+                >
                   <input
                     className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
                     value={networking.machineNetworkV4 || ""}
                     onChange={(e) => updateNetworking({ machineNetworkV4: formatIpv4Cidr(e.target.value) })}
                     placeholder="10.90.0.0/24"
                   />
-                  {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
-                    <span className="note warning inline">Overlaps with cluster network.</span>
-                  ) : null}
-                  {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
-                    <span className="note warning inline">Overlaps with service network.</span>
-                  ) : null}
-                </label>
+                </FieldLabelWithInfo>
+                {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
+                  <span className="note warning inline">Overlaps with cluster network.</span>
+                ) : null}
+                {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
+                  <span className="note warning inline">Overlaps with service network.</span>
+                ) : null}
                 {enableIpv6 ? (
-                  <label className={fieldErrors.machineNetworkV6 ? "input-error" : ""}>
-                    <FieldLabelWithInfo label="Machine Network (IPv6 CIDR)" hint="Only for dual-stack." />
+                  <FieldLabelWithInfo
+                    label="Machine Network (IPv6 CIDR)"
+                    hint="Only for dual-stack."
+                    className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
+                  >
                     <input
                       className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
                       value={networking.machineNetworkV6 || ""}
@@ -183,7 +186,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                       }
                       placeholder="fd10:90::/64"
                     />
-                  </label>
+                  </FieldLabelWithInfo>
                 ) : null}
               </div>
             </div>
@@ -193,31 +196,30 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <div className="networking-group">
               <h4 className="networking-group-title">Cluster-level</h4>
               <div className="field-grid">
-                <label className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}>
-                  <FieldLabelWithInfo
-                    label="Cluster Network CIDR"
-                    hint="Pod network; usually keep default."
-                    required={isRequired("networking.clusterNetwork[].cidr")}
-                  />
+                <FieldLabelWithInfo
+                  label="Cluster Network CIDR"
+                  hint="Pod network; usually keep default."
+                  required={isRequired("networking.clusterNetwork[].cidr")}
+                  className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
+                >
                   <input
                     className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
                     value={networking.clusterNetworkCidr || ""}
                     onChange={(e) => updateNetworking({ clusterNetworkCidr: formatIpv4Cidr(e.target.value) })}
                     placeholder="10.128.0.0/14"
                   />
-                  {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
-                    <span className="note warning inline">Overlaps with service network.</span>
-                  ) : null}
-                  {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
-                    <span className="note warning inline">Overlaps with machine network.</span>
-                  ) : null}
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Cluster Network Host Prefix"
-                    hint="Per-node pod CIDR size."
-                    required={isRequired("networking.clusterNetwork[].hostPrefix")}
-                  />
+                </FieldLabelWithInfo>
+                {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
+                  <span className="note warning inline">Overlaps with service network.</span>
+                ) : null}
+                {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
+                  <span className="note warning inline">Overlaps with machine network.</span>
+                ) : null}
+                <FieldLabelWithInfo
+                  label="Cluster Network Host Prefix"
+                  hint="Per-node pod CIDR size."
+                  required={isRequired("networking.clusterNetwork[].hostPrefix")}
+                >
                   <input
                     type="number"
                     value={networking.clusterNetworkHostPrefix ?? 23}
@@ -227,14 +229,14 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                     min={16}
                     max={28}
                   />
-                </label>
+                </FieldLabelWithInfo>
                 {enableIpv6 && (networking.machineNetworkV6 || "").trim() ? (
                   <>
-                    <label className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}>
-                      <FieldLabelWithInfo
-                        label="Cluster Network IPv6 CIDR (optional)"
-                        hint="Dual-stack pod IPv6. Default fd01::/48 if blank."
-                      />
+                    <FieldLabelWithInfo
+                      label="Cluster Network IPv6 CIDR (optional)"
+                      hint="Dual-stack pod IPv6. Default fd01::/48 if blank."
+                      className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
+                    >
                       <input
                         className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                         value={networking.clusterNetworkCidrV6 || ""}
@@ -243,9 +245,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                         }
                         placeholder="fd01::/48"
                       />
-                    </label>
-                    <label>
-                      <FieldLabelWithInfo label="Cluster Network IPv6 Host Prefix (optional)" />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo label="Cluster Network IPv6 Host Prefix (optional)">
                       <input
                         type="number"
                         value={networking.clusterNetworkHostPrefixV6 ?? 64}
@@ -258,7 +259,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                         max={128}
                         placeholder="64"
                       />
-                    </label>
+                    </FieldLabelWithInfo>
                   </>
                 ) : null}
               </div>
@@ -269,31 +270,31 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <div className="networking-group">
               <h4 className="networking-group-title">Service network</h4>
               <div className="field-grid">
-                <label className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}>
-                  <FieldLabelWithInfo
-                    label="Service Network CIDR"
-                    hint="ClusterIP range; usually keep default."
-                    required={isRequired("networking.serviceNetwork")}
-                  />
+                <FieldLabelWithInfo
+                  label="Service Network CIDR"
+                  hint="ClusterIP range; usually keep default."
+                  required={isRequired("networking.serviceNetwork")}
+                  className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
+                >
                   <input
                     className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
                     value={networking.serviceNetworkCidr || ""}
                     onChange={(e) => updateNetworking({ serviceNetworkCidr: formatIpv4Cidr(e.target.value) })}
                     placeholder="172.30.0.0/16"
                   />
-                  {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
-                    <span className="note warning inline">Overlaps with machine network.</span>
-                  ) : null}
-                  {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
-                    <span className="note warning inline">Overlaps with cluster network.</span>
-                  ) : null}
-                </label>
+                </FieldLabelWithInfo>
+                {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
+                  <span className="note warning inline">Overlaps with machine network.</span>
+                ) : null}
+                {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
+                  <span className="note warning inline">Overlaps with cluster network.</span>
+                ) : null}
                 {enableIpv6 && (networking.machineNetworkV6 || "").trim() ? (
-                  <label className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}>
-                    <FieldLabelWithInfo
-                      label="Service Network IPv6 CIDR (optional)"
-                      hint="Dual-stack service IPv6. Default fd02::/112 if blank."
-                    />
+                  <FieldLabelWithInfo
+                    label="Service Network IPv6 CIDR (optional)"
+                    hint="Dual-stack service IPv6. Default fd02::/112 if blank."
+                    className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
+                  >
                     <input
                       className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                       value={networking.serviceNetworkCidrV6 || ""}
@@ -302,7 +303,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                       }
                       placeholder="fd02::/112"
                     />
-                  </label>
+                  </FieldLabelWithInfo>
                 ) : null}
               </div>
             </div>
@@ -321,32 +322,32 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <div className="card-body">
               <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
               <div className="field-grid">
-                <label className={fieldErrors.apiVip ? "input-error" : ""}>
-                  <FieldLabelWithInfo
-                    label="API VIP"
-                    hint={metaApiVip?.description}
-                    required={metaApiVip?.required}
-                  />
+                <FieldLabelWithInfo
+                  label="API VIP"
+                  hint={metaApiVip?.description}
+                  required={metaApiVip?.required}
+                  className={fieldErrors.apiVip ? "input-error" : ""}
+                >
                   <input
                     className={fieldErrors.apiVip ? "input-error" : ""}
                     value={hostInventory.apiVip || ""}
                     onChange={(e) => updateHostInventory({ apiVip: e.target.value.trim() })}
                     placeholder="10.90.0.1"
                   />
-                </label>
-                <label className={fieldErrors.ingressVip ? "input-error" : ""}>
-                  <FieldLabelWithInfo
-                    label="Ingress VIP"
-                    hint={metaIngressVip?.description}
-                    required={metaIngressVip?.required}
-                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Ingress VIP"
+                  hint={metaIngressVip?.description}
+                  required={metaIngressVip?.required}
+                  className={fieldErrors.ingressVip ? "input-error" : ""}
+                >
                   <input
                     className={fieldErrors.ingressVip ? "input-error" : ""}
                     value={hostInventory.ingressVip || ""}
                     onChange={(e) => updateHostInventory({ ingressVip: e.target.value.trim() })}
                     placeholder="10.90.0.2"
                   />
-                </label>
+                </FieldLabelWithInfo>
               </div>
             </div>
           </section>
