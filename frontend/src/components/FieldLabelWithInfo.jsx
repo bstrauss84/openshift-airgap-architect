@@ -6,13 +6,21 @@ const TOOLTIP_Z_INDEX = 10050;
 /**
  * Field label with inline "( i )" that shows a tooltip. Tooltip is portaled to document.body
  * so it never clips under sidebar or cards. Placement: above or right of icon to stay in viewport.
+ * Icon is always placed immediately after the last character of the title (same line), never on its own row.
+ * When children (a form control) is passed, the label uses htmlFor so clicking the title focuses the control;
+ * the icon is a sibling of the label so it stays inline after the title (same visual as SecretInput/reference).
  */
-function FieldLabelWithInfo({ label, hint, required, id: idProp }) {
+function FieldLabelWithInfo({ label, hint, required, id: idProp, children, className: wrapperClassName }) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [placement, setPlacement] = useState("above");
   const iconRef = useRef(null);
   const id = idProp || `field-info-${Math.random().toString(36).slice(2, 9)}`;
+  const controlIdRef = useRef(null);
+  if (controlIdRef.current === null && children != null) {
+    controlIdRef.current = `field-control-${Math.random().toString(36).slice(2, 11)}`;
+  }
+  const controlId = children != null ? (React.Children.only(children)?.props?.id ?? controlIdRef.current) : null;
 
   const gap = 8;
   const tooltipMaxWidth = 280;
@@ -82,28 +90,61 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp }) {
         )
       : null;
 
+  const labelContent = (
+    <>
+      <span className="field-label-text">{label}</span>
+      {required ? <span className="required-marker" aria-label="required">*</span> : null}
+    </>
+  );
+
+  const iconButton = hint ? (
+    <button
+      ref={iconRef}
+      type="button"
+      className="field-info-icon"
+      aria-label="More information"
+      aria-describedby={visible ? id : undefined}
+      onClick={() => setVisible((v) => !v)}
+      onBlur={() => setVisible(false)}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      <img src="/info-icon.png" alt="" className="field-info-icon-img" />
+    </button>
+  ) : null;
+
+  if (children != null) {
+    const child = React.Children.only(children);
+    const childId = child?.props?.id ?? controlIdRef.current;
+    const clonedChild = childId ? React.cloneElement(child, { id: childId }) : child;
+    return (
+      <>
+        <div className={["field-with-info-row", wrapperClassName].filter(Boolean).join(" ")}>
+          <span className="field-title-line">
+            <span className="field-title-and-icon-keep-together" style={{ whiteSpace: "nowrap" }}>
+              <label htmlFor={childId} className="field-label-inline">
+                {labelContent}
+              </label>
+              {" \u00A0"}
+              {iconButton}
+            </span>
+          </span>
+          {clonedChild}
+        </div>
+        {tooltipEl}
+      </>
+    );
+  }
+
   return (
     <>
       <div className="field-label-with-info">
         <span className="field-label-line">
-          <span className="field-label-text">{label}</span>
-          {required ? <span className="required-marker" aria-label="required">*</span> : null}
+          {labelContent}
           {hint ? (
             <span className="field-label-icon-wrap" style={{ whiteSpace: "nowrap" }}>
               {"\u00A0"}
-              <button
-                ref={iconRef}
-                type="button"
-                className="field-info-icon"
-                aria-label="More information"
-                aria-describedby={visible ? id : undefined}
-                onClick={() => setVisible((v) => !v)}
-                onBlur={() => setVisible(false)}
-                onMouseEnter={() => setVisible(true)}
-                onMouseLeave={() => setVisible(false)}
-              >
-                <img src="/info-icon.png" alt="" className="field-info-icon-img" />
-              </button>
+              {iconButton}
             </span>
           ) : null}
         </span>

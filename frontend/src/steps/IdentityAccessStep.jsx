@@ -230,15 +230,16 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               className="credentials-mirror-checkbox-grid"
               style={{
                 display: "grid",
-                gridTemplateColumns: usingMirrorRegistry ? "max-content max-content" : "1fr",
+                gridTemplateColumns: "1fr 1fr",
                 gap: "24px 32px",
                 alignItems: "start",
                 marginBottom: 16
               }}
             >
               <div className="credentials-mirror-cell" style={{ minWidth: 0 }}>
-                <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>Using a mirror registry?</span>
-                <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
+                <label className="credentials-mirror-title-row" style={{ display: "inline", marginBottom: 0 }}>
+                  <span className="credentials-mirror-label">Using a mirror registry?</span>
+                  {" "}
                   <input
                     type="checkbox"
                     checked={usingMirrorRegistry}
@@ -249,41 +250,44 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                         ...(on ? { pullSecretPlaceholder: mirrorRegistryPullSecret } : {})
                       });
                     }}
+                    aria-describedby="credentials-mirror-helper"
                   />
-                  <span aria-hidden="true" />
                 </label>
                 {usingMirrorRegistry ? (
-                  <p className="note credentials-mirror-helper" style={{ marginTop: 8, marginBottom: 0 }}>
+                  <p id="credentials-mirror-helper" className="note credentials-mirror-helper" style={{ marginTop: 8, marginBottom: 0, textAlign: "left" }}>
                     Use mirror registry credentials (not Red Hat pull secret). Not persisted.
                   </p>
                 ) : null}
               </div>
-              {usingMirrorRegistry ? (
-                <div className="credentials-mirror-cell credentials-mirror-cell-okd" style={{ minWidth: 0 }}>
-                  <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>Registry allows anonymous pulls</span>
-                  <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "max-content", maxWidth: "100%" }}>
-                    <input
-                      type="checkbox"
-                      checked={mirrorRegistryUnauthenticated}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        if (checked) {
-                          setMirrorSecretBackup(mirrorRegistryPullSecret);
-                          updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
-                        } else {
-                          updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
-                        }
-                      }}
-                    />
-                    <span aria-hidden="true" />
-                  </label>
-                  {mirrorRegistryUnauthenticated ? (
-                    <div className="note warning credentials-mirror-okd-warning" style={{ marginTop: 8, marginBottom: 0 }}>
-                      Uses the <a href="https://github.com/orgs/okd-project/discussions/1930" target="_blank" rel="noopener noreferrer">OKD-documented dummy pull secret</a> value for unauthenticated registries: <code>{"auth: \"aWQ6cGFzcwo=\""}</code>. Replace if your registry requires a different format.
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+              <div className="credentials-mirror-cell credentials-mirror-cell-okd" style={{ minWidth: 0 }}>
+                {usingMirrorRegistry ? (
+                  <>
+                    <label className="credentials-mirror-title-row" style={{ display: "inline", marginBottom: 0 }}>
+                      <span className="credentials-mirror-label">Registry allows anonymous pulls</span>
+                      {" "}
+                      <input
+                        type="checkbox"
+                        checked={mirrorRegistryUnauthenticated}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          if (checked) {
+                            setMirrorSecretBackup(mirrorRegistryPullSecret);
+                            updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
+                          } else {
+                            updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
+                          }
+                        }}
+                        aria-describedby="credentials-mirror-okd-warning"
+                      />
+                    </label>
+                    {mirrorRegistryUnauthenticated ? (
+                      <div id="credentials-mirror-okd-warning" className="note warning credentials-mirror-okd-warning" style={{ marginTop: 8, marginBottom: 0, textAlign: "left" }}>
+                        Uses the <a href="https://github.com/orgs/okd-project/discussions/1930" target="_blank" rel="noopener noreferrer">OKD-documented dummy pull secret</a> value for unauthenticated registries: <code>{"auth: \"aWQ6cGFzcwo=\""}</code>. Replace if your registry requires a different format.
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
             </div>
 
             {(() => {

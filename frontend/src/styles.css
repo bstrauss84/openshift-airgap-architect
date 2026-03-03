@@ -1413,6 +1413,11 @@ body[data-theme="dark"] .trust-file-input {
   border-radius: 0;
   background: #0b1120;
   color: #e2e8f0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 .trust-bundle-preview-empty {
@@ -3625,19 +3630,51 @@ body[data-theme="dark"] .tooltip-info-content::after {
 }
 
 /* Field label with inline ( i ) tooltip — portaled so never behind nav/cards.
-   Label line uses inline flow so icon stays at end of last wrapped line and never on its own line. */
+   Label line uses inline flow so icon stays at end of last wrapped line and never on its own line.
+   Only the icon button receives pointer events so hover/highlight/tooltip trigger only when cursor is over the icon (replicates working behavior of Additional Interfaces / Additional Routes in h4). */
 .field-label-with-info {
   display: inline-flex;
   align-items: baseline;
   gap: 0;
   min-width: 0;
+  pointer-events: none;
 }
 
-/* In field-grid labels, keep the label+icon block to content width so only the icon triggers tooltip (Phase A #14). */
+.field-label-with-info .field-info-icon {
+  pointer-events: auto;
+}
+
+/* In field-grid labels, keep the label+icon block to content width so layout matches. */
 .field-grid label > .field-label-with-info {
   width: max-content;
   max-width: 100%;
   flex: 0 0 auto;
+}
+
+/* When FieldLabelWithInfo has children: title + icon on same line (icon after last char of title), then control below.
+   Title and icon kept together so icon never wraps to its own row. */
+.field-with-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-title-line {
+  display: block;
+}
+
+.field-title-and-icon-keep-together {
+  display: inline;
+}
+
+.field-title-and-icon-keep-together .field-label-inline {
+  display: inline;
+  font-weight: inherit;
+}
+
+.field-title-and-icon-keep-together .field-info-icon {
+  vertical-align: middle;
 }
 
 .field-label-line {
