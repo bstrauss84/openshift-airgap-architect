@@ -983,7 +983,7 @@ wipefs -a /dev/sdX`}</pre>
                                 )}
                               </div>
                               <p className="note subtle host-inventory-v2-advanced-mtu-note" style={{ marginTop: 6, marginBottom: 0 }}>
-                                MTU and VLAN MTU apply to this node&apos;s primary interface (and its VLAN if present). Each additional interface has its own Advanced section with per-interface MTU.
+                                MTU applies to the base interface; VLAN MTU applies to the VLAN subinterface (if present). VLAN MTU cannot exceed the base MTU. Each additional interface has its own Advanced section with per-interface MTU.
                               </p>
                               <div className="list">
                                 <h4><FieldLabelWithInfo label="Additional Routes" hint="Optional static routes beyond the default gateway." /></h4>

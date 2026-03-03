@@ -932,7 +932,7 @@ wipefs -a /dev/sdX</pre>
                           onChange={(e) => updatePrimaryAdvanced(index, { vlanMtu: e.target.value })}
                           placeholder="1500"
                         />
-                        <div className="note">Override VLAN MTU only when required.</div>
+                        <div className="note">Override VLAN MTU only when required. VLAN MTU cannot exceed the base interface MTU.</div>
                       </label>
                     ) : null}
                     <label>

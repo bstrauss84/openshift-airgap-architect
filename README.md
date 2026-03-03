@@ -83,9 +83,14 @@ Operator scan and bundle generation (including oc/oc-mirror binaries) require th
 
 The stack is two services (frontend, backend). Ports in `docker-compose.yml` are bound to **127.0.0.1** by default so the app is not exposed on the LAN. To allow access from other machines, change the left side of the port mapping to `0.0.0.0` (e.g. `"0.0.0.0:5173:5173"`).
 
-- **Frontend:** 5173 (Vite dev server in container)
+- **Frontend:** 5173 (Vite dev server in container; binds to `0.0.0.0` inside the container via `--host 0.0.0.0`)
 - **Backend:** 4000 (Express API)
 - **State:** Backend uses a named volume for SQLite; run bundles and temp files are under that data path.
+
+### Same-host vs remote access
+
+- **Same-host:** Using the app on the same machine where Compose runs: leave `VITE_API_BASE` as `http://localhost:4000`. The frontend is built with this URL, so the browser (on the same host) can reach the backend at localhost:4000.
+- **Remote access:** To use the UI from another machine (e.g. laptop to dev server), (1) expose ports on the host by changing port mappings to `0.0.0.0:5173:5173` and `0.0.0.0:4000:4000`, and (2) set `VITE_API_BASE` to the URL where the backend is reachable from the **client** browser (e.g. `http://<host-ip-or-name>:4000`). The frontend container reads this at startup; if you keep `VITE_API_BASE=http://localhost:4000`, API calls from a remote browser will go to the client’s localhost and fail. Override the env when starting the stack (e.g. `VITE_API_BASE=http://192.168.1.10:4000 docker compose up`) or in a compose override file.
 
 ## Generating assets
 
