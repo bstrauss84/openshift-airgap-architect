@@ -717,3 +717,31 @@ test("buildInstallConfig for nutanix-ipi must NOT emit bare-metal or vsphere (sc
   assert.strictEqual(out.platform?.vsphere, undefined, "nutanix-ipi must not emit platform.vsphere");
   assert.ok(out.platform?.nutanix?.prismCentral?.endpoint === "pc.local");
 });
+
+test("buildInstallConfig emits additionalTrustBundle as literal block (|) for readable PEM (#15)", () => {
+  const pem1 = `-----BEGIN CERTIFICATE-----
+MIIDdzCCAl+gAwIBAgIUFakeMirrorRegistryCA
+-----END CERTIFICATE-----`;
+  const pem2 = `-----BEGIN CERTIFICATE-----
+MIIDdzCCAI+gAwIBAgIUFakeProxyCA
+-----END CERTIFICATE-----`;
+  const state = {
+    blueprint: { baseDomain: "example.com", clusterName: "test-cluster" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    trust: {
+      mirrorRegistryCaPem: pem1,
+      proxyCaPem: pem2,
+      additionalTrustBundlePolicy: "Always"
+    }
+  };
+  const raw = buildInstallConfig(state);
+  assert.ok(raw.includes("additionalTrustBundle: |"), "must use literal block scalar (|) not folded (>-)");
+  assert.ok(!raw.includes("additionalTrustBundle: >-"), "must not use folded block scalar");
+  assert.ok(raw.includes("-----BEGIN CERTIFICATE-----") && raw.includes("-----END CERTIFICATE-----"), "PEM markers present");
+  const out = yaml.load(raw);
+  assert.strictEqual(typeof out.additionalTrustBundle, "string");
+  assert.ok(out.additionalTrustBundle.includes("-----BEGIN CERTIFICATE-----"));
+  assert.ok(out.additionalTrustBundle.includes("FakeMirrorRegistryCA"));
+  assert.ok(out.additionalTrustBundle.includes("FakeProxyCA"));
+});
