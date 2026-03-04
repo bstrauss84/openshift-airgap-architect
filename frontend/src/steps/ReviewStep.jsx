@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, API_BASE } from "../api.js";
 import { useApp, getStateForPersistence } from "../store.jsx";
 import { validateStep } from "../validation.js";
+import { getExportRunFilename } from "../exportRunFilename.js";
 import { logAction } from "../logger.js";
 import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
@@ -219,7 +220,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `airgap-run-${data.runId || "bundle"}.json`;
+    a.download = getExportRunFilename(state);
     a.click();
     URL.revokeObjectURL(url);
   };
