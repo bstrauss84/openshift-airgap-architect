@@ -7,7 +7,7 @@ import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
 import SecretInput from "../components/SecretInput.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
-const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }) => {
+const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, fieldErrors = {} }) => {
   const { state, updateState } = useApp();
   const strategy = state.globalStrategy || {};
   const networking = strategy.networking || {};
@@ -397,7 +397,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
       </div>
 
       <div className="step-body">
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${(fieldErrors.clusterName || fieldErrors.baseDomain) ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Cluster Identity</h3>
@@ -436,7 +436,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
             </div>
           </div>
         ) : null}
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className="card">
           <div className="card-header">
             <div>
               <h3 className="card-title">Security Compliance</h3>
@@ -465,7 +465,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           ) : null}
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${fieldErrors.proxy ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Corporate Proxy</h3>
@@ -529,7 +529,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           )}
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${fieldErrors.networking ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Cluster Networking</h3>
@@ -712,7 +712,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className="card">
           <div className="card-header">
             <div>
               <h3 className="card-title">Time & NTP</h3>
@@ -733,7 +733,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${fieldErrors.mirrorSecret ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Mirroring Configuration</h3>
@@ -816,7 +816,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${fieldErrors.platform ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Platform Configuration</h3>
@@ -1096,7 +1096,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className="card">
           <div className="card-header">
             <div>
               <h3 className="card-title">Trust and Certificates</h3>
@@ -1194,7 +1194,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors }
           </div>
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${fieldErrors.pullSecret ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Access Credentials</h3>

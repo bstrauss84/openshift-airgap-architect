@@ -186,7 +186,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
             </div>
           </div>
         ) : null}
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${(fieldErrors.clusterName || fieldErrors.baseDomain) ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Cluster Identity</h3>
@@ -215,7 +215,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
           </div>
         </section>
 
-        <section className={`card ${(highlightErrors || fieldErrors.pullSecret) ? "highlight-errors" : ""}`}>
+        <section className={`card ${fieldErrors.pullSecret ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Access Credentials</h3>
@@ -380,7 +380,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
           </div>
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className="card">
           <div className="card-header">
             <div>
               <h3 className="card-title">Security Compliance</h3>

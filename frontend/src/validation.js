@@ -703,15 +703,17 @@ const validateStep = (state, stepId) => {
   }
   if (stepId === "connectivity-mirroring") {
     const errors = [];
+    const fieldErrors = {};
     const sources = state.globalStrategy?.mirroring?.sources || [];
     for (const row of sources) {
       const mirrors = row.mirrors || [];
       const hasMirrors = mirrors.some((m) => typeof m === "string" && m.trim() !== "");
       if (hasMirrors && !(row.source && String(row.source).trim())) {
         errors.push("Source repository is required when mirror URL(s) are set.");
+        fieldErrors.mirrorSources = "Source repository is required when mirror URL(s) are set.";
       }
     }
-    return { errors, warnings: [] };
+    return { errors, warnings: [], fieldErrors };
   }
   // platform-specifics: required fields per scenario (Azure, vSphere, AWS GovCloud, Nutanix) from catalog required paths.
   if (stepId === "platform-specifics") {
@@ -782,11 +784,24 @@ const validateStep = (state, stepId) => {
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     const clusterIdentityErrors = [];
-    if (!state.blueprint?.clusterName?.trim()) clusterIdentityErrors.push("Cluster name is required.");
-    if (!state.blueprint?.baseDomain?.trim()) clusterIdentityErrors.push("Base domain is required.");
+    const fieldErrors = {};
+    if (!state.blueprint?.clusterName?.trim()) {
+      clusterIdentityErrors.push("Cluster name is required.");
+      fieldErrors.clusterName = "Cluster name is required.";
+    }
+    if (!state.blueprint?.baseDomain?.trim()) {
+      clusterIdentityErrors.push("Base domain is required.");
+      fieldErrors.baseDomain = "Base domain is required.";
+    }
+    if (proxy.errors?.length) fieldErrors.proxy = proxy.errors[0];
+    if (platform.errors?.length) fieldErrors.platform = platform.errors[0];
+    if (format.errors?.length || networking.errors?.length) fieldErrors.networking = true;
+    if (credentials.errors?.length) fieldErrors.pullSecret = credentials.errors[0];
+    if (mirrorSecret.errors?.length) fieldErrors.mirrorSecret = mirrorSecret.errors[0];
     return {
       errors: [...clusterIdentityErrors, ...proxy.errors, ...platform.errors, ...format.errors, ...networking.errors, ...credentials.errors, ...mirrorSecret.errors],
-      warnings: [...platform.warnings, ...networking.warnings, ...credentials.warnings, ...mirrorSecret.warnings]
+      warnings: [...platform.warnings, ...networking.warnings, ...credentials.warnings, ...mirrorSecret.warnings],
+      fieldErrors
     };
   }
   return { errors: [], warnings: [] };
