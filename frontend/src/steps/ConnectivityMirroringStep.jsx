@@ -28,7 +28,7 @@ function getRegistryFqdnFromPullSecret(pullSecretJson) {
   }
 }
 
-export default function ConnectivityMirroringStep({ highlightErrors }) {
+export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
   const strategy = state.globalStrategy || {};
@@ -102,7 +102,7 @@ export default function ConnectivityMirroringStep({ highlightErrors }) {
             </div>
           </Banner>
         ) : null}
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className={`card ${fieldErrors.mirrorSources ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
               <h3 className="card-title">Mirroring Configuration</h3>
@@ -180,7 +180,7 @@ export default function ConnectivityMirroringStep({ highlightErrors }) {
           </div>
         </section>
 
-        <section className={`card ${highlightErrors ? "highlight-errors" : ""}`}>
+        <section className="card">
           <div className="card-header">
             <div>
               <h3 className="card-title">Time & NTP</h3>
