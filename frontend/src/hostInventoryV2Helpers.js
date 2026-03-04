@@ -147,6 +147,7 @@ export const emptyNode = (role, index, hostnamePrefix = null) => {
   return {
     role: role === "control-plane" ? "master" : role,
     hostname: `${prefix}-${index}`,
+    hostnameUseFqdn: false,
     rootDevice: "",
     dnsServers: "",
     dnsSearch: "",
@@ -235,6 +236,7 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
     if (selectedFields.has("dnsServers")) next.dnsServers = sourceNode.dnsServers ?? "";
     if (selectedFields.has("dnsSearch")) next.dnsSearch = sourceNode.dnsSearch ?? "";
     if (selectedFields.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
+    if (selectedFields.has("hostnameUseFqdn")) next.hostnameUseFqdn = !!sourceNode.hostnameUseFqdn;
     if (selectedFields.has("rootDevice")) next.rootDevice = sourceNode.rootDevice ?? "";
     if (selectedFields.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
     if (["primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Cidr", "primary.ipv6Cidr", "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.ethernet", "primary.ethernet.macAddress"].some((k) => selectedFields.has(k))) {

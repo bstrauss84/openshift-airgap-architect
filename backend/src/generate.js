@@ -43,6 +43,14 @@ const buildServiceNetwork = (networkingState, dualStack) => {
   return [ipv4, ipv6];
 };
 
+const effectiveHostname = (node, baseDomain) => {
+  const short = (node?.hostname || "").trim();
+  if (!short) return short;
+  const base = (baseDomain || "").trim();
+  if (node?.hostnameUseFqdn && base) return `${short}.${base}`;
+  return short;
+};
+
 // Deferred per PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md: featureSet, arbiter.*, imageContentSources (we use imageDigestSources), credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
   const mirror = state.globalStrategy?.mirroring || {};
@@ -153,9 +161,10 @@ const buildInstallConfig = (state) => {
       if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
       if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
       if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
+      const baremetalBaseDomain = state.blueprint?.baseDomain;
       const hosts = (hi.nodes || []).map((node) => {
         const host = {
-          name: node.hostname,
+          name: effectiveHostname(node, baremetalBaseDomain),
           role: node.role
         };
         const bmcAddr = (node.bmc?.address || "").trim();
@@ -422,13 +431,14 @@ const normalizePlatformKey = (platform) => {
 };
 
 const buildAgentConfig = (state) => {
+  const baseDomain = state.blueprint?.baseDomain;
   const sortedNodes = sortNodes(state.hostInventory?.nodes || []);
   const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
   const hosts = sortedNodes.map((node) => {
     const nmState = buildNmState({ ...node, inventoryEnableIpv6: state.hostInventory?.enableIpv6 });
     const interfaces = collectPhysicalInterfaces(node);
     return {
-      hostname: node.hostname,
+      hostname: effectiveHostname(node, baseDomain),
       role: node.role,
       interfaces,
       rootDeviceHints: node.rootDevice ? { deviceName: node.rootDevice } : undefined,

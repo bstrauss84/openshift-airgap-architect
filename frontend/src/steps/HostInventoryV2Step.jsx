@@ -50,6 +50,7 @@ const REPLICATE_OPTIONS = [
   { key: "primary.ethernet.macAddress", label: "Primary ethernet MAC (usually leave unchecked)" },
   { key: "primary.bond.slaves.macAddress", label: "Bond member MACs (usually leave unchecked)" },
   { key: "hostname", label: "Hostname (usually leave unchecked)" },
+  { key: "hostnameUseFqdn", label: "Use FQDN for hostname" },
   { key: "rootDevice", label: "Root device (usually leave unchecked)" },
   { key: "bmc", label: "BMC credentials (usually leave unchecked)" }
 ];
@@ -288,6 +289,13 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
 
   const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
+  const baseDomain = (state.blueprint?.baseDomain || "").trim();
+  const effectiveHostname = (node) => {
+    const short = (node?.hostname || "").trim();
+    if (!short) return "";
+    if (node?.hostnameUseFqdn && baseDomain) return `${short}.${baseDomain}`;
+    return short;
+  };
   const drawerOpen = selectedIndex != null && nodes.length > 0;
   const showBasicDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_BASIC);
   const showAdvancedDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_ADVANCED);
@@ -565,7 +573,7 @@ wipefs -a /dev/sdX`}</pre>
                         onClick={() => setSelectedIndex(idx)}
                         title={statusTitle || undefined}
                       >
-                        <span className="host-inventory-v2-tile-hostname">{node.hostname || `Node ${idx + 1}`}</span>
+                        <span className="host-inventory-v2-tile-hostname">{effectiveHostname(node) || `Node ${idx + 1}`}</span>
                         <span className="host-inventory-v2-tile-role">{node.role === "master" ? "Control plane" : "Worker"}</span>
                         <span className={`host-inventory-v2-tile-status ${validation?.errors?.length ? "error" : ""}`}>{status}</span>
                       </button>
@@ -599,34 +607,36 @@ wipefs -a /dev/sdX`}</pre>
               style={{ width: panelWidthPx, minWidth: MIN_PANEL_PX, maxWidth: MAX_PANEL_PX }}
             >
               <div className="host-inventory-v2-drawer-inner card">
-                <div className="card-header">
-                  <h3>Edit: {selectedNode.hostname || `Node ${selectedIndex + 1}`}</h3>
-                  <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
-                </div>
-                <div className="host-inventory-v2-drawer-nav">
-                  <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1}>← Previous</button>
-                  <span className="subtle">{selectedIndex + 1} / {nodes.length}</span>
-                  <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1}>Next →</button>
-                </div>
-                <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
-                {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
-                  <div className="host-inventory-v2-validation-summary">
-                    <strong>Validation for this node</strong>
-                    {mergedNodeValidation[selectedIndex].errors?.length > 0 && (
-                      <div className="host-inventory-v2-validation-errors">
-                        <strong>Errors:</strong>
-                        <ul>{mergedNodeValidation[selectedIndex].errors.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
-                      </div>
-                    )}
-                    {mergedNodeValidation[selectedIndex].warnings?.length > 0 && (
-                      <div className="host-inventory-v2-validation-warnings">
-                        <strong>Warnings:</strong>
-                        <ul>{mergedNodeValidation[selectedIndex].warnings.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
-                      </div>
-                    )}
+                <div className="host-inventory-v2-drawer-header">
+                  <div className="card-header">
+                    <h3>Edit: {effectiveHostname(selectedNode) || `Node ${selectedIndex + 1}`}</h3>
+                    <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
                   </div>
-                )}
-
+                  <div className="host-inventory-v2-drawer-nav">
+                    <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1}>← Previous</button>
+                    <span className="subtle">{selectedIndex + 1} / {nodes.length}</span>
+                    <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1}>Next →</button>
+                  </div>
+                  <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
+                  {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
+                    <div className="host-inventory-v2-validation-summary">
+                      <strong>Validation for this node</strong>
+                      {mergedNodeValidation[selectedIndex].errors?.length > 0 && (
+                        <div className="host-inventory-v2-validation-errors">
+                          <strong>Errors:</strong>
+                          <ul>{mergedNodeValidation[selectedIndex].errors.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
+                        </div>
+                      )}
+                      {mergedNodeValidation[selectedIndex].warnings?.length > 0 && (
+                        <div className="host-inventory-v2-validation-warnings">
+                          <strong>Warnings:</strong>
+                          <ul>{mergedNodeValidation[selectedIndex].warnings.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="host-inventory-v2-drawer-body">
                 <div className="host-inventory-v2-editor">
                   {showBasicDrawer && (
                     <>
@@ -648,6 +658,10 @@ wipefs -a /dev/sdX`}</pre>
                               ) : null}
                             </label>
                             <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="master-0 or worker-0" /></label>
+                            <label className="host-inventory-v2-checkbox-label">
+                              <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
+                              {" "}Use FQDN (shortname.baseDomain)
+                            </label>
                             <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
                           </div>
                           <div className="divider" />
@@ -688,6 +702,10 @@ wipefs -a /dev/sdX`}</pre>
                           ) : null}
                         </label>
                         <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} /></label>
+                        <label className="host-inventory-v2-checkbox-label">
+                          <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
+                          {" "}Use FQDN (shortname.baseDomain)
+                        </label>
                         <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
                         <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking.">
                           <select value={selectedNode.primary?.type || "ethernet"} onChange={(e) => updatePrimary(selectedIndex, { type: e.target.value })}>
@@ -1034,6 +1052,7 @@ wipefs -a /dev/sdX`}</pre>
                     </>
                   )}
                 </div>
+                </div>
               </div>
             </aside>
           </>
@@ -1084,7 +1103,7 @@ wipefs -a /dev/sdX`}</pre>
                       checked={replicateTargetIndices.has(idx)}
                       onChange={(e) => setReplicateTargetIndices((prev) => { const next = new Set(prev); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })}
                     />
-                    <span>{node.hostname || `Node ${idx + 1}`} ({node.role})</span>
+                    <span>{effectiveHostname(node) || `Node ${idx + 1}`} ({node.role})</span>
                   </label>
                 ))}
               </div>

@@ -2724,7 +2724,9 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
 
 .host-inventory-v2-drawer {
   flex: 0 0 auto;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 16px;
   background: #f0f4f8;
   border-left: 1px solid #e2e8f0;
@@ -2732,7 +2734,22 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
 }
 
 .host-inventory-v2-drawer-inner {
-  margin-bottom: 24px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.host-inventory-v2-drawer-header {
+  flex-shrink: 0;
+}
+
+.host-inventory-v2-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .host-inventory-v2-drawer-nav {
