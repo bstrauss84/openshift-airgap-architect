@@ -426,6 +426,9 @@ app.get("/api/run/export", (req, res) => {
   const state = ensureState();
   const options = state.exportOptions || {};
   const sanitized = sanitizeStateForExport(state, { ...options, includeCredentials: false });
+  if (process.env.NODE_ENV !== "test") {
+    console.log("Run exported", { runId: state.runId });
+  }
   res.json({
     schemaVersion: 2,
     exportedAt: new Date().toISOString(),

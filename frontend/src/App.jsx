@@ -29,6 +29,7 @@ import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { apiFetch } from "./api.js";
 import { logAction } from "./logger.js";
+import { getExportRunFilename } from "./exportRunFilename.js";
 
 const COMPONENT_MAP = {
   "blueprint": BlueprintStep,
@@ -685,13 +686,14 @@ const AppShell = () => {
   };
 
   const exportRun = async () => {
-    logAction("export_run");
+    const filename = getExportRunFilename(state);
+    logAction("export_run", { filename });
     const data = await apiFetch("/api/run/export");
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `airgap-run-${data.runId || "bundle"}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
