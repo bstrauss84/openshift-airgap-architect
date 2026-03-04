@@ -476,6 +476,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and
     platformConfig: {
       aws: {
         region: "us-gov-west-1",
+        vpcMode: "existing",
         hostedZone: "Z123",
         hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole",
         lbType: "NLB",
@@ -502,6 +503,18 @@ test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and
   assert.ok(out.controlPlane?.platform?.aws?.type === "m5.xlarge");
   assert.ok(out.compute?.[0]?.platform?.aws?.type === "m5.large");
   assert.strictEqual(out.metadata?.name, "gov-cluster");
+});
+
+test("buildInstallConfig for aws-govcloud-ipi omits subnets when vpcMode is installer-managed (#41)", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: { aws: { region: "us-gov-west-1", subnets: "subnet-a, subnet-b" } }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.aws, "platform.aws present");
+  assert.strictEqual(out.platform.aws.subnets, undefined, "subnets must be omitted when vpcMode is not existing");
 });
 
 test("buildInstallConfig for aws-govcloud-ipi includes required catalog params (Prompt J Phase 3)", () => {
@@ -538,6 +551,7 @@ test("buildInstallConfig for aws-govcloud-upi emits platform.aws with region and
     platformConfig: {
       aws: {
         region: "us-gov-east-1",
+        vpcMode: "existing",
         hostedZone: "Z456",
         subnets: "subnet-x, subnet-y",
         amiId: "ami-upi123"

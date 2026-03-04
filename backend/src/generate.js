@@ -234,8 +234,9 @@ const buildInstallConfig = (state) => {
     if (platformConfig.aws?.hostedZone) aws.hostedZone = platformConfig.aws.hostedZone;
     if (platformConfig.aws?.hostedZoneRole) aws.hostedZoneRole = platformConfig.aws.hostedZoneRole;
     if (platformConfig.aws?.lbType) aws.lbType = platformConfig.aws.lbType;
-    if (platformConfig.aws?.subnets) {
-      aws.subnets = platformConfig.aws.subnets.split(",").map((s) => s.trim()).filter(Boolean);
+    if (platformConfig.aws?.vpcMode === "existing" && platformConfig.aws?.subnets) {
+      const list = platformConfig.aws.subnets.split(",").map((s) => s.trim()).filter(Boolean);
+      if (list.length) aws.subnets = list;
     }
     if (platformConfig.aws?.amiId) aws.amiID = platformConfig.aws.amiId;
     if (Object.keys(aws).length) {
