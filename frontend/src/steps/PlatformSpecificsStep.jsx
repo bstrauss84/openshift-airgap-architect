@@ -200,177 +200,245 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             </div>
           </Banner>
         ) : null}
-        {showAwsGovcloudSection && (
-          <section className="card">
-            <div className="card-header">
-              <h3 className="card-title">AWS GovCloud {scenarioId === "aws-govcloud-upi" ? "UPI" : "IPI"}</h3>
-              <div className="card-subtitle">Region, optional Route 53, VPC/subnets, instance types, and cluster publish/credentials options.</div>
-            </div>
-            <div className="card-body">
-              {!versionConfirmed && (
-                <div className="note warning platform-specifics-ami-hint">
-                  Confirm the release version in Blueprint to unlock region list and RHCOS AMI auto-discovery.
-                </div>
-              )}
-              <div className="field-grid" style={{ marginTop: 12 }}>
-                <FieldLabelWithInfo
-                  label="AWS GovCloud region"
-                  hint={metaAwsRegion?.description}
-                  required={metaAwsRegion?.required || isRequiredInstall("platform.aws.region")}
-                >
-                  {(() => {
-                    const regionsForDropdown = awsRegions.length > 0 ? awsRegions : AWS_GOVCLOUD_ARCHIVED_REGIONS;
-                    return (
-                      <select
-                        value={platformConfig.aws?.region || ""}
-                        onChange={(e) => updateAws({ region: e.target.value })}
-                      >
-                        <option value="">Select a region</option>
-                        {regionsForDropdown.map((r) => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
-                    );
-                  })()}
-                </FieldLabelWithInfo>
-                {showAwsAmiLookup && awsRegions.length === 0 && (
-                  <div className="note subtle">Using archived region list. Installer metadata will replace this when the background download completes.</div>
-                )}
-                {showAwsAmiLookup && awsRegions.length > 0 && (
-                  <div className="note subtle">Regions from installer stream metadata.</div>
-                )}
-                <FieldLabelWithInfo
-                  label="Hosted zone ID (optional; omit if not using Route 53)"
-                  hint={metaAwsHostedZone?.description || "Route 53 hosted zone for base domain."}
-                >
-                  <input
-                    value={platformConfig.aws?.hostedZone || ""}
-                    onChange={(e) => updateAws({ hostedZone: e.target.value })}
-                    placeholder="Z1234567890"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Hosted zone role ARN (optional; cross-account)"
-                  hint={metaAwsHostedZoneRole?.description || "IAM role for hosted zone in another account."}
-                >
-                  <input
-                    value={platformConfig.aws?.hostedZoneRole || ""}
-                    onChange={(e) => updateAws({ hostedZoneRole: e.target.value })}
-                    placeholder="arn:aws-us-gov:iam::123:role/HostedZoneRole"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Load balancer type (optional)"
-                  hint={metaAwsLbType?.description || "AWS load balancer type for default ingress and API."}
-                >
-                  <select
-                    value={platformConfig.aws?.lbType || ""}
-                    onChange={(e) => updateAws({ lbType: e.target.value })}
-                  >
-                    <option value="" disabled>Not set</option>
-                    <option value="Classic">Classic</option>
-                    <option value="NLB">NLB</option>
-                  </select>
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Subnets (optional; comma-separated for existing VPC)"
-                  hint={metaAwsSubnets?.description || "Existing VPC subnet IDs when not using installer-provisioned VPC."}
-                >
-                  <input
-                    value={platformConfig.aws?.subnets || ""}
-                    onChange={(e) => updateAws({ subnets: e.target.value })}
-                    placeholder="subnet-abc,subnet-def"
-                  />
-                </FieldLabelWithInfo>
-                <div className="platform-specifics-ami-row">
-                  <label className="platform-specifics-ami-label">
-                    <FieldLabelWithInfo
-                      label="RHCOS AMI ID (optional; gov/secret regions)"
-                      hint={metaAwsAmiID?.description || 'Click "Refresh from installer" to fetch the recommended AMI for the selected region. Your value is never overwritten unless you click Refresh.'}
-                    />
-                  </label>
-                  <div className="platform-specifics-ami-input-wrap">
-                    <input
-                      className="platform-specifics-ami-input"
-                      value={platformConfig.aws?.amiId || ""}
-                      onChange={(e) => updateAws({ amiId: e.target.value, amiAutoFilled: false })}
-                      placeholder={platformConfig.aws?.region ? "ami-xxxxxxxx" : "Select region first"}
-                      disabled={amiLookup.loading}
-                    />
-                    {platformConfig.aws?.amiAutoFilled && platformConfig.aws?.amiId && !amiLookup.loading && (
-                      <span className="platform-specifics-ami-badge" title="Filled from installer stream metadata">Auto-filled</span>
-                    )}
-                    {amiLookup.loading && (
-                      <span className="platform-specifics-ami-loading" aria-hidden>Loading…</span>
-                    )}
-                    <button
-                      type="button"
-                      className="ghost platform-specifics-ami-refresh"
-                      disabled={!showAwsAmiLookup || !platformConfig.aws?.region || amiLookup.loading}
-                      onClick={() => fetchAmiFromInstaller(platformConfig.aws?.region, true)}
-                      title="Fetch recommended AMI from installer metadata"
-                    >
-                      {amiLookup.loading ? "Looking up…" : "Refresh from installer"}
-                    </button>
+        {showAwsGovcloudSection && (() => {
+          const awsVpcMode = platformConfig.aws?.vpcMode || "installer-managed";
+          const awsSubnetsRaw = platformConfig.aws?.subnets || "";
+          const awsSubnetList = awsSubnetsRaw.split(",").map((s) => s.trim());
+          const setAwsSubnetList = (list) => {
+            const joined = list.filter(Boolean).join(", ");
+            updateAws({ subnets: joined });
+          };
+          const addAwsSubnet = () => {
+            const next = awsSubnetList.concat([""]);
+            updateAws({ subnets: next.join(", ") });
+          };
+          const updateAwsSubnetAt = (index, value) => {
+            const next = [...awsSubnetList];
+            if (index >= next.length) next.push(value);
+            else next[index] = value;
+            setAwsSubnetList(next);
+          };
+          const removeAwsSubnetAt = (index) => {
+            const next = awsSubnetList.filter((_, i) => i !== index);
+            setAwsSubnetList(next);
+          };
+          return (
+            <section className="card">
+              <div className="card-header">
+                <h3 className="card-title">AWS GovCloud {scenarioId === "aws-govcloud-upi" ? "UPI" : "IPI"}</h3>
+                <div className="card-subtitle">Region, VPC mode, optional Route 53, instance types, and publish/credentials. Grouped for clarity.</div>
+              </div>
+              <div className="card-body">
+                {!versionConfirmed && (
+                  <div className="note warning platform-specifics-ami-hint">
+                    Confirm the release version in Blueprint to unlock region list and RHCOS AMI auto-discovery.
                   </div>
+                )}
+
+                <h4 className="platform-specifics-subsection">Region &amp; AMI</h4>
+                <div className="field-grid">
+                  <FieldLabelWithInfo
+                    label="AWS GovCloud region"
+                    hint={metaAwsRegion?.description}
+                    required={metaAwsRegion?.required || isRequiredInstall("platform.aws.region")}
+                  >
+                    {(() => {
+                      const regionsForDropdown = awsRegions.length > 0 ? awsRegions : AWS_GOVCLOUD_ARCHIVED_REGIONS;
+                      return (
+                        <select
+                          value={platformConfig.aws?.region || ""}
+                          onChange={(e) => updateAws({ region: e.target.value })}
+                        >
+                          <option value="">Select a region</option>
+                          {regionsForDropdown.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      );
+                    })()}
+                  </FieldLabelWithInfo>
+                  {showAwsAmiLookup && awsRegions.length === 0 && (
+                    <div className="note subtle" style={{ gridColumn: "1 / -1" }}>Using archived region list. Installer metadata will replace this when the background download completes.</div>
+                  )}
+                  {showAwsAmiLookup && awsRegions.length > 0 && (
+                    <div className="note subtle" style={{ gridColumn: "1 / -1" }}>Regions from installer stream metadata.</div>
+                  )}
+                  <FieldLabelWithInfo
+                    label="RHCOS AMI ID (optional; gov/secret regions)"
+                    hint={metaAwsAmiID?.description || 'Click "Refresh from installer" to fetch the recommended AMI for the selected region. Your value is never overwritten unless you click Refresh.'}
+                  >
+                    <div className="platform-specifics-ami-inline">
+                      <input
+                        value={platformConfig.aws?.amiId || ""}
+                        onChange={(e) => updateAws({ amiId: e.target.value, amiAutoFilled: false })}
+                        placeholder={platformConfig.aws?.region ? "ami-xxxxxxxx" : "Select region first"}
+                        disabled={amiLookup.loading}
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      {platformConfig.aws?.amiAutoFilled && platformConfig.aws?.amiId && !amiLookup.loading && (
+                        <span className="platform-specifics-ami-badge" title="Filled from installer stream metadata">Auto-filled</span>
+                      )}
+                      {amiLookup.loading && <span className="platform-specifics-ami-loading" aria-hidden>Loading…</span>}
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={!showAwsAmiLookup || !platformConfig.aws?.region || amiLookup.loading}
+                        onClick={() => fetchAmiFromInstaller(platformConfig.aws?.region, true)}
+                        title="Fetch recommended AMI from installer metadata"
+                      >
+                        Refresh from installer
+                      </button>
+                    </div>
+                  </FieldLabelWithInfo>
                   {amiLookup.error ? (
-                    <div className="note warning platform-specifics-ami-error">{amiLookup.error}</div>
+                    <div className="note warning" style={{ gridColumn: "1 / -1" }}>{amiLookup.error}</div>
                   ) : null}
                 </div>
+
+                <h4 className="platform-specifics-subsection">VPC &amp; subnets</h4>
+                <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                  Choose whether the installer creates a new VPC and subnets (default) or you provide existing subnet IDs.
+                </p>
+                <div className="field-grid">
+                  <label>
+                    <span className="field-label-with-info">VPC mode</span>
+                    <select
+                      value={awsVpcMode}
+                      onChange={(e) => updateAws({ vpcMode: e.target.value })}
+                    >
+                      <option value="installer-managed">Installer-managed VPC (default)</option>
+                      <option value="existing">Existing VPC/subnets</option>
+                    </select>
+                  </label>
+                </div>
+                {awsVpcMode === "existing" && (
+                  <div className="field-grid" style={{ marginTop: 8 }}>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <FieldLabelWithInfo
+                        label="Subnet IDs (required for existing VPC)"
+                        hint={metaAwsSubnets?.description || "One or more subnet IDs from your existing VPC. Add each subnet separately."}
+                        required
+                      />
+                      <div className="list" style={{ marginTop: 6 }}>
+                        {(awsSubnetList.length ? awsSubnetList : [""]).map((id, idx) => (
+                          <div key={idx} className="list-item" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <input
+                              value={id}
+                              onChange={(e) => updateAwsSubnetAt(idx, e.target.value)}
+                              placeholder="subnet-xxxxxxxxx"
+                              style={{ flex: 1, minWidth: 120 }}
+                            />
+                            <button type="button" className="ghost" onClick={() => removeAwsSubnetAt(idx)} aria-label="Remove subnet">Remove</button>
+                          </div>
+                        ))}
+                        <button type="button" className="ghost" onClick={addAwsSubnet} style={{ marginTop: 4 }}>Add subnet</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <h4 className="platform-specifics-subsection">Route 53 (optional)</h4>
+                <div className="field-grid">
+                  <FieldLabelWithInfo
+                    label="Hosted zone ID (omit if not using Route 53)"
+                    hint={metaAwsHostedZone?.description || "Route 53 hosted zone for base domain."}
+                  >
+                    <input
+                      value={platformConfig.aws?.hostedZone || ""}
+                      onChange={(e) => updateAws({ hostedZone: e.target.value })}
+                      placeholder="Z1234567890"
+                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Hosted zone role ARN (optional; cross-account)"
+                    hint={metaAwsHostedZoneRole?.description || "IAM role for hosted zone in another account."}
+                  >
+                    <input
+                      value={platformConfig.aws?.hostedZoneRole || ""}
+                      onChange={(e) => updateAws({ hostedZoneRole: e.target.value })}
+                      placeholder="arn:aws-us-gov:iam::123:role/HostedZoneRole"
+                    />
+                  </FieldLabelWithInfo>
+                </div>
+
+                <h4 className="platform-specifics-subsection">Load balancer</h4>
+                <div className="field-grid">
+                  <FieldLabelWithInfo
+                    label="Load balancer type (optional)"
+                    hint={metaAwsLbType?.description || "AWS load balancer type for default ingress and API."}
+                  >
+                    <select
+                      value={platformConfig.aws?.lbType || ""}
+                      onChange={(e) => updateAws({ lbType: e.target.value })}
+                    >
+                      <option value="" disabled>Not set</option>
+                      <option value="Classic">Classic</option>
+                      <option value="NLB">NLB</option>
+                    </select>
+                  </FieldLabelWithInfo>
+                </div>
+
                 {scenarioId === "aws-govcloud-ipi" && (
                   <>
-                    <FieldLabelWithInfo
-                      label="Control plane instance type (optional; IPI)"
-                      hint={metaControlPlaneAwsType?.description || "EC2 instance type for control plane."}
-                    >
-                      <input
-                        value={platformConfig.aws?.controlPlaneInstanceType || ""}
-                        onChange={(e) => updateAws({ controlPlaneInstanceType: e.target.value })}
-                        placeholder="e.g. m5.xlarge"
-                      />
-                    </FieldLabelWithInfo>
-                    <FieldLabelWithInfo
-                      label="Worker instance type (optional; IPI)"
-                      hint={metaComputeAwsType?.description || "EC2 instance type for compute."}
-                    >
-                      <input
-                        value={platformConfig.aws?.workerInstanceType || ""}
-                        onChange={(e) => updateAws({ workerInstanceType: e.target.value })}
-                        placeholder="e.g. m5.large"
-                      />
-                    </FieldLabelWithInfo>
+                    <h4 className="platform-specifics-subsection">Instance types (IPI)</h4>
+                    <div className="field-grid">
+                      <FieldLabelWithInfo
+                        label="Control plane instance type (optional)"
+                        hint={metaControlPlaneAwsType?.description || "EC2 instance type for control plane."}
+                      >
+                        <input
+                          value={platformConfig.aws?.controlPlaneInstanceType || ""}
+                          onChange={(e) => updateAws({ controlPlaneInstanceType: e.target.value })}
+                          placeholder="e.g. m5.xlarge"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Worker instance type (optional)"
+                        hint={metaComputeAwsType?.description || "EC2 instance type for compute."}
+                      >
+                        <input
+                          value={platformConfig.aws?.workerInstanceType || ""}
+                          onChange={(e) => updateAws({ workerInstanceType: e.target.value })}
+                          placeholder="e.g. m5.large"
+                        />
+                      </FieldLabelWithInfo>
+                    </div>
                   </>
                 )}
-                <FieldLabelWithInfo
-                  label="Publish (optional)"
-                  hint={metaPublish?.description || "How to publish API and ingress endpoints."}
-                >
-                  <select
-                    value={platformConfig.publish || metaPublish?.default || "External"}
-                    onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
+
+                <h4 className="platform-specifics-subsection">Publish &amp; credentials</h4>
+                <div className="field-grid">
+                  <FieldLabelWithInfo
+                    label="Publish (optional)"
+                    hint={metaPublish?.description || "How to publish API and ingress endpoints."}
                   >
-                    <option value="External">External</option>
-                    <option value="Internal">Internal</option>
-                  </select>
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Credentials mode (optional)"
-                  hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
-                >
-                  <select
-                    value={platformConfig.credentialsMode || ""}
-                    onChange={(e) => updatePlatformConfig({ credentialsMode: e.target.value })}
+                    <select
+                      value={platformConfig.publish || metaPublish?.default || "External"}
+                      onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
+                    >
+                      <option value="External">External</option>
+                      <option value="Internal">Internal</option>
+                    </select>
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Credentials mode (optional)"
+                    hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
                   >
-                    <option value="" disabled>Not set</option>
-                    <option value="Mint">Mint</option>
-                    <option value="Passthrough">Passthrough</option>
-                    <option value="Manual">Manual</option>
-                  </select>
-                </FieldLabelWithInfo>
+                    <select
+                      value={platformConfig.credentialsMode || ""}
+                      onChange={(e) => updatePlatformConfig({ credentialsMode: e.target.value })}
+                    >
+                      <option value="" disabled>Not set</option>
+                      <option value="Mint">Mint</option>
+                      <option value="Passthrough">Passthrough</option>
+                      <option value="Manual">Manual</option>
+                    </select>
+                  </FieldLabelWithInfo>
+                </div>
               </div>
-            </div>
-          </section>
-        )}
+            </section>
+          );
+        })()}
 
         {showAzureGovSection && (
           <section className="card">

@@ -762,6 +762,12 @@ const validateStep = (state, stepId) => {
       if (requiredPaths.includes("platform.aws.region") && !(aws.region || "").trim()) {
         errors.push(`AWS GovCloud region is required for ${label}.`);
       }
+      if (aws.vpcMode === "existing") {
+        const subnetList = (aws.subnets || "").split(",").map((s) => s.trim()).filter(Boolean);
+        if (subnetList.length === 0) {
+          errors.push("At least one subnet is required when using existing VPC/subnets.");
+        }
+      }
       return { errors, warnings: [] };
     }
     if (scenarioId === "nutanix-ipi") {
