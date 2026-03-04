@@ -919,6 +919,11 @@ body[data-theme="dark"] label.input-error {
   border-width: 2px;
 }
 
+body[data-theme="dark"] .card.highlight-errors {
+  border-color: #f87171;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.4);
+}
+
 .toggle {
   display: flex;
   align-items: center;
