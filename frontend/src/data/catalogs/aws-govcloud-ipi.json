@@ -964,15 +964,15 @@
       "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
     },
     {
-      "path": "platform.aws.subnets",
+      "path": "platform.aws.vpc.subnets",
       "outputFile": "install-config.yaml",
       "type": "array",
-      "allowed": "comma-separated subnet IDs",
+      "allowed": "list of objects with id (optional roles per 4.20 doc)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VPC subnet IDs (comma-separated) when installing into a pre-existing VPC. Omit for installer-provisioned VPC.",
+      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id per OpenShift 4.20 (installation-config-parameters-aws). Omit for installer-provisioned VPC. UI collects subnet IDs; backend emits vpc.subnets[].id. Optional roles may be added in future.",
       "applies_to": ["aws-govcloud-ipi"],
-      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
+      "citations": [{"docId": "installation-config-parameters-aws", "docTitle": "Installation configuration parameters for AWS", "sectionHeading": "Optional AWS configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"}]
     },
     {
       "path": "platform.aws.amiID",

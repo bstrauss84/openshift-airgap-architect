@@ -64,8 +64,8 @@ const buildInstallConfig = (state) => {
   let masters = sortedNodes.filter((node) => node.role === "master").length || 0;
   let workers = sortedNodes.filter((node) => node.role === "worker").length || 0;
   const platformConfig = state.platformConfig || {};
-  const isCloudNoHostInventory = (state.blueprint?.platform === "AWS GovCloud" || state.blueprint?.platform === "Azure Government") && ["IPI", "UPI"].includes(state.methodology?.method);
-  if (isCloudNoHostInventory) {
+  const isAwsNoHostInventory = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
+  if (isAwsNoHostInventory) {
     const cp = Number(platformConfig.controlPlaneReplicas);
     const comp = Number(platformConfig.computeReplicas);
     if (Number.isInteger(cp) && cp >= 0) masters = cp;
@@ -241,26 +241,44 @@ const buildInstallConfig = (state) => {
     const aws = {};
     if (platformConfig.aws?.region) aws.region = platformConfig.aws.region;
     if (platformConfig.aws?.hostedZone) aws.hostedZone = platformConfig.aws.hostedZone;
-    if (platformConfig.aws?.hostedZone && (platformConfig.aws?.hostedZoneRole || "").trim()) aws.hostedZoneRole = (platformConfig.aws.hostedZoneRole || "").trim();
+    // hostedZoneRole: only when shared VPC (hosted zone in another account). Doc: "Use this parameter only when you are installing a cluster into a shared VPC."
+    if (platformConfig.aws?.hostedZone && platformConfig.aws?.hostedZoneSharedVpc === true && (platformConfig.aws?.hostedZoneRole || "").trim()) {
+      aws.hostedZoneRole = (platformConfig.aws.hostedZoneRole || "").trim();
+    }
     if (platformConfig.aws?.lbType) aws.lbType = platformConfig.aws.lbType;
+    // Official 4.20: platform.aws.vpc.subnets[] with id (and optional roles). Omit for installer-managed VPC.
     if (platformConfig.aws?.vpcMode === "existing" && platformConfig.aws?.subnets) {
       const list = platformConfig.aws.subnets.split(",").map((s) => s.trim()).filter(Boolean);
-      if (list.length) aws.subnets = list;
+      if (list.length) aws.vpc = { subnets: list.map((id) => ({ id })) };
     }
     if (platformConfig.aws?.amiId) aws.amiID = platformConfig.aws.amiId;
     if (Object.keys(aws).length) {
       installConfig.platform.aws = aws;
     }
-    if (state.methodology?.method === "IPI" && platformConfig.aws?.controlPlaneInstanceType) {
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType)) {
       const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null
         ? { ...installConfig.controlPlane.platform } : {};
-      cpPlatform.aws = { type: platformConfig.aws.controlPlaneInstanceType };
+      cpPlatform.aws = { ...(cpPlatform.aws || {}) };
+      if (platformConfig.aws.controlPlaneInstanceType) cpPlatform.aws.type = platformConfig.aws.controlPlaneInstanceType;
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType) {
+        cpPlatform.aws.rootVolume = {};
+        if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) cpPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
+        if ((platformConfig.aws.rootVolumeType || "").trim()) cpPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
+        if (Object.keys(cpPlatform.aws.rootVolume).length === 0) delete cpPlatform.aws.rootVolume;
+      }
       installConfig.controlPlane.platform = cpPlatform;
     }
-    if (state.methodology?.method === "IPI" && platformConfig.aws?.workerInstanceType) {
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.workerInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType)) {
       const compPlatform = typeof installConfig.compute[0].platform === "object" && installConfig.compute[0].platform !== null
         ? { ...installConfig.compute[0].platform } : {};
-      compPlatform.aws = { type: platformConfig.aws.workerInstanceType };
+      compPlatform.aws = { ...(compPlatform.aws || {}) };
+      if (platformConfig.aws.workerInstanceType) compPlatform.aws.type = platformConfig.aws.workerInstanceType;
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType) {
+        compPlatform.aws.rootVolume = {};
+        if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) compPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
+        if ((platformConfig.aws.rootVolumeType || "").trim()) compPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
+        if (Object.keys(compPlatform.aws.rootVolume).length === 0) delete compPlatform.aws.rootVolume;
+      }
       installConfig.compute[0].platform = compPlatform;
     }
   }

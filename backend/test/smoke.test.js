@@ -478,6 +478,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and
         region: "us-gov-west-1",
         vpcMode: "existing",
         hostedZone: "Z123",
+        hostedZoneSharedVpc: true,
         hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole",
         lbType: "NLB",
         subnets: "subnet-a, subnet-b",
@@ -496,7 +497,9 @@ test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and
   assert.strictEqual(out.platform.aws.hostedZone, "Z123");
   assert.strictEqual(out.platform.aws.hostedZoneRole, "arn:aws-us-gov:iam::123:role/HzRole");
   assert.strictEqual(out.platform.aws.lbType, "NLB");
-  assert.deepStrictEqual(out.platform.aws.subnets, ["subnet-a", "subnet-b"]);
+  assert.ok(out.platform.aws.vpc?.subnets, "vpc.subnets present for existing VPC");
+  assert.deepStrictEqual(out.platform.aws.vpc.subnets, [{ id: "subnet-a" }, { id: "subnet-b" }], "4.20 doc: platform.aws.vpc.subnets[].id");
+  assert.strictEqual(out.platform.aws.subnets, undefined, "legacy platform.aws.subnets not used");
   assert.strictEqual(out.platform.aws.amiID, "ami-custom123");
   assert.strictEqual(out.publish, "Internal");
   assert.strictEqual(out.credentialsMode, "Mint");
@@ -514,7 +517,7 @@ test("buildInstallConfig for aws-govcloud-ipi omits subnets when vpcMode is inst
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.ok(out.platform?.aws, "platform.aws present");
-  assert.strictEqual(out.platform.aws.subnets, undefined, "subnets must be omitted when vpcMode is not existing");
+  assert.strictEqual(out.platform.aws.vpc, undefined, "vpc/subnets must be omitted when vpcMode is not existing");
 });
 
 test("buildInstallConfig for aws-govcloud-ipi includes required catalog params (Prompt J Phase 3)", () => {
@@ -565,7 +568,8 @@ test("buildInstallConfig for aws-govcloud-upi emits platform.aws with region and
   assert.ok(out.platform?.aws, "platform.aws must be present for AWS GovCloud UPI");
   assert.strictEqual(out.platform.aws.region, "us-gov-east-1");
   assert.strictEqual(out.platform.aws.hostedZone, "Z456");
-  assert.deepStrictEqual(out.platform.aws.subnets, ["subnet-x", "subnet-y"]);
+  assert.ok(out.platform.aws.vpc?.subnets);
+  assert.deepStrictEqual(out.platform.aws.vpc.subnets, [{ id: "subnet-x" }, { id: "subnet-y" }]);
   assert.strictEqual(out.platform.aws.amiID, "ami-upi123");
   assert.strictEqual(out.publish, "Internal");
   assert.strictEqual(out.credentialsMode, "Passthrough");
@@ -630,7 +634,7 @@ test("buildInstallConfig for AWS GovCloud emits IPv4-only networking (4.20 doc: 
   assert.ok(Array.isArray(out.networking?.serviceNetwork) && out.networking.serviceNetwork.length === 1, "serviceNetwork single entry");
 });
 
-test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hostedZone is set", () => {
+test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hostedZone and shared VPC are set", () => {
   const stateNoZone = {
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
@@ -640,15 +644,47 @@ test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hos
   const out1 = yaml.load(raw1);
   assert.strictEqual(out1.platform?.aws?.hostedZoneRole, undefined, "hostedZoneRole omitted when hostedZone not set");
 
-  const stateWithZone = {
+  const stateWithZoneNoShared = {
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: { aws: { region: "us-gov-west-1", hostedZone: "Z123", hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole" } }
   };
-  const raw2 = buildInstallConfig(stateWithZone);
+  const raw2 = buildInstallConfig(stateWithZoneNoShared);
   const out2 = yaml.load(raw2);
   assert.strictEqual(out2.platform?.aws?.hostedZone, "Z123");
-  assert.strictEqual(out2.platform?.aws?.hostedZoneRole, "arn:aws-us-gov:iam::123:role/HzRole", "hostedZoneRole emitted when hostedZone set");
+  assert.strictEqual(out2.platform?.aws?.hostedZoneRole, undefined, "hostedZoneRole omitted unless shared VPC (hostedZoneSharedVpc)");
+
+  const stateWithZoneAndSharedVpc = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: { aws: { region: "us-gov-west-1", hostedZone: "Z123", hostedZoneSharedVpc: true, hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole" } }
+  };
+  const raw3 = buildInstallConfig(stateWithZoneAndSharedVpc);
+  const out3 = yaml.load(raw3);
+  assert.strictEqual(out3.platform?.aws?.hostedZone, "Z123");
+  assert.strictEqual(out3.platform?.aws?.hostedZoneRole, "arn:aws-us-gov:iam::123:role/HzRole", "hostedZoneRole emitted when hostedZone + hostedZoneSharedVpc set");
+});
+
+test("buildInstallConfig for aws-govcloud-ipi emits rootVolume when rootVolumeSize/rootVolumeType set", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: {
+      aws: {
+        region: "us-gov-west-1",
+        controlPlaneInstanceType: "m5.xlarge",
+        workerInstanceType: "m5.large",
+        rootVolumeSize: 100,
+        rootVolumeType: "gp3"
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.controlPlane?.platform?.aws?.type, "m5.xlarge");
+  assert.deepStrictEqual(out.controlPlane?.platform?.aws?.rootVolume, { size: 100, type: "gp3" });
+  assert.strictEqual(out.compute?.[0]?.platform?.aws?.type, "m5.large");
+  assert.deepStrictEqual(out.compute?.[0]?.platform?.aws?.rootVolume, { size: 100, type: "gp3" });
 });
 
 test("buildInstallConfig for azure-government-ipi emits platform.azure with cloudName, region, resourceGroupName, baseDomainResourceGroupName (Prompt J)", () => {

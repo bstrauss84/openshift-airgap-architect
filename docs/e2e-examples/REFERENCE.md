@@ -42,6 +42,6 @@ Do **not** emit string platform (e.g. "baremetal", "vsphere") on controlPlane/co
 | bare-metal-ipi | platform.baremetal (hosts, provisioning network, etc.) | — |
 | bare-metal-upi | platform.baremetal (apiVIP, ingressVIP only); controlPlane/compute platform "none" | — |
 | vsphere-ipi, vsphere-upi | platform.vsphere | — |
-| aws-govcloud-ipi, aws-govcloud-upi | platform.aws | — |
+| aws-govcloud-ipi, aws-govcloud-upi | platform.aws (existing VPC: platform.aws.vpc.subnets[].id per 4.20 doc) | — |
 | azure-government-ipi | platform.azure | — |
 | nutanix-ipi | platform.nutanix | — |

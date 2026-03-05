@@ -89,12 +89,12 @@ describe("catalogResolver: getCatalogForScenario", () => {
     expect(params.some((p) => p.path === "platform.aws.region" && p.outputFile === "install-config.yaml")).toBe(true);
   });
 
-  it("returns parameters array for aws-govcloud-upi with platform.aws.region and platform.aws.subnets (Prompt J)", () => {
+  it("returns parameters array for aws-govcloud-upi with platform.aws.region and platform.aws.vpc.subnets (Prompt J)", () => {
     const params = getCatalogForScenario("aws-govcloud-upi");
     expect(Array.isArray(params)).toBe(true);
     expect(params.length).toBeGreaterThan(0);
     expect(params.some((p) => p.path === "platform.aws.region" && p.outputFile === "install-config.yaml")).toBe(true);
-    expect(params.some((p) => p.path === "platform.aws.subnets" && p.outputFile === "install-config.yaml")).toBe(true);
+    expect(params.some((p) => p.path === "platform.aws.vpc.subnets" && p.outputFile === "install-config.yaml")).toBe(true);
   });
 
   it("returns parameters array for nutanix-ipi with platform.nutanix.prismCentral and platform.nutanix.subnet (Prompt J)", () => {

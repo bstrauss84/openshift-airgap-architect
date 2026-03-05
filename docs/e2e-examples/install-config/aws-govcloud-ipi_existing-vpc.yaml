@@ -1,0 +1,34 @@
+# Example: AWS GovCloud IPI with existing VPC (4.20 doc structure).
+# Official 4.20: platform.aws.vpc.subnets[] with id (and optional roles).
+# See: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws
+apiVersion: v1
+baseDomain: example.com
+metadata:
+  name: airgap-cluster
+compute:
+  - name: worker
+    replicas: 0
+    architecture: amd64
+controlPlane:
+  name: master
+  replicas: 3
+  architecture: amd64
+networking:
+  networkType: OVNKubernetes
+  machineNetwork:
+    - cidr: 10.90.0.0/24
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  serviceNetwork:
+    - 172.30.0.0/16
+platform:
+  aws:
+    region: us-gov-west-1
+    vpc:
+      subnets:
+        - id: subnet-01234567890abcdef01234
+        - id: subnet-01234567890abcdef01235
+pullSecret: '{"auths":{}}'
+sshKey: ''
+publish: External

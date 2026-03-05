@@ -98,7 +98,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const metaAwsHostedZone = getParamMeta(scenarioId, "platform.aws.hostedZone", INSTALL_CONFIG);
   const metaAwsHostedZoneRole = getParamMeta(scenarioId, "platform.aws.hostedZoneRole", INSTALL_CONFIG);
   const metaAwsLbType = getParamMeta(scenarioId, "platform.aws.lbType", INSTALL_CONFIG);
-  const metaAwsSubnets = getParamMeta(scenarioId, "platform.aws.subnets", INSTALL_CONFIG);
+  const metaAwsSubnets = getParamMeta(scenarioId, "platform.aws.vpc.subnets", INSTALL_CONFIG);
   const metaAwsAmiID = getParamMeta(scenarioId, "platform.aws.amiID", INSTALL_CONFIG);
   const metaControlPlaneAwsType = getParamMeta(scenarioId, "controlPlane.platform.aws.type", INSTALL_CONFIG);
   const metaComputeAwsType = getParamMeta(scenarioId, "compute[].platform.aws.type", INSTALL_CONFIG);
@@ -341,7 +341,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="Hosted zone ID (omit if not using Route 53)"
-                    hint={metaAwsHostedZone?.description || "Route 53 hosted zone for base domain."}
+                    hint={metaAwsHostedZone?.description || "Route 53 hosted zone for base domain. Only use a pre-existing hosted zone when supplying your own VPC."}
                   >
                     <input
                       value={platformConfig.aws?.hostedZone || ""}
@@ -349,16 +349,27 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                       placeholder="Z1234567890"
                     />
                   </FieldLabelWithInfo>
-                  <FieldLabelWithInfo
-                    label="Hosted zone role ARN (optional; cross-account)"
-                    hint={metaAwsHostedZoneRole?.description || "IAM role for hosted zone in another account."}
-                  >
+                  <label className="host-inventory-v2-checkbox-label" style={{ gridColumn: "1 / -1" }}>
                     <input
-                      value={platformConfig.aws?.hostedZoneRole || ""}
-                      onChange={(e) => updateAws({ hostedZoneRole: e.target.value })}
-                      placeholder="arn:aws-us-gov:iam::123:role/HostedZoneRole"
+                      type="checkbox"
+                      checked={!!platformConfig.aws?.hostedZoneSharedVpc}
+                      onChange={(e) => updateAws({ hostedZoneSharedVpc: e.target.checked })}
+                      aria-label="Hosted zone in another account (shared VPC)"
                     />
-                  </FieldLabelWithInfo>
+                    {" "}Hosted zone is in another account (shared VPC)
+                  </label>
+                  {platformConfig.aws?.hostedZoneSharedVpc ? (
+                    <FieldLabelWithInfo
+                      label="Hosted zone role ARN (required for shared VPC)"
+                      hint="IAM role ARN in the account that contains the hosted zone. Emitted only when the checkbox above is set; official docs: use only when installing into a shared VPC."
+                    >
+                      <input
+                        value={platformConfig.aws?.hostedZoneRole || ""}
+                        onChange={(e) => updateAws({ hostedZoneRole: e.target.value })}
+                        placeholder="arn:aws-us-gov:iam::123:role/HostedZoneRole"
+                      />
+                    </FieldLabelWithInfo>
+                  ) : null}
                 </div>
 
                 <h4 className="platform-specifics-subsection">Load balancer</h4>
@@ -400,6 +411,35 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           value={platformConfig.aws?.workerInstanceType || ""}
                           onChange={(e) => updateAws({ workerInstanceType: e.target.value })}
                           placeholder="e.g. m5.large"
+                        />
+                      </FieldLabelWithInfo>
+                    </div>
+                    <h4 className="platform-specifics-subsection">Root volume (optional)</h4>
+                    <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                      Size and type for control plane and compute root volumes (4.20 doc: compute.platform.aws.rootVolume, controlPlane.platform.aws.rootVolume). Emitted only when set.
+                    </p>
+                    <div className="field-grid">
+                      <FieldLabelWithInfo
+                        label="Root volume size (GiB)"
+                        hint="Leave empty to omit. Integer, e.g. 100."
+                      >
+                        <input
+                          type="number"
+                          min={1}
+                          max={9999}
+                          value={platformConfig.aws?.rootVolumeSize ?? ""}
+                          onChange={(e) => updateAws({ rootVolumeSize: e.target.value === "" ? undefined : Number(e.target.value) })}
+                          placeholder="omit"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Root volume type"
+                        hint="EBS volume type, e.g. gp3, io1. Leave empty to omit."
+                      >
+                        <input
+                          value={platformConfig.aws?.rootVolumeType || ""}
+                          onChange={(e) => updateAws({ rootVolumeType: e.target.value || undefined })}
+                          placeholder="e.g. gp3"
                         />
                       </FieldLabelWithInfo>
                     </div>

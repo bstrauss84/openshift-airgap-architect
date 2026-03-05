@@ -964,13 +964,13 @@
       "citations": [{"docId": "installing-aws-govcloud-upi", "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure", "sectionHeading": "AWS GovCloud UPI install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-upi.html"}]
     },
     {
-      "path": "platform.aws.subnets",
+      "path": "platform.aws.vpc.subnets",
       "outputFile": "install-config.yaml",
       "type": "array",
-      "allowed": "comma-separated subnet IDs",
+      "allowed": "list of objects with id (optional roles per 4.20 doc)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VPC subnet IDs (comma-separated) when installing into a pre-existing VPC. Required for UPI in existing VPC.",
+      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id per 4.20. Required for UPI in existing VPC. UI collects subnet IDs; backend emits vpc.subnets[].id.",
       "applies_to": ["aws-govcloud-upi"],
       "citations": [{"docId": "installing-aws-govcloud-upi", "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure", "sectionHeading": "AWS GovCloud UPI install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-upi.html"}]
     },
