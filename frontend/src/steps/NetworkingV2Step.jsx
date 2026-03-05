@@ -89,6 +89,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
   const enableIpv6 = Boolean(hostInventory.enableIpv6);
   const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
+  /** AWS install-config supports IPv4 only (4.20); dual-stack is not available for this platform. */
+  const showIpv6ForPlatform = enableIpv6 && !isAwsGovCloud;
 
   const clusterCardHasErrors = Boolean(
     highlightErrors &&
@@ -118,7 +120,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
         ) : null}
         {isAwsGovCloud ? (
           <Banner variant="info">
-            For AWS GovCloud, cluster and service networks are in install-config; machine network is typically derived from your VPC subnets.
+            For AWS GovCloud, cluster and service networks are in install-config; machine network is typically derived from your VPC subnets. These CIDRs define address ranges for the cluster; they do not define AWS subnet IDs (subnet IDs are set in Platform Specifics).
           </Banner>
         ) : null}
 
@@ -133,21 +135,29 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <Banner variant="error">{overlapMessages.join(" ")} Overlapping networks are not supported.</Banner>
           ) : null}
           <div className="card-body">
-            <OptionRow
-              title="Enable IPv6 (cluster-wide)"
-              description="Show IPv6 machine and optional cluster/service fields for dual-stack."
-            >
-              <Switch
-                checked={enableIpv6}
-                onChange={(checked) => updateHostInventory({ enableIpv6: checked })}
-                aria-label="Enable IPv6"
-              />
-            </OptionRow>
-            {enableIpv6 ? (
-              <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                For dual-stack, IPv6 machine network follows IPv4. Machine network is used for node IP validation.
+            {isAwsGovCloud ? (
+              <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
+                AWS install-config supports IPv4 only (OpenShift 4.20). Dual-stack and IPv6 are not available for this platform.
               </p>
-            ) : null}
+            ) : (
+              <>
+                <OptionRow
+                  title="Enable IPv6 (cluster-wide)"
+                  description="Show IPv6 machine and optional cluster/service fields for dual-stack."
+                >
+                  <Switch
+                    checked={enableIpv6}
+                    onChange={(checked) => updateHostInventory({ enableIpv6: checked })}
+                    aria-label="Enable IPv6"
+                  />
+                </OptionRow>
+                {enableIpv6 ? (
+                  <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
+                    For dual-stack, IPv6 machine network follows IPv4. Machine network is used for node IP validation.
+                  </p>
+                ) : null}
+              </>
+            )}
 
             {showMachineNetwork ? (
             <div className="networking-group">
@@ -172,7 +182,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
                   <span className="note warning inline">Overlaps with service network.</span>
                 ) : null}
-                {enableIpv6 ? (
+                {showIpv6ForPlatform ? (
                   <FieldLabelWithInfo
                     label="Machine Network (IPv6 CIDR)"
                     hint="Only for dual-stack."
@@ -230,7 +240,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                     max={28}
                   />
                 </FieldLabelWithInfo>
-                {enableIpv6 && (networking.machineNetworkV6 || "").trim() ? (
+                {showIpv6ForPlatform && (networking.machineNetworkV6 || "").trim() ? (
                   <>
                     <FieldLabelWithInfo
                       label="Cluster Network IPv6 CIDR (optional)"
@@ -289,7 +299,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
                   <span className="note warning inline">Overlaps with cluster network.</span>
                 ) : null}
-                {enableIpv6 && (networking.machineNetworkV6 || "").trim() ? (
+                {showIpv6ForPlatform && (networking.machineNetworkV6 || "").trim() ? (
                   <FieldLabelWithInfo
                     label="Service Network IPv6 CIDR (optional)"
                     hint="Dual-stack service IPv6. Default fd02::/112 if blank."

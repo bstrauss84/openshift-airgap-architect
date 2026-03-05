@@ -61,15 +61,26 @@ const buildInstallConfig = (state) => {
 
   const nodes = (state.hostInventory?.nodes || []).slice();
   const sortedNodes = sortNodes(nodes);
-  const masters = sortedNodes.filter((node) => node.role === "master").length || 0;
-  const workers = sortedNodes.filter((node) => node.role === "worker").length || 0;
+  let masters = sortedNodes.filter((node) => node.role === "master").length || 0;
+  let workers = sortedNodes.filter((node) => node.role === "worker").length || 0;
+  const platformConfig = state.platformConfig || {};
+  const isCloudNoHostInventory = (state.blueprint?.platform === "AWS GovCloud" || state.blueprint?.platform === "Azure Government") && ["IPI", "UPI"].includes(state.methodology?.method);
+  if (isCloudNoHostInventory) {
+    const cp = Number(platformConfig.controlPlaneReplicas);
+    const comp = Number(platformConfig.computeReplicas);
+    if (Number.isInteger(cp) && cp >= 0) masters = cp;
+    else if (masters === 0) masters = 3;
+    if (Number.isInteger(comp) && comp >= 0) workers = comp;
+  }
   const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
 
   const networkingState = state.globalStrategy?.networking || {};
-  const machineNetworks = [networkingState.machineNetworkV4, networkingState.machineNetworkV6]
-    .filter(Boolean)
-    .map((cidr) => ({ cidr }));
-  const dualStack = Boolean(networkingState.machineNetworkV6);
+  const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
+  /** AWS install-config supports IPv4 only (4.20); do not emit dual-stack for AWS. */
+  const dualStack = !isAwsGovCloud && Boolean(networkingState.machineNetworkV6);
+  const machineNetworks = dualStack
+    ? [networkingState.machineNetworkV4, networkingState.machineNetworkV6].filter(Boolean).map((cidr) => ({ cidr }))
+    : [networkingState.machineNetworkV4].filter(Boolean).map((cidr) => ({ cidr }));
 
   const includeCredentials = Boolean(state.exportOptions?.includeCredentials);
   const creds = state.credentials || {};
@@ -91,8 +102,6 @@ const buildInstallConfig = (state) => {
         : (creds.pullSecretPlaceholder || "{\"auths\":{}}")
     : "{\"auths\":{}}";
   const pullSecret = normalizePullSecretString(rawPullSecret);
-
-  const platformConfig = state.platformConfig || {};
 
   // Blueprint carry-over: architecture (x86_64→amd64, aarch64→arm64) and platform (Bare Metal→baremetal, etc.)
   const archForInstallConfig = (arch) => {
@@ -232,7 +241,7 @@ const buildInstallConfig = (state) => {
     const aws = {};
     if (platformConfig.aws?.region) aws.region = platformConfig.aws.region;
     if (platformConfig.aws?.hostedZone) aws.hostedZone = platformConfig.aws.hostedZone;
-    if (platformConfig.aws?.hostedZoneRole) aws.hostedZoneRole = platformConfig.aws.hostedZoneRole;
+    if (platformConfig.aws?.hostedZone && (platformConfig.aws?.hostedZoneRole || "").trim()) aws.hostedZoneRole = (platformConfig.aws.hostedZoneRole || "").trim();
     if (platformConfig.aws?.lbType) aws.lbType = platformConfig.aws.lbType;
     if (platformConfig.aws?.vpcMode === "existing" && platformConfig.aws?.subnets) {
       const list = platformConfig.aws.subnets.split(",").map((s) => s.trim()).filter(Boolean);

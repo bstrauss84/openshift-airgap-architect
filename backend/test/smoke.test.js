@@ -591,6 +591,66 @@ test("buildInstallConfig for aws-govcloud-upi must NOT emit IPI-only or other-sc
   assert.strictEqual(out.platform?.baremetal?.provisioningNetwork, undefined, "aws-govcloud-upi must not emit provisioningNetwork");
 });
 
+test("buildInstallConfig for aws-govcloud-ipi uses platformConfig controlPlaneReplicas and computeReplicas when set", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: {
+      aws: { region: "us-gov-west-1" },
+      controlPlaneReplicas: 3,
+      computeReplicas: 2
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.controlPlane.replicas, 3, "controlPlane.replicas from platformConfig");
+  assert.strictEqual(out.compute[0].replicas, 2, "compute.replicas from platformConfig");
+});
+
+test("buildInstallConfig for AWS GovCloud emits IPv4-only networking (4.20 doc: AWS IPv4 only)", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: {
+      networking: {
+        machineNetworkV4: "10.90.0.0/24",
+        machineNetworkV6: "fd10:90::/64",
+        clusterNetworkCidr: "10.128.0.0/14",
+        serviceNetworkCidr: "172.30.0.0/16"
+      }
+    },
+    platformConfig: { aws: { region: "us-gov-west-1" } }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(Array.isArray(out.networking?.machineNetwork), "machineNetwork present");
+  assert.strictEqual(out.networking.machineNetwork.length, 1, "AWS must emit single-stack IPv4 only");
+  assert.strictEqual(out.networking.machineNetwork[0].cidr, "10.90.0.0/24");
+  assert.ok(Array.isArray(out.networking?.clusterNetwork) && out.networking.clusterNetwork.length === 1, "clusterNetwork single entry");
+  assert.ok(Array.isArray(out.networking?.serviceNetwork) && out.networking.serviceNetwork.length === 1, "serviceNetwork single entry");
+});
+
+test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hostedZone is set", () => {
+  const stateNoZone = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: { aws: { region: "us-gov-west-1", hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole" } }
+  };
+  const raw1 = buildInstallConfig(stateNoZone);
+  const out1 = yaml.load(raw1);
+  assert.strictEqual(out1.platform?.aws?.hostedZoneRole, undefined, "hostedZoneRole omitted when hostedZone not set");
+
+  const stateWithZone = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: { aws: { region: "us-gov-west-1", hostedZone: "Z123", hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole" } }
+  };
+  const raw2 = buildInstallConfig(stateWithZone);
+  const out2 = yaml.load(raw2);
+  assert.strictEqual(out2.platform?.aws?.hostedZone, "Z123");
+  assert.strictEqual(out2.platform?.aws?.hostedZoneRole, "arn:aws-us-gov:iam::123:role/HzRole", "hostedZoneRole emitted when hostedZone set");
+});
+
 test("buildInstallConfig for azure-government-ipi emits platform.azure with cloudName, region, resourceGroupName, baseDomainResourceGroupName (Prompt J)", () => {
   const state = {
     blueprint: { platform: "Azure Government", baseDomain: "gov.example.com", clusterName: "az-gov-cluster" },

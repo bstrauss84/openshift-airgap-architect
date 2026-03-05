@@ -236,6 +236,12 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 )}
 
                 <h4 className="platform-specifics-subsection">Region &amp; AMI</h4>
+                {showAwsAmiLookup && awsRegions.length > 0 && (
+                  <p className="note subtle platform-specifics-region-note">Regions from installer stream metadata.</p>
+                )}
+                {showAwsAmiLookup && awsRegions.length === 0 && (
+                  <p className="note subtle platform-specifics-region-note">Using archived region list. Installer metadata will replace this when the background download completes.</p>
+                )}
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="AWS GovCloud region"
@@ -249,7 +255,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           value={platformConfig.aws?.region || ""}
                           onChange={(e) => updateAws({ region: e.target.value })}
                         >
-                          <option value="">Select a region</option>
+                          <option value="" disabled>Select a region</option>
                           {regionsForDropdown.map((r) => (
                             <option key={r} value={r}>{r}</option>
                           ))}
@@ -257,23 +263,17 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                       );
                     })()}
                   </FieldLabelWithInfo>
-                  {showAwsAmiLookup && awsRegions.length === 0 && (
-                    <div className="note subtle" style={{ gridColumn: "1 / -1" }}>Using archived region list. Installer metadata will replace this when the background download completes.</div>
-                  )}
-                  {showAwsAmiLookup && awsRegions.length > 0 && (
-                    <div className="note subtle" style={{ gridColumn: "1 / -1" }}>Regions from installer stream metadata.</div>
-                  )}
                   <FieldLabelWithInfo
                     label="RHCOS AMI ID (optional; gov/secret regions)"
                     hint={metaAwsAmiID?.description || 'Click "Refresh from installer" to fetch the recommended AMI for the selected region. Your value is never overwritten unless you click Refresh.'}
                   >
                     <div className="platform-specifics-ami-inline">
                       <input
+                        className="platform-specifics-ami-input-wide"
                         value={platformConfig.aws?.amiId || ""}
                         onChange={(e) => updateAws({ amiId: e.target.value, amiAutoFilled: false })}
                         placeholder={platformConfig.aws?.region ? "ami-xxxxxxxx" : "Select region first"}
                         disabled={amiLookup.loading}
-                        style={{ flex: 1, minWidth: 0 }}
                       />
                       {platformConfig.aws?.amiAutoFilled && platformConfig.aws?.amiId && !amiLookup.loading && (
                         <span className="platform-specifics-ami-badge" title="Filled from installer stream metadata">Auto-filled</span>
@@ -297,7 +297,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
 
                 <h4 className="platform-specifics-subsection">VPC &amp; subnets</h4>
                 <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                  Choose whether the installer creates a new VPC and subnets (default) or you provide existing subnet IDs.
+                  Choose whether the installer creates a new VPC and subnets (default) or you provide existing subnet IDs. Subnet IDs here are for AWS VPC only; they are not derived from the Networking tab (machine/cluster/service CIDRs).
                 </p>
                 <div className="field-grid">
                   <label>
@@ -365,7 +365,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="Load balancer type (optional)"
-                    hint={metaAwsLbType?.description || "AWS load balancer type for default ingress and API."}
+                    hint="Classic: legacy ELB for API and default ingress. NLB: Network Load Balancer (recommended for most installs; better performance and TLS termination). Choose NLB unless you have a specific reason to use Classic. Omit to use the platform default."
                   >
                     <select
                       value={platformConfig.aws?.lbType || ""}
@@ -406,11 +406,52 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </>
                 )}
 
+                {(scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi") ? (
+                  <>
+                    <h4 className="platform-specifics-subsection">Machine counts</h4>
+                    <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                      Control plane and worker replica counts for install-config. AWS does not use host inventory; set counts here.
+                    </p>
+                    <div className="field-grid">
+                      <FieldLabelWithInfo
+                        label="Control plane replicas"
+                        hint="Number of control plane nodes (typically 3)."
+                      >
+                        <input
+                          type="number"
+                          min={1}
+                          max={9}
+                          value={platformConfig.controlPlaneReplicas ?? 3}
+                          onChange={(e) => {
+                            const v = e.target.value === "" ? undefined : Number(e.target.value);
+                            updatePlatformConfig({ controlPlaneReplicas: v });
+                          }}
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Compute (worker) replicas"
+                        hint="Number of worker nodes (0 for control-plane-only)."
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={platformConfig.computeReplicas ?? 0}
+                          onChange={(e) => {
+                            const v = e.target.value === "" ? undefined : Number(e.target.value);
+                            updatePlatformConfig({ computeReplicas: v });
+                          }}
+                        />
+                      </FieldLabelWithInfo>
+                    </div>
+                  </>
+                ) : null}
+
                 <h4 className="platform-specifics-subsection">Publish &amp; credentials</h4>
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="Publish (optional)"
-                    hint={metaPublish?.description || "How to publish API and ingress endpoints."}
+                    hint="External: API and default ingress are published to the internet (public DNS/LB). Use for public clusters. Internal: endpoints are not published publicly; use when the cluster API and apps are only reachable from inside your network (e.g. private only). Requires private DNS and routing."
                   >
                     <select
                       value={platformConfig.publish || metaPublish?.default || "External"}
@@ -422,7 +463,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Credentials mode (optional)"
-                    hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
+                    hint="Mint: CCO creates long-lived cloud credentials from the admin kubeconfig (default for many installs). Passthrough: use the install-time credentials for cluster components; no minting. Manual: you manage cloud credentials manually. Choose Mint unless your security model requires Passthrough or Manual."
                   >
                     <select
                       value={platformConfig.credentialsMode || ""}

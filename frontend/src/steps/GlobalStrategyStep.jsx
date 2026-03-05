@@ -712,6 +712,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
           </div>
         </section>
 
+        {platform !== "AWS GovCloud" ? (
         <section className="card">
           <div className="card-header">
             <div>
@@ -732,6 +733,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
             </FieldLabelWithInfo>
           </div>
         </section>
+        ) : null}
 
         <section className={`card ${fieldErrors.mirrorSecret ? "highlight-errors" : ""}`}>
           <div className="card-header">

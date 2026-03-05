@@ -81,6 +81,8 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
 
   const metaImageDigest = getParamMeta(scenarioId, "imageDigestSources", INSTALL_CONFIG);
   const metaNtp = getParamMeta(scenarioId, "additionalNTPSources", AGENT_CONFIG);
+  const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
+  const showNtpSection = !isAwsGovCloud;
 
   return (
     <div className="step">
@@ -180,6 +182,7 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
           </div>
         </section>
 
+        {showNtpSection ? (
         <section className="card">
           <div className="card-header">
             <div>
@@ -201,6 +204,7 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
             </FieldLabelWithInfo>
           </div>
         </section>
+        ) : null}
       </div>
     </div>
   );
