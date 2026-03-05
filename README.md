@@ -119,6 +119,10 @@ When users reach the app through a **different hostname** than the one the front
 
 4. **Security note:** Only add hostnames you control and that users are supposed to use. Leaving `VITE_ALLOWED_HOSTS` unset is safe for local use (localhost remains allowed). For production-like deployments behind a proxy or Route, setting it to your actual hostname(s) is the intended approach.
 
+## Updating the app
+
+When the Landing page or **Tools → About** shows that an update is available, follow the steps in **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment (e.g. podman-compose pull and restart). Build info and update checks use env vars (`APP_GIT_SHA`, `APP_BUILD_TIME`, `APP_REPO`, `APP_BRANCH`, `CHECK_UPDATES`); see [Build info and update checks](#build-info-and-update-checks) below.
+
 ## Generating assets
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).
@@ -163,6 +167,50 @@ MOCK_MODE=true docker compose up --build
 - **Export bundle:** The Assets step can include oc/oc-mirror in the download bundle; you can select which **architecture** to include (default: reuse the backend's local binaries when the selected arch matches). That selection does not change the backend's Operators scan binary.
 
 See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Podman/macOS notes.
+
+## Build info and update checks
+
+The **Tools → About** panel shows build info (Git SHA, build time, repo, branch) and update status. The backend exposes:
+
+- **`GET /api/build-info`** — Returns `gitSha`, `buildTime`, `repo`, `branch` from env (no git at runtime).
+- **`GET /api/update-info`** — When update checks are enabled, compares `APP_GIT_SHA` to the latest commit on the configured branch and returns `enabled`, `isOutdated`, `currentSha`, `latestSha`, `checkedAt`, `error`, etc. Cached (success ~6h, failure ~15min). Set **`CHECK_UPDATES=false`** (or `0`) to disable.
+
+**Env vars (backend):**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `APP_GIT_SHA` | Git commit SHA of the running build (short or full). | `unknown` |
+| `APP_BUILD_TIME` | Build timestamp (e.g. ISO or human-readable). | `unknown` |
+| `APP_REPO` | GitHub repo for update check (e.g. `owner/repo`). | `bstrauss84/openshift-airgap-architect` |
+| `APP_BRANCH` | Branch to compare against (e.g. `main`). | `main` |
+| `CHECK_UPDATES` | Set to `false` or `0` to disable update checks. | enabled |
+
+**Wiring examples:**
+
+- **Podman Compose / Docker Compose:** The backend image computes **APP_GIT_SHA** and **APP_BUILD_TIME** from **.git** during the image build (see `backend/Containerfile`). No script or env vars needed: run **`podman compose up --build`** from a git clone and Tools → About will show the current commit and build time. Build context is the repo root so `.git` is available; if you build from a tarball without `.git`, build info will be missing unless you pass build args (see `scripts/set-build-env.sh` for `docker run` / OpenShift).
+
+- **Docker / Podman run:** Pass at start:
+  ```bash
+  docker run -e APP_GIT_SHA=abc1234 -e APP_BUILD_TIME="2025-03-03 12:00" -e APP_REPO=bstrauss84/openshift-airgap-architect -e APP_BRANCH=main ...
+  ```
+
+- **OpenShift Deployment:** Add to the backend container spec:
+  ```yaml
+  env:
+    - name: APP_REPO
+      value: "bstrauss84/openshift-airgap-architect"
+    - name: APP_BRANCH
+      value: "main"
+    - name: APP_GIT_SHA
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.annotations['openshift.io/git-commit']
+    # Or a fixed value / build-time substitution
+    - name: APP_BUILD_TIME
+      value: "2025-03-03"
+  ```
+
+For **Compose**, build info is automatic (computed from `.git` during image build). For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file. No git commands are run by the backend at runtime.
 
 ## Troubleshooting
 
