@@ -3,13 +3,15 @@ services:
   backend:
     image: localhost/openshift-airgap-architect-backend:latest
     build:
-      context: ./backend
-      dockerfile: Containerfile
+      context: .
+      dockerfile: backend/Containerfile
     environment:
       - PORT=4000
       - DATA_DIR=/data
       - REGISTRY_AUTH_FILE=/data/registry-auth.json
       - MOCK_MODE=${MOCK_MODE:-false}
+      - APP_REPO=${APP_REPO:-bstrauss84/openshift-airgap-architect}
+      - APP_BRANCH=${APP_BRANCH:-main}
     volumes:
       - backend-data:/data
     ports:

@@ -1,0 +1,19 @@
+# Used when building backend with context . (repo root). Keeps .git and backend/ for build-info and backend image.
+node_modules/
+**/node_modules/
+frontend/
+.gitignore
+*.log
+**/*.log
+.cursor/
+.DS_Store
+.env
+.env.*
+docs/
+*.md
+!backend/README.md
+LOCAL_BACKLOG.md
+AGENTS.md
+backend/data/
+backend/.tmp/
+dist/
