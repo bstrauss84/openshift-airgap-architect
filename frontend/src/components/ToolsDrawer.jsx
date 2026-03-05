@@ -59,7 +59,9 @@ export default function ToolsDrawer({
   jobsCount = 0,
   onNavigateToOperations,
   isLocked,
-  logAction
+  logAction,
+  buildInfo = null,
+  updateInfo = null
 }) {
   const handleThemeToggle = (checked) => {
     const next = checked ? "dark" : "light";
@@ -186,6 +188,24 @@ export default function ToolsDrawer({
 
             <section className="card" style={{ marginBottom: 0 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>About</h3>
+              {buildInfo && (
+                <p className="card-subtitle" style={{ marginTop: 0, marginBottom: 8 }}>
+                  Build {(buildInfo.gitSha || "unknown").slice(0, 7)} • {buildInfo.buildTime || "unknown"} • {buildInfo.branch || "main"}
+                </p>
+              )}
+              {updateInfo && (
+                <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
+                  {updateInfo.enabled === false
+                    ? "Update checks disabled."
+                    : updateInfo.error
+                      ? `Update check unavailable${updateInfo.checkedAt ? ` (last checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`
+                      : updateInfo.isOutdated
+                        ? <>Update available. See{" "}
+                          <a href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`} target="_blank" rel="noopener noreferrer">docs/UPDATING.md</a>
+                          {" "}for steps (e.g. podman-compose pull and restart).</>
+                        : `Up to date${updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`}
+                </p>
+              )}
               <p className="card-subtitle" style={{ marginTop: 0, marginBottom: 8 }}>
                 Designed and maintained by Bill Strauss.
               </p>
