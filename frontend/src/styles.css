@@ -287,6 +287,20 @@ body[data-theme="dark"] .tools-drawer-panel .card {
   flex-shrink: 0;
 }
 
+.update-available-banner {
+  padding: 10px 20px;
+  background: #e0f2fe;
+  color: #0c4a6e;
+  border-bottom: 1px solid #7dd3fc;
+  font-size: 0.95rem;
+}
+
+body[data-theme="dark"] .update-available-banner {
+  background: #0c4a6e;
+  color: #e0f2fe;
+  border-bottom-color: #0369a1;
+}
+
 .content {
   flex: 1;
   display: flex;
