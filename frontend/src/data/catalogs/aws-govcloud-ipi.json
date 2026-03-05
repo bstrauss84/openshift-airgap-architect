@@ -970,7 +970,7 @@
       "allowed": "list of objects with id (optional roles per 4.20 doc)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id per OpenShift 4.20 (installation-config-parameters-aws). Omit for installer-provisioned VPC. UI collects subnet IDs; backend emits vpc.subnets[].id. Optional roles may be added in future.",
+      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per OpenShift 4.20. Omit for installer-provisioned VPC. If any role is set, each subnet must have ≥1 role and required roles (ClusterNode, IngressControllerLB, etc.) must be covered; ControlPlaneExternalLB not required when publish=Internal.",
       "applies_to": ["aws-govcloud-ipi"],
       "citations": [{"docId": "installation-config-parameters-aws", "docTitle": "Installation configuration parameters for AWS", "sectionHeading": "Optional AWS configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"}]
     },

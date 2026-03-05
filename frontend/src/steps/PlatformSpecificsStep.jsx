@@ -13,6 +13,7 @@ import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import { AWS_SUBNET_ROLES_ALLOWED } from "../validation.js";
 
 const AGENT_CONFIG = "agent-config.yaml";
 const INSTALL_CONFIG = "install-config.yaml";
@@ -202,26 +203,19 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
         ) : null}
         {showAwsGovcloudSection && (() => {
           const awsVpcMode = platformConfig.aws?.vpcMode || "installer-managed";
-          const awsSubnetsRaw = platformConfig.aws?.subnets || "";
-          const awsSubnetList = awsSubnetsRaw.split(",").map((s) => s.trim());
-          const setAwsSubnetList = (list) => {
-            const joined = list.filter(Boolean).join(", ");
-            updateAws({ subnets: joined });
+          const rawEntries = platformConfig.aws?.subnetEntries;
+          const awsSubnetList = Array.isArray(rawEntries) && rawEntries.length > 0
+            ? rawEntries
+            : (platformConfig.aws?.subnets || "").split(",").map((s) => ({ id: s.trim(), roles: [] })).filter((e) => e.id).length > 0
+              ? (platformConfig.aws?.subnets || "").split(",").map((s) => ({ id: s.trim(), roles: [] })).filter((e) => e.id)
+              : [{ id: "", roles: [] }];
+          const setAwsSubnetEntries = (entries) => updateAws({ subnetEntries: entries });
+          const addAwsSubnet = () => setAwsSubnetEntries([...awsSubnetList, { id: "", roles: [] }]);
+          const updateAwsSubnetAt = (index, patch) => {
+            const next = awsSubnetList.map((e, i) => i === index ? { ...e, ...patch } : e);
+            setAwsSubnetEntries(next);
           };
-          const addAwsSubnet = () => {
-            const next = awsSubnetList.concat([""]);
-            updateAws({ subnets: next.join(", ") });
-          };
-          const updateAwsSubnetAt = (index, value) => {
-            const next = [...awsSubnetList];
-            if (index >= next.length) next.push(value);
-            else next[index] = value;
-            setAwsSubnetList(next);
-          };
-          const removeAwsSubnetAt = (index) => {
-            const next = awsSubnetList.filter((_, i) => i !== index);
-            setAwsSubnetList(next);
-          };
+          const removeAwsSubnetAt = (index) => setAwsSubnetEntries(awsSubnetList.filter((_, i) => i !== index));
           return (
             <section className="card">
               <div className="card-header">
@@ -316,21 +310,42 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <div style={{ gridColumn: "1 / -1" }}>
                       <FieldLabelWithInfo
                         label="Subnet IDs (required for existing VPC)"
-                        hint={metaAwsSubnets?.description || "One or more subnet IDs from your existing VPC. Add each subnet separately."}
+                        hint={metaAwsSubnets?.description || "One or more subnet IDs. Optionally assign roles per subnet (4.20: if any role is set, every subnet must have at least one role and required roles must be covered)."}
                         required
                       />
                       <div className="list" style={{ marginTop: 6 }}>
-                        {(awsSubnetList.length ? awsSubnetList : [""]).map((id, idx) => (
-                          <div key={idx} className="list-item" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <input
-                              value={id}
-                              onChange={(e) => updateAwsSubnetAt(idx, e.target.value)}
-                              placeholder="subnet-xxxxxxxxx"
-                              style={{ flex: 1, minWidth: 120 }}
-                            />
-                            <button type="button" className="ghost" onClick={() => removeAwsSubnetAt(idx)} aria-label="Remove subnet">Remove</button>
-                          </div>
-                        ))}
+                        {(awsSubnetList.length ? awsSubnetList : [{ id: "", roles: [] }]).map((entry, idx) => {
+                          const idVal = entry?.id ?? "";
+                          const rolesVal = Array.isArray(entry?.roles) ? entry.roles : [];
+                          return (
+                            <div key={idx} className="list-item platform-specifics-aws-subnet-row">
+                              <input
+                                value={idVal}
+                                onChange={(e) => updateAwsSubnetAt(idx, { id: e.target.value, roles: rolesVal })}
+                                placeholder="subnet-xxxxxxxxx"
+                                style={{ flex: "1 1 140px", minWidth: 120 }}
+                              />
+                              <FieldLabelWithInfo
+                                label="Roles (optional)"
+                                hint="4.20: ClusterNode, BootstrapNode, IngressControllerLB, ControlPlaneExternalLB (omit if publish=Internal), ControlPlaneInternalLB. If you set any role, every subnet must have ≥1 role and all required roles must be covered."
+                              >
+                                <select
+                                  multiple
+                                  value={rolesVal}
+                                  onChange={(e) => updateAwsSubnetAt(idx, { id: idVal, roles: [...e.target.selectedOptions].map((o) => o.value) })}
+                                  size={3}
+                                  style={{ minWidth: 180 }}
+                                  aria-label="Subnet roles"
+                                >
+                                  {AWS_SUBNET_ROLES_ALLOWED.map((r) => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                </select>
+                              </FieldLabelWithInfo>
+                              <button type="button" className="ghost" onClick={() => removeAwsSubnetAt(idx)} aria-label="Remove subnet">Remove</button>
+                            </div>
+                          );
+                        })}
                         <button type="button" className="ghost" onClick={addAwsSubnet} style={{ marginTop: 4 }}>Add subnet</button>
                       </div>
                     </div>

@@ -246,10 +246,24 @@ const buildInstallConfig = (state) => {
       aws.hostedZoneRole = (platformConfig.aws.hostedZoneRole || "").trim();
     }
     if (platformConfig.aws?.lbType) aws.lbType = platformConfig.aws.lbType;
-    // Official 4.20: platform.aws.vpc.subnets[] with id (and optional roles). Omit for installer-managed VPC.
-    if (platformConfig.aws?.vpcMode === "existing" && platformConfig.aws?.subnets) {
-      const list = platformConfig.aws.subnets.split(",").map((s) => s.trim()).filter(Boolean);
-      if (list.length) aws.vpc = { subnets: list.map((id) => ({ id })) };
+    // Official 4.20: platform.aws.vpc.subnets[] with id and optional roles[].type. Omit for installer-managed VPC.
+    const awsSubnetEntries = platformConfig.aws?.subnetEntries;
+    const awsSubnetsLegacy = platformConfig.aws?.subnets;
+    if (platformConfig.aws?.vpcMode === "existing") {
+      const list = Array.isArray(awsSubnetEntries) && awsSubnetEntries.length > 0
+        ? awsSubnetEntries.filter((e) => (e?.id || "").trim())
+        : (awsSubnetsLegacy || "").split(",").map((s) => ({ id: s.trim(), roles: [] })).filter((e) => e.id);
+      if (list.length) {
+        aws.vpc = {
+          subnets: list.map((e) => {
+            const id = (e?.id || e).toString().trim();
+            const roles = Array.isArray(e?.roles) && e.roles.length > 0 ? e.roles : null;
+            const out = { id };
+            if (roles && roles.length > 0) out.roles = roles.map((r) => ({ type: r }));
+            return out;
+          })
+        };
+      }
     }
     if (platformConfig.aws?.amiId) aws.amiID = platformConfig.aws.amiId;
     if (Object.keys(aws).length) {
@@ -1113,7 +1127,7 @@ const buildFieldManual = (state, docsLinks) => {
       }
     }
     lines.push(`AWS scenario mapping:`);
-    lines.push(`- Existing VPC: provide target subnets (platform.aws.subnets).`);
+    lines.push(`- Existing VPC: provide target subnets (platform.aws.vpc.subnets[].id; optional roles per 4.20).`);
     lines.push(`- Private cluster: set publish=Internal and ensure private DNS for api/apps.`);
     lines.push(`- Government/secret region: set a custom RHCOS AMI ID (platform.aws.amiID).`);
     lines.push(`- No Route 53: leave hostedZone empty and manage DNS records manually.`);

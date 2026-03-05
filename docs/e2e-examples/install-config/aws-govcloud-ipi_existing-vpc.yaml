@@ -1,5 +1,5 @@
 # Example: AWS GovCloud IPI with existing VPC (4.20 doc structure).
-# Official 4.20: platform.aws.vpc.subnets[] with id (and optional roles).
+# platform.aws.vpc.subnets[]: id required; roles optional (ClusterNode, BootstrapNode, IngressControllerLB, ControlPlaneExternalLB, ControlPlaneInternalLB). If any role set, each subnet needs ≥1 role and required set must be covered.
 # See: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws
 apiVersion: v1
 baseDomain: example.com

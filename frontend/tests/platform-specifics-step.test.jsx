@@ -443,6 +443,43 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByPlaceholderText(/Resource group containing DNS zone for base domain/i)).toBeInTheDocument();
   });
 
+  it("aws-govcloud-ipi existing VPC: when one subnet has roles and another has none, validation errors", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        aws: {
+          region: "us-gov-west-1",
+          vpcMode: "existing",
+          subnetEntries: [
+            { id: "subnet-a", roles: ["ClusterNode"] },
+            { id: "subnet-b", roles: [] }
+          ]
+        }
+      }
+    });
+    const result = validateStep(state, "platform-specifics");
+    expect(result.errors.some((e) => e.includes("each subnet must have at least one role"))).toBe(true);
+  });
+
+  it("aws-govcloud-ipi existing VPC: when roles used but required role missing, validation errors", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        aws: {
+          region: "us-gov-west-1",
+          vpcMode: "existing",
+          subnetEntries: [
+            { id: "subnet-a", roles: ["ClusterNode", "BootstrapNode"] }
+          ]
+        }
+      }
+    });
+    const result = validateStep(state, "platform-specifics");
+    expect(result.errors.some((e) => e.includes("Subnet roles must include"))).toBe(true);
+  });
+
   it("platform-specifics validation returns no errors (catalog has no required params for agent options)", () => {
     const state = stateForPlatformSpecificsStep({
       hostInventory: { nodes: [], schemaVersion: 2, bootArtifactsBaseURL: "https://artifacts.example.com" }

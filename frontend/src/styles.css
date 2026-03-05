@@ -3189,6 +3189,13 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   flex-wrap: wrap;
 }
 
+.platform-specifics-aws-subnet-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .platform-specifics-ami-input-wide {
   flex: 1;
   min-width: 200px;

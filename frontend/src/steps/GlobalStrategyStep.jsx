@@ -981,7 +981,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 <input value={platformConfig.aws?.lbType || ""} onChange={(e) => updateAws({ lbType: e.target.value })} placeholder="NLB" />
               </label>
               <div className="note">
-                AWS scenario mapping: existing VPC uses subnets; private cluster uses publish=Internal;
+                AWS scenario mapping: existing VPC uses platform.aws.vpc.subnets (see Platform Specifics in segmented flow); private cluster uses publish=Internal;
                 government/secret regions require a custom RHCOS AMI; restricted networks use the mirrored content workflow.
               </div>
               {method === "IPI" ? (

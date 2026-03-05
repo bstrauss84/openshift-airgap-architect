@@ -10,6 +10,12 @@ import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
 
+/** 4.20 doc: valid platform.aws.vpc.subnets[].roles[].type. EdgeNode is Local Zone only — not exposed in app. */
+export const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
+/** When roles are specified, these must be assigned to at least one subnet. ControlPlaneExternalLB not required if publish is Internal. */
+export const AWS_SUBNET_ROLES_REQUIRED_EXTERNAL = ["ClusterNode", "IngressControllerLB", "ControlPlaneExternalLB", "BootstrapNode", "ControlPlaneInternalLB"];
+export const AWS_SUBNET_ROLES_REQUIRED_INTERNAL = ["ClusterNode", "IngressControllerLB", "BootstrapNode", "ControlPlaneInternalLB"];
+
 const isValidIpv4 = (value) => {
   const parts = value.split(".");
   if (parts.length !== 4) return false;
@@ -763,9 +769,34 @@ const validateStep = (state, stepId) => {
         errors.push(`AWS GovCloud region is required for ${label}.`);
       }
       if (aws.vpcMode === "existing") {
-        const subnetList = (aws.subnets || "").split(",").map((s) => s.trim()).filter(Boolean);
-        if (subnetList.length === 0) {
+        const entries = Array.isArray(aws.subnetEntries) && aws.subnetEntries.length > 0
+          ? aws.subnetEntries
+          : (aws.subnets || "").split(",").map((s) => ({ id: s.trim(), roles: [] })).filter((e) => e.id);
+        if (entries.length === 0) {
           errors.push("At least one subnet is required when using existing VPC/subnets.");
+        } else {
+          const anyRoles = entries.some((e) => Array.isArray(e.roles) && e.roles.length > 0);
+          if (anyRoles) {
+            const requiredSet = (state.platformConfig?.publish || "").toLowerCase() === "internal"
+              ? AWS_SUBNET_ROLES_REQUIRED_INTERNAL
+              : AWS_SUBNET_ROLES_REQUIRED_EXTERNAL;
+            /* 4.20: when roles specified, each subnet must have ≥1 role; required set must be covered */
+            for (let i = 0; i < entries.length; i++) {
+              if (!(entries[i].id || "").trim()) continue;
+              const roles = entries[i].roles || [];
+              if (roles.length === 0) {
+                errors.push("When subnet roles are used, each subnet must have at least one role.");
+                break;
+              }
+            }
+            const assigned = new Set(entries.flatMap((e) => e.roles || []));
+            for (const r of requiredSet) {
+              if (!assigned.has(r)) {
+                errors.push(`Subnet roles must include "${r}" on at least one subnet (4.20 doc).`);
+                break;
+              }
+            }
+          }
         }
       }
       return { errors, warnings: [] };

@@ -508,6 +508,29 @@ test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and
   assert.strictEqual(out.metadata?.name, "gov-cluster");
 });
 
+test("buildInstallConfig for aws-govcloud-ipi emits vpc.subnets with optional roles when subnetEntries and roles set", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: {
+      aws: {
+        region: "us-gov-west-1",
+        vpcMode: "existing",
+        subnetEntries: [
+          { id: "subnet-a", roles: ["ClusterNode", "BootstrapNode"] },
+          { id: "subnet-b", roles: ["IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"] }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.aws?.vpc?.subnets);
+  assert.strictEqual(out.platform.aws.vpc.subnets.length, 2);
+  assert.deepStrictEqual(out.platform.aws.vpc.subnets[0], { id: "subnet-a", roles: [{ type: "ClusterNode" }, { type: "BootstrapNode" }] });
+  assert.deepStrictEqual(out.platform.aws.vpc.subnets[1], { id: "subnet-b", roles: [{ type: "IngressControllerLB" }, { type: "ControlPlaneExternalLB" }, { type: "ControlPlaneInternalLB" }] });
+});
+
 test("buildInstallConfig for aws-govcloud-ipi omits subnets when vpcMode is installer-managed (#41)", () => {
   const state = {
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
