@@ -8,7 +8,12 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: 5173
+    port: 5173,
+    // When the dev server is reached via a hostname other than localhost (e.g. OpenShift Route, reverse proxy),
+    // set VITE_ALLOWED_HOSTS to that hostname so Vite accepts the request. Unset = default behavior only.
+    ...(process.env.VITE_ALLOWED_HOSTS && {
+      allowedHosts: process.env.VITE_ALLOWED_HOSTS.split(",").map((h) => h.trim()).filter(Boolean)
+    })
   },
   test: {
     environment: "jsdom",

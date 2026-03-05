@@ -92,6 +92,33 @@ The stack is two services (frontend, backend). Ports in `docker-compose.yml` are
 - **Same-host:** Using the app on the same machine where Compose runs: leave `VITE_API_BASE` as `http://localhost:4000`. The frontend is built with this URL, so the browser (on the same host) can reach the backend at localhost:4000.
 - **Remote access:** To use the UI from another machine (e.g. laptop to dev server), (1) expose ports on the host by changing port mappings to `0.0.0.0:5173:5173` and `0.0.0.0:4000:4000`, and (2) set `VITE_API_BASE` to the URL where the backend is reachable from the **client** browser (e.g. `http://<host-ip-or-name>:4000`). The frontend container reads this at startup; if you keep `VITE_API_BASE=http://localhost:4000`, API calls from a remote browser will go to the client’s localhost and fail. Override the env when starting the stack (e.g. `VITE_API_BASE=http://192.168.1.10:4000 docker compose up`) or in a compose override file.
 
+### Running behind a reverse proxy or OpenShift Route
+
+When users reach the app through a **different hostname** than the one the frontend container uses internally (for example an OpenShift Route like `https://airgap-architect.example.com`, or an nginx/HAProxy hostname), the Vite dev server will block requests unless that hostname is explicitly allowed.
+
+**Why this happens:** The browser sends the external hostname in the HTTP `Host` header. Vite only accepts a limited set of hosts by default (e.g. `localhost`) to reduce certain security risks. Any other host is rejected with a message like: *"Blocked request. This host ("airgap-architect.example.com") is not allowed."*
+
+**What you need to do:**
+
+1. **Set `VITE_ALLOWED_HOSTS`** to the exact hostname (or hostnames) that users type in the browser.
+   - **One host:** `VITE_ALLOWED_HOSTS=airgap-architect.example.com`
+   - **Several hosts:** Comma-separated, no spaces: `VITE_ALLOWED_HOSTS=app.example.com,airgap-architect.example.com`
+   - Use the same value that appears in the browser’s address bar (including subdomain). Do not include `https://` or a path—only the hostname.
+
+2. **Where to set it** depends on how you run the app:
+   - **Docker Compose / Podman Compose:** Add to the `frontend` service in `docker-compose.yml` under `environment`, or pass it when starting:  
+     `VITE_ALLOWED_HOSTS=airgap-architect.example.com docker compose up --build`
+   - **OpenShift (Deployment, DeploymentConfig, etc.):** Add an environment variable to the **frontend** container spec:
+     - **Name:** `VITE_ALLOWED_HOSTS`
+     - **Value:** The hostname of your Route (e.g. `airgap-architect.cjmays.com`). You can find it in the OpenShift console under **Networking → Routes** for your app, or in the Route’s **Host** field.
+   - **Kubernetes:** Set `VITE_ALLOWED_HOSTS` in the frontend Pod/Deployment’s env (e.g. `env` or `envFrom`).
+   - **Local dev (npm run dev):** Export before starting, e.g.  
+     `export VITE_ALLOWED_HOSTS=my-app.mycompany.com` then `npm run dev`, or pass inline: `VITE_ALLOWED_HOSTS=my-app.mycompany.com npm run dev`.
+
+3. **If the UI still can’t reach the backend**, you are likely using a reverse proxy or Route for the **frontend** only. The browser then needs to call the backend at a URL it can reach (often the same host with a path, or a separate backend host). Set **`VITE_API_BASE`** to that URL (e.g. `https://airgap-architect.example.com/api` if your proxy forwards `/api` to the backend, or `https://airgap-architect-backend.example.com` if the backend has its own hostname). The frontend container reads both `VITE_ALLOWED_HOSTS` and `VITE_API_BASE` at startup; rebuild or restart the frontend after changing them.
+
+4. **Security note:** Only add hostnames you control and that users are supposed to use. Leaving `VITE_ALLOWED_HOSTS` unset is safe for local use (localhost remains allowed). For production-like deployments behind a proxy or Route, setting it to your actual hostname(s) is the intended approach.
+
 ## Generating assets
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).
@@ -139,6 +166,7 @@ See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Po
 
 ## Troubleshooting
 
+- **"Blocked request. This host ("…") is not allowed"** — You are running the Vite dev server (e.g. in a container or locally) and opening the app using a hostname that Vite does not allow by default (for example an OpenShift Route hostname like `airgap-architect.cjmays.com`). Set the environment variable **`VITE_ALLOWED_HOSTS`** to that hostname so the dev server accepts the request. Example: `VITE_ALLOWED_HOSTS=airgap-architect.cjmays.com`. For multiple hostnames, use a comma-separated list with no spaces. See [Running behind a reverse proxy or OpenShift Route](#running-behind-a-reverse-proxy-or-openshift-route) for where to set it (Compose, OpenShift, Kubernetes, or local dev) and how to confirm the correct hostname.
 - **“additional properties 'platform' not allowed”** — You’re using the Python **`docker-compose`** with an old schema. Prefer **`podman compose`** so Podman doesn’t delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container). On macOS, see also the compose-provider workaround in `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md` or CONTRIBUTING.
 - **“no such image” or “image not known” after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
