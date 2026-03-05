@@ -3177,11 +3177,22 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   color: inherit;
 }
 
+.platform-specifics-region-note {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
 .platform-specifics-ami-inline {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.platform-specifics-ami-input-wide {
+  flex: 1;
+  min-width: 200px;
+  max-width: 100%;
 }
 
 .platform-specifics-ami-hint {
