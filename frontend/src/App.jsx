@@ -175,6 +175,8 @@ const AppShell = () => {
   const [jobsCount, setJobsCount] = useState(0);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [lockToast, setLockToast] = useState("");
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [buildInfo, setBuildInfo] = useState(null);
   const importRef = useRef(null);
   const runActionsRef = useRef(null);
   const prefsRef = useRef(null);
@@ -190,6 +192,19 @@ const AppShell = () => {
       .then((data) => setStepMap(data))
       .catch(() => setStepMap({}));
   }, []);
+
+  // Build info and update check: fetch once on load; re-fetch update-info when user returns to Landing (backend caches 6h/15min).
+  useEffect(() => {
+    apiFetch("/api/build-info").then(setBuildInfo).catch(() => setBuildInfo({ gitSha: "unknown", buildTime: "unknown", repo: "", branch: "" }));
+  }, []);
+  useEffect(() => {
+    const load = () => apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: false, error: "Unavailable" }));
+    load();
+  }, []);
+  useEffect(() => {
+    if (!showLanding) return;
+    apiFetch("/api/update-info").then(setUpdateInfo).catch(() => {});
+  }, [showLanding]);
 
   // Operations (N) badge: poll job count when in wizard so header and sidebar can show count (§9.3 placement)
   useEffect(() => {
@@ -748,6 +763,21 @@ const AppShell = () => {
             ) : null}
           </div>
         </header>
+        {updateInfo?.enabled &&
+        updateInfo?.isOutdated &&
+        !updateInfo?.error &&
+        updateInfo?.currentSha &&
+        String(updateInfo.currentSha).toLowerCase() !== "unknown" &&
+        updateInfo?.latestSha &&
+        String(updateInfo.latestSha).toLowerCase() !== "unknown" ? (
+          <div className="update-available-banner" role="status">
+            <strong>Update available</strong>
+            {" "}
+            (current: {(updateInfo.currentSha || "").slice(0, 7)}, latest: {(updateInfo.latestSha || "").slice(0, 7)} on {updateInfo.branch || "main"}).
+            {" "}
+            See Tools → About for update steps.
+          </div>
+        ) : null}
         <div className="app landing-view">
           <div className="content landing-content">
             <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} />
@@ -1074,6 +1104,8 @@ const AppShell = () => {
           onNavigateToOperations={() => attemptNavigate(visibleSteps.findIndex((s) => s.id === "operations"))}
           isLocked={foundationalLocked}
           logAction={logAction}
+          buildInfo={buildInfo}
+          updateInfo={updateInfo}
         />
     </div>
   );

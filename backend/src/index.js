@@ -341,6 +341,123 @@ const dbPrepareMockStore = (version, catalogId, results) => {
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
+// Build info: env-driven; no git at runtime. For APP_GIT_SHA/APP_BUILD_TIME see README and scripts.
+app.get("/api/build-info", (_req, res) => {
+  const gitSha = (process.env.APP_GIT_SHA || "unknown").trim();
+  const buildTime = (process.env.APP_BUILD_TIME || "unknown").trim();
+  const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
+  const branch = (process.env.APP_BRANCH || "main").trim();
+  res.json({ gitSha, buildTime, repo, branch });
+});
+
+// Update check: GitHub latest commit vs APP_GIT_SHA. CHECK_UPDATES=false|0 disables. Cache: success 6h, failure 15min.
+const CHECK_UPDATES_DEFAULT = true;
+const UPDATE_CACHE_SUCCESS_MS = 6 * 60 * 60 * 1000;
+const UPDATE_CACHE_FAILURE_MS = 15 * 60 * 1000;
+const GITHUB_TIMEOUT_MS = 2000;
+
+let updateInfoCache = null;
+
+async function fetchUpdateInfo() {
+  const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
+  const branch = (process.env.APP_BRANCH || "main").trim();
+  const currentSha = (process.env.APP_GIT_SHA || "").trim();
+  const enabled = process.env.CHECK_UPDATES;
+  const disabled = enabled === "false" || enabled === "0";
+  if (disabled) {
+    return {
+      enabled: false,
+      currentSha: currentSha || "unknown",
+      latestSha: null,
+      isOutdated: false,
+      checkedAt: new Date().toISOString(),
+      error: null,
+      branch,
+      repo
+    };
+  }
+  const checkedAt = new Date().toISOString();
+  const currentUnknown = !currentSha || String(currentSha).toLowerCase() === "unknown";
+  if (currentUnknown) {
+    return {
+      enabled: true,
+      currentSha: currentSha || "unknown",
+      latestSha: null,
+      isOutdated: false,
+      checkedAt,
+      error: !currentSha ? "APP_GIT_SHA not set" : "Build SHA unknown; cannot determine if update available",
+      branch,
+      repo
+    };
+  }
+  const url = `https://api.github.com/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/vnd.github.v3+json" }
+    });
+    clearTimeout(timeoutId);
+    if (!resp.ok) {
+      const body = await resp.text();
+      return {
+        enabled: true,
+        currentSha,
+        latestSha: null,
+        isOutdated: false,
+        checkedAt,
+        error: `GitHub API ${resp.status}: ${body.slice(0, 80)}`,
+        branch,
+        repo
+      };
+    }
+    const data = await resp.json();
+    const latestSha = Array.isArray(data) && data[0]?.sha ? String(data[0].sha) : null;
+    const short = (s) => (s && s.length >= 7 ? s.slice(0, 7) : (s || ""));
+    const latestUnknown = !latestSha || String(latestSha).toLowerCase() === "unknown";
+    const isOutdated = !latestUnknown && latestSha && short(latestSha) !== short(currentSha);
+    return {
+      enabled: true,
+      currentSha,
+      latestSha,
+      isOutdated: Boolean(isOutdated),
+      checkedAt,
+      error: null,
+      branch,
+      repo
+    };
+  } catch (e) {
+    clearTimeout(timeoutId);
+    const message = e.name === "AbortError" ? "Request timed out" : (e.message || "Request failed");
+    return {
+      enabled: true,
+      currentSha,
+      latestSha: null,
+      isOutdated: false,
+      checkedAt,
+      error: message,
+      branch,
+      repo
+    };
+  }
+}
+
+app.get("/api/update-info", async (_req, res) => {
+  const now = Date.now();
+  if (updateInfoCache) {
+    const { result, cachedAt, isSuccess } = updateInfoCache;
+    const ttl = isSuccess ? UPDATE_CACHE_SUCCESS_MS : UPDATE_CACHE_FAILURE_MS;
+    if (now - cachedAt < ttl) {
+      return res.json(result);
+    }
+  }
+  const result = await fetchUpdateInfo();
+  const isSuccess = result.enabled && !result.error && result.latestSha != null;
+  updateInfoCache = { result, cachedAt: now, isSuccess };
+  res.json(result);
+});
+
 const defaultStepMap = {
   version: "1",
   mvpSteps: [
@@ -1040,17 +1157,24 @@ app.post("/api/bundle.zip", async (req, res) => {
   await buildBundleZip(state, res);
 });
 
-const server = app.listen(port, () => {
-  console.log(`Backend listening on ${port}`);
-});
-
-const shutdown = (signal) => {
-  console.log(`Received ${signal}, shutting down...`);
-  server.close(() => {
-    process.exit(0);
+let server;
+if (process.env.NODE_ENV !== "test") {
+  server = app.listen(port, () => {
+    console.log(`Backend listening on ${port}`);
   });
-  setTimeout(() => process.exit(1), 5000).unref();
-};
+  const shutdown = (signal) => {
+    console.log(`Received ${signal}, shutting down...`);
+    server.close(() => {
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 5000).unref();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+}
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+function clearUpdateInfoCache() {
+  updateInfoCache = null;
+}
+
+export { app, clearUpdateInfoCache };
