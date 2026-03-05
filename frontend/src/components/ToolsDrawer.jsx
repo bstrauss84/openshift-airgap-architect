@@ -200,9 +200,7 @@ export default function ToolsDrawer({
                     : updateInfo.error
                       ? `Update check unavailable${updateInfo.checkedAt ? ` (last checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`
                       : updateInfo.isOutdated
-                        ? <>Update available. See{" "}
-                          <a href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`} target="_blank" rel="noopener noreferrer">docs/UPDATING.md</a>
-                          {" "}for steps (e.g. podman-compose pull and restart).</>
+                        ? <a href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`} target="_blank" rel="noopener noreferrer">Update available</a>
                         : `Up to date${updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`}
                 </p>
               )}
