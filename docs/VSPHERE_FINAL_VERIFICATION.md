@@ -9,7 +9,7 @@
 
 ### Primary source
 
-- **URL:** https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html  
+- **URL:** https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere  
 - **Sections scraped:** 9.1.1 (Required), 9.1.2 (Network), 9.1.3 (Optional), **9.1.4 (Additional VMware vSphere)**, **9.1.5 (Deprecated)**, 9.1.6 (Machine pool).
 
 ### Exact YAML examples in docs

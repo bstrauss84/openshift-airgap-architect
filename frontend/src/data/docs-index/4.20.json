@@ -23,7 +23,7 @@
         {
           "id": "installing-aws-govcloud-ipi",
           "title": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi",
           "configTypes": [
             "install-config"
           ],
@@ -36,7 +36,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "AWS GovCloud IPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
+          "notes": "AWS GovCloud IPI; install-config."
         },
         {
           "id": "installing-disconnected",
@@ -76,7 +76,7 @@
         {
           "id": "installing-aws-govcloud-upi",
           "title": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-upi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi",
           "configTypes": [
             "install-config"
           ],
@@ -89,7 +89,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "AWS GovCloud UPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
+          "notes": "AWS GovCloud UPI; install-config."
         },
         {
           "id": "installing-disconnected",
@@ -129,7 +129,7 @@
         {
           "id": "installing-azure-government-ipi",
           "title": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi",
           "configTypes": [
             "install-config"
           ],
@@ -142,7 +142,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "Azure Government IPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
+          "notes": "Azure Government IPI; install-config."
         },
         {
           "id": "installing-disconnected",
@@ -401,7 +401,7 @@
         {
           "id": "installing-vsphere-ipi",
           "title": "Installing a cluster on vSphere with installer-provisioned infrastructure",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
           "configTypes": [
             "install-config"
           ],
@@ -412,21 +412,49 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "vSphere IPI; install-config."
+          "notes": "Chapter 2 IPI; sub-flows: standard (#installing-vsphere-installer-provisioned), customizations (#installing-vsphere-installer-provisioned-customizations), restricted (#installing-restricted-networks-installer-provisioned-vsphere). install-config."
+        },
+        {
+          "id": "installing-vsphere-ipi-standard",
+          "title": "Installing a cluster on vSphere",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure#installing-vsphere-installer-provisioned",
+          "configTypes": ["install-config"],
+          "tags": ["vsphere", "ipi"],
+          "notes": "IPI with no customization (section 2.3)."
+        },
+        {
+          "id": "installing-vsphere-ipi-customizations",
+          "title": "Installing a cluster on vSphere with customizations",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure#installing-vsphere-installer-provisioned-customizations",
+          "configTypes": ["install-config"],
+          "tags": ["vsphere", "ipi", "failure-domains", "regions-zones"],
+          "notes": "IPI with customizations (section 2.4); install-config edit before create cluster."
+        },
+        {
+          "id": "installing-vsphere-ipi-restricted",
+          "title": "Installing a cluster on vSphere in a restricted network",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure#installing-restricted-networks-installer-provisioned-vsphere",
+          "configTypes": ["install-config"],
+          "tags": ["vsphere", "ipi", "restricted-network", "mirroring"],
+          "notes": "IPI disconnected/restricted (section 2.5); clusterOSImage or topology.template, imageContentSources, mirror."
         },
         {
           "id": "installation-config-parameters-vsphere",
           "title": "Installation configuration parameters for vSphere",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere",
           "configTypes": [
             "install-config"
           ],
           "tags": [
             "vsphere",
             "failure-domains",
-            "vcenters"
+            "vcenters",
+            "apiVIPs",
+            "ingressVIPs",
+            "diskType",
+            "machine-pool"
           ],
-          "notes": "vSphere failureDomains, vcenters, and topology (computeCluster, datastore, networks, folder, resourcePool)."
+          "notes": "Chapter 9: 9.1.4 Additional vSphere params (vcenters, failureDomains, apiVIPs, ingressVIPs, diskType, topology.template IPI-only); 9.1.5 Deprecated flat params; 9.1.6 Optional machine pool (clusterOSImage, osDisk, cpus, memoryMB, dataDisks). Authoritative for platform.vsphere.*."
         }
       ]
     },
@@ -466,7 +494,7 @@
         {
           "id": "installing-vsphere-upi",
           "title": "Installing a cluster on vSphere with user-provisioned infrastructure",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure#installing-vsphere",
           "configTypes": [
             "install-config"
           ],
@@ -482,7 +510,7 @@
         {
           "id": "installation-config-parameters-vsphere",
           "title": "Installation configuration parameters for vSphere",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere",
           "configTypes": [
             "install-config"
           ],

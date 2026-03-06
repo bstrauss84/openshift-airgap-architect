@@ -927,7 +927,7 @@
         {
           "docId": "installing-azure-government-ipi",
           "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi",
           "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure"
         }
       ]
@@ -947,7 +947,7 @@
         {
           "docId": "installing-azure-government-ipi",
           "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi",
           "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure"
         }
       ]
@@ -968,7 +968,7 @@
           "docId": "installing-azure-government-ipi",
           "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
           "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi"
         }
       ]
     },
@@ -988,7 +988,7 @@
           "docId": "installing-azure-government-ipi",
           "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
           "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi"
         }
       ]
     },

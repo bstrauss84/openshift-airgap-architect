@@ -10,7 +10,7 @@
 
 ### Primary source (install-config parameters)
 
-- **URL:** https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html  
+- **URL:** https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere  
 - **Title:** Chapter 9. Installation configuration parameters for vSphere  
 - **Sections used:**
   - 9.1.1 Required configuration parameters (apiVersion, baseDomain, metadata, platform, pullSecret)
@@ -96,7 +96,7 @@
 
 ### Findings
 
-1. **Citations:** Both catalogs cite Agent-based installer and platform-agnostic docs for generic params; vSphere-specific params cite `installation-config-parameters-vsphere` (docs.openshift.com) or `installing-vsphere-ipi` / `installing-vsphere-upi`. URLs are valid; the 4.20 vSphere parameter page was successfully fetched.
+1. **Citations:** Both catalogs cite Agent-based installer and platform-agnostic docs for generic params; vSphere-specific params cite `installation-config-parameters-vsphere` (docs.redhat.com) or `installing-vsphere-ipi` / `installing-vsphere-upi`. URLs are valid; the 4.20 vSphere parameter page was successfully fetched.
 2. **vsphere-ipi:** Contains both deprecated flat params (platform.vsphere.datacenter, defaultDatastore, vcenter) and structured (vcenters, failureDomains with full topology). No explicit “deprecated” note in descriptions. **Missing from catalog:** platform.vsphere.diskType, apiVIPs, ingressVIPs, failureDomains[].topology.template (IPI-only), machine pool (clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB, dataDisks).
 3. **vsphere-upi:** Has platform.vsphere.datacenter and vcenter; **does not** list platform.vsphere.defaultDatastore. Backend and UI still use `datastore` (maps to defaultDatastore when emitting legacy flat); so the param is effectively used but not in UPI catalog. **Missing from catalog:** same as IPI except template (IPI-only); plus defaultDatastore if we want to document legacy/deprecated behavior for UPI.
 4. **Applicability:** Params do not distinguish “IPI only” (apiVIPs, ingressVIPs, topology.template) vs “both” in a machine-readable way; applies_to is only scenario id (vsphere-ipi / vsphere-upi).

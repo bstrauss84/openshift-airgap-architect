@@ -33,7 +33,7 @@
 ## References
 
 - `docs/VSPHERE_IPI_UPI_AUDIT_AND_PLAN.md` — audit and parameter table
-- https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html (sections 9.1.2, 9.1.4)
+- https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere (sections 9.1.2, 9.1.4)
 
 ---
 

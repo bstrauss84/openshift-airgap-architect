@@ -925,7 +925,7 @@
         {
           "docId": "installing-aws-govcloud-ipi",
           "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi",
           "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure"
         }
       ]
@@ -939,7 +939,7 @@
       "required": false,
       "description": "Existing Route 53 hosted zone ID for the base domain. Omit when not using Route 53 (manage DNS manually).",
       "applies_to": ["aws-govcloud-ipi"],
-      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
+      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"}]
     },
     {
       "path": "platform.aws.hostedZoneRole",
@@ -950,7 +950,7 @@
       "required": false,
       "description": "IAM role ARN for cross-account Route 53 hosted zone access when base domain is in another account.",
       "applies_to": ["aws-govcloud-ipi"],
-      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
+      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"}]
     },
     {
       "path": "platform.aws.lbType",
@@ -961,7 +961,7 @@
       "required": false,
       "description": "Load balancer type for API and ingress: Classic or NLB.",
       "applies_to": ["aws-govcloud-ipi"],
-      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
+      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"}]
     },
     {
       "path": "platform.aws.vpc.subnets",
@@ -983,7 +983,7 @@
       "required": false,
       "description": "Custom RHCOS AMI ID for government or secret regions where default AMI lookup is not available.",
       "applies_to": ["aws-govcloud-ipi"],
-      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
+      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"}]
     },
     {
       "path": "controlPlane.platform.aws.type",
@@ -994,7 +994,7 @@
       "required": false,
       "description": "EC2 instance type for control plane machines (IPI).",
       "applies_to": ["aws-govcloud-ipi"],
-      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
+      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"}]
     },
     {
       "path": "compute[].platform.aws.type",
@@ -1005,7 +1005,7 @@
       "required": false,
       "description": "EC2 instance type for compute (worker) machines (IPI).",
       "applies_to": ["aws-govcloud-ipi"],
-      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html"}]
+      "citations": [{"docId": "installing-aws-govcloud-ipi", "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure", "sectionHeading": "AWS GovCloud install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"}]
     },
     {
       "path": "publish",

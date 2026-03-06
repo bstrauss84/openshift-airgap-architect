@@ -1,6 +1,6 @@
 # Synthetic from params — no full-file example in 4.20 docs for Azure Government IPI.
 # Structure from data/params/4.20/azure-government-ipi.json and docs-index installing-azure-government-ipi.
-# Sources: https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html
+# Sources: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi
 apiVersion: v1
 baseDomain: example.com
 metadata:

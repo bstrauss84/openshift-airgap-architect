@@ -6,8 +6,7 @@ Machine-readable index for OpenShift Container Platform docs that maps (platform
 
 ## Base URL and sources
 
-- **Preferred:** HTML docs on **docs.redhat.com**. Base URL for 4.20: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`.
-- Use docs.openshift.com URLs only when a required 4.20 HTML page is not available at the expected path on docs.redhat.com (document in the doc entry `notes`).
+- **Canonical source:** HTML docs on **docs.redhat.com** only. Base URL for 4.20: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`. docs.openshift.com is shut down; do not add or retain docs.openshift.com URLs. If an equivalent 4.20 page is not yet located on docs.redhat.com, document the gap in the doc entry `notes` and in the scenario working doc.
 
 ## Inclusion criteria
 
@@ -59,5 +58,5 @@ Machine-readable index for OpenShift Container Platform docs that maps (platform
 
 - Copy `data/docs-index/4.20.json` to `data/docs-index/4.19.json` (and 4.18, 4.17).
 - Update top-level `version` and `baseUrl` for that release (e.g. `https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/`).
-- Replace doc URLs with the equivalent 4.19/4.18/4.17 paths on docs.redhat.com (or docs.openshift.com if no Red Hat HTML path is available; add a note).
+- Replace doc URLs with the equivalent 4.19/4.18/4.17 paths on docs.redhat.com. Do not use docs.openshift.com (shut down); if a path is not yet available on docs.redhat.com, add a note.
 - Run the refresh script for that version (when supported) or hand-edit URLs; then run the docs-index validator. No implementation of auto-discovery for 4.19/4.18/4.17 is required for Phase 1.

@@ -1,6 +1,6 @@
 # Synthetic from params — no full-file example in 4.20 docs for AWS GovCloud UPI.
 # Structure from data/params/4.20/aws-govcloud-upi.json and docs-index installing-aws-govcloud-upi.
-# Sources: https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-upi.html
+# Sources: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi
 apiVersion: v1
 baseDomain: example.com
 metadata:

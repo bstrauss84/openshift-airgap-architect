@@ -925,7 +925,7 @@
         {
           "docId": "installing-bare-metal-upi",
           "sectionHeading": "Bare metal API and Ingress VIPs",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_bare_metal_ipi/installing-bare-metal-upi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installing-bare-metal-upi",
           "docTitle": "Installing on bare metal with user-provisioned infrastructure"
         }
       ]
@@ -1128,7 +1128,7 @@
         {
           "docId": "installing-bare-metal-upi",
           "sectionHeading": "Bare metal API and Ingress VIPs",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_bare_metal_ipi/installing-bare-metal-upi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installing-bare-metal-upi",
           "docTitle": "Installing on bare metal with user-provisioned infrastructure"
         }
       ]

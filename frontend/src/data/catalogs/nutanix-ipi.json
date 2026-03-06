@@ -926,7 +926,7 @@
           "docId": "installing-nutanix-ipi",
           "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
           "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_nutanix/installing-nutanix-ipi.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
         }
       ]
     },
@@ -939,7 +939,7 @@
       "required": true,
       "description": "Prism Central FQDN or IP address.",
       "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_nutanix/installing-nutanix-ipi.html"}]
+      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
     },
     {
       "path": "platform.nutanix.prismCentral.port",
@@ -950,7 +950,7 @@
       "required": false,
       "description": "Prism Central API port. Default 9440.",
       "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_nutanix/installing-nutanix-ipi.html"}]
+      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
     },
     {
       "path": "platform.nutanix.prismCentral.username",
@@ -961,7 +961,7 @@
       "required": false,
       "description": "Prism Central username. Emitted in install-config only when including credentials.",
       "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_nutanix/installing-nutanix-ipi.html"}]
+      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
     },
     {
       "path": "platform.nutanix.prismCentral.password",
@@ -972,7 +972,7 @@
       "required": false,
       "description": "Prism Central password. Emitted in install-config only when including credentials.",
       "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_nutanix/installing-nutanix-ipi.html"}]
+      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
     },
     {
       "path": "platform.nutanix.clusterName",
@@ -983,7 +983,7 @@
       "required": false,
       "description": "Optional Nutanix cluster (Prism Element) name for VM placement.",
       "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_nutanix/installing-nutanix-ipi.html"}]
+      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
     },
     {
       "path": "platform.nutanix.subnet",
@@ -1001,7 +1001,7 @@
           "docId": "installing-nutanix-ipi",
           "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
           "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_nutanix/installing-nutanix-ipi.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
         }
       ]
     },

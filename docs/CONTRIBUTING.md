@@ -57,7 +57,7 @@ The versioned docs index (`data/docs-index/*.json`) drives which OCP doc links a
   ```bash
   node scripts/validate-docs-index.js
   ```
-  CI runs this on every push/PR. It does not require docs.openshift.com; both docs.redhat.com and docs.openshift.com URLs are allowed. Run it locally after editing any `data/docs-index/*.json` by hand.
+  CI runs this on every push/PR. All documentation links must use docs.redhat.com (docs.openshift.com is shut down). Run it locally after editing any `data/docs-index/*.json` by hand.
 
 ## Optional: secret scan (pre-commit)
 

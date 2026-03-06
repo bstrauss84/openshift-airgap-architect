@@ -1,7 +1,7 @@
 # Synthetic from params — no full-file example in 4.20 docs for vSphere IPI.
 # Structure from data/params/4.20/vsphere-ipi.json and docs-index installing-vsphere-ipi, installation-config-parameters-vsphere.
 # Sources: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/
-#         https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html
+#         https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere
 apiVersion: v1
 baseDomain: example.com
 metadata:

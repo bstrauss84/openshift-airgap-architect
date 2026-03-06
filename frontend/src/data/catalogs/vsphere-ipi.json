@@ -926,7 +926,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -946,7 +946,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -966,7 +966,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -986,7 +986,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1006,7 +1006,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1026,7 +1026,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1046,7 +1046,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1066,7 +1066,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1086,7 +1086,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1106,7 +1106,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1126,7 +1126,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1140,7 +1140,7 @@
       "description": "Absolute path to a pre-existing RHCOS image template or VM in vSphere. IPI only; speeds up RHCOS provisioning.",
       "applies_to": ["vsphere-ipi"],
       "ipi_only": true,
-      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
     },
     {
       "path": "platform.vsphere.vcenters",
@@ -1158,7 +1158,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1178,7 +1178,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1198,7 +1198,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1218,7 +1218,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1238,7 +1238,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1258,7 +1258,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
@@ -1277,7 +1277,7 @@
         {
           "docId": "installing-vsphere-ipi",
           "sectionHeading": "vSphere install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installing-vsphere-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
           "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
         }
       ]
@@ -1297,7 +1297,7 @@
         {
           "docId": "installing-vsphere-ipi",
           "sectionHeading": "vSphere install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installing-vsphere-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
           "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
         }
       ]
@@ -1317,7 +1317,7 @@
         {
           "docId": "installing-vsphere-ipi",
           "sectionHeading": "vSphere install-config parameters",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installing-vsphere-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
           "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
         }
       ]
@@ -1331,7 +1331,7 @@
       "required": false,
       "description": "Optional disk provisioning method. Defaults to vSphere storage policy if not set. thin, thick, or eagerZeroedThick.",
       "applies_to": ["vsphere-ipi"],
-      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
     },
     {
       "path": "platform.vsphere.apiVIPs",
@@ -1343,7 +1343,7 @@
       "description": "Virtual IP addresses for control plane API access. IPI only; omit when using an external load balancer. Must not be specified for UPI.",
       "applies_to": ["vsphere-ipi"],
       "ipi_only": true,
-      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
     },
     {
       "path": "platform.vsphere.ingressVIPs",
@@ -1355,7 +1355,62 @@
       "description": "Virtual IP addresses for cluster Ingress. IPI only; omit when using an external load balancer. Must not be specified for UPI.",
       "applies_to": ["vsphere-ipi"],
       "ipi_only": true,
-      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
+    },
+    {
+      "path": "platform.vsphere.clusterOSImage",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "HTTP or HTTPS URL, optionally with SHA-256 checksum",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: URL for RHCOS image. Must match release boot image version. 9.1.6.",
+      "applies_to": ["vsphere-ipi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
+    },
+    {
+      "path": "platform.vsphere.osDisk.diskSizeGB",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer (GB)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: OS disk size in gigabytes. 9.1.6.",
+      "applies_to": ["vsphere-ipi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
+    },
+    {
+      "path": "platform.vsphere.cpus",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer; must be multiple of coresPerSocket",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: total virtual processor cores per VM. 9.1.6.",
+      "applies_to": ["vsphere-ipi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
+    },
+    {
+      "path": "platform.vsphere.coresPerSocket",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer; cpus / coresPerSocket = number of sockets",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: cores per socket. Control plane and compute default to 4 virtual sockets. 9.1.6.",
+      "applies_to": ["vsphere-ipi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
+    },
+    {
+      "path": "platform.vsphere.memoryMB",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer (MB)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: VM memory in megabytes. 9.1.6.",
+      "applies_to": ["vsphere-ipi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
     },
     {
       "path": "publish",
