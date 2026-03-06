@@ -3283,6 +3283,11 @@ body[data-theme="dark"] .platform-specifics-ami-loading {
   font-size: 0.875rem;
 }
 
+.platform-specifics-disk-type-select {
+  max-width: 14rem;
+  width: 100%;
+}
+
 .platform-specifics-ami-error {
   margin-top: 4px;
   margin-bottom: 0;

@@ -471,6 +471,26 @@ test("buildInstallConfig for vSphere emits multiple failure domains and vcenters
   assert.strictEqual(out.platform.vsphere.vcenters[0].server, "vcenter.example.com");
 });
 
+test("buildInstallConfig for vsphere FD mode emits multiple networks per failure domain (comma-separated UI → array)", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "failureDomains",
+        failureDomains: [
+          { name: "fd-0", server: "vc.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["VM Network", "DPG-1"] } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.platform?.vsphere?.failureDomains?.[0]?.topology?.networks, ["VM Network", "DPG-1"], "FD topology.networks must support multiple entries");
+});
+
 test("buildInstallConfig for vsphere-ipi emits diskType when set", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },

@@ -362,11 +362,14 @@ const validatePlatformConfig = (state) => {
   }
   const includeCredentials = Boolean(state.exportOptions?.includeCredentials);
   if (method === "IPI" && platform === "VMware vSphere") {
-    if (!cfg.vsphere?.vcenter) errors.push("vCenter server is required for vSphere IPI.");
-    if (!cfg.vsphere?.datacenter) errors.push("Datacenter is required for vSphere IPI.");
-    if (!cfg.vsphere?.cluster) errors.push("Cluster is required for vSphere IPI.");
-    if (!cfg.vsphere?.datastore) errors.push("Datastore is required for vSphere IPI.");
-    if (!cfg.vsphere?.network) errors.push("Network is required for vSphere IPI.");
+    const useLegacyPlacement = cfg.vsphere?.placementMode === "legacy";
+    if (useLegacyPlacement) {
+      if (!cfg.vsphere?.vcenter) errors.push("vCenter server is required for vSphere IPI when using legacy placement.");
+      if (!cfg.vsphere?.datacenter) errors.push("Datacenter is required for vSphere IPI when using legacy placement.");
+      if (!cfg.vsphere?.cluster) errors.push("Cluster is required for vSphere IPI when using legacy placement.");
+      if (!cfg.vsphere?.datastore) errors.push("Datastore is required for vSphere IPI when using legacy placement.");
+      if (!cfg.vsphere?.network) errors.push("VM network is required for vSphere IPI when using legacy placement.");
+    }
     if (!cfg.vsphere?.username) {
       (includeCredentials ? errors : warnings).push("vCenter username is required for vSphere IPI.");
     }

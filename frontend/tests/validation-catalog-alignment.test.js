@@ -82,13 +82,23 @@ describe("A1: widget type from catalog (dropdown when allowed array)", () => {
 });
 
 describe("A1: validateStep platformConfig respects catalog-required fields", () => {
-  it("vSphere IPI requires vcenter, datacenter, cluster, datastore, network", () => {
+  it("vSphere IPI with legacy placement requires vcenter, datacenter, cluster, datastore, network", () => {
     const state = {
       blueprint: { platform: "VMware vSphere" },
       methodology: { method: "IPI" },
-      platformConfig: { vsphere: {} }
+      platformConfig: { vsphere: { placementMode: "legacy" } }
     };
     const result = validateStep(state, "networking");
     expect(result.errors.some((e) => e.includes("vCenter") || e.includes("Datacenter") || e.includes("Cluster") || e.includes("Datastore") || e.includes("Network"))).toBe(true);
+  });
+
+  it("vSphere IPI with failure-domains placement does not require vcenter/datacenter in global step", () => {
+    const state = {
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      platformConfig: { vsphere: { placementMode: "failureDomains" } }
+    };
+    const result = validateStep(state, "networking");
+    expect(result.errors.some((e) => e.includes("vCenter server is required") || e.includes("Datacenter is required"))).toBe(false);
   });
 });

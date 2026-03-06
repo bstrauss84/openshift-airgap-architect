@@ -371,19 +371,23 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByRole("button", { name: /Add failure domain/i })).toBeInTheDocument();
   });
 
-  it("vsphere-ipi: Placement radios and credentials render; FD mode hides legacy vcenter/datacenter", () => {
+  it("vsphere-ipi: Credentials section and Placement radios; password Show/Hide on same header row as label", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "IPI" }
     });
     const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
     render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
-    expect(screen.getByText("Connection")).toBeInTheDocument();
+    expect(screen.getByText("Credentials")).toBeInTheDocument();
     expect(screen.getByText("Placement")).toBeInTheDocument();
     expect(screen.getByText("Storage")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Use failure domains \(recommended\)/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/vCenter username \(optional\)/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Show password/i })).toBeInTheDocument();
+    const showBtn = screen.getByRole("button", { name: /Show password/i });
+    expect(showBtn).toBeInTheDocument();
+    const labelRow = showBtn.closest(".pull-secret-label-row");
+    expect(labelRow).toBeInTheDocument();
+    expect(labelRow?.querySelector('[class*="field-label"]') || labelRow?.textContent).toBeTruthy();
   });
 
   it("vsphere-ipi: diskType dropdown placeholder is not selectable (disabled)", () => {
