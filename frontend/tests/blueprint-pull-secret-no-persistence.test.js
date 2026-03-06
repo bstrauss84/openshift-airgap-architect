@@ -60,3 +60,38 @@ describe("Identity & Access credentials: no persistence (Prompt E)", () => {
     expect(str).not.toMatch(/mirrorRegistryPullSecret/);
   });
 });
+
+describe("vSphere credentials: no persistence (Phase 6)", () => {
+  it("getStateForPersistence strips platformConfig.vsphere username and password", () => {
+    const state = {
+      platformConfig: {
+        vsphere: {
+          vcenter: "vc.example.com",
+          datacenter: "DC1",
+          username: "admin@vsphere.local",
+          password: "vcenter-secret"
+        }
+      }
+    };
+    const out = getStateForPersistence(state);
+    expect(out?.platformConfig?.vsphere?.username).toBeUndefined();
+    expect(out?.platformConfig?.vsphere?.password).toBeUndefined();
+    expect(JSON.stringify(out)).not.toContain("vcenter-secret");
+  });
+
+  it("getStateForPersistence strips vcenters[].user and .password", () => {
+    const state = {
+      platformConfig: {
+        vsphere: {
+          vcenters: [
+            { server: "vc1.example.com", user: "u1", password: "p1", datacenters: ["DC1"] }
+          ]
+        }
+      }
+    };
+    const out = getStateForPersistence(state);
+    expect(out?.platformConfig?.vsphere?.vcenters?.[0]?.user).toBeUndefined();
+    expect(out?.platformConfig?.vsphere?.vcenters?.[0]?.password).toBeUndefined();
+    expect(out?.platformConfig?.vsphere?.vcenters?.[0]?.server).toBe("vc1.example.com");
+  });
+});
