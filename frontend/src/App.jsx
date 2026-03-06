@@ -28,6 +28,15 @@ import { validateStep, validateBlueprintPullSecretOptional } from "./validation.
 import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { apiFetch } from "./api.js";
+
+/** Used for Landing banner and tests; true only when update is available and no error/unknown. */
+export function shouldShowUpdateBanner(updateInfo) {
+  if (!updateInfo?.enabled || !updateInfo?.isOutdated || updateInfo?.error) return false;
+  const cur = updateInfo?.currentSha && String(updateInfo.currentSha).toLowerCase();
+  const lat = updateInfo?.latestSha && String(updateInfo.latestSha).toLowerCase();
+  if (!cur || cur === "unknown" || !lat || lat === "unknown") return false;
+  return true;
+}
 import { logAction } from "./logger.js";
 import { getExportRunFilename } from "./exportRunFilename.js";
 
@@ -193,17 +202,13 @@ const AppShell = () => {
       .catch(() => setStepMap({}));
   }, []);
 
-  // Build info and update check: fetch once on load; re-fetch update-info when user returns to Landing (backend caches 6h/15min).
+  // Build info: fetch once on load. Update info: fetch only when Landing is shown (once on initial Landing, again when user returns to Landing).
   useEffect(() => {
     apiFetch("/api/build-info").then(setBuildInfo).catch(() => setBuildInfo({ gitSha: "unknown", buildTime: "unknown", repo: "", branch: "" }));
   }, []);
   useEffect(() => {
-    const load = () => apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: false, error: "Unavailable" }));
-    load();
-  }, []);
-  useEffect(() => {
     if (!showLanding) return;
-    apiFetch("/api/update-info").then(setUpdateInfo).catch(() => {});
+    apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: false, error: "Unavailable" }));
   }, [showLanding]);
 
   // Operations (N) badge: poll job count when in wizard so header and sidebar can show count (§9.3 placement)
@@ -763,13 +768,7 @@ const AppShell = () => {
             ) : null}
           </div>
         </header>
-        {updateInfo?.enabled &&
-        updateInfo?.isOutdated &&
-        !updateInfo?.error &&
-        updateInfo?.currentSha &&
-        String(updateInfo.currentSha).toLowerCase() !== "unknown" &&
-        updateInfo?.latestSha &&
-        String(updateInfo.latestSha).toLowerCase() !== "unknown" ? (
+        {shouldShowUpdateBanner(updateInfo) ? (
           <div className="update-available-banner" role="status">
             <strong>Update available</strong>
             {" "}
