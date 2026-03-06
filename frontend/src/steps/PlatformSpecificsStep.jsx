@@ -137,12 +137,15 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const metaVsphereVcenter = getParamMeta(scenarioId, "platform.vsphere.vcenter", INSTALL_CONFIG);
   const metaVsphereDatacenter = getParamMeta(scenarioId, "platform.vsphere.datacenter", INSTALL_CONFIG);
   const metaVsphereDefaultDatastore = getParamMeta(scenarioId, "platform.vsphere.defaultDatastore", INSTALL_CONFIG);
+  const metaVsphereDiskType = getParamMeta(scenarioId, "platform.vsphere.diskType", INSTALL_CONFIG);
+  const metaVsphereApiVIPs = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG);
+  const metaVsphereIngressVIPs = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG);
   const requiredPathsInstall = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequiredInstall = (path) => requiredPathsInstall.includes(path);
 
   const failureDomains = Array.isArray(platformConfig.vsphere?.failureDomains) ? platformConfig.vsphere.failureDomains : [];
   const setFailureDomains = (next) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, failureDomains: next } });
-  const addFailureDomain = () => setFailureDomains([...failureDomains, { name: `fd-${failureDomains.length}`, region: "", zone: "", server: "", topology: { computeCluster: "", datacenter: "", datastore: "", networks: [], folder: "", resourcePool: "" } }]);
+  const addFailureDomain = () => setFailureDomains([...failureDomains, { name: `fd-${failureDomains.length}`, region: "", zone: "", server: "", topology: { computeCluster: "", datacenter: "", datastore: "", networks: [], folder: "", resourcePool: "", template: "" } }]);
   const removeFailureDomain = (index) => setFailureDomains(failureDomains.filter((_, i) => i !== index));
   const updateFailureDomain = (index, patch) => setFailureDomains(failureDomains.map((fd, i) => (i === index ? { ...fd, ...patch } : fd)));
   const updateFailureDomainTopology = (index, topPatch) => setFailureDomains(failureDomains.map((fd, i) => (i === index ? { ...fd, topology: { ...(fd.topology || {}), ...topPatch } } : fd)));
@@ -702,10 +705,11 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
           <section className="card">
             <div className="card-header">
               <h3 className="card-title">vSphere {scenarioId === "vsphere-upi" ? "UPI" : "IPI"}</h3>
-              <div className="card-subtitle">vCenter and datacenter settings for vSphere (installer-provisioned or user-provisioned).</div>
+              <div className="card-subtitle">vCenter connection, placement, and storage for vSphere (installer-provisioned or user-provisioned).</div>
             </div>
             <div className="card-body">
-              <div className="field-grid" style={{ marginTop: 12 }}>
+              <h4 className="platform-specifics-subsection">Connection</h4>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
                 <FieldLabelWithInfo
                   label="vCenter server"
                   hint={metaVsphereVcenter?.description}
@@ -729,59 +733,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
-                  label="Default datastore"
-                  hint={metaVsphereDefaultDatastore?.description}
-                  required={metaVsphereDefaultDatastore?.required || isRequiredInstall("platform.vsphere.defaultDatastore")}
-                >
-                  <input
-                    value={platformConfig.vsphere?.datastore || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: e.target.value } })}
-                    placeholder="Datastore name"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Compute cluster (optional; required for failureDomains)"
-                  hint="vSphere compute cluster name; used in failureDomains topology."
-                >
-                  <input
-                    value={platformConfig.vsphere?.cluster || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: e.target.value } })}
-                    placeholder="e.g. Cluster1"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="VM network (optional; required for failureDomains)"
-                  hint="VM network name; used in failureDomains topology.networks."
-                >
-                  <input
-                    value={platformConfig.vsphere?.network || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, network: e.target.value } })}
-                    placeholder="e.g. VM Network"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Folder (optional)"
-                  hint="vSphere VM folder path for cluster VMs."
-                >
-                  <input
-                    value={platformConfig.vsphere?.folder || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, folder: e.target.value } })}
-                    placeholder="VM folder path"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Resource pool (optional)"
-                  hint="vSphere resource pool path for cluster VMs."
-                >
-                  <input
-                    value={platformConfig.vsphere?.resourcePool || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, resourcePool: e.target.value } })}
-                    placeholder="Resource pool path"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
                   label="vCenter username (optional)"
-                  hint="Only included in generated install-config when storing credentials."
+                  hint="Included in install-config only when you choose to include credentials in export."
                 >
                   <input
                     value={platformConfig.vsphere?.username || ""}
@@ -791,7 +744,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="vCenter password (optional)"
-                  hint="Only included in generated install-config when storing credentials."
+                  hint="Included in install-config only when you choose to include credentials in export."
                 >
                   <input
                     type="password"
@@ -803,10 +756,50 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
               </div>
 
+              <h4 className="platform-specifics-subsection">Placement</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Either use the single-placement fields below, or add one or more failure domains (failure domains take precedence).
+              </p>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
+                <FieldLabelWithInfo
+                  label="Default datastore"
+                  hint={metaVsphereDefaultDatastore?.description}
+                  required={metaVsphereDefaultDatastore?.required || isRequiredInstall("platform.vsphere.defaultDatastore")}
+                >
+                  <input
+                    value={platformConfig.vsphere?.datastore || ""}
+                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: e.target.value } })}
+                    placeholder="Datastore name"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Compute cluster (optional; required for single-placement path)"
+                  hint="vSphere compute cluster name; used when defining a single placement or in failure domain topology."
+                >
+                  <input
+                    value={platformConfig.vsphere?.cluster || ""}
+                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: e.target.value } })}
+                    placeholder="e.g. Cluster1"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="VM network (optional; required for single-placement path)"
+                  hint="VM network name; must contain the virtual IPs and DNS records. Used in failure domain topology when you add failure domains."
+                >
+                  <input
+                    value={platformConfig.vsphere?.network || ""}
+                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, network: e.target.value } })}
+                    placeholder="e.g. VM Network"
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
               {showFailureDomainsSection && (
-                <div style={{ marginTop: 24 }}>
-                  <h4 className="card-title" style={{ marginBottom: 8 }}>Failure domains</h4>
-                  <p className="note subtle">Optionally define multiple failure domains. If you add any, they are used for install-config instead of the single vCenter/datacenter fields above.</p>
+                <div style={{ marginBottom: 20 }}>
+                  <h4 className="card-title" style={{ marginBottom: 4, fontSize: "1rem" }}>Failure domains</h4>
+                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                    Optionally define multiple failure domains. If you add any, they are used for install-config instead of the single placement fields above.
+                  </p>
                   <button type="button" className="ghost" onClick={addFailureDomain} style={{ marginBottom: 12 }}>Add failure domain</button>
                   {failureDomains.map((fd, index) => (
                     <div key={index} className="card" style={{ marginBottom: 16, padding: 16 }}>
@@ -847,6 +840,12 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           <FieldLabelWithInfo label="Topology: Networks (comma-separated)" hint="VM network names used in this failure domain." />
                           <input value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")} onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="e.g. VM Network, DPG-1" />
                         </label>
+                        {scenarioId === "vsphere-ipi" && (
+                          <label style={{ gridColumn: "1 / -1" }}>
+                            <FieldLabelWithInfo label="Topology: RHCOS template (optional, IPI only)" hint="Absolute path to a pre-existing RHCOS image template or VM in vSphere for faster provisioning. Leave empty to omit." />
+                            <input value={fd.topology?.template || ""} onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })} placeholder="/datacenter/vm/rhcos-template" />
+                          </label>
+                        )}
                         <label>
                           <FieldLabelWithInfo label="Topology: Folder (optional)" hint="VM folder path in failure domain topology." />
                           <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} placeholder="/datacenter/vm/folder" />
@@ -860,6 +859,66 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   ))}
                 </div>
               )}
+
+              {scenarioId === "vsphere-ipi" && (
+                <>
+                  <h4 className="platform-specifics-subsection">IPI-only (API and Ingress VIPs)</h4>
+                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                    For IPI without an external load balancer, specify the virtual IPs you configured for the API and Ingress. Leave empty if using an external load balancer. Not used for UPI.
+                  </p>
+                  <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
+                    <FieldLabelWithInfo label="API VIPs (comma-separated)" hint={metaVsphereApiVIPs?.description}>
+                      <input
+                        value={Array.isArray(platformConfig.vsphere?.apiVIPs) ? platformConfig.vsphere.apiVIPs.join(", ") : ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, apiVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } })}
+                        placeholder="e.g. 192.168.1.10"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo label="Ingress VIPs (comma-separated)" hint={metaVsphereIngressVIPs?.description}>
+                      <input
+                        value={Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, ingressVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } })}
+                        placeholder="e.g. 192.168.1.11"
+                      />
+                    </FieldLabelWithInfo>
+                  </div>
+                </>
+              )}
+
+              <h4 className="platform-specifics-subsection">Storage</h4>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
+                <FieldLabelWithInfo label="Disk type (optional)" hint={metaVsphereDiskType?.description}>
+                  <select
+                    value={platformConfig.vsphere?.diskType || ""}
+                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, diskType: e.target.value || undefined } })}
+                    aria-label="Disk provisioning method"
+                  >
+                    <option value="">Not set</option>
+                    <option value="thin">thin</option>
+                    <option value="thick">thick</option>
+                    <option value="eagerZeroedThick">eagerZeroedThick</option>
+                  </select>
+                </FieldLabelWithInfo>
+              </div>
+
+              <CollapsibleSection title="Advanced" subtitle="VM folder and resource pool (optional).">
+                <div className="field-grid" style={{ marginTop: 8 }}>
+                  <FieldLabelWithInfo label="Folder (optional)" hint="vSphere VM folder path for cluster VMs. Omit to use installer default.">
+                    <input
+                      value={platformConfig.vsphere?.folder || ""}
+                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, folder: e.target.value } })}
+                      placeholder="VM folder path"
+                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo label="Resource pool (optional)" hint="vSphere resource pool path for cluster VMs. Omit to use cluster root Resources.">
+                    <input
+                      value={platformConfig.vsphere?.resourcePool || ""}
+                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, resourcePool: e.target.value } })}
+                      placeholder="Resource pool path"
+                    />
+                  </FieldLabelWithInfo>
+                </div>
+              </CollapsibleSection>
             </div>
           </section>
         )}

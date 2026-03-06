@@ -317,6 +317,59 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByPlaceholderText("vcenter.example.com")).toBeInTheDocument();
   });
 
+  it("vsphere-ipi: shows IPI-only section (API VIPs, Ingress VIPs) and disk type", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" }
+    });
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+    expect(screen.getByText(/IPI-only \(API and Ingress VIPs\)/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. 192.168.1.10")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. 192.168.1.11")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Disk type \(optional\)/i)).toBeInTheDocument();
+    const diskSelect = screen.getByRole("combobox", { name: /Disk provisioning method/i });
+    expect(diskSelect).toBeInTheDocument();
+    expect(diskSelect).toHaveDisplayValue("Not set");
+  });
+
+  it("vsphere-upi: does not show IPI-only API/Ingress VIPs section", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "UPI" }
+    });
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+    expect(screen.queryByText(/IPI-only \(API and Ingress VIPs\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("e.g. 192.168.1.10")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Disk type \(optional\)/i)).toBeInTheDocument();
+  });
+
+  it("vsphere-ipi: shows Failure domains and Add failure domain; template field in FD when IPI", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" }
+    });
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+    expect(screen.getByRole("heading", { name: /Failure domains/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add failure domain/i })).toBeInTheDocument();
+  });
+
+  it("vsphere-ipi: Connection and Placement sections render", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" }
+    });
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+    expect(screen.getByText("Connection")).toBeInTheDocument();
+    expect(screen.getByText("Placement")).toBeInTheDocument();
+    expect(screen.getByText("Storage")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("vcenter.example.com")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Datastore name")).toBeInTheDocument();
+  });
+
   it("when scenario is aws-govcloud-ipi, getScenarioId returns aws-govcloud-ipi and validation requires region (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },

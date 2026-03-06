@@ -303,6 +303,7 @@ const buildInstallConfig = (state) => {
   if (state.blueprint?.platform === "VMware vSphere" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
     const vsphere = {};
     const vs = platformConfig.vsphere || {};
+    const isVsphereIpi = state.methodology?.method === "IPI";
     const explicitFailureDomains = Array.isArray(vs.failureDomains) && vs.failureDomains.length > 0;
     const explicitVcenters = Array.isArray(vs.vcenters) && vs.vcenters.length > 0;
 
@@ -317,7 +318,8 @@ const buildInstallConfig = (state) => {
           ...(top.datastore != null && top.datastore !== "" ? { datastore: top.datastore } : {}),
           ...(networksArray.length ? { networks: networksArray } : {}),
           ...(top.folder != null && top.folder !== "" ? { folder: top.folder } : {}),
-          ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {})
+          ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {}),
+          ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" ? { template: String(top.template).trim() } : {})
         };
         return {
           name: fd.name != null && fd.name !== "" ? fd.name : `fd-${i}`,
@@ -389,6 +391,16 @@ const buildInstallConfig = (state) => {
           }
         ];
       }
+    }
+
+    if (vs.diskType && (vs.diskType === "thin" || vs.diskType === "thick" || vs.diskType === "eagerZeroedThick")) {
+      vsphere.diskType = vs.diskType;
+    }
+    if (isVsphereIpi && Array.isArray(vs.apiVIPs) && vs.apiVIPs.length > 0) {
+      vsphere.apiVIPs = vs.apiVIPs.filter((ip) => ip && String(ip).trim() !== "");
+    }
+    if (isVsphereIpi && Array.isArray(vs.ingressVIPs) && vs.ingressVIPs.length > 0) {
+      vsphere.ingressVIPs = vs.ingressVIPs.filter((ip) => ip && String(ip).trim() !== "");
     }
 
     if (Object.keys(vsphere).length) {

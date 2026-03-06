@@ -1131,6 +1131,18 @@
       ]
     },
     {
+      "path": "platform.vsphere.failureDomains[].topology.template",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "absolute path to RHCOS image template or VM",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Absolute path to a pre-existing RHCOS image template or VM in vSphere. IPI only; speeds up RHCOS provisioning.",
+      "applies_to": ["vsphere-ipi"],
+      "ipi_only": true,
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+    },
+    {
       "path": "platform.vsphere.vcenters",
       "outputFile": "install-config.yaml",
       "type": "array",
@@ -1257,7 +1269,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "vSphere datacenter name.",
+      "description": "vSphere datacenter name. Deprecated in 4.13+; prefer failureDomains[].topology.datacenter and vcenters[].datacenters; still supported.",
       "applies_to": [
         "vsphere-ipi"
       ],
@@ -1277,7 +1289,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "Default datastore for cluster VMs.",
+      "description": "Default datastore for cluster VMs. Deprecated in 4.13+; prefer failureDomains[].topology.datastore; still supported.",
       "applies_to": [
         "vsphere-ipi"
       ],
@@ -1297,7 +1309,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "vCenter server FQDN or IP.",
+      "description": "vCenter server FQDN or IP. Deprecated in 4.13+; prefer vcenters[].server; still supported.",
       "applies_to": [
         "vsphere-ipi"
       ],
@@ -1309,6 +1321,41 @@
           "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
         }
       ]
+    },
+    {
+      "path": "platform.vsphere.diskType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": ["thin", "thick", "eagerZeroedThick"],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional disk provisioning method. Defaults to vSphere storage policy if not set. thin, thick, or eagerZeroedThick.",
+      "applies_to": ["vsphere-ipi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+    },
+    {
+      "path": "platform.vsphere.apiVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of IP addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Virtual IP addresses for control plane API access. IPI only; omit when using an external load balancer. Must not be specified for UPI.",
+      "applies_to": ["vsphere-ipi"],
+      "ipi_only": true,
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+    },
+    {
+      "path": "platform.vsphere.ingressVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of IP addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Virtual IP addresses for cluster Ingress. IPI only; omit when using an external load balancer. Must not be specified for UPI.",
+      "applies_to": ["vsphere-ipi"],
+      "ipi_only": true,
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
     },
     {
       "path": "publish",

@@ -469,6 +469,102 @@ test("buildInstallConfig for vSphere emits multiple failure domains and vcenters
   assert.strictEqual(out.platform.vsphere.vcenters[0].server, "vcenter.example.com");
 });
 
+test("buildInstallConfig for vsphere-ipi emits diskType when set", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: { vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", diskType: "thin" }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.diskType, "thin");
+});
+
+test("buildInstallConfig for vsphere-ipi emits apiVIPs and ingressVIPs when set (IPI only)", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        vcenter: "vc.example.com",
+        datacenter: "DC1",
+        datastore: "ds1",
+        apiVIPs: ["192.168.1.10"],
+        ingressVIPs: ["192.168.1.11"]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.platform?.vsphere?.apiVIPs, ["192.168.1.10"]);
+  assert.deepStrictEqual(out.platform?.vsphere?.ingressVIPs, ["192.168.1.11"]);
+});
+
+test("buildInstallConfig for vsphere-upi must NOT emit apiVIPs or ingressVIPs (regression)", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-upi-cluster" },
+    methodology: { method: "UPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        vcenter: "vcenter.example.com",
+        datacenter: "DC1",
+        datastore: "ds1",
+        apiVIPs: ["192.168.1.10"],
+        ingressVIPs: ["192.168.1.11"]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.vsphere, "vsphere block present");
+  assert.strictEqual(out.platform.vsphere.apiVIPs, undefined, "UPI must not emit apiVIPs");
+  assert.strictEqual(out.platform.vsphere.ingressVIPs, undefined, "UPI must not emit ingressVIPs");
+});
+
+test("buildInstallConfig for vsphere-ipi emits template in failure domain topology when set", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        failureDomains: [
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.failureDomains?.[0]?.topology?.template, "/DC1/vm/rhcos-template");
+});
+
+test("buildInstallConfig for vsphere-ipi omits credentials when includeCredentials false", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    exportOptions: { includeCredentials: false },
+    platformConfig: {
+      vsphere: { vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", username: "admin", password: "secret" }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.vcenters?.[0]?.user, "", "user must be omitted/empty");
+  assert.strictEqual(out.platform?.vsphere?.vcenters?.[0]?.password, "", "password must be omitted/empty");
+});
+
 test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and optional fields (Prompt J)", () => {
   const state = {
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },

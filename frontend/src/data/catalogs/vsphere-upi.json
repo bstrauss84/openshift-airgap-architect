@@ -1257,7 +1257,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "vSphere datacenter name.",
+      "description": "vSphere datacenter name. Deprecated in 4.13+; prefer failureDomains[].topology.datacenter and vcenters[].datacenters; still supported.",
       "applies_to": [
         "vsphere-upi"
       ],
@@ -1277,7 +1277,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "vCenter server FQDN or IP.",
+      "description": "vCenter server FQDN or IP. Deprecated in 4.13+; prefer vcenters[].server; still supported.",
       "applies_to": [
         "vsphere-upi"
       ],
@@ -1289,6 +1289,28 @@
           "docTitle": "Installing a cluster on vSphere with user-provisioned infrastructure"
         }
       ]
+    },
+    {
+      "path": "platform.vsphere.defaultDatastore",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Default datastore for cluster VMs. Deprecated in 4.13+; prefer failureDomains[].topology.datastore; still supported for legacy single-placement path.",
+      "applies_to": ["vsphere-upi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
+    },
+    {
+      "path": "platform.vsphere.diskType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": ["thin", "thick", "eagerZeroedThick"],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional disk provisioning method. Defaults to vSphere storage policy if not set. thin, thick, or eagerZeroedThick.",
+      "applies_to": ["vsphere-upi"],
+      "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"}]
     },
     {
       "path": "publish",
