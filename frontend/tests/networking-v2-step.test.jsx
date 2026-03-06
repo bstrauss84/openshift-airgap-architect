@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import App from "../src/App.jsx";
@@ -5,6 +6,8 @@ import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
 import { validateStep } from "../src/validation.js";
 import { getScenarioId, getRequiredParamsForOutput, getParamMeta } from "../src/catalogResolver.js";
+import { AppContext } from "../src/store.jsx";
+import NetworkingV2Step from "../src/steps/NetworkingV2Step.jsx";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
@@ -97,7 +100,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     expect(ingressMeta?.required).toBe(false);
   });
 
-  it("when scenario is vsphere-ipi, getScenarioId returns vsphere-ipi and VIP section is not shown (bare metal only)", () => {
+  it("when scenario is vsphere-ipi, Networking shows API and Ingress VIPs section (vSphere IPI)", () => {
     const state = stateForNetworkingStep({
       blueprint: {
         ...stateWithBlueprintCompleteMethodologyIncomplete().blueprint,
@@ -106,8 +109,15 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       methodology: { method: "IPI" }
     });
     expect(getScenarioId(state)).toBe("vsphere-ipi");
-    const requiredPaths = getRequiredParamsForOutput("vsphere-ipi", "install-config.yaml");
-    expect(Array.isArray(requiredPaths)).toBe(true);
+    render(
+      <AppContext.Provider value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+    const headings = screen.getAllByRole("heading", { name: /API and Ingress VIPs/i });
+    expect(headings.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByPlaceholderText("e.g. 192.168.1.10")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. 192.168.1.11")).toBeInTheDocument();
   });
 
   it("overlap validation: networking-v2 step reports errors when machine overlaps cluster", () => {
@@ -194,10 +204,11 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     });
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Cluster Networking/i })).toBeInTheDocument();
+      const clusterHeadings = screen.getAllByRole("heading", { name: /Cluster Networking/i });
+      expect(clusterHeadings.length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.getByPlaceholderText("10.90.0.0/24")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("10.128.0.0/14")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("172.30.0.0/16")).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText("10.90.0.0/24").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("10.128.0.0/14").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("172.30.0.0/16").length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -139,8 +139,6 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const metaVsphereDatacenter = getParamMeta(scenarioId, "platform.vsphere.datacenter", INSTALL_CONFIG);
   const metaVsphereDefaultDatastore = getParamMeta(scenarioId, "platform.vsphere.defaultDatastore", INSTALL_CONFIG);
   const metaVsphereDiskType = getParamMeta(scenarioId, "platform.vsphere.diskType", INSTALL_CONFIG);
-  const metaVsphereApiVIPs = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG);
-  const metaVsphereIngressVIPs = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG);
   const requiredPathsInstall = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequiredInstall = (path) => requiredPathsInstall.includes(path);
 
@@ -711,28 +709,32 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             <div className="card-body">
               <h4 className="platform-specifics-subsection">Connection</h4>
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
-                <FieldLabelWithInfo
-                  label="vCenter server"
-                  hint={metaVsphereVcenter?.description}
-                  required={metaVsphereVcenter?.required || isRequiredInstall("platform.vsphere.vcenter")}
-                >
-                  <input
-                    value={platformConfig.vsphere?.vcenter || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: e.target.value } })}
-                    placeholder="vcenter.example.com"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Datacenter"
-                  hint={metaVsphereDatacenter?.description}
-                  required={metaVsphereDatacenter?.required || isRequiredInstall("platform.vsphere.datacenter")}
-                >
-                  <input
-                    value={platformConfig.vsphere?.datacenter || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: e.target.value } })}
-                    placeholder="Datacenter name"
-                  />
-                </FieldLabelWithInfo>
+                {(platformConfig.vsphere?.placementMode || "failureDomains") === "legacy" && (
+                  <>
+                    <FieldLabelWithInfo
+                      label="vCenter server"
+                      hint={metaVsphereVcenter?.description}
+                      required={true}
+                    >
+                      <input
+                        value={platformConfig.vsphere?.vcenter || ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: e.target.value } })}
+                        placeholder="vcenter.example.com"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Datacenter"
+                      hint={metaVsphereDatacenter?.description}
+                      required={true}
+                    >
+                      <input
+                        value={platformConfig.vsphere?.datacenter || ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: e.target.value } })}
+                        placeholder="Datacenter name"
+                      />
+                    </FieldLabelWithInfo>
+                  </>
+                )}
                 <FieldLabelWithInfo
                   label="vCenter username (optional)"
                   hint="Included in install-config only when you choose to include credentials in export."
@@ -743,32 +745,33 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     placeholder="administrator@vsphere.local"
                   />
                 </FieldLabelWithInfo>
-                <div className="pull-secret-label-row" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <FieldLabelWithInfo
-                    label="vCenter password (optional)"
-                    hint="Included in install-config only when you choose to include credentials in export. Do not save in browser."
-                  />
-                  <button
-                    type="button"
-                    className="ghost pull-secret-toggle"
-                    style={{ padding: "2px 8px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 4 }}
-                    onClick={() => setShowVspherePassword((s) => !s)}
-                    aria-label={showVspherePassword ? "Hide password" : "Show password"}
-                  >
-                    <span aria-hidden>{showVspherePassword ? "\u2007" : "\u{1F441}"}</span>
-                    {showVspherePassword ? "Hide" : "Show"}
-                  </button>
-                </div>
-                <input
-                  type={showVspherePassword ? "text" : "password"}
-                  autoComplete="off"
-                  data-form-type="other"
-                  value={platformConfig.vsphere?.password || ""}
-                  onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: e.target.value } })}
-                  placeholder="••••••••"
-                  aria-label="vCenter password (optional)"
-                  style={{ marginTop: 4 }}
-                />
+                <FieldLabelWithInfo
+                  label="vCenter password (optional)"
+                  hint="Included in install-config only when you choose to include credentials in export. Do not save in browser."
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <input
+                      type={showVspherePassword ? "text" : "password"}
+                      autoComplete="off"
+                      data-form-type="other"
+                      value={platformConfig.vsphere?.password || ""}
+                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: e.target.value } })}
+                      placeholder="••••••••"
+                      aria-label="vCenter password (optional)"
+                      style={{ flex: "1 1 200px", minWidth: 0 }}
+                    />
+                    <button
+                      type="button"
+                      className="ghost pull-secret-toggle"
+                      style={{ padding: "2px 8px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 4 }}
+                      onClick={() => setShowVspherePassword((s) => !s)}
+                      aria-label={showVspherePassword ? "Hide password" : "Show password"}
+                    >
+                      <span aria-hidden>{showVspherePassword ? "\u2007" : "\u{1F441}"}</span>
+                      {showVspherePassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </FieldLabelWithInfo>
               </div>
 
               <h4 className="platform-specifics-subsection">Placement</h4>
@@ -902,36 +905,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </div>
               )}
 
-              {scenarioId === "vsphere-ipi" && (
-                <>
-                  <h4 className="platform-specifics-subsection">IPI-only (API and Ingress VIPs)</h4>
-                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                    For IPI without an external load balancer, specify the virtual IPs you configured for the API and Ingress. Leave empty if using an external load balancer. Not used for UPI.
-                  </p>
-                  <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
-                    <FieldLabelWithInfo
-                      label="API VIPs (comma-separated)"
-                      hint="Virtual IP(s) for the Kubernetes API. Required for IPI when you are not using an external load balancer. If you use an external load balancer for the API, leave this empty. Comma-separate multiple IPs if needed. Not used for UPI."
-                    >
-                      <input
-                        value={Array.isArray(platformConfig.vsphere?.apiVIPs) ? platformConfig.vsphere.apiVIPs.join(", ") : ""}
-                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, apiVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } })}
-                        placeholder="e.g. 192.168.1.10"
-                      />
-                    </FieldLabelWithInfo>
-                    <FieldLabelWithInfo
-                      label="Ingress VIPs (comma-separated)"
-                      hint="Virtual IP(s) for the default Ingress controller. Required for IPI when you are not using an external load balancer for ingress. If you use an external load balancer, leave this empty. Comma-separate multiple IPs if needed. Not used for UPI."
-                    >
-                      <input
-                        value={Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""}
-                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, ingressVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } })}
-                        placeholder="e.g. 192.168.1.11"
-                      />
-                    </FieldLabelWithInfo>
-                  </div>
-                </>
-              )}
+              {/* vSphere IPI API/Ingress VIPs are on the Networking step (shared section with scenario gating). */}
 
               <h4 className="platform-specifics-subsection">Storage</h4>
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
