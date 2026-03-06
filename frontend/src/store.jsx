@@ -17,6 +17,17 @@ export function getStateForPersistence(state) {
     delete next.credentials.pullSecretPlaceholder;
     delete next.credentials.mirrorRegistryPullSecret;
   }
+  if (next?.platformConfig?.vsphere) {
+    const vs = next.platformConfig.vsphere;
+    delete vs.username;
+    delete vs.password;
+    if (Array.isArray(vs.vcenters)) {
+      vs.vcenters = vs.vcenters.map((vc) => {
+        const { user, password, ...rest } = vc;
+        return rest;
+      });
+    }
+  }
   return next;
 }
 

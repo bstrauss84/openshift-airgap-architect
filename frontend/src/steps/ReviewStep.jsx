@@ -15,6 +15,7 @@ const MIN_PREVIEW_HEIGHT = 120;
 const MAX_PREVIEW_HEIGHT = 800;
 
 const PULLSECRET_PLACEHOLDER_LINE = "pullSecret: '{\"auths\":{}}'";
+const SENSITIVE_REDACTED = "*** REDACTED (click Show sensitive values to reveal) ***";
 
 /** Masks or replaces pullSecret value in install-config YAML. For obscured preview use replacement; for placeholder use replacement. */
 function replacePullSecretInYaml(yamlContent, replacementLine) {
@@ -30,7 +31,43 @@ function replacePullSecretInYaml(yamlContent, replacementLine) {
 }
 
 function maskPullSecretInYaml(yamlContent) {
-  return replacePullSecretInYaml(yamlContent, "pullSecret: '*** REDACTED (click Show to reveal) ***'");
+  return replacePullSecretInYaml(yamlContent, `pullSecret: '${SENSITIVE_REDACTED}'`);
+}
+
+/** Redacts platform.vsphere.vcenters[].user and .password in install-config YAML for preview. */
+function maskVsphereCredentialsInYaml(yamlContent) {
+  if (!yamlContent || typeof yamlContent !== "string") return yamlContent;
+  const lines = yamlContent.split("\n");
+  let inVsphere = false;
+  let inVcenters = false;
+  const result = lines.map((line) => {
+    const trimmed = line.trim();
+    const indent = line.length - line.trimStart().length;
+    if (/^\s*vsphere:\s*$/.test(line)) {
+      inVsphere = true;
+      inVcenters = false;
+    } else if (inVsphere && indent <= 2) {
+      inVsphere = false;
+      inVcenters = false;
+    } else if (inVsphere && /^\s*vcenters:\s*$/.test(line)) {
+      inVcenters = true;
+    } else if (inVsphere && inVcenters && indent <= 4 && trimmed && !trimmed.startsWith("-")) {
+      inVcenters = false;
+    }
+    if (inVcenters && /^\s*(user|password):\s*.+/.test(line)) {
+      return line.replace(/^(\s*(?:user|password):\s*).+$/, `$1'${SENSITIVE_REDACTED}'`);
+    }
+    return line;
+  });
+  return result.join("\n");
+}
+
+/** Masks pull secret and vCenter credentials in install-config for Assets preview when "Show sensitive values" is off. */
+function maskSensitiveInInstallConfigYaml(yamlContent) {
+  if (!yamlContent || typeof yamlContent !== "string") return yamlContent;
+  let out = maskPullSecretInYaml(yamlContent);
+  out = maskVsphereCredentialsInYaml(out);
+  return out;
 }
 
 function ResizablePreviewPane({ id, content, placeholder = "Not generated yet.", className = "preview" }) {
@@ -273,7 +310,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       return replacePullSecretInYaml(installConfigContent, PULLSECRET_PLACEHOLDER_LINE);
     }
     if (!showPullSecretInPreview) {
-      return maskPullSecretInYaml(installConfigContent);
+      return maskSensitiveInInstallConfigYaml(installConfigContent);
     }
     return installConfigContent;
   })();
@@ -467,7 +504,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 onClick={() => setShowPullSecretInPreview((v) => !v)}
                 aria-pressed={showPullSecretInPreview}
               >
-                {showPullSecretInPreview ? "Hide pull secret" : "Show pull secret"}
+                {showPullSecretInPreview ? "Hide sensitive values" : "Show sensitive values"}
               </button>
             ) : null}
           </div>
