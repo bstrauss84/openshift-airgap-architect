@@ -304,7 +304,8 @@ const buildInstallConfig = (state) => {
     const vsphere = {};
     const vs = platformConfig.vsphere || {};
     const isVsphereIpi = state.methodology?.method === "IPI";
-    const explicitFailureDomains = Array.isArray(vs.failureDomains) && vs.failureDomains.length > 0;
+    const useLegacyPlacement = vs.placementMode === "legacy";
+    const explicitFailureDomains = !useLegacyPlacement && Array.isArray(vs.failureDomains) && vs.failureDomains.length > 0;
     const explicitVcenters = Array.isArray(vs.vcenters) && vs.vcenters.length > 0;
 
     if (explicitFailureDomains) {

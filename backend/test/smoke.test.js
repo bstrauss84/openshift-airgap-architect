@@ -565,6 +565,34 @@ test("buildInstallConfig for vsphere-ipi omits credentials when includeCredentia
   assert.strictEqual(out.platform?.vsphere?.vcenters?.[0]?.password, "", "password must be omitted/empty");
 });
 
+test("buildInstallConfig for vsphere respects placementMode legacy: emits only flat path, ignores failureDomains array", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "legacy",
+        vcenter: "vc.example.com",
+        datacenter: "DC1",
+        datastore: "ds1",
+        cluster: "Cluster1",
+        network: "VM Network",
+        failureDomains: [
+          { name: "fd-custom", server: "other.example.com", region: "R1", zone: "Z1", topology: { datacenter: "DC2", computeCluster: "C2", datastore: "ds2", networks: ["Other"] } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.vsphere?.failureDomains?.length === 1, "must emit exactly one failure domain from flat path");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].name, "fd-0", "legacy path must use fd-0, not state failureDomains");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].server, "vc.example.com");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "DC1");
+});
+
 test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and optional fields (Prompt J)", () => {
   const state = {
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },

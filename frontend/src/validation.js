@@ -750,14 +750,22 @@ const validateStep = (state, stepId) => {
       const errors = [];
       const label = scenarioId === "vsphere-upi" ? "vSphere UPI" : "vSphere IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const placementMode = vsphere.placementMode || "failureDomains";
       if (requiredPaths.includes("platform.vsphere.vcenter") && !(vsphere.vcenter || "").trim()) {
         errors.push(`vCenter server is required for ${label}.`);
       }
       if (requiredPaths.includes("platform.vsphere.datacenter") && !(vsphere.datacenter || "").trim()) {
         errors.push(`Datacenter is required for ${label}.`);
       }
-      if (requiredPaths.includes("platform.vsphere.defaultDatastore") && !(vsphere.datastore || "").trim()) {
-        errors.push(`Default datastore is required for ${label}.`);
+      if (placementMode === "legacy" && requiredPaths.includes("platform.vsphere.defaultDatastore") && !(vsphere.datastore || "").trim()) {
+        errors.push(`Default datastore is required for ${label} when using legacy single placement.`);
+      }
+      if (placementMode === "failureDomains" && scenarioId === "vsphere-ipi") {
+        const fds = Array.isArray(vsphere.failureDomains) ? vsphere.failureDomains : [];
+        const validFd = fds.some((fd) => (fd.server || "").trim() && (fd.topology?.datacenter || "").trim() && (fd.topology?.computeCluster || "").trim() && (fd.topology?.datastore || "").trim() && Array.isArray(fd.topology?.networks) && fd.topology.networks.length > 0);
+        if (fds.length === 0 || !validFd) {
+          errors.push(`At least one failure domain with server, datacenter, compute cluster, datastore, and networks is required for ${label} when using failure domains.`);
+        }
       }
       return { errors, warnings: [] };
     }

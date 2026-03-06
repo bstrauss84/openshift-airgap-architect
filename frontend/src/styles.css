@@ -3184,6 +3184,16 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
 }
 
 /* Platform Specifics: AWS AMI auto-discovery row */
+.platform-specifics-radio-label {
+  display: block;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.platform-specifics-radio-label input {
+  margin-right: 6px;
+}
+
 .platform-specifics-subsection {
   font-size: 0.9375rem;
   font-weight: 600;

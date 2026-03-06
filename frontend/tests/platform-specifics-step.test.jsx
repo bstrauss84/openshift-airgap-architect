@@ -233,7 +233,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByPlaceholderText("Subnet UUID or name")).toBeInTheDocument();
   });
 
-  it("when scenario is vsphere-ipi, Platform Specifics shows vSphere IPI section and validation requires vcenter, datacenter, datastore (Prompt J)", () => {
+  it("when scenario is vsphere-ipi, Platform Specifics shows vSphere IPI section and validation requires vcenter, datacenter, and placement path (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "IPI" }
@@ -242,21 +242,35 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     const resultEmpty = validateStep(state, "platform-specifics");
     expect(resultEmpty.errors).toContain("vCenter server is required for vSphere IPI.");
     expect(resultEmpty.errors).toContain("Datacenter is required for vSphere IPI.");
-    expect(resultEmpty.errors).toContain("Default datastore is required for vSphere IPI.");
-    const stateFilled = {
+    expect(resultEmpty.errors.some((e) => e.includes("failure domain") || e.includes("Default datastore"))).toBe(true);
+    const stateFilledLegacy = {
       ...state,
       platformConfig: {
-        vsphere: { vcenter: "vcenter.example.com", datacenter: "DC1", datastore: "datastore1" }
+        vsphere: { vcenter: "vcenter.example.com", datacenter: "DC1", datastore: "datastore1", cluster: "C1", network: "VM Network", placementMode: "legacy" }
       }
     };
-    const resultFilled = validateStep(stateFilled, "platform-specifics");
-    expect(resultFilled.errors).toHaveLength(0);
+    const resultFilledLegacy = validateStep(stateFilledLegacy, "platform-specifics");
+    expect(resultFilledLegacy.errors).toHaveLength(0);
+    const stateFilledFd = {
+      ...state,
+      platformConfig: {
+        vsphere: {
+          vcenter: "vcenter.example.com",
+          datacenter: "DC1",
+          placementMode: "failureDomains",
+          failureDomains: [{ name: "fd-0", server: "vcenter.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["VM Network"] } }]
+        }
+      }
+    };
+    const resultFilledFd = validateStep(stateFilledFd, "platform-specifics");
+    expect(resultFilledFd.errors).toHaveLength(0);
   });
 
   it("vsphere-ipi: Platform Specifics renders vSphere IPI card with vcenter, datacenter, default datastore fields", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
-      methodology: { method: "IPI" }
+      methodology: { method: "IPI" },
+      platformConfig: { vsphere: { placementMode: "legacy" } }
     });
     const value = {
       state,
@@ -367,7 +381,20 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByText("Placement")).toBeInTheDocument();
     expect(screen.getByText("Storage")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("vcenter.example.com")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Datastore name")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Use failure domains \(recommended\)/i })).toBeInTheDocument();
+  });
+
+  it("vsphere-ipi: diskType dropdown placeholder is not selectable (disabled)", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" }
+    });
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+    const diskSelect = screen.getByRole("combobox", { name: /Disk provisioning method/i });
+    const placeholderOption = Array.from(diskSelect.querySelectorAll("option")).find((o) => o.value === "" && o.textContent?.trim() === "Not set");
+    expect(placeholderOption).toBeDefined();
+    expect(placeholderOption).toHaveAttribute("disabled");
   });
 
   it("when scenario is aws-govcloud-ipi, getScenarioId returns aws-govcloud-ipi and validation requires region (Prompt J)", () => {
