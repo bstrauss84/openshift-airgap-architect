@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import App from "../src/App.jsx";
+import App, { shouldShowUpdateBanner } from "../src/App.jsx";
 import ToolsDrawer from "../src/components/ToolsDrawer.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
@@ -55,8 +55,7 @@ describe("ToolsDrawer About section", () => {
         }}
       />
     );
-    expect(screen.getByText(/Update available/)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /docs\/UPDATING\.md/i });
+    const link = screen.getByRole("link", { name: /Update available/i });
     expect(link).toBeInTheDocument();
     expect(link.href).toContain("github.com");
     expect(link.href).toContain("UPDATING.md");
@@ -124,33 +123,42 @@ describe("Landing update banner", () => {
   });
 });
 
-describe("Landing update banner not shown when error", () => {
-  // Condition in App: updateInfo?.enabled && updateInfo?.isOutdated && !updateInfo?.error. When error is set, banner is not rendered.
-  // Manual validation: offline or API error → no Landing banner; Tools/About shows "Update check unavailable".
-  it.skip("does not show update banner on Landing when updateInfo has error", async () => {
-    vi.mocked(apiFetch).mockImplementation((path) => {
-      if (path === "/api/state") return Promise.resolve(stateWithBlueprintCompleteMethodologyIncomplete());
-      if (path === "/api/schema/stepMap") return Promise.resolve({ version: "1", mvpSteps: [] });
-      if (path === "/api/build-info") return Promise.resolve({ gitSha: "x", buildTime: "x", repo: "r", branch: "main" });
-      if (path === "/api/update-info") {
-        return Promise.resolve({
-          enabled: true,
-          isOutdated: true,
-          error: "network error",
-          currentSha: "abc",
-          latestSha: null,
-          branch: "main",
-          repo: "r",
-          checkedAt: "2025-03-03T12:00:00Z"
-        });
-      }
-      return Promise.resolve({});
-    });
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByText(/What would you like to do/)).toBeInTheDocument();
-    });
-    const banner = document.querySelector(".update-available-banner");
-    expect(banner).toBeNull();
+describe("Landing update banner visibility (shouldShowUpdateBanner)", () => {
+  it("returns false when updateInfo has error", () => {
+    expect(
+      shouldShowUpdateBanner({
+        enabled: true,
+        isOutdated: true,
+        error: "network error",
+        currentSha: "abc",
+        latestSha: "def",
+        branch: "main",
+        repo: "r"
+      })
+    ).toBe(false);
+  });
+
+  it("returns false when currentSha or latestSha is unknown", () => {
+    expect(shouldShowUpdateBanner({ enabled: true, isOutdated: true, error: null, currentSha: "unknown", latestSha: "def", branch: "main", repo: "r" })).toBe(false);
+    expect(shouldShowUpdateBanner({ enabled: true, isOutdated: true, error: null, currentSha: "abc", latestSha: "unknown", branch: "main", repo: "r" })).toBe(false);
+  });
+
+  it("returns true when enabled, outdated, no error, and SHAs are known", () => {
+    expect(
+      shouldShowUpdateBanner({
+        enabled: true,
+        isOutdated: true,
+        error: null,
+        currentSha: "abc1234",
+        latestSha: "def5678",
+        branch: "main",
+        repo: "r"
+      })
+    ).toBe(true);
+  });
+
+  it("returns false when not enabled or not outdated", () => {
+    expect(shouldShowUpdateBanner({ enabled: false, isOutdated: true, error: null, currentSha: "abc", latestSha: "def", branch: "main", repo: "r" })).toBe(false);
+    expect(shouldShowUpdateBanner({ enabled: true, isOutdated: false, error: null, currentSha: "abc", latestSha: "def", branch: "main", repo: "r" })).toBe(false);
   });
 });

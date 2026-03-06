@@ -121,7 +121,7 @@ When users reach the app through a **different hostname** than the one the front
 
 ## Updating the app
 
-When the Landing page or **Tools → About** shows that an update is available, follow the steps in **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment (e.g. podman-compose pull and restart). Build info and update checks use env vars (`APP_GIT_SHA`, `APP_BUILD_TIME`, `APP_REPO`, `APP_BRANCH`, `CHECK_UPDATES`); see [Build info and update checks](#build-info-and-update-checks) below.
+When the Landing page or **Tools → About** shows that an update is available, follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment. Build info and update checks depend on how the image was built (see [Build info and update checks](#build-info-and-update-checks)); builds from a git clone get real SHA/time; builds from a tarball without `.git` show “unknown” and cannot report update availability.
 
 ## Generating assets
 
@@ -187,7 +187,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 
 **Wiring examples:**
 
-- **Podman Compose / Docker Compose:** The backend image computes **APP_GIT_SHA** and **APP_BUILD_TIME** from **.git** during the image build (see `backend/Containerfile`). No script or env vars needed: run **`podman compose up --build`** from a git clone and Tools → About will show the current commit and build time. Build context is the repo root so `.git` is available; if you build from a tarball without `.git`, build info will be missing unless you pass build args (see `scripts/set-build-env.sh` for `docker run` / OpenShift).
+- **Podman Compose / Docker Compose:** The backend image computes **APP_GIT_SHA** and **APP_BUILD_TIME** from **.git** during the image build (see `backend/Containerfile`). Run **`podman compose up --build`** from a **git clone** (with `.git` present) and Tools → About will show the current commit and build time. **If you build from a tarball or snapshot that has no `.git` directory**, the image cannot determine build SHA or time, so Tools → About will show “Build unknown • unknown • main” and update availability cannot be determined (update check will show as unavailable). That is expected behavior, not a bug. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
 
 - **Docker / Podman run:** Pass at start:
   ```bash
@@ -210,7 +210,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
       value: "2025-03-03"
   ```
 
-For **Compose**, build info is automatic (computed from `.git` during image build). For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file. No git commands are run by the backend at runtime.
+**Git clone vs tarball:** Builds from a normal **git clone** (with `.git`) get real build SHA and time; Tools → About and update checks work as intended. Builds from a **tarball or archive without `.git`** get “unknown” build info and cannot determine update availability; that is expected. No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
 
 ## Troubleshooting
 
