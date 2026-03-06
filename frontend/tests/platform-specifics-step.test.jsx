@@ -233,16 +233,20 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByPlaceholderText("Subnet UUID or name")).toBeInTheDocument();
   });
 
-  it("when scenario is vsphere-ipi, Platform Specifics shows vSphere IPI section and validation requires vcenter, datacenter, and placement path (Prompt J)", () => {
+  it("when scenario is vsphere-ipi, validation is decision-specific: legacy path requires flat fields, FD path requires at least one FD", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "IPI" }
     });
     expect(getScenarioId(state)).toBe("vsphere-ipi");
-    const resultEmpty = validateStep(state, "platform-specifics");
-    expect(resultEmpty.errors).toContain("vCenter server is required for vSphere IPI.");
-    expect(resultEmpty.errors).toContain("Datacenter is required for vSphere IPI.");
-    expect(resultEmpty.errors.some((e) => e.includes("failure domain") || e.includes("Default datastore"))).toBe(true);
+    const emptyFdMode = { ...state, platformConfig: { vsphere: { placementMode: "failureDomains" } } };
+    const resultEmptyFd = validateStep(emptyFdMode, "platform-specifics");
+    expect(resultEmptyFd.errors.some((e) => e.includes("failure domain"))).toBe(true);
+    const emptyLegacyMode = { ...state, platformConfig: { vsphere: { placementMode: "legacy" } } };
+    const resultEmptyLegacy = validateStep(emptyLegacyMode, "platform-specifics");
+    expect(resultEmptyLegacy.errors).toContain("vCenter server is required for vSphere IPI when using legacy single placement.");
+    expect(resultEmptyLegacy.errors).toContain("Datacenter is required for vSphere IPI when using legacy single placement.");
+    expect(resultEmptyLegacy.errors.some((e) => e.includes("Default datastore") || e.includes("Compute cluster") || e.includes("VM network"))).toBe(true);
     const stateFilledLegacy = {
       ...state,
       platformConfig: {
@@ -255,8 +259,6 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       ...state,
       platformConfig: {
         vsphere: {
-          vcenter: "vcenter.example.com",
-          datacenter: "DC1",
           placementMode: "failureDomains",
           failureDomains: [{ name: "fd-0", server: "vcenter.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["VM Network"] } }]
         }
@@ -290,30 +292,31 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByPlaceholderText("Datastore name")).toBeInTheDocument();
   });
 
-  it("when scenario is vsphere-upi, Platform Specifics shows vSphere UPI section and validation requires only vcenter, datacenter (catalog-driven; Prompt J)", () => {
+  it("when scenario is vsphere-upi with legacy placement, validation requires legacy flat fields", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
-      methodology: { method: "UPI" }
+      methodology: { method: "UPI" },
+      platformConfig: { vsphere: { placementMode: "legacy" } }
     });
     expect(getScenarioId(state)).toBe("vsphere-upi");
     const resultEmpty = validateStep(state, "platform-specifics");
-    expect(resultEmpty.errors).toContain("vCenter server is required for vSphere UPI.");
-    expect(resultEmpty.errors).toContain("Datacenter is required for vSphere UPI.");
-    expect(resultEmpty.errors).not.toContain("Default datastore is required for vSphere UPI.");
+    expect(resultEmpty.errors).toContain("vCenter server is required for vSphere UPI when using legacy single placement.");
+    expect(resultEmpty.errors).toContain("Datacenter is required for vSphere UPI when using legacy single placement.");
     const stateFilled = {
       ...state,
       platformConfig: {
-        vsphere: { vcenter: "vcenter.example.com", datacenter: "DC1" }
+        vsphere: { vcenter: "vcenter.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network", placementMode: "legacy" }
       }
     };
     const resultFilled = validateStep(stateFilled, "platform-specifics");
     expect(resultFilled.errors).toHaveLength(0);
   });
 
-  it("vsphere-upi: Platform Specifics renders vSphere UPI card with vcenter, datacenter, default datastore fields", () => {
+  it("vsphere-upi: Platform Specifics renders vSphere UPI card; legacy placement shows vcenter/datacenter", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
-      methodology: { method: "UPI" }
+      methodology: { method: "UPI" },
+      platformConfig: { vsphere: { placementMode: "legacy" } }
     });
     const value = {
       state,
@@ -331,23 +334,21 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByPlaceholderText("vcenter.example.com")).toBeInTheDocument();
   });
 
-  it("vsphere-ipi: shows IPI-only section (API VIPs, Ingress VIPs) and disk type", () => {
+  it("vsphere-ipi: shows Storage (disk type); API/Ingress VIPs are on Networking step not here", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "IPI" }
     });
     const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
     render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
-    expect(screen.getByText(/IPI-only \(API and Ingress VIPs\)/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("e.g. 192.168.1.10")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("e.g. 192.168.1.11")).toBeInTheDocument();
+    expect(screen.queryByText(/IPI-only \(API and Ingress VIPs\)/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Disk type \(optional\)/i)).toBeInTheDocument();
     const diskSelect = screen.getByRole("combobox", { name: /Disk provisioning method/i });
     expect(diskSelect).toBeInTheDocument();
     expect(diskSelect).toHaveDisplayValue("Not set");
   });
 
-  it("vsphere-upi: does not show IPI-only API/Ingress VIPs section", () => {
+  it("vsphere-upi: does not show IPI-only API/Ingress VIPs section (VIPs for vSphere IPI are on Networking step)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "UPI" }
@@ -370,7 +371,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByRole("button", { name: /Add failure domain/i })).toBeInTheDocument();
   });
 
-  it("vsphere-ipi: Connection and Placement sections render", () => {
+  it("vsphere-ipi: Placement radios and credentials render; FD mode hides legacy vcenter/datacenter", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "IPI" }
@@ -380,8 +381,9 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByText("Connection")).toBeInTheDocument();
     expect(screen.getByText("Placement")).toBeInTheDocument();
     expect(screen.getByText("Storage")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("vcenter.example.com")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Use failure domains \(recommended\)/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/vCenter username \(optional\)/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show password/i })).toBeInTheDocument();
   });
 
   it("vsphere-ipi: diskType dropdown placeholder is not selectable (disabled)", () => {

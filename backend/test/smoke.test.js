@@ -322,6 +322,7 @@ test("buildInstallConfig for vsphere-ipi emits platform.vsphere with vcenters wh
     credentials: {},
     platformConfig: {
       vsphere: {
+        placementMode: "legacy",
         vcenter: "vcenter.example.com",
         datacenter: "DC1",
         datastore: "datastore1"
@@ -346,6 +347,7 @@ test("buildInstallConfig for vsphere-ipi emits failureDomains when cluster and n
     credentials: {},
     platformConfig: {
       vsphere: {
+        placementMode: "legacy",
         vcenter: "vcenter.example.com",
         datacenter: "DC1",
         datastore: "datastore1",
@@ -370,7 +372,7 @@ test("buildInstallConfig for vsphere-ipi includes required catalog params (Promp
     globalStrategy: { networking: {} },
     credentials: {},
     platformConfig: {
-      vsphere: { vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1" }
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" }
     }
   };
   const raw = buildInstallConfig(state);
@@ -391,7 +393,7 @@ test("buildInstallConfig for vsphere-ipi must NOT emit bare-metal-only params (s
     globalStrategy: { networking: {} },
     credentials: {},
     hostInventory: { nodes: [{ hostname: "master-0", role: "master", bmc: { address: "redfish+http://x" } }], apiVip: "192.168.1.1", ingressVip: "192.168.1.2" },
-    platformConfig: { vsphere: { vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1" } }
+    platformConfig: { vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" } }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
@@ -407,7 +409,7 @@ test("buildInstallConfig for vsphere-upi emits platform.vsphere with vcenters (P
     globalStrategy: { networking: {} },
     credentials: {},
     platformConfig: {
-      vsphere: { vcenter: "vcenter.example.com", datacenter: "DC1", datastore: "datastore1" }
+      vsphere: { placementMode: "legacy", vcenter: "vcenter.example.com", datacenter: "DC1", datastore: "datastore1", cluster: "C1", network: "VM Network" }
     }
   };
   const raw = buildInstallConfig(state);
@@ -424,7 +426,7 @@ test("buildInstallConfig for vsphere-upi includes required catalog params and mu
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
     credentials: {},
-    platformConfig: { vsphere: { vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1" } }
+    platformConfig: { vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" } }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
@@ -556,7 +558,7 @@ test("buildInstallConfig for vsphere-ipi omits credentials when includeCredentia
     credentials: {},
     exportOptions: { includeCredentials: false },
     platformConfig: {
-      vsphere: { vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", username: "admin", password: "secret" }
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network", username: "admin", password: "secret" }
     }
   };
   const raw = buildInstallConfig(state);
@@ -591,6 +593,58 @@ test("buildInstallConfig for vsphere respects placementMode legacy: emits only f
   assert.strictEqual(out.platform.vsphere.failureDomains[0].name, "fd-0", "legacy path must use fd-0, not state failureDomains");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].server, "vc.example.com");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "DC1");
+});
+
+test("buildInstallConfig for vsphere FD mode: emits only failureDomains from state, never legacy flat", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "failureDomains",
+        vcenter: "legacy-vc.example.com",
+        datacenter: "LegacyDC",
+        datastore: "legacy-ds",
+        cluster: "LegacyCluster",
+        network: "Legacy Network",
+        failureDomains: [
+          { name: "fd-a", server: "fd-vc.example.com", region: "R1", zone: "Z1", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["Net1"] } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.failureDomains?.length, 1, "must emit exactly one FD from state array");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].name, "fd-a");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].server, "fd-vc.example.com");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "DC1");
+  assert.strictEqual(out.platform.vsphere.vcenters?.[0]?.server, "fd-vc.example.com", "vcenters must come from FD, not flat legacy-vc.example.com");
+});
+
+test("buildInstallConfig for vsphere FD mode with no FDs: does not emit legacy-derived failureDomains", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "failureDomains",
+        failureDomains: [],
+        vcenter: "vc.example.com",
+        datacenter: "DC1",
+        datastore: "ds1",
+        cluster: "C1",
+        network: "VM Network"
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.failureDomains, undefined, "must not emit failureDomains from flat when FD mode and no FDs");
 });
 
 test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and optional fields (Prompt J)", () => {

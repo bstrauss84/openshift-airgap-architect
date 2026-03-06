@@ -41,11 +41,14 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const strategy = state.globalStrategy || {};
   const networking = strategy.networking || {};
   const hostInventory = state.hostInventory || {};
+  const platformConfig = state.platformConfig || {};
   const updateStrategy = (patch) => updateState({ globalStrategy: { ...strategy, ...patch } });
   const updateNetworking = (patch) =>
     updateStrategy({ networking: { ...networking, ...patch } });
   const updateHostInventory = (patch) =>
     updateState({ hostInventory: { ...hostInventory, ...patch } });
+  const updateVsphere = (patch) =>
+    updateState({ platformConfig: { ...platformConfig, vsphere: { ...platformConfig.vsphere, ...patch } } });
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
@@ -79,11 +82,13 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const catalogParams = getCatalogForScenario(scenarioId) || [];
   const hasNetworkingParam = (path) =>
     catalogParams.some((p) => p.path === path && p.outputFile === INSTALL_CONFIG);
-  const showApiIngressVips = catalogParams.some(
+  const showBareMetalVips = catalogParams.some(
     (p) =>
       (p.path === "platform.baremetal.apiVIP" || p.path === "platform.baremetal.ingressVIP") &&
       p.outputFile === INSTALL_CONFIG
   );
+  const showVsphereIpiVips = scenarioId === "vsphere-ipi";
+  const showApiIngressVips = showBareMetalVips || showVsphereIpiVips;
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
@@ -326,38 +331,67 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <div className="card-header">
               <div>
                 <h3 className="card-title">API and Ingress VIPs</h3>
-                <p className="card-subtitle">Virtual IPs for API and ingress traffic (bare metal).</p>
+                <p className="card-subtitle">
+                  {showVsphereIpiVips ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer." : "Virtual IPs for API and ingress traffic (bare metal)."}
+                </p>
               </div>
             </div>
             <div className="card-body">
               <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
               <div className="field-grid">
-                <FieldLabelWithInfo
-                  label="API VIP"
-                  hint={metaApiVip?.description}
-                  required={metaApiVip?.required}
-                  className={fieldErrors.apiVip ? "input-error" : ""}
-                >
-                  <input
-                    className={fieldErrors.apiVip ? "input-error" : ""}
-                    value={hostInventory.apiVip || ""}
-                    onChange={(e) => updateHostInventory({ apiVip: e.target.value.trim() })}
-                    placeholder="10.90.0.1"
-                  />
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label="Ingress VIP"
-                  hint={metaIngressVip?.description}
-                  required={metaIngressVip?.required}
-                  className={fieldErrors.ingressVip ? "input-error" : ""}
-                >
-                  <input
-                    className={fieldErrors.ingressVip ? "input-error" : ""}
-                    value={hostInventory.ingressVip || ""}
-                    onChange={(e) => updateHostInventory({ ingressVip: e.target.value.trim() })}
-                    placeholder="10.90.0.2"
-                  />
-                </FieldLabelWithInfo>
+                {showVsphereIpiVips ? (
+                  <>
+                    <FieldLabelWithInfo
+                      label="API VIPs (comma-separated)"
+                      hint="Virtual IP(s) for the Kubernetes API. Required for vSphere IPI when not using an external load balancer."
+                    >
+                      <input
+                        value={Array.isArray(platformConfig.vsphere?.apiVIPs) ? platformConfig.vsphere.apiVIPs.join(", ") : ""}
+                        onChange={(e) => updateVsphere({ apiVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                        placeholder="e.g. 192.168.1.10"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Ingress VIPs (comma-separated)"
+                      hint="Virtual IP(s) for the default Ingress controller. Required for vSphere IPI when not using an external load balancer."
+                    >
+                      <input
+                        value={Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""}
+                        onChange={(e) => updateVsphere({ ingressVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                        placeholder="e.g. 192.168.1.11"
+                      />
+                    </FieldLabelWithInfo>
+                  </>
+                ) : (
+                  <>
+                    <FieldLabelWithInfo
+                      label="API VIP"
+                      hint={metaApiVip?.description}
+                      required={metaApiVip?.required}
+                      className={fieldErrors.apiVip ? "input-error" : ""}
+                    >
+                      <input
+                        className={fieldErrors.apiVip ? "input-error" : ""}
+                        value={hostInventory.apiVip || ""}
+                        onChange={(e) => updateHostInventory({ apiVip: e.target.value.trim() })}
+                        placeholder="10.90.0.1"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Ingress VIP"
+                      hint={metaIngressVip?.description}
+                      required={metaIngressVip?.required}
+                      className={fieldErrors.ingressVip ? "input-error" : ""}
+                    >
+                      <input
+                        className={fieldErrors.ingressVip ? "input-error" : ""}
+                        value={hostInventory.ingressVip || ""}
+                        onChange={(e) => updateHostInventory({ ingressVip: e.target.value.trim() })}
+                        placeholder="10.90.0.2"
+                      />
+                    </FieldLabelWithInfo>
+                  </>
+                )}
               </div>
             </div>
           </section>

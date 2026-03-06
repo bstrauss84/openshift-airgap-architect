@@ -297,9 +297,8 @@ const buildInstallConfig = (state) => {
     }
   }
 
-  // vSphere (IPI and UPI): supports (1) explicit failureDomains + vcenters arrays, or (2) legacy flat single vcenter/datacenter + optional single failure domain.
-  // platformConfig.vsphere: vcenter, datacenter, cluster, datastore, network, folder, resourcePool, username, password;
-  // or failureDomains[] (name, region, zone, server, topology{computeCluster, datacenter, datastore, networks[], folder?, resourcePool?}), vcenters[] (server, user?, password?, port?, datacenters[]).
+  // vSphere (IPI and UPI): (1) legacy path: flat vcenter/datacenter/... only → vcenters + one failureDomains entry; (2) failure-domains path: only vs.failureDomains (and optional vs.vcenters). Selected path only; no mixing.
+  // vcenters[].port: 4.20 doc default 443 (installation-config-parameters-vsphere 9.1.4); emit 443 when not specified.
   if (state.blueprint?.platform === "VMware vSphere" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
     const vsphere = {};
     const vs = platformConfig.vsphere || {};
@@ -308,56 +307,8 @@ const buildInstallConfig = (state) => {
     const explicitFailureDomains = !useLegacyPlacement && Array.isArray(vs.failureDomains) && vs.failureDomains.length > 0;
     const explicitVcenters = Array.isArray(vs.vcenters) && vs.vcenters.length > 0;
 
-    if (explicitFailureDomains) {
-      vsphere.failureDomains = vs.failureDomains.map((fd, i) => {
-        const top = fd.topology || {};
-        const networks = top.networks;
-        const networksArray = Array.isArray(networks) ? networks : (networks ? [networks] : []);
-        const topology = {
-          ...(top.datacenter != null && top.datacenter !== "" ? { datacenter: top.datacenter } : {}),
-          ...(top.computeCluster != null && top.computeCluster !== "" ? { computeCluster: top.computeCluster } : {}),
-          ...(top.datastore != null && top.datastore !== "" ? { datastore: top.datastore } : {}),
-          ...(networksArray.length ? { networks: networksArray } : {}),
-          ...(top.folder != null && top.folder !== "" ? { folder: top.folder } : {}),
-          ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {}),
-          ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" ? { template: String(top.template).trim() } : {})
-        };
-        return {
-          name: fd.name != null && fd.name !== "" ? fd.name : `fd-${i}`,
-          region: fd.region != null && fd.region !== "" ? fd.region : (top.datacenter || "datacenter"),
-          zone: fd.zone != null && fd.zone !== "" ? fd.zone : (top.computeCluster || "cluster"),
-          server: fd.server != null && fd.server !== "" ? fd.server : "",
-          ...(Object.keys(topology).length ? { topology } : {})
-        };
-      }).filter((fd) => fd.server);
-
-      if (explicitVcenters) {
-        vsphere.vcenters = vs.vcenters.map((vc) => ({
-          server: vc.server || "",
-          user: includeCredentials ? (vc.user || "") : "",
-          password: includeCredentials ? (vc.password || "") : "",
-          datacenters: Array.isArray(vc.datacenters) ? vc.datacenters : (vc.datacenter != null ? [vc.datacenter] : []),
-          port: Number(vc.port) || 443
-        })).filter((vc) => vc.server && vc.datacenters.length > 0);
-      } else {
-        const serversSeen = new Set();
-        const vcentersFromFd = [];
-        for (const fd of vsphere.failureDomains) {
-          if (fd.server && !serversSeen.has(fd.server)) {
-            serversSeen.add(fd.server);
-            const datacenter = fd.topology?.datacenter;
-            vcentersFromFd.push({
-              server: fd.server,
-              user: includeCredentials ? (vs.username || "") : "",
-              password: includeCredentials ? (vs.password || "") : "",
-              datacenters: datacenter ? [datacenter] : [],
-              port: 443
-            });
-          }
-        }
-        vsphere.vcenters = vcentersFromFd.filter((vc) => vc.datacenters.length > 0);
-      }
-    } else {
+    if (useLegacyPlacement) {
+      // Legacy path only: use flat fields; never read vs.failureDomains.
       const server = vs.vcenter;
       const datacenter = vs.datacenter;
       const cluster = vs.cluster;
@@ -391,6 +342,67 @@ const buildInstallConfig = (state) => {
             }
           }
         ];
+      }
+    } else {
+      // Failure-domains path only: use vs.failureDomains and/or vs.vcenters; never build from flat.
+      if (explicitFailureDomains) {
+        vsphere.failureDomains = vs.failureDomains.map((fd, i) => {
+          const top = fd.topology || {};
+          const networks = top.networks;
+          const networksArray = Array.isArray(networks) ? networks : (networks ? [networks] : []);
+          const topology = {
+            ...(top.datacenter != null && top.datacenter !== "" ? { datacenter: top.datacenter } : {}),
+            ...(top.computeCluster != null && top.computeCluster !== "" ? { computeCluster: top.computeCluster } : {}),
+            ...(top.datastore != null && top.datastore !== "" ? { datastore: top.datastore } : {}),
+            ...(networksArray.length ? { networks: networksArray } : {}),
+            ...(top.folder != null && top.folder !== "" ? { folder: top.folder } : {}),
+            ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {}),
+            ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" ? { template: String(top.template).trim() } : {})
+          };
+          return {
+            name: fd.name != null && fd.name !== "" ? fd.name : `fd-${i}`,
+            region: fd.region != null && fd.region !== "" ? fd.region : (top.datacenter || "datacenter"),
+            zone: fd.zone != null && fd.zone !== "" ? fd.zone : (top.computeCluster || "cluster"),
+            server: fd.server != null && fd.server !== "" ? fd.server : "",
+            ...(Object.keys(topology).length ? { topology } : {})
+          };
+        }).filter((fd) => fd.server);
+
+        if (explicitVcenters) {
+          vsphere.vcenters = vs.vcenters.map((vc) => ({
+            server: vc.server || "",
+            user: includeCredentials ? (vc.user || "") : "",
+            password: includeCredentials ? (vc.password || "") : "",
+            datacenters: Array.isArray(vc.datacenters) ? vc.datacenters : (vc.datacenter != null ? [vc.datacenter] : []),
+            port: Number(vc.port) || 443
+          })).filter((vc) => vc.server && vc.datacenters.length > 0);
+        } else {
+          const serversSeen = new Set();
+          const vcentersFromFd = [];
+          for (const fd of vsphere.failureDomains) {
+            if (fd.server && !serversSeen.has(fd.server)) {
+              serversSeen.add(fd.server);
+              const datacenter = fd.topology?.datacenter;
+              vcentersFromFd.push({
+                server: fd.server,
+                user: includeCredentials ? (vs.username || "") : "",
+                password: includeCredentials ? (vs.password || "") : "",
+                datacenters: datacenter ? [datacenter] : [],
+                port: 443
+              });
+            }
+          }
+          vsphere.vcenters = vcentersFromFd.filter((vc) => vc.datacenters.length > 0);
+        }
+      } else if (explicitVcenters) {
+        // FD mode but no failure domains: emit only explicit vcenters (e.g. user will add FDs later or validation blocks).
+        vsphere.vcenters = vs.vcenters.map((vc) => ({
+          server: vc.server || "",
+          user: includeCredentials ? (vc.user || "") : "",
+          password: includeCredentials ? (vc.password || "") : "",
+          datacenters: Array.isArray(vc.datacenters) ? vc.datacenters : (vc.datacenter != null ? [vc.datacenter] : []),
+          port: Number(vc.port) || 443
+        })).filter((vc) => vc.server && vc.datacenters.length > 0);
       }
     }
 
