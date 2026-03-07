@@ -236,6 +236,10 @@ const buildInstallConfig = (state) => {
       installConfig.credentialsMode = platformConfig.credentialsMode;
     }
   }
+  // vSphere: Internal publish not supported (BZ#1953035). Emit External only.
+  if (state.blueprint?.platform === "VMware vSphere" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
+    installConfig.publish = platformConfig.publish === "Internal" ? "External" : (platformConfig.publish || "External");
+  }
 
   if (state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method)) {
     const aws = {};
@@ -357,7 +361,7 @@ const buildInstallConfig = (state) => {
             ...(networksArray.length ? { networks: networksArray } : {}),
             ...(top.folder != null && top.folder !== "" ? { folder: top.folder } : {}),
             ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {}),
-            ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" ? { template: String(top.template).trim() } : {})
+            ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" && !(vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") ? { template: String(top.template).trim() } : {})
           };
           return {
             name: fd.name != null && fd.name !== "" ? fd.name : `fd-${i}`,
@@ -409,6 +413,31 @@ const buildInstallConfig = (state) => {
     if (vs.diskType && (vs.diskType === "thin" || vs.diskType === "thick" || vs.diskType === "eagerZeroedThick")) {
       vsphere.diskType = vs.diskType;
     }
+    // loadBalancer.type: emit only when explicitly set (e.g. UserManaged). Default OpenShiftManagedDefault not emitted.
+    if (vs.loadBalancerType === "UserManaged" || vs.loadBalancerType === "OpenShiftManagedDefault") {
+      vsphere.loadBalancer = { type: vs.loadBalancerType };
+    }
+    // clusterOSImage vs topology.template: mutually exclusive. When clusterOSImage is set, emit it and suppress template in FDs (already done in mapping above).
+    if (isVsphereIpi && vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") {
+      vsphere.clusterOSImage = String(vs.clusterOSImage).trim();
+    }
+    // Machine-pool (platform.vsphere): emit only when provided.
+    if (vs.osDiskDiskSizeGB != null && Number.isFinite(Number(vs.osDiskDiskSizeGB))) {
+      const gb = Number(vs.osDiskDiskSizeGB);
+      if (gb > 0) {
+        vsphere.osDisk = vsphere.osDisk || {};
+        vsphere.osDisk.diskSizeGB = gb;
+      }
+    }
+    if (vs.cpus != null && Number.isFinite(Number(vs.cpus)) && Number(vs.cpus) > 0) {
+      vsphere.cpus = Number(vs.cpus);
+    }
+    if (vs.coresPerSocket != null && Number.isFinite(Number(vs.coresPerSocket)) && Number(vs.coresPerSocket) > 0) {
+      vsphere.coresPerSocket = Number(vs.coresPerSocket);
+    }
+    if (vs.memoryMB != null && Number.isFinite(Number(vs.memoryMB)) && Number(vs.memoryMB) > 0) {
+      vsphere.memoryMB = Number(vs.memoryMB);
+    }
     if (isVsphereIpi && Array.isArray(vs.apiVIPs) && vs.apiVIPs.length > 0) {
       vsphere.apiVIPs = vs.apiVIPs.filter((ip) => ip && String(ip).trim() !== "");
     }
@@ -418,6 +447,23 @@ const buildInstallConfig = (state) => {
 
     if (Object.keys(vsphere).length) {
       installConfig.platform.vsphere = vsphere;
+    }
+
+    // compute[0].platform.vsphere.zones and controlPlane.platform.vsphere.zones: only when ≥2 FDs and provided.
+    const fdCount = vsphere.failureDomains?.length ?? 0;
+    if (isVsphereIpi && fdCount >= 2) {
+      if (Array.isArray(vs.computeZones) && vs.computeZones.length > 0) {
+        const compPlatform = typeof installConfig.compute[0].platform === "object" && installConfig.compute[0].platform !== null ? { ...installConfig.compute[0].platform } : {};
+        compPlatform.vsphere = compPlatform.vsphere || {};
+        compPlatform.vsphere.zones = vs.computeZones.filter((z) => z != null && String(z).trim() !== "");
+        if (compPlatform.vsphere.zones.length > 0) installConfig.compute[0].platform = compPlatform;
+      }
+      if (Array.isArray(vs.controlPlaneZones) && vs.controlPlaneZones.length > 0) {
+        const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null ? { ...installConfig.controlPlane.platform } : {};
+        cpPlatform.vsphere = cpPlatform.vsphere || {};
+        cpPlatform.vsphere.zones = vs.controlPlaneZones.filter((z) => z != null && String(z).trim() !== "");
+        if (cpPlatform.vsphere.zones.length > 0) installConfig.controlPlane.platform = cpPlatform;
+      }
     }
   }
 

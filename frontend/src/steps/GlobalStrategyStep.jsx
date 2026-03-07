@@ -61,6 +61,13 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
     }
   }, [showPublishCreds, showAwsHelp]);
 
+  // vSphere: Internal publish not supported (BZ#1953035). Normalize to External when platform is vSphere.
+  React.useEffect(() => {
+    if (platform === "VMware vSphere" && (method === "IPI" || method === "UPI") && platformConfig.publish === "Internal") {
+      updatePlatformConfig({ publish: "External" });
+    }
+  }, [platform, method, platformConfig.publish]);
+
   const proxyErrors = {};
   if (strategy.proxyEnabled) {
     if (strategy.proxies?.httpProxy && !strategy.proxies.httpProxy.startsWith("http://")) {
@@ -870,6 +877,20 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                   </a>
                 ) : null}
               </div>
+            </div>
+          ) : platform === "VMware vSphere" && method === "IPI" ? (
+            <div className="field-grid">
+              <label>
+                Publish strategy
+                <select
+                  value={(platformConfig.publish || "External") === "Internal" ? "External" : (platformConfig.publish || "External")}
+                  onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
+                  aria-label="Publish strategy (vSphere: External only)"
+                >
+                  <option value="External">External</option>
+                </select>
+                <div className="note">Internal is not supported on non-cloud platforms (vSphere). See BZ#1953035.</div>
+              </label>
             </div>
           ) : (
             <div className="note">

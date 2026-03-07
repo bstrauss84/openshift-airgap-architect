@@ -376,6 +376,14 @@ const validatePlatformConfig = (state) => {
     if (!cfg.vsphere?.password) {
       (includeCredentials ? errors : warnings).push("vCenter password is required for vSphere IPI.");
     }
+    if (cfg.publish === "Internal") {
+      errors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
+    }
+    const hasClusterOSImage = cfg.vsphere?.clusterOSImage && String(cfg.vsphere.clusterOSImage).trim() !== "";
+    const hasTemplateInFd = Array.isArray(cfg.vsphere?.failureDomains) && cfg.vsphere.failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "");
+    if (hasClusterOSImage && hasTemplateInFd) {
+      errors.push("Use only one RHCOS image method: clusterOSImage URL or topology.template per failure domain, not both.");
+    }
   }
   if (method === "IPI" && platform === "Nutanix") {
     if (!cfg.nutanix?.endpoint) errors.push("Prism Central endpoint is required for Nutanix IPI.");
@@ -754,6 +762,16 @@ const validateStep = (state, stepId) => {
       const label = scenarioId === "vsphere-upi" ? "vSphere UPI" : "vSphere IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const placementMode = vsphere.placementMode || "failureDomains";
+      if (state.platformConfig?.publish === "Internal") {
+        errors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
+      }
+      if (scenarioId === "vsphere-ipi") {
+        const hasClusterOSImage = (vsphere.clusterOSImage || "").trim() !== "";
+        const hasTemplateInFd = Array.isArray(vsphere.failureDomains) && vsphere.failureDomains.some((fd) => (fd.topology?.template || "").trim() !== "");
+        if (hasClusterOSImage && hasTemplateInFd) {
+          errors.push("Use only one RHCOS image method: clusterOSImage URL or topology.template per failure domain, not both.");
+        }
+      }
       // Legacy path: require only legacy-owned fields (vcenter, datacenter, defaultDatastore, cluster, network for single FD).
       if (placementMode === "legacy") {
         if (!(vsphere.vcenter || "").trim()) errors.push(`vCenter server is required for ${label} when using legacy single placement.`);

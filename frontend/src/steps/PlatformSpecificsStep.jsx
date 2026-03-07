@@ -908,9 +908,9 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         </label>
                         <div style={{ gridColumn: "1 / -1" }}>
                           <CollapsibleSection title="Advanced (template, folder, resource pool)" defaultCollapsed={true}>
-                            {scenarioId === "vsphere-ipi" && (
+                            {scenarioId === "vsphere-ipi" && (!platformConfig.vsphere?.clusterOSImage || String(platformConfig.vsphere.clusterOSImage).trim() === "") && (
                             <label>
-                              <FieldLabelWithInfo label="Topology: RHCOS template (optional, IPI only)" hint="Absolute path to a pre-existing RHCOS image template or VM in vSphere. The installer clones this instead of uploading the image. Leave empty to omit." />
+                              <FieldLabelWithInfo label="Topology: RHCOS template (optional, IPI only)" hint="Absolute path to a pre-existing RHCOS image template or VM in vSphere. Use this OR clusterOSImage URL, not both." />
                               <input value={fd.topology?.template || ""} onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })} placeholder="/datacenter/vm/rhcos-template" />
                             </label>
                           )}
@@ -951,6 +951,124 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </select>
                 </FieldLabelWithInfo>
               </div>
+
+              {scenarioId === "vsphere-ipi" && (
+                <>
+                  <h4 className="platform-specifics-subsection">Load balancer</h4>
+                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                    UserManaged: you provide the load balancer; still set API and Ingress VIPs to the LB endpoints (see doc 2.4.5.3).
+                  </p>
+                  <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
+                    <FieldLabelWithInfo
+                      label="Load balancer type"
+                      hint="OpenShiftManagedDefault (default): installer-managed. UserManaged: you provide the LB; API/Ingress VIPs are the LB endpoints."
+                    >
+                      <select
+                        value={platformConfig.vsphere?.loadBalancerType || "OpenShiftManagedDefault"}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, loadBalancerType: e.target.value } })}
+                        aria-label="Load balancer type"
+                      >
+                        <option value="OpenShiftManagedDefault">OpenShiftManagedDefault</option>
+                        <option value="UserManaged">UserManaged</option>
+                      </select>
+                    </FieldLabelWithInfo>
+                  </div>
+                </>
+              )}
+
+              {scenarioId === "vsphere-ipi" && (platformConfig.vsphere?.placementMode || "failureDomains") === "failureDomains" && failureDomains.length >= 2 && (
+                <>
+                  <h4 className="platform-specifics-subsection">Zone placement (optional)</h4>
+                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                    Zone names must match failure domain names. Only shown when you have 2 or more failure domains.
+                  </p>
+                  <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
+                    <FieldLabelWithInfo
+                      label="Compute zones"
+                      hint="Comma-separated zone names for worker placement (e.g. fd-0, fd-1). Must match failureDomains[].name."
+                    >
+                      <input
+                        value={Array.isArray(platformConfig.vsphere?.computeZones) ? platformConfig.vsphere.computeZones.join(", ") : ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, computeZones: e.target.value.split(",").map((z) => z.trim()).filter(Boolean) } })}
+                        placeholder="e.g. fd-0, fd-1"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Control plane zones"
+                      hint="Comma-separated zone names for control plane placement. Must match failureDomains[].name."
+                    >
+                      <input
+                        value={Array.isArray(platformConfig.vsphere?.controlPlaneZones) ? platformConfig.vsphere.controlPlaneZones.join(", ") : ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, controlPlaneZones: e.target.value.split(",").map((z) => z.trim()).filter(Boolean) } })}
+                        placeholder="e.g. fd-0, fd-1"
+                      />
+                    </FieldLabelWithInfo>
+                  </div>
+                </>
+              )}
+
+              {scenarioId === "vsphere-ipi" && (
+                <CollapsibleSection title="Machine pool (advanced)" defaultCollapsed={true} style={{ marginBottom: 20 }}>
+                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                    Choose one RHCOS image strategy: clusterOSImage URL or topology.template per failure domain. Do not set both.
+                  </p>
+                  {!(failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")) && (
+                    <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
+                      <FieldLabelWithInfo
+                        label="clusterOSImage (optional)"
+                        hint="URL for RHCOS image. Use this OR topology.template per failure domain, not both."
+                      >
+                        <input
+                          value={platformConfig.vsphere?.clusterOSImage || ""}
+                          onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, clusterOSImage: e.target.value } })}
+                          placeholder="https://mirror.example.com/rhcos.ova"
+                        />
+                      </FieldLabelWithInfo>
+                    </div>
+                  )}
+                  {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
+                    <p className="note subtle" style={{ marginBottom: 8 }}>clusterOSImage is set; template per failure domain is omitted.</p>
+                  )}
+                  <div className="field-grid" style={{ marginTop: 8 }}>
+                    <FieldLabelWithInfo label="osDisk.diskSizeGB (optional)" hint="Root disk size in GB for platform.vsphere.">
+                      <input
+                        type="number"
+                        min={1}
+                        value={platformConfig.vsphere?.osDiskDiskSizeGB ?? ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, osDiskDiskSizeGB: e.target.value === "" ? undefined : Number(e.target.value) } })}
+                        placeholder="Leave empty for default"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo label="cpus (optional)" hint="Number of vCPUs for platform.vsphere.">
+                      <input
+                        type="number"
+                        min={1}
+                        value={platformConfig.vsphere?.cpus ?? ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cpus: e.target.value === "" ? undefined : Number(e.target.value) } })}
+                        placeholder="Leave empty for default"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo label="coresPerSocket (optional)" hint="Cores per socket for platform.vsphere.">
+                      <input
+                        type="number"
+                        min={1}
+                        value={platformConfig.vsphere?.coresPerSocket ?? ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, coresPerSocket: e.target.value === "" ? undefined : Number(e.target.value) } })}
+                        placeholder="Leave empty for default"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo label="memoryMB (optional)" hint="Memory in MB for platform.vsphere.">
+                      <input
+                        type="number"
+                        min={1}
+                        value={platformConfig.vsphere?.memoryMB ?? ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, memoryMB: e.target.value === "" ? undefined : Number(e.target.value) } })}
+                        placeholder="Leave empty for default"
+                      />
+                    </FieldLabelWithInfo>
+                  </div>
+                </CollapsibleSection>
+              )}
 
               </div>
           </section>
