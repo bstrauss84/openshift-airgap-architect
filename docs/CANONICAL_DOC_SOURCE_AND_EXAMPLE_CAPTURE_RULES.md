@@ -39,7 +39,7 @@ This document is the **authoritative** set of rules for scenario doc-truth passe
 
 ## Either/or and “choose one” rules
 
-- For every place the docs present **mutually exclusive** or **alternate methods**, you must capture the **FULL narrative** for each path, not just the parameter names.
+- For every place the docs present **mutually exclusive** or **alternate methods** (e.g. “Choose one of the following methods…”), you must capture the **FULL narrative** for each path, not just the parameter names.
 - Examples:
   - `clusterOSImage` vs `topology.template`
   - legacy flat placement vs `failureDomains`
@@ -49,8 +49,8 @@ This document is the **authoritative** set of rules for scenario doc-truth passe
   - the exact condition
   - which path is recommended
   - which path is deprecated (if applicable)
-  - what fields/parameters belong to each path
-  - what procedural steps are required beyond install-config editing
+  - what fields/parameters belong to each path (with example values/snippets from the doc)
+  - **all numbered procedural steps** from the doc for each path (e.g. for topology.template: download OVA → Deploy OVF Template → Select OVF tab → name and folder → compute resource → storage → do not customize → set topology.template in install-config). Do not summarize; list steps so layout and order are traceable.
 - This must be reflected in params metadata under **structured conditionals**.
 
 ---
@@ -58,11 +58,12 @@ This document is the **authoritative** set of rules for scenario doc-truth passe
 ## Install-config / agent-config example coverage
 
 - List **EVERY** relevant config example or snippet in the scenario doc family with:
-  - exact `docs.redhat.com` URL
-  - exact anchor
+  - exact `docs.redhat.com` URL and **exact anchor**
+  - when the same content exists in both multipage HTML and **html-single**, record URL+anchor for **both** (anchor IDs differ; e.g. html-single uses anchors like `#installation-installer-provisioned-vsphere-config-yaml_installing-restricted-networks-installer-provisioned-vsphere`, `#specifying-regions-zones-infrastructure-vsphere_post-install-vsphere-zones-regions-configuration`, `#installation-vsphere-regions-zones-host-groups_...`)
   - whether it is a full example or partial snippet
-  - the key hierarchy/layout shown
-  - the use-case scenario described by the surrounding text
+  - the **exact key hierarchy/layout** shown
+  - the **use-case scenario** described by the surrounding text
+- Resolve every scenario-specific section in the install book (e.g. regions/zones, regions-zones-host-groups, restricted-network config YAML); do not skip an example because it appears only under a specific html-single anchor.
 - If a full example does not exist, say so explicitly.
 - If examples exist in the install book but not in the parameter reference, you must still capture them.
 - Do not stop at the parameter page.

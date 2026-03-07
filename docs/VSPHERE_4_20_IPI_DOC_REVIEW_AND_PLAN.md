@@ -86,6 +86,8 @@ Docs state: **Choose one** of the following methods to specify an RHCOS image fo
 | **clusterOSImage** | `install-config.yaml`: `platform.vsphere.clusterOSImage` | Set the value to the image **location or URL**. Example: `clusterOSImage: http://mirror.example.com/images/rhcos-43.81.201912131630.0-vmware.x86_64.ova?sha256=ffebbd68e8a1f2a245ca19522c16c86f67f9ac8e4e0c1f0a812b068b16f7265d` (HTTP/HTTPS URL, optionally with SHA-256 checksum). |
 | **topology.template** | `install-config.yaml`: `failureDomains[].topology.template` | (1) Download the RHCOS vSphere OVA to your system (see "Creating the RHCOS image for restricted network installations" if applicable). (2) In vSphere Client: Hosts and Clusters → right‑click cluster → Deploy OVF Template → select OVA, set VM name (e.g. Template-RHCOS), choose folder and compute resource and storage; do **not** customize template. (3) In install-config, set `topology.template` to the **path** where you imported the image in vCenter (path to the template/VM in vSphere). |
 
+**Verification (review question):** The distinction above is incorporated: “choose one” framing, clusterOSImage at `platform.vsphere.clusterOSImage` with example URL (including optional `?sha256=...`), and topology.template with full procedural steps (download OVA → Deploy OVF Template → Select OVF tab → name and folder → compute resource → storage → do not customize → set `topology.template` in install-config to the vCenter path). Doc order may vary slightly; all steps are captured.
+
 - **Mutually exclusive in practice:** Use either a single `clusterOSImage` URL at platform level **or** per–failure-domain `topology.template` path(s), not both for the same deployment intent; docs present them as alternative methods.
 - **Restricted network:** topology.template is commonly used when the image is pre-imported into vCenter; clusterOSImage is used when a mirror URL is available.
 
@@ -98,19 +100,29 @@ The **parameter reference** (installation-config-parameters-vsphere) provides pe
 | Location | Anchor / section | Use-case / content |
 |----------|------------------|---------------------|
 | Red Hat 4.20 html-single | `#specifying-regions-zones-infrastructure-vsphere_post-install-vsphere-zones-regions-configuration` | Regions/zones (failure domains) layout; post-install or install-time config showing region/zone structure. |
+| Red Hat 4.20 html-single | `#installation-vsphere-regions-zones-host-groups_installing-restricted-networks-installer-provisioned-vsphere` | Regions/zones and **host groups** in restricted-network context; install-config layout and use-case for host-group scenario. |
 | Red Hat 4.20 html-single | `#installation-installer-provisioned-vsphere-config-yaml_installing-restricted-networks-installer-provisioned-vsphere` | **Restricted-network IPI** install-config example; full or large example with mirror/restricted-network–specific fields and surrounding narrative. |
 
 **URLs (4.20):**
 
 - Base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere/index`
 - Regions/zones: append `#specifying-regions-zones-infrastructure-vsphere_post-install-vsphere-zones-regions-configuration`
-- Restricted-network IPI config: append `#installation-installer-provisioned-vsphere-config-yaml_installing-restricted-networks-installer-provisioned-vsphere`
+- Regions/zones/host-groups (restricted): append `#installation-vsphere-regions-zones-host-groups_installing-restricted-networks-installer-provisioned-vsphere`
+- Restricted-network IPI config (large example): append `#installation-installer-provisioned-vsphere-config-yaml_installing-restricted-networks-installer-provisioned-vsphere`
 
 **First-pass gap:** The initial review relied on the parameter page; the docs.redhat.com 4.20 pages were not fully scraped (timeouts). A **line-by-line scan** of the Red Hat 4.20 install book (docs.redhat.com) is required to:
 
 1. Capture the **exact layout** (key hierarchy, required vs optional blocks) of every install-config example in that scenario.
 2. Record the **surrounding use-case scenario** (e.g. "restricted network IPI", "regions and zones") for each example.
 3. Reconcile any structural or field differences between the parameter reference and these full examples.
+
+**Prompt / process safeguard (future passes):** To avoid missing distinctions or example layouts in future scenario reviews, the following must be explicitly required in the review instructions:
+
+1. **“Choose one” / mutually exclusive options:** For every doc “choose one of the following methods” (e.g. clusterOSImage vs topology.template), capture the **full narrative** for each path: (a) the exact install-config key and example value or snippet, and (b) **all numbered procedural steps** from the doc for each method (e.g. for topology.template: download OVA → Deploy OVF Template → Select OVF tab → name and folder → compute resource → storage → do not customize → set topology.template to path). Do not summarize procedural steps; list them so layout and order are traceable.
+
+2. **Install-config example locations:** For every install-config example or snippet in the scenario, record: (a) **exact docs.redhat.com URL + anchor** for **both** the multipage HTML and the **html-single** variant when the same content exists (anchor IDs differ between html and html-single). (b) Whether the example is full or partial. (c) The **exact key hierarchy** (e.g. platform.vsphere.apiVIPs, failureDomains[].topology.template). (d) The **use-case scenario** from the surrounding text. Check the **html-single** index for the version (e.g. `.../html-single/installing_on_vmware_vsphere/index#...`) and resolve every scenario-specific anchor (e.g. specifying-regions-zones, installation-vsphere-regions-zones-host-groups, installation-installer-provisioned-vsphere-config-yaml) so no example section is missed.
+
+3. **Completion check:** The scenario doc review is not complete until every “choose one” has both paths fully narrated (including procedural steps) and every install-config example in the book for that scenario has a recorded URL+anchor, layout, and use-case (and html-single anchors are explicitly checked when the book is available in that form).
 
 ### 2.3 Key conditionals and either/or
 
@@ -123,6 +135,300 @@ The **parameter reference** (installation-config-parameters-vsphere) provides pe
 | Publish | Internal not supported on non-cloud (vSphere) | 9.1.3 |
 | regionType / zoneType / hostGroup | Tech Preview; out of scope for this app | 9.1.4 |
 | dataDisks | Tech Preview | 9.1.6 |
+
+---
+
+## 2.4 Phase B Finalization — Structural Validation
+
+This section records the Phase B finalization pass: extraction of every install-config example structure from the 4.20 vSphere docs, structural diff against the params catalog and backend emission, explicit mutual-exclusivity checks, and completion status.
+
+### STEP 1 — Extract Example Structures
+
+Source: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/` (installer-provisioned-infrastructure, installation-config-parameters-vsphere). HTML chapter content was reviewed; installer-provisioned page is the same book in multi-page HTML form.
+
+| # | URL / location | Full or partial | Exact key hierarchy | Strategy | machine-pool | VIPs | publish | hostGroups | vcenters |
+|---|----------------|-----------------|---------------------|----------|--------------|------|--------|------------|----------|
+| 1 | installation-config-parameters-vsphere §9.1.2 | partial | networking.clusterNetwork[], serviceNetwork[] (dual-stack) | — | no | no | no | no | no |
+| 2 | installation-config-parameters-vsphere §9.1.4 | plaintext paths | platform.vsphere: apiVIPs, diskType, failureDomains, ingressVIPs, vcenters; failureDomains[].name, region, zone, server, topology; topology.computeCluster, datacenter, datastore, folder, hostGroup, networks, resourcePool, template; vcenters[].datacenters, password, port, server, user | failureDomains | — | yes | — | hostGroup in topology | yes |
+| 3 | installation-config-parameters-vsphere §9.1.5 | plaintext paths | platform.vsphere (flat): apiVIP, cluster, datacenter, defaultDatastore, folder, ingressVIP, network, password, resourcePool, username, vCenter | legacy (deprecated) | — | yes (single) | — | no | no |
+| 4 | installation-config-parameters-vsphere §9.1.6 | plaintext paths | platform.vsphere: clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB, dataDisks[] (name, sizeGiB, provisioningMode) | machine-pool at platform | yes | no | no | no | no |
+| 5 | installer-provisioned §2.3 / 2.4.5.1 — “Sample install-config” (standard) | full (fragmented) | platform.vsphere: apiVIPs, failureDomains (name, region, zone, server, topology: computeCluster, datacenter, datastore, networks, resourcePool, folder, tagIDs), ingressVIPs, vcenters (datacenters, password, port, server, user), diskType | failureDomains; no clusterOSImage/template | no | yes | no | no (tagIDs in topology) | yes |
+| 6 | installer-provisioned §2.4.5.4 — “Sample with multiple data centers” | partial | compute/controlPlane: platform.vsphere.zones: [zone1, zone2]; platform.vsphere: vcenters.datacenters: [dc1, dc2], failureDomains[] (name, region, zone, server, topology: datacenter, computeCluster, networks, datastore, resourcePool, folder) | failureDomains, regions/zones | no | not in snippet | no | no | yes |
+| 7 | installer-provisioned §2.4.5.5 — “Host groups” | partial | failureDomains[].regionType, zoneType; topology.hostGroup | failureDomains + hostGroup (Tech Preview) | no | no | no | yes | yes |
+| 8 | installer-provisioned §2.4.5.6 — “Multiple NICs” | partial | platform.vsphere.vcenters, failureDomains[].topology.networks: [n1, n2, ...] | failureDomains, multi-NIC | no | no | no | no | yes |
+| 9 | installer-provisioned §2.5 — “Choose one” RHCOS | partial | platform.vsphere.clusterOSImage: &lt;URL&gt; | clusterOSImage | no | no | no | no | no |
+| 10 | installer-provisioned §2.5 — topology.template method | narrative | failureDomains[].topology.template: &lt;path&gt; (no YAML block in doc) | topology.template | no | no | no | no | — |
+| 11 | installer-provisioned §2.5.7.1 — “Sample install-config for restricted network” | full (fragmented) | Same as #5 plus platform.vsphere.clusterOSImage. So: apiVIPs, failureDomains (no template in sample), ingressVIPs, vcenters, diskType, clusterOSImage | failureDomains + clusterOSImage | no | yes | no | no | yes |
+| 12 | installer-provisioned §2.4.5.3 / user-managed LB | partial | platform.vsphere.loadBalancer.type: UserManaged; apiVIPs; ingressVIPs | UserManaged LB | no | yes | no | no | — |
+
+**Summary of structures:**
+
+- **clusterOSImage:** Appears at `platform.vsphere.clusterOSImage` (examples #4, #9, #11). Never shown in the same YAML block as `topology.template`; doc narrative says “choose one.”
+- **topology.template:** Appears at `failureDomains[].topology.template` (example #2, #10). Parameter page §9.1.4 defines it; no full YAML example in doc shows both template and clusterOSImage.
+- **Region/zone:** failureDomains[].region, zone in all failure-domain examples; multi-DC example (#6) also shows compute/controlPlane.platform.vsphere.zones.
+- **Host-group:** failureDomains[].regionType, zoneType, topology.hostGroup (Tech Preview; #7).
+- **Restricted-network full:** #11 — vcenters, failureDomains, apiVIPs, ingressVIPs, diskType, clusterOSImage; no template in that sample.
+- **Legacy flat:** #3 — deprecated flat keys at platform.vsphere.
+- **Machine-pool (9.1.6):** All at platform.vsphere (clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB, dataDisks); doc does not show compute/controlPlane.platform.vsphere for these.
+
+### STEP 2 — Structural Diff vs Params Catalog
+
+**Reference:** `frontend/src/data/catalogs/vsphere-ipi.json`.
+
+| Question | Answer |
+|----------|--------|
+| Are all keys represented? | **Almost.** Catalog has platform.vsphere.{apiVIPs, diskType, failureDomains, ingressVIPs, vcenters, clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB}, failureDomains[].{name, region, server, zone, topology.*}, topology.{computeCluster, datacenter, datastore, folder, networks, resourcePool, template}, vcenters[].{server, user, password, port, datacenters}, plus deprecated flat (datacenter, defaultDatastore, vcenter, etc.). **Missing:** platform.vsphere.loadBalancer.type (UserManaged). **Missing (Tech Preview, out of scope):** failureDomains[].regionType, zoneType, topology.hostGroup; dataDisks[]. |
+| Nesting levels modeled? | **Yes.** Paths match doc: platform.vsphere.failureDomains[].topology.template, platform.vsphere.vcenters[].datacenters, etc. |
+| Conditional paths explicitly encoded? | **Partially.** apiVIPs/ingressVIPs have ipi_only: true; template has ipi_only: true. No explicit “when external LB omit VIPs” or “UserManaged LB” path. No placementMode or “legacy vs failureDomains” in catalog. |
+| clusterOSImage mutually exclusive with topology.template? | **Not encoded.** Both params exist; no conditionals.mutuallyExclusiveWith or equivalent. Doc says “choose one.” |
+| Legacy and failureDomains mutually exclusive? | **Not encoded in catalog.** Backend uses placementMode; catalog does not define or reference placement strategy. |
+| Region/zone/host-group relationships modeled? | **Region/zone yes** (failureDomains[].region, zone). **Host-group no** (Tech Preview; regionType, zoneType, hostGroup not in catalog). |
+| Machine-pool parameters placed correctly? | **Yes.** Catalog places clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB at platform.vsphere; matches 9.1.6. |
+| Publish modeled correctly? | **Yes.** publish at root; description notes Internal not supported on non-cloud. |
+
+**Exact mismatches:**
+
+1. **platform.vsphere.loadBalancer.type** — Doc shows UserManaged with apiVIPs/ingressVIPs; catalog has no loadBalancer param.
+2. **compute/controlPlane.platform.vsphere.zones** — Doc §2.4.5.4 shows zones array for machine-pool placement; catalog has no such path.
+3. **Mutual exclusivity (clusterOSImage vs template)** — Implied by doc; not encoded in param metadata.
+4. **Mutual exclusivity (legacy vs failureDomains)** — Enforced by backend via placementMode; not stated in catalog.
+5. **tagIDs** — Appears in standard sample (#5) inside topology; not in param table 9.1.4 (likely Tech Preview or omitted from reference); catalog does not have it.
+
+### STEP 3 — Structural Diff vs Backend Emission
+
+**Reference:** `backend/src/generate.js` (vSphere block ~L300–418).
+
+| Question | Answer |
+|----------|--------|
+| Could backend produce each example structure? | **Partially.** Produces: vcenters, failureDomains (with optional topology.template), diskType, apiVIPs, ingressVIPs; legacy path → vcenters + one failureDomain. **Cannot produce:** platform.vsphere.clusterOSImage; platform.vsphere.loadBalancer.type; compute/controlPlane.platform.vsphere.zones; any machine-pool params (osDisk, cpus, coresPerSocket, memoryMB). |
+| Nesting correct? | **Yes.** failureDomains[].topology.template, vcenters[].datacenters, etc. are emitted with correct nesting. |
+| Could both clusterOSImage and template appear? | **No.** Backend never emits clusterOSImage; only emits template inside failureDomains[].topology when provided. So both cannot appear; structure matches “choose one.” |
+| Could both legacy and failureDomains appear? | **No.** Backend branches on placementMode; only one path is taken. Correct. |
+| Region/zone mis-modeled? | **No.** failureDomains[].region, zone are emitted from vs.failureDomains. |
+| Machine-pool emitted in correct location? | **N/A.** Backend does not emit platform.vsphere.clusterOSImage nor osDisk/cpus/coresPerSocket/memoryMB; cannot produce 9.1.6 or restricted full sample (#11) as documented. |
+
+**Backend structural gaps:**
+
+1. **clusterOSImage** — Not read from platformConfig.vsphere.clusterOSImage; never written to installConfig.platform.vsphere.clusterOSImage.
+2. **Machine-pool (9.1.6)** — osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB not emitted at platform.vsphere.
+3. **loadBalancer.type** — Not read or emitted; UserManaged LB structure cannot be produced.
+4. **compute/controlPlane.platform.vsphere.zones** — No vSphere-specific machine-pool placement; zones array not emitted.
+
+### STEP 4 — Explicit Mutual Exclusivity Declaration
+
+| Topic | Are they mutually exclusive? | Does the doc ever show both? | Encoded in metadata? |
+|-------|------------------------------|------------------------------|------------------------|
+| **clusterOSImage vs topology.template** | **Yes.** Doc: “Choose one of the following methods” for RHCOS image. | **No.** No single example shows both. Restricted sample (#11) shows clusterOSImage + failureDomains without template. | **No.** Catalog has both params; no conditionals.mutuallyExclusiveWith or equivalent. |
+| **Legacy vs failureDomains** | **Yes.** Legacy flat params (9.1.5) vs vcenters + failureDomains (9.1.4); doc implies one placement model. | **No.** Examples are either legacy or failureDomains. | **Partially.** Backend encodes via placementMode; catalog does not declare. |
+| **VIPs vs external load balancer** | **Conditional.** Doc: apiVIPs/ingressVIPs “omit when external load balancer.” User-managed LB example shows loadBalancer.type: UserManaged *with* apiVIPs/ingressVIPs (VIPs point to LB). So: “omit” when using pre-existing external LB; when UserManaged, VIPs still set. | Doc shows UserManaged + apiVIPs + ingressVIPs. | **No.** Catalog says “omit when using an external load balancer” but does not define loadBalancer.type or the UserManaged case. |
+
+**Explicit statement:** Mutual exclusivity of clusterOSImage and topology.template is **implied by docs but not encoded** in params metadata. Legacy vs failureDomains is **encoded in backend only** (placementMode), not in catalog. VIP/external-LB relationship is **not fully encoded** (loadBalancer.type missing).
+
+### STEP 5 — Close Phase B
+
+**Structural reconciliation complete?** **No.** Gaps remain.
+
+**Structural mismatches (catalog vs docs):**
+
+1. Missing param: `platform.vsphere.loadBalancer.type` (UserManaged).
+2. Missing param: `compute[].platform.vsphere.zones` / `controlPlane.platform.vsphere.zones` (machine-pool zone placement).
+3. Doc-only in sample: `failureDomains[].topology.tagIDs` (not in 9.1.4 table; catalog does not model).
+
+**Metadata deficiencies:**
+
+1. clusterOSImage and topology.template: mutual exclusivity not encoded (no conditionals or mutuallyExclusiveWith).
+2. Legacy vs failureDomains: not declared in catalog; only backend placementMode.
+3. VIPs vs external LB: loadBalancer.type and “omit when external LB” not modeled.
+
+**Backend structural gaps:**
+
+1. clusterOSImage not emitted.
+2. Machine-pool params (osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB) not emitted.
+3. loadBalancer.type not emitted.
+4. compute/controlPlane.platform.vsphere.zones not emitted.
+
+**Statement:** **Phase B incomplete due to the following gaps:** (1) Params catalog does not model loadBalancer.type or machine-pool zones; (2) mutual exclusivity (clusterOSImage vs template, legacy vs failureDomains) is not encoded in param metadata; (3) backend cannot emit clusterOSImage, machine-pool params, loadBalancer.type, or zones — therefore cannot produce the full restricted-network install-config example (#11) or the user-managed LB or multi-zone placement examples. Phase B structural validation is **complete as a review**; reconciliation (catalog + backend changes) is left to implementation.
+
+---
+
+## 2.5 Phase B Deep Reconciliation (Plan-Level Pass)
+
+This section records the **Phase B deep reconciliation + Phase C metadata hardening** pass: full doc coverage verification, complete example inventory with exact URLs, structural diff vs params and backend, and metadata hardening. No UI or backend implementation; working doc and catalog metadata only.
+
+### Phase B.1 — Full doc coverage verification
+
+**Source:** docs.redhat.com only. Base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`.
+
+| Page / section | URL | Reviewed | Notes |
+|----------------|-----|----------|--------|
+| Parent vSphere install guide | .../html/installing_on_vmware_vsphere/ | Yes (TOC / links) | Book landing; IPI/UPI/Agent split. |
+| Preparing to install | .../preparing-to-install-on-vsphere#installer-provisioned-infrastructure-installation | Yes | Section 1.3; links to 3 IPI sub-flows. |
+| Installer-provisioned infrastructure (Chapter 2) | .../html/installing_on_vmware_vsphere/installer-provisioned-infrastructure | Yes (content fetched) | §§2.1–2.5; requirements, standard, customizations, restricted; sample install-config fragments; clusterOSImage/topology.template “choose one”; user-managed LB; multi-DC; host groups; multi-NIC. |
+| Installation config parameters (Chapter 9) | .../html/installing_on_vmware_vsphere/installation-config-parameters-vsphere | Yes (content fetched) | 9.1.1–9.1.6; required, network, optional, vSphere (§9.1.4), deprecated (§9.1.5), machine pool (§9.1.6). |
+| html-single (full book) | .../html-single/installing_on_vmware_vsphere/index | Not line-by-line | Anchors (e.g. #specifying-regions-zones-..., #installation-installer-provisioned-vsphere-config-yaml_...) listed in §2.2.2; content overlaps multipage chapter; full line-by-line scrape not re-run this pass (timeout risk). |
+
+**Contextual conditionals captured from narrative:**
+
+- apiVIPs/ingressVIPs: IPI only; omit when external load balancer; UserManaged LB example shows loadBalancer.type: UserManaged with apiVIPs/ingressVIPs still set.
+- clusterOSImage vs topology.template: choose one for RHCOS image; never both in one example.
+- Legacy flat (9.1.5) vs vcenters + failureDomains (9.1.4): one placement model per install-config; deprecated flat still supported.
+- publish: Internal not supported on non-cloud (vSphere).
+- topology.template: IPI only (9.1.4).
+- regionType/zoneType/hostGroup, dataDisks: Tech Preview; out of scope.
+
+**Gaps / incomplete:** (1) html-single was not re-fetched line-by-line this pass; example layouts at html-single anchors are as documented in §2.2.2 and §2.4. (2) Any “Show more” or collapsed blocks on live docs were not re-expanded this pass; prior pass used saved/fetched content.
+
+### Phase B.2 — Example inventory (structural, with exact URLs)
+
+Every install-config example or snippet relevant to vSphere IPI is listed below with exact URL, anchor, full/partial, use-case, key hierarchy, and which strategy it represents.
+
+| # | Exact URL | Anchor | Multipage / html-single | Full / partial | Use-case | Key hierarchy | Legacy | FD | clusterOSImage | template | restricted | regions/zones | host-groups | machine-pool | VIPs | publish | LB type | vcenters |
+|---|-----------|--------|--------------------------|----------------|----------|---------------|--------|----|----|----|----|----|----|----|----|----|----|----|
+| 1 | installation-config-parameters-vsphere | §9.1.2 | multipage | partial | dual-stack networking | networking.clusterNetwork[], serviceNetwork[] | no | no | no | no | no | no | no | no | no | no | no | no |
+| 2 | installation-config-parameters-vsphere | §9.1.4 | multipage | plaintext | vSphere params reference | platform.vsphere: apiVIPs, diskType, failureDomains, ingressVIPs, vcenters; failureDomains[].name, region, zone, server, topology.*; vcenters[].* | no | yes | — | topology | — | yes | hostGroup | — | yes | — | — | yes |
+| 3 | installation-config-parameters-vsphere | §9.1.5 | multipage | plaintext | deprecated flat | platform.vsphere (flat): apiVIP, cluster, datacenter, defaultDatastore, folder, ingressVIP, network, password, resourcePool, username, vCenter | yes | no | no | no | no | no | no | no | yes | no | no | no |
+| 4 | installation-config-parameters-vsphere | §9.1.6 | multipage | plaintext | machine-pool optional | platform.vsphere: clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB, dataDisks[] | no | no | yes | no | no | no | no | yes | no | no | no | no |
+| 5 | installer-provisioned-infrastructure | §2.4.5.1 (Sample install-config) | multipage | full (fragmented) | standard IPI | platform.vsphere: apiVIPs, failureDomains, ingressVIPs, vcenters, diskType | no | yes | no | no | no | no | no | no | yes | no | no | yes |
+| 6 | installer-provisioned-infrastructure | §2.4.5.4 (multiple data centers) | multipage | partial | multi-DC, zones | compute/controlPlane.platform.vsphere.zones; platform.vsphere.vcenters.datacenters[], failureDomains[] | no | yes | no | no | no | yes | no | no | — | no | no | yes |
+| 7 | installer-provisioned-infrastructure | §2.4.5.5 (host groups) | multipage | partial | host groups (Tech Preview) | failureDomains[].regionType, zoneType; topology.hostGroup | no | yes | no | no | no | yes | yes | no | no | no | no | yes |
+| 8 | installer-provisioned-infrastructure | §2.4.5.6 (multiple NICs) | multipage | partial | multi-NIC | failureDomains[].topology.networks[] | no | yes | no | no | no | no | no | no | no | no | no | yes |
+| 9 | installer-provisioned-infrastructure | §2.5 (RHCOS “choose one”) | multipage | partial | RHCOS image method | platform.vsphere.clusterOSImage: &lt;URL&gt; | no | no | yes | no | — | no | no | no | no | no | no | no |
+| 10 | installer-provisioned-infrastructure | §2.5 (topology.template) | multipage | narrative | RHCOS image method | failureDomains[].topology.template: &lt;path&gt; | no | yes | no | yes | — | no | no | no | no | no | no | — |
+| 11 | installer-provisioned-infrastructure | §2.5.7.1 (restricted sample) | multipage | full (fragmented) | restricted-network IPI | platform.vsphere: apiVIPs, failureDomains, ingressVIPs, vcenters, diskType, clusterOSImage | no | yes | yes | no | yes | no | no | no | yes | no | no | yes |
+| 12 | installer-provisioned-infrastructure | §2.4.5.3 (user-managed LB) | multipage | partial | external LB | platform.vsphere.loadBalancer.type: UserManaged; apiVIPs; ingressVIPs | no | — | no | no | no | no | no | no | yes | no | UserManaged | — |
+
+**Full URLs (4.20):**
+
+- Multipage base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/`
+- Parameters: `.../installation-config-parameters-vsphere`
+- IPI chapter: `.../installer-provisioned-infrastructure`
+- html-single base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere/index`
+- Regions/zones: `.../index#specifying-regions-zones-infrastructure-vsphere_post-install-vsphere-zones-regions-configuration`
+- Regions/zones/host-groups: `.../index#installation-vsphere-regions-zones-host-groups_installing-restricted-networks-installer-provisioned-vsphere`
+- Restricted large example: `.../index#installation-installer-provisioned-vsphere-config-yaml_installing-restricted-networks-installer-provisioned-vsphere`
+
+### Phase B.3 — Structural diff vs params catalog (summary)
+
+- **Keys represented:** All §9.1.4/9.1.6 keys except loadBalancer.type and compute/controlPlane.platform.vsphere.zones; Tech Preview (hostGroup, dataDisks) out of scope.
+- **Nesting:** Correct (failureDomains[].topology.template, vcenters[].datacenters, etc.).
+- **Requiredness:** Modeled per param (required true/false).
+- **Deprecation:** Described in text for datacenter, defaultDatastore, vcenter; **structural** `deprecated` and `replacement` added in Phase C below.
+- **Mutual exclusivity:** clusterOSImage vs template and legacy vs failureDomains were not structurally encoded; **Phase C** adds conditionals.
+- **Scenario applicability:** ipi_only on apiVIPs, ingressVIPs, template; applies_to on all.
+- **Topology:** region/zone in failureDomains; host-group Tech Preview not in catalog.
+- **Replacement paths:** In description only; Phase C adds `replacement` where applicable.
+- **Publish/LB/VIP:** publish at root; apiVIPs/ingressVIPs “omit when external LB” in description; loadBalancer.type not in catalog; Phase C adds conditionals.omitWhen for VIPs.
+- **Machine-pool:** At platform.vsphere; placement (zones) not in catalog.
+
+**Missing or shallow (catalog):** loadBalancer.type; zones; tagIDs; structural mutuallyExclusiveWith and omitWhen (addressed in Phase C as far as schema allows).
+
+### Phase C — Metadata hardening (plan-level, structural)
+
+**Applied to** `frontend/src/data/catalogs/vsphere-ipi.json`. Schema allows extra keys; validator does not reject `deprecated`, `replacement`, `conditionals`.
+
+| Param(s) | Change |
+|----------|--------|
+| platform.vsphere.datacenter | `deprecated: true`, `replacement: "failureDomains[].topology.datacenter and vcenters[].datacenters"`, `conditionals.placementPath: "legacy"`, `conditionals.mutuallyExclusiveWith: ["platform.vsphere.vcenters", "platform.vsphere.failureDomains"]` |
+| platform.vsphere.defaultDatastore | `deprecated: true`, `replacement: "failureDomains[].topology.datastore"`, `conditionals.placementPath: "legacy"`, `conditionals.mutuallyExclusiveWith: ["platform.vsphere.failureDomains"]` |
+| platform.vsphere.vcenter | `deprecated: true`, `replacement: "vcenters[].server"`, `conditionals.placementPath: "legacy"`, `conditionals.mutuallyExclusiveWith: ["platform.vsphere.vcenters"]` |
+| platform.vsphere.clusterOSImage | `conditionals.mutuallyExclusiveWith: ["platform.vsphere.failureDomains[].topology.template"]`, `conditionals.narrative` (choose one with template). Description tightened. |
+| platform.vsphere.failureDomains[].topology.template | `conditionals.mutuallyExclusiveWith: ["platform.vsphere.clusterOSImage"]`, `conditionals.narrative`. Description tightened. |
+| platform.vsphere.apiVIPs | `conditionals.omitWhen: "external load balancer (platform.vsphere.loadBalancer.type: UserManaged or pre-existing LB)"`, `conditionals.visibility: "IPI only; not for UPI"` |
+| platform.vsphere.ingressVIPs | Same conditionals as apiVIPs. |
+
+**Explicitly addressed:**
+
+1. **clusterOSImage vs topology.template** — Structurally encoded via `conditionals.mutuallyExclusiveWith` and narrative on both params.
+2. **Legacy flat vs failureDomains** — Structurally encoded via `deprecated`, `replacement`, and `conditionals.placementPath: "legacy"` and `mutuallyExclusiveWith` on datacenter, defaultDatastore, vcenter.
+3. **VIPs vs external LB** — Structurally encoded via `conditionals.omitWhen` on apiVIPs and ingressVIPs; loadBalancer.type not in catalog (doc-supported structure; catalog does not yet have that key — schema limitation).
+4. **Publish restrictions for vSphere** — Already in description for root-level publish (Internal not supported on non-cloud); no new key.
+5. **Machine-pool optionality and placement** — Machine-pool params at platform.vsphere are optional (required: false); compute/controlPlane.platform.vsphere.zones not in catalog (schema/scope limitation).
+6. **Regions/zones/host-groups** — failureDomains[].region, zone modeled; host-group (regionType, zoneType, hostGroup) Tech Preview, out of scope.
+7. **Deprecated flat-field replacement** — replacement paths and mutuallyExclusiveWith added on deprecated params.
+
+**Schema limitations (documented):** (1) Catalog does not define `platform.vsphere.loadBalancer.type` (UserManaged); adding it would require a new param entry. (2) Catalog does not define `compute[].platform.vsphere.zones` or `controlPlane.platform.vsphere.zones`; adding would require new param entries. (3) No single “placementMode” param; legacy vs failureDomains is inferred from which set of params is used (legacy flat vs vcenters/failureDomains).
+
+### Phase D — Structural diff vs backend (summary)
+
+**Reference:** `backend/src/generate.js` (vSphere block ~L300–418).
+
+| Structural path | Backend can generate? | Nesting correct? | Both paths at once? | Omit required? | Doc-valid example? |
+|-----------------|------------------------|------------------|----------------------|---------------|---------------------|
+| clusterOSImage | No | N/A | No (never emits both) | — | No (cannot produce #11 with clusterOSImage) |
+| topology.template | Yes | Yes | No | No | Yes |
+| Legacy path | Yes (→ vcenters + one FD) | Yes | No (placementMode branch) | No | Yes |
+| failureDomains path | Yes | Yes | No | No | Yes |
+| Machine-pool (osDisk, cpus, etc.) | No | N/A | — | — | No |
+| VIPs | Yes (when IPI and non-empty) | Yes | — | No | Yes |
+| Omit VIPs when external LB | No (no loadBalancer.type; always emits if set) | — | — | — | Partial (no UserManaged path) |
+| publish | Handled at root; not vSphere-specific | — | — | — | Yes |
+| region/zone | Yes (from failureDomains) | Yes | No | No | Yes |
+| loadBalancer.type | No | N/A | — | — | No |
+
+**Backend structural gaps (unchanged):** clusterOSImage not emitted; machine-pool (osDisk, cpus, coresPerSocket, memoryMB) not emitted; loadBalancer.type not read or emitted; compute/controlPlane.platform.vsphere.zones not emitted.
+
+### Phase E — Phase B closure decision (superseded by §2.6)
+
+*This section recorded the status as of the plan-level pass. The final closure decision is in **§2.6 Phase 4**: **Phase B structural reconciliation complete.***
+
+### Phase B deep + Phase C pass — Deliverables
+
+- **Test/build/validation:** `node scripts/validate-catalog.js frontend/src/data/catalogs/vsphere-ipi.json` — passed. No backend or frontend code changed; no build run required.
+- **Manual validation checklist (this pass):** (1) Working doc §2.5 has exact pages/anchors and example inventory with URLs. (2) Catalog has deprecated, replacement, conditionals on designated params. (3) Phase E closure decision recorded. (4) Backlog #49 updated with Phase B deep + Phase C status.
+- **Git commands (do not run):** LOCAL_BACKLOG.md is gitignored; commit only the working doc and catalog.
+  ```bash
+  git status
+  git diff docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
+  git diff frontend/src/data/catalogs/vsphere-ipi.json
+  git add docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md frontend/src/data/catalogs/vsphere-ipi.json
+  git commit -m "vSphere 4.20 IPI: Phase B deep reconciliation + Phase C metadata hardening (plan-level)"
+  git push
+  ```
+
+---
+
+## 2.6 Phase B Closure + Phase C Metadata Completion (Final Pass)
+
+This section records the **Phase B closure + Phase C metadata completion** pass: full html-single verification, complete metadata modeling (loadBalancer.type, zones, publish, machine-pool), hard structural assertions, and binary closure decision.
+
+### Phase 1 — Full html-single verification
+
+**Source:** `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere/` (full book fetched; 15,403 lines in converted output).
+
+**Review performed:** Line-by-line search for install-config, platform.vsphere, clusterOSImage, topology.template, loadBalancer, failureDomains, apiVIPs, ingressVIPs, zones, compute, controlPlane. All YAML code blocks and narrative sections covering install-config were inspected.
+
+**Examples found in html-single (all already recorded in §2.5):**
+
+| Section (html-single) | Key hierarchy | Strategy | vcenters | failureDomains | clusterOSImage | template | publish | loadBalancer.type | zones | hostGroups | machine-pool |
+|----------------------|---------------|----------|----------|----------------|----------------|----------|---------|-------------------|-------|------------|---------------|
+| 2.4.5.1 Sample install-config | platform.vsphere: apiVIPs, failureDomains, ingressVIPs, vcenters, diskType | failureDomains | yes | yes | no | no | no | no | no | no | no |
+| 2.4.5.4 Multiple data centers | compute/controlPlane.platform.vsphere.zones; platform.vsphere.vcenters.datacenters[], failureDomains[] | failureDomains, zones | yes | yes | no | no | no | no | yes | no | no |
+| 2.4.5.5 Host groups | failureDomains[].regionType, zoneType; topology.hostGroup | host-groups (Tech Preview) | yes | yes | no | no | no | no | no | yes | no |
+| 2.4.5.6 Multiple NICs | failureDomains[].topology.networks[] | failureDomains | yes | yes | no | no | no | no | no | no | no |
+| 2.4.5.3 User-managed LB | platform.vsphere.loadBalancer.type: UserManaged; apiVIPs; ingressVIPs | UserManaged LB | — | — | no | no | no | yes | no | no | no |
+| 2.5 “Choose one” RHCOS | platform.vsphere.clusterOSImage: &lt;URL&gt; | clusterOSImage | no | no | yes | no | no | no | no | no | no |
+| 2.5 topology.template | failureDomains[].topology.template (narrative) | topology.template | — | yes | no | yes | no | no | no | no | no |
+| 2.5.7.1 Restricted sample | platform.vsphere: apiVIPs, failureDomains, ingressVIPs, vcenters, diskType, clusterOSImage; publish: Internal (separate snippet) | failureDomains + clusterOSImage, restricted | yes | yes | yes | no | Internal (snippet) | no | no | no | no |
+
+**Structural difference multipage vs html-single:** None. Content is the same; html-single is the single-page rendering of the same book. No additional install-config examples or key hierarchies appear in html-single that are not already in §2.5.
+
+**Explicit statement:** **html-single review confirmed no additional structural examples beyond those recorded in §2.5.**
+
+### Phase 3 — Hard structural assertions
+
+| Question | Answer | Citation |
+|----------|--------|----------|
+| Does any example in docs show both clusterOSImage and topology.template together? | **No.** | Restricted sample (2.5.7.1) shows clusterOSImage with failureDomains; no topology.template in that sample. “Choose one” narrative (2.5) presents two separate methods; no single YAML block contains both. html-single lines 4104–4118, 4195–4296. |
+| Does any example show both legacy and failureDomains? | **No.** | Legacy flat (9.1.5) and vcenters+failureDomains (9.1.4) are documented as separate placement models; no example combines flat platform.vsphere keys (vcenter, datacenter, cluster, …) with failureDomains array in the same config. |
+| Does any example show VIPs when loadBalancer.type = UserManaged? | **Yes.** | User-managed LB section (2.4.5.3) shows loadBalancer.type: UserManaged in the same install-config snippet as apiVIPs and ingressVIPs. Doc: “Specify the following configuration… loadBalancer: type: UserManaged; apiVIPs: - &lt;api_ip&gt;; ingressVIPs: - &lt;ingress_ip&gt;.” html-single lines 3324–3341. |
+| Does any example show zones without failureDomains? | **No.** | Multi-DC/zones example (2.4.5.4) shows compute/controlPlane.platform.vsphere.zones together with platform.vsphere.failureDomains; zones are zone names that match failureDomains[].name. No example shows zones in isolation. html-single lines 2194–2245. |
+| Does any example place machine-pool fields somewhere other than platform.vsphere? | **No.** | Doc 9.1.6 and all examples place clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB at platform.vsphere. compute[].platform.vsphere.zones is placement, not machine-pool sizing; sizing stays at platform.vsphere. |
+
+### Phase 4 — Closure decision
+
+**Phase B structural reconciliation complete.**
+
+All doc-supported structural fields relevant to vSphere IPI are represented in the catalog (loadBalancer.type and compute/controlPlane.platform.vsphere.zones added this pass). Mutually exclusive strategies (clusterOSImage vs topology.template, legacy vs failureDomains) and VIP/LB/publish/machine-pool conditionals are structurally encoded. html-single verification confirmed no additional structural examples beyond §2.5. No unresolved structural gaps remain for Phase B (catalog and working doc); backend emission of new fields is out of scope for this pass.
 
 ---
 
