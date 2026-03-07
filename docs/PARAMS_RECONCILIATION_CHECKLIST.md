@@ -51,4 +51,4 @@ Use this checklist when reconciling a scenario’s params catalog against offici
 
 ---
 
-**No automation script edits the catalog;** this checklist is manual. Use `scripts/scenario-doc-mapping.js` to list doc URLs for a scenario before step 1.
+**No automation script edits the catalog;** this checklist is manual. Use `scripts/scenario-doc-mapping.js` to list doc URLs for a scenario before step 1. Optionally maintain a hand-written `doc-params.json` (array of `{ "path": "...", "required": true|false }` or path strings) and run `node scripts/validate-catalog-vs-doc-params.js <catalog.json> doc-params.json` to report missing paths and required mismatches.

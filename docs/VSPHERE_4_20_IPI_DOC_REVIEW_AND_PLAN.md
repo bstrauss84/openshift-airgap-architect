@@ -719,10 +719,13 @@ The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete.
 - **Params reconciliation support** — Validate catalog against a “required param list” per scenario (e.g. from doc table scrape or hand-maintained list); report missing path, wrong required, or wrong type. No auto-edit.
 - **Version-specific scenario truth** — Single source: data/docs-index/<version>.json and data/params/<version>/<scenario>.json. When adding 4.21, copy 4.20 scenario entries and update URLs/version; run refresh-doc-index and validate-catalog.
 
-### 7.2 First-pass automation created
+### 7.2 First-pass automation created (Phase G complete)
 
-- **scripts/scenario-doc-mapping.js**: Reads data/docs-index/4.20.json, accepts scenarioId as arg, prints doc IDs and URLs for that scenario. Can be extended to fetch and check HTTP status.
-- **docs/PARAMS_RECONCILIATION_CHECKLIST.md**: Checklist for each scenario: (1) list params from doc tables, (2) list params in catalog, (3) diff; (4) list conditionals/deprecated from docs; (5) verify metadata. No script yet; manual process.
+- **scripts/docs-index-discovery.js**: For a given version (default 4.20) and optional platform (vsphere, bare-metal-agent, aws-govcloud, or all), outputs suggested doc tree (IDs, path segments, full URLs) from known install-book path segments. Manual review before merging into docs-index. Usage: `node scripts/docs-index-discovery.js [version] [platform]`.
+- **scripts/scenario-doc-mapping.js**: Reads data/docs-index/<version>.json, accepts scenarioId as arg, prints doc IDs and URLs for that scenario. **Extended with `--check-urls`**: fetches each doc URL (HEAD) and reports ok/fail. Usage: `node scripts/scenario-doc-mapping.js [scenarioId] [path/to/docs-index/4.20.json] [--check-urls]`.
+- **scripts/validate-catalog-vs-doc-params.js**: Compares a scenario catalog to an optional hand-maintained "doc params" JSON (array of path strings or `{ path, required }`). Reports: in doc list not in catalog, required mismatch, in catalog not in doc list. No auto-edit. Usage: `node scripts/validate-catalog-vs-doc-params.js <catalog.json> [doc-params.json]`.
+- **docs/PARAMS_RECONCILIATION_CHECKLIST.md**: Checklist for each scenario: (1) list params from doc tables, (2) list params in catalog, (3) diff; (4) list conditionals/deprecated from docs; (5) verify metadata. Use with validate-catalog-vs-doc-params.js when a doc-params list is maintained.
+- **docs/PHASE_G_ADDING_A_VERSION.md**: Steps for adding a new version (e.g. 4.21): copy docs-index, update version/baseUrl/URLs, sync frontend copy, params/catalogs, validate, optional discovery and scenario-doc-mapping --check-urls. References DOC_INDEX_RULES, CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES, PARAMS_RECONCILIATION_CHECKLIST.
 
 ---
 
