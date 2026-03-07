@@ -496,6 +496,36 @@ const validateNetworkingFormat = (state) => {
   return { errors, warnings: [] };
 };
 
+/** VIPs must be within machine network(s). Doc: "The VIPs, apiVIP and ingressVIP, must come from the same networking.machineNetwork segment." Applies to vSphere IPI (and optionally other scenarios that use API/Ingress VIPs). */
+const validateVipsInMachineNetwork = (state) => {
+  const errors = [];
+  const fieldErrors = {};
+  const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+  const networking = state.globalStrategy?.networking || {};
+  const machineV4 = (networking.machineNetworkV4 || "").trim();
+  if (!machineV4 || !isValidIpv4Cidr(machineV4)) return { errors: [], fieldErrors: {} };
+
+  const checkVips = (vips, label, fieldKey) => {
+    if (!Array.isArray(vips)) return;
+    vips.forEach((ip) => {
+      const trimmed = (ip != null ? String(ip) : "").trim();
+      if (!trimmed) return;
+      if (!isValidIpv4(trimmed)) return;
+      if (!ipInCidr(trimmed, machineV4)) {
+        errors.push(`${label} must be within the machine network (e.g. ${machineV4}).`);
+        fieldErrors[fieldKey] = fieldErrors[fieldKey] || `${label} must be within the machine network.`;
+      }
+    });
+  };
+
+  if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi") {
+    const vs = state.platformConfig?.vsphere || {};
+    checkVips(vs.apiVIPs, "API VIPs", "apiVip");
+    checkVips(vs.ingressVIPs, "Ingress VIPs", "ingressVip");
+  }
+  return { errors, fieldErrors };
+};
+
 /** Networking overlaps: machine, cluster, and service CIDRs must not overlap (IPv4 and, when set, IPv6). */
 const validateNetworkingOverlaps = (state) => {
   const errors = [];
@@ -579,6 +609,7 @@ const validateStep = (state, stepId) => {
     const platform = validatePlatformConfig(state);
     const format = validateNetworkingFormat(state);
     const networking = validateNetworkingOverlaps(state);
+    const vipsInMachine = validateVipsInMachineNetwork(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     return {
@@ -590,6 +621,7 @@ const validateStep = (state, stepId) => {
         ...platform.errors,
         ...format.errors,
         ...networking.errors,
+        ...vipsInMachine.errors,
         ...credentials.errors,
         ...mirrorSecret.errors
       ],
@@ -640,6 +672,7 @@ const validateStep = (state, stepId) => {
     const platform = validatePlatformConfig(state);
     const format = validateNetworkingFormat(state);
     const networking = validateNetworkingOverlaps(state);
+    const vipsInMachine = validateVipsInMachineNetwork(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     return {
@@ -651,6 +684,7 @@ const validateStep = (state, stepId) => {
         ...platform.errors,
         ...format.errors,
         ...networking.errors,
+        ...vipsInMachine.errors,
         ...credentials.errors,
         ...mirrorSecret.errors
       ],
@@ -691,6 +725,7 @@ const validateStep = (state, stepId) => {
   if (stepId === "networking-v2") {
     const format = validateNetworkingFormat(state);
     const networking = validateNetworkingOverlaps(state);
+    const vipsInMachine = validateVipsInMachineNetwork(state);
     const fieldErrors = {};
     format.errors.forEach((msg) => {
       if (msg.includes("Machine network")) fieldErrors.machineNetworkV4 = msg;
@@ -704,8 +739,9 @@ const validateStep = (state, stepId) => {
       else if (msg.includes("cluster network IPv6")) fieldErrors.clusterNetworkCidrV6 = msg;
       else if (msg.includes("service network IPv6")) fieldErrors.serviceNetworkCidrV6 = msg;
     });
+    Object.assign(fieldErrors, vipsInMachine.fieldErrors);
     return {
-      errors: [...format.errors, ...networking.errors],
+      errors: [...format.errors, ...networking.errors, ...vipsInMachine.errors],
       warnings: networking.warnings || [],
       fieldErrors
     };

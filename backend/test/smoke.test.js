@@ -613,29 +613,6 @@ test("buildInstallConfig for vsphere-ipi suppresses template in FD when clusterO
   assert.strictEqual(out.platform?.vsphere?.failureDomains?.[0]?.topology?.template, undefined, "template must be suppressed when clusterOSImage is set");
 });
 
-test("buildInstallConfig for vsphere-ipi emits loadBalancer.type when UserManaged", () => {
-  const state = {
-    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
-    methodology: { method: "IPI" },
-    globalStrategy: { networking: {} },
-    credentials: {},
-    platformConfig: {
-      vsphere: {
-        placementMode: "legacy",
-        vcenter: "vc.example.com",
-        datacenter: "DC1",
-        datastore: "ds1",
-        cluster: "C1",
-        network: "VM Network",
-        loadBalancerType: "UserManaged"
-      }
-    }
-  };
-  const raw = buildInstallConfig(state);
-  const out = yaml.load(raw);
-  assert.deepStrictEqual(out.platform?.vsphere?.loadBalancer, { type: "UserManaged" });
-});
-
 test("buildInstallConfig for vsphere-ipi emits machine-pool fields when provided", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },

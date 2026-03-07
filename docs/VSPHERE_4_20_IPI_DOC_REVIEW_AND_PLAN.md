@@ -834,6 +834,55 @@ Per **`docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`**, the following 
 
 ---
 
+## Doc clarifications (post-audit)
+
+### vcenter port (9.1.4)
+
+The parameter table for `platform.vsphere.vcenters[].port` in doc 9.1.4 states: "The port number used to communicate with the vCenter server" and "Value: Integer." The doc does **not** say that port is non-configurable or that it must be 443. So port is doc-supported as a **user-configurable integer** (default 443). The earlier audit statement that port was "not user-configurable" referred to **our app’s UI** (we do not currently expose a port field for vcenter entries), not to the documentation. Backend correctly emits `port` (443 or `vc.port` when provided). To align fully with the doc, the app could add an optional Port input per vCenter (default 443).
+
+### apiVIPs / ingressVIPs — parameter table Note (no dropdown)
+
+The 9.1.4 parameter table includes a **Note** for both `apiVIPs` and `ingressVIPs`:
+
+> "This parameter applies only to installer-provisioned infrastructure without an external load balancer configured. You must not specify this parameter in user-provisioned infrastructure."
+
+So when the user has an **external/self-managed load balancer**, they leave apiVIPs/ingressVIPs **blank**; the doc says these parameters are only included when the user does *not* have an external LB. We do **not** implement a load balancer type dropdown (UserManaged vs OpenShiftManagedDefault). The existing UI note is sufficient: **"Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer."** and the card note **"If using an external load balancer, leave API VIP and Ingress VIP blank."** That matches the doc: user leaves the fields blank when using external LB; when they provide VIPs, we emit them. No loadBalancer.type in UI or in emitted install-config from this app. Catalog: apiVIPs/ingressVIPs describe "leave blank when using an external load balancer"; no platform.vsphere.loadBalancer.type param entry.
+
+### Machine pool: compute vs controlPlane (9.1.3 / 9.1.6)
+
+**Are machine pool objects compute vs controlPlane specific?** Yes in the install-config schema: `compute` is an array of MachinePool objects (workers) and `controlPlane` is a MachinePool object (masters). Each has `architecture`, `name`, `platform`, `replicas`, and platform-specific sub-keys (e.g. `platform.vsphere`).
+
+**For vSphere 9.1.6 (optional machine pool):** The parameter table describes clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB at **platform.vsphere** only. The doc does **not** show these under `compute[].platform.vsphere` or `controlPlane.platform.vsphere`. So the documented shape is a **single set** at platform level that applies to the platform (installer may apply to all VMs or to a default pool depending on implementation).
+
+**Different values for control plane vs compute (e.g. CPUs)?** The 4.20 vSphere param table (9.1.6) we reviewed does not document per-pool overrides for these fields. If the installer accepts `compute[0].platform.vsphere.cpus` and `controlPlane.platform.vsphere.cpus` separately, that would be an undocumented or platform-default behavior. We are **not** currently set up to support different machine-pool sizing for control plane vs compute: we have one set of fields (osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB) and emit them only at **platform.vsphere**. So we match the documented 9.1.6 shape. To support per-pool values we would need separate state and backend emission for `compute[0].platform.vsphere.*` and `controlPlane.platform.vsphere.*` for those keys (and doc confirmation that the installer accepts them there).
+
+**What we do emit per-pool today:** Only **zones** are emitted per-pool: `compute[0].platform.vsphere.zones` and `controlPlane.platform.vsphere.zones` when ≥2 failure domains. Replicas, architecture, and name are set on compute/controlPlane from blueprint/global strategy (worker/master, replicas, arch).
+
+---
+
+### Optional parameters (Table 9.3) — UI coverage
+
+For the optional installation configuration parameters (Table 9.3 / 9.1.3), the following is where we account for them in the web UI when/where valid for the scenario:
+
+| Parameter | In catalog (vsphere-ipi) | In UI / Step | Notes |
+|-----------|--------------------------|--------------|--------|
+| additionalTrustBundle | Yes | Trust & Proxy | PEM bundle + additionalTrustBundlePolicy |
+| capabilities (baselineCapabilitySet, additionalEnabledCapabilities) | Yes | Platform Specifics > Advanced | Catalog-driven; shown when scenario has param |
+| cpuPartitioningMode | Yes | Platform Specifics > Advanced | None / AllNodes |
+| compute (architecture, name, platform, replicas) | Yes | Architecture: Blueprint. Replicas: Platform Specifics (control plane replicas, compute replicas). name: default worker/master in backend. platform: set from blueprint + platform-specific (e.g. vsphere zones) |
+| controlPlane (architecture, name, platform, replicas) | Yes | Same as compute for arch/replicas/name/platform |
+| featureSet | Yes | Not currently exposed in UI for vSphere IPI | Catalog has it; no step control for this scenario |
+| arbiter (name, replicas) | Yes | Not currently exposed in UI for vSphere IPI | Catalog has it; typically used for specific topologies (e.g. some UPI); no step control for vSphere IPI |
+| credentialsMode | Yes | Platform Specifics (and Global Strategy for some flows) | Mint / Passthrough / Manual |
+| fips | Yes | Global Strategy / Identity & Access | Checkbox |
+| imageContentSources | Yes | Connectivity & Mirroring | source + mirrors |
+| publish | Yes | Global Strategy | External / Internal (vSphere: External only) |
+| sshKey | Yes | Identity & Access | SSH public key |
+
+So we cover most of Table 9.3 in the UI where they apply; **featureSet** and **arbiter** are in the catalog but not currently surfaced as controls for vSphere IPI (they could be added if needed). Machine-pool **replicas** and **architecture** are covered; **name** is defaulted in the backend.
+
+---
+
 ## Appendix: Prompt addition for scenario first-pass
 
 Use **`docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`** in full. Copy or reference it in Phase B / full-doc-review (and docs-index) instructions so future scenario passes use the canonical doc source, full-scenario review requirements, either/or rules, config example coverage, docs-index and params cleanup requirements, and the completion rule (including the canonical docs normalization summary).

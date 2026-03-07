@@ -1359,33 +1359,17 @@
       "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
     },
     {
-      "path": "platform.vsphere.loadBalancer.type",
-      "outputFile": "install-config.yaml",
-      "type": "string",
-      "allowed": ["OpenShiftManagedDefault", "UserManaged"],
-      "default": "OpenShiftManagedDefault",
-      "required": false,
-      "description": "Load balancer type. OpenShiftManagedDefault (default) = installer-managed; use apiVIPs/ingressVIPs. UserManaged = user-managed LB; still set apiVIPs/ingressVIPs to LB endpoints. IPI only.",
-      "applies_to": ["vsphere-ipi"],
-      "ipi_only": true,
-      "conditionals": {
-        "visibility": "IPI only; when UserManaged, apiVIPs/ingressVIPs still required (point to LB)",
-        "narrative": "Doc shows UserManaged with apiVIPs and ingressVIPs in same install-config."
-      },
-      "citations": [{"docId": "installing-vsphere-ipi", "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure", "sectionHeading": "2.4.5.3 Deploying with user-managed load balancer", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure"}]
-    },
-    {
       "path": "platform.vsphere.apiVIPs",
       "outputFile": "install-config.yaml",
       "type": "array",
       "allowed": "array of IP addresses",
       "default": "not specified in docs",
       "required": false,
-      "description": "Virtual IP addresses for control plane API access. IPI only; omit when using an external load balancer. Must not be specified for UPI.",
+      "description": "Virtual IP addresses for control plane API access. IPI only; leave blank when using an external load balancer (doc: apply only to IPI without external LB). Must not be specified for UPI.",
       "applies_to": ["vsphere-ipi"],
       "ipi_only": true,
       "conditionals": {
-        "omitWhen": "external load balancer (platform.vsphere.loadBalancer.type: UserManaged or pre-existing LB)",
+        "omitWhen": "using an external load balancer — leave blank; doc: parameter applies only to IPI without external LB",
         "visibility": "IPI only; not for UPI"
       },
       "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
@@ -1397,11 +1381,11 @@
       "allowed": "array of IP addresses",
       "default": "not specified in docs",
       "required": false,
-      "description": "Virtual IP addresses for cluster Ingress. IPI only; omit when using an external load balancer. Must not be specified for UPI.",
+      "description": "Virtual IP addresses for cluster Ingress. IPI only; leave blank when using an external load balancer (doc: apply only to IPI without external LB). Must not be specified for UPI.",
       "applies_to": ["vsphere-ipi"],
       "ipi_only": true,
       "conditionals": {
-        "omitWhen": "external load balancer (platform.vsphere.loadBalancer.type: UserManaged or pre-existing LB)",
+        "omitWhen": "using an external load balancer — leave blank; doc: parameter applies only to IPI without external LB",
         "visibility": "IPI only; not for UPI"
       },
       "citations": [{"docId": "installation-config-parameters-vsphere", "docTitle": "Installation configuration parameters for vSphere", "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"}]
