@@ -5,6 +5,23 @@
 
 ---
 
+## Current code truth (vSphere 4.20 IPI — sync reference)
+
+The following reflects the **actual implemented state** of the app (source of truth for tracking/docs sync). Historical plan text that described a since-removed loadBalancer.type path is preserved below but labeled as historical.
+
+| Fact | Status |
+|------|--------|
+| **loadBalancer.type** | **Not in app.** No UI dropdown; no catalog param; no backend emission. Doc note satisfied by Networking UI: "Leave blank if using an external load balancer." |
+| **API/Ingress VIPs** | On **Networking** tab (NetworkingV2Step); note to leave blank when using external LB. Emitted when vSphere IPI and non-empty. |
+| **Topology: Networks comma handling** | **Fixed.** Input no longer strips trailing commas (onChange uses split+trim only; backend filters empty strings on emit). |
+| **Legacy global folder/resourcePool** | **Gated.** Shown only when `placementMode === "legacy"` (showVsphereLegacyFolderResourcePool). |
+| **clusterOSImage vs topology.template** | **Mutual-exclusivity UX.** Both visible; one disabled when the other has a value; hints explain "choose one strategy only." Backend emits only one. |
+| **VIP-in-machine-network validation** | **Implemented.** `validateVipsInMachineNetwork` in validation.js; called on networking-v2, review, review-generate; fieldErrors for apiVip/ingressVip. |
+| **Machine-pool (advanced) and zone placement** | **Implemented.** Machine pool: clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB. Zone placement (compute/controlPlane zones) when ≥2 failure domains. Backend emits when set. |
+| **featureSet / arbiter.*** | **Intentionally deferred.** In catalog; no UI or backend emission for vSphere IPI. (Table: featureSet, arbiter.name, arbiter.replicas.) |
+
+---
+
 ## 1. Phase A — Docs-Index Mapping
 
 ### 1.1 Official doc hierarchy (4.20 vSphere IPI)
@@ -505,7 +522,7 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 | **Missing fields** | Machine-pool (clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB) in params; not in wizard or backend. Plan: add to params; UI/backend in implementation pass. |
 | **Stale fields** | None; deprecated flat params still doc-valid; catalog labels them deprecated. |
 | **Deprecated without replacement** | apiVIP/ingressVIP deprecated in favor of apiVIPs/ingressVIPs; app uses apiVIPs/ingressVIPs only. OK. |
-| **Conditionals not implemented** | loadBalancer.type (OpenShiftManagedDefault | UserManaged) not in UI/backend. Doc 2.4.5.3: when UserManaged, apiVIPs/ingressVIPs **remain** (LB endpoints). Plan: add loadBalancer.type dropdown; do not hide VIPs when UserManaged. |
+| **Conditionals not implemented** | **Historical (reverted):** loadBalancer.type was planned then **removed**. App has no loadBalancer dropdown; UI note "Leave blank if using an external load balancer" covers external-LB case. VIPs remain on Networking; no emission of loadBalancer.type. |
 | **Mutually exclusive** | Legacy vs failure-domains — app uses placementMode; only one path emitted. OK. |
 | **Doc-valid asset fields impossible today** | clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB (machine pool) — not emitted. Plan: optional advanced section. |
 | **App not doc-aligned** | Publish Internal: doc says not supported on non-cloud; app may still allow selection — verify Global Strategy step and validation. |
@@ -514,18 +531,18 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ## 6. Phase F — Implementation Plan (Plan Only)
 
-**Locked truth (Phase B complete):** Doc 2.4.5.3 shows **loadBalancer.type: UserManaged** in the same install-config as **apiVIPs** and **ingressVIPs** — i.e. when UserManaged, VIPs are still set (they are the LB endpoints). Do not hide or omit VIPs when loadBalancer.type = UserManaged. clusterOSImage vs topology.template are mutually exclusive (choose one). Legacy vs failureDomains are mutually exclusive (placementMode). Machine-pool fields live at platform.vsphere; zones at compute/controlPlane.platform.vsphere when multiple failure domains. Publish: Internal not supported on vSphere (External only).
+**Locked truth (Phase B complete):** clusterOSImage vs topology.template are mutually exclusive (choose one). Legacy vs failureDomains are mutually exclusive (placementMode). Machine-pool fields live at platform.vsphere; zones at compute/controlPlane.platform.vsphere when multiple failure domains. Publish: Internal not supported on vSphere (External only). **Current implementation:** loadBalancer.type is **not** in the app (no dropdown, no emission); doc note for external LB is satisfied by the Networking UI note to leave VIPs blank when using an external load balancer.
 
 ### 6.1 Current state summary
 
 - Docs-index: vsphere-ipi has parent, params page, Agent generic, disconnected; sub-scenario links (preparing, restricted-network) not explicitly listed.
-- Params: Frontend catalog has full vSphere + generic install-config; diskType, apiVIPs, ingressVIPs, template (IPI); deprecated flat params; machine-pool params; **loadBalancer.type**, **compute/controlPlane.platform.vsphere.zones**; conditionals for clusterOSImage/template, legacy, VIPs, publish.
-- Wizard: Placement (legacy vs failure domains), legacy fields, failure domain rows with topology and template (IPI), diskType, API/Ingress VIPs on Networking; **no loadBalancer.type control**; no machine-pool UI; no zones UI; publish may still offer Internal for vSphere.
-- Backend: Emits vcenters, failureDomains, diskType, apiVIPs/ingressVIPs (IPI), template (IPI); port 443; credentials when includeCredentials. **Does not emit:** loadBalancer.type, clusterOSImage, machine-pool (osDisk, cpus, coresPerSocket, memoryMB), zones.
+- Params: Frontend catalog has full vSphere + generic install-config; diskType, apiVIPs, ingressVIPs, template (IPI); deprecated flat params; machine-pool params; **compute/controlPlane.platform.vsphere.zones**; conditionals for clusterOSImage/template, legacy, VIPs, publish. **No loadBalancer.type** in catalog (removed).
+- Wizard: Placement (legacy vs failure domains), legacy fields (folder/resourcePool only when legacy), failure domain rows with topology and template (IPI), diskType, **API/Ingress VIPs on Networking** (note: leave blank if external LB); **Machine pool (advanced)** and **Zone placement** (when ≥2 FDs); publish vSphere: External only.
+- Backend: Emits vcenters, failureDomains, diskType, apiVIPs/ingressVIPs (IPI), template (IPI), clusterOSImage when set (mutual exclusivity with template), machine-pool (osDisk, cpus, coresPerSocket, memoryMB), zones when ≥2 FDs; port 443; credentials when includeCredentials; publish External for vSphere. **Does not emit:** loadBalancer.type.
 
 ### 6.2 Desired end state (aligned to locked truth)
 
-- **loadBalancer.type:** Wizard exposes dropdown (OpenShiftManagedDefault | UserManaged); default OpenShiftManagedDefault. When UserManaged, apiVIPs/ingressVIPs **remain visible and required** (they are the LB endpoints per doc 2.4.5.3). Backend emits loadBalancer.type when set; always emits apiVIPs/ingressVIPs when IPI and non-empty (no “omit VIPs when UserManaged”).
+- **loadBalancer.type:** **Historical (not implemented).** The plan once included a dropdown; it was **removed**. Current behavior: no loadBalancer.type in UI or backend; API/Ingress VIPs on Networking with note "Leave blank if using an external load balancer"; backend emits apiVIPs/ingressVIPs when IPI and non-empty.
 - **clusterOSImage vs topology.template:** UI enforces choose-one (e.g. radio or mutually exclusive sections); backend emits at most one (clusterOSImage at platform.vsphere OR template in failureDomains[].topology).
 - **Legacy vs failureDomains:** Unchanged; placementMode selects path; only one path emitted.
 - **Machine-pool:** Optional section (platform.vsphere: clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB); backend emits when provided.
@@ -546,14 +563,14 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ### 6.5 Proposed tab-by-tab wizard changes
 
-- **Platform Specifics (vSphere IPI):** Add **Load balancer** dropdown: OpenShiftManagedDefault (default) | UserManaged. Helper: “UserManaged = you provide the LB; still set API/Ingress VIPs to the LB endpoints (doc 2.4.5.3).” Add optional **Machine pool (advanced)** collapsible: clusterOSImage URL **or** (mutually exclusive) use topology.template per failure domain; osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB. When multiple failure domains, add optional **Zone placement**: compute zones array, controlPlane zones array (names matching failureDomains[].name). Keep existing: Placement (legacy vs failure domains), Storage (diskType), Advanced (template per FD when failure-domains path).
-- **Networking:** API/Ingress VIPs section visible for vSphere IPI always (both OpenShiftManagedDefault and UserManaged use VIPs). No hiding.
+- **Platform Specifics (vSphere IPI):** **No Load balancer dropdown** (removed). Optional **Machine pool (advanced)** collapsible: clusterOSImage URL **or** (mutually exclusive) use topology.template per failure domain; osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB. When multiple failure domains, add optional **Zone placement**: compute zones array, controlPlane zones array (names matching failureDomains[].name). Global folder/resourcePool only when legacy placement. Keep: Placement (legacy vs failure domains), Storage (diskType), Advanced (template per FD when failure-domains path).
+- **Networking:** API/Ingress VIPs section visible for vSphere IPI; note: "Leave blank if using an external load balancer."
 - **Global Strategy / Publish:** For platform vSphere, only External allowed; Internal disabled or validation error with message: “Internal publish is not supported on non-cloud platforms (vSphere). See BZ#1953035.”
 
 ### 6.6 Proposed gates / conditionals
 
-- **loadBalancer.type:** Visible for vSphere IPI only; default OpenShiftManagedDefault. When UserManaged, apiVIPs/ingressVIPs remain visible and required (LB endpoints).
-- **apiVIPs/ingressVIPs:** Visible and required when vSphere IPI (always for IPI; no “omit when external LB” — doc shows UserManaged with VIPs).
+- **loadBalancer.type:** **Not in app** (removed). No dropdown; no emission.
+- **apiVIPs/ingressVIPs:** Visible on Networking when vSphere IPI; optional per doc (leave blank when using external LB). Validation: VIPs must be within machineNetwork when set.
 - **clusterOSImage vs topology.template:** Mutually exclusive; UI must prevent both. If clusterOSImage set, hide/disable template in failure-domain rows and suppress template from emission. If any topology.template set, hide/disable clusterOSImage and suppress clusterOSImage from emission.
 - **topology.template:** Visible only for vsphere-ipi when failure-domains path and when clusterOSImage not chosen.
 - **Machine-pool section:** Visible for vSphere IPI when “Machine pool (advanced)” expanded; optional.
@@ -567,8 +584,8 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ### 6.8 Backend emission changes
 
-- **loadBalancer.type:** Emit platform.vsphere.loadBalancer.type when platformConfig.vsphere.loadBalancerType is set (e.g. UserManaged). Default not emitted (installer uses OpenShiftManagedDefault).
-- **apiVIPs/ingressVIPs:** Continue to emit when vSphere IPI and arrays non-empty. Do **not** omit when loadBalancer.type = UserManaged (doc requires both).
+- **loadBalancer.type:** **Not emitted** (removed from implementation). No key in install-config.
+- **apiVIPs/ingressVIPs:** Emit when vSphere IPI and arrays non-empty. Frontend validates VIPs within machineNetwork.
 - **clusterOSImage:** Emit platform.vsphere.clusterOSImage when platformConfig.vsphere.clusterOSImage is set and topology.template is not used (mutual exclusivity enforced in UI; backend emits whichever path is set).
 - **topology.template:** Emit in failureDomains[].topology when set and clusterOSImage not set (current behavior).
 - **Machine-pool:** Emit platform.vsphere.osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB when provided from platformConfig.vsphere.
@@ -576,7 +593,7 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ### 6.9 Preview/download changes
 
-- Same as backend; preview YAML and download bundle reflect omit VIPs when external LB and optional machine-pool when set.
+- Same as backend; preview YAML and download bundle reflect emitted fields (no loadBalancer; VIPs when set; optional machine-pool and zones when set).
 
 ### 6.10 Tests to add/update
 
@@ -600,8 +617,8 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 | Field/path | Source | Required | Scenario path | Visible when | Required when | Suppress from preview/export when | Backend emit path | Replaces/conflicts | Tab | Control type |
 |------------|--------|----------|---------------|--------------|---------------|-------------------------------------|-------------------|---------------------|-----|---------------|
-| platform.vsphere.loadBalancer.type | Doc 2.4.5.3 | no | IPI | vSphere IPI | — | never | platform.vsphere.loadBalancer.type | — | Platform Specifics | dropdown (OpenShiftManagedDefault, UserManaged) |
-| platform.vsphere.apiVIPs | 9.1.4 | when no pre-existing external LB | IPI | vSphere IPI | vSphere IPI (always for IPI per doc) | never (UserManaged still uses VIPs) | platform.vsphere.apiVIPs | — | Networking | text/array input |
+| *(removed)* platform.vsphere.loadBalancer.type | — | — | — | — | — | — | — | **Not in app;** doc note satisfied by VIP helper text. | — | — |
+| platform.vsphere.apiVIPs | 9.1.4 | when no pre-existing external LB | IPI | vSphere IPI | optional (leave blank if external LB) | when set, must be in machineNetwork | platform.vsphere.apiVIPs | — | Networking | text/array input |
 | platform.vsphere.ingressVIPs | 9.1.4 | same as apiVIPs | IPI | vSphere IPI | vSphere IPI | never | platform.vsphere.ingressVIPs | — | Networking | text/array input |
 | platform.vsphere.clusterOSImage | 9.1.6 | no | IPI | vSphere IPI, RHCOS method = URL | when chosen as RHCOS method | when topology.template used | platform.vsphere.clusterOSImage | mutually exclusive with topology.template | Platform Specifics > Machine pool (advanced) | text input |
 | failureDomains[].topology.template | 9.1.4 | no | IPI, failure-domains path | vSphere IPI, failure-domains path, RHCOS method = template | when chosen per FD | when clusterOSImage set | failureDomains[].topology.template | mutually exclusive with clusterOSImage | Platform Specifics > FD row Advanced | text input |
@@ -615,20 +632,19 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ### 6.14 Exact UI behavior (implementation spec)
 
-1. **Section order (Platform Specifics, vSphere IPI):** (1) Placement (legacy vs failure domains); (2) Legacy block (iff legacy); (3) Failure domains block (iff failure-domains); (4) Storage — diskType; (5) Load balancer — loadBalancer.type dropdown; (6) Zone placement (iff failureDomains.length ≥ 2); (7) Machine pool (advanced) collapsible; (8) Advanced per-FD (template, folder, resourcePool).
-2. **Default visible:** Placement, diskType, Load balancer dropdown. Failure domains or legacy block per placementMode. API/Ingress VIPs on Networking (vSphere IPI).
-3. **Gated:** Zone placement only when failureDomains.length ≥ 2. Machine pool and per-FD template only when failure-domains path. topology.template in each FD row only when “RHCOS image” method = template (not clusterOSImage).
+1. **Section order (Platform Specifics, vSphere IPI):** (1) Placement (legacy vs failure domains); (2) Legacy block (iff legacy); (3) Failure domains block (iff failure-domains); (4) Storage — diskType; (5) Zone placement (iff failureDomains.length ≥ 2); (6) Machine pool (advanced) collapsible; (7) Advanced per-FD (template, folder, resourcePool).
+2. **Default visible:** Placement, diskType. Failure domains or legacy block per placementMode. API/Ingress VIPs on **Networking** (vSphere IPI) with note to leave blank if external LB.
+3. **Gated:** Zone placement only when failureDomains.length >= 2. Global folder/resourcePool only when placementMode = legacy. topology.template in each FD row; clusterOSImage in Machine pool; one disabled when the other has a value.
 4. **Advanced:** Machine pool (clusterOSImage, osDisk, cpus, coresPerSocket, memoryMB); per-FD folder, resourcePool, template (when template method).
 5. **Mutually exclusive choices:** (a) RHCOS image: clusterOSImage URL **or** topology.template per FD — radio or equivalent; only one path active. (b) Placement: legacy **or** failure-domains — existing placementMode.
-6. **Hide entirely:** Legacy block when placementMode = failure-domains. Failure domains block when placementMode = legacy. clusterOSImage when any topology.template set; template fields when clusterOSImage set. Zone placement when single FD or no FDs.
-7. **Informational only:** loadBalancer.type helper: “UserManaged: you provide the load balancer; still set API and Ingress VIPs to the LB endpoints (see doc 2.4.5.3).”
-8. **Helper text:** Publish: for vSphere, “Internal is not supported on non-cloud platforms (vSphere).” Template: “(IPI only) Path to RHCOS template/VM in vCenter. Use this OR clusterOSImage URL, not both.”
+6. **Hide entirely:** Legacy block when placementMode = failure-domains. Failure domains block when placementMode = legacy. Global folder/resourcePool when not legacy. Zone placement when single FD or no FDs.
+7. **Helper text:** Networking VIPs: "Leave blank if using an external load balancer." Publish: for vSphere, "Internal is not supported on non-cloud platforms (vSphere)." Template: "(IPI only) Path to RHCOS template/VM in vCenter. Use this OR clusterOSImage URL, not both."
 
 ### 6.15 Exact backend emission rules
 
 | Path | Emit when | Suppress when | YAML location | Default / conflict |
 |------|-----------|---------------|---------------|--------------------|
-| loadBalancer.type | platformConfig.vsphere.loadBalancerType set (e.g. UserManaged) | not set (omit key; installer default OpenShiftManagedDefault) | platform.vsphere.loadBalancer.type | — |
+| *(removed)* loadBalancer.type | — | — | — | Not in app. |
 | apiVIPs | vSphere IPI and array non-empty | not IPI or empty | platform.vsphere.apiVIPs | — |
 | ingressVIPs | vSphere IPI and array non-empty | not IPI or empty | platform.vsphere.ingressVIPs | — |
 | clusterOSImage | platformConfig.vsphere.clusterOSImage set and no topology.template in use | topology.template used in any FD | platform.vsphere.clusterOSImage | Mutual exclusivity: emit only one of clusterOSImage vs template |
@@ -645,8 +661,8 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 **Frontend tests to add/update:**
 
-- vSphere IPI: loadBalancer.type dropdown visible; default OpenShiftManagedDefault; UserManaged selectable; apiVIPs/ingressVIPs visible for both.
-- vSphere IPI: RHCOS method — when clusterOSImage has value, topology.template inputs hidden/disabled in FD rows; when any template set, clusterOSImage hidden/disabled.
+- vSphere IPI: No loadBalancer dropdown. API/Ingress VIPs on Networking; note to leave blank if external LB; validateVipsInMachineNetwork when set.
+- vSphere IPI: RHCOS method — when clusterOSImage has value, topology.template inputs disabled in FD rows; when any template set, clusterOSImage disabled; both visible, mutual exclusivity enforced.
 - vSphere IPI: Zone placement section visible only when failureDomains.length ≥ 2.
 - vSphere IPI: Machine pool (advanced) — clusterOSImage, osDisk, cpus, coresPerSocket, memoryMB visible when expanded; optional.
 - Publish: when platform vSphere, Internal disabled or validation error; External selectable.
@@ -654,20 +670,19 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 **Backend tests to add/update:**
 
-- Emit loadBalancer.type when UserManaged set.
+- (No loadBalancer.type emission.)
 - Emit clusterOSImage when set and no template; do not emit template in that case.
 - Emit template in FD when set and clusterOSImage not set; do not emit clusterOSImage.
 - Emit osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB when provided.
 - Emit compute[0].platform.vsphere.zones and controlPlane.platform.vsphere.zones when provided and ≥2 FDs.
-- apiVIPs/ingressVIPs emitted when IPI and non-empty regardless of loadBalancer.type.
+- apiVIPs/ingressVIPs emitted when IPI and non-empty. VIP-in-machine-network validation on frontend.
 
 **Scenario matrix:**
 
 - Legacy path → one vcenter, one failureDomain; no zones; no machine-pool unless set.
 - Failure-domains path, single FD → no zones section; machine-pool optional.
 - Failure-domains path, multi-FD → zones optional; machine-pool optional.
-- loadBalancer.type OpenShiftManagedDefault → VIPs emitted when set.
-- loadBalancer.type UserManaged → loadBalancer.type + apiVIPs + ingressVIPs emitted when set.
+- No loadBalancer.type in app; VIPs emitted when IPI and set.
 - clusterOSImage set → clusterOSImage emitted; no template in any FD.
 - template set in one FD → template emitted there; clusterOSImage not emitted.
 
@@ -678,7 +693,7 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 **Preview vs download parity:**
 
-- Preview YAML and downloaded install-config.yaml must match: same keys emitted/suppressed (loadBalancer.type, clusterOSImage, template, machine-pool, zones, VIPs).
+- Preview YAML and downloaded install-config.yaml must match: same keys emitted/suppressed (clusterOSImage, template, machine-pool, zones, VIPs; no loadBalancer).
 
 ### 6.17 Open questions / blockers
 
@@ -689,13 +704,13 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 | Item | Status | Notes |
 |------|--------|-------|
-| loadBalancer.type | **Done** | Platform Specifics: dropdown OpenShiftManagedDefault / UserManaged (vSphere IPI only). Backend: emits platform.vsphere.loadBalancer when set. |
-| apiVIPs/ingressVIPs | **Unchanged** | Remain visible for IPI; no hiding when UserManaged. Backend emits when IPI and non-empty. |
-| clusterOSImage vs topology.template | **Done** | UI: clusterOSImage in Machine pool (advanced); template in FD row only when clusterOSImage empty. Backend: clusterOSImage wins when set (template suppressed in FD mapping). Validation: error if both set. |
+| loadBalancer.type | **Removed** | No dropdown; no catalog param; no backend emission. UI note on Networking covers external-LB case. |
+| apiVIPs/ingressVIPs | **Done** | On Networking tab; note "Leave blank if using an external load balancer." Backend emits when IPI and non-empty. validateVipsInMachineNetwork enforces VIPs in machineNetwork. |
+| clusterOSImage vs topology.template | **Done** | UI: both visible; one disabled when the other has a value; hints explain choose-one. Backend: emits only one. Validation: error if both set. |
 | Machine-pool (osDisk, cpus, coresPerSocket, memoryMB) | **Done** | Platform Specifics: Machine pool (advanced) collapsible. Backend: emits when provided. |
 | compute/controlPlane.platform.vsphere.zones | **Done** | Platform Specifics: Zone placement when ≥2 FDs; comma-separated inputs. Backend: emits when provided and ≥2 FDs. |
-| publish External only for vSphere | **Done** | Global Strategy: vSphere IPI shows publish with External only; useEffect normalizes Internal to External. Backend: forces publish External when vSphere. Validation: error if publish Internal. |
-| Tests | **Done** | Backend: loadBalancer, clusterOSImage/template, machine-pool, zones, publish. Frontend: Load balancer + Machine pool; Zone placement when ≥2 FDs; validation rejects publish Internal and both RHCOS methods. |
+| publish External only for vSphere | **Done** | Global Strategy: vSphere shows publish External only; useEffect normalizes Internal to External. Backend: forces publish External when vSphere. Validation: error if publish Internal. |
+| Tests | **Done** | Backend: clusterOSImage/template, machine-pool, zones, publish (no loadBalancer). Frontend: Machine pool, Zone placement when ≥2 FDs; validation rejects publish Internal, both RHCOS methods; VIP-in-machine-network. |
 
 ### 6.19 Implementation notes
 
@@ -706,7 +721,7 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ## Implementation complete (vSphere 4.20 IPI)
 
-The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete. loadBalancer.type, clusterOSImage vs topology.template mutual exclusivity, machine-pool fields, zones, and publish External-only for vSphere are implemented in UI, backend, and validation. Tests added. Phase B structural reconciliation was already complete.
+The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete. **loadBalancer.type was implemented then removed** (no dropdown, no emission; doc note satisfied by VIP helper text). Implemented: clusterOSImage vs topology.template mutual-exclusivity UX, machine-pool (advanced) fields, zone placement (≥2 FDs), publish External-only for vSphere, VIP-in-machine-network validation, legacy global folder/resourcePool gated to legacy placement, Topology: Networks comma handling fixed. featureSet and arbiter.* remain intentionally deferred (catalog only). Tests updated accordingly.
 
 ---
 
@@ -748,10 +763,10 @@ The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete.
 - [ ] Legacy path: vcenter, datacenter, cluster, datastore, network → preview has one vcenter, one failureDomain.
 - [ ] Failure-domains path: Two FDs with topology → preview has two failureDomains, vcenters derived or explicit.
 - [ ] Credentials: Include credentials → vcenters[].user/password present; otherwise omitted.
-- [ ] Load balancer: loadBalancer.type dropdown (OpenShiftManagedDefault | UserManaged); when UserManaged, apiVIPs/ingressVIPs still in install-config (LB endpoints).
-  - [ ] Publish: Internal not selectable or blocked for vSphere with clear message.
-  - [ ] clusterOSImage vs template: only one path in config; UI enforces mutual exclusivity.
-  - [ ] Machine pool / zones: optional; emit when set per §6.15.
+- [ ] VIPs: API/Ingress VIPs on Networking tab; note "Leave blank if using an external load balancer." No loadBalancer.type in app. When set, VIPs must be in machineNetwork (validation). Emitted when IPI and non-empty.
+- [ ] Publish: Internal not selectable or blocked for vSphere with clear message.
+- [ ] clusterOSImage vs template: only one path in config; UI disables one when the other has a value; backend emits only one.
+- [ ] Machine pool / zones: optional; emit when set per §6.15. Legacy global folder/resourcePool only when placementMode = legacy.
 
 ---
 

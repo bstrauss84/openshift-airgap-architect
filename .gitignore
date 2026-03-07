@@ -109,3 +109,6 @@ docs/REVIEW_NOTES.md
 
 # Local backlog (do not commit; never push)
 LOCAL_BACKLOG.md
+
+# Snapshot script (local backup; do not commit)
+create-app-snapshot.sh
