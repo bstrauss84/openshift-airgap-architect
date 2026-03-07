@@ -505,7 +505,7 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 | **Missing fields** | Machine-pool (clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB) in params; not in wizard or backend. Plan: add to params; UI/backend in implementation pass. |
 | **Stale fields** | None; deprecated flat params still doc-valid; catalog labels them deprecated. |
 | **Deprecated without replacement** | apiVIP/ingressVIP deprecated in favor of apiVIPs/ingressVIPs; app uses apiVIPs/ingressVIPs only. OK. |
-| **Conditionals not implemented** | “Omit apiVIPs/ingressVIPs when using external LB” — doc rule; no UI toggle. Plan: add “Using external load balancer” checkbox and suppress VIPs when set. |
+| **Conditionals not implemented** | loadBalancer.type (OpenShiftManagedDefault | UserManaged) not in UI/backend. Doc 2.4.5.3: when UserManaged, apiVIPs/ingressVIPs **remain** (LB endpoints). Plan: add loadBalancer.type dropdown; do not hide VIPs when UserManaged. |
 | **Mutually exclusive** | Legacy vs failure-domains — app uses placementMode; only one path emitted. OK. |
 | **Doc-valid asset fields impossible today** | clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB (machine pool) — not emitted. Plan: optional advanced section. |
 | **App not doc-aligned** | Publish Internal: doc says not supported on non-cloud; app may still allow selection — verify Global Strategy step and validation. |
@@ -514,20 +514,24 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ## 6. Phase F — Implementation Plan (Plan Only)
 
+**Locked truth (Phase B complete):** Doc 2.4.5.3 shows **loadBalancer.type: UserManaged** in the same install-config as **apiVIPs** and **ingressVIPs** — i.e. when UserManaged, VIPs are still set (they are the LB endpoints). Do not hide or omit VIPs when loadBalancer.type = UserManaged. clusterOSImage vs topology.template are mutually exclusive (choose one). Legacy vs failureDomains are mutually exclusive (placementMode). Machine-pool fields live at platform.vsphere; zones at compute/controlPlane.platform.vsphere when multiple failure domains. Publish: Internal not supported on vSphere (External only).
+
 ### 6.1 Current state summary
 
 - Docs-index: vsphere-ipi has parent, params page, Agent generic, disconnected; sub-scenario links (preparing, restricted-network) not explicitly listed.
-- Params: Frontend catalog has full vSphere + generic install-config; diskType, apiVIPs, ingressVIPs, template (IPI); deprecated flat params; machine-pool params added in this pass.
-- Wizard: Placement (legacy vs failure domains), legacy fields, failure domain rows with topology and template (IPI), diskType, API/Ingress VIPs on Networking; no external-LB toggle, no machine-pool UI.
-- Backend: Emits vcenters, failureDomains, diskType, apiVIPs/ingressVIPs (IPI), template (IPI); port 443; credentials when includeCredentials.
+- Params: Frontend catalog has full vSphere + generic install-config; diskType, apiVIPs, ingressVIPs, template (IPI); deprecated flat params; machine-pool params; **loadBalancer.type**, **compute/controlPlane.platform.vsphere.zones**; conditionals for clusterOSImage/template, legacy, VIPs, publish.
+- Wizard: Placement (legacy vs failure domains), legacy fields, failure domain rows with topology and template (IPI), diskType, API/Ingress VIPs on Networking; **no loadBalancer.type control**; no machine-pool UI; no zones UI; publish may still offer Internal for vSphere.
+- Backend: Emits vcenters, failureDomains, diskType, apiVIPs/ingressVIPs (IPI), template (IPI); port 443; credentials when includeCredentials. **Does not emit:** loadBalancer.type, clusterOSImage, machine-pool (osDisk, cpus, coresPerSocket, memoryMB), zones.
 
-### 6.2 Desired end state
+### 6.2 Desired end state (aligned to locked truth)
 
-- Docs-index: Clear parent + params + optional sub-scenario entries; labels accurate.
-- Params: All 9.1.1–9.1.6 params with applicability, requiredness, conditionals, deprecated/replacement; machine-pool and Tech Preview clearly marked.
-- Wizard: External LB toggle for IPI to conditionally hide/omit apiVIPs/ingressVIPs; optional machine-pool section (clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB); publish Internal hidden or blocked for vSphere with validation message.
-- Backend: Emit machine-pool when provided; omit apiVIPs/ingressVIPs when “external LB” set; no change to legacy/FD structure.
-- Preview/download: Reflect above; no deprecated flat keys in output.
+- **loadBalancer.type:** Wizard exposes dropdown (OpenShiftManagedDefault | UserManaged); default OpenShiftManagedDefault. When UserManaged, apiVIPs/ingressVIPs **remain visible and required** (they are the LB endpoints per doc 2.4.5.3). Backend emits loadBalancer.type when set; always emits apiVIPs/ingressVIPs when IPI and non-empty (no “omit VIPs when UserManaged”).
+- **clusterOSImage vs topology.template:** UI enforces choose-one (e.g. radio or mutually exclusive sections); backend emits at most one (clusterOSImage at platform.vsphere OR template in failureDomains[].topology).
+- **Legacy vs failureDomains:** Unchanged; placementMode selects path; only one path emitted.
+- **Machine-pool:** Optional section (platform.vsphere: clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB); backend emits when provided.
+- **Zones:** When failureDomains has multiple entries, optional compute[].platform.vsphere.zones and controlPlane.platform.vsphere.zones (arrays of failure-domain names); backend emits when provided.
+- **Publish:** For vSphere, only External allowed; Internal disabled or validation error with message (Internal not supported on non-cloud, BZ#1953035).
+- **Preview/download:** Reflect all emitted fields; no deprecated flat keys in output.
 
 ### 6.3 Proposed docs-index changes
 
@@ -542,16 +546,19 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ### 6.5 Proposed tab-by-tab wizard changes
 
-- **Platform Specifics:** Optional “Using external load balancer” (IPI only); when true, hide API/Ingress VIPs and omit from install-config. Optional “Machine pool (advanced)”: clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB.
-- **Networking:** When external LB true, hide or disable API/Ingress VIPs for vSphere IPI.
-- **Global Strategy / Publish:** For platform vSphere, do not offer Internal or validate and show message: “Internal publish is not supported on non-cloud platforms (vSphere).”
+- **Platform Specifics (vSphere IPI):** Add **Load balancer** dropdown: OpenShiftManagedDefault (default) | UserManaged. Helper: “UserManaged = you provide the LB; still set API/Ingress VIPs to the LB endpoints (doc 2.4.5.3).” Add optional **Machine pool (advanced)** collapsible: clusterOSImage URL **or** (mutually exclusive) use topology.template per failure domain; osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB. When multiple failure domains, add optional **Zone placement**: compute zones array, controlPlane zones array (names matching failureDomains[].name). Keep existing: Placement (legacy vs failure domains), Storage (diskType), Advanced (template per FD when failure-domains path).
+- **Networking:** API/Ingress VIPs section visible for vSphere IPI always (both OpenShiftManagedDefault and UserManaged use VIPs). No hiding.
+- **Global Strategy / Publish:** For platform vSphere, only External allowed; Internal disabled or validation error with message: “Internal publish is not supported on non-cloud platforms (vSphere). See BZ#1953035.”
 
 ### 6.6 Proposed gates / conditionals
 
-- apiVIPs/ingressVIPs: visible and required only when vSphere IPI and **not** “using external load balancer.”
-- topology.template: visible only for vsphere-ipi (current).
-- Machine-pool section: visible for vSphere IPI/UPI when “Advanced” or “Machine pool” expanded.
-- Publish: Internal disabled or invalid for vSphere.
+- **loadBalancer.type:** Visible for vSphere IPI only; default OpenShiftManagedDefault. When UserManaged, apiVIPs/ingressVIPs remain visible and required (LB endpoints).
+- **apiVIPs/ingressVIPs:** Visible and required when vSphere IPI (always for IPI; no “omit when external LB” — doc shows UserManaged with VIPs).
+- **clusterOSImage vs topology.template:** Mutually exclusive; UI must prevent both. If clusterOSImage set, hide/disable template in failure-domain rows and suppress template from emission. If any topology.template set, hide/disable clusterOSImage and suppress clusterOSImage from emission.
+- **topology.template:** Visible only for vsphere-ipi when failure-domains path and when clusterOSImage not chosen.
+- **Machine-pool section:** Visible for vSphere IPI when “Machine pool (advanced)” expanded; optional.
+- **Zones:** Visible only when vSphere IPI and failureDomains length ≥ 2; optional.
+- **Publish:** Internal disabled or invalid for vSphere.
 
 ### 6.7 Deprecation/replacement handling
 
@@ -560,8 +567,12 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 ### 6.8 Backend emission changes
 
-- Add platform.vsphere.clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB when provided (e.g. from platformConfig.vsphere).
-- When “using external load balancer” true for vSphere IPI, do not emit apiVIPs/ingressVIPs.
+- **loadBalancer.type:** Emit platform.vsphere.loadBalancer.type when platformConfig.vsphere.loadBalancerType is set (e.g. UserManaged). Default not emitted (installer uses OpenShiftManagedDefault).
+- **apiVIPs/ingressVIPs:** Continue to emit when vSphere IPI and arrays non-empty. Do **not** omit when loadBalancer.type = UserManaged (doc requires both).
+- **clusterOSImage:** Emit platform.vsphere.clusterOSImage when platformConfig.vsphere.clusterOSImage is set and topology.template is not used (mutual exclusivity enforced in UI; backend emits whichever path is set).
+- **topology.template:** Emit in failureDomains[].topology when set and clusterOSImage not set (current behavior).
+- **Machine-pool:** Emit platform.vsphere.osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB when provided from platformConfig.vsphere.
+- **Zones:** Emit compute[0].platform.vsphere.zones and controlPlane.platform.vsphere.zones when provided (arrays of zone names matching failureDomains[].name), only when failureDomains length ≥ 2.
 
 ### 6.9 Preview/download changes
 
@@ -584,6 +595,118 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 
 - Exact Red Hat 4.20 HTML URLs for “Preparing to install” and “Installing in restricted network” vSphere IPI (pages may redirect or differ from OKD). All doc links must use docs.redhat.com.
 - dataDisks (Tech Preview): Document only or allow in “Advanced” with Tech Preview badge — product decision.
+
+### 6.13 Implementation-grade field/gate matrix
+
+| Field/path | Source | Required | Scenario path | Visible when | Required when | Suppress from preview/export when | Backend emit path | Replaces/conflicts | Tab | Control type |
+|------------|--------|----------|---------------|--------------|---------------|-------------------------------------|-------------------|---------------------|-----|---------------|
+| platform.vsphere.loadBalancer.type | Doc 2.4.5.3 | no | IPI | vSphere IPI | — | never | platform.vsphere.loadBalancer.type | — | Platform Specifics | dropdown (OpenShiftManagedDefault, UserManaged) |
+| platform.vsphere.apiVIPs | 9.1.4 | when no pre-existing external LB | IPI | vSphere IPI | vSphere IPI (always for IPI per doc) | never (UserManaged still uses VIPs) | platform.vsphere.apiVIPs | — | Networking | text/array input |
+| platform.vsphere.ingressVIPs | 9.1.4 | same as apiVIPs | IPI | vSphere IPI | vSphere IPI | never | platform.vsphere.ingressVIPs | — | Networking | text/array input |
+| platform.vsphere.clusterOSImage | 9.1.6 | no | IPI | vSphere IPI, RHCOS method = URL | when chosen as RHCOS method | when topology.template used | platform.vsphere.clusterOSImage | mutually exclusive with topology.template | Platform Specifics > Machine pool (advanced) | text input |
+| failureDomains[].topology.template | 9.1.4 | no | IPI, failure-domains path | vSphere IPI, failure-domains path, RHCOS method = template | when chosen per FD | when clusterOSImage set | failureDomains[].topology.template | mutually exclusive with clusterOSImage | Platform Specifics > FD row Advanced | text input |
+| platform.vsphere.diskType | 9.1.4 | no | both | vSphere IPI | — | never | platform.vsphere.diskType | — | Platform Specifics > Storage | dropdown (thin, thick, eagerZeroedThick) |
+| compute[].platform.vsphere.zones | Doc 2.4.5.4 | no | IPI, multi-FD | vSphere IPI, failureDomains.length ≥ 2 | — | when single FD or not set | compute[0].platform.vsphere.zones | — | Platform Specifics > Zone placement | array of zone names |
+| controlPlane.platform.vsphere.zones | Doc 2.4.5.4 | no | IPI, multi-FD | vSphere IPI, failureDomains.length ≥ 2 | — | when single FD or not set | controlPlane.platform.vsphere.zones | — | Platform Specifics > Zone placement | array of zone names |
+| platform.vsphere.osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB | 9.1.6 | no | IPI | vSphere IPI, Machine pool expanded | — | when not set | platform.vsphere.* | — | Platform Specifics > Machine pool | number inputs |
+| publish | 9.1.3 | no | both | always | — | — | root publish | — | Global Strategy | dropdown; vSphere: External only |
+| platform.vsphere.datacenter, defaultDatastore, vcenter, … (legacy) | 9.1.5 | when legacy path | legacy | placementMode = legacy | placementMode = legacy | when failure-domains path | converted to vcenters+FD | deprecated; replaced by vcenters+failureDomains | Platform Specifics | inputs (legacy block) |
+| platform.vsphere.vcenters, failureDomains | 9.1.4 | when failure-domains path | failure-domains | placementMode = failure-domains | placementMode = failure-domains, ≥1 FD | when legacy path | platform.vsphere.vcenters, failureDomains | mutually exclusive with legacy flat | Platform Specifics | add/remove rows, topology inputs |
+
+### 6.14 Exact UI behavior (implementation spec)
+
+1. **Section order (Platform Specifics, vSphere IPI):** (1) Placement (legacy vs failure domains); (2) Legacy block (iff legacy); (3) Failure domains block (iff failure-domains); (4) Storage — diskType; (5) Load balancer — loadBalancer.type dropdown; (6) Zone placement (iff failureDomains.length ≥ 2); (7) Machine pool (advanced) collapsible; (8) Advanced per-FD (template, folder, resourcePool).
+2. **Default visible:** Placement, diskType, Load balancer dropdown. Failure domains or legacy block per placementMode. API/Ingress VIPs on Networking (vSphere IPI).
+3. **Gated:** Zone placement only when failureDomains.length ≥ 2. Machine pool and per-FD template only when failure-domains path. topology.template in each FD row only when “RHCOS image” method = template (not clusterOSImage).
+4. **Advanced:** Machine pool (clusterOSImage, osDisk, cpus, coresPerSocket, memoryMB); per-FD folder, resourcePool, template (when template method).
+5. **Mutually exclusive choices:** (a) RHCOS image: clusterOSImage URL **or** topology.template per FD — radio or equivalent; only one path active. (b) Placement: legacy **or** failure-domains — existing placementMode.
+6. **Hide entirely:** Legacy block when placementMode = failure-domains. Failure domains block when placementMode = legacy. clusterOSImage when any topology.template set; template fields when clusterOSImage set. Zone placement when single FD or no FDs.
+7. **Informational only:** loadBalancer.type helper: “UserManaged: you provide the load balancer; still set API and Ingress VIPs to the LB endpoints (see doc 2.4.5.3).”
+8. **Helper text:** Publish: for vSphere, “Internal is not supported on non-cloud platforms (vSphere).” Template: “(IPI only) Path to RHCOS template/VM in vCenter. Use this OR clusterOSImage URL, not both.”
+
+### 6.15 Exact backend emission rules
+
+| Path | Emit when | Suppress when | YAML location | Default / conflict |
+|------|-----------|---------------|---------------|--------------------|
+| loadBalancer.type | platformConfig.vsphere.loadBalancerType set (e.g. UserManaged) | not set (omit key; installer default OpenShiftManagedDefault) | platform.vsphere.loadBalancer.type | — |
+| apiVIPs | vSphere IPI and array non-empty | not IPI or empty | platform.vsphere.apiVIPs | — |
+| ingressVIPs | vSphere IPI and array non-empty | not IPI or empty | platform.vsphere.ingressVIPs | — |
+| clusterOSImage | platformConfig.vsphere.clusterOSImage set and no topology.template in use | topology.template used in any FD | platform.vsphere.clusterOSImage | Mutual exclusivity: emit only one of clusterOSImage vs template |
+| topology.template | per FD when set and clusterOSImage not set | clusterOSImage set | failureDomains[i].topology.template | Same |
+| osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB | platformConfig.vsphere.* set | not set | platform.vsphere.* | Omit key if not set |
+| compute[0].platform.vsphere.zones | platformConfig.vsphere.computeZones set, length ≥ 2 FDs | single FD or not set | compute[0].platform.vsphere.zones | — |
+| controlPlane.platform.vsphere.zones | platformConfig.vsphere.controlPlaneZones set, length ≥ 2 FDs | single FD or not set | controlPlane.platform.vsphere.zones | — |
+| publish | user selection | — | root publish | vSphere: only External valid; backend may receive only External if UI blocks Internal |
+| vcenters, failureDomains | placementMode and inputs as today | — | platform.vsphere | Legacy path → build one vcenter + one FD from flat; FD path → use vs.failureDomains and/or vs.vcenters |
+
+**Intentionally unsupported after implementation (callout):** dataDisks (Tech Preview) — not in scope for this pass. regionType/zoneType/hostGroup (Tech Preview) — not in scope.
+
+### 6.16 Test plan (implementation pass)
+
+**Frontend tests to add/update:**
+
+- vSphere IPI: loadBalancer.type dropdown visible; default OpenShiftManagedDefault; UserManaged selectable; apiVIPs/ingressVIPs visible for both.
+- vSphere IPI: RHCOS method — when clusterOSImage has value, topology.template inputs hidden/disabled in FD rows; when any template set, clusterOSImage hidden/disabled.
+- vSphere IPI: Zone placement section visible only when failureDomains.length ≥ 2.
+- vSphere IPI: Machine pool (advanced) — clusterOSImage, osDisk, cpus, coresPerSocket, memoryMB visible when expanded; optional.
+- Publish: when platform vSphere, Internal disabled or validation error; External selectable.
+- Legacy vs failure-domains: legacy block hidden when failure-domains; FD block hidden when legacy.
+
+**Backend tests to add/update:**
+
+- Emit loadBalancer.type when UserManaged set.
+- Emit clusterOSImage when set and no template; do not emit template in that case.
+- Emit template in FD when set and clusterOSImage not set; do not emit clusterOSImage.
+- Emit osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB when provided.
+- Emit compute[0].platform.vsphere.zones and controlPlane.platform.vsphere.zones when provided and ≥2 FDs.
+- apiVIPs/ingressVIPs emitted when IPI and non-empty regardless of loadBalancer.type.
+
+**Scenario matrix:**
+
+- Legacy path → one vcenter, one failureDomain; no zones; no machine-pool unless set.
+- Failure-domains path, single FD → no zones section; machine-pool optional.
+- Failure-domains path, multi-FD → zones optional; machine-pool optional.
+- loadBalancer.type OpenShiftManagedDefault → VIPs emitted when set.
+- loadBalancer.type UserManaged → loadBalancer.type + apiVIPs + ingressVIPs emitted when set.
+- clusterOSImage set → clusterOSImage emitted; no template in any FD.
+- template set in one FD → template emitted there; clusterOSImage not emitted.
+
+**Regression:**
+
+- Existing legacy and failure-domains flows still produce correct vcenters/failureDomains.
+- diskType, credentials, port 443 unchanged.
+
+**Preview vs download parity:**
+
+- Preview YAML and downloaded install-config.yaml must match: same keys emitted/suppressed (loadBalancer.type, clusterOSImage, template, machine-pool, zones, VIPs).
+
+### 6.17 Open questions / blockers
+
+- **None** for the in-scope implementation. dataDisks (Tech Preview) and host-group (Tech Preview) are explicitly out of scope; no blocker.
+- **Product decision (non-blocking):** Whether to show “Internal not supported” as disabled option with tooltip vs. hide Internal entirely for vSphere — both satisfy doc.
+
+### 6.18 Implementation status (vSphere 4.20 IPI implementation pass)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| loadBalancer.type | **Done** | Platform Specifics: dropdown OpenShiftManagedDefault / UserManaged (vSphere IPI only). Backend: emits platform.vsphere.loadBalancer when set. |
+| apiVIPs/ingressVIPs | **Unchanged** | Remain visible for IPI; no hiding when UserManaged. Backend emits when IPI and non-empty. |
+| clusterOSImage vs topology.template | **Done** | UI: clusterOSImage in Machine pool (advanced); template in FD row only when clusterOSImage empty. Backend: clusterOSImage wins when set (template suppressed in FD mapping). Validation: error if both set. |
+| Machine-pool (osDisk, cpus, coresPerSocket, memoryMB) | **Done** | Platform Specifics: Machine pool (advanced) collapsible. Backend: emits when provided. |
+| compute/controlPlane.platform.vsphere.zones | **Done** | Platform Specifics: Zone placement when ≥2 FDs; comma-separated inputs. Backend: emits when provided and ≥2 FDs. |
+| publish External only for vSphere | **Done** | Global Strategy: vSphere IPI shows publish with External only; useEffect normalizes Internal to External. Backend: forces publish External when vSphere. Validation: error if publish Internal. |
+| Tests | **Done** | Backend: loadBalancer, clusterOSImage/template, machine-pool, zones, publish. Frontend: Load balancer + Machine pool; Zone placement when ≥2 FDs; validation rejects publish Internal and both RHCOS methods. |
+
+### 6.19 Implementation notes
+
+- When both clusterOSImage and template in an FD are in state, backend emits clusterOSImage and omits template from topology.
+- dataDisks (Tech Preview) and regionType/zoneType/hostGroup (Tech Preview) are intentionally not implemented.
+
+---
+
+## Implementation complete (vSphere 4.20 IPI)
+
+The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete. loadBalancer.type, clusterOSImage vs topology.template mutual exclusivity, machine-pool fields, zones, and publish External-only for vSphere are implemented in UI, backend, and validation. Tests added. Phase B structural reconciliation was already complete.
 
 ---
 
@@ -622,34 +745,30 @@ Reconciliation is applied to the **frontend catalog** as the only editable param
 - [ ] Legacy path: vcenter, datacenter, cluster, datastore, network → preview has one vcenter, one failureDomain.
 - [ ] Failure-domains path: Two FDs with topology → preview has two failureDomains, vcenters derived or explicit.
 - [ ] Credentials: Include credentials → vcenters[].user/password present; otherwise omitted.
-- [ ] External LB (when implemented): Toggle on → apiVIPs/ingressVIPs not in install-config.
-- [ ] Publish: Internal not selectable or blocked for vSphere with clear message.
+- [ ] Load balancer: loadBalancer.type dropdown (OpenShiftManagedDefault | UserManaged); when UserManaged, apiVIPs/ingressVIPs still in install-config (LB endpoints).
+  - [ ] Publish: Internal not selectable or blocked for vSphere with clear message.
+  - [ ] clusterOSImage vs template: only one path in config; UI enforces mutual exclusivity.
+  - [ ] Machine pool / zones: optional; emit when set per §6.15.
 
 ---
 
 ## 10. Test/Build Results (This Pass)
 
-- No backend or frontend code changes in this pass (params catalog only).
-- After catalog edits: run `node scripts/validate-catalog.js frontend/src/data/catalogs/vsphere-ipi.json` (if validator accepts file path) or validate canonical data/params when available.
-- Docs-index: `node scripts/validate-docs-index.js` after edits.
+- **Implementation-plan tightening pass:** No code changes; working doc and backlog updated only. No build/validate required for this pass.
+- (For prior passes: catalog validation `node scripts/validate-catalog.js frontend/src/data/catalogs/vsphere-ipi.json`; docs-index `node scripts/validate-docs-index.js` when docs-index edited.)
 
 ---
 
 ## 11. Git Commands (Do Not Run)
 
 ```bash
-# Review
+# Review (this pass: working doc only)
 git status
-git diff data/docs-index/4.20.json
-git diff frontend/src/data/catalogs/vsphere-ipi.json
-git diff frontend/src/data/docs-index/4.20.json
+git diff docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
 
-# Commit (when ready)
-git add data/docs-index/4.20.json
-git add frontend/src/data/docs-index/4.20.json
-git add frontend/src/data/catalogs/vsphere-ipi.json
+# Commit (when ready) — implementation-plan tightening pass
 git add docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
-git commit -m "vSphere 4.20 IPI: docs-index mapping, params reconciliation, scenario review and implementation plan"
+git commit -m "vSphere 4.20 IPI: implementation-plan tightening (field/gate matrix, UI/backend spec, test plan)"
 
 # Push (when ready)
 git push

@@ -551,7 +551,7 @@ test("buildInstallConfig for vsphere-upi must NOT emit apiVIPs or ingressVIPs (r
   assert.strictEqual(out.platform.vsphere.ingressVIPs, undefined, "UPI must not emit ingressVIPs");
 });
 
-test("buildInstallConfig for vsphere-ipi emits template in failure domain topology when set", () => {
+test("buildInstallConfig for vsphere-ipi emits template in failure domain topology when set (and no clusterOSImage)", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
@@ -568,6 +568,140 @@ test("buildInstallConfig for vsphere-ipi emits template in failure domain topolo
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.strictEqual(out.platform?.vsphere?.failureDomains?.[0]?.topology?.template, "/DC1/vm/rhcos-template");
+  assert.strictEqual(out.platform?.vsphere?.clusterOSImage, undefined, "clusterOSImage must not be emitted when template is set");
+});
+
+test("buildInstallConfig for vsphere-ipi emits clusterOSImage when set and no template in any FD (mutual exclusivity)", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        clusterOSImage: "https://mirror.example.com/rhcos.ova",
+        failureDomains: [
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"] } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.clusterOSImage, "https://mirror.example.com/rhcos.ova");
+  assert.strictEqual(out.platform?.vsphere?.failureDomains?.[0]?.topology?.template, undefined, "template must not be emitted when clusterOSImage is set");
+});
+
+test("buildInstallConfig for vsphere-ipi suppresses template in FD when clusterOSImage is set (mutual exclusivity)", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        clusterOSImage: "https://mirror.example.com/rhcos.ova",
+        failureDomains: [
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.clusterOSImage, "https://mirror.example.com/rhcos.ova");
+  assert.strictEqual(out.platform?.vsphere?.failureDomains?.[0]?.topology?.template, undefined, "template must be suppressed when clusterOSImage is set");
+});
+
+test("buildInstallConfig for vsphere-ipi emits loadBalancer.type when UserManaged", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "legacy",
+        vcenter: "vc.example.com",
+        datacenter: "DC1",
+        datastore: "ds1",
+        cluster: "C1",
+        network: "VM Network",
+        loadBalancerType: "UserManaged"
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.platform?.vsphere?.loadBalancer, { type: "UserManaged" });
+});
+
+test("buildInstallConfig for vsphere-ipi emits machine-pool fields when provided", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "legacy",
+        vcenter: "vc.example.com",
+        datacenter: "DC1",
+        datastore: "ds1",
+        cluster: "C1",
+        network: "VM Network",
+        osDiskDiskSizeGB: 120,
+        cpus: 4,
+        coresPerSocket: 2,
+        memoryMB: 16384
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.vsphere?.osDisk?.diskSizeGB, 120);
+  assert.strictEqual(out.platform?.vsphere?.cpus, 4);
+  assert.strictEqual(out.platform?.vsphere?.coresPerSocket, 2);
+  assert.strictEqual(out.platform?.vsphere?.memoryMB, 16384);
+});
+
+test("buildInstallConfig for vsphere-ipi emits compute and controlPlane platform.vsphere.zones when ≥2 FDs and provided", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        failureDomains: [
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"] } },
+          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster2", datastore: "ds1", networks: ["VM Network"] } }
+        ],
+        computeZones: ["fd-0", "fd-1"],
+        controlPlaneZones: ["fd-0", "fd-1"]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.compute?.[0]?.platform?.vsphere?.zones, ["fd-0", "fd-1"]);
+  assert.deepStrictEqual(out.controlPlane?.platform?.vsphere?.zones, ["fd-0", "fd-1"]);
+});
+
+test("buildInstallConfig for vSphere emits publish External when platformConfig.publish is Internal (vSphere does not support Internal)", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      publish: "Internal",
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.publish, "External", "vSphere must emit External only; Internal not supported (BZ#1953035)");
 });
 
 test("buildInstallConfig for vsphere-ipi omits credentials when includeCredentials false", () => {

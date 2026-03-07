@@ -403,6 +403,69 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(placeholderOption).toHaveAttribute("disabled");
   });
 
+  it("vsphere-ipi: shows Load balancer dropdown (OpenShiftManagedDefault, UserManaged) and Machine pool (advanced)", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" }
+    });
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+    expect(screen.getByText("Load balancer")).toBeInTheDocument();
+    const lbSelect = screen.getByRole("combobox", { name: /Load balancer type/i });
+    expect(lbSelect).toBeInTheDocument();
+    expect(lbSelect).toHaveDisplayValue("OpenShiftManagedDefault");
+    expect(screen.getByText("Machine pool (advanced)")).toBeInTheDocument();
+  });
+
+  it("vsphere-ipi: Zone placement section visible when ≥2 failure domains", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        vsphere: {
+          placementMode: "failureDomains",
+          failureDomains: [
+            { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"] } },
+            { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster2", datastore: "ds1", networks: ["VM Network"] } }
+          ]
+        }
+      }
+    });
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+    expect(screen.getByText("Zone placement (optional)")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Compute zones/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Control plane zones/i)).toBeInTheDocument();
+  });
+
+  it("vsphere-ipi: platform-specifics validation rejects publish Internal and rejects both clusterOSImage and template", () => {
+    const stateWithInternal = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        publish: "Internal",
+        vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" }
+      }
+    });
+    const resultPublish = validateStep(stateWithInternal, "platform-specifics");
+    expect(resultPublish.errors.some((e) => e.includes("Internal publish") && e.includes("vSphere"))).toBe(true);
+
+    const stateBothRhcos = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        vsphere: {
+          clusterOSImage: "https://mirror.example.com/rhcos.ova",
+          failureDomains: [
+            { name: "fd-0", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos" } }
+          ]
+        }
+      }
+    });
+    const resultRhcos = validateStep(stateBothRhcos, "platform-specifics");
+    expect(resultRhcos.errors.some((e) => e.includes("clusterOSImage") && e.includes("topology.template"))).toBe(true);
+  });
+
   it("when scenario is aws-govcloud-ipi, getScenarioId returns aws-govcloud-ipi and validation requires region (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },
