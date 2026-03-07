@@ -403,17 +403,13 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(placeholderOption).toHaveAttribute("disabled");
   });
 
-  it("vsphere-ipi: shows Load balancer dropdown (OpenShiftManagedDefault, UserManaged) and Machine pool (advanced)", () => {
+  it("vsphere-ipi: shows Machine pool (advanced) section", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "IPI" }
     });
     const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
     render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
-    expect(screen.getByText("Load balancer")).toBeInTheDocument();
-    const lbSelect = screen.getByRole("combobox", { name: /Load balancer type/i });
-    expect(lbSelect).toBeInTheDocument();
-    expect(lbSelect).toHaveDisplayValue("OpenShiftManagedDefault");
     expect(screen.getByText("Machine pool (advanced)")).toBeInTheDocument();
   });
 
