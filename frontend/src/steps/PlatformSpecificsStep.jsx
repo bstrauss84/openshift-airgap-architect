@@ -185,6 +185,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
   const showMinimalISO = scenarioId === "bare-metal-agent" && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
+  /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
+  const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
   const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
 
   const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG);
@@ -903,15 +905,24 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="Datastore path" />
                         </label>
                         <label>
-                          <FieldLabelWithInfo label="Topology: Networks" hint="4.20 doc: array of network name strings. Enter one or more VM network names separated by commas; e.g. VM Network or VM Network, DPG-1." />
-                          <input value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")} onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="e.g. VM Network or VM Network, DPG-1" />
+                          <FieldLabelWithInfo label="Topology: Networks (comma delimited)" hint="4.20 doc: array of network name strings. Enter one or more VM network names separated by commas; e.g. VM Network or VM Network, DPG-1." />
+                          <input value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")} onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()) })} placeholder="e.g. VM Network or VM Network, DPG-1" />
                         </label>
                         <div style={{ gridColumn: "1 / -1" }}>
                           <CollapsibleSection title="Advanced (template, folder, resource pool)" defaultCollapsed={true}>
-                            {scenarioId === "vsphere-ipi" && (!platformConfig.vsphere?.clusterOSImage || String(platformConfig.vsphere.clusterOSImage).trim() === "") && (
+                            {scenarioId === "vsphere-ipi" && (
                             <label>
-                              <FieldLabelWithInfo label="Topology: RHCOS template (optional, IPI only)" hint="Absolute path to a pre-existing RHCOS image template or VM in vSphere. Use this OR clusterOSImage URL, not both." />
-                              <input value={fd.topology?.template || ""} onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })} placeholder="/datacenter/vm/rhcos-template" />
+                              <FieldLabelWithInfo label="Topology: RHCOS template (optional, IPI only)" hint="Absolute path to a pre-existing RHCOS image template or VM in vSphere. A value here disables the clusterOSImage field in Machine pool (advanced); use one strategy only. Doc: download OVA → Deploy OVF Template in vSphere Client → do not customize → set this path." />
+                              <input
+                                value={fd.topology?.template || ""}
+                                onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
+                                placeholder="/datacenter/vm/rhcos-template"
+                                disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
+                                aria-describedby={platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined}
+                              />
+                              {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
+                                <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
+                              )}
                             </label>
                           )}
                           <label>
@@ -952,30 +963,6 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
               </div>
 
-              {scenarioId === "vsphere-ipi" && (
-                <>
-                  <h4 className="platform-specifics-subsection">Load balancer</h4>
-                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                    UserManaged: you provide the load balancer; still set API and Ingress VIPs to the LB endpoints (see doc 2.4.5.3).
-                  </p>
-                  <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
-                    <FieldLabelWithInfo
-                      label="Load balancer type"
-                      hint="OpenShiftManagedDefault (default): installer-managed. UserManaged: you provide the LB; API/Ingress VIPs are the LB endpoints."
-                    >
-                      <select
-                        value={platformConfig.vsphere?.loadBalancerType || "OpenShiftManagedDefault"}
-                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, loadBalancerType: e.target.value } })}
-                        aria-label="Load balancer type"
-                      >
-                        <option value="OpenShiftManagedDefault">OpenShiftManagedDefault</option>
-                        <option value="UserManaged">UserManaged</option>
-                      </select>
-                    </FieldLabelWithInfo>
-                  </div>
-                </>
-              )}
-
               {scenarioId === "vsphere-ipi" && (platformConfig.vsphere?.placementMode || "failureDomains") === "failureDomains" && failureDomains.length >= 2 && (
                 <>
                   <h4 className="platform-specifics-subsection">Zone placement (optional)</h4>
@@ -1012,22 +999,22 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
                     Choose one RHCOS image strategy: clusterOSImage URL or topology.template per failure domain. Do not set both.
                   </p>
-                  {!(failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")) && (
-                    <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
-                      <FieldLabelWithInfo
-                        label="clusterOSImage (optional)"
-                        hint="URL for RHCOS image. Use this OR topology.template per failure domain, not both."
-                      >
-                        <input
-                          value={platformConfig.vsphere?.clusterOSImage || ""}
-                          onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, clusterOSImage: e.target.value } })}
-                          placeholder="https://mirror.example.com/rhcos.ova"
-                        />
-                      </FieldLabelWithInfo>
-                    </div>
-                  )}
-                  {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
-                    <p className="note subtle" style={{ marginBottom: 8 }}>clusterOSImage is set; template per failure domain is omitted.</p>
+                  <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
+                    <FieldLabelWithInfo
+                      label="clusterOSImage (optional)"
+                      hint="URL for RHCOS image. A value here disables Topology: RHCOS template in each failure domain; use one strategy only."
+                    >
+                      <input
+                        value={platformConfig.vsphere?.clusterOSImage || ""}
+                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, clusterOSImage: e.target.value } })}
+                        placeholder="https://mirror.example.com/rhcos.ova"
+                        disabled={failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")}
+                        aria-describedby={failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") ? "cluster-os-image-disabled-note" : undefined}
+                      />
+                    </FieldLabelWithInfo>
+                  </div>
+                  {failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
+                    <p className="note subtle" style={{ marginBottom: 8 }} id="cluster-os-image-disabled-note">Disabled: a failure domain has Topology: RHCOS template set (choose one strategy only).</p>
                   )}
                   <div className="field-grid" style={{ marginTop: 8 }}>
                     <FieldLabelWithInfo label="osDisk.diskSizeGB (optional)" hint="Root disk size in GB for platform.vsphere.">
@@ -1161,20 +1148,20 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
         {showAdvancedSection && (
           <CollapsibleSection
             title="Advanced"
-            subtitle={`${showVsphereIpiSection ? "vSphere folder/resource pool, " : ""}${showAgentOptionsSection ? "Agent boot artifacts, " : ""}Hyperthreading, capabilities, CPU partitioning, minimal ISO (catalog-driven).`}
+            subtitle={`${showVsphereLegacyFolderResourcePool ? "vSphere folder/resource pool (legacy placement only), " : ""}${showAgentOptionsSection ? "Agent boot artifacts, " : ""}Hyperthreading, capabilities, CPU partitioning, minimal ISO (catalog-driven).`}
             defaultCollapsed={true}
           >
                 <div className="field-grid" style={{ marginTop: 12 }}>
-                  {showVsphereIpiSection && (
+                  {showVsphereLegacyFolderResourcePool && (
                     <>
-                      <FieldLabelWithInfo label="vSphere folder (optional)" hint="VM folder path for cluster VMs. Omit to use installer default. Only used when vSphere is the selected platform.">
+                      <FieldLabelWithInfo label="vSphere folder (optional, legacy)" hint="VM folder path for cluster VMs (legacy placement only). Doc 9.1.5: deprecated; with failure domains use Topology: Folder per failure domain. Omit to use installer default.">
                         <input
                           value={platformConfig.vsphere?.folder || ""}
                           onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, folder: e.target.value } })}
                           placeholder="VM folder path"
                         />
                       </FieldLabelWithInfo>
-                      <FieldLabelWithInfo label="vSphere resource pool (optional)" hint="Resource pool path for cluster VMs. Omit to use cluster root Resources. Only used when vSphere is the selected platform.">
+                      <FieldLabelWithInfo label="vSphere resource pool (optional, legacy)" hint="Resource pool path for cluster VMs (legacy placement only). Doc 9.1.5: deprecated; with failure domains use Topology: Resource pool per failure domain. Omit to use cluster root Resources.">
                         <input
                           value={platformConfig.vsphere?.resourcePool || ""}
                           onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, resourcePool: e.target.value } })}

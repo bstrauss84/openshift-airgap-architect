@@ -87,8 +87,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
       (p.path === "platform.baremetal.apiVIP" || p.path === "platform.baremetal.ingressVIP") &&
       p.outputFile === INSTALL_CONFIG
   );
-  const showVsphereIpiVips = scenarioId === "vsphere-ipi";
-  const showApiIngressVips = showBareMetalVips || showVsphereIpiVips;
+const showVsphereIpiVips = scenarioId === "vsphere-ipi";
+    const showApiIngressVips = showBareMetalVips || showVsphereIpiVips;
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
@@ -362,7 +362,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                       />
                     </FieldLabelWithInfo>
                   </>
-                ) : (
+                ) : showBareMetalVips ? (
                   <>
                     <FieldLabelWithInfo
                       label="API VIP"
@@ -391,7 +391,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                       />
                     </FieldLabelWithInfo>
                   </>
-                )}
+                ) : null}
               </div>
             </div>
           </section>

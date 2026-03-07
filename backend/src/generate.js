@@ -353,7 +353,7 @@ const buildInstallConfig = (state) => {
         vsphere.failureDomains = vs.failureDomains.map((fd, i) => {
           const top = fd.topology || {};
           const networks = top.networks;
-          const networksArray = Array.isArray(networks) ? networks : (networks ? [networks] : []);
+          const networksArray = (Array.isArray(networks) ? networks : (networks ? [networks] : [])).filter((n) => n != null && String(n).trim() !== "");
           const topology = {
             ...(top.datacenter != null && top.datacenter !== "" ? { datacenter: top.datacenter } : {}),
             ...(top.computeCluster != null && top.computeCluster !== "" ? { computeCluster: top.computeCluster } : {}),
@@ -412,10 +412,6 @@ const buildInstallConfig = (state) => {
 
     if (vs.diskType && (vs.diskType === "thin" || vs.diskType === "thick" || vs.diskType === "eagerZeroedThick")) {
       vsphere.diskType = vs.diskType;
-    }
-    // loadBalancer.type: emit only when explicitly set (e.g. UserManaged). Default OpenShiftManagedDefault not emitted.
-    if (vs.loadBalancerType === "UserManaged" || vs.loadBalancerType === "OpenShiftManagedDefault") {
-      vsphere.loadBalancer = { type: vs.loadBalancerType };
     }
     // clusterOSImage vs topology.template: mutually exclusive. When clusterOSImage is set, emit it and suppress template in FDs (already done in mapping above).
     if (isVsphereIpi && vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") {

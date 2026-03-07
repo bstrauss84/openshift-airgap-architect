@@ -175,6 +175,59 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it("vSphere IPI: API/Ingress VIPs must be within machine network", () => {
+    const state = stateForNetworkingStep({
+      blueprint: { ...stateForNetworkingStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      globalStrategy: {
+        ...stateForNetworkingStep().globalStrategy,
+        networking: {
+          machineNetworkV4: "10.0.0.0/16",
+          clusterNetworkCidr: "10.128.0.0/14",
+          clusterNetworkHostPrefix: 23,
+          serviceNetworkCidr: "172.30.0.0/16",
+          networkType: "OVNKubernetes"
+        }
+      },
+      platformConfig: {
+        vsphere: {
+          apiVIPs: ["192.168.1.10"],
+          ingressVIPs: ["10.0.0.5"]
+        }
+      }
+    });
+    const result = validateStep(state, "networking-v2");
+    expect(result.errors.some((e) => /API VIPs must be within the machine network/i.test(e))).toBe(true);
+    expect(result.fieldErrors?.apiVip).toBeDefined();
+    expect(result.errors.some((e) => /Ingress VIPs must be within the machine network/i.test(e))).toBe(false);
+  });
+
+  it("vSphere IPI: no VIP-in-machine-network error when VIPs are inside CIDR", () => {
+    const state = stateForNetworkingStep({
+      blueprint: { ...stateForNetworkingStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      globalStrategy: {
+        ...stateForNetworkingStep().globalStrategy,
+        networking: {
+          machineNetworkV4: "10.0.0.0/16",
+          clusterNetworkCidr: "10.128.0.0/14",
+          clusterNetworkHostPrefix: 23,
+          serviceNetworkCidr: "172.30.0.0/16",
+          networkType: "OVNKubernetes"
+        }
+      },
+      platformConfig: {
+        vsphere: {
+          apiVIPs: ["10.0.0.10"],
+          ingressVIPs: ["10.0.0.11"]
+        }
+      }
+    });
+    const result = validateStep(state, "networking-v2");
+    expect(result.errors.filter((e) => /must be within the machine network/i.test(e))).toHaveLength(0);
+  });
+
+
   it("when scenario is aws-govcloud-ipi, getScenarioId returns aws-govcloud-ipi and Networking tab shows full form (A2 tab relevance)", () => {
     const state = stateForNetworkingStep({
       blueprint: {
