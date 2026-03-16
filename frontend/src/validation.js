@@ -496,7 +496,7 @@ const validateNetworkingFormat = (state) => {
   return { errors, warnings: [] };
 };
 
-/** VIPs must be within machine network(s). Doc: "The VIPs, apiVIP and ingressVIP, must come from the same networking.machineNetwork segment." Applies to vSphere IPI (and optionally other scenarios that use API/Ingress VIPs). */
+/** VIPs must be within machine network(s). Doc: "The VIPs, apiVIP and ingressVIP, must come from the same networking.machineNetwork segment." Applies to vSphere IPI, where API/Ingress VIPs live under platform.vsphere; vSphere UPI uses top-level networking VIPs instead. */
 const validateVipsInMachineNetwork = (state) => {
   const errors = [];
   const fieldErrors = {};
@@ -518,7 +518,7 @@ const validateVipsInMachineNetwork = (state) => {
     });
   };
 
-  if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi") {
+  if (scenarioId === "vsphere-ipi") {
     const vs = state.platformConfig?.vsphere || {};
     checkVips(vs.apiVIPs, "API VIPs", "apiVip");
     checkVips(vs.ingressVIPs, "Ingress VIPs", "ingressVip");
