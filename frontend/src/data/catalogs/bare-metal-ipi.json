@@ -914,19 +914,39 @@
       "path": "platform.baremetal.apiVIP",
       "outputFile": "install-config.yaml",
       "type": "string",
-      "allowed": "IPv4 address",
+      "allowed": "IPv4 or IPv6 address",
       "default": "not specified in docs",
       "required": false,
-      "description": "API virtual IP for Bare Metal IPI.",
+      "description": "API virtual IP (deprecated in 4.12+). Use platform.baremetal.apiVIPs instead. Emitted as apiVIPs in install-config.",
       "applies_to": [
         "bare-metal-ipi"
       ],
       "citations": [
         {
           "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
           "sectionHeading": "Bare metal API and Ingress VIPs",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installing-bare-metal-ipi",
-          "docTitle": "Installing on bare metal with installer-provisioned infrastructure"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ]
+    },
+    {
+      "path": "platform.baremetal.apiVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "API virtual IP(s). List format (4.12+ canonical). Single-stack: one element; dual-stack: two (order = primary, secondary). Omit when using user-managed load balancer.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "Bare metal API and Ingress VIPs",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
         }
       ]
     },
@@ -965,7 +985,7 @@
         {
           "docId": "installing-bare-metal-ipi",
           "sectionHeading": "Bare metal hosts",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installing-bare-metal-ipi",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure",
           "docTitle": "Installing on bare metal with installer-provisioned infrastructure"
         }
       ]
@@ -1117,19 +1137,39 @@
       "path": "platform.baremetal.ingressVIP",
       "outputFile": "install-config.yaml",
       "type": "string",
-      "allowed": "IPv4 address",
+      "allowed": "IPv4 or IPv6 address",
       "default": "not specified in docs",
       "required": false,
-      "description": "Ingress virtual IP for Bare Metal IPI.",
+      "description": "Ingress virtual IP (deprecated in 4.12+). Use platform.baremetal.ingressVIPs instead. Emitted as ingressVIPs in install-config.",
       "applies_to": [
         "bare-metal-ipi"
       ],
       "citations": [
         {
           "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
           "sectionHeading": "Bare metal API and Ingress VIPs",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installing-bare-metal-ipi",
-          "docTitle": "Installing on bare metal with installer-provisioned infrastructure"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ]
+    },
+    {
+      "path": "platform.baremetal.ingressVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Ingress virtual IP(s). List format (4.12+ canonical). Single-stack: one element; dual-stack: two (order = primary, secondary). Omit when using user-managed load balancer.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "Bare metal API and Ingress VIPs",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
         }
       ]
     },
@@ -1152,7 +1192,7 @@
         {
           "docId": "installing-bare-metal-ipi",
           "sectionHeading": "Provisioning network",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installing-bare-metal-ipi",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure",
           "docTitle": "Installing on bare metal with installer-provisioned infrastructure"
         }
       ]

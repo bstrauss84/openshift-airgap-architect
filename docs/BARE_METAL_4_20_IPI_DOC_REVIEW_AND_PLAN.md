@@ -55,7 +55,7 @@ This file is the **working record** for the Bare Metal / 4.20 / IPI truth pass (
 4. **AS-IS backend behavior (bare metal IPI)**
    - In `backend/src/generate.js`, when **platform is `Bare Metal` and method is `IPI`**, the generator:
      - Emits `installConfig.platform.baremetal` with:
-       - `apiVIP` and `ingressVIP` from `hostInventory.apiVip` / `hostInventory.ingressVip` (singular fields).
+       - `apiVIPs` and `ingressVIPs` (arrays) from `hostInventory.apiVip` / `hostInventory.ingressVip` (single-element lists; 4.12+ canonical).
        - Provisioning network–related fields from `hostInventory` (`provisioningNetwork`, `provisioningNetworkCIDR`, `provisioningNetworkInterface`, `provisioningDHCPRange`, `clusterProvisioningIP`, `provisioningMACAddress`) when populated.
        - `hosts[]` built from `hostInventory.nodes` with:
          - `name` (from `hostname` + baseDomain when configured),
@@ -67,18 +67,15 @@ This file is the **working record** for the Bare Metal / 4.20 / IPI truth pass (
 
 5. **AS-IS wizard behavior (bare metal IPI) — high level**
    - VIPs:
-     - The networking step (`NetworkingV2Step.jsx`) determines whether to show an API/Ingress VIP section by checking the catalog for `platform.baremetal.apiVIP` / `platform.baremetal.ingressVIP`. When present, a **bare metal VIP card** is rendered and wired to `hostInventory.apiVip` and `hostInventory.ingressVip`.
+     - The networking step (`NetworkingV2Step.jsx`) determines whether to show an API/Ingress VIP section by checking the catalog for `platform.baremetal.apiVIP`, `ingressVIP`, `apiVIPs`, or `ingressVIPs`. When present, a **bare metal VIP card** is rendered and wired to `hostInventory.apiVip` and `hostInventory.ingressVip` (emitted as apiVIPs/ingressVIPs in install-config).
    - Provisioning network and hosts:
      - The host inventory step (and related platform-specific inputs) drive `hostInventory` state for per-node BMC information, `bootMACAddress`, and `rootDevice` as well as global provisioning-network–related fields.
      - The generator directly consumes this `hostInventory` state to build `platform.baremetal` in `install-config.yaml`.
 
-6. **Known / suspected deltas (to be expanded in implementation plan)**
+6. **Known / suspected deltas — VIP resolved**
 
-- **Docs vs params/backend:**
-  - VIPs:
-    - Docs show dual-stack VIPs as `apiVIPs` / `ingressVIPs` (lists).
-    - Catalog + backend use singular `apiVIP` / `ingressVIP` today.
-    - It is highly likely that both are accepted in 4.20, with singular being a legacy/convenience path; this needs explicit confirmation before any change.
+- **Docs vs params/backend (VIP):** Resolved. Catalog now documents apiVIPs/ingressVIPs (canonical) and apiVIP/ingressVIP (deprecated). Backend emits apiVIPs/ingressVIPs. UI collects single values and backend emits as single-element arrays.
+- **Docs vs params/backend (other):**
   - Provisioning network:
     - Catalog allowed values (`Managed`, `Unmanaged`, `Disabled`) for `provisioningNetwork` **match** the IPI chapter text, including DHCP behavior and external-DHCP requirements.
     - Backend correctly carries through `Managed`, `Unmanaged`, and `Disabled` when set.
@@ -107,4 +104,12 @@ This working doc is the anchor for:
 - The **full doc tree / mapping** for bare-metal-ipi (rooted at the URLs above).
 - The **parameter truth table** for `platform.baremetal.*` and shared install-config fields (taken from manual review of the cached HTML plus `data/params/4.20/bare-metal-ipi.json`).
 - The **AS-IS inventory and delta analysis** for bare metal 4.20 IPI (to be expanded in subsequent edits if/when the implementation pass proceeds).
+
+### Canonical vs frontend params (two-place model)
+
+See **`docs/DATA_AND_FRONTEND_COPIES.md`** for the authoritative explanation. Summary:
+
+- **Canonical:** `data/params/<version>/*.json` (e.g. `data/params/4.20/bare-metal-ipi.json`) — source of truth; validated by `node scripts/validate-catalog.js`. The frontend container in Docker does not have access to `data/` at runtime.
+- **Frontend copies:** `frontend/src/data/catalogs/*.json` — copied from canonical when params change or a new scenario is added. Used by `catalogPaths.js`, `catalogFieldMeta.js`, and catalog-driven UI (e.g. Networking, Platform Specifics, Host Inventory v2).
+- **Sync:** Manual. When canonical bare-metal-ipi or bare-metal-upi is updated, copy the file(s) to `frontend/src/data/catalogs/` so the UI and validation use the same param set. After this closeout pass, canonical and frontend copies for bare-metal-ipi and bare-metal-upi are in sync (including apiVIPs/ingressVIPs and deprecated singular VIP entries).
 
