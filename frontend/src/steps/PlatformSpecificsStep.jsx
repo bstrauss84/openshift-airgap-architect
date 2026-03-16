@@ -1061,89 +1061,100 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
           </section>
         )}
 
-        {showProvisioningNetworkSection && (
-          <section className="card">
-            <div className="card-header">
-              <h3 className="card-title">Bare metal IPI — Provisioning network</h3>
-              <div className="card-subtitle">Provisioning network mode and options for installer-provisioned bare metal.</div>
-            </div>
-            <div className="card-body">
-              <p className="note subtle">Configure how the provisioning network is used during installation. Hosts (BMC, boot MAC) are configured on the Hosts / Inventory step.</p>
-              <div className="field-grid" style={{ marginTop: 12 }}>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Provisioning network"
-                    hint="Managed (default): The installer runs DHCP and TFTP on the provisioning network; no other DHCP on that network. Choose when you have a dedicated provisioning NIC and can give the installer full control. Unmanaged: Provisioning network exists but you run DHCP yourself; virtual media is recommended, PXE still possible. Choose when you must use existing DHCP or share the network. Disabled: No provisioning network; use virtual media or Assisted Installer only. BMCs must be reachable on the bare-metal network; reserve two IPs on that network for provisioning services. Choose for fully static or disconnected flows."
-                    required={metaProvisioningNetwork?.required}
-                  />
-                  <select
-                    value={inventory.provisioningNetwork || (metaProvisioningNetwork?.default ?? "Managed")}
-                    onChange={(e) => updateInventory({ provisioningNetwork: e.target.value })}
-                  >
-                    <option value="Managed">Managed — installer runs DHCP/TFTP</option>
-                    <option value="Unmanaged">Unmanaged — you provide DHCP</option>
-                    <option value="Disabled">Disabled — virtual media / no provisioning net</option>
-                  </select>
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Provisioning network CIDR (optional)"
-                    hint={metaProvisioningCIDR?.description}
-                  />
-                  <input
-                    value={inventory.provisioningNetworkCIDR || ""}
-                    onChange={(e) => updateInventory({ provisioningNetworkCIDR: e.target.value.trim() })}
-                    placeholder="e.g. 172.22.0.0/24"
-                  />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Provisioning network interface (optional)"
-                    hint={metaProvisioningInterface?.description}
-                  />
-                  <input
-                    value={inventory.provisioningNetworkInterface || ""}
-                    onChange={(e) => updateInventory({ provisioningNetworkInterface: e.target.value })}
-                    placeholder="e.g. eth1"
-                  />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Provisioning DHCP range (optional)"
-                    hint={metaProvisioningDHCPRange?.description}
-                  />
-                  <input
-                    value={inventory.provisioningDHCPRange || ""}
-                    onChange={(e) => updateInventory({ provisioningDHCPRange: e.target.value })}
-                    placeholder="e.g. 172.22.0.10,172.22.0.254"
-                  />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Cluster provisioning IP (optional)"
-                    hint={metaClusterProvisioningIP?.description}
-                  />
-                  <input
-                    value={inventory.clusterProvisioningIP || ""}
-                    onChange={(e) => updateInventory({ clusterProvisioningIP: e.target.value.trim() })}
-                    placeholder="IP within provisioning subnet"
-                  />
-                </label>
-                <label>
-                  <FieldLabelWithInfo
-                    label="Provisioning MAC address (optional)"
-                    hint={metaProvisioningMAC?.description}
-                  />
-                  <input
-                    value={inventory.provisioningMACAddress || ""}
-                    onChange={(e) => updateInventory({ provisioningMACAddress: formatMACAsYouType(e.target.value) })}
-                    placeholder="MAC where provisioning services run"
-                  />
-                </label>
+        {showProvisioningNetworkSection && (() => {
+          const provisioningMode = inventory.provisioningNetwork || (metaProvisioningNetwork?.default ?? "Managed");
+          const showDhcpRange = provisioningMode !== "Disabled";
+          return (
+            <section className="card">
+              <div className="card-header">
+                <h3 className="card-title">Bare metal IPI — Provisioning network</h3>
+                <div className="card-subtitle">Provisioning network mode and options for installer-provisioned bare metal.</div>
               </div>
-            </div>
-          </section>
-        )}
+              <div className="card-body">
+                <p className="note subtle">Configure how the provisioning network is used during installation. Hosts (BMC, boot MAC) are configured on the Hosts / Inventory step.</p>
+                <div className="field-grid" style={{ marginTop: 12 }}>
+                  <label>
+                    <FieldLabelWithInfo
+                      label="Provisioning network"
+                      hint="Managed (default): The installer runs DHCP and TFTP on the provisioning network; no other DHCP on that network. Choose when you have a dedicated provisioning NIC and can give the installer full control. Unmanaged: Provisioning network exists but you run DHCP yourself; virtual media is recommended, PXE still possible. Choose when you must use existing DHCP or share the network. Disabled: No provisioning network; use virtual media or Assisted Installer only. BMCs must be reachable on the bare-metal network; reserve two IPs on that network for provisioning services. Choose for fully static or disconnected flows."
+                      required={metaProvisioningNetwork?.required}
+                    />
+                    <select
+                      value={provisioningMode}
+                      onChange={(e) => updateInventory({ provisioningNetwork: e.target.value })}
+                    >
+                      <option value="Managed">Managed — installer runs DHCP/TFTP</option>
+                      <option value="Unmanaged">Unmanaged — you provide DHCP</option>
+                      <option value="Disabled">Disabled — virtual media / no provisioning net</option>
+                    </select>
+                  </label>
+                  <label>
+                    <FieldLabelWithInfo
+                      label="Provisioning network CIDR (optional)"
+                      hint={provisioningMode === "Disabled" ? "When Disabled, provisioning services use the bare-metal network; omit or use bare-metal CIDR if needed." : metaProvisioningCIDR?.description}
+                    />
+                    <input
+                      value={inventory.provisioningNetworkCIDR || ""}
+                      onChange={(e) => updateInventory({ provisioningNetworkCIDR: e.target.value.trim() })}
+                      placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : "e.g. 172.22.0.0/24"}
+                    />
+                  </label>
+                  <label>
+                    <FieldLabelWithInfo
+                      label="Provisioning network interface (optional)"
+                      hint={metaProvisioningInterface?.description}
+                    />
+                    <input
+                      value={inventory.provisioningNetworkInterface || ""}
+                      onChange={(e) => updateInventory({ provisioningNetworkInterface: e.target.value })}
+                      placeholder="e.g. eth1"
+                    />
+                  </label>
+                  {showDhcpRange ? (
+                    <label>
+                      <FieldLabelWithInfo
+                        label="Provisioning DHCP range (optional)"
+                        hint={metaProvisioningDHCPRange?.description}
+                      />
+                      <input
+                        value={inventory.provisioningDHCPRange || ""}
+                        onChange={(e) => updateInventory({ provisioningDHCPRange: e.target.value })}
+                        placeholder="e.g. 172.22.0.10,172.22.0.254"
+                      />
+                    </label>
+                  ) : null}
+                  <label>
+                    <FieldLabelWithInfo
+                      label="Cluster provisioning IP (optional)"
+                      hint={provisioningMode === "Disabled" ? "When Disabled, one of two IPs on the bare-metal network for provisioning services." : metaClusterProvisioningIP?.description}
+                    />
+                    <input
+                      value={inventory.clusterProvisioningIP || ""}
+                      onChange={(e) => updateInventory({ clusterProvisioningIP: e.target.value.trim() })}
+                      placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : "IP within provisioning subnet"}
+                    />
+                  </label>
+                  <label>
+                    <FieldLabelWithInfo
+                      label="Provisioning MAC address (optional)"
+                      hint={metaProvisioningMAC?.description}
+                    />
+                    <input
+                      value={inventory.provisioningMACAddress || ""}
+                      onChange={(e) => updateInventory({ provisioningMACAddress: formatMACAsYouType(e.target.value) })}
+                      placeholder="MAC where provisioning services run"
+                    />
+                  </label>
+                </div>
+                {provisioningMode === "Disabled" && (
+                  <p className="note subtle" style={{ marginTop: 12, marginBottom: 0 }}>
+                    When Disabled, reserve two IPs on the bare-metal network for provisioning services; BMCs must be reachable on that network.
+                  </p>
+                )}
+              </div>
+            </section>
+          );
+        })()}
 
         {showAdvancedSection && (
           <CollapsibleSection

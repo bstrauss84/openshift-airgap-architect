@@ -34,6 +34,14 @@ const isValidIpv4Cidr = (value) => {
   return !Number.isNaN(bits) && bits >= 0 && bits <= 32;
 };
 
+/** Simple IPv6 address check (single address, no CIDR). */
+const isValidIpv6 = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed.includes("/")) return false;
+  return /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/.test(trimmed) || /^::[0-9a-fA-F.:]+$/.test(trimmed);
+};
+
 const isValidIpv6Cidr = (value) => {
   if (!value || !value.includes("/")) return false;
   const [ip, prefix] = value.split("/");
@@ -489,8 +497,11 @@ const validateNetworkingFormat = (state) => {
   if (clusterV6 && !isValidIpv6Cidr(clusterV6)) errors.push("Cluster network IPv6 CIDR must be a valid IPv6 CIDR (e.g. fd01::/48).");
   if (serviceV6 && !isValidIpv6Cidr(serviceV6)) errors.push("Service network IPv6 CIDR must be a valid IPv6 CIDR (e.g. fd02::/112).");
   if (ovnSubnet && !isValidIpv4Cidr(ovnSubnet)) errors.push("OVN internal join subnet must be a valid CIDR.");
-  if (apiVip && !isValidIpv4(apiVip)) errors.push("API VIP must be a valid IPv4 address.");
-  if (ingressVip && !isValidIpv4(ingressVip)) errors.push("Ingress VIP must be a valid IPv4 address.");
+  const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const apiVipList = parseVipList(apiVip);
+  const ingressVipList = parseVipList(ingressVip);
+  if (apiVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("API VIPs: each value must be a valid IPv4 or IPv6 address.");
+  if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) errors.push("Provisioning network CIDR must be a valid CIDR.");
   if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) errors.push("Cluster provisioning IP must be a valid IPv4 address.");
   return { errors, warnings: [] };
@@ -522,6 +533,12 @@ const validateVipsInMachineNetwork = (state) => {
     const vs = state.platformConfig?.vsphere || {};
     checkVips(vs.apiVIPs, "API VIPs", "apiVip");
     checkVips(vs.ingressVIPs, "Ingress VIPs", "ingressVip");
+  }
+  if (scenarioId === "bare-metal-ipi" || scenarioId === "bare-metal-upi") {
+    const hi = state.hostInventory || {};
+    const parseList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+    checkVips(parseList(hi.apiVip), "API VIPs", "apiVip");
+    checkVips(parseList(hi.ingressVip), "Ingress VIPs", "ingressVip");
   }
   return { errors, fieldErrors };
 };

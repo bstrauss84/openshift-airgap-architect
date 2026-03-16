@@ -10,11 +10,14 @@ const TOOLTIP_Z_INDEX = 10050;
  * When children (a form control) is passed, the label uses htmlFor so clicking the title focuses the control;
  * the icon is a sibling of the label so it stays inline after the title (same visual as SecretInput/reference).
  */
+const TOOLTIP_LEAVE_DELAY_MS = 120;
+
 function FieldLabelWithInfo({ label, hint, required, id: idProp, children, className: wrapperClassName }) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [placement, setPlacement] = useState("above");
   const iconRef = useRef(null);
+  const leaveTimeoutRef = useRef(null);
   const id = idProp || `field-info-${Math.random().toString(36).slice(2, 9)}`;
   const controlIdRef = useRef(null);
   if (controlIdRef.current === null && children != null) {
@@ -23,7 +26,7 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
   const controlId = children != null ? (React.Children.only(children)?.props?.id ?? controlIdRef.current) : null;
 
   const gap = 8;
-  const tooltipMaxWidth = 280;
+  const tooltipMaxWidth = 320;
 
   const updatePosition = () => {
     if (!iconRef.current) return;
@@ -68,6 +71,17 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [visible]);
 
+  const scheduleClose = () => {
+    if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+    leaveTimeoutRef.current = setTimeout(() => setVisible(false), TOOLTIP_LEAVE_DELAY_MS);
+  };
+  const cancelClose = () => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+  };
+
   const tooltipEl =
     visible && hint
       ? createPortal(
@@ -83,6 +97,8 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
               zIndex: TOOLTIP_Z_INDEX,
               transform: placement === "above" ? "translateY(-100%)" : undefined
             }}
+            onMouseEnter={() => { cancelClose(); setVisible(true); }}
+            onMouseLeave={() => { setVisible(false); }}
           >
             <div className="field-tooltip-content">{hint}</div>
           </div>,
@@ -105,9 +121,9 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
       aria-label="More information"
       aria-describedby={visible ? id : undefined}
       onClick={() => setVisible((v) => !v)}
-      onBlur={() => setVisible(false)}
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
+      onBlur={() => { cancelClose(); setVisible(false); }}
+      onMouseEnter={() => { cancelClose(); setVisible(true); }}
+      onMouseLeave={scheduleClose}
     >
       <img src="/info-icon.png" alt="" className="field-info-icon-img" />
     </button>
