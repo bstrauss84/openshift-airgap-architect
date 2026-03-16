@@ -84,7 +84,10 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     catalogParams.some((p) => p.path === path && p.outputFile === INSTALL_CONFIG);
   const showBareMetalVips = catalogParams.some(
     (p) =>
-      (p.path === "platform.baremetal.apiVIP" || p.path === "platform.baremetal.ingressVIP") &&
+      (p.path === "platform.baremetal.apiVIP" ||
+        p.path === "platform.baremetal.ingressVIP" ||
+        p.path === "platform.baremetal.apiVIPs" ||
+        p.path === "platform.baremetal.ingressVIPs") &&
       p.outputFile === INSTALL_CONFIG
   );
 const showVsphereIpiVips = scenarioId === "vsphere-ipi";
