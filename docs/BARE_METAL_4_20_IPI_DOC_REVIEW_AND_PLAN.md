@@ -86,10 +86,12 @@ This file is the **working record** for the Bare Metal / 4.20 / IPI truth pass (
   - No UI-level modeling of the full DHCP/Redfish caveats for each `provisioningNetwork` mode (Managed / Unmanaged / Disabled); these are doc-only today.
   - No explicit UI gating for required `bootMACAddress` when provisioning network is disabled; generator simply omits hosts’ `bootMACAddress` when not set.
 
-7. **Uncertainties (must not be hand-waved)**
+7. **VIP schema (resolved in follow-up pass)**
 
-- **Singular vs plural VIP fields for bare metal 4.20 IPI:**
-  - Evidence:
+- **Conclusion:** Official 4.20 bare metal IPI docs state that from OpenShift 4.12 onward, `apiVIP` and `ingressVIP` are **deprecated**; the installer expects **`apiVIPs`** and **`ingressVIPs`** (list format). Single-stack = one element in each list; dual-stack = two elements (order = primary/secondary).
+- **Change applied:** Backend `generate.js` now emits `apiVIPs` and `ingressVIPs` (arrays) for Bare Metal IPI. The UI continues to collect a single API VIP and single Ingress VIP; they are emitted as single-element arrays. Dual-stack can be added later.
+- **(Superseded) Singular vs plural VIP fields — previously uncertain:**
+  - Evidence (historical):
     - Agent-based param tables (9.1.4) focus on **install-config structure** and reference `platform.baremetal.*`, but the cached text inspected in this pass does **not** clearly list `apiVIP` vs `apiVIPs`.
     - The bare metal IPI chapter’s dual-stack example uses `apiVIPs` / `ingressVIPs` lists.
     - The app and catalog currently use singular `apiVIP` / `ingressVIP`.
