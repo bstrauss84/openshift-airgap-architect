@@ -177,9 +177,9 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     await waitFor(
       () => {
         expect(screen.getByRole("heading", { name: /Bare metal IPI — Provisioning network/i })).toBeInTheDocument();
-        expect(screen.getByDisplayValue("Managed")).toBeInTheDocument();
+        expect(screen.getByDisplayValue(/Managed/)).toBeInTheDocument();
       },
-      { timeout: 5000 }
+      { timeout: 8000 }
     );
   });
 

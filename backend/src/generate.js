@@ -44,10 +44,15 @@ const buildServiceNetwork = (networkingState, dualStack) => {
 };
 
 const effectiveHostname = (node, baseDomain) => {
-  const short = (node?.hostname || "").trim();
+  let short = (node?.hostname || "").trim();
   if (!short) return short;
   const base = (baseDomain || "").trim();
-  if (node?.hostnameUseFqdn && base) return `${short}.${base}`;
+  if (node?.hostnameUseFqdn && base) {
+    // Avoid doubled baseDomain: if user typed FQDN (shortname.baseDomain), strip the suffix before appending
+    const suffix = `.${base}`;
+    if (short.endsWith(suffix)) short = short.slice(0, -suffix.length).trim() || short;
+    return `${short}.${base}`;
+  }
   return short;
 };
 
@@ -156,10 +161,12 @@ const buildInstallConfig = (state) => {
   }
 
   if (state.blueprint?.platform === "Bare Metal") {
-    const baremetal = {
-      ...(state.hostInventory?.apiVip ? { apiVIP: state.hostInventory.apiVip } : {}),
-      ...(state.hostInventory?.ingressVip ? { ingressVIP: state.hostInventory.ingressVip } : {})
-    };
+    // 4.12+: apiVIP/ingressVIP are deprecated; use apiVIPs/ingressVIPs (list format). Emit list for 4.20.
+    const apiVip = (state.hostInventory?.apiVip || "").trim();
+    const ingressVip = (state.hostInventory?.ingressVip || "").trim();
+    const baremetal = {};
+    if (apiVip) baremetal.apiVIPs = [apiVip];
+    if (ingressVip) baremetal.ingressVIPs = [ingressVip];
     if (state.methodology?.method === "IPI") {
       const hi = state.hostInventory || {};
       if (hi.provisioningNetwork && ["Managed", "Unmanaged", "Disabled"].includes(hi.provisioningNetwork)) {

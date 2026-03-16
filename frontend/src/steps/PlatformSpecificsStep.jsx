@@ -1073,16 +1073,16 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <label>
                   <FieldLabelWithInfo
                     label="Provisioning network"
-                    hint={metaProvisioningNetwork?.description}
+                    hint="Managed (default): The installer runs DHCP and TFTP on the provisioning network; no other DHCP on that network. Choose when you have a dedicated provisioning NIC and can give the installer full control. Unmanaged: Provisioning network exists but you run DHCP yourself; virtual media is recommended, PXE still possible. Choose when you must use existing DHCP or share the network. Disabled: No provisioning network; use virtual media or Assisted Installer only. BMCs must be reachable on the bare-metal network; reserve two IPs on that network for provisioning services. Choose for fully static or disconnected flows."
                     required={metaProvisioningNetwork?.required}
                   />
                   <select
                     value={inventory.provisioningNetwork || (metaProvisioningNetwork?.default ?? "Managed")}
                     onChange={(e) => updateInventory({ provisioningNetwork: e.target.value })}
                   >
-                    {provisioningNetworkOptions.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
+                    <option value="Managed">Managed — installer runs DHCP/TFTP</option>
+                    <option value="Unmanaged">Unmanaged — you provide DHCP</option>
+                    <option value="Disabled">Disabled — virtual media / no provisioning net</option>
                   </select>
                 </label>
                 <label>

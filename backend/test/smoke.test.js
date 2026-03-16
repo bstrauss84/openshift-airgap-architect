@@ -74,7 +74,42 @@ test("buildInstallConfig for bare-metal-ipi emits provisioning network params wh
   assert.strictEqual(out.platform?.baremetal?.provisioningMACAddress, "52:54:00:00:00:01");
 });
 
-test("buildInstallConfig for bare-metal-upi emits apiVIP/ingressVIP and no hosts (Prompt J)", () => {
+test("buildInstallConfig for bare-metal-ipi emits apiVIPs/ingressVIPs (list format per 4.12+)", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      nodes: [{ hostname: "master-0", role: "master", bmc: { address: "redfish+http://192.168.1.1" } }],
+      apiVip: "10.90.0.1",
+      ingressVip: "10.90.0.2"
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.platform?.baremetal?.apiVIPs, ["10.90.0.1"]);
+  assert.deepStrictEqual(out.platform?.baremetal?.ingressVIPs, ["10.90.0.2"]);
+});
+
+test("buildInstallConfig for bare-metal-ipi host name: hostnameUseFqdn avoids doubled baseDomain", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        { hostname: "master-0.example.com", hostnameUseFqdn: true, role: "master", bmc: { address: "redfish+http://192.168.1.1" } }
+      ]
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform?.baremetal?.hosts?.[0]?.name, "master-0.example.com", "should strip trailing baseDomain before appending to avoid master-0.example.com.example.com");
+});
+
+test("buildInstallConfig for bare-metal-upi emits apiVIPs/ingressVIPs (list format per 4.12+) and no hosts (Prompt J)", () => {
   const state = {
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "upi-cluster" },
     methodology: { method: "UPI" },
@@ -88,8 +123,8 @@ test("buildInstallConfig for bare-metal-upi emits apiVIP/ingressVIP and no hosts
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
-  assert.strictEqual(out.platform?.baremetal?.apiVIP, "192.168.1.100");
-  assert.strictEqual(out.platform?.baremetal?.ingressVIP, "192.168.1.101");
+  assert.deepStrictEqual(out.platform?.baremetal?.apiVIPs, ["192.168.1.100"]);
+  assert.deepStrictEqual(out.platform?.baremetal?.ingressVIPs, ["192.168.1.101"]);
   assert.ok(!out.platform?.baremetal?.hosts || out.platform.baremetal.hosts.length === 0);
   assert.strictEqual(out.baseDomain, "example.com");
   assert.strictEqual(out.metadata?.name, "upi-cluster");
@@ -144,8 +179,8 @@ test("buildInstallConfig for bare-metal-upi must NOT emit IPI-only params (scena
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   const bm = out.platform?.baremetal || {};
-  assert.strictEqual(bm.apiVIP, "192.168.1.100");
-  assert.strictEqual(bm.ingressVIP, "192.168.1.101");
+  assert.deepStrictEqual(bm.apiVIPs, ["192.168.1.100"]);
+  assert.deepStrictEqual(bm.ingressVIPs, ["192.168.1.101"]);
   assert.strictEqual(bm.provisioningNetwork, undefined, "UPI must not emit IPI-only provisioningNetwork");
   assert.strictEqual(bm.provisioningNetworkCIDR, undefined, "UPI must not emit IPI-only provisioningNetworkCIDR");
   assert.strictEqual(bm.provisioningNetworkInterface, undefined, "UPI must not emit IPI-only provisioningNetworkInterface");

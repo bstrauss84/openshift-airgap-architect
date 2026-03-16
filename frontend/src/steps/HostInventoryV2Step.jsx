@@ -291,9 +291,13 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
   const baseDomain = (state.blueprint?.baseDomain || "").trim();
   const effectiveHostname = (node) => {
-    const short = (node?.hostname || "").trim();
+    let short = (node?.hostname || "").trim();
     if (!short) return "";
-    if (node?.hostnameUseFqdn && baseDomain) return `${short}.${baseDomain}`;
+    if (node?.hostnameUseFqdn && baseDomain) {
+      const suffix = `.${baseDomain}`;
+      if (short.endsWith(suffix)) short = short.slice(0, -suffix.length).trim() || short;
+      return `${short}.${baseDomain}`;
+    }
     return short;
   };
   const drawerOpen = selectedIndex != null && nodes.length > 0;
@@ -619,21 +623,26 @@ wipefs -a /dev/sdX`}</pre>
                   </div>
                   <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
                   {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
-                    <div className="host-inventory-v2-validation-summary">
-                      <strong>Validation for this node</strong>
-                      {mergedNodeValidation[selectedIndex].errors?.length > 0 && (
-                        <div className="host-inventory-v2-validation-errors">
-                          <strong>Errors:</strong>
-                          <ul>{mergedNodeValidation[selectedIndex].errors.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
-                        </div>
-                      )}
-                      {mergedNodeValidation[selectedIndex].warnings?.length > 0 && (
-                        <div className="host-inventory-v2-validation-warnings">
-                          <strong>Warnings:</strong>
-                          <ul>{mergedNodeValidation[selectedIndex].warnings.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
-                        </div>
-                      )}
-                    </div>
+                    <details className="host-inventory-v2-validation-summary host-inventory-v2-validation-details">
+                      <summary className="host-inventory-v2-validation-summary-summary">
+                        <strong>Validation for this node</strong>
+                        <span className="subtle"> ({mergedNodeValidation[selectedIndex].errors?.length || 0} error(s), {mergedNodeValidation[selectedIndex].warnings?.length || 0} warning(s))</span>
+                      </summary>
+                      <div className="host-inventory-v2-validation-summary-inner">
+                        {mergedNodeValidation[selectedIndex].errors?.length > 0 && (
+                          <div className="host-inventory-v2-validation-errors">
+                            <strong>Errors:</strong>
+                            <ul>{mergedNodeValidation[selectedIndex].errors.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
+                          </div>
+                        )}
+                        {mergedNodeValidation[selectedIndex].warnings?.length > 0 && (
+                          <div className="host-inventory-v2-validation-warnings">
+                            <strong>Warnings:</strong>
+                            <ul>{mergedNodeValidation[selectedIndex].warnings.map((msg, i) => <li key={i}>{msg}</li>)}</ul>
+                          </div>
+                        )}
+                      </div>
+                    </details>
                   )}
                 </div>
                 <div className="host-inventory-v2-drawer-body">
