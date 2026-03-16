@@ -37,23 +37,39 @@ Working record for the Bare Metal / 4.20 / UPI scenario truth and implementation
 ## Doc findings (Phase B scrub)
 
 1. **Sample install-config (2.1.12.1):**  
-   - `platform: none: {}` — UPI uses platform type `none`.  
-   - No `platform.baremetal` in the doc sample.  
+   - Official UPI sample shows `platform: none: {}` only.  
+   - **No** `platform.baremetal` block in the UPI sample.  
+   - Doc wording (section 2.1.12.1): *"`platform` Specifies the platform. You must set the platform to `none`. **You cannot provide additional platform configuration variables for your platform.**"*  
    - User must provision API and application Ingress load balancers; DNS points to those LBs.
 
 2. **API / Ingress:**  
    - UPI doc describes external API and Ingress load balancers (DNS, HAProxy example).  
    - Sample install-config does not show apiVIPs/ingressVIPs; VIPs are typically implied by LB/DNS.  
-   - Agent-based param table (9.1.4) still documents `platform.baremetal.apiVIPs` / `ingressVIPs`; applicability to UPI vs IPI is shared in that table.
+   - Agent-based param table (9.1.4) documents `platform.baremetal.apiVIPs` / `ingressVIPs`; shared table does not restrict them to IPI-only; optional VIPs in install-config for bare metal UPI are supported by the app and backend.
 
-3. **IPI-only vs UPI:**  
-   - `platform.baremetal.hosts` and provisioning network (provisioningNetwork, provisioningNetworkCIDR, provisioningDHCPRange, clusterProvisioningIP, provisioningMACAddress, provisioningNetworkInterface) are **IPI-only** (installer-provisioned hosts and provisioning network).  
-   - UPI: user provisions machines; controlPlane and compute use `platform: none`.  
-   - App behavior: for bare-metal-upi we emit `platform.baremetal` with **only** apiVIPs/ingressVIPs when provided; we do **not** emit hosts or any provisioning fields (backend and smoke tests enforce this).
+3. **IPI-only vs UPI (doc proof):**  
+   - The UPI sample has **no** `platform.baremetal` at all; the only platform key is `none`.  
+   - **hosts** and **provisioning*** (provisioningNetwork, provisioningNetworkCIDR, provisioningNetworkInterface, provisioningDHCPRange, clusterProvisioningIP, provisioningMACAddress) are used in **installer-provisioned** flows where the installer provisions hosts and runs the provisioning network. The UPI chapter states that for user-provisioned infrastructure you must deploy all required machines yourself and the sample shows `platform: none` with no baremetal block—so these fields are **not valid for Bare Metal UPI** scenario truth.  
+   - **Conclusion:** For bare-metal-upi, canonical params and frontend catalog must **not** include hosts or provisioning*; they are **IPI-only**. apiVIPs/ingressVIPs remain **allowed** (optional) for bare-metal-upi per agent table and app behavior.
 
 4. **Conditionals / deprecations:**  
    - apiVIP/ingressVIP deprecated in 4.12+; use apiVIPs/ingressVIPs (list).  
    - Same as IPI for VIP shape.
+
+## Field-by-field classification (disputed UPI fields)
+
+| Field path | Allowed in UPI? | Doc proof | Final repo treatment |
+|------------|-----------------|-----------|----------------------|
+| platform.baremetal.apiVIPs | Yes (optional) | Agent param table documents; UPI sample does not show but does not forbid; app/backend support optional VIPs. | **Keep** in bare-metal-upi params/catalog. |
+| platform.baremetal.ingressVIPs | Yes (optional) | Same as apiVIPs. | **Keep** in bare-metal-upi params/catalog. |
+| platform.baremetal.hosts | **No (IPI-only)** | UPI sample: `platform: none: {}` only; "You cannot provide additional platform configuration variables for your platform." Hosts are installer-provisioned. | **Removed** from bare-metal-upi canonical params and frontend catalog. |
+| platform.baremetal.hosts[].* | **No (IPI-only)** | Same as hosts. | **Removed** from bare-metal-upi canonical params and frontend catalog. |
+| platform.baremetal.provisioningNetwork | **No (IPI-only)** | UPI has no provisioning network block; provisioning network is installer-managed. | **Removed** from bare-metal-upi canonical params and frontend catalog. |
+| platform.baremetal.provisioningNetworkCIDR | **No (IPI-only)** | Same. | **Removed**. |
+| platform.baremetal.provisioningNetworkInterface | **No (IPI-only)** | Same. | **Removed**. |
+| platform.baremetal.provisioningDHCPRange | **No (IPI-only)** | Same. | **Removed**. |
+| platform.baremetal.clusterProvisioningIP | **No (IPI-only)** | Same. | **Removed**. |
+| platform.baremetal.provisioningMACAddress | **No (IPI-only)** | Same. | **Removed**. |
 
 ## Repo grounding (Phase 0)
 
@@ -66,11 +82,12 @@ Working record for the Bare Metal / 4.20 / UPI scenario truth and implementation
 | DATA_AND_FRONTEND_COPIES.md | `docs/DATA_AND_FRONTEND_COPIES.md` | Yes |
 | Bare Metal UPI working doc | `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md` | Yes (this file) |
 
-## Params / catalog reconciliation (Phase B)
+## Params / catalog reconciliation (Phase B) — final resolved
 
-- **Canonical:** `data/params/4.20/bare-metal-upi.json` contains shared install-config params plus platform.baremetal.* (apiVIP, apiVIPs, ingressVIP, ingressVIPs, hosts, provisioning*, etc.) from the agent/9.1.4 source.  
-- **Frontend catalog:** `frontend/src/data/catalogs/bare-metal-upi.json` is a copy; includes same platform.baremetal paths.  
-- **UPI vs IPI:** Docs state that `platform.baremetal.hosts` and provisioning fields (provisioningNetwork, provisioningNetworkCIDR, provisioningNetworkInterface, provisioningDHCPRange, clusterProvisioningIP, provisioningMACAddress) are **IPI-only** (installer-provisioned hosts and provisioning network). The UPI catalog retains these entries for shared-structure reference; the **app** gates by scenarioId: provisioning section is shown only for bare-metal-ipi; backend never emits hosts or provisioning* for bare-metal-upi. No catalog removal required; behavior is correct.  
+- **Doc proof:** Official 4.20 Bare Metal UPI doc, section **2.1.12.1 "Sample install-config.yaml file for bare metal"**, shows only `platform: none: {}`. It states: *"You must set the platform to `none`. You cannot provide additional platform configuration variables for your platform."* So the UPI install-config does not include a `platform.baremetal` block in the sample; hosts and provisioning network are installer-provisioned concepts and do not apply to UPI.
+- **Canonical:** `data/params/4.20/bare-metal-upi.json` — **removed** all IPI-only platform.baremetal entries: hosts, hosts[].*, provisioningNetwork, provisioningNetworkCIDR, provisioningNetworkInterface, provisioningDHCPRange, clusterProvisioningIP, provisioningMACAddress (14 entries). **Retained** only apiVIP, apiVIPs, ingressVIP, ingressVIPs for bare-metal-upi.
+- **Frontend catalog:** `frontend/src/data/catalogs/bare-metal-upi.json` — synced: same 14 entries removed; only apiVIP, apiVIPs, ingressVIP, ingressVIPs remain under platform.baremetal for this scenario.
+- **UI/backend:** No code change required. Provisioning section was already gated by scenarioId === "bare-metal-ipi"; backend already does not emit hosts or provisioning* for UPI. Catalog now matches scenario truth so getParamMeta/getCatalogForScenario no longer expose IPI-only paths for bare-metal-upi.
 - **VIP:** apiVIPs/ingressVIPs are the canonical 4.12+ shape; catalog documents deprecated singular and plural; backend emits lists.
 
 ## AS-IS app inventory (Phase D)
