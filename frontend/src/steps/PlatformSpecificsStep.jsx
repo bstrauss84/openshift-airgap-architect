@@ -1073,7 +1073,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               <div className="card-body">
                 <p className="note subtle">Configure how the provisioning network is used during installation. Hosts (BMC, boot MAC) are configured on the Hosts / Inventory step.</p>
                 <div className="field-grid" style={{ marginTop: 12 }}>
-                  <label>
+                  <label style={{ gridColumn: "1 / -1" }}>
                     <FieldLabelWithInfo
                       label="Provisioning network"
                       hint="Managed (default): The installer runs DHCP and TFTP on the provisioning network; no other DHCP on that network. Choose when you have a dedicated provisioning NIC and can give the installer full control. Unmanaged: Provisioning network exists but you run DHCP yourself; virtual media is recommended, PXE still possible. Choose when you must use existing DHCP or share the network. Disabled: No provisioning network; use virtual media or Assisted Installer only. BMCs must be reachable on the bare-metal network; reserve two IPs on that network for provisioning services. Choose for fully static or disconnected flows."
@@ -1082,6 +1082,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <select
                       value={provisioningMode}
                       onChange={(e) => updateInventory({ provisioningNetwork: e.target.value })}
+                      style={{ maxWidth: "100%", width: "100%", boxSizing: "border-box" }}
                     >
                       <option value="Managed">Managed — installer runs DHCP/TFTP</option>
                       <option value="Unmanaged">Unmanaged — you provide DHCP</option>
@@ -1102,12 +1103,12 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   <label>
                     <FieldLabelWithInfo
                       label="Provisioning network interface (optional)"
-                      hint={metaProvisioningInterface?.description}
+                      hint={provisioningMode === "Disabled" ? "When Disabled, there is no provisioning network; omit unless your setup requires it." : metaProvisioningInterface?.description}
                     />
                     <input
                       value={inventory.provisioningNetworkInterface || ""}
                       onChange={(e) => updateInventory({ provisioningNetworkInterface: e.target.value })}
-                      placeholder="e.g. eth1"
+                      placeholder={provisioningMode === "Disabled" ? "omit" : "e.g. eth1"}
                     />
                   </label>
                   {showDhcpRange ? (
