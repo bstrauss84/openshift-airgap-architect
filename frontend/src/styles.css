@@ -3889,6 +3889,53 @@ body[data-theme="dark"] .field-tooltip-content {
   color: #e5e7eb;
 }
 
+/* Long-hint click popover: persistent panel with scroll and Close button */
+.field-help-popover {
+  padding: 0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  max-height: min(360px, 70vh);
+}
+.field-help-popover-content {
+  padding: 12px 14px;
+  background: #1f2937;
+  color: #f9fafb;
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 10px 10px 0 0;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.field-help-popover-actions {
+  padding: 8px 12px;
+  background: #111827;
+  border-radius: 0 0 10px 10px;
+  flex-shrink: 0;
+}
+.field-help-popover-actions .ghost {
+  font-size: 12px;
+  color: #9ca3af;
+}
+.field-help-popover-actions .ghost:hover {
+  color: #f9fafb;
+}
+body[data-theme="dark"] .field-help-popover-content {
+  background: #374151;
+  color: #e5e7eb;
+}
+body[data-theme="dark"] .field-help-popover-actions {
+  background: #1f2937;
+}
+body[data-theme="dark"] .field-help-popover-actions .ghost {
+  color: #9ca3af;
+}
+body[data-theme="dark"] .field-help-popover-actions .ghost:hover {
+  color: #e5e7eb;
+}
+
 /* Tools step: action groups */
 .tools-actions {
   display: flex;
