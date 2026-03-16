@@ -66,11 +66,11 @@ Working record for the Bare Metal / 4.20 / UPI scenario truth and implementation
 | DATA_AND_FRONTEND_COPIES.md | `docs/DATA_AND_FRONTEND_COPIES.md` | Yes |
 | Bare Metal UPI working doc | `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md` | Yes (this file) |
 
-## Params / catalog reconciliation (Phase C)
+## Params / catalog reconciliation (Phase B)
 
 - **Canonical:** `data/params/4.20/bare-metal-upi.json` contains shared install-config params plus platform.baremetal.* (apiVIP, apiVIPs, ingressVIP, ingressVIPs, hosts, provisioning*, etc.) from the agent/9.1.4 source.  
 - **Frontend catalog:** `frontend/src/data/catalogs/bare-metal-upi.json` is a copy; includes same platform.baremetal paths.  
-- **UPI-specific:** Catalog includes platform.baremetal fields; UI and backend **hide or omit** IPI-only fields for UPI (provisioning section hidden in Platform Specifics; backend does not emit hosts or provisioning for UPI).  
+- **UPI vs IPI:** Docs state that `platform.baremetal.hosts` and provisioning fields (provisioningNetwork, provisioningNetworkCIDR, provisioningNetworkInterface, provisioningDHCPRange, clusterProvisioningIP, provisioningMACAddress) are **IPI-only** (installer-provisioned hosts and provisioning network). The UPI catalog retains these entries for shared-structure reference; the **app** gates by scenarioId: provisioning section is shown only for bare-metal-ipi; backend never emits hosts or provisioning* for bare-metal-upi. No catalog removal required; behavior is correct.  
 - **VIP:** apiVIPs/ingressVIPs are the canonical 4.12+ shape; catalog documents deprecated singular and plural; backend emits lists.
 
 ## AS-IS app inventory (Phase D)
@@ -82,21 +82,36 @@ Working record for the Bare Metal / 4.20 / UPI scenario truth and implementation
 - **Backend:** Emits controlPlane.platform = "none", compute[0].platform = "none"; platform.baremetal = { apiVIPs, ingressVIPs } when provided; never emits hosts or provisioning* for UPI.
 - **Outputs:** install-config.yaml only (no agent-config for bare-metal-upi).
 
-## Delta analysis (Phase E)
+## AS-IS inventory (Phase C) — summary
 
-**Delta set 1 (UI/backend/assets):**  
-- No duplicate VIP or provisioning controls in the active (segmented) flow for UPI.  
-- E2E example `docs/e2e-examples/install-config/bare-metal-upi_minimal.yaml` uses singular `apiVIP`/`ingressVIP`; backend emits `apiVIPs`/`ingressVIPs` (list). Example could be updated for 4.12+ consistency (optional).
+- **Wizard:** Blueprint Bare Metal + Methodology UPI → scenarioId `bare-metal-upi`. Identity & Access, Networking (API/Ingress VIPs card), Connectivity & Mirroring, Trust & Proxy, Platform Specifics (no provisioning; Advanced when catalog has advanced params; “UPI: no platform-specific options” when applicable), Host Inventory (nodes not emitted for UPI).  
+- **Emitted:** install-config only; platform.baremetal = { apiVIPs?, ingressVIPs? }; controlPlane.platform = "none"; compute[0].platform = "none"; no hosts; no provisioning*.
 
-**Delta set 2 (doc truth vs app):**  
-- Doc sample shows `platform: none` only; app emits `platform.baremetal` with apiVIPs/ingressVIPs when user supplies them. This is an acceptable extension: some flows may accept VIPs in install-config for bare metal UPI; app does not emit platform.baremetal at all when user leaves VIPs blank (object still present but empty).  
-- All IPI-only params correctly excluded from UPI emission and from UPI provisioning UI.
+## Delta analysis (Phase C)
 
-## Implementation / alignment (Phase F)
+**Delta set 1 (current app vs emitted assets):**  
+- No duplicate VIP or provisioning controls in the active flow. All wizard fields that affect output are reflected in emitted install-config.
 
-- No code changes required in this pass for bare-metal-upi scenario logic.  
-- Provisioning dropdown overlap fix (Part A) and Disabled-mode hints apply to IPI only.  
-- UPI already: no provisioning section; VIPs from Networking; backend and tests aligned.
+**Delta set 2 (corrected UPI truth vs current app):**  
+- Doc sample shows `platform: none` only; app emits `platform.baremetal` with apiVIPs/ingressVIPs when user supplies them—acceptable (optional VIPs in install-config).  
+- IPI-only params correctly excluded from UPI emission and from UPI provisioning UI.  
+- E2E example `docs/e2e-examples/install-config/bare-metal-upi_minimal.yaml` was updated in a prior pass to use apiVIPs/ingressVIPs (list format).
+
+## Implementation / alignment (Phase D)
+
+- No further code changes required for bare-metal-upi in this pass.  
+- UPI: no provisioning section; VIPs from Networking; backend and tests aligned. Working doc updated to reflect Phase 0–C and test results.
+
+## Test results (Phase E)
+
+- Backend smoke tests: 57 passed (includes bare-metal-upi apiVIPs/ingressVIPs, no hosts, platform none, must NOT emit IPI-only params).  
+- Frontend tests: 189 passed, 2 skipped.  
+- validate-catalog.js: Validated 9 file(s).  
+- validate-docs-index.js: Docs index validation passed.
+
+## Remaining items
+
+- None for current scope. Bare Metal 4.20 UPI is closed: scenario truth, params/catalog, UI gating, backend emission, and tests are aligned with docs.
 
 ## Canonical vs frontend (two-place model)
 
