@@ -1,5 +1,5 @@
-# Bare metal UPI: controlPlane.platform and compute[].platform must be "none" (4.20).
-# Source: installing on bare metal user-provisioned infrastructure.
+# Bare metal UPI: platform must be only "none" per 4.20 doc (no platform.baremetal; no controlPlane/compute platform).
+# Source: installing on bare metal user-provisioned infrastructure, section 2.1.12.1.
 # https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure
 apiVersion: v1
 baseDomain: example.com
@@ -8,11 +8,9 @@ metadata:
 compute:
   - name: worker
     replicas: 0
-    platform: none
 controlPlane:
   name: master
   replicas: 3
-  platform: none
 networking:
   networkType: OVNKubernetes
   machineNetwork:
@@ -23,10 +21,6 @@ networking:
   serviceNetwork:
     - 172.30.0.0/16
 platform:
-  baremetal:
-    apiVIPs:
-      - 192.168.1.100
-    ingressVIPs:
-      - 192.168.1.101
+  none: {}
 pullSecret: '{"auths":{}}'
 sshKey: ''

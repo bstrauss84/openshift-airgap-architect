@@ -154,21 +154,22 @@ const buildInstallConfig = (state) => {
     sshKey: state.credentials?.sshPublicKey || ""
   };
 
-  // A2: For bare-metal UPI, installer expects controlPlane/compute platform = none (user-provisioned machines).
-  if (state.blueprint?.platform === "Bare Metal" && state.methodology?.method === "UPI") {
-    installConfig.controlPlane.platform = "none";
-    installConfig.compute[0].platform = "none";
-  }
-
   if (state.blueprint?.platform === "Bare Metal") {
-    // 4.12+: apiVIPs/ingressVIPs (list format). UI may send comma-separated; emit as array.
-    const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
-    const apiVips = parseVipList(state.hostInventory?.apiVip);
-    const ingressVips = parseVipList(state.hostInventory?.ingressVip);
-    const baremetal = {};
-    if (apiVips.length) baremetal.apiVIPs = apiVips;
-    if (ingressVips.length) baremetal.ingressVIPs = ingressVips;
-    if (state.methodology?.method === "IPI") {
+    if (state.methodology?.method === "UPI") {
+      // 4.20 Bare Metal UPI: official sample has only platform.none. Doc: "You must set the platform to none.
+      // You cannot provide additional platform configuration variables for your platform."
+      // So emit exactly platform: { none: {} }; do not emit platform.baremetal or machine-pool platform stanzas.
+      installConfig.platform = { none: {} };
+      delete installConfig.controlPlane.platform;
+      delete installConfig.compute[0].platform;
+    } else {
+      // Bare Metal IPI: emit platform.baremetal with apiVIPs, ingressVIPs, hosts, provisioning*.
+      const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const apiVips = parseVipList(state.hostInventory?.apiVip);
+      const ingressVips = parseVipList(state.hostInventory?.ingressVip);
+      const baremetal = {};
+      if (apiVips.length) baremetal.apiVIPs = apiVips;
+      if (ingressVips.length) baremetal.ingressVIPs = ingressVips;
       const hi = state.hostInventory || {};
       if (hi.provisioningNetwork && ["Managed", "Unmanaged", "Disabled"].includes(hi.provisioningNetwork)) {
         baremetal.provisioningNetwork = hi.provisioningNetwork;
@@ -198,8 +199,8 @@ const buildInstallConfig = (state) => {
         return host;
       });
       baremetal.hosts = hosts;
+      installConfig.platform.baremetal = baremetal;
     }
-    installConfig.platform.baremetal = baremetal;
   }
 
   if (state.globalStrategy?.fips) {

@@ -392,20 +392,29 @@ function validateInstallConfig(obj, scenarioId) {
     if (obj[key] === undefined) errors.push(`missing install-config.${key}`);
   }
   const platformKeys = Object.keys(obj.platform || {}).filter((k) => k !== "none");
-  const expectedPlatform = {
-    "bare-metal-agent": "baremetal",
-    "bare-metal-ipi": "baremetal",
-    "bare-metal-upi": "baremetal",
-    "vsphere-ipi": "vsphere",
-    "vsphere-upi": "vsphere",
-    "aws-govcloud-ipi": "aws",
-    "aws-govcloud-upi": "aws",
-    "azure-government-ipi": "azure",
-    "nutanix-ipi": "nutanix"
-  };
-  const expect = expectedPlatform[scenarioId];
-  if (expect && !platformKeys.includes(expect)) {
-    errors.push(`expected platform.${expect} for ${scenarioId}`);
+  // Bare Metal UPI per 4.20 doc: platform must be only none; no platform.baremetal.
+  if (scenarioId === "bare-metal-upi") {
+    if (!obj.platform || !Object.prototype.hasOwnProperty.call(obj.platform, "none")) {
+      errors.push("bare-metal-upi must have platform.none");
+    }
+    if (obj.platform?.baremetal !== undefined) {
+      errors.push("bare-metal-upi must not have platform.baremetal (4.20 doc: no additional platform config)");
+    }
+  } else {
+    const expectedPlatform = {
+      "bare-metal-agent": "baremetal",
+      "bare-metal-ipi": "baremetal",
+      "vsphere-ipi": "vsphere",
+      "vsphere-upi": "vsphere",
+      "aws-govcloud-ipi": "aws",
+      "aws-govcloud-upi": "aws",
+      "azure-government-ipi": "azure",
+      "nutanix-ipi": "nutanix"
+    };
+    const expect = expectedPlatform[scenarioId];
+    if (expect && !platformKeys.includes(expect)) {
+      errors.push(`expected platform.${expect} for ${scenarioId}`);
+    }
   }
   return errors;
 }

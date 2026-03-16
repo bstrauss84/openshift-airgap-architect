@@ -127,7 +127,7 @@ test("buildInstallConfig for bare-metal-ipi host name: hostnameUseFqdn avoids do
   assert.strictEqual(out.platform?.baremetal?.hosts?.[0]?.name, "master-0.example.com", "should strip trailing baseDomain before appending to avoid master-0.example.com.example.com");
 });
 
-test("buildInstallConfig for bare-metal-upi emits apiVIPs/ingressVIPs (list format per 4.12+) and no hosts (Prompt J)", () => {
+test("buildInstallConfig for bare-metal-upi emits only platform.none per 4.20 UPI doc (no platform.baremetal)", () => {
   const state = {
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "upi-cluster" },
     methodology: { method: "UPI" },
@@ -141,14 +141,13 @@ test("buildInstallConfig for bare-metal-upi emits apiVIPs/ingressVIPs (list form
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
-  assert.deepStrictEqual(out.platform?.baremetal?.apiVIPs, ["192.168.1.100"]);
-  assert.deepStrictEqual(out.platform?.baremetal?.ingressVIPs, ["192.168.1.101"]);
-  assert.ok(!out.platform?.baremetal?.hosts || out.platform.baremetal.hosts.length === 0);
+  assert.deepStrictEqual(out.platform, { none: {} }, "4.20 Bare Metal UPI: platform must be only none");
+  assert.strictEqual(out.platform?.baremetal, undefined, "doc: cannot provide additional platform configuration variables");
   assert.strictEqual(out.baseDomain, "example.com");
   assert.strictEqual(out.metadata?.name, "upi-cluster");
 });
 
-test("buildInstallConfig for bare-metal-upi emits controlPlane and compute platform none (A2)", () => {
+test("buildInstallConfig for bare-metal-upi does not emit controlPlane/compute platform (4.20 sample has none)", () => {
   const state = {
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "upi-cluster" },
     methodology: { method: "UPI" },
@@ -158,9 +157,9 @@ test("buildInstallConfig for bare-metal-upi emits controlPlane and compute platf
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
-  assert.strictEqual(out.controlPlane?.platform, "none", "bare-metal UPI must emit controlPlane.platform none");
-  assert.strictEqual(out.compute?.[0]?.platform, "none", "bare-metal UPI must emit compute[0].platform none");
-  assert.ok(out.platform?.baremetal !== undefined, "top-level platform.baremetal still required for apiVIP/ingressVIP");
+  assert.strictEqual(out.controlPlane?.platform, undefined, "official sample has no controlPlane.platform");
+  assert.strictEqual(out.compute?.[0]?.platform, undefined, "official sample has no compute[].platform");
+  assert.deepStrictEqual(out.platform, { none: {} }, "top-level platform must be only none");
 });
 
 test("buildInstallConfig for bare-metal-upi includes all required catalog params (Phase 4 completeness)", () => {
@@ -176,7 +175,7 @@ test("buildInstallConfig for bare-metal-upi includes all required catalog params
   assert.ok(out.apiVersion, "apiVersion required by catalog");
   assert.ok(out.baseDomain, "baseDomain required by catalog");
   assert.ok(out.metadata && out.metadata.name, "metadata.name required by catalog");
-  assert.ok(out.platform && out.platform.baremetal !== undefined, "platform required by catalog");
+  assert.deepStrictEqual(out.platform, { none: {} }, "Bare Metal UPI platform is none only per 4.20 doc");
   assert.ok(typeof out.pullSecret === "string", "pullSecret required by catalog");
 });
 
@@ -196,16 +195,8 @@ test("buildInstallConfig for bare-metal-upi must NOT emit IPI-only params (scena
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
-  const bm = out.platform?.baremetal || {};
-  assert.deepStrictEqual(bm.apiVIPs, ["192.168.1.100"]);
-  assert.deepStrictEqual(bm.ingressVIPs, ["192.168.1.101"]);
-  assert.strictEqual(bm.provisioningNetwork, undefined, "UPI must not emit IPI-only provisioningNetwork");
-  assert.strictEqual(bm.provisioningNetworkCIDR, undefined, "UPI must not emit IPI-only provisioningNetworkCIDR");
-  assert.strictEqual(bm.provisioningNetworkInterface, undefined, "UPI must not emit IPI-only provisioningNetworkInterface");
-  assert.strictEqual(bm.provisioningDHCPRange, undefined, "UPI must not emit IPI-only provisioningDHCPRange");
-  assert.strictEqual(bm.clusterProvisioningIP, undefined, "UPI must not emit IPI-only clusterProvisioningIP");
-  assert.strictEqual(bm.provisioningMACAddress, undefined, "UPI must not emit IPI-only provisioningMACAddress");
-  assert.ok(!bm.hosts || bm.hosts.length === 0, "UPI must not emit IPI-only hosts array");
+  assert.deepStrictEqual(out.platform, { none: {} }, "UPI has only platform.none; no baremetal block");
+  assert.strictEqual(out.platform?.baremetal, undefined, "UPI must not emit platform.baremetal (doc: no additional platform config)");
 });
 
 test("buildAgentConfig emits additionalNTPSources and bootArtifactsBaseURL when set (Phase 4.4)", () => {
