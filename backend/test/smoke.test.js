@@ -92,6 +92,24 @@ test("buildInstallConfig for bare-metal-ipi emits apiVIPs/ingressVIPs (list form
   assert.deepStrictEqual(out.platform?.baremetal?.ingressVIPs, ["10.90.0.2"]);
 });
 
+test("buildInstallConfig for bare-metal-ipi accepts comma-separated VIPs and emits arrays", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      nodes: [{ hostname: "master-0", role: "master", bmc: { address: "redfish+http://192.168.1.1" } }],
+      apiVip: "10.90.0.1, fd00::1",
+      ingressVip: " 10.90.0.2 , fd00::2 "
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.platform?.baremetal?.apiVIPs, ["10.90.0.1", "fd00::1"]);
+  assert.deepStrictEqual(out.platform?.baremetal?.ingressVIPs, ["10.90.0.2", "fd00::2"]);
+});
+
 test("buildInstallConfig for bare-metal-ipi host name: hostnameUseFqdn avoids doubled baseDomain", () => {
   const state = {
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },

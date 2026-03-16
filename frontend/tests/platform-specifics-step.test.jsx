@@ -199,6 +199,25 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it("bare-metal-ipi: when provisioning network is Disabled, Provisioning DHCP range field is not shown", () => {
+    const state = stateForPlatformSpecificsStep({
+      methodology: { method: "IPI" },
+      hostInventory: {
+        schemaVersion: 2,
+        nodes: [],
+        provisioningNetwork: "Disabled"
+      }
+    });
+    expect(getScenarioId(state)).toBe("bare-metal-ipi");
+    const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+    render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    expect(screen.queryByText(/Provisioning DHCP range/)).not.toBeInTheDocument();
+  });
+
   it("when scenario is nutanix-ipi, Platform Specifics shows Nutanix IPI section and validation requires endpoint and subnet (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "Nutanix" },

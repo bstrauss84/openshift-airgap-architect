@@ -55,6 +55,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
 
   const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG);
   const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG);
+  const metaApiVips = getParamMeta(scenarioId, "platform.baremetal.apiVIPs", INSTALL_CONFIG);
+  const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG);
 
   const overlapMessages = [];
   if (cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)) {
@@ -368,29 +370,29 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                 ) : showBareMetalVips ? (
                   <>
                     <FieldLabelWithInfo
-                      label="API VIP"
-                      hint={metaApiVip?.description}
-                      required={metaApiVip?.required}
+                      label="API VIPs"
+                      hint={metaApiVips?.description || metaApiVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
+                      required={metaApiVips?.required || metaApiVip?.required}
                       className={fieldErrors.apiVip ? "input-error" : ""}
                     >
                       <input
                         className={fieldErrors.apiVip ? "input-error" : ""}
                         value={hostInventory.apiVip || ""}
-                        onChange={(e) => updateHostInventory({ apiVip: e.target.value.trim() })}
-                        placeholder="10.90.0.1"
+                        onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                        placeholder="e.g. 10.90.0.1 or 10.90.0.1,fd00::1 for dual-stack"
                       />
                     </FieldLabelWithInfo>
                     <FieldLabelWithInfo
-                      label="Ingress VIP"
-                      hint={metaIngressVip?.description}
-                      required={metaIngressVip?.required}
+                      label="Ingress VIPs"
+                      hint={metaIngressVips?.description || metaIngressVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
+                      required={metaIngressVips?.required || metaIngressVip?.required}
                       className={fieldErrors.ingressVip ? "input-error" : ""}
                     >
                       <input
                         className={fieldErrors.ingressVip ? "input-error" : ""}
                         value={hostInventory.ingressVip || ""}
-                        onChange={(e) => updateHostInventory({ ingressVip: e.target.value.trim() })}
-                        placeholder="10.90.0.2"
+                        onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                        placeholder="e.g. 10.90.0.2 or 10.90.0.2,fd00::2 for dual-stack"
                       />
                     </FieldLabelWithInfo>
                   </>

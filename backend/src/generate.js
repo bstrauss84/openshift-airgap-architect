@@ -161,12 +161,13 @@ const buildInstallConfig = (state) => {
   }
 
   if (state.blueprint?.platform === "Bare Metal") {
-    // 4.12+: apiVIP/ingressVIP are deprecated; use apiVIPs/ingressVIPs (list format). Emit list for 4.20.
-    const apiVip = (state.hostInventory?.apiVip || "").trim();
-    const ingressVip = (state.hostInventory?.ingressVip || "").trim();
+    // 4.12+: apiVIPs/ingressVIPs (list format). UI may send comma-separated; emit as array.
+    const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+    const apiVips = parseVipList(state.hostInventory?.apiVip);
+    const ingressVips = parseVipList(state.hostInventory?.ingressVip);
     const baremetal = {};
-    if (apiVip) baremetal.apiVIPs = [apiVip];
-    if (ingressVip) baremetal.ingressVIPs = [ingressVip];
+    if (apiVips.length) baremetal.apiVIPs = apiVips;
+    if (ingressVips.length) baremetal.ingressVIPs = ingressVips;
     if (state.methodology?.method === "IPI") {
       const hi = state.hostInventory || {};
       if (hi.provisioningNetwork && ["Managed", "Unmanaged", "Disabled"].includes(hi.provisioningNetwork)) {
@@ -1012,8 +1013,10 @@ const buildFieldManual = (state, docsLinks) => {
   const catalogs = Array.from(new Set(operators.map((op) => op.catalogImage || op.catalog))).filter(Boolean);
   const clusterName = state.blueprint?.clusterName || "airgap-cluster";
   const baseDomain = state.blueprint?.baseDomain || "example.com";
-  const apiVip = state.hostInventory?.apiVip || "<api-vip>";
-  const ingressVip = state.hostInventory?.ingressVip || "<ingress-vip>";
+  const apiVipRaw = (state.hostInventory?.apiVip || "").trim();
+  const ingressVipRaw = (state.hostInventory?.ingressVip || "").trim();
+  const apiVip = apiVipRaw ? apiVipRaw.split(",").map((x) => x.trim()).filter(Boolean)[0] : "<api-vip>";
+  const ingressVip = ingressVipRaw ? ingressVipRaw.split(",").map((x) => x.trim()).filter(Boolean)[0] : "<ingress-vip>";
   const installDir = "./install-assets";
   const imageSetName = "imageset-config.yaml";
 
