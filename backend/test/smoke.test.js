@@ -248,6 +248,38 @@ test("buildInstallConfig for bare-metal-agent multi-node with Day-2 toggle inclu
   assert.strictEqual(out.platform.baremetal.provisioningNetwork, "Unmanaged");
 });
 
+test("buildInstallConfig and buildAgentConfig for 2 CP + 1 arbiter (bare-metal-agent) emit correct topology", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        { role: "master", hostname: "master-0", primary: { ipv4Cidr: "192.168.1.10/24" } },
+        { role: "master", hostname: "master-1", primary: { ipv4Cidr: "192.168.1.11/24" } },
+        { role: "arbiter", hostname: "arbiter-0", primary: { ipv4Cidr: "192.168.1.12/24" } }
+      ],
+      apiVip: "192.168.1.100",
+      ingressVip: "192.168.1.101"
+    }
+  };
+  const installRaw = buildInstallConfig(state);
+  const installOut = yaml.load(installRaw);
+  assert.strictEqual(installOut.controlPlane.replicas, 2);
+  assert.deepStrictEqual(installOut.arbiter, { name: "arbiter", replicas: 1 });
+  assert.ok(installOut.platform.baremetal);
+  assert.deepStrictEqual(installOut.platform.baremetal.apiVIPs, ["192.168.1.100"]);
+  assert.deepStrictEqual(installOut.platform.baremetal.ingressVIPs, ["192.168.1.101"]);
+
+  const agentRaw = buildAgentConfig(state);
+  const agentOut = yaml.load(agentRaw);
+  assert.strictEqual(agentOut.hosts.length, 3);
+  const roles = agentOut.hosts.map((h) => h.role);
+  assert.deepStrictEqual(roles, ["master", "master", "arbiter"]);
+  assert.strictEqual(agentOut.rendezvousIP, "192.168.1.10");
+});
+
 test("buildAgentConfig emits additionalNTPSources and bootArtifactsBaseURL when set (Phase 4.4)", () => {
   const state = {
     blueprint: { platform: "Bare Metal", clusterName: "test-cluster" },

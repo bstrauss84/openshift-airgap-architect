@@ -729,7 +729,10 @@ wipefs -a /dev/sdX`}</pre>
                         <h4>{scenarioId === "bare-metal-agent" ? "Host (Agent)" : "Basic"}</h4>
                         <CompareBadge kind={badgeBasicDrawer} />
                       </div>
-                      {scenarioId === "bare-metal-agent" && (
+                      {scenarioId === "bare-metal-agent" && selectedNode.role === "arbiter" && (
+                        <p className="note subtle">Arbiter node: hostname and primary network are used in agent-config for this 2 control plane + 1 arbiter topology. Set primary interface and IP so the agent can configure the node.</p>
+                      )}
+                      {scenarioId === "bare-metal-agent" && selectedNode.role !== "arbiter" && (
                         <p className="note subtle">These fields are used for agent-config and node configuration. Set primary interface and network for each host.</p>
                       )}
                       <div className="field-grid">
@@ -756,7 +759,9 @@ wipefs -a /dev/sdX`}</pre>
                           <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                           {" "}Use FQDN (shortname.baseDomain)
                         </label>
-                        <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
+                        {selectedNode.role !== "arbiter" ? (
+                          <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
+                        ) : null}
                         <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking.">
                           <select value={selectedNode.primary?.type || "ethernet"} onChange={(e) => updatePrimary(selectedIndex, { type: e.target.value })}>
                             {PRIMARY_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -822,6 +827,8 @@ wipefs -a /dev/sdX`}</pre>
                         <label>DNS search <input value={selectedNode.dnsSearch || ""} onChange={(e) => updateNode(selectedIndex, { dnsSearch: e.target.value })} /></label>
                       </div>
 
+                      {selectedNode.role !== "arbiter" ? (
+                      <>
                       <div className="divider" />
                       <h4><FieldLabelWithInfo label="Additional Interfaces" hint="Use this for extra NIC networks or additional VLANs." /></h4>
                       <div className="list">
@@ -1012,6 +1019,8 @@ wipefs -a /dev/sdX`}</pre>
                         ))}
                         <button type="button" className="ghost" onClick={() => addAdditionalInterface(selectedIndex)}>Add Interface</button>
                       </div>
+                      </>
+                      ) : null}
 
                       {showBmc && (
                         <>
@@ -1033,7 +1042,7 @@ wipefs -a /dev/sdX`}</pre>
                         </>
                       )}
 
-                      {showAdvancedDrawer && (
+                      {showAdvancedDrawer && selectedNode.role !== "arbiter" && (
                         <>
                           <div className="card-header host-inventory-v2-section-heading host-inventory-v2-advanced-header">
                             <h4>Advanced</h4>
