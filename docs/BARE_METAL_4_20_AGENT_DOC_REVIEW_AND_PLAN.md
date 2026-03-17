@@ -86,3 +86,21 @@ Working record for the Bare Metal / 4.20 / Agent-based Installer scenario truth 
 ## Canonical vs frontend (two-place model)
 
 See `docs/DATA_AND_FRONTEND_COPIES.md`. Canonical params in `data/params/4.20/`; frontend copy in `frontend/src/data/catalogs/`. Sync when canonical changes.
+
+## Closure pass (Regression + SNO + Arbiter)
+
+**Install-config vs agent-config (Goal 1):**
+- Generator now branches Bare Metal by methodology and topology:
+  - **UPI:** `platform.none` only (unchanged).
+  - **Agent-based SNO** (1 control plane, 0 workers): `platform.none` only; no `platform.baremetal`, no hosts/provisioning in install-config.
+  - **Agent-based multi-node:** `platform.baremetal` with **apiVIPs and ingressVIPs only**; no `hosts`, no `provisioningNetwork*` in install-config (per 4.20 doc: those are optional/Day 2; agent-config and host inventory drive provisioning).
+  - **IPI:** Full `platform.baremetal` with apiVIPs, ingressVIPs, hosts, provisioning* (unchanged).
+- VIP requiredness: Required for bare-metal-agent **multi-node** only. For SNO (1 master, 0 workers) validation and UI do not require API/Ingress VIPs; Networking step shows optional note for SNO.
+- E2E bare-metal-agent override uses 3 master nodes so minimal path produces multi-node install-config (platform.baremetal, apiVIPs/ingressVIPs only).
+
+**SNO (Goal 8):**
+- When host inventory has 1 master and 0 workers, install-config uses `platform.none`, controlPlane.replicas: 1, compute.replicas: 0. Agent-config still emitted (rendezvousIP, hosts from inventory).
+
+**Arbiter (Goal 9):**
+- When host inventory has 2 masters and 1 arbiter (role `arbiter`), install-config gets controlPlane.replicas: 2 and `arbiter: { name: "arbiter", replicas: 1 }`.
+- Catalog and host inventory support role `arbiter`; sort order is master → arbiter → worker.

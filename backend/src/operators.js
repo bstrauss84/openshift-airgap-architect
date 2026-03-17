@@ -1,7 +1,7 @@
 /** Operator catalog scan via oc-mirror list operators; results stored in DB, not credentials. */
 import { spawn } from "node:child_process";
 import { db } from "./db.js";
-import { createJob, updateJob, safeUnlink } from "./utils.js";
+import { appendJobOutput, createJob, updateJob, safeUnlink } from "./utils.js";
 
 const catalogs = [
   { id: "redhat", image: (v) => `registry.redhat.io/redhat/redhat-operator-index:v${v}` },
@@ -74,10 +74,14 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
   let error = "";
 
   child.stdout.on("data", (data) => {
-    output += data.toString();
+    const s = data.toString();
+    output += s;
+    appendJobOutput(jobId, s);
   });
   child.stderr.on("data", (data) => {
-    error += data.toString();
+    const s = data.toString();
+    error += s;
+    appendJobOutput(jobId, s);
   });
   child.on("error", (err) => {
     updateJob(jobId, {

@@ -52,6 +52,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
+  const nodes = hostInventory.nodes || [];
+  const masterCount = nodes.filter((n) => n.role === "master").length;
+  const workerCount = nodes.filter((n) => n.role === "worker").length;
+  const isAgentSno = scenarioId === "bare-metal-agent" && masterCount === 1 && workerCount === 0;
+  const vipsRequiredForBareMetalAgent = !isAgentSno;
 
   const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG);
   const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG);
@@ -346,7 +351,9 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                 <p className="note">Leave blank if you use an external load balancer.</p>
               ) : scenarioId === "bare-metal-agent" ? (
                 <p className="note">
-                  Required for Bare Metal Agent-based installs. Use one IP for single-stack; use two comma-separated IPs for dual-stack (order: primary, then secondary).
+                  {vipsRequiredForBareMetalAgent
+                    ? "Required for Bare Metal Agent-based multi-node installs. Use one IP for single-stack; use two comma-separated IPs for dual-stack (order: primary, then secondary)."
+                    : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used. Optional to leave blank."}
                 </p>
               ) : (
                 <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
@@ -380,7 +387,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                     <FieldLabelWithInfo
                       label="API VIPs"
                       hint={metaApiVips?.description || metaApiVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
-                      required={metaApiVips?.required || metaApiVip?.required}
+                      required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
                       className={fieldErrors.apiVip ? "input-error" : ""}
                     >
                       <input
@@ -393,7 +400,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                     <FieldLabelWithInfo
                       label="Ingress VIPs"
                       hint={metaIngressVips?.description || metaIngressVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
-                      required={metaIngressVips?.required || metaIngressVip?.required}
+                      required={vipsRequiredForBareMetalAgent && (metaIngressVips?.required || metaIngressVip?.required)}
                       className={fieldErrors.ingressVip ? "input-error" : ""}
                     >
                       <input
