@@ -758,17 +758,21 @@ const validateStep = (state, stepId) => {
       else if (msg.includes("service network IPv6")) fieldErrors.serviceNetworkCidrV6 = msg;
     });
     Object.assign(fieldErrors, vipsInMachine.fieldErrors);
-    // Catalog-driven requiredness (bare-metal-agent): apiVIPs/ingressVIPs must be set for bare metal platforms
-    // for Agent-based installs (doc: validation checks before agent ISO creation).
+    // Catalog-driven requiredness (bare-metal-agent): apiVIPs/ingressVIPs required for multi-node Agent-based
+    // (doc: validation checks before agent ISO creation). SNO (1 control plane, 0 workers) uses platform.none and does not require VIPs.
     const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+    const nodes = state.hostInventory?.nodes || [];
+    const masterCount = nodes.filter((n) => n.role === "master").length;
+    const workerCount = nodes.filter((n) => n.role === "worker").length;
+    const isAgentSno = scenarioId === "bare-metal-agent" && masterCount === 1 && workerCount === 0;
     const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
-    if (requiredPaths.includes("platform.baremetal.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
-      const msg = "API VIPs are required for Bare Metal Agent-based installs.";
+    if (!isAgentSno && requiredPaths.includes("platform.baremetal.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
+      const msg = "API VIPs are required for Bare Metal Agent-based multi-node installs.";
       fieldErrors.apiVip = fieldErrors.apiVip || msg;
       format.errors.push(msg);
     }
-    if (requiredPaths.includes("platform.baremetal.ingressVIPs") && !(state.hostInventory?.ingressVip || "").trim()) {
-      const msg = "Ingress VIPs are required for Bare Metal Agent-based installs.";
+    if (!isAgentSno && requiredPaths.includes("platform.baremetal.ingressVIPs") && !(state.hostInventory?.ingressVip || "").trim()) {
+      const msg = "Ingress VIPs are required for Bare Metal Agent-based multi-node installs.";
       fieldErrors.ingressVip = fieldErrors.ingressVip || msg;
       format.errors.push(msg);
     }

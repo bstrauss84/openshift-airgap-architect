@@ -5,6 +5,7 @@ import FieldLabelWithInfo from "./FieldLabelWithInfo.jsx";
 /**
  * Shared pull-secret / credential input: masked by default, show/hide toggle,
  * paste, drag-and-drop, file upload, consistent helper/error placement.
+ * dropEffect is set to "copy" on dragover so sources are encouraged not to move/cut; behavior may still vary by source app.
  * Use for all pull secret fields across Blueprint, Identity & Access, Operators, Global Strategy.
  * When labelHint is provided, the (i) icon shows that text as a tooltip and notPersistedMessage is not shown below.
  * When getPullSecretUrl is provided, a link button to obtain the Red Hat pull secret is shown (Red Hat login required).
@@ -30,6 +31,14 @@ function SecretInput({
   const fileRef = useRef(null);
   const id = idProp || `secret-input-${Math.random().toString(36).slice(2, 9)}`;
   const showNotPersisted = notPersistedMessage && !labelHint;
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled) return;
+    // Request copy semantics so drag sources (editors, documents) do not move/cut the content.
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+  };
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -113,7 +122,7 @@ function SecretInput({
       ) : null}
       <div
         className={`pull-secret-field-wrap ${hasError ? "input-error" : ""}`}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
         {!value ? (

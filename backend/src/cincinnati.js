@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { getCache, setCache } from "./utils.js";
-import { SUPPORTED_MINORS } from "./versionPolicy.js";
 
 const CHANNELS_CACHE_KEY = "cincinnati_channels_v1";
 const PATCH_CACHE_PREFIX = "cincinnati_patches_v1:";
@@ -41,13 +40,13 @@ const fetchChannelsFromGithub = async () => {
       if (amj !== bmj) return bmj - amj;
       return bmi - ami;
     });
-  return channels.filter((channel) => SUPPORTED_MINORS.includes(channel));
+  return channels;
 };
 
 const fetchChannels = async (force = false) => {
   if (isMock()) {
     const mock = JSON.parse(fs.readFileSync(mockPath("channels.json"), "utf8"));
-    return mock.channels.filter((channel) => SUPPORTED_MINORS.includes(channel));
+    return mock.channels || [];
   }
   if (!force) {
     const cached = getCache(CHANNELS_CACHE_KEY);

@@ -840,12 +840,20 @@ body[data-theme="dark"] .sticky-panel {
 }
 
 .proxy-fields-grid {
-  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .proxy-fields-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .proxy-field-input {
-  min-width: 330px;
+  min-width: 0;
   max-width: 100%;
+  width: 100%;
   box-sizing: border-box;
 }
 

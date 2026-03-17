@@ -22,6 +22,7 @@ const OperationsStep = () => {
   const [loading, setLoading] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [streamingJob, setStreamingJob] = useState(null);
+  const [streamEnded, setStreamEnded] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
   const logPreRef = useRef(null);
@@ -48,12 +49,14 @@ const OperationsStep = () => {
   useEffect(() => {
     if (!selectedJobId) {
       setStreamingJob(null);
+      setStreamEnded(false);
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
       return;
     }
+    setStreamEnded(false);
     let cancelled = false;
     apiFetch(`/api/jobs/${selectedJobId}`)
       .then((job) => {
@@ -73,9 +76,12 @@ const OperationsStep = () => {
         const payload = JSON.parse(event.data);
         setStreamingJob(payload);
       } catch {}
+      setStreamEnded(true);
+      es.close();
     });
     es.onerror = () => {
-      setStreamingJob((prev) => (prev ? { ...prev, output: (prev.output || "") + "\n[Stream connection lost.]" } : null));
+      setStreamEnded(true);
+      es.close();
     };
     return () => {
       cancelled = true;
@@ -202,6 +208,9 @@ const OperationsStep = () => {
                   </div>
                   {selectedJobId === job.id ? (
                     <div className="card-body" style={{ paddingTop: 0 }}>
+                      {streamEnded && (streamingJob?.output || job.output) ? (
+                        <p className="note subtle" style={{ marginBottom: "6px", fontSize: "0.85rem" }}>Live stream ended. Log content below is final.</p>
+                      ) : null}
                       <pre ref={logPreRef} className="preview log-stream" style={{ maxHeight: "320px", overflow: "auto" }}>
                         {(streamingJob && streamingJob.output) || job.output || "No logs yet."}
                       </pre>

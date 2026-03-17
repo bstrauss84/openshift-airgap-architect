@@ -190,8 +190,10 @@ export default function TrustProxyStep({ highlightErrors }) {
           {strategy.proxyEnabled ? (
             <div className="card-body" style={{ paddingTop: 0 }}>
               <div className="field-grid proxy-fields-grid">
-                <label>
-                  HTTP Proxy {metaHttpProxy?.required ? <span className="required-badge">required</span> : "(optional)"}
+                <FieldLabelWithInfo
+                  label={<>HTTP Proxy {metaHttpProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
+                  hint="URL for HTTP traffic. Scheme must be http://."
+                >
                   <textarea
                     className="proxy-field-input proxy-field-textarea"
                     value={proxies.httpProxy || ""}
@@ -201,7 +203,7 @@ export default function TrustProxyStep({ highlightErrors }) {
                     spellCheck={false}
                   />
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
-                </label>
+                </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
                   hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
@@ -214,10 +216,12 @@ export default function TrustProxyStep({ highlightErrors }) {
                     rows={2}
                     spellCheck={false}
                   />
+                  {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
                 </FieldLabelWithInfo>
-                {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
-                <label>
-                  No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : null}
+                <FieldLabelWithInfo
+                  label={<>No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : "(optional)"}</>}
+                  hint="Comma-separated destinations to exclude from proxying. Use . for subdomains; * to bypass for all."
+                >
                   <textarea
                     className="proxy-field-input proxy-field-textarea"
                     value={proxies.noProxy || ""}
@@ -226,7 +230,7 @@ export default function TrustProxyStep({ highlightErrors }) {
                     rows={2}
                     spellCheck={false}
                   />
-                </label>
+                </FieldLabelWithInfo>
               </div>
             </div>
           ) : null}

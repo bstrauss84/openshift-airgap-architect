@@ -68,6 +68,7 @@ const buildInstallConfig = (state) => {
   const sortedNodes = sortNodes(nodes);
   let masters = sortedNodes.filter((node) => node.role === "master").length || 0;
   let workers = sortedNodes.filter((node) => node.role === "worker").length || 0;
+  const arbiters = sortedNodes.filter((node) => node.role === "arbiter").length || 0;
   const platformConfig = state.platformConfig || {};
   const isAwsNoHostInventory = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
   if (isAwsNoHostInventory) {
@@ -155,15 +156,26 @@ const buildInstallConfig = (state) => {
   };
 
   if (state.blueprint?.platform === "Bare Metal") {
-    if (state.methodology?.method === "UPI") {
-      // 4.20 Bare Metal UPI: official sample has only platform.none. Doc: "You must set the platform to none.
-      // You cannot provide additional platform configuration variables for your platform."
-      // So emit exactly platform: { none: {} }; do not emit platform.baremetal or machine-pool platform stanzas.
+    const isUPI = state.methodology?.method === "UPI";
+    const isAgentBased = state.methodology?.method === "Agent-Based Installer";
+    const isSNO = masters === 1 && workers === 0;
+    // 4.20 doc: "You must set the platform to none for a single-node cluster." Agent-based SNO → platform.none only.
+    if (isUPI || (isAgentBased && isSNO)) {
       installConfig.platform = { none: {} };
       delete installConfig.controlPlane.platform;
       delete installConfig.compute[0].platform;
+    } else if (isAgentBased) {
+      // Bare Metal Agent-based multi-node: install-config may have apiVIPs/ingressVIPs only. Hosts and provisioning
+      // belong in agent-config / Day 2; doc says they are not used during initial provisioning.
+      const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const apiVips = parseVipList(state.hostInventory?.apiVip);
+      const ingressVips = parseVipList(state.hostInventory?.ingressVip);
+      const baremetal = {};
+      if (apiVips.length) baremetal.apiVIPs = apiVips;
+      if (ingressVips.length) baremetal.ingressVIPs = ingressVips;
+      installConfig.platform.baremetal = baremetal;
     } else {
-      // Bare Metal IPI: emit platform.baremetal with apiVIPs, ingressVIPs, hosts, provisioning*.
+      // Bare Metal IPI: full platform.baremetal with apiVIPs, ingressVIPs, hosts, provisioning*.
       const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
       const apiVips = parseVipList(state.hostInventory?.apiVip);
       const ingressVips = parseVipList(state.hostInventory?.ingressVip);
@@ -223,6 +235,13 @@ const buildInstallConfig = (state) => {
   }
   if (platformConfig.cpuPartitioningMode === "None" || platformConfig.cpuPartitioningMode === "AllNodes") {
     installConfig.cpuPartitioningMode = platformConfig.cpuPartitioningMode;
+  }
+
+  // Agent-based 2 control plane + 1 arbiter (4.20 doc): controlPlane.replicas: 2, arbiter: { name: "arbiter", replicas: 1 }
+  const isAgentBased = state.methodology?.method === "Agent-Based Installer";
+  if (isAgentBased && state.blueprint?.platform === "Bare Metal" && masters === 2 && arbiters === 1) {
+    installConfig.controlPlane.replicas = 2;
+    installConfig.arbiter = { name: "arbiter", replicas: 1 };
   }
 
   if (state.globalStrategy?.proxyEnabled) {
@@ -943,9 +962,12 @@ const collectPhysicalInterfaces = (node) => {
   return interfaces;
 };
 
+const ROLE_ORDER = { master: 0, arbiter: 1, worker: 2 };
 const sortNodes = (nodes) => {
   return nodes.slice().sort((a, b) => {
-    if (a.role !== b.role) return a.role === "master" ? -1 : 1;
+    const orderA = ROLE_ORDER[a.role] ?? 3;
+    const orderB = ROLE_ORDER[b.role] ?? 3;
+    if (orderA !== orderB) return orderA - orderB;
     const aMatch = a.hostname?.match(/-(\d+)$/);
     const bMatch = b.hostname?.match(/-(\d+)$/);
     if (aMatch && bMatch) return Number(aMatch[1]) - Number(bMatch[1]);
