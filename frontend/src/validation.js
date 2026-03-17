@@ -534,7 +534,8 @@ const validateVipsInMachineNetwork = (state) => {
     checkVips(vs.apiVIPs, "API VIPs", "apiVip");
     checkVips(vs.ingressVIPs, "Ingress VIPs", "ingressVip");
   }
-  if (scenarioId === "bare-metal-ipi" || scenarioId === "bare-metal-upi") {
+  // Bare Metal UPI: no API/Ingress VIPs in install-config (platform.none only per 4.20 doc); user configures LB/DNS externally. Only validate for bare-metal-ipi.
+  if (scenarioId === "bare-metal-ipi") {
     const hi = state.hostInventory || {};
     const parseList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
     checkVips(parseList(hi.apiVip), "API VIPs", "apiVip");

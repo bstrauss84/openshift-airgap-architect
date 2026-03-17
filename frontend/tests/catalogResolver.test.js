@@ -75,11 +75,13 @@ describe("catalogResolver: getCatalogForScenario", () => {
     expect(params[0]).toHaveProperty("outputFile");
   });
 
-  it("returns parameters array for bare-metal-upi", () => {
+  it("returns parameters array for bare-metal-upi without platform.baremetal VIPs (4.20 UPI: platform.none only)", () => {
     const params = getCatalogForScenario("bare-metal-upi");
     expect(Array.isArray(params)).toBe(true);
     expect(params.length).toBeGreaterThan(0);
-    expect(params.some((p) => p.path === "platform.baremetal.apiVIP" && p.outputFile === "install-config.yaml")).toBe(true);
+    expect(params.some((p) => p.path === "platform.baremetal.apiVIP" && p.outputFile === "install-config.yaml")).toBe(false);
+    expect(params.some((p) => p.path === "platform.baremetal.apiVIPs" && p.outputFile === "install-config.yaml")).toBe(false);
+    expect(params.some((p) => p.path === "apiVersion" && p.outputFile === "install-config.yaml")).toBe(true);
   });
 
   it("returns parameters array for aws-govcloud-ipi with platform.aws.region (Prompt J)", () => {

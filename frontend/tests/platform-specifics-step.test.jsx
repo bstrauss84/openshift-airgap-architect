@@ -760,7 +760,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       render(<App />);
       await waitFor(
         () => {
-          expect(screen.getByText(/Bare metal UPI: API and Ingress VIPs are configured on the Networking step/)).toBeInTheDocument();
+          expect(screen.getByText(/Bare metal UPI: No installer-managed provisioning/)).toBeInTheDocument();
         },
         { timeout: 5000 }
       );
