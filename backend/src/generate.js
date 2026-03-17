@@ -1148,7 +1148,7 @@ const buildFieldManual = (state, docsLinks) => {
   lines.push(`1. Push mirrored content into the registry (disk-to-mirror):`);
   lines.push(`   - oc-mirror --config ${imageSetName} --from ${outputPath} docker://${mirrorRegistry} --v2`);
   lines.push(`2. Apply the generated cluster-resources manifests after install:`);
-  lines.push(`   - oc apply -f ${outputPath}/cluster-resources`);
+  lines.push(`   - oc apply -f ${outputPath}/working-dir/cluster-resources`);
   lines.push(``);
   lines.push(`## [HIGH SIDE] Trust and certificates`);
   if (trustBundle) {
