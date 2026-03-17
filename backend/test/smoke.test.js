@@ -199,6 +199,55 @@ test("buildInstallConfig for bare-metal-upi must NOT emit IPI-only params (scena
   assert.strictEqual(out.platform?.baremetal, undefined, "UPI must not emit platform.baremetal (doc: no additional platform config)");
 });
 
+test("buildInstallConfig for bare-metal-agent multi-node without Day-2 toggle omits hosts and provisioning", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        { hostname: "master-0", role: "master", primary: { ipv4Cidr: "192.168.1.10/24" } },
+        { hostname: "master-1", role: "master", primary: {} }
+      ],
+      apiVip: "192.168.1.100",
+      ingressVip: "192.168.1.101",
+      provisioningNetwork: "Managed"
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.baremetal, "Agent multi-node has platform.baremetal");
+  assert.deepStrictEqual(out.platform.baremetal.apiVIPs, ["192.168.1.100"]);
+  assert.deepStrictEqual(out.platform.baremetal.ingressVIPs, ["192.168.1.101"]);
+  assert.strictEqual(out.platform.baremetal.hosts, undefined, "without Day-2 toggle hosts must be omitted");
+  assert.strictEqual(out.platform.baremetal.provisioningNetwork, undefined, "without Day-2 toggle provisioning must be omitted");
+});
+
+test("buildInstallConfig for bare-metal-agent multi-node with Day-2 toggle includes hosts and provisioning", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        { hostname: "master-0", role: "master", primary: {}, bmc: { address: "redfish+http://x" } },
+        { hostname: "master-1", role: "master", primary: {} }
+      ],
+      apiVip: "192.168.1.100",
+      ingressVip: "192.168.1.101",
+      includeBareMetalDay2InInstallConfig: true,
+      provisioningNetwork: "Unmanaged"
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(Array.isArray(out.platform?.baremetal?.hosts), "with Day-2 toggle hosts must be present");
+  assert.strictEqual(out.platform.baremetal.hosts.length, 2);
+  assert.strictEqual(out.platform.baremetal.provisioningNetwork, "Unmanaged");
+});
+
 test("buildAgentConfig emits additionalNTPSources and bootArtifactsBaseURL when set (Phase 4.4)", () => {
   const state = {
     blueprint: { platform: "Bare Metal", clusterName: "test-cluster" },

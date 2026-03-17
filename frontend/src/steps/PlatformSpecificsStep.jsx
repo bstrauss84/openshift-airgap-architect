@@ -555,6 +555,30 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
           );
         })()}
 
+        {scenarioId === "bare-metal-agent" && (
+          <section className="card">
+            <div className="card-header">
+              <h3 className="card-title">Bare Metal Agent — install-config options</h3>
+              <p className="card-subtitle">Optional Day-2 bare metal content in install-config (not used during initial provisioning).</p>
+            </div>
+            <div className="card-body">
+              <OptionRow
+                title="Include optional Day-2 bare metal fields in install-config"
+                description="When enabled, install-config includes optional host and provisioning network fields that can simplify later Day-2 operations. When disabled, install-config stays minimal and agent-config is used for install-time needs."
+              >
+                <Switch
+                  checked={!!inventory.includeBareMetalDay2InInstallConfig}
+                  onChange={(checked) => updateInventory({ includeBareMetalDay2InInstallConfig: checked })}
+                  aria-label="Include optional Day-2 bare metal in install-config"
+                />
+              </OptionRow>
+              <p className="note subtle" style={{ marginTop: 8, marginBottom: 0 }}>
+                Enabled: emit optional <code>platform.baremetal</code> hosts and provisioning* (per 4.20 doc; not used during initial provisioning). Disabled: minimal install-config with apiVIPs/ingressVIPs only; rely on agent-config for install-time host and provisioning needs.
+              </p>
+            </div>
+          </section>
+        )}
+
         {showAzureGovSection && (
           <section className="card">
             <div className="card-header">

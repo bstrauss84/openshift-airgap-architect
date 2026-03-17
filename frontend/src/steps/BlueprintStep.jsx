@@ -145,17 +145,19 @@ const BlueprintStep = () => {
     setRefreshing(true);
     setRefreshNote("Refreshing channels from upstream…");
     try {
-      const cached = await apiFetch("/api/cincinnati/channels");
-      if (cached.channels?.length) {
-        setChannels(cached.channels);
-      }
-    } catch {
-      // ignore
-    }
-    try {
       const data = await apiFetch("/api/cincinnati/update", { method: "POST" });
-      setChannels(data.channels || []);
-      await fetchPatches(release?.channel, true);
+      const newChannels = data.channels || [];
+      setChannels(newChannels);
+      if (newChannels.length === 0) {
+        setRefreshNote("");
+        setRefreshing(false);
+        return;
+      }
+      // After refresh, use newest available minor when not locked (channels sorted e.g. 4.17 … 4.21),
+      // so minor selection stays current-aware like the patch dropdown (newest patch).
+      const newestChannel = newChannels[newChannels.length - 1];
+      const channelToLoad = releaseLocked ? (release?.channel || newestChannel) : newestChannel;
+      await fetchPatches(channelToLoad, true);
       setRefreshNote("");
       setUpdatedMessage(true);
       setTimeout(() => setUpdatedMessage(false), 5000);

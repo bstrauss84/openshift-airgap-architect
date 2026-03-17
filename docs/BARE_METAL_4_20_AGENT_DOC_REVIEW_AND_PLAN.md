@@ -104,3 +104,15 @@ See `docs/DATA_AND_FRONTEND_COPIES.md`. Canonical params in `data/params/4.20/`;
 **Arbiter (Goal 9):**
 - When host inventory has 2 masters and 1 arbiter (role `arbiter`), install-config gets controlPlane.replicas: 2 and `arbiter: { name: "arbiter", replicas: 1 }`.
 - Catalog and host inventory support role `arbiter`; sort order is master → arbiter → worker.
+- Validation: 2 control plane nodes with 0 arbiter is invalid for bare-metal-agent; hostInventoryV2Validation pushes an error and blocks generation.
+
+**Day-2 include/exclude toggle (closeout):**
+- Platform Specifics step shows "Include optional Day-2 bare metal fields in install-config" when scenario is bare-metal-agent.
+- State: `hostInventory.includeBareMetalDay2InInstallConfig` (boolean). When OFF (default): Agent multi-node install-config emits only apiVIPs and ingressVIPs. When ON: also emits optional platform.baremetal hosts and provisioning* (provisioningNetwork, provisioningNetworkCIDR, etc.) per doc; agent-config remains source for install-time provisioning.
+- Generator: `backend/src/generate.js` Agent multi-node branch checks `hi.includeBareMetalDay2InInstallConfig`; only when true does it add hosts and provisioning* to install-config.
+
+**Dual-stack VIPs (closeout):**
+- When `hostInventory.enableIpv6` is true, Networking step shows separate API VIP (IPv4), API VIP (IPv6), Ingress VIP (IPv4), Ingress VIP (IPv6) fields. Generator builds apiVIPs/ingressVIPs as [v4, v6].filter(Boolean); when enableIpv6 is false, uses comma-separated parsing for apiVip/ingressVip.
+
+**Cincinnati refresh (closeout):**
+- After POST /api/cincinnati/update, when blueprint is not locked the app selects the newest channel from the returned list and fetches patches for it (current-aware minor selection). When locked, current channel is kept and only patches are refreshed.
