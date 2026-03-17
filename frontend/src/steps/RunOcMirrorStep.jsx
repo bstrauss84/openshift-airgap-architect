@@ -19,7 +19,7 @@ const RunOcMirrorStep = () => (
         <p className="note">
           We&apos;re working on this for a future update. You will be able to run oc-mirror here using your
           generated <code>imageset-config.yaml</code>, with path validation, pull secret (used once; not stored),
-          and optional inclusion of mirror output in the export bundle.
+          and optional inclusion of mirror output in the export bundle. Planned: mirror-to-disk, disk-to-mirror, and mirror-to-mirror with workspace and cache options.
         </p>
         <p className="note subtle">
           Until then, use the Assets &amp; Guide step to download your bundle and run oc-mirror manually
