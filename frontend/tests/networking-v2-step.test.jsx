@@ -243,6 +243,33 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     expect(Array.isArray(requiredPaths)).toBe(true);
   });
 
+  it("when IPv6 is enabled, cluster and service IPv6 fields are visible without requiring machineNetworkV6", () => {
+    const state = stateForNetworkingStep({
+      blueprint: {
+        ...stateWithBlueprintCompleteMethodologyIncomplete().blueprint,
+        platform: "Bare Metal"
+      },
+      methodology: { method: "Agent-Based Installer" },
+      globalStrategy: {
+        networking: {
+          machineNetworkV4: "192.168.1.0/24",
+          machineNetworkV6: "",
+          clusterNetworkCidr: "10.128.0.0/14",
+          serviceNetworkCidr: "172.30.0.0/16"
+        }
+      },
+      hostInventory: { enableIpv6: true, apiVip: "", ingressVip: "" }
+    });
+    const updateState = vi.fn();
+    render(
+      <AppContext.Provider value={{ state, updateState, loading: false, startOver: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+    expect(screen.getByPlaceholderText("fd01::/48")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("fd02::/112")).toBeInTheDocument();
+  });
+
   it("when scenario is aws-govcloud-ipi, Networking step shows full form (A2 tab relevance)", async () => {
     const state = stateForNetworkingStep({
       blueprint: {

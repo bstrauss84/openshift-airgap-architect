@@ -636,11 +636,11 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                   max="28"
                 />
               </FieldLabelWithInfo>
-              {(networking.machineNetworkV6 || "").trim() ? (
+              {state.hostInventory?.enableIpv6 ? (
                 <>
                   <FieldLabelWithInfo
                     label="Cluster Network IPv6 CIDR (optional)"
-                    hint="Dual-stack: pod network IPv6. Default fd01::/48 if blank."
+                    hint="Dual-stack: pod network IPv6. Default fd01::/48 if blank. Set when using dual-stack."
                   >
                     <input
                       value={networking.clusterNetworkCidrV6 || ""}
@@ -696,10 +696,10 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr)
                 ? <div className="note warning">Overlaps with cluster network.</div>
                 : null}
-              {(networking.machineNetworkV6 || "").trim() ? (
+              {state.hostInventory?.enableIpv6 ? (
                 <FieldLabelWithInfo
                   label="Service Network IPv6 CIDR (optional)"
-                  hint="Dual-stack: service IPv6. Default fd02::/112 if blank."
+                  hint="Dual-stack: service IPv6. Default fd02::/112 if blank. Set when using dual-stack."
                 >
                   <input
                     value={networking.serviceNetworkCidrV6 || ""}

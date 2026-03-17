@@ -255,11 +255,11 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                     max={28}
                   />
                 </FieldLabelWithInfo>
-                {showIpv6ForPlatform && (networking.machineNetworkV6 || "").trim() ? (
+                {showIpv6ForPlatform ? (
                   <>
                     <FieldLabelWithInfo
                       label="Cluster Network IPv6 CIDR (optional)"
-                      hint="Dual-stack pod IPv6. Default fd01::/48 if blank."
+                      hint="Dual-stack pod IPv6. Default fd01::/48 if blank. Set when using dual-stack."
                       className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                     >
                       <input
@@ -314,10 +314,10 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                 {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
                   <span className="note warning inline">Overlaps with cluster network.</span>
                 ) : null}
-                {showIpv6ForPlatform && (networking.machineNetworkV6 || "").trim() ? (
+                {showIpv6ForPlatform ? (
                   <FieldLabelWithInfo
                     label="Service Network IPv6 CIDR (optional)"
-                    hint="Dual-stack service IPv6. Default fd02::/112 if blank."
+                    hint="Dual-stack service IPv6. Default fd02::/112 if blank. Set when using dual-stack."
                     className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                   >
                     <input

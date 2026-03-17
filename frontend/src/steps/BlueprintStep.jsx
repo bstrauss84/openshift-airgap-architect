@@ -3,6 +3,7 @@ import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
 import { validateBlueprintPullSecretOptional } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
+import { sortChannelsBySemverAscending, getNewestChannel } from "../shared/cincinnatiChannels.js";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -69,15 +70,17 @@ const BlueprintStep = () => {
     setLoading(true);
     apiFetch("/api/cincinnati/channels")
       .then((data) => {
-        setChannels(data.channels || []);
+        setChannels(sortChannelsBySemverAscending(data.channels || []));
         if (!data.channels?.length && !releaseLocked) {
           updateState({ release: { ...release, channel: null, patchVersion: null, confirmed: false } });
           updateVersionSelection({ selectedChannel: null, selectedVersion: null, selectionTimestamp: Date.now() });
         }
         if (!releaseLocked && !release?.channel && data.channels?.length) {
-          const channel = data.channels[0];
-          updateState({ release: { ...release, channel, confirmed: false } });
-          updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
+          const channel = getNewestChannel(data.channels);
+          if (channel) {
+            updateState({ release: { ...release, channel, confirmed: false } });
+            updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
+          }
         }
       })
       .finally(() => {
@@ -85,7 +88,7 @@ const BlueprintStep = () => {
         apiFetch("/api/cincinnati/update", { method: "POST" })
           .then((data) => {
             if (data.channels?.length) {
-              setChannels(data.channels);
+              setChannels(sortChannelsBySemverAscending(data.channels));
             }
           })
           .catch(() => {});
@@ -146,16 +149,15 @@ const BlueprintStep = () => {
     setRefreshNote("Refreshing channels from upstream…");
     try {
       const data = await apiFetch("/api/cincinnati/update", { method: "POST" });
-      const newChannels = data.channels || [];
+      const newChannels = sortChannelsBySemverAscending(data.channels || []);
       setChannels(newChannels);
       if (newChannels.length === 0) {
         setRefreshNote("");
         setRefreshing(false);
         return;
       }
-      // After refresh, use newest available minor when not locked (channels sorted e.g. 4.17 … 4.21),
-      // so minor selection stays current-aware like the patch dropdown (newest patch).
-      const newestChannel = newChannels[newChannels.length - 1];
+      // After refresh, use newest available minor when not locked. Sort by semver so we do not rely on backend order.
+      const newestChannel = getNewestChannel(newChannels);
       const channelToLoad = releaseLocked ? (release?.channel || newestChannel) : newestChannel;
       await fetchPatches(channelToLoad, true);
       setRefreshNote("");
