@@ -190,47 +190,53 @@ export default function TrustProxyStep({ highlightErrors }) {
           {strategy.proxyEnabled ? (
             <div className="card-body" style={{ paddingTop: 0 }}>
               <div className="field-grid proxy-fields-grid">
-                <FieldLabelWithInfo
-                  label={<>HTTP Proxy {metaHttpProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
-                  hint="URL for HTTP traffic. Scheme must be http://."
-                >
-                  <textarea
-                    className="proxy-field-input proxy-field-textarea"
-                    value={proxies.httpProxy || ""}
-                    onChange={(e) => updateProxy("httpProxy", e.target.value.replace(/\n/g, " ").trim())}
-                    placeholder="http://proxy.corp:8080"
-                    rows={2}
-                    spellCheck={false}
-                  />
+                <div className="proxy-field-cell">
+                  <FieldLabelWithInfo
+                    label={<>HTTP Proxy {metaHttpProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
+                    hint="URL for HTTP traffic. Scheme must be http://."
+                  >
+                    <textarea
+                      className={`proxy-field-input proxy-field-textarea${proxyErrors.httpProxy ? " input-error" : ""}`}
+                      value={proxies.httpProxy || ""}
+                      onChange={(e) => updateProxy("httpProxy", e.target.value.replace(/\n/g, " ").trim())}
+                      placeholder="http://proxy.corp:8080"
+                      rows={2}
+                      spellCheck={false}
+                    />
+                  </FieldLabelWithInfo>
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
-                  hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
-                >
-                  <textarea
-                    className="proxy-field-input proxy-field-textarea"
-                    value={proxies.httpsProxy || ""}
-                    onChange={(e) => updateProxy("httpsProxy", e.target.value.replace(/\n/g, " ").trim())}
-                    placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
-                    rows={2}
-                    spellCheck={false}
-                  />
+                </div>
+                <div className="proxy-field-cell">
+                  <FieldLabelWithInfo
+                    label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
+                    hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                  >
+                    <textarea
+                      className={`proxy-field-input proxy-field-textarea${proxyErrors.httpsProxy ? " input-error" : ""}`}
+                      value={proxies.httpsProxy || ""}
+                      onChange={(e) => updateProxy("httpsProxy", e.target.value.replace(/\n/g, " ").trim())}
+                      placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
+                      rows={2}
+                      spellCheck={false}
+                    />
+                  </FieldLabelWithInfo>
                   {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
-                </FieldLabelWithInfo>
-                <FieldLabelWithInfo
-                  label={<>No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : "(optional)"}</>}
-                  hint="Comma-separated destinations to exclude from proxying. Use . for subdomains; * to bypass for all."
-                >
-                  <textarea
-                    className="proxy-field-input proxy-field-textarea"
-                    value={proxies.noProxy || ""}
-                    onChange={(e) => updateProxy("noProxy", e.target.value.replace(/\n/g, " ").trim())}
-                    placeholder=".cluster.local,.svc,10.128.0.0/14,127.0.0.1"
-                    rows={2}
-                    spellCheck={false}
-                  />
-                </FieldLabelWithInfo>
+                </div>
+                <div className="proxy-field-cell">
+                  <FieldLabelWithInfo
+                    label={<>No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : "(optional)"}</>}
+                    hint="Comma-separated destinations to exclude from proxying. Use . for subdomains; * to bypass for all."
+                  >
+                    <textarea
+                      className="proxy-field-input proxy-field-textarea"
+                      value={proxies.noProxy || ""}
+                      onChange={(e) => updateProxy("noProxy", e.target.value.replace(/\n/g, " ").trim())}
+                      placeholder=".cluster.local,.svc,10.128.0.0/14,127.0.0.1"
+                      rows={2}
+                      spellCheck={false}
+                    />
+                  </FieldLabelWithInfo>
+                </div>
               </div>
             </div>
           ) : null}

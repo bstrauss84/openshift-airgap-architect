@@ -337,7 +337,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
         </section>
 
         {showApiIngressVips ? (
-          <section className={`card ${highlightErrors && (fieldErrors.apiVip || fieldErrors.ingressVip) ? "highlight-errors" : ""}`}>
+          <section className="card">
             <div className="card-header">
               <div>
                 <h3 className="card-title">API and Ingress VIPs</h3>
@@ -383,34 +383,83 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                     </FieldLabelWithInfo>
                   </>
                 ) : showBareMetalVips ? (
-                  <>
-                    <FieldLabelWithInfo
-                      label="API VIPs"
-                      hint={metaApiVips?.description || metaApiVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
-                      required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
-                      className={fieldErrors.apiVip ? "input-error" : ""}
-                    >
-                      <input
-                        className={fieldErrors.apiVip ? "input-error" : ""}
-                        value={hostInventory.apiVip || ""}
-                        onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
-                        placeholder="e.g. 10.90.0.1 or 10.90.0.1,fd00::1 for dual-stack"
-                      />
-                    </FieldLabelWithInfo>
-                    <FieldLabelWithInfo
-                      label="Ingress VIPs"
-                      hint={metaIngressVips?.description || metaIngressVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
-                      required={vipsRequiredForBareMetalAgent && (metaIngressVips?.required || metaIngressVip?.required)}
-                      className={fieldErrors.ingressVip ? "input-error" : ""}
-                    >
-                      <input
-                        className={fieldErrors.ingressVip ? "input-error" : ""}
-                        value={hostInventory.ingressVip || ""}
-                        onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
-                        placeholder="e.g. 10.90.0.2 or 10.90.0.2,fd00::2 for dual-stack"
-                      />
-                    </FieldLabelWithInfo>
-                  </>
+                  showIpv6ForPlatform ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP (IPv4)"
+                        hint="Primary API VIP. For dual-stack, also set API VIP (IPv6) below; order in install-config is IPv4 then IPv6."
+                        required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVip ? "input-error" : ""}
+                          value={hostInventory.apiVip || ""}
+                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="API VIP (IPv6)"
+                        hint="Secondary API VIP for dual-stack. Leave blank for IPv4-only."
+                      >
+                        <input
+                          className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                          value={hostInventory.apiVipV6 ?? ""}
+                          onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
+                          placeholder="e.g. fd00::1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP (IPv4)"
+                        hint="Primary Ingress VIP. For dual-stack, also set Ingress VIP (IPv6) below."
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVips?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVip ? "input-error" : ""}
+                          value={hostInventory.ingressVip || ""}
+                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.2"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP (IPv6)"
+                        hint="Secondary Ingress VIP for dual-stack. Leave blank for IPv4-only."
+                      >
+                        <input
+                          className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                          value={hostInventory.ingressVipV6 ?? ""}
+                          onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
+                          placeholder="e.g. fd00::2"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  ) : (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIPs"
+                        hint={metaApiVips?.description || metaApiVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
+                        required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVip ? "input-error" : ""}
+                          value={hostInventory.apiVip || ""}
+                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.1 or 10.90.0.1,fd00::1 for dual-stack"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIPs"
+                        hint={metaIngressVips?.description || metaIngressVip?.description || "One IP = single-stack. Two comma-separated IPs = dual-stack (order: primary, then secondary). Omit when using a user-managed load balancer."}
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVips?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVip ? "input-error" : ""}
+                          value={hostInventory.ingressVip || ""}
+                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.2 or 10.90.0.2,fd00::2 for dual-stack"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  )
                 ) : null}
               </div>
             </div>

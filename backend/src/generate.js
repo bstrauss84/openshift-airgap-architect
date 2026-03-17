@@ -165,14 +165,51 @@ const buildInstallConfig = (state) => {
       delete installConfig.controlPlane.platform;
       delete installConfig.compute[0].platform;
     } else if (isAgentBased) {
-      // Bare Metal Agent-based multi-node: install-config may have apiVIPs/ingressVIPs only. Hosts and provisioning
-      // belong in agent-config / Day 2; doc says they are not used during initial provisioning.
+      // Bare Metal Agent-based multi-node: install-config has apiVIPs/ingressVIPs. Optional Day-2 hosts/provisioning
+      // only when user enables includeBareMetalDay2InInstallConfig (doc: not used during initial provisioning).
+      const hi = state.hostInventory || {};
       const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
-      const apiVips = parseVipList(state.hostInventory?.apiVip);
-      const ingressVips = parseVipList(state.hostInventory?.ingressVip);
+      const useDualStackVips = Boolean(hi.enableIpv6);
+      const apiVips = useDualStackVips
+        ? [hi.apiVip, hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean)
+        : parseVipList(hi.apiVip);
+      const ingressVips = useDualStackVips
+        ? [hi.ingressVip, hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean)
+        : parseVipList(hi.ingressVip);
       const baremetal = {};
       if (apiVips.length) baremetal.apiVIPs = apiVips;
       if (ingressVips.length) baremetal.ingressVIPs = ingressVips;
+      const includeDay2 = Boolean(hi.includeBareMetalDay2InInstallConfig);
+      if (includeDay2) {
+        if (hi.provisioningNetwork && ["Managed", "Unmanaged", "Disabled"].includes(hi.provisioningNetwork)) {
+          baremetal.provisioningNetwork = hi.provisioningNetwork;
+        }
+        if (hi.provisioningNetworkCIDR) baremetal.provisioningNetworkCIDR = hi.provisioningNetworkCIDR;
+        if (hi.provisioningNetworkInterface) baremetal.provisioningNetworkInterface = hi.provisioningNetworkInterface;
+        if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
+        if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
+        if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
+        const baremetalBaseDomain = state.blueprint?.baseDomain;
+        const hosts = (hi.nodes || []).map((node) => {
+          const host = {
+            name: effectiveHostname(node, baremetalBaseDomain),
+            role: node.role
+          };
+          const bmcAddr = (node.bmc?.address || "").trim();
+          if (bmcAddr) {
+            host.bmc = {
+              address: bmcAddr,
+              ...(includeCredentials && node.bmc?.username ? { username: node.bmc.username } : {}),
+              ...(includeCredentials && node.bmc?.password ? { password: node.bmc.password } : {}),
+              ...(node.bmc?.disableCertificateVerification === true ? { disableCertificateVerification: true } : {})
+            };
+          }
+          if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
+          if ((node.rootDevice || "").trim()) host.rootDeviceHints = { deviceName: (node.rootDevice || "").trim() };
+          return host;
+        });
+        baremetal.hosts = hosts;
+      }
       installConfig.platform.baremetal = baremetal;
     } else {
       // Bare Metal IPI: full platform.baremetal with apiVIPs, ingressVIPs, hosts, provisioning*.

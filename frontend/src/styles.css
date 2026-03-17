@@ -842,6 +842,14 @@ body[data-theme="dark"] .sticky-panel {
 .proxy-fields-grid {
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem 1.25rem;
+  align-items: start;
+}
+
+.proxy-fields-grid .proxy-field-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 @media (max-width: 900px) {
