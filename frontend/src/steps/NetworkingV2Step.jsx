@@ -342,7 +342,15 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
               </div>
             </div>
             <div className="card-body">
-              <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
+              {showVsphereIpiVips ? (
+                <p className="note">Leave blank if you use an external load balancer.</p>
+              ) : scenarioId === "bare-metal-agent" ? (
+                <p className="note">
+                  Required for Bare Metal Agent-based installs. Use one IP for single-stack; use two comma-separated IPs for dual-stack (order: primary, then secondary).
+                </p>
+              ) : (
+                <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
+              )}
               <div className="field-grid">
                 {showVsphereIpiVips ? (
                   <>

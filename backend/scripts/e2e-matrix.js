@@ -136,8 +136,18 @@ function scenarioOverrides(scenarioId) {
       methodology: { method: "Agent-Based Installer" },
       hostInventory: {
         nodes: [
-          { hostname: "master-0", role: "master", primary: { ipv4Cidr: "192.168.1.10/24" }, bmc: {}, rootDevice: "" }
+          {
+            hostname: "master-0",
+            role: "master",
+            primary: { ipv4Cidr: "192.168.1.10/24", ethernet: { name: "eth0", macAddress: "52:54:00:00:00:01" } },
+            bmc: {},
+            rootDevice: ""
+          }
         ]
+        ,
+        // Doc (4.20 agent installer): apiVIPs and ingressVIPs must be set for bare metal platforms.
+        apiVip: "192.168.1.100",
+        ingressVip: "192.168.1.101"
       }
     },
     "bare-metal-ipi": {

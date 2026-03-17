@@ -148,13 +148,15 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
           serviceNetworkCidr: "172.30.0.0/16",
           networkType: "OVNKubernetes"
         }
-      }
+      },
+      // bare-metal-agent requires VIPs; include valid values so this test isolates overlap validation
+      hostInventory: { ...(stateForNetworkingStep().hostInventory || {}), nodes: [], schemaVersion: 2, apiVip: "10.90.0.10", ingressVip: "10.90.0.11" }
     });
     const result = validateStep(state, "networking-v2");
     expect(result.errors).toHaveLength(0);
   });
 
-  it("VIPs are not required for networking-v2 (catalog required: false; external LB note)", () => {
+  it("bare-metal-agent: API/Ingress VIPs are required for networking-v2 (doc-driven)", () => {
     const state = stateForNetworkingStep({
       globalStrategy: {
         ...stateForNetworkingStep().globalStrategy,
@@ -166,13 +168,13 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
           networkType: "OVNKubernetes"
         }
       },
+      blueprint: { ...stateForNetworkingStep().blueprint, platform: "Bare Metal" },
+      methodology: { method: "Agent-Based Installer" },
       hostInventory: { nodes: [], schemaVersion: 2, apiVip: "", ingressVip: "" }
     });
     const result = validateStep(state, "networking-v2");
-    expect(result.errors).not.toContainEqual(
-      expect.stringMatching(/API VIP|Ingress VIP|VIP.*required/i)
-    );
-    expect(result.errors).toHaveLength(0);
+    expect(result.errors.some((e) => /API VIPs are required/i.test(e))).toBe(true);
+    expect(result.errors.some((e) => /Ingress VIPs are required/i.test(e))).toBe(true);
   });
 
   it("vSphere IPI: API/Ingress VIPs must be within machine network", () => {
