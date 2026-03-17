@@ -43,7 +43,7 @@ The backend accepts the scan request, creates the job, and spawns `oc-mirror` in
 
 | Layer | What happens |
 |-------|----------------|
-| **Image base** | `backend/Containerfile` uses `node:20-bookworm-slim`, which is **multi-arch**. On Apple Silicon, Podman builds/pulls the **linux/arm64** image by default. |
+| **Image base** | `backend/Containerfile` uses Red Hat UBI 9 Node.js 20 (`ubi9/nodejs-20`), which is **multi-arch**. On Apple Silicon, Podman builds/pulls the **linux/arm64** image by default. |
 | **Binary install** | The Containerfile downloads `oc` and `oc-mirror` from OpenShift mirror URLs. The **default** (or non-arch-specific) paths used today resolve to **x86_64** tarballs (e.g. `.../clients/ocp/latest/oc-mirror.tar.gz` or equivalent). |
 | **Result** | The backend container is **arm64** but **x86_64** binaries are installed in `/usr/local/bin`. When the Node process spawns `oc-mirror`, the kernel invokes QEMU emulation, which then fails due to the missing x86_64 loader in the arm64 filesystem. |
 
