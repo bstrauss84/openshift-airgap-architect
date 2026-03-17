@@ -42,7 +42,8 @@ Working record for the Bare Metal / 4.20 / Agent-based Installer scenario truth 
 
 ## Params / catalog (Phase B) — summary
 
-- **Canonical:** `data/params/4.20/bare-metal-agent.json` includes install-config params (platform.baremetal: apiVIP, ingressVIP, hosts, provisioning*, etc.) and agent-config params (rendezvousIP, bootArtifactsBaseURL, additionalNTPSources, hosts[], networkConfig, etc.).
+- **VIP truth (doc proof):** 4.20 agent-based installer guide PDF, **“Validation checks before agent ISO creation”**: **“apiVIPs and ingressVIPs parameters must be set for bare metal and vSphere platforms.”** The same section shows `platform.baremetal.apiVIPs` / `ingressVIPs` lists (dual-stack example).
+- **Canonical:** `data/params/4.20/bare-metal-agent.json` includes install-config params (platform.baremetal: apiVIP/apiVIPs, ingressVIP/ingressVIPs, hosts, provisioning*, etc.) and agent-config params (rendezvousIP, bootArtifactsBaseURL, additionalNTPSources, hosts[], networkConfig, minimalISO, etc.).
 - **Frontend:** `frontend/src/data/catalogs/bare-metal-agent.json` is the frontend copy; must stay in sync with canonical per DATA_AND_FRONTEND_COPIES.md.
 - **Metadata:** Catalog drives getParamMeta/getCatalogForScenario, required paths, and UI hints (e.g. NTP “emitted to agent-config additionalNTPSources” for bare-metal-agent).
 
@@ -63,13 +64,14 @@ Working record for the Bare Metal / 4.20 / Agent-based Installer scenario truth 
 - NTP hint in Connectivity & Mirroring explicitly mentions agent-config for bare-metal-agent.
 
 **Delta set 2 (docs vs app):**
-- Full doc scrub (install-config examples, agent-config examples, 9.1.4 / 9.2 tables, rendezvous IP, NMState) to be expanded in a dedicated pass; this doc records structure and repo state for that pass.
-- apiVIPs/ingressVIPs: catalog has singular apiVIP/ingressVIP for bare-metal-agent; 4.12+ list form (apiVIPs/ingressVIPs) is canonical; backend already emits lists; consider adding apiVIPs/ingressVIPs to catalog if doc table uses them.
+- **Resolved:** Catalog now includes `platform.baremetal.apiVIPs` / `platform.baremetal.ingressVIPs` list params (marked required) for bare-metal-agent, matching doc validation checks and example shape. Legacy singular forms remain as non-required “prefer list” entries.
 
 ## Implementation / alignment (Phase E)
 
-- No code changes in this pass for bare-metal-agent; working doc created and repo grounding verified.
-- Future: align catalog with 9.1.4/9.2 tables (deprecations, allowed values, conditionals); ensure agent-config examples in docs match generator output shape.
+- Updated bare-metal-agent canonical params and frontend catalog to add required VIP list params (`apiVIPs`/`ingressVIPs`) and to treat singular forms as legacy.
+- Updated networking validation to enforce required VIPs when the catalog marks them required.
+- Updated the Networking step helper note for bare-metal-agent to reflect requiredness.
+- Updated e2e example `docs/e2e-examples/install-config/bare-metal-agent_minimal.yaml` to include required VIP lists.
 
 ## Testing / validation (Phase F)
 
@@ -79,8 +81,7 @@ Working record for the Bare Metal / 4.20 / Agent-based Installer scenario truth 
 
 ## Remaining items
 
-- Optional: Add platform.baremetal.apiVIPs/ingressVIPs to bare-metal-agent catalog (with deprecation note for singular) to match 4.12+ doc and backend emission.
-- Full Phase A doc scrub: capture all 9.1.x and 9.2.x tables, install-config and agent-config examples, and conditionals/deprecations from the official 4.20 agent doc.
+- Expand this working doc with additional official 4.20 agent-based guide captures beyond Chapter 9 tables (boot/discovery flows, nmstateconfig vs per-host networkConfig examples) as needed.
 
 ## Canonical vs frontend (two-place model)
 

@@ -758,6 +758,20 @@ const validateStep = (state, stepId) => {
       else if (msg.includes("service network IPv6")) fieldErrors.serviceNetworkCidrV6 = msg;
     });
     Object.assign(fieldErrors, vipsInMachine.fieldErrors);
+    // Catalog-driven requiredness (bare-metal-agent): apiVIPs/ingressVIPs must be set for bare metal platforms
+    // for Agent-based installs (doc: validation checks before agent ISO creation).
+    const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+    const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+    if (requiredPaths.includes("platform.baremetal.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
+      const msg = "API VIPs are required for Bare Metal Agent-based installs.";
+      fieldErrors.apiVip = fieldErrors.apiVip || msg;
+      format.errors.push(msg);
+    }
+    if (requiredPaths.includes("platform.baremetal.ingressVIPs") && !(state.hostInventory?.ingressVip || "").trim()) {
+      const msg = "Ingress VIPs are required for Bare Metal Agent-based installs.";
+      fieldErrors.ingressVip = fieldErrors.ingressVip || msg;
+      format.errors.push(msg);
+    }
     return {
       errors: [...format.errors, ...networking.errors, ...vipsInMachine.errors],
       warnings: networking.warnings || [],

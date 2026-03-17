@@ -21,6 +21,10 @@ networking:
   serviceNetwork:
     - 172.30.0.0/16
 platform:
-  baremetal: {}
+  baremetal:
+    apiVIPs:
+      - 192.168.1.100
+    ingressVIPs:
+      - 192.168.1.101
 pullSecret: '{"auths":{}}'
 sshKey: ''
