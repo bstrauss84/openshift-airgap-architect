@@ -1,10 +1,12 @@
-# oc-mirror v2 Run Tab — Implementation-Grade Plan (OpenShift 4.20)
+# oc-mirror v2 Run Tab — Implementation Contract (OpenShift 4.20)
 
-**Purpose:** Blueprint for implementing the "Run oc-mirror" tab so a later pass can implement from this doc without rediscovering fundamentals.
+**Purpose:** Buildable contract for the "Run oc-mirror" tab. A later implementation pass can follow §1–§9 directly without re-deciding scope, APIs, state, or artifact rules.
 
-**Status:** Planning complete (second hardening pass). No feature implementation in this pass.
+**Status:** Implementation contract complete (third pass: contract refinement). No feature implementation in this pass.
 
 **Doc source:** OpenShift 4.20 Disconnected environments → Chapter 5 "Mirroring images for a disconnected installation by using the oc-mirror plugin v2" (docs.redhat.com).
+
+**Structure:** §1–§9 = implementation contract. "Reference" and Phase A onward = condensed 4.20 truth and prior narrative.
 
 ---
 
@@ -58,6 +60,393 @@
 1. **Canonical docs-index:** `data/docs-index/4.20.json` **exists** (and is not gitignored; exceptions in .gitignore). Previous claim that it was "not present" was wrong.
 2. **Field manual path:** 4.20 docs place cluster resources at `<workspace_or_archive>/working-dir/cluster-resources`. generate.js currently says `${outputPath}/cluster-resources`; it should be `${outputPath}/working-dir/cluster-resources` (when outputPath is the file:// target, oc-mirror creates working-dir inside it).
 3. **Working doc:** Was a one-line placeholder; now replaced with this full plan.
+
+---
+
+# Implementation contract (v1)
+
+The following sections are the **buildable contract** for the next implementation pass. No ambiguity: endpoints, shapes, and rules are explicit.
+
+---
+
+## §1 Final v1 scope / deferred scope
+
+### In v1 (included)
+
+| Category | Items |
+|----------|--------|
+| **Workflows** | mirrorToDisk, diskToMirror, mirrorToMirror. Dry-run only as an option for mirrorToDisk (checkbox), not a fourth mode. |
+| **Path selection** | Archive path (m2d: destination; d2m: source). Workspace path. Cache path (m2d and d2m only; hidden for m2m). |
+| **Config source** | "Use generated imageset-config" (default) or "External file" with path. |
+| **Registry** | Registry URL (docker://...) for d2m and m2m; default from `globalStrategy.mirroring.registryFqdn`. |
+| **Auth** | One-time: "Use mirror-registry credentials from Identity & Access" or "Paste/upload pull secret for this run (not stored)". No persistence of auth content or path. |
+| **Preflight** | New endpoint `POST /api/ocmirror/preflight`; Run button gated on no blockers. |
+| **Live logs** | Existing SSE job stream. |
+| **Operations history** | Job type `oc-mirror-run` with metadata (mode, paths, etc.). |
+| **Stop/cancel** | Existing `POST /api/jobs/:id/stop`; SIGTERM; status cancelled. |
+| **Artifact path summary** | After run: archive dir, workspace dir, cache dir (if used), cluster-resources path, dry-run paths if applicable. |
+| **Manual handoff** | Summary and metadata must enable user to continue manually (paths, no app-owned moves). |
+| **Include in export** | Existing `mirrorWorkflow.includeInExport` + archive path; export adds that directory to ZIP. |
+
+### Explicitly out of v1 (deferred)
+
+- oc-mirror **delete** (generate + execute).
+- Break-glass **cleanup/reset** (force delete cache/workspace from UI).
+- **Signature-policy / registries.d / policy** advanced controls.
+- **Enclave-specific** workflows (registries.conf, multi-enclave).
+- **Deep reachability** checks (registry/DNS/SSL probing from app).
+- Any other mode or capability not listed in "In v1" above.
+
+---
+
+## §2 Backend API contracts
+
+### 2A. Preflight endpoint
+
+**Endpoint:** `POST /api/ocmirror/preflight`
+
+**Request body (JSON):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| mode | string | yes | One of: `mirrorToDisk`, `diskToMirror`, `mirrorToMirror`. |
+| archivePath | string | mode-dependent | For m2d: destination dir. For d2m: source dir. Omitted for m2m. |
+| workspacePath | string | yes | Working dir for cluster-resources and logs. |
+| cachePath | string | mode-dependent | For m2d and d2m only. Omitted or ignored for m2m. |
+| registryUrl | string | d2m, m2m | e.g. `docker://registry.local:5000`. Empty for m2d. |
+| configSourceType | string | yes | `generated` or `external`. |
+| configPath | string | if external | Absolute or relative path to ImageSetConfiguration file. |
+| authSource | string | yes | `reuse` (from Identity & Access), `pasted`, or `env`. |
+| minBytes | number | no | Minimum free bytes for archive/workspace (default 0). |
+
+**Response (200):**
+
+```json
+{
+  "ok": true,
+  "blockers": ["string"],
+  "warnings": ["string"],
+  "checks": {
+    "archivePath": { "exists": false, "writable": true, "freeBytes": 0, "meetsMin": true, "structure": "ok" | "missing" | "invalid" },
+    "workspacePath": { "exists": false, "creatable": true, "writable": true, "freeBytes": 0 },
+    "cachePath": { "exists": false, "creatable": true, "writable": true },
+    "config": "present" | "missing",
+    "auth": "present" | "missing",
+    "registryUrl": "non-empty" | "empty"
+  }
+}
+```
+
+- **blockers:** List of human-readable strings. If non-empty, Run must be disabled. Examples: "Archive path is not writable.", "Insufficient disk space at archive path.", "Config file not found.", "d2m requires existing archive structure (working-dir or tar files).".
+- **warnings:** Non-blocking; e.g. "Low disk space.", "Workspace already contains oc-mirror data."
+- **Per-mode required checks:**  
+  - **m2d:** archivePath writable + meetsMin; workspacePath creatable and writable; cachePath creatable and writable; config present; auth present or warning.  
+  - **d2m:** archivePath exists + structure (working-dir or *.tar); workspacePath; cachePath; config present; registryUrl non-empty; auth present or warning.  
+  - **m2m:** workspacePath creatable and writable; config present; registryUrl non-empty; auth present or warning. No archivePath or cachePath checks.
+- **What preflight does NOT do:** No credential validation, no registry reachability, no DNS/SSL checks. Those are left to oc-mirror at run time.
+
+**Structure validation for d2m archivePath:** Consider "ok" if path exists and (contains a `working-dir` directory or contains at least one `.tar` file). Otherwise "invalid" and add a blocker.
+
+### 2B. Run endpoint
+
+**Endpoint:** `POST /api/ocmirror/run` (extend existing).
+
+**Request body (JSON):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| mode | string | yes | `mirrorToDisk` \| `diskToMirror` \| `mirrorToMirror`. |
+| dryRun | boolean | no | Default false. Only valid for mirrorToDisk. |
+| archivePath | string | m2d, d2m | For m2d: destination. For d2m: source (--from file://...). |
+| workspacePath | string | yes | --workspace file://... |
+| cachePath | string | m2d, d2m | --cache-dir. Omit for m2m. |
+| registryUrl | string | d2m, m2m | docker://... |
+| configSourceType | string | yes | `generated` \| `external`. |
+| configPath | string | if external | Path to ImageSetConfiguration. |
+| authSource | string | yes | `reuse` \| `pasted` \| `env`. |
+| pullSecret | string | if pasted | JSON string; written to temp file, never stored. |
+| advanced | object | no | See §7. logLevel, parallelImages, parallelLayers, imageTimeout, retryTimes, retryDelay, since, strictArchive. |
+
+**Backend behavior:** Version must be confirmed (existing check). Resolve oc-mirror binary (existing). If configSourceType is `generated`, build config via `buildImageSetConfig(state)` and write to temp file. If `external`, use configPath (must exist). If authSource is `reuse`, read mirror-registry pull secret from state and write to temp file. If `pasted`, use pullSecret. If `env`, use process.env.REGISTRY_AUTH_FILE. Spawn oc-mirror with correct args per mode; pass --workspace, --cache-dir when provided; add --dry-run for mirrorToDisk when dryRun is true. On process exit (close), write job metadata (see §4) to job row. Temp config and temp auth files are unlinked after run.
+
+**Response (200):** `{ "jobId": "string" }`. No wait; client uses jobId to poll or SSE.
+
+**Errors (4xx/5xx):** 400 if version not confirmed, required path missing, or preflight not passed (if app enforces). 500 on path/config/fs errors.
+
+### 2C. Stop behavior
+
+- **Request:** `POST /api/jobs/:id/stop` (existing). No body.
+- **Behavior:** If job is in `activeProcesses`, send SIGTERM to process, remove from map, call `updateJob(id, { status: "cancelled", message: "Stopped by user.", progress: 0 })`. If job not running, 404.
+- **Partial artifacts:** No app action on disk. Workspace/cache/archive may contain partial data. UI must state: "Stopped by user. Partial artifacts may remain on disk; you can inspect paths below or run again."
+- **Metadata:** On stop, backend does not write exitCode or finishedAt to metadata (process did not exit normally). Status and message are enough.
+
+---
+
+## §3 Frontend state / screen contract
+
+### 3A. Screen sections (final order)
+
+1. **Mode** — Choose workflow (Mirror to disk | Disk to mirror | Mirror to mirror).
+2. **Config source** — Generated vs external path.
+3. **Paths** — Archive, workspace, cache (visibility by mode).
+4. **Destination / registry** — Registry URL for d2m and m2m.
+5. **Auth** — Reuse from Identity & Access | Paste/upload for this run.
+6. **Advanced** — Collapsible: dry-run (m2d only), log level, parallel-*, retry-*, image-timeout, since, strict-archive.
+7. **Preflight** — Button "Run preflight"; display blockers and warnings; gate Run on no blockers.
+8. **Run status / last run** — Run button, Stop when running, and after run: status, elapsed time, mode, paths (archive, workspace, cache, cluster-resources, dry-run paths if any), link to Operations.
+
+### 3B. Per-section fields
+
+| Section | Field name (state) | Type | Default | When shown | When hidden | Notes |
+|--------|--------------------|------|---------|------------|-------------|-------|
+| Mode | mirrorWorkflow.mode | string | `mirrorToDisk` | Always | — | Radio. |
+| Config | mirrorWorkflow.configSourceType | string | `generated` | Always | — | Radio: generated \| external. |
+| Config | mirrorWorkflow.configPath | string | "" | When external | When generated | Text input; validated when external. |
+| Paths | mirrorWorkflow.archivePath | string | e.g. dataDir/oc-mirror/archives | m2d, d2m | m2m | Label: "Archive directory" (m2d: "Destination"; d2m: "Source"). |
+| Paths | mirrorWorkflow.workspacePath | string | e.g. dataDir/oc-mirror/workspace | Always | — | |
+| Paths | mirrorWorkflow.cachePath | string | e.g. dataDir/oc-mirror/cache | m2d, d2m | m2m | |
+| Registry | mirrorWorkflow.registryUrl | string | from globalStrategy.mirroring.registryFqdn | d2m, m2m | m2d | Prefix docker:// if user omits. |
+| Auth | (no state) | — | — | — | — | Choice per run: reuse \| paste. Not persisted. |
+| Advanced | mirrorWorkflow.dryRun | boolean | false | m2d only | d2m, m2m | Checkbox "Dry run (no mirror)". |
+| Advanced | mirrorWorkflow.logLevel | string | `info` | Always in advanced | — | info \| debug. |
+| Advanced | mirrorWorkflow.parallelImages | number | 4 | Always in advanced | — | |
+| Advanced | mirrorWorkflow.parallelLayers | number | 5 | Always in advanced | — | |
+| Advanced | mirrorWorkflow.imageTimeout | string | "10m" | Always in advanced | — | |
+| Advanced | mirrorWorkflow.retryTimes | number | 2 | Always in advanced | — | |
+| Advanced | mirrorWorkflow.retryDelay | string | "1s" | Always in advanced | — | |
+| Advanced | mirrorWorkflow.since | string | "" | Always in advanced | — | Optional. |
+| Advanced | mirrorWorkflow.strictArchive | boolean | false | Always in advanced | — | |
+| — | mirrorWorkflow.includeInExport | boolean | false | Always | — | Checkbox "Include mirror output in export bundle". |
+| — | mirrorWorkflow.lastRunJobId | string | null | After a run | — | Link to Operations. Not required for v1 but recommended. |
+
+**Long-help (durable):** Mode section: each radio has a short paragraph (what it is, when to use it). Same card/note pattern as AWS GovCloud IPI; no hover-only critical info. Deferred note: "Delete and reset workspace are not available in this version."
+
+### 3C. Validation behavior
+
+- **Field-level:** archivePath, workspacePath, cachePath non-empty when visible. registryUrl non-empty for d2m/m2m. configPath required and non-empty when configSourceType is external.
+- **Preflight-gating:** Run button disabled until preflight has been run and `blockers.length === 0`. Warnings do not block; show them so user can acknowledge.
+- **Errors:** Display inline under field or in a summary card; use existing app error patterns.
+- **Remembered between visits:** mirrorWorkflow.* paths, mode, configSourceType, configPath, registryUrl, advanced flags, includeInExport. Not remembered: auth choice and pullSecret (never stored).
+
+### 3D. Result presentation (after a run)
+
+Display in "Run status / last run" section:
+
+- **Status:** completed | failed | cancelled.
+- **Elapsed time:** finishedAt − startedAt from job metadata (or created_at/updated_at if metadata missing).
+- **Mode:** mirrorToDisk | diskToMirror | mirrorToMirror.
+- **Paths (copyable or plain text):** Archive dir, Workspace dir, Cache dir (if used), Cluster-resources path (workspacePath + `/working-dir/cluster-resources`). If dry-run: Mapping file path, Missing file path.
+- **Link:** "View full logs in Operations" → navigate to Operations step and select this job (or open in new context).
+- **Manual handoff:** One line: "To continue manually, use the paths above. Run oc-mirror from the command line with the same workspace and cache for incremental runs."
+
+---
+
+## §4 Job metadata / Operations contract
+
+### 4A. Job metadata model
+
+**Schema:** Add column `metadata_json` to table `jobs`. Type TEXT. Default `''` or `'{}'`. Store JSON string.
+
+**Backward compatibility:** Existing rows have no metadata_json (or NULL). Frontend and API must treat missing metadata as "legacy job"; show id, type, status, message, output, created_at, updated_at only.
+
+**Migration:** On app init or first use of oc-mirror run, run: `ALTER TABLE jobs ADD COLUMN metadata_json TEXT DEFAULT '{}';` (or equivalent). If column already exists, skip. For SQLite, default empty string is fine; parse as JSON when present and non-empty.
+
+**Shape of metadata_json for type `oc-mirror-run`:**
+
+```json
+{
+  "mode": "mirrorToDisk",
+  "dryRun": false,
+  "archiveDir": "/path/to/archive",
+  "workspaceDir": "/path/to/workspace",
+  "cacheDir": "/path/to/cache",
+  "registryUrl": "",
+  "configSourceType": "generated",
+  "configPath": "",
+  "exitCode": 0,
+  "startedAt": 1700000000000,
+  "finishedAt": 1700000100000,
+  "clusterResourcesPath": "/path/to/workspace/working-dir/cluster-resources",
+  "dryRunMappingPath": "",
+  "dryRunMissingPath": ""
+}
+```
+
+- **startedAt / finishedAt:** Unix ms. Set when process starts; finishedAt when process closes. Omit or null if job was stopped (cancelled).
+- **clusterResourcesPath:** Derived: workspaceDir + `/working-dir/cluster-resources`. Omit for dry-run-only if no working-dir yet.
+- **dryRunMappingPath / dryRunMissingPath:** Set when dryRun is true; paths to mapping.txt and missing.txt under workspace working-dir/dry-run/.
+
+**utils.updateJob:** Must support writing metadata. Either extend `updateJob(id, { ..., metadata_json: string })` and DB UPDATE to include metadata_json, or add `updateJobMetadata(id, object)` that reads row, merges object into metadata_json, writes back. Implementation chooses one; contract is that completed/failed/cancelled oc-mirror-run jobs have this shape in metadata_json.
+
+### 4B. Log/output model
+
+- **Streamed live:** Combined stdout and stderr of oc-mirror process via existing appendJobOutput + SSE. No change.
+- **Stored in job.output:** Truncated to 500KB (existing appendJobOutput behavior). Keep.
+- **Must NOT store:** Auth content, auth file path, or any secret. No echo of pullSecret or REGISTRY_AUTH_FILE value in output or metadata.
+- **Stream end:** When process exits, SSE sends final job snapshot (with output and status). streamEnded in UI.
+- **oc-mirror log files on disk:** Path to working-dir/logs may be stored in metadata (e.g. `logsDir: workspaceDir + "/working-dir/logs"`). UI can show "Logs on disk: &lt;path&gt;" for user to open manually. Not required for v1 list row; optional in expanded detail.
+
+### 4C. Operations UI rendering
+
+- **List row:** Badge "oc-mirror run"; status badge; created_at; message. If metadata_json exists and has mode, append mode to subtitle (e.g. "mirrorToDisk · completed") so user can distinguish without expanding.
+- **Expanded row:** Existing "View logs" and log &lt;pre&gt;. Add a **summary block** when type is oc-mirror-run and metadata is present: Mode, Archive dir, Workspace dir, Cache dir (if any), Registry (if any), Cluster-resources path, Status and exit code. Paths as copyable text or secondary line. No secrets.
+- **Historical runs:** Same data from metadata; no re-streaming. User can open any job and see summary + truncated output.
+
+---
+
+## §5 Artifact ownership / continuity contract
+
+### 5A. Ownership model
+
+| Artifact | Who creates | Where it lives | Preserved? | App may delete? | User re-use later? |
+|---------|-------------|----------------|------------|-----------------|--------------------|
+| Temp auth file | App | dataDir/tmp | No | Yes (after run) | No |
+| Generated imageset-config (temp) | App | dataDir/tmp | No | Yes (after run) | No |
+| Archive / tar outputs | oc-mirror | User-chosen archivePath | Yes | No | Yes |
+| working-dir (cluster-resources, logs, dry-run) | oc-mirror | User-chosen workspacePath | Yes | No | Yes |
+| Cache contents | oc-mirror | User-chosen cachePath | Yes | No | Yes |
+| Job record + output in DB | App | SQLite | Yes | Clear completed (user action) | View history |
+
+### 5B. Manual continuation contract
+
+The app **must** leave behind and surface:
+
+- **Exact paths:** archivePath, workspacePath, cachePath (when used). Displayed in Run tab result and in Operations job metadata.
+- **Cluster-resources path:** `workspacePath + "/working-dir/cluster-resources"`. Shown in result and metadata.
+- **Dry-run paths (if applicable):** mapping.txt and missing.txt under workspacePath/working-dir/dry-run/.
+- **Generated imageset-config:** Not copied to a durable user path in v1. User can re-export from app or use "Assets & Guide" to get config. Optional future: "Save generated config to workspace" as a copy. v1 contract: no requirement to write config to user path; temp only.
+- **Exact command line:** Optional for v1. If implemented, store in metadata as `commandLine: "oc mirror ..."` (no secrets). Otherwise user follows docs; paths are sufficient.
+- **Run summary file on disk:** Not required. Summary is in UI and in job metadata.
+- **Instructions:** One line in UI: "To continue manually, use the paths above. Same workspace and cache enable incremental runs."
+
+### 5C. Export/bundle behavior
+
+- **"Include in export"** means: when mirrorWorkflow.includeInExport is true and mirrorWorkflow.archivePath (or outputPath for backward compat) is set, add that directory to the ZIP as `mirror-output/` (existing buildBundleZip behavior). Resolve path on backend; if not a directory or not accessible, add error file to ZIP.
+- **Do not include** workspace or cache in export by default; only the archive dir. Contract: include only the user-chosen archive path (the file:// target for m2d). Large archives are user responsibility; no size cap in v1. Safe default: includeInExport defaults to false; user opts in.
+
+---
+
+## §6 Path / mount / durability contract
+
+### 6A. Path model
+
+- **Expectation:** UI and backend treat archive/workspace/cache as **host-mounted durable paths** when the app runs in a container. User is responsible for choosing paths that persist (e.g. mounted volumes). Backend path-check runs in process; if backend runs in container, paths are container paths (so user must enter paths that are valid inside the container, typically host mounts).
+- **Ephemeral paths:** App does not detect "ephemeral" vs "durable". If implementation wants to warn when path is under /tmp or dataDir/tmp, optional; not in contract. Defaults: use dataDir/oc-mirror/archives, dataDir/oc-mirror/workspace, dataDir/oc-mirror/cache so that in container deployments dataDir is usually a volume.
+- **Defaults:** Acceptable defaults are dataDir-based as above. User can override to any path the backend can read/write.
+
+### 6B. Reuse/reset decision model
+
+| Situation | v1 behavior |
+|-----------|--------------|
+| workspacePath already contains oc-mirror state (e.g. working-dir) | **Allow and proceed.** Preflight may add warning "Workspace already contains oc-mirror data." Do not block. |
+| archivePath already contains tar artifacts | **Allow and proceed.** Normal for incremental m2d or for d2m source. Optional warning. |
+| cachePath already contains cache data | **Allow and proceed.** Normal for incremental. |
+| Selected dirs appear unrelated (e.g. d2m archive from different workspace) | **Allow and proceed.** No deep validation of "match" in v1. Optional warning if workspace has no working-dir but archive has tars. |
+| User wants to "reset" or "clean" workspace/cache | **Deferred.** No reset/clean button in v1. User does it manually outside the app. |
+
+### 6C. Unsafe combinations
+
+- **Overlapping dirs:** If archivePath is inside workspacePath or vice versa, or cachePath equals workspacePath, **warn** in preflight (blocker or warning at implementer choice; recommend blocker: "Archive path must not be inside workspace path.").
+- **Nested confusion:** If archivePath === workspacePath, oc-mirror may accept it (single file path for m2d). Contract: allow archivePath === workspacePath for m2d; for d2m keep them as separate fields but they may point to same path. No nested requirement (e.g. workspace inside archive) in contract.
+- **Insufficient space:** Preflight checks freeBytes and meetsMin; blocker if below threshold.
+- **d2m invalid structure:** If archivePath exists but has no working-dir and no .tar, blocker: "Source archive path must contain oc-mirror output (working-dir or tar files)."
+
+---
+
+## §7 Advanced flags contract
+
+| Flag | In v1 UI? | Default | Helper text | Validation |
+|------|------------|---------|-------------|------------|
+| logLevel | Yes (advanced) | info | "Log level: info or debug." | info \| debug |
+| parallelImages | Yes (advanced) | 4 | "Max concurrent image pulls." | number 1–32 |
+| parallelLayers | Yes (advanced) | 5 | "Max concurrent layer pulls." | number 1–32 |
+| imageTimeout | Yes (advanced) | "10m" | "Timeout per image (e.g. 10m)." | string, duration-like |
+| retryTimes | Yes (advanced) | 2 | "Number of retries on failure." | number 0–10 |
+| retryDelay | Yes (advanced) | "1s" | "Delay between retries." | string, duration-like |
+| since | Yes (advanced) | "" | "Incremental: only mirror images newer than this (ISO or digest)." | string, optional |
+| strictArchive | Yes (advanced) | false | "Strict archive validation." | boolean |
+| cacheDir | Yes (paths section) | dataDir/oc-mirror/cache | Path for cache. | path string |
+| workspace | Yes (paths section) | dataDir/oc-mirror/workspace | Path for workspace. | path string |
+| authfile | No (v1) | — | Handled by auth source (reuse/paste/env). | — |
+| securePolicy / registries.d / rootless-storage-path | No (v1) | — | Deferred. | — |
+
+Backend must pass these to oc-mirror CLI when provided: --log-level, --parallel-images, --parallel-layers, --image-timeout, --retry-times, --retry-delay, --since (if non-empty), --strict-archive (if true).
+
+---
+
+## §8 Minimal foundational updates (optional this pass)
+
+- **Working doc:** This file; no further change required this pass except contract refinements.
+- **RunOcMirrorStep.jsx:** Optional: add TODO comments referencing §3 section numbers for each future section. Do not implement UI.
+- **Backend/db:** No code change this pass; migration for metadata_json is part of implementation pass.
+- **Field manual:** generate.js was already updated to use working-dir/cluster-resources in a prior pass; confirm in implementation.
+
+---
+
+## §9 Test/validation expectations for implementation pass
+
+The implementation pass **must** add and run:
+
+### Backend
+
+- **Preflight:** Unit or integration tests for `POST /api/ocmirror/preflight` with mode mirrorToDisk, diskToMirror, mirrorToMirror; assert request/response shape; assert blockers for invalid path, missing config; assert warnings where defined.
+- **Run:** Tests for `POST /api/ocmirror/run` with each mode (mocked spawn or real binary in CI); assert job created, correct CLI args (--workspace, --cache-dir, --from, docker://), metadata written on exit.
+- **Stop:** Assert POST stop returns 200 and job status becomes cancelled; no metadata exitCode/finishedAt when stopped.
+- **Metadata:** Assert getJob returns metadata_json for oc-mirror-run jobs; legacy jobs without column or empty metadata do not break.
+
+### Frontend
+
+- **Run tab:** Renders mode selection, path inputs, config source, registry, auth choice, preflight button, Run/Stop. Mode change shows/hides archive and cache appropriately. Preflight result disables Run when blockers.length > 0.
+- **No secrets in DOM or export:** Assert pullSecret or auth content is not rendered in DOM; not in exported state or operations export.
+
+### Operations
+
+- **List:** oc-mirror-run jobs show type label; when metadata exists, list row shows mode (or message) so user can distinguish.
+- **Detail:** Expanded job shows summary block with paths when metadata present; log content unchanged.
+
+### Preflight
+
+- **Structure (d2m):** Test that archivePath with working-dir returns structure ok; without returns invalid and blocker.
+
+### Scripts
+
+- **validate-docs-index.js:** Run if docs-index changed (not required for Run tab only).
+- **validate-catalog:** Run if catalog changed (not required for Run tab only).
+
+### Manual checklist (implementation pass)
+
+- [ ] Run mirrorToDisk with generated config; verify archive and working-dir created; verify cluster-resources path; verify job metadata.
+- [ ] Run diskToMirror from same archive; verify registry receives content; verify job metadata.
+- [ ] Run mirrorToMirror; verify no cache used; verify cluster-resources in workspace.
+- [ ] Dry-run for m2d; verify mapping.txt and missing.txt paths in result and metadata.
+- [ ] Stop a running job; verify status cancelled and partial artifacts remain; verify UI message.
+- [ ] Preflight with invalid path; verify Run disabled. Preflight with valid paths; verify Run enabled.
+- [ ] Export bundle with includeInExport; verify mirror-output in ZIP.
+- [ ] Open Operations; select oc-mirror job; verify summary and logs.
+
+---
+
+## Blockers / unresolved
+
+1. **Operations/SSE stability:** If existing job streaming or list is flaky, the implementation pass must fix or document as prerequisite before relying on it for Run tab.
+2. **Field manual:** generate.js cluster-resources path was fixed to working-dir/cluster-resources in a prior pass; implementation pass should confirm and keep.
+3. **Large export:** No size cap on "include in export"; user responsibility. Document in UI if desired.
+
+---
+
+# Reference (condensed)
+
+## 4.20 workflow summary
+
+- **m2d:** `oc mirror -c <config> file://<path> --v2`; optional --workspace, --cache-dir. Archives + working-dir under path; cache enables incremental.
+- **d2m:** `oc mirror -c <config> --from file://<path> docker://<registry> --v2`; same path has archives + working-dir; cache used.
+- **m2m:** `oc mirror -c <config> --workspace file://<path> docker://<registry> --v2`; no cache; workspace holds cluster-resources only.
+- **Dry-run:** m2d with --dry-run; produces working-dir/dry-run/mapping.txt, missing.txt.
+- **Cluster-resources:** Always under &lt;workspace&gt;/working-dir/cluster-resources.
+
+## Auth (condensed)
+
+Temp auth only when user supplies (reuse from state or paste). Never persist; unlink after run. REGISTRY_AUTH_FILE in env. No auth in logs or metadata.
 
 ---
 

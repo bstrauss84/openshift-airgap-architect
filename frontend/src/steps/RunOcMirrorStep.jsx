@@ -1,5 +1,6 @@
 /**
  * Feature-gated "Run oc-mirror" step (Plan §9.1).
+ * Implementation contract: docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md §1–§9.
  * Shows a "Coming soon" treatment; no functional controls until the feature is implemented.
  */
 import React from "react";
