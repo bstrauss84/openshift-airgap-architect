@@ -2890,6 +2890,11 @@ body[data-theme="dark"] .host-inventory-v2-drawer-nav {
   background: linear-gradient(180deg, #e6f4ec 0%, #d8ecd8 50%, #cce4d0 100%);
 }
 
+.host-inventory-v2-tile.node-arbiter {
+  border-left: 4px solid #d97706;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%);
+}
+
 .host-inventory-v2-tile-hostname {
   position: relative;
   z-index: 2;
@@ -2950,6 +2955,11 @@ body[data-theme="dark"] .host-inventory-v2-tile.node-master {
 body[data-theme="dark"] .host-inventory-v2-tile.node-worker {
   background: linear-gradient(180deg, #14532d 0%, #166534 50%, #15803d 100%);
   border-left-color: #4ade80;
+}
+
+body[data-theme="dark"] .host-inventory-v2-tile.node-arbiter {
+  background: linear-gradient(180deg, #78350f 0%, #92400e 50%, #b45309 100%);
+  border-left-color: #fbbf24;
 }
 
 body[data-theme="dark"] .host-inventory-v2-tile-hostname {

@@ -6,7 +6,7 @@
 
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { getScenarioId } from "../src/hostInventoryV2Helpers.js";
 import { validateStep } from "../src/validation.js";
 import { AppContext } from "../src/store.jsx";
@@ -47,7 +47,7 @@ function MockAppProvider({ children, stateOverride }) {
 }
 
 describe("Phase 4.3: enum field renders as select when allowed list present", () => {
-  it("Role field is a select with options from catalog (master, worker) for bare-metal-agent", () => {
+  it("Role field is a select with options from catalog (master, worker, arbiter) for bare-metal-agent", () => {
     render(
       <MockAppProvider>
         <HostInventoryV2Step />
@@ -63,7 +63,57 @@ describe("Phase 4.3: enum field renders as select when allowed list present", ()
     const options = Array.from(select.querySelectorAll("option")).map((o) => o.value);
     expect(options).toContain("master");
     expect(options).toContain("worker");
+    expect(options).toContain("arbiter");
     expect(options.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("Generate nodes with 2 control plane auto-adds one arbiter for bare-metal-agent", async () => {
+    const updateState = vi.fn();
+    const stateWithEmptyNodes = {
+      ...baseState,
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: [],
+        apiVip: "192.168.1.5",
+        ingressVip: "192.168.1.7"
+      }
+    };
+    const value = {
+      state: stateWithEmptyNodes,
+      updateState,
+      loading: false,
+      startOver: vi.fn()
+    };
+    render(
+      <AppContext.Provider value={value}>
+        <HostInventoryV2Step />
+      </AppContext.Provider>
+    );
+    const nodeCountsSection = document.querySelector('[data-section="nodeCounts"]');
+    expect(nodeCountsSection).toBeTruthy();
+    const inputs = nodeCountsSection.querySelectorAll('input[type="number"]');
+    const cpInput = inputs[0];
+    const workerInput = inputs[1];
+    expect(cpInput).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(cpInput, { target: { value: "2" } });
+      fireEvent.change(workerInput, { target: { value: "0" } });
+    });
+    const generateBtn = screen.getByRole("button", { name: /Generate nodes/i });
+    await act(async () => {
+      fireEvent.click(generateBtn);
+    });
+    expect(updateState).toHaveBeenCalled();
+    const call = updateState.mock.calls[0][0];
+    expect(call).toHaveProperty("hostInventory");
+    expect(call.hostInventory).toHaveProperty("nodes");
+    const nodes = call.hostInventory.nodes;
+    expect(nodes).toHaveLength(3);
+    const masters = nodes.filter((n) => n.role === "master");
+    const arbiters = nodes.filter((n) => n.role === "arbiter");
+    expect(masters).toHaveLength(2);
+    expect(arbiters).toHaveLength(1);
+    expect(arbiters[0].hostname).toBe("arbiter-0");
   });
 });
 

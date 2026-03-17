@@ -7,6 +7,7 @@ import { useApp } from "../store.jsx";
 import { validateNode } from "../validation.js";
 import {
   generateNodesFromCounts,
+  emptyNode,
   applyReplicateSettings,
   getScenarioId,
   getSectionOrderForRender,
@@ -80,6 +81,20 @@ function nodeCompletionLabel(node, validation) {
   return "OK";
 }
 
+/** Hostname is still the auto-generated default if it matches role-N (e.g. master-0, worker-1, arbiter-0). */
+function isDefaultHostname(node) {
+  if (!node?.hostname?.trim() || !node?.role) return false;
+  const n = node.hostname.trim();
+  const re = new RegExp(`^${node.role}-\\d+$`);
+  return re.test(n);
+}
+
+/** Default hostname for a node at nodeIndex when it has role `role` (used when role changes and hostname was default). */
+function getDefaultHostnameForRole(role, nodeIndex, nodes) {
+  const sameRoleBefore = nodes.slice(0, nodeIndex).filter((n) => n.role === role).length;
+  return `${role}-${sameRoleBefore}`;
+}
+
 const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors }) => {
   const { state, updateState } = useApp();
   const inventory = state.hostInventory || {};
@@ -103,13 +118,14 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const sectionOrderSet = useMemo(() => new Set(sectionOrder), [sectionOrder]);
 
   const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT), [scenarioId]);
+  const ROLE_LABELS = { master: "Control plane", worker: "Worker", arbiter: "Arbiter" };
   const roleOptions = useMemo(() => {
     if (Array.isArray(roleMeta?.allowed) && roleMeta.allowed.length > 0) {
-      return roleMeta.allowed.map((v) => ({ value: v, label: v }));
+      return roleMeta.allowed.map((v) => ({ value: v, label: ROLE_LABELS[v] || v }));
     }
     return [
-      { value: "master", label: "master" },
-      { value: "worker", label: "worker" }
+      { value: "master", label: "Control plane" },
+      { value: "worker", label: "Worker" }
     ];
   }, [roleMeta]);
 
@@ -175,7 +191,11 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const updateInventory = (patch) => updateState({ hostInventory: { ...inventory, ...patch } });
 
   const handleGenerateFromCounts = () => {
-    const next = generateNodesFromCounts(countControlPlane, countWorker, countInfra);
+    let next = generateNodesFromCounts(countControlPlane, countWorker, countInfra);
+    // Bare metal Agent: 2 control plane nodes require 1 arbiter (4.20 doc). Auto-add one when user generates with CP=2.
+    if (scenarioId === "bare-metal-agent" && countControlPlane === 2) {
+      next = [...next, emptyNode("arbiter", 0)];
+    }
     updateInventory({ nodes: next });
     setSelectedIndex(null);
   };
@@ -528,6 +548,9 @@ wipefs -a /dev/sdX`}</pre>
                   <CompareBadge kind={sectionCompareBadge} />
                 </div>
                 <p className="note subtle">Generate nodes from counts. You can edit each node in the grid after.</p>
+                {scenarioId === "bare-metal-agent" && countControlPlane === 2 && (
+                  <p className="note">Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically.</p>
+                )}
                 {isIpiScenario && (
                   <p className="note">For bare metal IPI, these hosts populate install-config <code>platform.baremetal.hosts[]</code>. Each host needs BMC and boot MAC for provisioning.</p>
                 )}
@@ -569,16 +592,18 @@ wipefs -a /dev/sdX`}</pre>
                         ...(validation.errors?.length ? [`Errors: ${validation.errors.join(". ")}`] : []),
                         ...(validation.warnings?.length ? [`Warnings: ${validation.warnings.join(". ")}`] : [])
                       ].join("\n");
+                    const roleLabel = node.role === "master" ? "Control plane" : node.role === "arbiter" ? "Arbiter" : "Worker";
+                    const tileRoleClass = node.role === "master" ? "node-master" : node.role === "arbiter" ? "node-arbiter" : "node-worker";
                     return (
                       <button
                         key={idx}
                         type="button"
-                        className={`host-inventory-v2-tile ${node.role === "master" ? "node-master" : "node-worker"} ${isSelected ? "selected" : ""}`}
+                        className={`host-inventory-v2-tile ${tileRoleClass} ${isSelected ? "selected" : ""}`}
                         onClick={() => setSelectedIndex(idx)}
                         title={statusTitle || undefined}
                       >
                         <span className="host-inventory-v2-tile-hostname">{effectiveHostname(node) || `Node ${idx + 1}`}</span>
-                        <span className="host-inventory-v2-tile-role">{node.role === "master" ? "Control plane" : "Worker"}</span>
+                        <span className="host-inventory-v2-tile-role">{roleLabel}</span>
                         <span className={`host-inventory-v2-tile-status ${validation?.errors?.length ? "error" : ""}`}>{status}</span>
                       </button>
                     );
@@ -657,7 +682,15 @@ wipefs -a /dev/sdX`}</pre>
                           <p className="note subtle">These fields populate install-config <code>platform.baremetal.hosts[]</code>. Each host needs BMC and boot MAC for provisioning.</p>
                           <div className="field-grid">
                             <label>Role {roleMeta?.required ? <span className="required-marker" aria-label="required">*</span> : null}
-                              <select value={selectedNode.role} onChange={(e) => updateNode(selectedIndex, { role: e.target.value })}>
+                              <select
+                                value={selectedNode.role}
+                                onChange={(e) => {
+                                  const newRole = e.target.value;
+                                  const patch = { role: newRole };
+                                  if (isDefaultHostname(selectedNode)) patch.hostname = getDefaultHostnameForRole(newRole, selectedIndex, nodes);
+                                  updateNode(selectedIndex, patch);
+                                }}
+                              >
                                 {roleOptions.map((opt) => (
                                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                                 ))}
@@ -701,7 +734,15 @@ wipefs -a /dev/sdX`}</pre>
                       )}
                       <div className="field-grid">
                         <label>Role {roleMeta?.required ? <span className="required-marker" aria-label="required">*</span> : null}
-                          <select value={selectedNode.role} onChange={(e) => updateNode(selectedIndex, { role: e.target.value })}>
+                          <select
+                            value={selectedNode.role}
+                            onChange={(e) => {
+                              const newRole = e.target.value;
+                              const patch = { role: newRole };
+                              if (isDefaultHostname(selectedNode)) patch.hostname = getDefaultHostnameForRole(newRole, selectedIndex, nodes);
+                              updateNode(selectedIndex, patch);
+                            }}
+                          >
                             {roleOptions.map((opt) => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
@@ -710,7 +751,7 @@ wipefs -a /dev/sdX`}</pre>
                             <div className="note warning">{mergedNodeValidation[selectedIndex].fieldErrors.role}</div>
                           ) : null}
                         </label>
-                        <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} /></label>
+                        <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="e.g. master-0, arbiter-0" /></label>
                         <label className="host-inventory-v2-checkbox-label">
                           <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                           {" "}Use FQDN (shortname.baseDomain)
