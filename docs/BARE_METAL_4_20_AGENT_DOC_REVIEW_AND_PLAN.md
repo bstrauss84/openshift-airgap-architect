@@ -116,3 +116,9 @@ See `docs/DATA_AND_FRONTEND_COPIES.md`. Canonical params in `data/params/4.20/`;
 
 **Cincinnati refresh (closeout):**
 - After POST /api/cincinnati/update, when blueprint is not locked the app selects the newest channel from the returned list and fetches patches for it (current-aware minor selection). When locked, current channel is kept and only patches are refreshed.
+
+**Final closeout pass (2 CP + arbiter UX, role/hostname, Trust & Proxy):**
+- **Generate nodes:** When scenario is bare-metal-agent and user sets Control plane = 2 and clicks "Generate nodes", the app auto-adds one arbiter node (2 masters + 1 arbiter). Node counts section shows message: "Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically."
+- **Arbiter tile/drawer:** Arbiter nodes use distinct styling (`.node-arbiter`, amber/orange in light mode, dark amber in dark mode). Role dropdown shows "Control plane", "Worker", "Arbiter" (catalog allows master, worker, arbiter).
+- **Role → hostname coherence:** When user changes a node's role and the hostname is still the auto-generated default (e.g. `master-0`, `worker-1`), the hostname is updated to the new default for that role (e.g. `arbiter-0`). Custom hostnames are not overwritten. Helpers: `isDefaultHostname(node)`, `getDefaultHostnameForRole(role, nodeIndex, nodes)`.
+- **Trust & Proxy:** Validation emphasis is on the proxy input fields only (`input-error` class); the proxy and trust cards no longer use `highlight-errors` to avoid over-highlighting the section.

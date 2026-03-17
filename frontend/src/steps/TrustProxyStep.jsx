@@ -168,7 +168,7 @@ export default function TrustProxyStep({ highlightErrors }) {
             </div>
           </Banner>
         ) : null}
-        <section className={`card ${highlightErrors && proxyCardHasErrors ? "highlight-errors" : ""}`}>
+        <section className="card">
           <div className="card-header">
             <div>
               <h3 className="card-title">Corporate Proxy</h3>
@@ -242,7 +242,7 @@ export default function TrustProxyStep({ highlightErrors }) {
           ) : null}
         </section>
 
-        <section className={`card trust-and-certificates-card ${highlightErrors && trustCardHasErrors ? "highlight-errors" : ""}`}>
+        <section className="card trust-and-certificates-card">
           <div className="card-header">
             <div>
               <h3 className="card-title">Trust and certificates</h3>
