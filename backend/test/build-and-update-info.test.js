@@ -13,6 +13,18 @@ function createTestServer() {
   });
 }
 
+test("GET /api/ready returns ready:true when DB is readable", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/ready`);
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.strictEqual(data.ready, true);
+  } finally {
+    server.close();
+  }
+});
+
 test("GET /api/build-info returns gitSha, buildTime, repo, branch", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
