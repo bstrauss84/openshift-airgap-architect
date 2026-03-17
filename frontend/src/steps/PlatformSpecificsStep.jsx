@@ -1303,7 +1303,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             <div className="card-body">
               <p className="note">
                 {scenarioId === "bare-metal-upi"
-                  ? "Bare metal UPI: API and Ingress VIPs are configured on the Networking step. No installer-managed provisioning network or host list for this methodology."
+                  ? "Bare metal UPI: No installer-managed provisioning network or host list. Configure API and Ingress via your load balancer and DNS (see docs)."
                   : "No platform-specific options for this scenario yet."}
               </p>
             </div>
