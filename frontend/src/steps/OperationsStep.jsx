@@ -16,6 +16,16 @@ const JOB_TYPE_LABELS = {
 
 const TERMINAL_STATUSES = ["completed", "failed", "cancelled"];
 
+function getOcMirrorMeta(job) {
+  if (job?.type !== "oc-mirror-run" || !job?.metadata_json) return null;
+  try {
+    const raw = job.metadata_json;
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    return null;
+  }
+}
+
 const OperationsStep = () => {
   useApp(); // app context available for future (e.g. filter by run)
   const [jobs, setJobs] = useState([]);
@@ -189,6 +199,9 @@ const OperationsStep = () => {
                     <span className="badge" style={{ backgroundColor: job.status === "running" ? "#0ea5e9" : job.status === "completed" ? "#22c55e" : job.status === "failed" ? "#dc2626" : "#6b7280", color: "#fff" }}>
                       {job.status}
                     </span>
+                    {getOcMirrorMeta(job)?.mode ? (
+                      <span className="subtle">{getOcMirrorMeta(job).mode}</span>
+                    ) : null}
                     <span className="subtle">{job.created_at ? formatJobTime(job.created_at) : ""}</span>
                     {job.message ? <span className="subtle">{job.message}</span> : null}
                     <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
@@ -208,6 +221,27 @@ const OperationsStep = () => {
                   </div>
                   {selectedJobId === job.id ? (
                     <div className="card-body" style={{ paddingTop: 0 }}>
+                      {job.type === "oc-mirror-run" && (() => {
+                        const meta = getOcMirrorMeta(streamingJob || job);
+                        if (!meta) return null;
+                        return (
+                          <div className="oc-mirror-job-summary" style={{ marginBottom: "12px", padding: "10px", background: "var(--card-bg, #f8fafc)", borderRadius: "6px", fontSize: "0.9rem" }}>
+                            <strong>oc-mirror run</strong>
+                            <dl className="summary-dl" style={{ marginTop: "6px", marginBottom: 0 }}>
+                              <dt>Mode</dt><dd>{meta.mode}</dd>
+                              {meta.exitCode != null ? <><dt>Exit code</dt><dd>{meta.exitCode}</dd></> : null}
+                              {meta.archiveDir ? <><dt>Archive dir</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.archiveDir}</code></dd></> : null}
+                              {meta.workspaceDir ? <><dt>Workspace dir</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.workspaceDir}</code></dd></> : null}
+                              {meta.cacheDir ? <><dt>Cache dir</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.cacheDir}</code></dd></> : null}
+                              {meta.registryUrl ? <><dt>Registry</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.registryUrl}</code></dd></> : null}
+                              {meta.clusterResourcesPath ? <><dt>Cluster-resources</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.clusterResourcesPath}</code></dd></> : null}
+                              {meta.dryRunMappingPath ? <><dt>Dry-run mapping</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.dryRunMappingPath}</code></dd></> : null}
+                              {meta.dryRunMissingPath ? <><dt>Dry-run missing</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.dryRunMissingPath}</code></dd></> : null}
+                              {meta.startedAt && meta.finishedAt ? <><dt>Elapsed</dt><dd>{Math.round((meta.finishedAt - meta.startedAt) / 1000)}s</dd></> : null}
+                            </dl>
+                          </div>
+                        );
+                      })()}
                       {streamEnded && (streamingJob?.output || job.output) ? (
                         <p className="note subtle" style={{ marginBottom: "6px", fontSize: "0.85rem" }}>Live stream ended. Log content below is final.</p>
                       ) : null}

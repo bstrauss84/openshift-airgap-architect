@@ -47,4 +47,13 @@ db.exec(`
   );
 `);
 
+/** Add metadata_json to jobs if missing (safe for existing DBs). */
+function ensureJobsMetadataColumn() {
+  const cols = db.prepare("PRAGMA table_info(jobs)").all();
+  if (cols.some((c) => c.name === "metadata_json")) return;
+  db.exec("ALTER TABLE jobs ADD COLUMN metadata_json TEXT DEFAULT ''");
+}
+
+ensureJobsMetadataColumn();
+
 export { db, dataDir };
