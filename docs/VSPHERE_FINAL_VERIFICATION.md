@@ -93,6 +93,6 @@ Top-level: `platform.vsphere.vCenter`, `datacenter`, `defaultDatastore`, `cluste
 | Sensitive value hardening | Yes | No vsphere creds in localStorage; getStateForPersistence strips username, password, vcenters[].user/password | store.jsx | blueprint-pull-secret-no-persistence.test.js | Two new tests for vSphere strip |
 | Assets tab rename | Yes | "Show pull secret" → "Show sensitive values"; masks pullSecret + vcenters user/password | ReviewStep.jsx | — | maskSensitiveInInstallConfigYaml |
 | Cross-scenario replication rules | Yes | Documented in VSPHERE_CORRECTIVE_FOLLOWUP_FINDINGS.md and this file | docs/ | — | Cross-tab scenario validation mandatory |
-| Backlog additions | Yes | #47 Dockerfile/Containerfile parity; #48 Alpine→UBI evaluation | LOCAL_BACKLOG.md | — | No implementation |
+| Backlog additions | Yes | #47 Dockerfile/Containerfile parity; #48 Alpine→UBI evaluation (UBI migration done: feature/ubi-container-migration) | LOCAL_BACKLOG.md | — | No implementation |
 | Phase 0 full doc scrape | Yes | 9.1.1–9.1.6 scraped; no full YAML examples on page; structure inferred | docs/VSPHERE_FINAL_VERIFICATION.md | — | NOT APPLICABLE: no expandable YAML in doc |
 | Phase 1 structural answers | Yes | All 9 questions answered with doc citations | docs/VSPHERE_FINAL_VERIFICATION.md | — | — |

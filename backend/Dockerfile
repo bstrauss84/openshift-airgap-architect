@@ -1,11 +1,15 @@
-FROM node:20-bookworm-slim
+# Red Hat UBI 9 Node.js 20 — backend (Express API, oc/oc-mirror, better-sqlite3)
+# Standalone build from backend/ context (no build-info). Compose uses backend/Containerfile.
+FROM registry.access.redhat.com/ubi9/nodejs-20
 
+USER root
 ARG OCP_CLIENT_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz"
 ARG OCP_MIRROR_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/oc-mirror.tar.gz"
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl ca-certificates tar python3 make g++ libgpgme11 \
-  && rm -rf /var/lib/apt/lists/*
+RUN dnf install -y --setopt=install_weak_deps=false \
+    ca-certificates tar python3 make gcc-c++ gpgme openssh-clients util-linux \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
 
 RUN curl -fsSL "${OCP_CLIENT_URL}" -o /tmp/oc.tgz \
   && tar -xzf /tmp/oc.tgz -C /usr/local/bin oc \
@@ -24,7 +28,10 @@ ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY src ./src
 COPY mock-data ./mock-data
+COPY scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh && chown -R 1001:0 /app \
+    && useradd -r -u 1001 -g 0 -o -M -d /app appuser 2>/dev/null || true
 
 ENV NODE_ENV=production
 EXPOSE 4000
-CMD ["node", "src/index.js"]
+CMD ["/app/entrypoint.sh"]

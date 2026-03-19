@@ -341,6 +341,16 @@ const dbPrepareMockStore = (version, catalogId, results) => {
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
+// Readiness: DB must be readable (and writable at startup). Use for smoke checks after container start.
+app.get("/api/ready", (req, res) => {
+  try {
+    getState();
+    res.json({ ready: true });
+  } catch (err) {
+    res.status(503).json({ ready: false, error: String(err?.message || err) });
+  }
+});
+
 // Build info: env-driven; no git at runtime. For APP_GIT_SHA/APP_BUILD_TIME see README and scripts.
 app.get("/api/build-info", (_req, res) => {
   const gitSha = (process.env.APP_GIT_SHA || "unknown").trim();
