@@ -103,4 +103,37 @@ describe("applyReplicateSettings", () => {
     expect(result[0].primary.bond.slaves[0].macAddress).toBe("");
     expect(result[0].primary.bond.slaves[1].macAddress).toBe("");
   });
+
+  it("does not copy Root device hint or Advanced fields into arbiter targets", () => {
+    const source = {
+      hostname: "source-node",
+      rootDevice: "/dev/disk/by-id/source",
+      primary: {
+        type: "ethernet",
+        mode: "static",
+        ethernet: { name: "eth0", macAddress: "52:54:00:aa:aa:aa" },
+        ipv4Cidr: "192.0.2.10/24",
+        ipv4Gateway: "192.0.2.1",
+        ipv6Cidr: "fd00::10/64",
+        ipv6Gateway: "fd00::1",
+        advanced: { mtu: "1500", vlanMtu: "1500", routes: [{ destination: "0.0.0.0/0", nextHopAddress: "192.0.2.254" }] }
+      }
+    };
+
+    const arbiterTarget = emptyNode("arbiter", 0);
+    arbiterTarget.primary = { ...arbiterTarget.primary, ethernet: { ...arbiterTarget.primary.ethernet, name: "eth1", macAddress: "52:54:00:bb:bb:bb" } };
+    arbiterTarget.rootDevice = "";
+    arbiterTarget.primary.advanced = { mtu: "", vlanMtu: "", routes: [] };
+
+    const result = applyReplicateSettings(
+      source,
+      [arbiterTarget],
+      new Set(["rootDevice", "primary.advanced"])
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].rootDevice).toBe("");
+    expect(result[0].primary.advanced.mtu).toBe("");
+    expect(result[0].primary.advanced.routes).toEqual([]);
+  });
 });

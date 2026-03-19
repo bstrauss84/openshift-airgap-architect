@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import App from "../src/App.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
@@ -109,7 +109,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       methodology: { method: "IPI" }
     });
     expect(getScenarioId(state)).toBe("vsphere-ipi");
-    render(
+    const { container } = render(
       <AppContext.Provider value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
         <NetworkingV2Step />
       </AppContext.Provider>
@@ -175,6 +175,44 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     const result = validateStep(state, "networking-v2");
     expect(result.errors.some((e) => /API VIPs are required/i.test(e))).toBe(true);
     expect(result.errors.some((e) => /Ingress VIPs are required/i.test(e))).toBe(true);
+  });
+
+  it("bare-metal-agent dual-stack: VIP note/placeholder do not mention comma-separated dual-stack", () => {
+    const state = stateForNetworkingStep({
+      blueprint: { ...stateForNetworkingStep().blueprint, platform: "Bare Metal" },
+      methodology: { method: "Agent-Based Installer" },
+      hostInventory: { ...(stateForNetworkingStep().hostInventory || {}), nodes: [], enableIpv6: true, apiVip: "", ingressVip: "", apiVipV6: "", ingressVipV6: "" }
+    });
+
+    const { container } = render(
+      <AppContext.Provider value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("e.g. fd00::1").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByText((t) => /Set API VIP\s*\(IPv4\s+and\s+IPv6\)/i.test(String(t)))
+    ).toBeInTheDocument();
+    expect(within(container).queryByText(/comma-separated/i)).toBeNull();
+  });
+
+  it("bare-metal-agent single-stack: VIP placeholders do not include comma-separated dual-stack examples", () => {
+    const state = stateForNetworkingStep({
+      blueprint: { ...stateForNetworkingStep().blueprint, platform: "Bare Metal" },
+      methodology: { method: "Agent-Based Installer" },
+      hostInventory: { ...(stateForNetworkingStep().hostInventory || {}), nodes: [], enableIpv6: false, apiVip: "", ingressVip: "" }
+    });
+
+    const { container } = render(
+      <AppContext.Provider value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.1").length).toBeGreaterThanOrEqual(1);
+    expect(within(container).queryByText(/comma-separated/i)).toBeNull();
   });
 
   it("vSphere IPI: API/Ingress VIPs must be within machine network", () => {
@@ -266,8 +304,8 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
         <NetworkingV2Step />
       </AppContext.Provider>
     );
-    expect(screen.getByPlaceholderText("fd01::/48")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("fd02::/112")).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText("fd01::/48").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("fd02::/112").length).toBeGreaterThanOrEqual(1);
   });
 
   it("when scenario is aws-govcloud-ipi, Networking step shows full form (A2 tab relevance)", async () => {

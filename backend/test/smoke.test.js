@@ -48,6 +48,34 @@ test("buildInstallConfig emits BMC disableCertificateVerification when true (Pha
   assert.strictEqual(out.platform.baremetal.hosts[0].bmc?.disableCertificateVerification, true);
 });
 
+test("buildInstallConfig only emits imageDigestSources when mirroring is in use", () => {
+  const sources = [{ source: "quay.io/openshift-release-dev/ocp-release", mirrors: ["registry.local:5000/ocp-release"] }];
+
+  const baseState = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: {}, mirroring: { registryFqdn: "registry.local:5000", sources } },
+    credentials: {
+      usingMirrorRegistry: false,
+      pullSecretPlaceholder: '{"auths":{"quay.io":{}}}',
+      mirrorRegistryPullSecret: '{"auths":{"mirror.local:5000":{}}}',
+      mirrorRegistryUnauthenticated: false
+    },
+    hostInventory: { nodes: [], apiVip: "10.90.0.1", ingressVip: "10.90.0.2", enableIpv6: false },
+    exportOptions: { includeCredentials: false }
+  };
+
+  const out1 = yaml.load(buildInstallConfig(baseState));
+  assert.strictEqual(out1.imageDigestSources, undefined);
+
+  const out2 = yaml.load(buildInstallConfig({
+    ...baseState,
+    credentials: { ...baseState.credentials, usingMirrorRegistry: true }
+  }));
+  assert.ok(Array.isArray(out2.imageDigestSources), "expected imageDigestSources when usingMirrorRegistry is enabled");
+  assert.strictEqual(out2.imageDigestSources.length, sources.length);
+});
+
 test("buildInstallConfig for bare-metal-ipi emits provisioning network params when set (Prompt J)", () => {
   const state = {
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },

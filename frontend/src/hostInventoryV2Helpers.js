@@ -197,25 +197,28 @@ export const REPLICATE_EXCLUDE_DEFAULT = new Set([
 export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) {
   if (!sourceNode || !targetNodes?.length) return targetNodes;
 
-  const copyPrimaryShape = (destPrimary, srcPrimary) => {
-    if (selectedFields.has("primary.type")) destPrimary.type = srcPrimary.type;
-    if (selectedFields.has("primary.mode")) destPrimary.mode = srcPrimary.mode;
-    if (selectedFields.has("primary.ipv4Cidr")) destPrimary.ipv4Cidr = srcPrimary.ipv4Cidr;
-    if (selectedFields.has("primary.ipv4Gateway")) destPrimary.ipv4Gateway = srcPrimary.ipv4Gateway;
-    if (selectedFields.has("primary.ipv6Cidr")) destPrimary.ipv6Cidr = srcPrimary.ipv6Cidr;
-    if (selectedFields.has("primary.ipv6Gateway")) destPrimary.ipv6Gateway = srcPrimary.ipv6Gateway;
-    if (selectedFields.has("primary.vlan")) {
+  const copyPrimaryShape = (destPrimary, srcPrimary, selectedFieldsForNode) => {
+    if (selectedFieldsForNode.has("primary.type")) destPrimary.type = srcPrimary.type;
+    if (selectedFieldsForNode.has("primary.mode")) destPrimary.mode = srcPrimary.mode;
+    if (selectedFieldsForNode.has("primary.ipv4Cidr")) destPrimary.ipv4Cidr = srcPrimary.ipv4Cidr;
+    if (selectedFieldsForNode.has("primary.ipv4Gateway")) destPrimary.ipv4Gateway = srcPrimary.ipv4Gateway;
+    if (selectedFieldsForNode.has("primary.ipv6Cidr")) destPrimary.ipv6Cidr = srcPrimary.ipv6Cidr;
+    if (selectedFieldsForNode.has("primary.ipv6Gateway")) destPrimary.ipv6Gateway = srcPrimary.ipv6Gateway;
+    if (selectedFieldsForNode.has("primary.vlan")) {
       destPrimary.vlan = { ...destPrimary.vlan, ...srcPrimary.vlan };
     }
-    if (selectedFields.has("primary.bond")) {
+    if (selectedFieldsForNode.has("primary.bond")) {
       destPrimary.bond = {
         ...destPrimary.bond,
         mode: srcPrimary.bond?.mode ?? destPrimary.bond.mode,
         name: srcPrimary.bond?.name ?? destPrimary.bond.name,
-        slaves: (srcPrimary.bond?.slaves ?? []).map((s) => ({ ...s, macAddress: selectedFields.has("primary.bond.slaves.macAddress") ? s.macAddress : "" }))
+        slaves: (srcPrimary.bond?.slaves ?? []).map((s) => ({
+          ...s,
+          macAddress: selectedFieldsForNode.has("primary.bond.slaves.macAddress") ? s.macAddress : ""
+        }))
       };
     }
-    if (selectedFields.has("primary.advanced")) {
+    if (selectedFieldsForNode.has("primary.advanced")) {
       destPrimary.advanced = {
         ...destPrimary.advanced,
         mtu: srcPrimary.advanced?.mtu ?? "",
@@ -223,25 +226,52 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
         routes: Array.isArray(srcPrimary.advanced?.routes) ? srcPrimary.advanced.routes.map((r) => ({ ...r })) : []
       };
     }
-    if (selectedFields.has("primary.ethernet") || selectedFields.has("primary.ethernet.macAddress")) {
+    if (
+      selectedFieldsForNode.has("primary.ethernet") ||
+      selectedFieldsForNode.has("primary.ethernet.macAddress")
+    ) {
       destPrimary.ethernet = {
         name: srcPrimary.ethernet?.name ?? destPrimary.ethernet?.name,
-        macAddress: selectedFields.has("primary.ethernet.macAddress") ? (srcPrimary.ethernet?.macAddress ?? "") : (destPrimary.ethernet?.macAddress ?? "")
+        macAddress: selectedFieldsForNode.has("primary.ethernet.macAddress")
+          ? (srcPrimary.ethernet?.macAddress ?? "")
+          : (destPrimary.ethernet?.macAddress ?? "")
       };
     }
   };
 
   return targetNodes.map((node) => {
     const next = { ...node };
-    if (selectedFields.has("dnsServers")) next.dnsServers = sourceNode.dnsServers ?? "";
-    if (selectedFields.has("dnsSearch")) next.dnsSearch = sourceNode.dnsSearch ?? "";
-    if (selectedFields.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
-    if (selectedFields.has("hostnameUseFqdn")) next.hostnameUseFqdn = !!sourceNode.hostnameUseFqdn;
-    if (selectedFields.has("rootDevice")) next.rootDevice = sourceNode.rootDevice ?? "";
-    if (selectedFields.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
-    if (["primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Cidr", "primary.ipv6Cidr", "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.ethernet", "primary.ethernet.macAddress"].some((k) => selectedFields.has(k))) {
+    // Arbiter nodes in bare-metal-agent intentionally hide Root device and Advanced (MTU/routes).
+    // Even if the modal user checked those copy options, do not apply them to arbiter targets.
+    const isArbiterTarget = node?.role === "arbiter";
+    const selectedFieldsForNode = isArbiterTarget
+      ? new Set(
+        Array.from(selectedFields).filter((k) => k !== "rootDevice" && k !== "primary.advanced")
+      )
+      : selectedFields;
+    if (selectedFieldsForNode.has("dnsServers")) next.dnsServers = sourceNode.dnsServers ?? "";
+    if (selectedFieldsForNode.has("dnsSearch")) next.dnsSearch = sourceNode.dnsSearch ?? "";
+    if (selectedFieldsForNode.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
+    if (selectedFieldsForNode.has("hostnameUseFqdn")) next.hostnameUseFqdn = !!sourceNode.hostnameUseFqdn;
+    if (selectedFieldsForNode.has("rootDevice")) next.rootDevice = sourceNode.rootDevice ?? "";
+    if (selectedFieldsForNode.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
+    if (
+      [
+        "primary.type",
+        "primary.mode",
+        "primary.vlan",
+        "primary.bond",
+        "primary.advanced",
+        "primary.ipv4Cidr",
+        "primary.ipv6Cidr",
+        "primary.ipv4Gateway",
+        "primary.ipv6Gateway",
+        "primary.ethernet",
+        "primary.ethernet.macAddress"
+      ].some((k) => selectedFieldsForNode.has(k))
+    ) {
       next.primary = { ...node.primary };
-      copyPrimaryShape(next.primary, sourceNode.primary || {});
+      copyPrimaryShape(next.primary, sourceNode.primary || {}, selectedFieldsForNode);
     }
     return next;
   });
