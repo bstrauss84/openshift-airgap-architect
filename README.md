@@ -87,6 +87,18 @@ The stack is two services (frontend, backend). Ports in `docker-compose.yml` are
 - **Backend:** 4000 (Express API)
 - **State:** Backend uses a named volume for SQLite; run bundles and temp files are under that data path.
 
+### Container images and security (UBI, non-root)
+
+Both containers use **Red Hat UBI 9** images and run the application **non-root** where possible:
+
+- **Frontend:** UBI 9 Node.js 20; app runs as UID 1001. No writable volume; no root needed.
+- **Backend:** UBI 9 Node.js 20; the **Node process runs as UID 1001** (user `appuser` in the image). The mounted data volume (`/data`) must be writable by that user. The backend image uses an **entrypoint script** that:
+  1. Runs initially as root (only to fix volume permissions).
+  2. Runs `chown -R 1001:0` on `DATA_DIR` (default `/data`) so the volume is writable by the app user.
+  3. Drops to UID 1001 via `runuser` and starts the Node server.
+
+So the backend does **not** run the application as root; root is used only briefly at container start to set ownership on the mounted volume. If the volume is already writable by 1001 (e.g. first run after a clean volume, or a volume you pre-created with the right ownership), the chown is a no-op and the process still drops to 1001. This matches common practice for secure container workloads. The image installs `util-linux` (for `runuser`) and creates a system user `appuser` with UID 1001 so the drop works correctly. See `backend/scripts/entrypoint.sh` and `docs/POST_UBI_VERIFICATION.md` for details and troubleshooting.
+
 ### Same-host vs remote access
 
 - **Same-host:** Using the app on the same machine where Compose runs: leave `VITE_API_BASE` as `http://localhost:4000`. The frontend is built with this URL, so the browser (on the same host) can reach the backend at localhost:4000.
@@ -301,8 +313,8 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 
 ## Architecture
 
-- **Frontend:** React, Vite, PatternFly-derived styling
-- **Backend:** Node.js, Express, SQLite (state and job history)
+- **Frontend:** React, Vite, PatternFly-derived styling. Container image: Red Hat UBI 9 Node.js 20.
+- **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 20; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. oc/oc-mirror are installed in-image from the OpenShift mirror.
 - **Data:** Parameter catalogs and doc index under `data/params` and `data/docs-index`; frontend copies under `frontend/src/data` for the build. See `docs/DATA_AND_FRONTEND_COPIES.md`.
 
 ## Install-config references (4.20)

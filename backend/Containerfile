@@ -1,6 +1,6 @@
 # Stage: compute APP_GIT_SHA and APP_BUILD_TIME from .git when present (no git in final image)
-FROM alpine AS build-info
-RUN apk add --no-cache git
+FROM registry.access.redhat.com/ubi9/ubi-minimal AS build-info
+RUN microdnf install -y git && microdnf clean all
 COPY . /ctx
 WORKDIR /ctx
 RUN SHA="unknown"; [ -d .git ] && SHA=$(git rev-parse HEAD 2>/dev/null) || true; \
@@ -8,14 +8,17 @@ RUN SHA="unknown"; [ -d .git ] && SHA=$(git rev-parse HEAD 2>/dev/null) || true;
     echo "export APP_GIT_SHA=\"$SHA\"" > /tmp/build-env.sh && \
     echo "export APP_BUILD_TIME=\"$BT\"" >> /tmp/build-env.sh
 
-FROM node:20-bookworm-slim
+# Red Hat UBI 9 Node.js 20 — backend (Express API, oc/oc-mirror, better-sqlite3)
+FROM registry.access.redhat.com/ubi9/nodejs-20
 
+USER root
 ARG OCP_CLIENT_URL="https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/openshift-client-linux.tar.gz"
 ARG OCP_MIRROR_URL="https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/oc-mirror.tar.gz"
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl ca-certificates tar python3 make g++ libgpgme11 openssh-client \
-  && rm -rf /var/lib/apt/lists/*
+RUN dnf install -y --setopt=install_weak_deps=false \
+    ca-certificates tar python3 make gcc-c++ gpgme openssh-clients util-linux \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
 
 RUN curl -fsSL "${OCP_CLIENT_URL}" -o /tmp/oc.tgz \
   && tar -xzf /tmp/oc.tgz -C /usr/local/bin oc \
@@ -34,8 +37,12 @@ ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY backend/src ./src
 COPY backend/mock-data ./mock-data
+COPY backend/scripts/entrypoint.sh /app/entrypoint.sh
 COPY --from=build-info /tmp/build-env.sh /app/build-env.sh
+RUN chmod +x /app/entrypoint.sh && chown -R 1001:0 /app \
+    && useradd -r -u 1001 -g 0 -o -M -d /app appuser 2>/dev/null || true
 
 ENV NODE_ENV=production
 EXPOSE 4000
-CMD ["/bin/sh", "-c", ". /app/build-env.sh 2>/dev/null || true; exec node src/index.js"]
+# Entrypoint runs as root only to chown DATA_DIR for UID 1001, then runs Node as non-root.
+CMD ["/app/entrypoint.sh"]
