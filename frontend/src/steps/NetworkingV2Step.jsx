@@ -346,11 +346,17 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
                     ? showIpv6ForPlatform
-                      ? "Required for Bare Metal Agent-based multi-node installs. Set API VIP (IPv4 and IPv6) and Ingress VIP (IPv4 and IPv6)."
-                      : "Required for Bare Metal Agent-based multi-node installs. Set API VIP (IPv4) and Ingress VIP (IPv4)."
+                      ? "Required for Bare Metal Agent-based multi-node installs when using dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below—do not comma-separate in one box. Official 4.20 install-config guidance requires IPv4 entries before IPv6 in apiVIPs/ingressVIPs lists; this app emits that order."
+                      : "Required for Bare Metal Agent-based multi-node installs (single-stack IPv4 in this flow): set API VIP and Ingress VIP."
                       : showIpv6ForPlatform
-                        ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used. Optional to leave blank. Set API VIP (IPv4 and IPv6) and Ingress VIP (IPv4 and IPv6) if you set them."
-                        : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used. Optional to leave blank. Set API VIP (IPv4) and Ingress VIP (IPv4) if you set them."}
+                        ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record VIPs here. With IPv6 enabled, use the IPv4 and IPv6 fields separately for dual-stack documentation alignment."
+                        : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record IPv4 VIPs here."}
+                </p>
+              ) : scenarioId === "bare-metal-ipi" ? (
+                <p className="note">
+                  {showIpv6ForPlatform
+                    ? "Bare metal IPI: set API and Ingress VIPs, or leave blank if using an external load balancer. With IPv6 enabled, use the separate IPv4 and IPv6 fields (install-config apiVIPs/ingressVIPs list order is IPv4 then IPv6 per 4.20 docs)."
+                    : "Bare metal IPI: set API VIP and Ingress VIP (IPv4), or leave blank if using an external load balancer."}
                 </p>
               ) : (
                 <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
@@ -384,7 +390,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                     <>
                       <FieldLabelWithInfo
                         label="API VIP (IPv4)"
-                        hint="Primary API VIP. For dual-stack, also set API VIP (IPv6) below; order in install-config is IPv4 then IPv6."
+                        hint="API VIP for IPv4. When dual-stack is enabled, add API VIP (IPv6) in the next field; emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)."
                         required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
                       >
                         <input
@@ -396,7 +402,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
                         label="API VIP (IPv6)"
-                        hint="Secondary API VIP for dual-stack. Leave blank for IPv4-only."
+                        hint="Second API VIP for dual-stack (IPv4 + IPv6). Leave blank for IPv4-only single-stack. IPv6-only bare metal is not verified in the reviewed 4.20 agent parameter excerpt—use dual-stack or IPv4-only unless your own doc review says otherwise."
                       >
                         <input
                           className={fieldErrors.apiVipV6 ? "input-error" : ""}
@@ -407,7 +413,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
                         label="Ingress VIP (IPv4)"
-                        hint="Primary Ingress VIP. For dual-stack, also set Ingress VIP (IPv6) below."
+                        hint="Ingress VIP for IPv4. When dual-stack is enabled, set Ingress VIP (IPv6) below; emitted ingressVIPs order is IPv4 then IPv6."
                         required={vipsRequiredForBareMetalAgent && (metaIngressVips?.required || metaIngressVip?.required)}
                       >
                         <input
@@ -419,7 +425,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
                         label="Ingress VIP (IPv6)"
-                        hint="Secondary Ingress VIP for dual-stack. Leave blank for IPv4-only."
+                        hint="Second Ingress VIP for dual-stack. Leave blank for IPv4-only single-stack."
                       >
                         <input
                           className={fieldErrors.ingressVipV6 ? "input-error" : ""}

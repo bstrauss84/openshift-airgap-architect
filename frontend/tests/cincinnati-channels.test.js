@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { sortChannelsBySemverAscending, getNewestChannel } from "../src/shared/cincinnatiChannels.js";
+import {
+  sortChannelsBySemverAscending,
+  sortChannelsBySemverDescending,
+  getNewestChannel
+} from "../src/shared/cincinnatiChannels.js";
 
 describe("cincinnatiChannels", () => {
   describe("sortChannelsBySemverAscending", () => {
@@ -16,6 +20,17 @@ describe("cincinnatiChannels", () => {
     it("does not mutate input", () => {
       const input = ["4.20", "4.18"];
       sortChannelsBySemverAscending(input);
+      expect(input).toEqual(["4.20", "4.18"]);
+    });
+  });
+
+  describe("sortChannelsBySemverDescending", () => {
+    it("sorts channels descending (newest first)", () => {
+      expect(sortChannelsBySemverDescending(["4.17", "4.21", "4.20"])).toEqual(["4.21", "4.20", "4.17"]);
+    });
+    it("does not mutate input", () => {
+      const input = ["4.20", "4.18"];
+      sortChannelsBySemverDescending(input);
       expect(input).toEqual(["4.20", "4.18"]);
     });
   });
