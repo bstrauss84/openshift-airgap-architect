@@ -1042,6 +1042,7 @@ button {
   border-radius: 8px;
   cursor: pointer;
   transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.15s ease;
+  user-select: none;
 }
 
 button:active {
