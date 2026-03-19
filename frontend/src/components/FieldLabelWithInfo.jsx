@@ -149,6 +149,7 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
       aria-label={isLongHint ? "Open help (click to read)" : "More information"}
       aria-describedby={visible ? id : undefined}
       aria-expanded={isLongHint ? visible : undefined}
+      style={{ userSelect: "none" }}
       onClick={() => setVisible((v) => !v)}
       onBlur={() => { if (!isLongHint) { cancelClose(); setVisible(false); } }}
       onMouseEnter={isLongHint ? undefined : () => { cancelClose(); setVisible(true); }}

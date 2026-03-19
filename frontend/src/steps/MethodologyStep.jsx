@@ -110,7 +110,7 @@ const MethodologyStep = ({ highlightErrors }) => {
               <label className="toggle-row">
                 <Switch
                   checked={placeholdersEnabled}
-                  onChange={(e) => togglePlaceholders(e.target.checked)}
+                  onChange={(checked) => togglePlaceholders(checked)}
                   aria-label="Enable placeholder values for sensitive environment-specific fields"
                 />
                 <span>Enable placeholder values for sensitive environment-specific fields</span>

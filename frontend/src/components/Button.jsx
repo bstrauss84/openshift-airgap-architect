@@ -12,6 +12,7 @@ function Button({
   children,
   className = "",
   "aria-label": ariaLabel,
+  style,
   ...rest
 }) {
   const variantClass =
@@ -28,6 +29,7 @@ function Button({
       disabled={disabled}
       onClick={onClick}
       aria-label={ariaLabel}
+      style={{ userSelect: "none", ...(style || {}) }}
       {...rest}
     >
       {children}
