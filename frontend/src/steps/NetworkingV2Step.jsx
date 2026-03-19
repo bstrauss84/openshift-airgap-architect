@@ -55,13 +55,16 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const nodes = hostInventory.nodes || [];
   const masterCount = nodes.filter((n) => n.role === "master").length;
   const workerCount = nodes.filter((n) => n.role === "worker").length;
-  const isAgentSno = scenarioId === "bare-metal-agent" && masterCount === 1 && workerCount === 0;
+  const isAgentSno =
+    (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
   const vipsRequiredForBareMetalAgent = !isAgentSno;
 
   const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG);
   const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG);
   const metaApiVips = getParamMeta(scenarioId, "platform.baremetal.apiVIPs", INSTALL_CONFIG);
   const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG);
+  const metaApiVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG);
+  const metaIngressVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG);
 
   const overlapMessages = [];
   if (cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)) {
@@ -97,8 +100,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
         p.path === "platform.baremetal.ingressVIPs") &&
       p.outputFile === INSTALL_CONFIG
   );
-const showVsphereIpiVips = scenarioId === "vsphere-ipi";
-    const showApiIngressVips = showBareMetalVips || showVsphereIpiVips;
+  const showVsphereIpiVips = scenarioId === "vsphere-ipi";
+  const showVsphereAgentVips = catalogParams.some(
+    (p) => p.path === "platform.vsphere.apiVIPs" && p.outputFile === INSTALL_CONFIG
+  );
+  const showApiIngressVips = showBareMetalVips || showVsphereIpiVips || showVsphereAgentVips;
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
@@ -342,13 +348,23 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
               <div>
                 <h3 className="card-title">API and Ingress VIPs</h3>
                 <p className="card-subtitle">
-                  {showVsphereIpiVips ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer." : "Virtual IPs for API and ingress traffic (bare metal)."}
+                  {showVsphereIpiVips
+                    ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer."
+                    : showVsphereAgentVips
+                      ? "Virtual IPs for API and ingress (vSphere Agent-based). Required for multi-node when platform is vSphere; omitted when single-node (platform none). Same fields as bare metal agent—written to platform.vsphere.apiVIPs / ingressVIPs in install-config."
+                      : "Virtual IPs for API and ingress traffic (bare metal)."}
                 </p>
               </div>
             </div>
             <div className="card-body">
               {showVsphereIpiVips ? (
                 <p className="note">Leave blank if you use an external load balancer.</p>
+              ) : showVsphereAgentVips ? (
+                <p className="note">
+                  {vipsRequiredForBareMetalAgent
+                    ? "Required for vSphere Agent-based multi-node (OpenShift 4.20 validation before agent ISO creation). One IP per field for single-stack; with IPv6 enabled, use separate IPv4 and IPv6 fields so install-config lists match machine networks in order."
+                    : "Single-node OpenShift on vSphere Agent-based uses platform.none per the Agent guide; API/Ingress VIPs are not used. You can leave these blank."}
+                </p>
               ) : scenarioId === "bare-metal-agent" ? (
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
@@ -382,6 +398,78 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                       />
                     </FieldLabelWithInfo>
                   </>
+                ) : showVsphereAgentVips ? (
+                  showIpv6ForPlatform ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP (IPv4)"
+                        hint="Primary API VIP for vSphere Agent-based. With dual-stack, set IPv6 below; generator orders VIPs to match machine networks."
+                        required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVip ? "input-error" : ""}
+                          value={hostInventory.apiVip || ""}
+                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="API VIP (IPv6)" hint="Secondary API VIP for dual-stack. Leave blank for IPv4-only.">
+                        <input
+                          className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                          value={hostInventory.apiVipV6 ?? ""}
+                          onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
+                          placeholder="e.g. fd00::1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP (IPv4)"
+                        hint="Primary Ingress VIP."
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVip ? "input-error" : ""}
+                          value={hostInventory.ingressVip || ""}
+                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.2"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="Ingress VIP (IPv6)" hint="Secondary Ingress VIP for dual-stack. Leave blank for IPv4-only.">
+                        <input
+                          className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                          value={hostInventory.ingressVipV6 ?? ""}
+                          onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
+                          placeholder="e.g. fd00::2"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  ) : (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIPs"
+                        hint={metaApiVipsVsphere?.description || "One IP for single-stack; comma-separated IPv4,IPv6 for dual-stack on one line if not using split fields above."}
+                        required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVip ? "input-error" : ""}
+                          value={hostInventory.apiVip || ""}
+                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIPs"
+                        hint={metaIngressVipsVsphere?.description || "One IP for single-stack; comma-separated for dual-stack."}
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVip ? "input-error" : ""}
+                          value={hostInventory.ingressVip || ""}
+                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.2"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  )
                 ) : showBareMetalVips ? (
                   showIpv6ForPlatform ? (
                     <>

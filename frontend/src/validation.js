@@ -5,7 +5,7 @@
  */
 
 import { getTrustBundlePolicies } from "./shared/versionPolicy.js";
-import { getScenarioId } from "./hostInventoryV2Helpers.js";
+import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
@@ -534,6 +534,18 @@ const validateVipsInMachineNetwork = (state) => {
     checkVips(vs.apiVIPs, "API VIPs", "apiVip");
     checkVips(vs.ingressVIPs, "Ingress VIPs", "ingressVip");
   }
+  if (scenarioId === "vsphere-agent") {
+    const hi = state.hostInventory || {};
+    const parseList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+    checkVips(parseList(hi.apiVip), "API VIPs", "apiVip");
+    checkVips(parseList(hi.ingressVip), "Ingress VIPs", "ingressVip");
+    if ((hi.apiVipV6 || "").trim()) {
+      checkVips([(hi.apiVipV6 || "").trim()], "API VIPs (IPv6)", "apiVipV6");
+    }
+    if ((hi.ingressVipV6 || "").trim()) {
+      checkVips([(hi.ingressVipV6 || "").trim()], "Ingress VIPs (IPv6)", "ingressVipV6");
+    }
+  }
   // Bare Metal UPI: no API/Ingress VIPs in install-config (platform.none only per 4.20 doc); user configures LB/DNS externally. Only validate for bare-metal-ipi.
   if (scenarioId === "bare-metal-ipi") {
     const hi = state.hostInventory || {};
@@ -666,9 +678,8 @@ const validateStep = (state, stepId) => {
     };
   }
   if (stepId === "inventory") {
-    const platform = state.blueprint?.platform;
-    const method = state.methodology?.method;
-    const showInventory = platform === "Bare Metal" && (method === "Agent-Based Installer" || method === "IPI");
+    const sid = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+    const showInventory = Boolean(sid && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(sid));
     return showInventory ? validateHostInventory(state) : { errors: [], warnings: [] };
   }
   if (stepId === "inventory-v2") {
@@ -764,7 +775,8 @@ const validateStep = (state, stepId) => {
     const nodes = state.hostInventory?.nodes || [];
     const masterCount = nodes.filter((n) => n.role === "master").length;
     const workerCount = nodes.filter((n) => n.role === "worker").length;
-    const isAgentSno = scenarioId === "bare-metal-agent" && masterCount === 1 && workerCount === 0;
+    const isAgentSno =
+      (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
     const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
     if (!isAgentSno && requiredPaths.includes("platform.baremetal.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
       const msg = "API VIPs are required for Bare Metal Agent-based multi-node installs.";
@@ -773,6 +785,16 @@ const validateStep = (state, stepId) => {
     }
     if (!isAgentSno && requiredPaths.includes("platform.baremetal.ingressVIPs") && !(state.hostInventory?.ingressVip || "").trim()) {
       const msg = "Ingress VIPs are required for Bare Metal Agent-based multi-node installs.";
+      fieldErrors.ingressVip = fieldErrors.ingressVip || msg;
+      format.errors.push(msg);
+    }
+    if (!isAgentSno && requiredPaths.includes("platform.vsphere.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
+      const msg = "API VIPs are required for vSphere Agent-based multi-node installs.";
+      fieldErrors.apiVip = fieldErrors.apiVip || msg;
+      format.errors.push(msg);
+    }
+    if (!isAgentSno && requiredPaths.includes("platform.vsphere.ingressVIPs") && !(state.hostInventory?.ingressVip || "").trim()) {
+      const msg = "Ingress VIPs are required for vSphere Agent-based multi-node installs.";
       fieldErrors.ingressVip = fieldErrors.ingressVip || msg;
       format.errors.push(msg);
     }
@@ -829,9 +851,10 @@ const validateStep = (state, stepId) => {
       }
       return { errors, warnings: [] };
     }
-    if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi") {
+    if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") {
       const errors = [];
-      const label = scenarioId === "vsphere-upi" ? "vSphere UPI" : "vSphere IPI";
+      const label =
+        scenarioId === "vsphere-upi" ? "vSphere UPI" : scenarioId === "vsphere-agent" ? "vSphere Agent-based" : "vSphere IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const placementMode = vsphere.placementMode || "failureDomains";
       if (state.platformConfig?.publish === "Internal") {
@@ -854,8 +877,8 @@ const validateStep = (state, stepId) => {
         if (!(vsphere.cluster || "").trim()) errors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
         if (!(vsphere.network || "").trim()) errors.push(`VM network is required for ${label} when using legacy single placement.`);
       } else {
-        // Failure-domains path: do not require top-level vcenter/datacenter; require at least one valid FD for IPI.
-        if (scenarioId === "vsphere-ipi") {
+        // Failure-domains path: require at least one valid FD for IPI and Agent-based multi-node (install-config platform.vsphere).
+        if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-agent") {
           const fds = Array.isArray(vsphere.failureDomains) ? vsphere.failureDomains : [];
           const validFd = fds.some((fd) => (fd.server || "").trim() && (fd.topology?.datacenter || "").trim() && (fd.topology?.computeCluster || "").trim() && (fd.topology?.datastore || "").trim() && Array.isArray(fd.topology?.networks) && fd.topology.networks.length > 0);
           if (fds.length === 0 || !validFd) {
@@ -910,11 +933,10 @@ const validateStep = (state, stepId) => {
     }
     return { errors: [], warnings: [] };
   }
-  // hosts-inventory: only bare-metal agent and bare-metal IPI have host inventory in this app.
+  // hosts-inventory: scenarios listed in SCENARIO_IDS_WITH_HOST_INVENTORY (e.g. bare-metal-agent, vsphere-agent, bare-metal-ipi).
   if (stepId === "hosts-inventory") {
-    const platform = state.blueprint?.platform;
-    const method = state.methodology?.method;
-    const hasHostInventory = platform === "Bare Metal" && (method === "Agent-Based Installer" || method === "IPI");
+    const sid = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+    const hasHostInventory = Boolean(sid && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(sid));
     return hasHostInventory ? validateStep(state, "inventory-v2") : { errors: [], warnings: [] };
   }
   if (stepId === "global") {

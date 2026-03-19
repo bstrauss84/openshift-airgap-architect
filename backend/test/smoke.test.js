@@ -644,6 +644,113 @@ test("buildInstallConfig for vsphere-upi must NOT emit apiVIPs or ingressVIPs (r
   assert.strictEqual(out.platform.vsphere.ingressVIPs, undefined, "UPI must not emit ingressVIPs");
 });
 
+test("buildInstallConfig for vsphere-agent SNO emits platform.none", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsno" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "10.0.0.10/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" }
+          }
+        }
+      ]
+    },
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.deepStrictEqual(out.platform, { none: {} });
+});
+
+test("buildInstallConfig for vsphere-agent multi-node maps host VIPs to platform.vsphere", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      apiVip: "192.168.50.10",
+      ingressVip: "192.168.50.11",
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "192.168.50.5/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" }
+          }
+        },
+        {
+          role: "master",
+          hostname: "master-1",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "192.168.50.6/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:02" }
+          }
+        },
+        {
+          role: "master",
+          hostname: "master-2",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "192.168.50.7/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:03" }
+          }
+        }
+      ]
+    },
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.vsphere, "platform.vsphere for agent multi-node");
+  assert.deepStrictEqual(out.platform.vsphere.apiVIPs, ["192.168.50.10"]);
+  assert.deepStrictEqual(out.platform.vsphere.ingressVIPs, ["192.168.50.11"]);
+  assert.strictEqual(out.platform.vsphere.vcenters?.[0]?.server, "vc.example.com");
+});
+
+test("buildAgentConfig works for VMware vSphere Agent-based", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: {},
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "10.0.0.10/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" }
+          }
+        }
+      ]
+    }
+  };
+  const out = yaml.load(buildAgentConfig(state));
+  assert.strictEqual(out.kind, "AgentConfig");
+  assert.ok(Array.isArray(out.hosts) && out.hosts.length === 1);
+});
+
 test("buildInstallConfig for vsphere-ipi emits template in failure domain topology when set (and no clusterOSImage)", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },

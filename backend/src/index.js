@@ -1383,10 +1383,10 @@ const buildPreviewFiles = (state) => {
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
   const installConfig = buildInstallConfig(state);
-  const agentConfig =
-    state.blueprint?.platform === "Bare Metal" && state.methodology?.method === "Agent-Based Installer"
-      ? buildAgentConfig(state)
-      : null;
+  const wantsAgentConfig =
+    state.methodology?.method === "Agent-Based Installer" &&
+    (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere");
+  const agentConfig = wantsAgentConfig ? buildAgentConfig(state) : null;
   const imageSetConfig = buildImageSetConfig(state);
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);
@@ -1425,10 +1425,10 @@ const buildBundleZip = async (state, res) => {
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
   const installConfig = buildInstallConfig(state);
-  const agentConfig =
-    state.blueprint?.platform === "Bare Metal" && state.methodology?.method === "Agent-Based Installer"
-      ? buildAgentConfig(state)
-      : null;
+  const wantsAgentConfig =
+    state.methodology?.method === "Agent-Based Installer" &&
+    (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere");
+  const agentConfig = wantsAgentConfig ? buildAgentConfig(state) : null;
   const imageSetConfig = buildImageSetConfig(state);
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);

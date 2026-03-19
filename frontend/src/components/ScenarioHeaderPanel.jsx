@@ -21,7 +21,7 @@ export default function ScenarioHeaderPanel({ state }) {
 
   const generates = [];
   generates.push("install-config.yaml");
-  if (scenarioId === "bare-metal-agent") generates.push("agent-config.yaml");
+  if (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") generates.push("agent-config.yaml");
   if (scenarioId === "bare-metal-ipi") {
     // IPI uses install-config only for cluster-level; hosts in install-config
   }

@@ -1,5 +1,5 @@
 /**
- * Host Inventory v2: node counts, node grid, BMC/interface/network config for bare-metal-agent and bare-metal-ipi.
+ * Host Inventory v2: node counts, node grid, BMC/interface/network config for bare-metal-agent, vsphere-agent, and bare-metal-ipi.
  * Section order is scenario-aware (hostInventoryV2Helpers). Validates nodes via validateNode and catalog-driven required paths.
  */
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -68,10 +68,9 @@ const AGENT_CONFIG = "agent-config.yaml";
 const ROLE_PATH_AGENT = "hosts[].role";
 
 function isScenarioSupported(platform, method) {
-  return (
-    platform === "Bare Metal" &&
-    (method === "Agent-Based Installer" || method === "IPI")
-  );
+  if (platform === "Bare Metal" && (method === "Agent-Based Installer" || method === "IPI")) return true;
+  if (platform === "VMware vSphere" && method === "Agent-Based Installer") return true;
+  return false;
 }
 
 function nodeCompletionLabel(node, validation) {
@@ -106,6 +105,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   /** Drawer content: only show IPI-specific form when user chose Bare Metal + IPI; otherwise show full agent-oriented form. */
   const showIpiDrawer = platform === "Bare Metal" && method === "IPI";
   const isIpiScenario = scenarioId === "bare-metal-ipi";
+  const isAgentInventoryScenario = scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent";
   const supported = isScenarioSupported(platform, method);
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
   const enableIpv6 = !!inventory.enableIpv6;
@@ -193,7 +193,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const handleGenerateFromCounts = () => {
     let next = generateNodesFromCounts(countControlPlane, countWorker, countInfra);
     // Bare metal Agent: 2 control plane nodes require 1 arbiter (4.20 doc). Auto-add one when user generates with CP=2.
-    if (scenarioId === "bare-metal-agent" && countControlPlane === 2) {
+    if (isAgentInventoryScenario && countControlPlane === 2) {
       next = [...next, emptyNode("arbiter", 0)];
     }
     updateInventory({ nodes: next });
@@ -383,7 +383,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
         </div>
         <div className="step-body">
           <div className="card">
-            <p className="note">Host Inventory v2 is not supported for this scenario yet. Use the standard Host Inventory step, or choose Bare Metal with Agent-Based Installer or IPI.</p>
+            <p className="note">Host Inventory v2 is not supported for this scenario yet. Use the standard Host Inventory step, or choose Bare Metal (Agent-Based or IPI) or VMware vSphere with Agent-Based Installer.</p>
           </div>
         </div>
       </div>
@@ -410,8 +410,9 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
         <div className="host-inventory-v2-main">
         <CollapsibleSection title="How to gather host info from nodes" defaultCollapsed={false}>
               <p className="note">
-                Boot each bare metal host with a RHEL 9+ (or Fedora) live ISO first. Log in and run the commands
+                Boot each target machine with a RHEL 9+ (or Fedora) live ISO (bare metal or VMware VM), log in, and run the commands
                 below to record interface names/MACs/MTU and stable disk IDs before installing OpenShift.
+                {scenarioId === "vsphere-agent" ? " On vSphere, you can use a live ISO in the VM console or a temporary helper VM on the same port group if attaching ISOs to every node is awkward." : ""}
               </p>
               <div className="host-inventory-v2-gather-info-list">
                 <div className="host-inventory-v2-gather-hint">Interfaces (name, state, MTU, MAC):</div>
@@ -518,7 +519,7 @@ wipefs -a /dev/sdX`}</pre>
 
           if (sectionId === SECTION_IDS.AGENT_OPTIONS) {
             if (state?.ui?.segmentedFlowV1 === true) return null;
-            if (scenarioId !== "bare-metal-agent") return null;
+            if (!isAgentInventoryScenario) return null;
             return (
               <section key={sectionId} className="card host-inventory-v2-section" data-section={sectionId}>
                 <div className="host-inventory-v2-section-heading">
@@ -548,7 +549,7 @@ wipefs -a /dev/sdX`}</pre>
                   <CompareBadge kind={sectionCompareBadge} />
                 </div>
                 <p className="note subtle">Generate nodes from counts. You can edit each node in the grid after.</p>
-                {scenarioId === "bare-metal-agent" && countControlPlane === 2 && (
+                {isAgentInventoryScenario && countControlPlane === 2 && (
                   <p className="note">Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically.</p>
                 )}
                 {isIpiScenario && (
@@ -726,10 +727,10 @@ wipefs -a /dev/sdX`}</pre>
                       ) : (
                         <>
                       <div className="host-inventory-v2-section-heading">
-                        <h4>{scenarioId === "bare-metal-agent" ? "Host (Agent)" : "Basic"}</h4>
+                        <h4>{isAgentInventoryScenario ? "Host (Agent)" : "Basic"}</h4>
                         <CompareBadge kind={badgeBasicDrawer} />
                       </div>
-                      {scenarioId === "bare-metal-agent" && (
+                      {isAgentInventoryScenario && (
                         <p className="note subtle">These fields are used for agent-config and node configuration. Set primary interface and network for each host.</p>
                       )}
                       <div className="field-grid">

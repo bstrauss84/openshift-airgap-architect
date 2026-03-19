@@ -39,17 +39,25 @@ export const SCENARIO_SECTION_ORDER = {
     SECTION_IDS.NODE_DRAWER_BASIC,
     SECTION_IDS.NODE_DRAWER_ADVANCED,
     SECTION_IDS.REPLICATE_MODAL
+  ],
+  "vsphere-agent": [
+    SECTION_IDS.AGENT_OPTIONS,
+    SECTION_IDS.NODE_COUNTS,
+    SECTION_IDS.NODE_GRID,
+    SECTION_IDS.NODE_DRAWER_BASIC,
+    SECTION_IDS.NODE_DRAWER_ADVANCED,
+    SECTION_IDS.REPLICATE_MODAL
   ]
 };
 
 /** Scenario ids for which the Hosts / Inventory step shows full UI (have host inventory in this app). */
-export const SCENARIO_IDS_WITH_HOST_INVENTORY = ["bare-metal-agent", "bare-metal-ipi"];
+export const SCENARIO_IDS_WITH_HOST_INVENTORY = ["bare-metal-agent", "bare-metal-ipi", "vsphere-agent"];
 
 /**
  * Derive scenarioId from platform and methodology.
  * @param {string} platform - e.g. "Bare Metal", "VMware vSphere"
  * @param {string} method - e.g. "Agent-Based Installer", "IPI", "UPI"
- * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "nutanix-ipi" | null
+ * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-agent" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "nutanix-ipi" | null
  */
 export function getScenarioId(platform, method) {
   if (platform === "Bare Metal") {
@@ -59,6 +67,7 @@ export function getScenarioId(platform, method) {
     return null;
   }
   if (platform === "VMware vSphere") {
+    if (method === "Agent-Based Installer") return "vsphere-agent";
     if (method === "IPI") return "vsphere-ipi";
     if (method === "UPI") return "vsphere-upi";
     return null;

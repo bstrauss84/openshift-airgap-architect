@@ -23,7 +23,7 @@
         {
           "id": "installing-aws-govcloud-ipi",
           "title": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html",
           "configTypes": [
             "install-config"
           ],
@@ -36,7 +36,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "AWS GovCloud IPI; install-config."
+          "notes": "AWS GovCloud IPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
         },
         {
           "id": "installing-disconnected",
@@ -76,7 +76,7 @@
         {
           "id": "installing-aws-govcloud-upi",
           "title": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-upi.html",
           "configTypes": [
             "install-config"
           ],
@@ -89,7 +89,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "AWS GovCloud UPI; install-config."
+          "notes": "AWS GovCloud UPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
         },
         {
           "id": "installing-disconnected",
@@ -129,7 +129,7 @@
         {
           "id": "installing-azure-government-ipi",
           "title": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html",
           "configTypes": [
             "install-config"
           ],
@@ -142,7 +142,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "Azure Government IPI; install-config."
+          "notes": "Azure Government IPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
         },
         {
           "id": "installing-disconnected",
@@ -520,6 +520,94 @@
             "vcenters"
           ],
           "notes": "vSphere failureDomains, vcenters, and topology (computeCluster, datastore, networks, folder, resourcePool)."
+        }
+      ]
+    },
+    "vsphere-agent": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle",
+            "vsphere"
+          ],
+          "notes": "Chapter 9: install-config and agent-config tables; §9.1.5 VMware vSphere platform parameters; §1.11 validation (apiVIPs/ingressVIPs required for bare metal and vSphere when platform is not none; SNO uses platform none)."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        },
+        {
+          "id": "installing-agent-based-on-prem",
+          "title": "Installing an on-premise cluster with the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle",
+            "vsphere"
+          ],
+          "notes": "Agent-based installer guide: platform none for single-node; vSphere/bare metal multi-node; dual-stack VIP examples; ISO/PXE; §1.11 install-config/agent-config validation before ISO creation."
+        },
+        {
+          "id": "installation-config-parameters-vsphere",
+          "title": "Installation configuration parameters for vSphere",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "vsphere",
+            "failure-domains",
+            "vcenters",
+            "apiVIPs",
+            "ingressVIPs"
+          ],
+          "notes": "vSphere install-config reference; topology.template and optional machine-pool items are IPI-oriented. Agent-based uses user-provisioned VMs—follow Agent book §9.1.5 and §1.11 for authoritative Agent + vSphere behavior."
+        },
+        {
+          "id": "installing-vsphere-upi",
+          "title": "Installing a cluster on vSphere with user-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure#installing-vsphere",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "vsphere",
+            "restricted-network",
+            "private-cluster",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "vSphere UPI environment and networking context (DNS, load balancing); useful alongside Agent-based when you provide VMs and load balancers."
         }
       ]
     }

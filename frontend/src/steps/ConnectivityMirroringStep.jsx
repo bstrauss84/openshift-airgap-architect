@@ -193,7 +193,7 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
           <div className="card-body">
             <FieldLabelWithInfo
               label="NTP Servers (comma-separated)"
-              hint={`Use up to four reliable NTP sources. Time skew is a common install failure.${scenarioId === "bare-metal-agent" ? " Values are emitted to agent-config additionalNTPSources." : ""}`}
+              hint={`Use up to four reliable NTP sources. Time skew is a common install failure.${scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent" ? " Values are emitted to agent-config additionalNTPSources." : ""}`}
               required={metaNtp?.required}
             >
               <input

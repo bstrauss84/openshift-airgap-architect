@@ -14,11 +14,13 @@ import awsGovcloudIpiCatalog from "./data/catalogs/aws-govcloud-ipi.json";
 import awsGovcloudUpiCatalog from "./data/catalogs/aws-govcloud-upi.json";
 import azureGovernmentIpiCatalog from "./data/catalogs/azure-government-ipi.json";
 import nutanixIpiCatalog from "./data/catalogs/nutanix-ipi.json";
+import vsphereAgentCatalog from "./data/catalogs/vsphere-agent.json";
 
 const CATALOGS = {
   "bare-metal-agent": bareMetalAgentCatalog,
   "bare-metal-ipi": bareMetalIpiCatalog,
   "bare-metal-upi": bareMetalUpiCatalog,
+  "vsphere-agent": vsphereAgentCatalog,
   "vsphere-ipi": vsphereIpiCatalog,
   "vsphere-upi": vsphereUpiCatalog,
   "aws-govcloud-ipi": awsGovcloudIpiCatalog,

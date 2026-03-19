@@ -74,40 +74,56 @@ const mapping = {
         }
       ];
     },
-    "VMware vSphere": (version) => [
-      {
-        id: "vsphere-install",
-        label: "vSphere install-config parameters",
-        urls: [
-          `${baseDocs(version)}/installing_on_vmware_vsphere/installation-config-parameters-vsphere`,
-          `${baseDocs(version)}/installing_on_vmware_vsphere/index`
-        ]
-      },
-      {
-        id: "vsphere-ipi",
-        label: "Installing on vSphere with installer-provisioned infrastructure",
-        urls: [
-          `${baseDocs(version)}/installing_on_vmware_vsphere/installer-provisioned-infrastructure`,
-          `${baseDocs(version)}/installing_on_vmware_vsphere/installing-vsphere`
-        ]
-      },
-      {
-        id: "vsphere-upi",
-        label: "Installing on vSphere with user-provisioned infrastructure",
-        urls: [
-          `${baseDocs(version)}/installing_on_vmware_vsphere/user-provisioned-infrastructure`,
-          `${baseDocs(version)}/installing_on_vmware_vsphere/installing-vsphere-upi`
-        ]
-      },
-      {
-        id: "vsphere-disconnected",
-        label: "Installing a cluster on vSphere in a disconnected environment",
-        urls: [
-          `${baseDocs(version)}/installing_on_vmware_vsphere/installing-vsphere-disconnected`,
-          `${baseDocs(version)}/disconnected_environments/installing-disconnected-environments`
-        ]
+    "VMware vSphere": (version, method) => {
+      const shared = [
+        {
+          id: "vsphere-install",
+          label: "vSphere install-config parameters",
+          urls: [
+            `${baseDocs(version)}/installing_on_vmware_vsphere/installation-config-parameters-vsphere`,
+            `${baseDocs(version)}/installing_on_vmware_vsphere/index`
+          ]
+        },
+        {
+          id: "vsphere-ipi",
+          label: "Installing on vSphere with installer-provisioned infrastructure",
+          urls: [
+            `${baseDocs(version)}/installing_on_vmware_vsphere/installer-provisioned-infrastructure`,
+            `${baseDocs(version)}/installing_on_vmware_vsphere/installing-vsphere`
+          ]
+        },
+        {
+          id: "vsphere-upi",
+          label: "Installing on vSphere with user-provisioned infrastructure",
+          urls: [
+            `${baseDocs(version)}/installing_on_vmware_vsphere/user-provisioned-infrastructure`,
+            `${baseDocs(version)}/installing_on_vmware_vsphere/installing-vsphere-upi`
+          ]
+        },
+        {
+          id: "vsphere-disconnected",
+          label: "Installing a cluster on vSphere in a disconnected environment",
+          urls: [
+            `${baseDocs(version)}/installing_on_vmware_vsphere/installing-vsphere-disconnected`,
+            `${baseDocs(version)}/disconnected_environments/installing-disconnected-environments`
+          ]
+        }
+      ];
+      if (method === "Agent-Based Installer") {
+        return [
+          {
+            id: "vsphere-agent-based-params",
+            label: "Agent-based Installer (Chapter 9 install-config and agent-config parameters)",
+            urls: [
+              `${baseDocs(version)}/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent`,
+              `${baseDocs(version)}/installing_an_on-premise_cluster_with_the_agent-based_installer/`
+            ]
+          },
+          ...shared
+        ];
       }
-    ],
+      return shared;
+    },
     Nutanix: (version) => [
       {
         id: "nutanix-install",

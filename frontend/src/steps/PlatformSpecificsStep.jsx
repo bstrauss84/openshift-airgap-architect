@@ -89,8 +89,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
     [selectedVersion, arch, updateAws]
   );
 
-  /** Agent options (boot artifacts etc.) only for bare-metal-agent. */
-  const showAgentOptionsSection = scenarioId === "bare-metal-agent" && catalogParams.some(
+  /** Agent options (boot artifacts etc.) for agent-based scenarios that expose agent-config params in catalog. */
+  const showAgentOptionsSection = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && catalogParams.some(
     (p) => p.path === "bootArtifactsBaseURL" && p.outputFile === AGENT_CONFIG
   );
   const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG);
@@ -184,7 +184,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const showControlPlaneHyperthreading = hasParam(catalogParams, "controlPlane[].hyperthreading", INSTALL_CONFIG);
   const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
-  const showMinimalISO = scenarioId === "bare-metal-agent" && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
+  const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
   const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
@@ -744,8 +744,15 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
         {showVsphereIpiSection && (
           <section className="card">
             <div className="card-header">
-              <h3 className="card-title">vSphere {scenarioId === "vsphere-upi" ? "UPI" : "IPI"}</h3>
-              <div className="card-subtitle">vCenter credentials, placement, and storage for vSphere (installer-provisioned or user-provisioned).</div>
+              <h3 className="card-title">
+                vSphere{" "}
+                {scenarioId === "vsphere-upi" ? "UPI" : scenarioId === "vsphere-agent" ? "Agent-based" : "IPI"}
+              </h3>
+              <div className="card-subtitle">
+                {scenarioId === "vsphere-agent"
+                  ? "vCenter placement for Agent-based installs (you provide VMs; install-config uses platform.vsphere with apiVIPs/ingressVIPs from Networking). IPI-only items (RHCOS template URL, topology.template, optional machine pool sizing) are hidden."
+                  : "vCenter credentials, placement, and storage for vSphere (installer-provisioned or user-provisioned)."}
+              </div>
             </div>
             <div className="card-body">
               <h4 className="platform-specifics-subsection">Credentials</h4>
