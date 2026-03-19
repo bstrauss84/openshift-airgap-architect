@@ -65,7 +65,9 @@ const defaultState = () => ({
   release: {
     channel: null,
     patchVersion: null,
-    confirmed: false
+    confirmed: false,
+    /** When true, "Update" may advance the selected minor to the newest available. Cleared when the user picks a minor manually. */
+    followLatestMinor: true
   },
   version: {
     selectedChannel: null,

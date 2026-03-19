@@ -192,9 +192,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
 
     expect(screen.getAllByPlaceholderText("e.g. 10.90.0.1").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByPlaceholderText("e.g. fd00::1").length).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getByText((t) => /Set API VIP\s*\(IPv4\s+and\s+IPv6\)/i.test(String(t)))
-    ).toBeInTheDocument();
+    expect(screen.getByText(/separate IPv4 and IPv6 fields/i)).toBeInTheDocument();
     expect(within(container).queryByText(/comma-separated/i)).toBeNull();
   });
 

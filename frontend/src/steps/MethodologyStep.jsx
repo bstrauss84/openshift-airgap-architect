@@ -1,10 +1,5 @@
 import React from "react";
 import { useApp } from "../store.jsx";
-import Switch from "../components/Switch.jsx";
-import {
-  applyPlaceholderValuesToHostInventory,
-  clearPlaceholderValuesFromHostInventory
-} from "../placeholderValuesHelpers.js";
 
 const methods = [
   { value: "IPI", label: "IPI (Installer Provisioned)", sub: "Full stack automation." },
@@ -95,33 +90,6 @@ const MethodologyStep = ({ highlightErrors }) => {
             ))}
           </div>
         </div>
-
-        {platform === "Bare Metal" ? (
-          <div className="card">
-            <div className="card-header">
-              <div>
-                <h3 className="card-title">Placeholder Values Mode</h3>
-                <div className="card-subtitle">
-                  Enable safe placeholders for sensitive disconnected-environment fields.
-                </div>
-              </div>
-            </div>
-            <div className="card-body">
-              <label className="toggle-row">
-                <Switch
-                  checked={placeholdersEnabled}
-                  onChange={(checked) => togglePlaceholders(checked)}
-                  aria-label="Enable placeholder values for sensitive environment-specific fields"
-                />
-                <span>Enable placeholder values for sensitive environment-specific fields</span>
-              </label>
-              <p className="note subtle">
-                When enabled, the app replaces sensitive values (like host root devices, MACs, IPs, and BMC details)
-                with non-sensitive placeholders so you can progress through disconnected workflows.
-              </p>
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );

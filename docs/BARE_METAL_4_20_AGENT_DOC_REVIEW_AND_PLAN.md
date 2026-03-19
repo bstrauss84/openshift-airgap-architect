@@ -79,9 +79,12 @@ Working record for the Bare Metal / 4.20 / Agent-based Installer scenario truth 
 - validate-catalog.js: validates canonical params including bare-metal-agent.
 - E2E matrix: bare-metal-agent scenario generates install-config + agent-config; validation expects platform.baremetal.
 
-## Remaining items
+## Remaining items (honest)
 
-- Expand this working doc with additional official 4.20 agent-based guide captures beyond Chapter 9 tables (boot/discovery flows, nmstateconfig vs per-host networkConfig examples) as needed.
+- Full agent-based guide captures beyond Chapter 9 (validation checks before ISO, boot/discovery, nmstate vs per-host `networkConfig`).
+- **IPv6-only** and **4+ control-plane** support: explicit 4.20 citations still **open** (see `docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md`).
+- **Mirroring gating:** scenario-by-scenario disconnected doc proof vs current heuristic — **open** (`docs/MIRRORING_SECTION_GATING.md`).
+- **Placeholder / high-side–low-side:** future implementation per `docs/PLACEHOLDER_VALUES_DEFERRED.md` — **deferred**, not closed.
 
 ## Canonical vs frontend (two-place model)
 
@@ -114,8 +117,22 @@ See `docs/DATA_AND_FRONTEND_COPIES.md`. Canonical params in `data/params/4.20/`;
 **Dual-stack VIPs (closeout):**
 - When `hostInventory.enableIpv6` is true, Networking step shows separate API VIP (IPv4), API VIP (IPv6), Ingress VIP (IPv4), Ingress VIP (IPv6) fields. Generator builds apiVIPs/ingressVIPs as [v4, v6].filter(Boolean); when enableIpv6 is false, uses comma-separated parsing for apiVip/ingressVip.
 
-**Cincinnati refresh (closeout, final fix):**
-- Backend may return channels in any order (e.g. GitHub directory listing, mock descending). Frontend no longer assumes newest is last. `frontend/src/shared/cincinnatiChannels.js` provides `sortChannelsBySemverAscending(channelList)` and `getNewestChannel(channelList)` so selection is deterministic. Channels are sorted ascending (X.Y) and newest = last element. On initial load when no channel is set, and on Refresh when not locked, the app uses `getNewestChannel(channels)`. When locked, current channel is kept and only patches are refreshed. Dropdown displays channels in ascending order.
+**Cincinnati / Blueprint minor channel (current behavior):**
+- Patch list order: backend returns versions **newest first** (`backend/src/cincinnati.js` `sortVersionsDesc`).
+- Minor channels: `getNewestChannel` is order-independent (semver).
+- **Minor dropdown:** `sortChannelsBySemverDescending` in `frontend/src/shared/cincinnatiChannels.js` — **newest first**.
+- **Default minor:** On first load when `release.channel` is unset, the app selects the newest minor and sets `release.followLatestMinor: true` (`frontend/src/steps/BlueprintStep.jsx`, `backend/src/index.js` defaultState).
+- **User-chosen minor:** Changing the minor dropdown sets `followLatestMinor: false`. **Update** refreshes lists; if `followLatestMinor === true`, the minor **tracks** the newest available after refresh; if `false`, the user’s minor is **kept** when still present in the refreshed list (otherwise falls back to newest).
+- **Locked foundational state:** Current minor is preserved; patches refresh for that minor.
+- **Implementation note:** A forced patch fetch (`POST .../patches/update`) that **changes** the selected minor skips the next `release.channel` effect run so a follow-up `GET .../patches` cannot overwrite fresh results (`BlueprintStep.jsx` `skipChannelPatchFetchRef`).
+
+**Placeholder values:** The Methodology **toggle is hidden**; feature deferred. See `docs/PLACEHOLDER_VALUES_DEFERRED.md`.
+
+**IPv4 / IPv6 / VIP truth (partial audit):** See `docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md`. IPv6-only bare metal is **not** claimed from the Chapter 9 excerpt reviewed there.
+
+**Mirroring gating:** Documented as **current code heuristic**, not full scenario doc proof — `docs/MIRRORING_SECTION_GATING.md`.
+
+**Node / control-plane topology:** App validates **2 control plane + 0 arbiter** as invalid for bare-metal-agent and documents **SNO** and **2+1 arbiter** flows above. **4+ control plane** and other counts are **not** re-proven against the full 4.20 agent install guide in this pass — treat stricter limits as **open** if you need explicit doc citations.
 
 **Dual-stack field visibility (final fix):**
 - Cluster Network IPv6 and Service Network IPv6 fields now appear as soon as IPv6 is enabled (`hostInventory.enableIpv6` or `showIpv6ForPlatform`), without requiring `machineNetworkV6` to be populated. Applied in `NetworkingV2Step.jsx` and `GlobalStrategyStep.jsx`. Helper text notes "Set when using dual-stack."

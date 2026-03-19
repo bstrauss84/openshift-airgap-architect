@@ -3,7 +3,7 @@ import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
 import { validateBlueprintPullSecretOptional } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
-import { sortChannelsBySemverAscending, getNewestChannel } from "../shared/cincinnatiChannels.js";
+import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -35,6 +35,8 @@ const BlueprintStep = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNote, setRefreshNote] = useState("");
   const [updatedMessage, setUpdatedMessage] = useState(false);
+  /** After a forced patch refresh, skip the release.channel effect once so it does not overwrite POST results with a stale GET. */
+  const skipChannelPatchFetchRef = useRef(false);
   const blueprintPullSecretRaw = state.blueprint?.blueprintPullSecretEphemeral ?? "";
   const blueprintPullSecretTrimmed = blueprintPullSecretRaw.trim();
   const blueprintPullSecretError = useMemo(() => {
@@ -70,15 +72,19 @@ const BlueprintStep = () => {
     setLoading(true);
     apiFetch("/api/cincinnati/channels")
       .then((data) => {
-        setChannels(sortChannelsBySemverAscending(data.channels || []));
+        setChannels(sortChannelsBySemverDescending(data.channels || []));
         if (!data.channels?.length && !releaseLocked) {
-          updateState({ release: { ...release, channel: null, patchVersion: null, confirmed: false } });
+          updateState({
+            release: { ...release, channel: null, patchVersion: null, confirmed: false, followLatestMinor: true }
+          });
           updateVersionSelection({ selectedChannel: null, selectedVersion: null, selectionTimestamp: Date.now() });
         }
         if (!releaseLocked && !release?.channel && data.channels?.length) {
           const channel = getNewestChannel(data.channels);
           if (channel) {
-            updateState({ release: { ...release, channel, confirmed: false } });
+            updateState({
+              release: { ...release, channel, followLatestMinor: true, confirmed: false }
+            });
             updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
           }
         }
@@ -88,7 +94,7 @@ const BlueprintStep = () => {
         apiFetch("/api/cincinnati/update", { method: "POST" })
           .then((data) => {
             if (data.channels?.length) {
-              setChannels(sortChannelsBySemverAscending(data.channels));
+              setChannels(sortChannelsBySemverDescending(data.channels));
             }
           })
           .catch(() => {});
@@ -97,6 +103,9 @@ const BlueprintStep = () => {
 
   const fetchPatches = async (channel, force = false) => {
     if (!channel) return;
+    if (force && channel !== release?.channel) {
+      skipChannelPatchFetchRef.current = true;
+    }
     setPatchesLoading(true);
     setPatches([]);
     const endpoint = force ? "/api/cincinnati/patches/update" : "/api/cincinnati/patches";
@@ -129,12 +138,18 @@ const BlueprintStep = () => {
 
   useEffect(() => {
     if (!release?.channel) return;
+    if (skipChannelPatchFetchRef.current) {
+      skipChannelPatchFetchRef.current = false;
+      return;
+    }
     fetchPatches(release.channel).catch(() => setPatchesLoading(false));
   }, [release?.channel]);
 
   const updateChannel = (channel) => {
     if (releaseLocked) return;
-    updateState({ release: { channel, patchVersion: null, confirmed: false } });
+    updateState({
+      release: { ...release, channel, patchVersion: null, confirmed: false, followLatestMinor: false }
+    });
     updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
   };
 
@@ -149,16 +164,24 @@ const BlueprintStep = () => {
     setRefreshNote("Refreshing channels from upstream…");
     try {
       const data = await apiFetch("/api/cincinnati/update", { method: "POST" });
-      const newChannels = sortChannelsBySemverAscending(data.channels || []);
+      const newChannels = sortChannelsBySemverDescending(data.channels || []);
       setChannels(newChannels);
       if (newChannels.length === 0) {
         setRefreshNote("");
         setRefreshing(false);
         return;
       }
-      // After refresh, use newest available minor when not locked. Sort by semver so we do not rely on backend order.
       const newestChannel = getNewestChannel(newChannels);
-      const channelToLoad = releaseLocked ? (release?.channel || newestChannel) : newestChannel;
+      const followLatest = release?.followLatestMinor === true;
+      let channelToLoad;
+      if (releaseLocked) {
+        channelToLoad = release?.channel || newestChannel;
+      } else if (followLatest) {
+        channelToLoad = newestChannel;
+      } else {
+        const cur = release?.channel;
+        channelToLoad = cur && newChannels.includes(cur) ? cur : newestChannel;
+      }
       await fetchPatches(channelToLoad, true);
       setRefreshNote("");
       setUpdatedMessage(true);

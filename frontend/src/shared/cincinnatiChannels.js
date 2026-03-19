@@ -13,6 +13,12 @@ export function sortChannelsBySemverAscending(channelList) {
   });
 }
 
+/** Sort channels descending (newest first) for Blueprint minor-channel dropdown display. */
+export function sortChannelsBySemverDescending(channelList) {
+  const asc = sortChannelsBySemverAscending(channelList);
+  return asc.slice().reverse();
+}
+
 /** Return the newest channel from a list; order-independent. */
 export function getNewestChannel(channelList) {
   const sorted = sortChannelsBySemverAscending(channelList);

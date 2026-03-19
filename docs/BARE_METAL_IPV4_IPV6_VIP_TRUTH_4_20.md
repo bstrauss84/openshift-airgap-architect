@@ -1,0 +1,24 @@
+# Bare metal scenarios — IPv4 / IPv6 / dual-stack and VIPs (4.20, doc-backed where cited)
+
+This table supports Networking / VIP UI text. **Do not treat “Kubernetes in general” as evidence**—only the cited 4.20 material and in-repo working docs.
+
+## Official pages reviewed (this pass)
+
+| URL | What was used |
+|-----|----------------|
+| `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent` | §9.1.2 network parameters: dual-stack requirements; IPv4+IPv6 ordering; OVN-Kubernetes IPv4/IPv6 CIDRs; warning about single-stack IPv4 on dual-stack-capable NICs. §9.1.4 bare metal: example IPv6 in `clusterProvisioningIP`. |
+| `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/` | Book landing (TOC); no extra VIP tables in the fetched landing HTML. |
+| In-repo `docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md` | IPI chapter references: `apiVIPs` / `ingressVIPs` lists, dual-stack examples, deprecation notes for singular VIPs. |
+
+## Truth table (touched scenarios)
+
+| Scenario | IPv4-only | IPv6-only | Dual-stack (IPv4+IPv6) | API/Ingress VIP address families (from reviewed material) | Open items |
+|----------|-----------|-----------|-------------------------|------------------------------------------------------------|------------|
+| **bare-metal-agent** | **Supported** for single-stack in this app’s IPv4-only path (no IPv6 toggle). 4.20 Chapter 9 describes dual-stack and IPv4/IPv6 CIDRs; warns against **single-stack IPv4** when the host network is dual-stack capable—not “IPv4 forbidden”. | **Not verified** in the Chapter 9 excerpt used this pass. Parameter text shows IPv6 examples for some bare-metal IPs (e.g. provisioning-style addresses) but does **not** establish a full IPv6-only cluster+VIPs story here. **Do not claim IPv6-only** without a dedicated doc pass (e.g. validation-check sections, full agent guide chapters). | **Documented** in §9.1.2: both families, same order everywhere (IPv4 before IPv6), same default gateway/NIC constraints. | Lists `apiVIPs` / `ingressVIPs`: **IPv4 and/or IPv6 addresses** are consistent with generic “IP address” requirements; dual-stack uses **two entries in order**. | VIP validation-check wording (“apiVIPs and ingressVIPs required”) may live in other chapters; cross-link when captured. |
+| **bare-metal-ipi** | Same practical stance as agent for **this UI**: IPv4-only path is default. | **Not verified** to ≥95% in this pass (rely on IPI chapter + install-config validation in a future audit). | **Documented** in working doc summary: plural VIP lists with order for dual-stack. | Prefer **apiVIPs / ingressVIPs** lists; singular forms legacy/deprecated per working doc narrative. | Confirm IPv6-only IPI against full IPI chapter + installer validation. |
+| **bare-metal-upi** | N/A for shared API/Ingress VIP card (not shown for UPI in current app). | N/A | N/A | External LB / user-managed—**no install-config VIP fields** in this app’s UPI path. | — |
+
+## UI consequences (implemented intent)
+
+- **Dual-stack:** Separate IPv4 and IPv6 VIP fields when `enableIpv6` is on; **no** “comma-separate in one box” copy for bare-metal agent dual-stack.
+- **IPv6-only:** No dedicated “IPv6-only” promise in helper text; optional IPv6 fields are framed as **dual-stack**, with explicit “not verified” language where we stay conservative.
