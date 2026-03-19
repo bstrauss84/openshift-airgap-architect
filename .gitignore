@@ -73,6 +73,9 @@ docs/e2e-examples/nmstate/
 **/.turbo/
 .npm
 
+# Local test output (do not commit)
+**/tmp-test-output.txt
+
 # Local/internal scratch and exports (not for public repo)
 archive/
 thread-export-bundle/
