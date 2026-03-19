@@ -220,12 +220,10 @@ const AppShell = () => {
     return () => clearInterval(interval);
   }, [showLanding]);
 
-  const showHostInventory = useMemo(
-    () =>
-      state?.blueprint?.platform === "Bare Metal" &&
-      (state?.methodology?.method === "Agent-Based Installer" || state?.methodology?.method === "IPI"),
-    [state?.blueprint?.platform, state?.methodology?.method]
-  );
+  const showHostInventory = useMemo(() => {
+    const sid = getScenarioId(state);
+    return Boolean(sid && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(sid));
+  }, [state]);
   const hostInventoryV2Enabled = state?.ui?.hostInventoryV2 === true;
   const segmentedFlowV1 = state?.ui?.segmentedFlowV1 === true;
   const visibleSteps = useMemo(() => {

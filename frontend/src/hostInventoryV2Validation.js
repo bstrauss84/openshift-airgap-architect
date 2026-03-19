@@ -40,7 +40,7 @@ export function getCatalogValidationForInventoryV2(state, scenarioId) {
   }
 
   // Bare metal Agent: 2 control plane nodes require 1 arbiter (4.20 doc: only valid topology with 2 CP is 2 CP + arbiter).
-  if (scenarioId === "bare-metal-agent") {
+  if (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") {
     const masterCount = nodes.filter((n) => n.role === "master").length;
     const arbiterCount = nodes.filter((n) => n.role === "arbiter").length;
     if (masterCount === 2 && arbiterCount === 0) {

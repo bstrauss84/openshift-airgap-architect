@@ -2,8 +2,19 @@ import { describe, it, expect } from "vitest";
 import {
   generateNodesFromCounts,
   applyReplicateSettings,
-  emptyNode
+  emptyNode,
+  getScenarioId,
+  SCENARIO_IDS_WITH_HOST_INVENTORY
 } from "../src/hostInventoryV2Helpers.js";
+
+describe("getScenarioId / SCENARIO_IDS_WITH_HOST_INVENTORY", () => {
+  it("maps VMware vSphere + Agent-Based Installer to vsphere-agent", () => {
+    expect(getScenarioId("VMware vSphere", "Agent-Based Installer")).toBe("vsphere-agent");
+  });
+  it("includes vsphere-agent in host inventory scenarios", () => {
+    expect(SCENARIO_IDS_WITH_HOST_INVENTORY).toContain("vsphere-agent");
+  });
+});
 
 describe("generateNodesFromCounts", () => {
   it("creates correct number of control plane and worker nodes", () => {

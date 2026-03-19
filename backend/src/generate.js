@@ -1,5 +1,5 @@
 /**
- * Builds install-config.yaml and agent-config.yaml from app state. Platform blocks: bare metal (IPI/UPI), vSphere, AWS GovCloud, Azure Government, Nutanix.
+ * Builds install-config.yaml and agent-config.yaml from app state. Platform blocks: bare metal (IPI/UPI/agent), vSphere (IPI/UPI/agent), AWS GovCloud, Azure Government, Nutanix.
  * State keys follow camelCase (blueprint, globalStrategy, hostInventory, platformConfig, etc.). A2: bare-metal UPI emits platform = none for controlPlane/compute.
  */
 import yaml from "js-yaml";
@@ -252,6 +252,13 @@ const buildInstallConfig = (state) => {
     }
   }
 
+  // VMware vSphere Agent-based SNO: platform.none (4.20 Agent doc — sample install-config note 11; validation §1.11).
+  if (state.blueprint?.platform === "VMware vSphere" && state.methodology?.method === "Agent-Based Installer" && masters === 1 && workers === 0) {
+    installConfig.platform = { none: {} };
+    delete installConfig.controlPlane.platform;
+    delete installConfig.compute[0].platform;
+  }
+
   if (state.globalStrategy?.fips) {
     installConfig.fips = true;
   }
@@ -276,7 +283,7 @@ const buildInstallConfig = (state) => {
 
   // Agent-based 2 control plane + 1 arbiter (4.20 doc): controlPlane.replicas: 2, arbiter: { name: "arbiter", replicas: 1 }
   const isAgentBased = state.methodology?.method === "Agent-Based Installer";
-  if (isAgentBased && state.blueprint?.platform === "Bare Metal" && masters === 2 && arbiters === 1) {
+  if (isAgentBased && (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere") && masters === 2 && arbiters === 1) {
     installConfig.controlPlane.replicas = 2;
     installConfig.arbiter = { name: "arbiter", replicas: 1 };
   }
@@ -302,7 +309,7 @@ const buildInstallConfig = (state) => {
     }
   }
   // vSphere: Internal publish not supported (BZ#1953035). Emit External only.
-  if (state.blueprint?.platform === "VMware vSphere" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
+  if (state.blueprint?.platform === "VMware vSphere" && ["IPI", "UPI", "Agent-Based Installer"].includes(state.methodology?.method)) {
     installConfig.publish = platformConfig.publish === "Internal" ? "External" : (platformConfig.publish || "External");
   }
 
@@ -366,12 +373,21 @@ const buildInstallConfig = (state) => {
     }
   }
 
-  // vSphere (IPI and UPI): (1) legacy path: flat vcenter/datacenter/... only → vcenters + one failureDomains entry; (2) failure-domains path: only vs.failureDomains (and optional vs.vcenters). Selected path only; no mixing.
+  // vSphere (IPI, UPI, Agent-based multi-node): (1) legacy path: flat vcenter/datacenter/... only → vcenters + one failureDomains entry; (2) failure-domains path: only vs.failureDomains (and optional vs.vcenters). Selected path only; no mixing.
   // vcenters[].port: 4.20 doc default 443 (installation-config-parameters-vsphere 9.1.4); emit 443 when not specified.
-  if (state.blueprint?.platform === "VMware vSphere" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
+  // Agent-based SNO uses platform.none above; this block is skipped when masters===1 && workers===0 on vSphere Agent.
+  const isVsphereAgentMultiNode =
+    state.blueprint?.platform === "VMware vSphere" &&
+    state.methodology?.method === "Agent-Based Installer" &&
+    !(masters === 1 && workers === 0);
+  if (
+    state.blueprint?.platform === "VMware vSphere" &&
+    (state.methodology?.method === "IPI" || state.methodology?.method === "UPI" || isVsphereAgentMultiNode)
+  ) {
     const vsphere = {};
     const vs = platformConfig.vsphere || {};
     const isVsphereIpi = state.methodology?.method === "IPI";
+    const isVsphereAgent = state.methodology?.method === "Agent-Based Installer";
     const useLegacyPlacement = vs.placementMode === "legacy";
     const explicitFailureDomains = !useLegacyPlacement && Array.isArray(vs.failureDomains) && vs.failureDomains.length > 0;
     const explicitVcenters = Array.isArray(vs.vcenters) && vs.vcenters.length > 0;
@@ -499,11 +515,25 @@ const buildInstallConfig = (state) => {
     if (vs.memoryMB != null && Number.isFinite(Number(vs.memoryMB)) && Number(vs.memoryMB) > 0) {
       vsphere.memoryMB = Number(vs.memoryMB);
     }
-    if (isVsphereIpi && Array.isArray(vs.apiVIPs) && vs.apiVIPs.length > 0) {
-      vsphere.apiVIPs = vs.apiVIPs.filter((ip) => ip && String(ip).trim() !== "");
-    }
-    if (isVsphereIpi && Array.isArray(vs.ingressVIPs) && vs.ingressVIPs.length > 0) {
-      vsphere.ingressVIPs = vs.ingressVIPs.filter((ip) => ip && String(ip).trim() !== "");
+    if (isVsphereAgent) {
+      const hi = state.hostInventory || {};
+      const parseVipListVs = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const useDualStackVipsVs = Boolean(hi.enableIpv6);
+      const apiFromHi = useDualStackVipsVs
+        ? [hi.apiVip, hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean)
+        : parseVipListVs(hi.apiVip);
+      const ingressFromHi = useDualStackVipsVs
+        ? [hi.ingressVip, hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean)
+        : parseVipListVs(hi.ingressVip);
+      if (apiFromHi.length) vsphere.apiVIPs = apiFromHi;
+      if (ingressFromHi.length) vsphere.ingressVIPs = ingressFromHi;
+    } else if (isVsphereIpi) {
+      if (Array.isArray(vs.apiVIPs) && vs.apiVIPs.length > 0) {
+        vsphere.apiVIPs = vs.apiVIPs.filter((ip) => ip && String(ip).trim() !== "");
+      }
+      if (Array.isArray(vs.ingressVIPs) && vs.ingressVIPs.length > 0) {
+        vsphere.ingressVIPs = vs.ingressVIPs.filter((ip) => ip && String(ip).trim() !== "");
+      }
     }
 
     if (Object.keys(vsphere).length) {
@@ -1238,6 +1268,9 @@ const buildFieldManual = (state, docsLinks) => {
     lines.push(`vSphere scenario mapping:`);
     lines.push(`- IPI: vCenter, datacenter, cluster, datastore, network (and optional folder/resourcePool); disconnected uses mirrored content.`);
     lines.push(`- UPI: provision VMs and infrastructure yourself; follow platform-agnostic UPI and vSphere UPI docs.`);
+    if (state.methodology?.method === "Agent-Based Installer") {
+      lines.push(`- Agent-based: you provide VMs; install-config uses platform.vsphere (placement, apiVIPs/ingressVIPs for multi-node; platform none for single-node) plus agent-config for hosts/NMState; boot the agent ISO per the Agent-based Installer guide.`);
+    }
   }
   if (state.blueprint?.platform === "Nutanix") {
     lines.push(`## [HIGH SIDE] Nutanix prerequisites`);
