@@ -177,7 +177,13 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
   };
 
   if (!node.hostname) addError("hostname", "Hostname is required.");
-  if (!node.rootDevice) addWarning("rootDevice", "Root device hint is missing (by-id/by-path recommended).");
+  // Arbiter nodes in bare-metal-agent have Root device hint intentionally hidden in the drawer.
+  // The warning would be irrelevant noise for the user, so skip it role-safely.
+  const isArbiterNodeInBareMetalAgent =
+    platform === "Bare Metal" && method === "Agent-Based Installer" && node.role === "arbiter";
+  if (!node.rootDevice && !isArbiterNodeInBareMetalAgent) {
+    addWarning("rootDevice", "Root device hint is missing (by-id/by-path recommended).");
+  }
   // Bare-metal IPI: BMC address, credentials (error if includeCredentials; else warning), boot MAC required.
   if (platform === "Bare Metal" && method === "IPI") {
     if (!node.bmc?.address) addError("bmc.address", "BMC address is required for bare metal IPI.");
@@ -677,9 +683,45 @@ const validateStep = (state, stepId) => {
     const method = state.methodology?.method;
     const scenarioId = getScenarioId(platform, method);
     const catalog = getCatalogValidationForInventoryV2(state, scenarioId);
+
+    const nodes = state.hostInventory?.nodes || [];
+    const masterCount = nodes.filter((n) => n.role === "master").length;
+    const workerCount = nodes.filter((n) => n.role === "worker").length;
+    const arbiterCount = nodes.filter((n) => n.role === "arbiter").length;
+
+    // 4.20 doc-driven topology constraints for disconnected agent-based bare metal.
+    // Agent-based bare metal supports:
+    // - SNO (1 control plane, 0 workers/compute)
+    // - 2 control plane + 1 local arbiter (arbiter replicas must be exactly 1)
+    // - 3 control plane (HA) with arbiter pool absent, workers can be any number.
+    //
+    // For bare-metal IPI, this app only generates the HA 3-control-plane form correctly.
+    const topologyErrors = [];
+    if (scenarioId === "bare-metal-agent") {
+      if (masterCount === 1) {
+        if (workerCount !== 0) topologyErrors.push("SNO (1 control plane) requires 0 workers/infra nodes.");
+        if (arbiterCount !== 0) topologyErrors.push("SNO does not support arbiter nodes.");
+      } else if (masterCount === 2) {
+        if (arbiterCount !== 1) {
+          topologyErrors.push("Two control plane nodes require exactly one arbiter node for this topology.");
+        }
+      } else if (masterCount === 3) {
+        if (arbiterCount !== 0) topologyErrors.push("3 control plane nodes must not include arbiter nodes.");
+      } else {
+        topologyErrors.push("Unsupported control plane count. Supported topologies: 1 (SNO), 2 (with 1 arbiter), or 3 (HA).");
+      }
+    }
+
+    if (scenarioId === "bare-metal-ipi") {
+      if (arbiterCount !== 0) topologyErrors.push("Installer-provisioned bare metal in this app does not support arbiter nodes.");
+      if (masterCount !== 3) topologyErrors.push("Installer-provisioned bare metal in this app supports only 3 control plane nodes (HA).");
+    }
+
+    const errors = [...(base.errors || []), ...(catalog.errors || []), ...topologyErrors];
+    const warnings = [...(base.warnings || []), ...(catalog.warnings || [])];
     return {
-      errors: [...(base.errors || []), ...(catalog.errors || [])],
-      warnings: [...(base.warnings || []), ...(catalog.warnings || [])]
+      errors,
+      warnings
     };
   }
   if (stepId === "review") {

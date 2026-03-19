@@ -26,6 +26,7 @@ import {
 import { normalizeMAC, formatMACAsYouType } from "../formatUtils.js";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import { applyPlaceholderValuesToHostInventory } from "../placeholderValuesHelpers.js";
 
 const PRIMARY_TYPES = [
   { id: "ethernet", label: "Single NIC ethernet" },
@@ -196,7 +197,15 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     if (scenarioId === "bare-metal-agent" && countControlPlane === 2) {
       next = [...next, emptyNode("arbiter", 0)];
     }
-    updateInventory({ nodes: next });
+    if (state?.ui?.placeholderValuesEnabled) {
+      const nextHostInventory = applyPlaceholderValuesToHostInventory(
+        { ...inventory, nodes: next },
+        { platform: state.blueprint?.platform, method: state.methodology?.method }
+      );
+      updateInventory(nextHostInventory);
+    } else {
+      updateInventory({ nodes: next });
+    }
     setSelectedIndex(null);
   };
 
@@ -364,6 +373,14 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     updateInventory({ nodes: next });
     setShowReplicate(false);
   };
+
+  const resolvedReplicateTargetIndices = replicateTargetIndices.size
+    ? Array.from(replicateTargetIndices)
+    : selectedIndex != null
+      ? nodes.map((_, i) => i).filter((i) => i !== selectedIndex)
+      : [];
+  const resolvedReplicateTargetNodes = resolvedReplicateTargetIndices.map((i) => nodes[i]).filter(Boolean);
+  const arbiterTargetsSelected = resolvedReplicateTargetNodes.some((n) => n.role === "arbiter");
 
   const goPrev = () => {
     if (nodes.length === 0) return;
@@ -548,6 +565,11 @@ wipefs -a /dev/sdX`}</pre>
                   <CompareBadge kind={sectionCompareBadge} />
                 </div>
                 <p className="note subtle">Generate nodes from counts. You can edit each node in the grid after.</p>
+                {scenarioId === "bare-metal-agent" && countControlPlane === 1 && (
+                  <p className="note">
+                    Single-node (SNO) requires exactly 1 control plane node and 0 workers/infra nodes.
+                  </p>
+                )}
                 {scenarioId === "bare-metal-agent" && countControlPlane === 2 && (
                   <p className="note">Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically.</p>
                 )}
@@ -555,9 +577,49 @@ wipefs -a /dev/sdX`}</pre>
                   <p className="note">For bare metal IPI, these hosts populate install-config <code>platform.baremetal.hosts[]</code>. Each host needs BMC and boot MAC for provisioning.</p>
                 )}
                 <div className="field-grid">
-                  <label>Control plane <input type="number" min={1} max={9} value={countControlPlane} onChange={(e) => setCountControlPlane(Number(e.target.value) || 1)} /></label>
-                  <label>Worker <input type="number" min={0} max={99} value={countWorker} onChange={(e) => setCountWorker(Number(e.target.value) || 0)} /></label>
-                  <label>Infra (optional) <input type="number" min={0} max={99} value={countInfra} onChange={(e) => setCountInfra(Number(e.target.value) || 0)} /></label>
+                  <label>
+                    Control plane{" "}
+                    <input
+                      type="number"
+                      min={scenarioId === "bare-metal-ipi" ? 3 : 1}
+                      max={3}
+                      step={1}
+                      value={countControlPlane}
+                      onChange={(e) => {
+                        const cpMin = scenarioId === "bare-metal-ipi" ? 3 : 1;
+                        const nextRaw = Number(e.target.value);
+                        const next = Number.isFinite(nextRaw) ? nextRaw : cpMin;
+                        const clamped = Math.min(3, Math.max(cpMin, next));
+                        setCountControlPlane(clamped);
+                        if (scenarioId === "bare-metal-agent" && clamped === 1) {
+                          setCountWorker(0);
+                          setCountInfra(0);
+                        }
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Worker{" "}
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={countWorker}
+                      disabled={scenarioId === "bare-metal-agent" && countControlPlane === 1}
+                      onChange={(e) => setCountWorker(Number(e.target.value) || 0)}
+                    />
+                  </label>
+                  <label>
+                    Infra (optional){" "}
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={countInfra}
+                      disabled={scenarioId === "bare-metal-agent" && countControlPlane === 1}
+                      onChange={(e) => setCountInfra(Number(e.target.value) || 0)}
+                    />
+                  </label>
                 </div>
                 <div className="actions" style={{ marginTop: 12 }}>
                   <button type="button" className="primary" onClick={handleGenerateFromCounts}>
@@ -646,7 +708,16 @@ wipefs -a /dev/sdX`}</pre>
                     <span className="subtle">{selectedIndex + 1} / {nodes.length}</span>
                     <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1}>Next →</button>
                   </div>
-                  <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
+                  {selectedNode.role !== "arbiter" ? (
+                    <button
+                      type="button"
+                      className="ghost"
+                      style={{ marginBottom: 8 }}
+                      onClick={() => setShowReplicate(true)}
+                    >
+                      Apply settings to other nodes…
+                    </button>
+                  ) : null}
                   {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
                     <details className="host-inventory-v2-validation-summary host-inventory-v2-validation-details">
                       <summary className="host-inventory-v2-validation-summary-summary">
@@ -1130,6 +1201,7 @@ wipefs -a /dev/sdX`}</pre>
                   <label key={opt.key} className="toggle-row">
                     <input
                       type="checkbox"
+                      disabled={arbiterTargetsSelected && (opt.key === "rootDevice" || opt.key === "primary.advanced")}
                       checked={replicateSelectedFields.has(opt.key)}
                       onChange={(e) => setReplicateSelectedFields((prev) => { const next = new Set(prev); if (e.target.checked) next.add(opt.key); else next.delete(opt.key); return next; })}
                     />

@@ -289,7 +289,8 @@ const buildInstallConfig = (state) => {
     };
   }
 
-  if (Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
+  // Only emit mirror mapping into install-config when mirror registry is actually in use.
+  if (useMirrorPath && Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
     installConfig.imageDigestSources = imageDigestSources;
   }
 
@@ -1061,7 +1062,15 @@ const buildFieldManual = (state, docsLinks) => {
         ? "Registry CA only"
         : "Proxy CA only"
     : "None";
-  const mirrorRegistry = state.globalStrategy?.mirroring?.registryFqdn || "unknown";
+  const creds = state.credentials || {};
+  const pullSecretPlaceholder = creds.pullSecretPlaceholder || "";
+  const mirrorRegistryPullSecret = creds.mirrorRegistryPullSecret || "";
+  const redHatHasContent = pullSecretPlaceholder.trim() && pullSecretPlaceholder.trim() !== "{\"auths\":{}}";
+  const mirrorHasContent = mirrorRegistryPullSecret.trim() && mirrorRegistryPullSecret.trim() !== "{\"auths\":{}}";
+  // Match backend gating for when mirror mapping is actually in use.
+  const useMirrorPathForManual = Boolean(creds.usingMirrorRegistry) || (!redHatHasContent && mirrorHasContent);
+
+  const mirrorRegistry = useMirrorPathForManual ? (state.globalStrategy?.mirroring?.registryFqdn || "unknown") : null;
   const mirrorPrivate = state.trust?.mirrorRegistryUsesPrivateCa ? "Yes" : "No";
   const proxyEnabled = state.globalStrategy?.proxyEnabled ? "Enabled" : "Disabled";
   const ntpServers = normalizeNtpServers(state.globalStrategy?.ntpServers);
@@ -1098,7 +1107,11 @@ const buildFieldManual = (state, docsLinks) => {
     lines.push(`- HTTPS proxy: ${state.globalStrategy?.proxies?.httpsProxy || "not set"}`);
     lines.push(`- No proxy: ${state.globalStrategy?.proxies?.noProxy || "not set"}`);
   }
-  lines.push(`- Mirror registry: ${mirrorRegistry} (private CA: ${mirrorPrivate})`);
+  lines.push(
+    useMirrorPathForManual
+      ? `- Mirror registry: ${mirrorRegistry} (private CA: ${mirrorPrivate})`
+      : `- Mirror registry: not used`
+  );
   lines.push(`- Trust bundle configured: ${trustStatus}`);
   lines.push(`- NTP servers: ${ntpServers.length ? ntpServers.join(", ") : "Not configured"}`);
   lines.push(`- Chosen catalogs: ${catalogs.length ? catalogs.join(", ") : "None"}`);
@@ -1176,17 +1189,23 @@ const buildFieldManual = (state, docsLinks) => {
     lines.push(`2. Verify checksums on the high side.`);
     lines.push(``);
   }
-  lines.push(`## [HIGH SIDE] Mirror registry`);
-  lines.push(`1. Install and run a local registry (mirror-registry or your approved registry procedure).`);
-  lines.push(`2. Ensure the registry DNS name matches: ${mirrorRegistry}`);
-  lines.push(`3. Ensure registry credentials are available to oc-mirror on the high side.`);
-  lines.push(``);
-  lines.push(`## [HIGH SIDE] oc-mirror v2 workflow`);
-  lines.push(`1. Push mirrored content into the registry (disk-to-mirror):`);
-  lines.push(`   - oc-mirror --config ${imageSetName} --from ${outputPath} docker://${mirrorRegistry} --v2`);
-  lines.push(`2. Apply the generated cluster-resources manifests after install:`);
-  lines.push(`   - oc apply -f ${outputPath}/working-dir/cluster-resources`);
-  lines.push(``);
+  if (useMirrorPathForManual) {
+    lines.push(`## [HIGH SIDE] Mirror registry`);
+    lines.push(`1. Install and run a local registry (mirror-registry or your approved registry procedure).`);
+    lines.push(`2. Ensure the registry DNS name matches: ${mirrorRegistry}`);
+    lines.push(`3. Ensure registry credentials are available to oc-mirror on the high side.`);
+    lines.push(``);
+    lines.push(`## [HIGH SIDE] oc-mirror v2 workflow`);
+    lines.push(`1. Push mirrored content into the registry (disk-to-mirror):`);
+    lines.push(`   - oc-mirror --config ${imageSetName} --from ${outputPath} docker://${mirrorRegistry} --v2`);
+    lines.push(`2. Apply the generated cluster-resources manifests after install:`);
+    lines.push(`   - oc apply -f ${outputPath}/working-dir/cluster-resources`);
+    lines.push(``);
+  } else {
+    lines.push(`## [HIGH SIDE] Mirror registry`);
+    lines.push(`Mirror registry is not used for this run (mirroring configuration is omitted).`);
+    lines.push(``);
+  }
   lines.push(`## [HIGH SIDE] Trust and certificates`);
   if (trustBundle) {
     lines.push(`1. Install the trust bundle on all hosts that access the registry/proxy:`);

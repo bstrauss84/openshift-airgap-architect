@@ -6,7 +6,7 @@
 
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import { getScenarioId } from "../src/hostInventoryV2Helpers.js";
 import { validateStep } from "../src/validation.js";
 import { AppContext } from "../src/store.jsx";
@@ -84,7 +84,7 @@ describe("Phase 4.3: enum field renders as select when allowed list present", ()
       loading: false,
       startOver: vi.fn()
     };
-    render(
+    const { container } = render(
       <AppContext.Provider value={value}>
         <HostInventoryV2Step />
       </AppContext.Provider>
@@ -114,6 +114,54 @@ describe("Phase 4.3: enum field renders as select when allowed list present", ()
     expect(masters).toHaveLength(2);
     expect(arbiters).toHaveLength(1);
     expect(arbiters[0].hostname).toBe("arbiter-0");
+  });
+
+  it("arbiter drawer: hides Apply-settings button and skips Root device hint validation warning", async () => {
+    const updateState = vi.fn();
+    const arbiterNode = {
+      role: "arbiter",
+      hostname: "arbiter-0",
+      rootDevice: "",
+      dnsServers: "",
+      dnsSearch: "",
+      bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+      primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth1", macAddress: "52:54:00:aa:11:01" }, bond: {}, vlan: {}, advanced: {} }
+    };
+
+    const masterNode = {
+      ...arbiterNode,
+      role: "master",
+      hostname: "master-0",
+      primary: { ...arbiterNode.primary, ethernet: { ...arbiterNode.primary.ethernet, macAddress: "52:54:00:aa:11:02" } }
+    };
+
+    const value = {
+      state: {
+        ...baseState,
+        hostInventory: {
+          ...baseState.hostInventory,
+          nodes: [masterNode, arbiterNode]
+        }
+      },
+      updateState,
+      loading: false,
+      startOver: vi.fn()
+    };
+
+    const { container } = render(
+      <AppContext.Provider value={value}>
+        <HostInventoryV2Step />
+      </AppContext.Provider>
+    );
+
+    const arbiterTile = screen.getByText(/arbiter-0/i);
+    fireEvent.click(arbiterTile);
+
+    // Apply settings button should not exist for arbiter nodes.
+    expect(within(container).queryByRole("button", { name: /Apply settings to other nodes/i })).toBeNull();
+
+    // Root device hint warning should be skipped for arbiter targets.
+    expect(within(container).queryByText(/Root device hint is missing/i)).toBeNull();
   });
 });
 

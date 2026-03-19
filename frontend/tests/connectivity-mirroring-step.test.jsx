@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import React, { useState } from "react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import App from "../src/App.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
 import { validateStep } from "../src/validation.js";
 import { getScenarioId, getParamMeta } from "../src/catalogResolver.js";
+import ConnectivityMirroringStep from "../src/steps/ConnectivityMirroringStep.jsx";
+import { AppContext } from "../src/store.jsx";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
@@ -14,6 +17,9 @@ function stateWithSegmentedFlow(segmentedFlowV1) {
     ...base,
     credentials: {
       pullSecretPlaceholder: '{"auths":{"quay.io":{}}}',
+      usingMirrorRegistry: true,
+      mirrorRegistryPullSecret: '{"auths":{"mirror.corp.local:5000":{}}}',
+      mirrorRegistryUnauthenticated: false,
       sshPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test"
     },
     ui: { ...base.ui, segmentedFlowV1 }
@@ -50,6 +56,16 @@ function stateForConnectivityMirroringStep(overrides = {}) {
     },
     ...overrides
   };
+}
+
+function StatefulAppContext({ initialState, children }) {
+  const [state, setState] = useState(initialState);
+  const updateState = (patch) => setState((prev) => ({ ...prev, ...patch }));
+  return (
+    <AppContext.Provider value={{ state, updateState, setState, loading: false, startOver: vi.fn() }}>
+      {children}
+    </AppContext.Provider>
+  );
 }
 
 describe("Connectivity & Mirroring replacement step (Phase 5 Prompt H)", () => {
@@ -89,6 +105,89 @@ describe("Connectivity & Mirroring replacement step (Phase 5 Prompt H)", () => {
     expect(screen.getByRole("heading", { name: /Time & NTP/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/registry\.corp\.local:5000/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/time\.corp\.local/)).toBeInTheDocument();
+  });
+
+  it("hides Mirroring Configuration when mirror registry is not in use", async () => {
+    const base = stateForConnectivityMirroringStep();
+    const state = {
+      ...base,
+      credentials: {
+        ...base.credentials,
+        usingMirrorRegistry: false,
+        mirrorRegistryPullSecret: "",
+        mirrorRegistryUnauthenticated: false,
+        // Ensure we still treat the pull secret placeholder as present (connected path)
+        pullSecretPlaceholder: '{"auths":{"quay.io":{}}}'
+      }
+    };
+
+    const { container } = render(
+      <StatefulAppContext initialState={state}>
+        <ConnectivityMirroringStep />
+      </StatefulAppContext>
+    );
+
+    expect(within(container).queryByRole("heading", { name: /Mirroring Configuration/i })).toBeNull();
+    expect(within(container).getByRole("heading", { name: /Time & NTP/i })).toBeInTheDocument();
+  });
+
+  it("auto-derives Local Registry FQDN from unambiguous mirror pull secret", async () => {
+    const state = stateForConnectivityMirroringStep({
+      credentials: {
+        ...stateForConnectivityMirroringStep().credentials,
+        usingMirrorRegistry: true,
+        // single registry auth entry
+        mirrorRegistryPullSecret: '{"auths":{"mirror.corp.local:5001":{}}}',
+        mirrorRegistryUnauthenticated: false
+      },
+      globalStrategy: {
+        ...stateForConnectivityMirroringStep().globalStrategy,
+        mirroring: {
+          ...stateForConnectivityMirroringStep().globalStrategy.mirroring,
+          registryFqdn: "registry.local:5000"
+        }
+      }
+    });
+
+    const { container } = render(
+      <StatefulAppContext initialState={state}>
+        <ConnectivityMirroringStep />
+      </StatefulAppContext>
+    );
+
+    // Wait for effect hydration.
+    await waitFor(() => {
+      expect(within(container).getByRole("textbox", { name: /Local Registry FQDN/i })).toHaveValue("mirror.corp.local:5001");
+    });
+  });
+
+  it("does not silently derive Local Registry FQDN when mirror pull secret contains multiple auth entries", async () => {
+    const state = stateForConnectivityMirroringStep({
+      credentials: {
+        ...stateForConnectivityMirroringStep().credentials,
+        usingMirrorRegistry: true,
+        mirrorRegistryPullSecret: '{"auths":{"a.corp.local:5000":{},"b.corp.local:5000":{}}}',
+        mirrorRegistryUnauthenticated: false
+      },
+      globalStrategy: {
+        ...stateForConnectivityMirroringStep().globalStrategy,
+        mirroring: {
+          ...stateForConnectivityMirroringStep().globalStrategy.mirroring,
+          registryFqdn: "registry.local:5000"
+        }
+      }
+    });
+
+    const { container } = render(
+      <StatefulAppContext initialState={state}>
+        <ConnectivityMirroringStep />
+      </StatefulAppContext>
+    );
+
+    await waitFor(() => {
+      expect(within(container).getByRole("textbox", { name: /Local Registry FQDN/i })).toHaveValue("registry.local:5000");
+      expect(within(container).getByText(/contains multiple registries/i)).toBeInTheDocument();
+    });
   });
 
   it("when scenario is bare-metal-agent, getScenarioId and getParamMeta return expected mirroring/NTP meta", () => {
