@@ -1556,23 +1556,17 @@ if (process.env.NODE_ENV !== "test") {
   });
   const shutdown = (signal) => {
     console.log(`Received ${signal}, shutting down...`);
-    // Kill any active child processes (oc-mirror runs, scan jobs) — their I/O streams
-    // hold open event loop references that prevent a clean exit.
+    // Kill any active child processes (oc-mirror runs, scan jobs).
     for (const [, child] of activeProcesses.entries()) {
       try { child.kill("SIGTERM"); } catch {}
     }
     activeProcesses.clear();
-    // Force-close all open HTTP connections (keep-alive, SSE streams).
-    // Without this, server.close() waits indefinitely for them to drain.
-    // closeAllConnections() is available in Node.js >= 18.2 (this app uses Node 20).
-    if (typeof server.closeAllConnections === "function") {
-      server.closeAllConnections();
-    }
-    server.close(() => {
-      process.exit(0);
-    });
-    // Safety net: force exit after 1 s if something still hangs.
-    setTimeout(() => process.exit(1), 1000).unref();
+    // Exit immediately. Waiting on server.close() hangs because Node's built-in
+    // fetch() uses undici connection pools with ref'd TCP sockets for outgoing
+    // requests (Cincinnati API, GitHub) that outlive the express server itself —
+    // server.close() never calls back. SQLite (better-sqlite3) flushes
+    // synchronously via process.on('exit') so there is no data-loss risk.
+    process.exit(0);
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
