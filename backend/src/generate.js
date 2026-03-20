@@ -559,20 +559,31 @@ const buildInstallConfig = (state) => {
   }
 
   if (state.blueprint?.platform === "Nutanix" && state.methodology?.method === "IPI") {
+    const nx = platformConfig.nutanix || {};
     const nutanix = {};
-    if (platformConfig.nutanix?.endpoint) {
+    const endpointAddr = (nx.endpoint || "").trim();
+    if (endpointAddr) {
+      const portNum = Number(nx.port != null && nx.port !== "" ? nx.port : 9440);
       nutanix.prismCentral = {
-        endpoint: platformConfig.nutanix.endpoint,
-        port: Number(platformConfig.nutanix.port || 9440),
-        username: includeCredentials ? platformConfig.nutanix.username || "" : "",
-        password: includeCredentials ? platformConfig.nutanix.password || "" : ""
+        endpoint: {
+          address: endpointAddr,
+          port: Number.isFinite(portNum) ? portNum : 9440
+        },
+        username: includeCredentials ? nx.username || "" : "",
+        password: includeCredentials ? nx.password || "" : ""
       };
     }
-    if (platformConfig.nutanix?.subnet) {
-      nutanix.subnetUUIDs = [platformConfig.nutanix.subnet];
+    if (nx.subnet?.trim()) {
+      nutanix.subnetUUIDs = [nx.subnet.trim()];
     }
-    if (platformConfig.nutanix?.cluster) {
-      nutanix.clusterName = platformConfig.nutanix.cluster;
+    if (nx.cluster?.trim()) {
+      nutanix.clusterName = nx.cluster.trim();
+    }
+    if ((nx.apiVIP || "").trim()) {
+      nutanix.apiVIP = nx.apiVIP.trim();
+    }
+    if ((nx.ingressVIP || "").trim()) {
+      nutanix.ingressVIP = nx.ingressVIP.trim();
     }
     if (Object.keys(nutanix).length) {
       installConfig.platform.nutanix = nutanix;

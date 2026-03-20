@@ -49,6 +49,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     updateState({ hostInventory: { ...hostInventory, ...patch } });
   const updateVsphere = (patch) =>
     updateState({ platformConfig: { ...platformConfig, vsphere: { ...platformConfig.vsphere, ...patch } } });
+  const updateNutanix = (patch) =>
+    updateState({ platformConfig: { ...platformConfig, nutanix: { ...platformConfig.nutanix, ...patch } } });
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
@@ -65,6 +67,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG);
   const metaApiVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG);
   const metaIngressVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG);
+  const metaNutanixApiVIP = getParamMeta(scenarioId, "platform.nutanix.apiVIP", INSTALL_CONFIG);
+  const metaNutanixIngressVIP = getParamMeta(scenarioId, "platform.nutanix.ingressVIP", INSTALL_CONFIG);
 
   const overlapMessages = [];
   if (cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)) {
@@ -104,7 +108,10 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const showVsphereAgentVips = catalogParams.some(
     (p) => p.path === "platform.vsphere.apiVIPs" && p.outputFile === INSTALL_CONFIG
   );
-  const showApiIngressVips = showBareMetalVips || showVsphereIpiVips || showVsphereAgentVips;
+  const showNutanixIpiVips = catalogParams.some(
+    (p) => p.path === "platform.nutanix.apiVIP" && p.outputFile === INSTALL_CONFIG
+  );
+  const showApiIngressVips = showBareMetalVips || showVsphereIpiVips || showVsphereAgentVips || showNutanixIpiVips;
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
@@ -348,16 +355,22 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               <div>
                 <h3 className="card-title">API and Ingress VIPs</h3>
                 <p className="card-subtitle">
-                  {showVsphereIpiVips
-                    ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer."
-                    : showVsphereAgentVips
-                      ? "Virtual IPs for API and ingress (vSphere Agent-based). Required for multi-node when platform is vSphere; omitted when single-node (platform none). Same fields as bare metal agent—written to platform.vsphere.apiVIPs / ingressVIPs in install-config."
-                      : "Virtual IPs for API and ingress traffic (bare metal)."}
+                  {showNutanixIpiVips
+                    ? "Virtual IPs for API and ingress (Nutanix IPI). Emitted as platform.nutanix.apiVIP and platform.nutanix.ingressVIP in install-config; must be reachable on the machine network."
+                    : showVsphereIpiVips
+                      ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer."
+                      : showVsphereAgentVips
+                        ? "Virtual IPs for API and ingress (vSphere Agent-based). Required for multi-node when platform is vSphere; omitted when single-node (platform none). Same fields as bare metal agent—written to platform.vsphere.apiVIPs / ingressVIPs in install-config."
+                        : "Virtual IPs for API and ingress traffic (bare metal)."}
                 </p>
               </div>
             </div>
             <div className="card-body">
-              {showVsphereIpiVips ? (
+              {showNutanixIpiVips ? (
+                <p className="note">
+                  OpenShift 4.20 Nutanix IPI requires apiVIP and ingressVIP on the machine network segment. Use IPv4 or IPv6 to match your machine network configuration.
+                </p>
+              ) : showVsphereIpiVips ? (
                 <p className="note">Leave blank if you use an external load balancer.</p>
               ) : showVsphereAgentVips ? (
                 <p className="note">
@@ -377,7 +390,34 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
               )}
               <div className="field-grid">
-                {showVsphereIpiVips ? (
+                {showNutanixIpiVips ? (
+                  <>
+                    <FieldLabelWithInfo
+                      label="API VIP"
+                      hint={metaNutanixApiVIP?.description || "platform.nutanix.apiVIP"}
+                      required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
+                    >
+                      <input
+                        className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
+                        value={platformConfig.nutanix?.apiVIP || ""}
+                        onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                        placeholder="e.g. 10.0.0.5"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Ingress VIP"
+                      hint={metaNutanixIngressVIP?.description || "platform.nutanix.ingressVIP"}
+                      required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
+                    >
+                      <input
+                        className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
+                        value={platformConfig.nutanix?.ingressVIP || ""}
+                        onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                        placeholder="e.g. 10.0.0.6"
+                      />
+                    </FieldLabelWithInfo>
+                  </>
+                ) : showVsphereIpiVips ? (
                   <>
                     <FieldLabelWithInfo
                       label="API VIPs (comma-separated)"

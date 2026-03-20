@@ -931,26 +931,94 @@
       ]
     },
     {
-      "path": "platform.nutanix.prismCentral.endpoint",
+      "path": "platform.nutanix.prismCentral.endpoint.address",
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "Prism Central FQDN or IP address.",
+      "description": "Prism Central FQDN or IP address (install-config platform.nutanix.prismCentral.endpoint.address).",
       "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        },
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
     },
     {
-      "path": "platform.nutanix.prismCentral.port",
+      "path": "platform.nutanix.prismCentral.endpoint.port",
       "outputFile": "install-config.yaml",
       "type": "int",
       "allowed": "not specified in docs",
       "default": 9440,
       "required": false,
-      "description": "Prism Central API port. Default 9440.",
+      "description": "Prism Central API port under prismCentral.endpoint (default 9440).",
       "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.apiVIP",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 per machine network",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Virtual IP for the Kubernetes API; must be on the machine network (OpenShift 4.20 Nutanix IPI install-config).",
+      "applies_to": ["nutanix-ipi"],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        },
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.ingressVIP",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 per machine network",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Virtual IP for the default Ingress controller; must be on the machine network.",
+      "applies_to": ["nutanix-ipi"],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        },
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
     },
     {
       "path": "platform.nutanix.prismCentral.username",

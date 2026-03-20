@@ -121,8 +121,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
     (p) => (p.path === "platform.nutanix.prismCentral" || p.path === "platform.nutanix.subnet") && p.outputFile === INSTALL_CONFIG
   );
   const updateNutanix = (patch) => updatePlatformConfig({ nutanix: { ...(platformConfig.nutanix || {}), ...patch } });
-  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint", INSTALL_CONFIG);
-  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.port", INSTALL_CONFIG);
+  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.address", INSTALL_CONFIG);
+  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.port", INSTALL_CONFIG);
   const metaNutanixUsername = getParamMeta(scenarioId, "platform.nutanix.prismCentral.username", INSTALL_CONFIG);
   const metaNutanixPassword = getParamMeta(scenarioId, "platform.nutanix.prismCentral.password", INSTALL_CONFIG);
   const metaNutanixSubnet = getParamMeta(scenarioId, "platform.nutanix.subnet", INSTALL_CONFIG);
@@ -676,7 +676,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Prism Central endpoint"
                   hint={metaNutanixEndpoint?.description}
-                  required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint")}
+                  required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint.address")}
                 >
                   <input
                     value={platformConfig.nutanix?.endpoint || ""}

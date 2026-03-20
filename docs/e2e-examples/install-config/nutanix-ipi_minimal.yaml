@@ -1,5 +1,5 @@
-# Synthetic from params — no full-file example in 4.20 docs for Nutanix IPI.
-# Structure from data/params/4.20/nutanix-ipi.json and docs-index installing-nutanix-ipi.
+# Synthetic — align with OpenShift 4.20 Nutanix IPI install-config (prismCentral.endpoint.*, apiVIP, ingressVIP).
+# Docs: installing_on_nutanix + installation-config-parameters-nutanix.
 # Sources: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/
 apiVersion: v1
 baseDomain: example.com
@@ -24,9 +24,12 @@ networking:
     - 172.30.0.0/16
 platform:
   nutanix:
+    apiVIP: 10.90.0.10
+    ingressVIP: 10.90.0.11
     prismCentral:
-      endpoint: prism-central.example.com
-      port: 9440
+      endpoint:
+        address: prism-central.example.com
+        port: 9440
       username: ''
       password: ''
     subnetUUIDs:

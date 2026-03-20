@@ -762,14 +762,15 @@
       "outputFile": "install-config.yaml",
       "type": "int",
       "allowed": [
+        1,
+        2,
         3,
         4,
-        5,
-        1
+        5
       ],
       "default": "not specified in docs",
       "required": false,
-      "description": "Number of control plane machines. 3, 4, 5, or 1 for single-node.",
+      "description": "Number of control plane machines. 1 for single-node only; 2 with one arbiter; or 3, 4, or 5 (OpenShift 4.20 Agent-based install-config).",
       "applies_to": [
         "vsphere-agent"
       ],

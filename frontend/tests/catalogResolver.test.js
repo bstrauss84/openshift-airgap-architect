@@ -104,6 +104,11 @@ describe("catalogResolver: getCatalogForScenario", () => {
     expect(Array.isArray(params)).toBe(true);
     expect(params.length).toBeGreaterThan(0);
     expect(params.some((p) => p.path === "platform.nutanix.prismCentral" && p.outputFile === "install-config.yaml")).toBe(true);
+    expect(params.some((p) => p.path === "platform.nutanix.prismCentral.endpoint.address" && p.outputFile === "install-config.yaml")).toBe(
+      true
+    );
+    expect(params.some((p) => p.path === "platform.nutanix.apiVIP" && p.outputFile === "install-config.yaml")).toBe(true);
+    expect(params.some((p) => p.path === "platform.nutanix.ingressVIP" && p.outputFile === "install-config.yaml")).toBe(true);
     expect(params.some((p) => p.path === "platform.nutanix.subnet" && p.outputFile === "install-config.yaml")).toBe(true);
   });
 

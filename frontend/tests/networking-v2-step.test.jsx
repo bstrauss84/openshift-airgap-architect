@@ -304,4 +304,31 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     expect(screen.getAllByPlaceholderText("10.128.0.0/14").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByPlaceholderText("172.30.0.0/16").length).toBeGreaterThanOrEqual(1);
   });
+
+  it("when scenario is nutanix-ipi, Networking shows Nutanix API and Ingress VIP fields", () => {
+    const base = stateForNetworkingStep({
+      blueprint: {
+        ...stateWithBlueprintCompleteMethodologyIncomplete().blueprint,
+        platform: "Nutanix"
+      },
+      methodology: { method: "IPI" },
+      globalStrategy: {
+        networking: {
+          machineNetworkV4: "10.90.0.0/24",
+          clusterNetworkCidr: "10.128.0.0/14",
+          serviceNetworkCidr: "172.30.0.0/16",
+          networkType: "OVNKubernetes"
+        }
+      }
+    });
+    expect(getScenarioId(base)).toBe("nutanix-ipi");
+    render(
+      <AppContext.Provider value={{ state: base, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+    expect(screen.getAllByText(/Nutanix IPI/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByPlaceholderText("e.g. 10.0.0.5")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. 10.0.0.6")).toBeInTheDocument();
+  });
 });

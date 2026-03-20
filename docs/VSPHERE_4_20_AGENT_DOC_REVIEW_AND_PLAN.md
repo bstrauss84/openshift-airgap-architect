@@ -1,6 +1,6 @@
 # VMware vSphere + OpenShift 4.20 + Agent-Based Installer — doc review, scenario truth, and implementation
 
-**Status:** **Not “fully closed” as a doc-truth claim** — implementation for `vsphere-agent` is aligned for the items below; explicit caveats remain where the 4.20 Agent guide is terse or internally inconsistent (see **Pass: final targeted cleanup**).  
+**Status:** **Topology / node-count / arbiter / SNO inventory enforcement is closed** for `vsphere-agent` (shared with `bare-metal-agent` where the same install-config rules apply). **Not “fully closed” as a blanket doc-truth claim** — VIP §1.11 vs user-managed LB, §1.11 host `role` bullet vs arbiter chapters, and empty-inventory VIP gating remain explicitly caveated below.  
 **Date:** 2026-03-19 (updated same day — dual-stack + arbiter + doc-tightening pass)  
 **Do not treat as substitute for reading Red Hat docs before production installs.**
 
@@ -53,6 +53,17 @@ Sources used (fetched/read in this pass):
 - **IPv6-only end-to-end:** Listed as a style; **not** every subsection was re-proven for IPv6-only in this pass.
 
 **Topology (doc-proven for Agent installer):** Control plane replicas **3, 4, 5, or 1** (SNO) per install-config parameter table; **2 masters + 1 arbiter** pattern is aligned with existing bare-metal-agent handling and extended to vSphere Agent in the generator.
+
+### Final topology enforcement (2026-03-19 closeout)
+
+| Item | Implementation |
+|------|------------------|
+| Full CP count rules | `getAgentBasedTopologyErrors()` in `hostInventoryV2Helpers.js`: CP ∈ {1,2,3,4,5}; **SNO** = 1 CP, 0 workers (infra counts as worker role), 0 arbiters; **2 CP** ⇒ exactly 1 arbiter; arbiters only with 2 CP; invalid CP count surfaced as error. |
+| Validation wiring | `hostInventoryV2Validation.js` calls it for **`bare-metal-agent`** and **`vsphere-agent`** (shared Agent install-config truth). |
+| Node counts UI | `HostInventoryV2Step.jsx`: Agent scenarios **max 5** control plane; **SNO** disables worker/infra inputs and auto-zeros counts via `useEffect`; notes for 2 CP + arbiter and SNO. |
+| VIP / networking | Unchanged from prior pass: multi-node VIP requirement via catalog + `validation.js` networking-v2; SNO when **1 master and 0 workers** in inventory (empty inventory still treated as multi-node for VIP gating — pre-existing conservative behavior). |
+
+**Closed for current scope?** **Yes for topology / node-count / arbiter / SNO worker prohibition** in Host Inventory v2 + validation + generate path, with the same **§1.11 vs LB** and **empty inventory VIP** caveats as above.
 
 ---
 
@@ -189,7 +200,8 @@ None **required** for declared scope. Optional follow-ups:
 
 - [ ] Select VMware vSphere → Agent-Based → confirm six segmented steps and **Hosts / Inventory** visible.  
 - [ ] Multi-node: set Networking VIPs, Platform vSphere placement, three masters → preview **install-config** shows `platform.vsphere` with `apiVIPs`/`ingressVIPs` and **agent-config** with hosts.  
-- [ ] SNO: one master, zero workers → **platform.none**, no VIP requirement.  
+- [ ] SNO: one master, zero workers/infra → **platform.none**, no VIP requirement; UI prevents non-zero worker/infra from counts.  
+- [ ] Invalid: 1 CP + workers, 2 CP + 0 arbiter, 3 CP + arbiter, or CP &gt; 5 → validation errors on Hosts / Inventory.  
 - [ ] Dual-stack: enable IPv6, set machine v6 + VIP v6 fields → YAML order IPv4 then IPv6.  
 - [ ] Export bundle includes **agent-config.yaml** when Agent-Based + vSphere.
 
