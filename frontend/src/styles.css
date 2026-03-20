@@ -839,6 +839,13 @@ body[data-theme="dark"] .sticky-panel {
   min-width: 0;
 }
 
+/* Normalize label height in field-grid so inputs align even when labels wrap differently. */
+.field-grid .field-with-info-row > span.field-title-line {
+  min-height: 2.5rem;
+  display: flex;
+  align-items: flex-start;
+}
+
 .proxy-fields-grid {
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem 1.25rem;

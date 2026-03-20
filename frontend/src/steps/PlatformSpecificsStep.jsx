@@ -42,6 +42,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const [awsRegions, setAwsRegions] = useState([]);
   const [amiLookup, setAmiLookup] = useState({ loading: false, error: "", key: "" });
   const [showVspherePassword, setShowVspherePassword] = useState(false);
+  const [showNutanixPassword, setShowNutanixPassword] = useState(false);
 
   const showAwsAmiLookup =
     showAwsGovcloudSection &&
@@ -693,6 +694,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     value={platformConfig.nutanix?.port ?? ""}
                     onChange={(e) => updateNutanix({ port: e.target.value || undefined })}
                     placeholder="9440"
+                    style={{ maxWidth: 120 }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -705,25 +707,44 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     placeholder="admin"
                   />
                 </FieldLabelWithInfo>
-                <label>
-                  <span>Prism Central password <span className="subtle">(optional; emitted when including credentials)</span></span>
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={platformConfig.nutanix?.password || ""}
-                    onChange={(e) => updateNutanix({ password: e.target.value })}
-                    placeholder="••••••••"
-                  />
-                </label>
                 <FieldLabelWithInfo
-                  label="Subnet UUID or name"
-                  hint={metaNutanixSubnet?.description}
+                  label="Prism Central password (optional; emitted when including credentials)"
+                  hint={metaNutanixPassword?.description || "Included in install-config only when you choose to include credentials in export. Do not save in browser."}
+                >
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      type={showNutanixPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      data-form-type="other"
+                      data-lpignore="true"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      value={platformConfig.nutanix?.password || ""}
+                      onChange={(e) => updateNutanix({ password: e.target.value })}
+                      placeholder="••••••••"
+                      style={{ flex: "1 1 auto", minWidth: 0 }}
+                    />
+                    <button
+                      type="button"
+                      className="ghost"
+                      style={{ padding: "2px 8px", fontSize: "0.75rem", flexShrink: 0 }}
+                      onClick={() => setShowNutanixPassword((s) => !s)}
+                      aria-label={showNutanixPassword ? "Hide password" : "Show password"}
+                    >
+                      {showNutanixPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Subnet UUID(s) or name(s)"
+                  hint={`${metaNutanixSubnet?.description || "Subnet UUID or name for the cluster network."} Comma-separate multiple values for multi-subnet environments.`}
                   required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
                 >
                   <input
                     value={platformConfig.nutanix?.subnet || ""}
                     onChange={(e) => updateNutanix({ subnet: e.target.value })}
-                    placeholder="Subnet UUID or name"
+                    placeholder="subnet-uuid or uuid1,uuid2"
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -734,6 +755,16 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     value={platformConfig.nutanix?.cluster || ""}
                     onChange={(e) => updateNutanix({ cluster: e.target.value })}
                     placeholder="Optional cluster name"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Storage container (optional)"
+                  hint="Nutanix storage container for the cluster's volumes. Leave blank to use the default storage container."
+                >
+                  <input
+                    value={platformConfig.nutanix?.storageContainer || ""}
+                    onChange={(e) => updateNutanix({ storageContainer: e.target.value })}
+                    placeholder="Optional storage container name"
                   />
                 </FieldLabelWithInfo>
                 <h4 className="platform-specifics-subsection" style={{ marginTop: 16 }}>

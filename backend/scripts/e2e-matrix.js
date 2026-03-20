@@ -29,6 +29,7 @@ const SCENARIOS = [
   { id: "aws-govcloud-ipi", platform: "AWS GovCloud", method: "IPI", agentConfig: false },
   { id: "aws-govcloud-upi", platform: "AWS GovCloud", method: "UPI", agentConfig: false },
   { id: "azure-government-ipi", platform: "Azure Government", method: "IPI", agentConfig: false },
+  { id: "azure-government-upi", platform: "Azure Government", method: "UPI", agentConfig: false },
   { id: "nutanix-ipi", platform: "Nutanix", method: "IPI", agentConfig: false }
 ];
 
@@ -38,7 +39,7 @@ const PATH_APPLIES = {
   "with-fips": () => true,
   "with-proxy": () => true,
   "dual-stack": () => true,
-  "node-counts": (sid) => ["bare-metal-agent", "bare-metal-ipi"].includes(sid),
+  "node-counts": (sid) => ["bare-metal-agent", "bare-metal-ipi", "vsphere-agent"].includes(sid),
   "aws-with-instance-types": (sid) => sid === "aws-govcloud-ipi",
   "vsphere-failure-domains": (sid) => ["vsphere-ipi", "vsphere-upi", "vsphere-agent"].includes(sid),
   "bare-metal-provisioning": (sid) => sid === "bare-metal-ipi",
@@ -224,6 +225,13 @@ function scenarioOverrides(scenarioId) {
       blueprint: { platform: "AWS GovCloud", baseDomain: "example.com", clusterName: "airgap-cluster" },
       methodology: { method: "UPI" },
       platformConfig: { aws: { region: "us-gov-west-1" } }
+    },
+    "azure-government-upi": {
+      blueprint: { platform: "Azure Government", baseDomain: "example.com", clusterName: "airgap-cluster" },
+      methodology: { method: "UPI" },
+      platformConfig: {
+        azure: { cloudName: "AzureUSGovernmentCloud", region: "usgovvirginia", baseDomainResourceGroupName: "dns-rg" }
+      }
     },
     "azure-government-ipi": {
       blueprint: { platform: "Azure Government", baseDomain: "example.com", clusterName: "airgap-cluster" },
@@ -455,6 +463,7 @@ function validateInstallConfig(obj, scenarioId) {
       "aws-govcloud-ipi": "aws",
       "aws-govcloud-upi": "aws",
       "azure-government-ipi": "azure",
+      "azure-government-upi": "azure",
       "nutanix-ipi": "nutanix"
     };
     const expect = expectedPlatform[scenarioId];
