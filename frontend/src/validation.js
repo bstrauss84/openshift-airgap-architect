@@ -245,7 +245,8 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     }
   }
 
-  const additional = node.additionalInterfaces || [];
+  // Arbiter hosts use a reduced inventory surface in the UI; do not validate additional interfaces for arbiter.
+  const additional = (node.role || "").trim() === "arbiter" ? [] : node.additionalInterfaces || [];
   additional.forEach((iface, idx) => {
     const prefix = `additional.${idx}`;
     const requireEthernet = iface.type === "ethernet" || iface.type === "vlan-on-ethernet";

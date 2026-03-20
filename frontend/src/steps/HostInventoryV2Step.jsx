@@ -309,6 +309,12 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
 
   const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
+  const isArbiterDrawer = (selectedNode?.role || "").trim() === "arbiter";
+  /** Bulk replicate must not target arbiter nodes (role-specific inventory). */
+  const replicateEligibleTargetIndices = useMemo(() => {
+    if (selectedIndex == null) return [];
+    return nodes.map((_, i) => i).filter((i) => i !== selectedIndex && (nodes[i]?.role || "").trim() !== "arbiter");
+  }, [nodes, selectedIndex]);
   const baseDomain = (state.blueprint?.baseDomain || "").trim();
   const effectiveHostname = (node) => {
     let short = (node?.hostname || "").trim();
@@ -356,8 +362,16 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
 
   const applyReplicate = () => {
     if (selectedIndex == null || !nodes[selectedIndex]) return;
+    if ((nodes[selectedIndex]?.role || "").trim() === "arbiter") return;
     const source = nodes[selectedIndex];
-    const targetIndices = replicateTargetIndices.size ? Array.from(replicateTargetIndices) : nodes.map((_, i) => i).filter((i) => i !== selectedIndex);
+    const eligible = (i) => i !== selectedIndex && (nodes[i]?.role || "").trim() !== "arbiter";
+    const targetIndices = (replicateTargetIndices.size ? Array.from(replicateTargetIndices) : nodes.map((_, i) => i).filter(eligible)).filter(
+      (i) => eligible(i)
+    );
+    if (!targetIndices.length) {
+      setShowReplicate(false);
+      return;
+    }
     const targetNodes = targetIndices.map((i) => nodes[i]);
     const nextNodes = applyReplicateSettings(source, targetNodes, replicateSelectedFields);
     const next = nodes.map((node, i) => (targetIndices.includes(i) ? nextNodes[targetIndices.indexOf(i)] : node));
@@ -647,7 +661,13 @@ wipefs -a /dev/sdX`}</pre>
                     <span className="subtle">{selectedIndex + 1} / {nodes.length}</span>
                     <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1}>Next →</button>
                   </div>
-                  <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
+                  {!isArbiterDrawer ? (
+                    <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
+                  ) : (
+                    <p className="note subtle" style={{ marginBottom: 8 }}>
+                      Bulk “Apply settings to other nodes” is not available while editing an arbiter. Configure the arbiter directly; other nodes can copy from a control plane or worker.
+                    </p>
+                  )}
                   {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
                     <details className="host-inventory-v2-validation-summary host-inventory-v2-validation-details">
                       <summary className="host-inventory-v2-validation-summary-summary">
@@ -821,8 +841,15 @@ wipefs -a /dev/sdX`}</pre>
                         )}
                         <label>DNS servers <input value={selectedNode.dnsServers || ""} onChange={(e) => updateNode(selectedIndex, { dnsServers: e.target.value })} placeholder="192.168.1.10,192.168.1.11" /></label>
                         <label>DNS search <input value={selectedNode.dnsSearch || ""} onChange={(e) => updateNode(selectedIndex, { dnsSearch: e.target.value })} /></label>
+                        {isArbiterDrawer ? (
+                          <p className="note subtle" style={{ gridColumn: "1 / -1" }}>
+                            Arbiter: primary interface, DNS, and root device hint are what this app emits to agent-config. Extra interfaces and primary advanced MTU/routes are hidden for this role to match the simplified arbiter workflow.
+                          </p>
+                        ) : null}
                       </div>
 
+                      {!isArbiterDrawer ? (
+                      <>
                       <div className="divider" />
                       <h4><FieldLabelWithInfo label="Additional Interfaces" hint="Use this for extra NIC networks or additional VLANs." /></h4>
                       <div className="list">
@@ -1013,6 +1040,8 @@ wipefs -a /dev/sdX`}</pre>
                         ))}
                         <button type="button" className="ghost" onClick={() => addAdditionalInterface(selectedIndex)}>Add Interface</button>
                       </div>
+                      </>
+                      ) : null}
 
                       {showBmc && (
                         <>
@@ -1034,7 +1063,7 @@ wipefs -a /dev/sdX`}</pre>
                         </>
                       )}
 
-                      {showAdvancedDrawer && (
+                      {showAdvancedDrawer && !isArbiterDrawer && (
                         <>
                           <div className="card-header host-inventory-v2-section-heading host-inventory-v2-advanced-header">
                             <h4>Advanced</h4>
@@ -1114,7 +1143,7 @@ wipefs -a /dev/sdX`}</pre>
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowReplicate(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Apply settings to other nodes</h3>
-            <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default.</p>
+            <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default. Arbiter nodes are excluded from targets.</p>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
                 <h4>Settings to copy</h4>
@@ -1134,27 +1163,34 @@ wipefs -a /dev/sdX`}</pre>
                 <label className="toggle-row" style={{ marginBottom: 8 }}>
                   <input
                     type="checkbox"
-                    checked={selectedIndex != null && nodes.length > 1 && nodes.every((_, idx) => idx === selectedIndex || replicateTargetIndices.has(idx))}
+                    checked={
+                      selectedIndex != null &&
+                      replicateEligibleTargetIndices.length > 0 &&
+                      replicateEligibleTargetIndices.every((idx) => replicateTargetIndices.has(idx))
+                    }
                     onChange={(e) => {
-                      if (selectedIndex == null || nodes.length <= 1) return;
+                      if (selectedIndex == null || replicateEligibleTargetIndices.length === 0) return;
                       if (e.target.checked) {
-                        setReplicateTargetIndices(new Set(nodes.map((_, i) => i).filter((i) => i !== selectedIndex)));
+                        setReplicateTargetIndices(new Set(replicateEligibleTargetIndices));
                       } else {
                         setReplicateTargetIndices(new Set());
                       }
                     }}
                   />
-                  <span>Apply to all other nodes</span>
+                  <span>Apply to all other eligible nodes</span>
                 </label>
                 {nodes.map((node, idx) => (
                   <label key={idx} className="toggle-row">
                     <input
                       type="checkbox"
-                      disabled={idx === selectedIndex}
+                      disabled={idx === selectedIndex || (node.role || "").trim() === "arbiter"}
                       checked={replicateTargetIndices.has(idx)}
                       onChange={(e) => setReplicateTargetIndices((prev) => { const next = new Set(prev); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })}
                     />
-                    <span>{effectiveHostname(node) || `Node ${idx + 1}`} ({node.role})</span>
+                    <span>
+                      {effectiveHostname(node) || `Node ${idx + 1}`} ({node.role}
+                      {(node.role || "").trim() === "arbiter" ? "; not eligible for bulk copy" : ""})
+                    </span>
                   </label>
                 ))}
               </div>

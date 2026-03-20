@@ -561,7 +561,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
             </label>
             {state.hostInventory?.enableIpv6 ? (
               <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                For dual-stack, IPv6 machineNetwork must come after IPv4. Machine network is used for node IP validation.
+                IPv6 machine, cluster, and service fields show together when enabled (same behavior as the Networking step in the segmented flow). Install-config order is still IPv4 then IPv6 machine networks when both are set.
               </p>
             ) : null}
           </div>
@@ -636,11 +636,11 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                   max="28"
                 />
               </FieldLabelWithInfo>
-              {(networking.machineNetworkV6 || "").trim() ? (
+              {state.hostInventory?.enableIpv6 ? (
                 <>
                   <FieldLabelWithInfo
                     label="Cluster Network IPv6 CIDR (optional)"
-                    hint="Dual-stack: pod network IPv6. Default fd01::/48 if blank."
+                    hint="Pod network IPv6 (dual-stack or IPv6 data plane). Default fd01::/48 if blank."
                   >
                     <input
                       value={networking.clusterNetworkCidrV6 || ""}
@@ -696,10 +696,10 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr)
                 ? <div className="note warning">Overlaps with cluster network.</div>
                 : null}
-              {(networking.machineNetworkV6 || "").trim() ? (
+              {state.hostInventory?.enableIpv6 ? (
                 <FieldLabelWithInfo
                   label="Service Network IPv6 CIDR (optional)"
-                  hint="Dual-stack: service IPv6. Default fd02::/112 if blank."
+                  hint="Service (ClusterIP) IPv6. Default fd02::/112 if blank."
                 >
                   <input
                     value={networking.serviceNetworkCidrV6 || ""}

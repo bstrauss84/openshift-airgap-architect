@@ -174,7 +174,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 </OptionRow>
                 {enableIpv6 ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    For dual-stack, IPv6 machine network follows IPv4. Machine network is used for node IP validation.
+                    When IPv6 is enabled, IPv6 fields for machine, cluster, and service networks appear together (OpenShift 4.20 Agent guide lists IPv4, IPv6, and dual-stack styles for vSphere/bare metal). You can fill them in any order; defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
                   </p>
                 ) : null}
               </>
@@ -261,11 +261,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                     max={28}
                   />
                 </FieldLabelWithInfo>
-                {showIpv6ForPlatform && (networking.machineNetworkV6 || "").trim() ? (
+                {showIpv6ForPlatform ? (
                   <>
                     <FieldLabelWithInfo
                       label="Cluster Network IPv6 CIDR (optional)"
-                      hint="Dual-stack pod IPv6. Default fd01::/48 if blank."
+                      hint="Pod network IPv6 (dual-stack or IPv6 data plane). Default fd01::/48 if blank."
                       className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                     >
                       <input
@@ -320,10 +320,10 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
                   <span className="note warning inline">Overlaps with cluster network.</span>
                 ) : null}
-                {showIpv6ForPlatform && (networking.machineNetworkV6 || "").trim() ? (
+                {showIpv6ForPlatform ? (
                   <FieldLabelWithInfo
                     label="Service Network IPv6 CIDR (optional)"
-                    hint="Dual-stack service IPv6. Default fd02::/112 if blank."
+                    hint="Service (ClusterIP) IPv6. Default fd02::/112 if blank."
                     className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                   >
                     <input
@@ -368,7 +368,9 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               ) : scenarioId === "bare-metal-agent" ? (
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
-                    ? "Required for Bare Metal Agent-based multi-node installs. Use one IP for single-stack; use two comma-separated IPs for dual-stack (order: primary, then secondary)."
+                    ? showIpv6ForPlatform
+                      ? "Required for Bare Metal Agent-based multi-node installs. Use separate IPv4 and IPv6 fields below for dual-stack; the generator orders VIPs to match machine networks."
+                      : "Required for Bare Metal Agent-based multi-node installs. IPv4-only: one IP per field. If IPv6 is disabled here but you use dual-stack, enable “Enable IPv6 (cluster-wide)” above for split VIP fields."
                     : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used. Optional to leave blank."}
                 </p>
               ) : (
@@ -446,7 +448,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                     <>
                       <FieldLabelWithInfo
                         label="API VIPs"
-                        hint={metaApiVipsVsphere?.description || "One IP for single-stack; comma-separated IPv4,IPv6 for dual-stack on one line if not using split fields above."}
+                        hint={metaApiVipsVsphere?.description || "One IPv4 address for single-stack vSphere Agent-based (enable IPv6 above for dual-stack VIP fields)."}
                         required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
                       >
                         <input
@@ -458,7 +460,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
                         label="Ingress VIPs"
-                        hint={metaIngressVipsVsphere?.description || "One IP for single-stack; comma-separated for dual-stack."}
+                        hint={metaIngressVipsVsphere?.description || "One IPv4 address for single-stack. Enable IPv6 above for a separate IPv6 Ingress VIP field."}
                         required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
                       >
                         <input
