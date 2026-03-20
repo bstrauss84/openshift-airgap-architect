@@ -1,7 +1,7 @@
 # VMware vSphere + OpenShift 4.20 + Agent-Based Installer — doc review, scenario truth, and implementation
 
-**Status:** Closed for **current scope** (first-class `vsphere-agent` scenario in UI, catalogs, generator, docs-index, tests, e2e matrix).  
-**Date:** 2026-03-19  
+**Status:** **Not “fully closed” as a doc-truth claim** — implementation for `vsphere-agent` is aligned for the items below; explicit caveats remain where the 4.20 Agent guide is terse or internally inconsistent (see **Pass: final targeted cleanup**).  
+**Date:** 2026-03-19 (updated same day — dual-stack + arbiter + doc-tightening pass)  
 **Do not treat as substitute for reading Red Hat docs before production installs.**
 
 ---
@@ -40,10 +40,17 @@ Sources used (fetched/read in this pass):
 
 3. **Installation configuration parameters for vSphere** (vSphere book): used for cross-reference and docs-index; **topology.template** is documented as **IPI-only** in Agent §9.1.5 table text.
 
-**Explicit uncertainty (&lt; 95% confidence) — do not over-interpret:**
+**Doc-backed conclusions (this pass, OpenShift 4.20 Agent html-single, verified in-repo fetch):**
 
-- **User-managed / external load balancer vs VIP fields:** vSphere IPI UI elsewhere allows “leave VIPs blank” when using an external LB; Agent §1.11 states `apiVIPs`/`ingressVIPs` must be set for vSphere. The app follows **§1.11** for Agent (required in catalog + validation for multi-node). If your design uses an external LB only, confirm with current Red Hat release notes or support whether VIP fields can be omitted for Agent on vSphere.  
-- **IPv6-only vs dual-stack vs IPv4:** The Agent guide lists IPv4, IPv6, and dual-stack as endpoint configuration styles for vSphere/bare metal; this pass did **not** re-validate every IPv6-only edge case across all subsections. Dual-stack paths in the app follow the same pattern as bare-metal-agent (machine networks + VIP ordering).
+- **§1.11 Validation checks before agent ISO creation:** For `install-config`, `apiVIPs` and `ingressVIPs` **must** be set for **bare metal and vSphere** platforms (no exception stated there for user-managed LB). The app keeps **multi-node** VIP requirement for vSphere Agent to match this bullet.  
+- **Sample install-config note (IPv4 / IPv6 / dual-stack):** The guide lists **three** endpoint styles for `vsphere`/`baremetal`: IPv4, **IPv6**, and dual-stack, with a dual-stack YAML sample (`networking` lists + `platform.baremetal` VIP lists — analogous for `platform.vsphere`). **IPv6-only is listed as a named style**; the app does **not** add separate “IPv6-only” UX beyond the existing IPv6 toggle + optional IPv6 CIDR/VIP fields (no extra claim of full IPv6-only matrix testing).  
+- **§1.11 `agent-config` validation bullet** says host `role` must be `master` or `worker` only — this **conflicts** with **Chapter 4.2.9** (local arbiter) and with **installation-config-parameters-agent §9.2.2** (`hosts[].role` allowed values in our catalog include **arbiter**). **Resolution for this repo:** we treat **§9.2.2 + arbiter chapter** as authoritative for agent-config `role` when using 2 CP + arbiter; §1.11 is noted as **oversimplified / stale** for that bullet.  
+- **Arbiter (2 CP + 1 arbiter):** Chapter **4.2.9** describes local arbiter; the **example** uses `platform.baremetal.hosts` with `role: arbiter` — same **topology** applies to Agent-based multi-node on vSphere in this app (install-config `arbiter` + agent-config hosts). vSphere Agent shares **bare-metal-agent** arbiter validation and generator branches.
+
+**Remaining nuance (&lt; 95% if you need legalistic certainty):**
+
+- **External / user-managed LB vs §1.11 mandatory VIPs:** Still **not** reconciled in a single paragraph in the Agent guide; other chapters discuss LB infrastructure generally. **Do not** assume omission of VIPs is supported for Agent+vSphere without Red Hat confirmation.  
+- **IPv6-only end-to-end:** Listed as a style; **not** every subsection was re-proven for IPv6-only in this pass.
 
 **Topology (doc-proven for Agent installer):** Control plane replicas **3, 4, 5, or 1** (SNO) per install-config parameter table; **2 masters + 1 arbiter** pattern is aligned with existing bare-metal-agent handling and extended to vSphere Agent in the generator.
 
@@ -115,7 +122,56 @@ Files touched (conceptual): params, frontend catalogs, docs-index (×2), Methodo
 | `cd backend && node --test test/smoke.test.js` | Pass (62 tests) |
 | `cd backend && node scripts/e2e-matrix.js` | Pass (97 cells) |
 | `cd backend && node scripts/validate-e2e-examples.js` | Pass |
-| `cd frontend && npm test` (vitest) | Pass (192 tests, 2 skipped) |
+| `cd frontend && npm test` (vitest) | Pass (see **Pass: final targeted cleanup** for latest count) |
+
+---
+
+## Pass: final targeted cleanup (dual-stack, arbiter, doc tightening) — 2026-03-19
+
+**Goal:** vSphere Agent inherits the **same shared Networking (v2) + Global Strategy** dual-stack **field visibility** as bare-metal-agent; arbiter UX/validation/replicate is **role-correct**; doc caveats tightened where the 4.20 Agent guide allows.
+
+### 1A–1E Dual-stack / VIP consistency (code proof)
+
+| Concern | Where | Behavior (after pass) |
+|--------|--------|------------------------|
+| IPv6 toggle | `hostInventory.enableIpv6` | Drives `showIpv6ForPlatform` in `NetworkingV2Step.jsx` (still excludes AWS GovCloud). |
+| Machine IPv6 | `NetworkingV2Step.jsx`, `GlobalStrategyStep.jsx` | Shown when `enableIpv6` / `hostInventory.enableIpv6`. |
+| Cluster + service IPv6 | Same files | Shown when IPv6 is enabled **without** requiring `machineNetworkV6` to be non-empty first (aligned with Agent guide listing IPv4 / IPv6 / dual-stack styles). |
+| VIP IPv6 | `NetworkingV2Step.jsx` | For bare-metal-agent and vSphere-agent with IPv6 enabled, **split** IPv4/IPv6 VIP fields; vSphere Agent **IPv4-only** path uses IPv4-only hints (no stale comma-separated dual-stack copy on that path). |
+| Bare-metal-agent VIP note | `NetworkingV2Step.jsx` | When IPv6 enabled, note points to **split fields**, not comma-separated lines. |
+
+**Shared scenarios:** `NetworkingV2Step` applies to all non–AWS-GovCloud segmented networking; `GlobalStrategyStep` networking card updated the same way for **legacy** flow parity.
+
+### 2A–2F Arbiter (vSphere Agent)
+
+| Item | Implementation |
+|------|----------------|
+| Scenario support | `hostInventoryV2Validation.js` (2 masters, 0 arbiter → error) includes `vsphere-agent`; `generate.js` emits `installConfig.arbiter` for Bare Metal **or** VMware vSphere Agent with 2 masters + 1 arbiter. |
+| Drawer | `HostInventoryV2Step.jsx`: arbiter drawer **hides** Additional Interfaces, **Advanced** (MTU/routes); **keeps** root device hint (still emitted as `rootDeviceHints` in generator). |
+| Replicate | No “Apply settings to other nodes” when editing arbiter; modal **disables** arbiter targets; `applyReplicate` filters arbiter indices; role checks use **trim**. |
+| Validation | `validation.js` `validateNode`: **skips** additional-interface validation when `role` is arbiter (trimmed). |
+
+### 3A–3B VIP requiredness / IPv6-only (final wording)
+
+- **VIP requiredness:** **§1.11** states VIPs **must** be set for vSphere — app matches for multi-node Agent. **LB exception** not documented in §1.11 → remain conservative.  
+- **IPv6-only:** **Named** as a configuration style in the Agent install-config sample note; app does **not** claim full IPv6-only certification beyond exposing IPv6 fields when enabled.
+
+### Tests / scripts (this pass)
+
+| Command | Result |
+|---------|--------|
+| `cd frontend && npm test` | Pass (**198** passed, 2 skipped) |
+| `node scripts/validate-catalog.js frontend/src/data/catalogs` | Pass |
+| `node scripts/validate-docs-index.js` | Pass |
+| `cd backend && node --test test/smoke.test.js` | Pass (62 tests) |
+
+**Also re-run (regression):** `cd backend && node scripts/e2e-matrix.js` — Pass (97 cells).  
+**Not re-run:** `validate-e2e-examples.js` (no example doc edits).
+
+### YAML proof (2 control plane + arbiter vs invalid)
+
+- **Invalid (app validation):** Two nodes with `role: master`, zero `role: arbiter` → `getCatalogValidationForInventoryV2` error: *“Two control plane nodes require one arbiter node…”* (applies to `vsphere-agent` and `bare-metal-agent`).  
+- **Valid shape (generator, multi-node vSphere Agent):** `install-config.yaml` includes `controlPlane.replicas: 2`, `arbiter: { name: "arbiter", replicas: 1 }`, `platform.vsphere` (with VIP lists from inventory when not SNO); `agent-config.yaml` hosts include two masters and one host with `role: arbiter` (catalog §9.2.2).
 
 ---
 
@@ -144,7 +200,7 @@ None **required** for declared scope. Optional follow-ups:
 ```bash
 git status
 git diff --stat
-git add data/params/4.20/vsphere-agent.json frontend/src/data/catalogs/vsphere-agent.json data/docs-index/4.20.json frontend/src/data/docs-index/4.20.json docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md backend/src/generate.js backend/src/index.js backend/src/docs.js backend/scripts/e2e-matrix.js backend/test/smoke.test.js frontend/src/catalogPaths.js frontend/src/catalogFieldMeta.js frontend/src/hostInventoryV2Helpers.js frontend/src/App.jsx frontend/src/validation.js frontend/src/hostInventoryV2Validation.js frontend/src/components/ScenarioHeaderPanel.jsx frontend/src/steps/MethodologyStep.jsx frontend/src/steps/NetworkingV2Step.jsx frontend/src/steps/PlatformSpecificsStep.jsx frontend/src/steps/HostInventoryV2Step.jsx frontend/src/steps/HostInventoryStep.jsx frontend/src/steps/ConnectivityMirroringStep.jsx frontend/tests/hostInventoryV2Helpers.test.js
+git add docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md frontend/src/steps/NetworkingV2Step.jsx frontend/src/steps/GlobalStrategyStep.jsx frontend/src/steps/HostInventoryV2Step.jsx frontend/src/validation.js frontend/tests/networking-v2-step.test.jsx frontend/tests/hostInventoryV2Validation.test.js frontend/tests/validation-catalog-alignment.test.js frontend/tests/HostInventoryV2Phase43.test.jsx
 git commit -m "feat: vsphere-agent scenario (4.20 Agent-based on VMware)"
 git push origin <your-branch>
 ```

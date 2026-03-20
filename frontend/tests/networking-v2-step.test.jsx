@@ -230,6 +230,44 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
   });
 
 
+  it("vsphere-agent: when IPv6 is enabled, cluster and service IPv6 fields show without machine IPv6 filled (shared dual-stack visibility)", () => {
+    const base = stateForNetworkingStep({
+      blueprint: { ...stateForNetworkingStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" },
+      hostInventory: {
+        enableIpv6: true,
+        schemaVersion: 2,
+        nodes: [
+          { role: "master", hostname: "m-0" },
+          { role: "master", hostname: "m-1" }
+        ],
+        apiVip: "10.90.0.10",
+        ingressVip: "10.90.0.11"
+      },
+      globalStrategy: {
+        ...stateForNetworkingStep().globalStrategy,
+        networking: {
+          machineNetworkV4: "10.90.0.0/24",
+          machineNetworkV6: "",
+          clusterNetworkCidr: "10.128.0.0/14",
+          clusterNetworkHostPrefix: 23,
+          serviceNetworkCidr: "172.30.0.0/16",
+          networkType: "OVNKubernetes"
+        }
+      }
+    });
+    expect(getScenarioId(base)).toBe("vsphere-agent");
+    render(
+      <AppContext.Provider value={{ state: base, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+    expect(screen.getByText(/Cluster Network IPv6 CIDR/i)).toBeInTheDocument();
+    expect(screen.getByText(/Service Network IPv6 CIDR/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("fd01::/48")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("fd02::/112")).toBeInTheDocument();
+  });
+
   it("when scenario is aws-govcloud-ipi, getScenarioId returns aws-govcloud-ipi and Networking tab shows full form (A2 tab relevance)", () => {
     const state = stateForNetworkingStep({
       blueprint: {

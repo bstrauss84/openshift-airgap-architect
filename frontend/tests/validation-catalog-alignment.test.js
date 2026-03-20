@@ -34,6 +34,31 @@ describe("A1: validateNode MAC normalization", () => {
     expect(result.fieldErrors["bmc.bootMACAddress"]).toBeUndefined();
   });
 
+  it("arbiter node skips additional-interface validation (matches reduced arbiter drawer)", () => {
+    const node = {
+      hostname: "arbiter-0",
+      role: "arbiter",
+      rootDevice: "/dev/disk/by-id/foo",
+      primary: {
+        type: "ethernet",
+        mode: "dhcp",
+        ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:01" }
+      },
+      additionalInterfaces: [
+        { type: "ethernet", mode: "static", ethernet: { name: "", macAddress: "" } }
+      ]
+    };
+    const result = validateNode({
+      node,
+      enableIpv6: false,
+      machineCidr: "10.0.0.0/24",
+      platform: "VMware vSphere",
+      method: "Agent-Based Installer",
+      includeCredentials: false
+    });
+    expect(result.errors.some((e) => /Additional ethernet interface name is required/i.test(e))).toBe(false);
+  });
+
   it("rejects invalid primary.ethernet.macAddress format (normalizer cannot produce valid MAC)", () => {
     const node = {
       hostname: "n",
