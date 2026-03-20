@@ -526,7 +526,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="Publish (optional)"
-                    hint="External: API and default ingress are published to the internet (public DNS/LB). Use for public clusters. Internal: endpoints are not published publicly; use when the cluster API and apps are only reachable from inside your network (e.g. private only). Requires private DNS and routing."
+                    hint="External (default): API and ingress published to public DNS/load balancer. Use for clusters reachable from the internet or external networks. Required when apps/API must be accessed without VPN. Internal: All cluster endpoints are private-network only. DNS must resolve internally. Required by some compliance regimes. Note: console.redhat.com cluster management and direct Red Hat update checks will not reach the cluster without additional network routing. Recommendation: External for most installs. Internal only when external exposure is explicitly prohibited."
                   >
                     <select
                       value={platformConfig.publish || metaPublish?.default || "External"}
@@ -538,7 +538,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Credentials mode (optional)"
-                    hint="Mint: CCO creates long-lived cloud credentials from the admin kubeconfig (default for many installs). Passthrough: use the install-time credentials for cluster components; no minting. Manual: you manage cloud credentials manually. Choose Mint unless your security model requires Passthrough or Manual."
+                    hint="Mint (recommended for IPI): CCO creates scoped cloud credentials for each cluster component from your admin credential. Each component gets minimal permissions. Requires IAM rights to create new users/roles. Best choice when you have full IAM admin access. Passthrough: CCO passes your install-time admin credential to all components — no new IAM identities created. Use when your org prohibits new IAM account creation. All components share the broad admin credential. Manual: You provision credentials yourself before install (e.g. via ccoctl for STS/Workload Identity). Required for air-gapped AWS STS installs, highly regulated environments. Most secure, most complex. Must run ccoctl before openshift-install. Nutanix IPI always requires Manual — enforced automatically."
                   >
                     <select
                       value={platformConfig.credentialsMode || ""}
@@ -637,7 +637,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Publish (optional)"
-                  hint={metaPublish?.description || "How to publish API and ingress endpoints."}
+                  hint="External (default): API and ingress published to public DNS/load balancer. Use for clusters reachable from the internet or external networks. Required when apps/API must be accessed without VPN. Internal: All cluster endpoints are private-network only. DNS must resolve internally. Required by some compliance regimes. Note: console.redhat.com cluster management and direct Red Hat update checks will not reach the cluster without additional network routing. Recommendation: External for most installs. Internal only when external exposure is explicitly prohibited."
                 >
                   <select
                     value={platformConfig.publish || metaPublish?.default || "External"}
@@ -649,7 +649,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Credentials mode (optional)"
-                  hint={metaCredentialsMode?.description || "Cloud Credential Operator mode."}
+                  hint="Mint (recommended for IPI): CCO creates scoped cloud credentials for each cluster component from your admin credential. Each component gets minimal permissions. Requires IAM rights to create new users/roles. Best choice when you have full IAM admin access. Passthrough: CCO passes your install-time admin credential to all components — no new IAM identities created. Use when your org prohibits new IAM account creation. All components share the broad admin credential. Manual: You provision credentials yourself before install (e.g. via ccoctl for STS/Workload Identity). Required for air-gapped AWS STS installs, highly regulated environments. Most secure, most complex. Must run ccoctl before openshift-install. Nutanix IPI always requires Manual — enforced automatically."
                 >
                   <select
                     value={platformConfig.credentialsMode || ""}
@@ -670,13 +670,15 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
           <section className="card">
             <div className="card-header">
               <h3 className="card-title">Nutanix IPI</h3>
-              <div className="card-subtitle">Prism Central endpoint, subnet, and optional cluster name for installer-provisioned infrastructure.</div>
+              <div className="card-subtitle">Prism Central connection, credentials, infrastructure, and cluster topology for installer-provisioned infrastructure.</div>
             </div>
             <div className="card-body">
-              <div className="field-grid" style={{ marginTop: 12 }}>
+              {/* Group A — Prism Central connection */}
+              <h4 className="platform-specifics-subsection">Prism Central connection</h4>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                 <FieldLabelWithInfo
-                  label="Prism Central endpoint"
-                  hint={metaNutanixEndpoint?.description}
+                  label="Endpoint (FQDN or IP)"
+                  hint={metaNutanixEndpoint?.description || "Prism Central hostname or IP address."}
                   required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint.address")}
                 >
                   <input
@@ -686,8 +688,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
-                  label="Prism Central port (optional; default 9440)"
-                  hint={metaNutanixPort?.description || "API port."}
+                  label="Port (optional; default 9440)"
+                  hint={metaNutanixPort?.description || "Prism Central API port."}
                 >
                   <input
                     type="number"
@@ -697,19 +699,28 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     style={{ maxWidth: 120 }}
                   />
                 </FieldLabelWithInfo>
+              </div>
+
+              {/* Group B — Credentials */}
+              <h4 className="platform-specifics-subsection">Credentials</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>Emitted only when &ldquo;Include credentials&rdquo; is checked at export.</p>
+              <div className="field-grid" style={{ marginBottom: 16 }}>
                 <FieldLabelWithInfo
-                  label="Prism Central username (optional; emitted when including credentials)"
-                  hint={metaNutanixUsername?.description}
+                  label="Username"
+                  hint={metaNutanixUsername?.description || "Prism Central admin username."}
                 >
                   <input
                     value={platformConfig.nutanix?.username || ""}
                     onChange={(e) => updateNutanix({ username: e.target.value })}
                     placeholder="admin"
+                    autoComplete="username"
+                    data-form-type="other"
+                    data-lpignore="true"
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
-                  label="Prism Central password (optional; emitted when including credentials)"
-                  hint={metaNutanixPassword?.description || "Included in install-config only when you choose to include credentials in export. Do not save in browser."}
+                  label="Password"
+                  hint={metaNutanixPassword?.description || "Prism Central password. Included in install-config only when you choose to include credentials in export. Do not save in browser."}
                 >
                   <div style={{ display: "flex", gap: 6 }}>
                     <input
@@ -736,8 +747,13 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     </button>
                   </div>
                 </FieldLabelWithInfo>
+              </div>
+
+              {/* Group C — Infrastructure */}
+              <h4 className="platform-specifics-subsection">Infrastructure</h4>
+              <div className="field-grid" style={{ marginBottom: 16 }}>
                 <FieldLabelWithInfo
-                  label="Subnet UUID(s) or name(s)"
+                  label="Subnet UUID(s)"
                   hint={`${metaNutanixSubnet?.description || "Subnet UUID or name for the cluster network."} Comma-separate multiple values for multi-subnet environments.`}
                   required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
                 >
@@ -748,13 +764,13 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
-                  label="Cluster name (optional; Prism Element for VM placement)"
-                  hint={metaNutanixClusterName?.description || "Optional Nutanix cluster name."}
+                  label="Prism Element cluster name (optional)"
+                  hint={metaNutanixClusterName?.description || "Nutanix Prism Element cluster name for VM placement. Leave blank if not needed. Accepts a name string (not UUID)."}
                 >
                   <input
                     value={platformConfig.nutanix?.cluster || ""}
                     onChange={(e) => updateNutanix({ cluster: e.target.value })}
-                    placeholder="Optional cluster name"
+                    placeholder="my-nutanix-cluster"
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -764,53 +780,68 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   <input
                     value={platformConfig.nutanix?.storageContainer || ""}
                     onChange={(e) => updateNutanix({ storageContainer: e.target.value })}
-                    placeholder="Optional storage container name"
+                    placeholder="default-container"
                   />
                 </FieldLabelWithInfo>
-                <h4 className="platform-specifics-subsection" style={{ marginTop: 16 }}>
-                  Machine counts (install-config)
-                </h4>
-                <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                  Nutanix IPI has no host inventory in this app. Set control plane and worker counts here (OpenShift 4.20: control plane replicas{" "}
-                  <strong>3</strong> or <strong>1</strong> for single-node; workers <strong>0</strong> with 3 control plane for a compact three-node cluster).
-                </p>
-                <div className="field-grid">
+              </div>
+
+              {/* Group D — Cluster topology */}
+              <h4 className="platform-specifics-subsection">Cluster topology</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 10 }}>
+                Nutanix IPI has no host inventory in this app. Select a topology to set control plane and worker counts.
+              </p>
+              <div className="grid" style={{ marginBottom: 12 }}>
+                {[
+                  { value: "sno", label: "Single Node (SNO)", sub: "1 CP · 0 workers" },
+                  { value: "compact", label: "Compact three-node", sub: "3 CP · 0 workers" },
+                  { value: "ha", label: "High Availability", sub: "3 CP · N workers" }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`select-card ${(platformConfig.nutanixTopology || "ha") === opt.value ? "selected" : ""}`}
+                    onClick={() => updatePlatformConfig({ nutanixTopology: opt.value })}
+                  >
+                    <div className="card-title">{opt.label}</div>
+                    <div className="card-sub">{opt.sub}</div>
+                  </button>
+                ))}
+              </div>
+              {(platformConfig.nutanixTopology || "ha") === "ha" && (
+                <div className="field-grid" style={{ marginBottom: 16 }}>
                   <FieldLabelWithInfo
-                    label="Control plane replicas"
-                    hint="Must be 3 (standard or compact three-node) or 1 (single-node OpenShift)."
+                    label="Worker count"
+                    hint="Number of compute (worker) nodes. Minimum 2 for high-availability clusters."
                   >
                     <input
                       type="number"
-                      min={1}
-                      max={3}
-                      value={platformConfig.controlPlaneReplicas ?? 3}
-                      onChange={(e) => {
-                        const v = e.target.value === "" ? undefined : Number(e.target.value);
-                        updatePlatformConfig({ controlPlaneReplicas: v });
-                      }}
-                    />
-                  </FieldLabelWithInfo>
-                  <FieldLabelWithInfo
-                    label="Compute (worker) replicas"
-                    hint="Standard clusters use ≥3 workers; use 0 with 3 control plane for three-node compact."
-                  >
-                    <input
-                      type="number"
-                      min={0}
+                      min={2}
                       max={100}
                       value={platformConfig.computeReplicas ?? 3}
                       onChange={(e) => {
                         const v = e.target.value === "" ? undefined : Number(e.target.value);
                         updatePlatformConfig({ computeReplicas: v });
                       }}
+                      style={{ maxWidth: 120 }}
                     />
                   </FieldLabelWithInfo>
                 </div>
+              )}
+
+              {/* Group E — Access */}
+              <h4 className="platform-specifics-subsection">Access</h4>
+              <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Credentials mode"
-                  hint="OpenShift 4.20 Installing on Nutanix §1.4 requires the Cloud Credential Operator in Manual mode. This scenario always emits credentialsMode: Manual in install-config."
+                  hint="Mint (recommended for IPI): CCO creates scoped cloud credentials for each cluster component from your admin credential. Each component gets minimal permissions. Requires IAM rights to create new users/roles. Best choice when you have full IAM admin access. Passthrough: CCO passes your install-time admin credential to all components — no new IAM identities created. Use when your org prohibits new IAM account creation. All components share the broad admin credential. Manual: You provision credentials yourself before install (e.g. via ccoctl for STS/Workload Identity). Required for air-gapped AWS STS installs, highly regulated environments. Most secure, most complex. Must run ccoctl before openshift-install. Nutanix IPI always requires Manual — enforced automatically."
                 >
                   <input readOnly value="Manual" aria-label="Credentials mode (Manual, required for Nutanix IPI)" />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Publish"
+                  hint="External (default): API and ingress published to public DNS/load balancer. Use for clusters reachable from the internet or external networks. Required when apps/API must be accessed without VPN. Internal: All cluster endpoints are private-network only. DNS must resolve internally. Required by some compliance regimes. Note: console.redhat.com cluster management and direct Red Hat update checks will not reach the cluster without additional network routing. Recommendation: External for most installs. Internal only when external exposure is explicitly prohibited. Note: Nutanix IPI forces External in the generated install-config."
+                >
+                  <input readOnly value="External (required for Nutanix IPI)" aria-label="Publish (External, required for Nutanix IPI)" />
                 </FieldLabelWithInfo>
               </div>
             </div>

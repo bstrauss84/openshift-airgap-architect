@@ -1195,6 +1195,11 @@ body[data-theme="dark"] .select-card.primary.selected {
   color: #e0e7ff;
 }
 
+body[data-theme="dark"] .select-card:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* Banners: predictable placement under section title; readable light and dark */
 .banner {
   padding: 12px 14px;
