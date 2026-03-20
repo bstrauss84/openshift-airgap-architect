@@ -191,6 +191,11 @@ const defaultState = () => ({
     connectivity: "fully-disconnected",
     links: []
   },
+  imagesetConfig: {
+    graph: true,
+    additionalImages: "",
+    archiveSize: ""
+  },
   exportOptions: {
     includeCredentials: false,
     includeCertificates: true,

@@ -79,13 +79,26 @@ const buildInstallConfig = (state) => {
     else if (masters === 0) masters = 3;
     if (Number.isInteger(comp) && comp >= 0) workers = comp;
   } else if (isNutanixIpi) {
-    // Nutanix IPI has no host inventory; replicas come from Platform Specifics (OpenShift 4.20 Nutanix doc: 3 or 1 control plane; workers 0+).
-    const cp = Number(platformConfig.controlPlaneReplicas);
-    const comp = Number(platformConfig.computeReplicas);
-    if (Number.isInteger(cp) && cp > 0) masters = cp;
-    else masters = 3;
-    if (Number.isInteger(comp) && comp >= 0) workers = comp;
-    else workers = 3;
+    // Nutanix IPI has no host inventory; replicas come from Platform Specifics topology selection.
+    const topology = platformConfig.nutanixTopology;
+    if (topology === "sno") {
+      masters = 1;
+      workers = 0;
+    } else if (topology === "compact") {
+      masters = 3;
+      workers = 0;
+    } else if (topology === "ha") {
+      masters = 3;
+      workers = Number(platformConfig.computeReplicas) || 3;
+    } else {
+      // backward compat: fall back to explicit replica fields
+      const cp = Number(platformConfig.controlPlaneReplicas);
+      const comp = Number(platformConfig.computeReplicas);
+      if (Number.isInteger(cp) && cp > 0) masters = cp;
+      else masters = 3;
+      if (Number.isInteger(comp) && comp >= 0) workers = comp;
+      else workers = 3;
+    }
   }
   const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
 
@@ -1103,9 +1116,15 @@ const sortNodes = (nodes) => {
 const buildImageSetConfig = (state) => {
   const version = state.release?.patchVersion;
   const operators = state.operators?.selected || [];
+  const cfg = state.imagesetConfig || {};
+  const includeGraph = cfg.graph !== false;
+  const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
+  const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
+
   const images = {
     apiVersion: "mirror.openshift.io/v2alpha1",
     kind: "ImageSetConfiguration",
+    ...(archiveSize ? { storageConfig: { local: { path: "./oc-mirror-workspace", archiveSize } } } : {}),
     mirror: {
       platform: {
         channels: [
@@ -1115,9 +1134,10 @@ const buildImageSetConfig = (state) => {
             maxVersion: version
           }
         ],
-        graph: true
+        ...(includeGraph ? { graph: true } : {})
       },
-      operators: []
+      operators: [],
+      ...(additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {})
     }
   };
   const byCatalog = new Map();

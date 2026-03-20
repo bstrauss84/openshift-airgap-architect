@@ -537,6 +537,52 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           </CollapsibleSection>
         </div>
 
+        <CollapsibleSection title="ImageSet options" defaultCollapsed={true}>
+          <OptionRow
+            title="Include update graph"
+            description="Add graph: true under mirror.platform in ImageSetConfiguration. Required for disconnected clusters to determine upgrade paths via the Cincinnati graph (oc-mirror v2)."
+          >
+            <Switch
+              checked={state.imagesetConfig?.graph !== false}
+              onChange={(checked) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), graph: checked } })}
+              aria-label="Include update graph in ImageSetConfiguration"
+            />
+          </OptionRow>
+          <div style={{ marginTop: 12 }}>
+            <label className="label-emphasis" style={{ display: "block", marginBottom: 4 }}>
+              Additional images to mirror (optional)
+            </label>
+            <p className="note subtle" style={{ marginTop: 0, marginBottom: 6 }}>
+              One image reference per line (e.g. quay.io/org/app:tag). Added to mirror.additionalImages in ImageSetConfiguration.
+            </p>
+            <textarea
+              rows={4}
+              style={{ width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: "0.875rem" }}
+              value={state.imagesetConfig?.additionalImages || ""}
+              onChange={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), additionalImages: e.target.value } })}
+              placeholder={"quay.io/org/app:tag\nregistry.example.com/repo/image:v1.0"}
+              aria-label="Additional images to mirror"
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label className="label-emphasis" style={{ display: "block", marginBottom: 4 }}>
+              Archive chunk size — GiB (optional)
+            </label>
+            <p className="note subtle" style={{ marginTop: 0, marginBottom: 6 }}>
+              Split oc-mirror output into archive files of this size. Leave blank for no limit. Sets storageConfig.local.archiveSize in ImageSetConfiguration (oc-mirror v2).
+            </p>
+            <input
+              type="number"
+              min={1}
+              style={{ maxWidth: 120 }}
+              value={state.imagesetConfig?.archiveSize || ""}
+              onChange={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } })}
+              placeholder="e.g. 100"
+              aria-label="Archive chunk size in GiB"
+            />
+          </div>
+        </CollapsibleSection>
+
         <section className="card">
           <h3 className="card-title">Scenario Quick Picks</h3>
           <p className="card-subtitle">One-click presets for common operator sets.</p>

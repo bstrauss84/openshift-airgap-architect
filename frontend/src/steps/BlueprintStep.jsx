@@ -55,7 +55,6 @@ const BlueprintStep = () => {
   }, [blueprintPullSecretTrimmed]);
 
   const allowedArchs = PLATFORM_ARCH_SUPPORT[blueprint?.platform] || archOptions.map((a) => a.value);
-  const allowedArchOptions = archOptions.filter((a) => allowedArchs.includes(a.value));
 
   const updateBlueprint = (patch) => {
     if (locked) return;
@@ -251,17 +250,21 @@ const BlueprintStep = () => {
             Target cluster host/node architecture (the machines that will run OpenShift). Not your local workstation or browser machine.
           </p>
           <div className="grid">
-            {allowedArchOptions.map((option) => (
-              <button
-                key={option.value}
-                className={`select-card ${blueprint?.arch === option.value ? "selected" : ""}`}
-                disabled={locked}
-                onClick={() => updateBlueprint({ arch: option.value })}
-              >
-                <div className="card-title">{option.label}</div>
-                <div className="card-sub">{option.sub}</div>
-              </button>
-            ))}
+            {archOptions.map((option) => {
+              const isSupported = allowedArchs.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  className={`select-card ${blueprint?.arch === option.value ? "selected" : ""}`}
+                  disabled={locked || !isSupported}
+                  title={!isSupported ? `Not supported on ${blueprint?.platform || "this platform"}` : undefined}
+                  onClick={() => updateBlueprint({ arch: option.value })}
+                >
+                  <div className="card-title">{option.label}</div>
+                  <div className="card-sub">{option.sub}</div>
+                </button>
+              );
+            })}
           </div>
         </section>
 
