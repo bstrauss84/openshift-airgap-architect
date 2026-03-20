@@ -218,7 +218,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.queryByText(/Provisioning DHCP range/)).not.toBeInTheDocument();
   });
 
-  it("when scenario is nutanix-ipi, Platform Specifics shows Nutanix IPI section and validation requires endpoint and subnet (Prompt J)", () => {
+  it("when scenario is nutanix-ipi, Platform Specifics shows Nutanix IPI section and validation requires endpoint, subnet, and VIPs (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "Nutanix" },
       methodology: { method: "IPI" }
@@ -227,10 +227,17 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     const resultEmpty = validateStep(state, "platform-specifics");
     expect(resultEmpty.errors).toContain("Prism Central endpoint is required for Nutanix IPI.");
     expect(resultEmpty.errors).toContain("Subnet UUID is required for Nutanix IPI.");
+    expect(resultEmpty.errors).toContain("API VIP is required for Nutanix IPI (platform.nutanix.apiVIP).");
+    expect(resultEmpty.errors).toContain("Ingress VIP is required for Nutanix IPI (platform.nutanix.ingressVIP).");
     const stateFilled = {
       ...state,
       platformConfig: {
-        nutanix: { endpoint: "prism.example.com", subnet: "subnet-uuid-123" }
+        nutanix: {
+          endpoint: "prism.example.com",
+          subnet: "subnet-uuid-123",
+          apiVIP: "10.90.0.1",
+          ingressVIP: "10.90.0.2"
+        }
       }
     };
     const resultFilled = validateStep(stateFilled, "platform-specifics");

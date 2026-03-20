@@ -179,6 +179,15 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     setAdditionalAdvancedOpen({});
   }, [selectedIndex]);
 
+  /** Agent-based install-config: single-node OpenShift is one control plane and zero workers/infra (4.20). */
+  useEffect(() => {
+    if (!isAgentInventoryScenario) return;
+    if (countControlPlane === 1 && (countWorker > 0 || countInfra > 0)) {
+      setCountWorker(0);
+      setCountInfra(0);
+    }
+  }, [isAgentInventoryScenario, countControlPlane, countWorker, countInfra]);
+
   useEffect(() => {
     if (!showReplicate) return;
     const onKeyDown = (e) => {
@@ -566,13 +575,48 @@ wipefs -a /dev/sdX`}</pre>
                 {isAgentInventoryScenario && countControlPlane === 2 && (
                   <p className="note">Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically.</p>
                 )}
+                {isAgentInventoryScenario && countControlPlane === 1 && (
+                  <p className="note">Single-node OpenShift uses one control plane and no worker or infra nodes. Worker and infra counts are kept at zero (OpenShift 4.20 Agent-based install-config).</p>
+                )}
+                {isAgentInventoryScenario && (countControlPlane === 4 || countControlPlane === 5) && (
+                  <p className="note subtle">Four or five control plane replicas are supported for Agent-based installs when documented for your environment; ensure total topology matches the installation guide.</p>
+                )}
                 {isIpiScenario && (
                   <p className="note">For bare metal IPI, these hosts populate install-config <code>platform.baremetal.hosts[]</code>. Each host needs BMC and boot MAC for provisioning.</p>
                 )}
                 <div className="field-grid">
-                  <label>Control plane <input type="number" min={1} max={9} value={countControlPlane} onChange={(e) => setCountControlPlane(Number(e.target.value) || 1)} /></label>
-                  <label>Worker <input type="number" min={0} max={99} value={countWorker} onChange={(e) => setCountWorker(Number(e.target.value) || 0)} /></label>
-                  <label>Infra (optional) <input type="number" min={0} max={99} value={countInfra} onChange={(e) => setCountInfra(Number(e.target.value) || 0)} /></label>
+                  <label>
+                    Control plane{" "}
+                    <input
+                      type="number"
+                      min={1}
+                      max={isAgentInventoryScenario ? 5 : 9}
+                      value={countControlPlane}
+                      onChange={(e) => setCountControlPlane(Number(e.target.value) || 1)}
+                    />
+                  </label>
+                  <label>
+                    Worker{" "}
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={countWorker}
+                      disabled={isAgentInventoryScenario && countControlPlane === 1}
+                      onChange={(e) => setCountWorker(Number(e.target.value) || 0)}
+                    />
+                  </label>
+                  <label>
+                    Infra (optional){" "}
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={countInfra}
+                      disabled={isAgentInventoryScenario && countControlPlane === 1}
+                      onChange={(e) => setCountInfra(Number(e.target.value) || 0)}
+                    />
+                  </label>
                 </div>
                 <div className="actions" style={{ marginTop: 12 }}>
                   <button type="button" className="primary" onClick={handleGenerateFromCounts}>

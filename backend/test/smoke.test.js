@@ -1304,7 +1304,9 @@ test("buildInstallConfig for nutanix-ipi emits platform.nutanix with prismCentra
         username: "admin",
         password: "secret",
         subnet: "subnet-uuid-123",
-        cluster: "my-cluster"
+        cluster: "my-cluster",
+        apiVIP: "10.90.0.10",
+        ingressVIP: "10.90.0.11"
       }
     },
     exportOptions: { includeCredentials: true }
@@ -1312,12 +1314,14 @@ test("buildInstallConfig for nutanix-ipi emits platform.nutanix with prismCentra
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.ok(out.platform?.nutanix, "platform.nutanix must be present for Nutanix IPI");
-  assert.strictEqual(out.platform.nutanix.prismCentral?.endpoint, "prism.example.com");
-  assert.strictEqual(out.platform.nutanix.prismCentral?.port, 9440);
+  assert.strictEqual(out.platform.nutanix.prismCentral?.endpoint?.address, "prism.example.com");
+  assert.strictEqual(out.platform.nutanix.prismCentral?.endpoint?.port, 9440);
   assert.strictEqual(out.platform.nutanix.prismCentral?.username, "admin");
   assert.strictEqual(out.platform.nutanix.prismCentral?.password, "secret");
   assert.deepStrictEqual(out.platform.nutanix.subnetUUIDs, ["subnet-uuid-123"]);
   assert.strictEqual(out.platform.nutanix.clusterName, "my-cluster");
+  assert.strictEqual(out.platform.nutanix.apiVIP, "10.90.0.10");
+  assert.strictEqual(out.platform.nutanix.ingressVIP, "10.90.0.11");
   assert.strictEqual(out.compute[0].platform, undefined, "K follow-up: compute.platform omitted unless required");
   assert.strictEqual(out.controlPlane.platform, undefined, "K follow-up: controlPlane.platform omitted unless required");
 });
@@ -1331,13 +1335,15 @@ test("buildInstallConfig for nutanix-ipi includes required catalog params (Promp
     platformConfig: {
       nutanix: {
         endpoint: "pc.local",
-        subnet: "subnet-uuid-456"
+        subnet: "subnet-uuid-456",
+        apiVIP: "10.90.0.5",
+        ingressVIP: "10.90.0.6"
       }
     }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
-  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint === "pc.local");
+  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint?.address === "pc.local");
   assert.deepStrictEqual(out.platform.nutanix.subnetUUIDs, ["subnet-uuid-456"]);
   assert.strictEqual(out.compute[0].platform, undefined, "K follow-up: compute.platform omitted unless required");
   assert.strictEqual(out.controlPlane.platform, undefined, "K follow-up: controlPlane.platform omitted unless required");
@@ -1350,14 +1356,19 @@ test("buildInstallConfig for nutanix-ipi must NOT emit bare-metal or vsphere (sc
     globalStrategy: { networking: {} },
     credentials: {},
     platformConfig: {
-      nutanix: { endpoint: "pc.local", subnet: "subnet-uuid" }
+      nutanix: {
+        endpoint: "pc.local",
+        subnet: "subnet-uuid",
+        apiVIP: "10.90.0.7",
+        ingressVIP: "10.90.0.8"
+      }
     }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.strictEqual(out.platform?.baremetal, undefined, "nutanix-ipi must not emit platform.baremetal");
   assert.strictEqual(out.platform?.vsphere, undefined, "nutanix-ipi must not emit platform.vsphere");
-  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint === "pc.local");
+  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint?.address === "pc.local");
 });
 
 test("buildInstallConfig emits additionalTrustBundle as literal block (|) for readable PEM (#15)", () => {

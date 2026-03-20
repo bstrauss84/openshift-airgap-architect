@@ -115,7 +115,7 @@ function minimalState() {
       publish: "External",
       aws: { region: "", subnets: "", hostedZone: "", amiId: "", controlPlaneInstanceType: "", workerInstanceType: "" },
       vsphere: { vcenter: "", datacenter: "", cluster: "", datastore: "", network: "", username: "", password: "" },
-      nutanix: { endpoint: "", port: "9440", username: "", password: "", cluster: "", subnet: "" },
+      nutanix: { endpoint: "", port: "9440", username: "", password: "", cluster: "", subnet: "", apiVIP: "", ingressVIP: "" },
       azure: { cloudName: "AzureUSGovernmentCloud", region: "", resourceGroupName: "", baseDomainResourceGroupName: "" }
     },
     trust: {},
@@ -233,7 +233,9 @@ function scenarioOverrides(scenarioId) {
         nutanix: {
           endpoint: "prism-central.example.com",
           port: "9440",
-          subnet: "subnet-uuid-placeholder"
+          subnet: "subnet-uuid-placeholder",
+          apiVIP: "10.90.0.10",
+          ingressVIP: "10.90.0.11"
         }
       }
     }

@@ -4,6 +4,7 @@ import {
   applyReplicateSettings,
   emptyNode,
   getScenarioId,
+  getAgentBasedTopologyErrors,
   SCENARIO_IDS_WITH_HOST_INVENTORY
 } from "../src/hostInventoryV2Helpers.js";
 
@@ -13,6 +14,32 @@ describe("getScenarioId / SCENARIO_IDS_WITH_HOST_INVENTORY", () => {
   });
   it("includes vsphere-agent in host inventory scenarios", () => {
     expect(SCENARIO_IDS_WITH_HOST_INVENTORY).toContain("vsphere-agent");
+  });
+});
+
+describe("getAgentBasedTopologyErrors", () => {
+  it("returns no errors for empty inventory", () => {
+    expect(getAgentBasedTopologyErrors([])).toEqual([]);
+  });
+  it("allows 3 masters and workers with no arbiter", () => {
+    expect(getAgentBasedTopologyErrors(generateNodesFromCounts(3, 1, 0))).toEqual([]);
+  });
+  it("rejects 1 master with workers (SNO)", () => {
+    const nodes = generateNodesFromCounts(1, 1, 0);
+    expect(getAgentBasedTopologyErrors(nodes).length).toBeGreaterThan(0);
+    expect(getAgentBasedTopologyErrors(nodes).some((e) => e.includes("zero workers"))).toBe(true);
+  });
+  it("rejects 2 masters without arbiter", () => {
+    const nodes = generateNodesFromCounts(2, 0, 0);
+    expect(getAgentBasedTopologyErrors(nodes).some((e) => e.includes("arbiter"))).toBe(true);
+  });
+  it("allows 2 masters + 1 arbiter", () => {
+    const nodes = [...generateNodesFromCounts(2, 0, 0), emptyNode("arbiter", 0)];
+    expect(getAgentBasedTopologyErrors(nodes)).toEqual([]);
+  });
+  it("rejects invalid master count", () => {
+    const nodes = generateNodesFromCounts(6, 0, 0);
+    expect(getAgentBasedTopologyErrors(nodes).some((e) => e.includes("6 control plane"))).toBe(true);
   });
 });
 

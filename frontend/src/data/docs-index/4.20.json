@@ -318,9 +318,9 @@
     "nutanix-ipi": {
       "docs": [
         {
-          "id": "installation-config-parameters-agent",
-          "title": "Installation configuration parameters for the Agent-based Installer",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "id": "installing-nutanix-ipi",
+          "title": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/",
           "configTypes": [
             "install-config"
           ],
@@ -330,7 +330,19 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "Chapter 9.1 shared install-config; platform from Nutanix doc."
+          "notes": "Nutanix IPI; primary platform install-config and procedures."
+        },
+        {
+          "id": "installation-config-parameters-nutanix",
+          "title": "Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "install-config-table"
+          ],
+          "notes": "Authoritative install-config parameter table for platform.nutanix (apiVIP, ingressVIP, prismCentral, etc.)."
         },
         {
           "id": "installing-disconnected",
@@ -347,21 +359,6 @@
             "trust-bundle"
           ],
           "notes": "Shared disconnected install."
-        },
-        {
-          "id": "installing-nutanix-ipi",
-          "title": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/",
-          "configTypes": [
-            "install-config"
-          ],
-          "tags": [
-            "restricted-network",
-            "mirroring",
-            "proxy",
-            "trust-bundle"
-          ],
-          "notes": "Nutanix IPI; install-config."
         }
       ]
     },

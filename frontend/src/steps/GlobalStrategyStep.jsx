@@ -1088,7 +1088,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 <input value={platformConfig.nutanix?.subnet || ""} onChange={(e) => updateNutanix({ subnet: e.target.value })} />
               </label>
               <div className="note">
-                Nutanix scenario mapping: IPI uses Prism Central, subnet UUID(s), and cluster name; disconnected install uses mirrored content.
+                Nutanix scenario mapping: IPI uses Prism Central, subnet UUID(s), cluster name, and API/Ingress VIPs (set on the Networking step); disconnected install uses mirrored content.
               </div>
             </div>
           ) : null}
