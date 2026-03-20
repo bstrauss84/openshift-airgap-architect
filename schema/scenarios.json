@@ -17,9 +17,10 @@
     {
       "platform": "VMware vSphere",
       "versionRange": ["4.17", "4.18", "4.19", "4.20"],
-      "installFamilies": ["IPI", "UPI"],
-      "installMethods": ["IPI", "UPI"],
-      "outputFiles": ["install-config.yaml"]
+      "installFamilies": ["Agent-based", "IPI", "UPI"],
+      "installMethods": ["Agent-Based Installer", "IPI", "UPI"],
+      "outputFiles": ["install-config.yaml", "agent-config.yaml"],
+      "agentConfigWhen": ["Agent-Based Installer"]
     },
     {
       "platform": "Nutanix",
@@ -38,8 +39,8 @@
     {
       "platform": "Azure Government",
       "versionRange": ["4.17", "4.18", "4.19", "4.20"],
-      "installFamilies": ["IPI"],
-      "installMethods": ["IPI"],
+      "installFamilies": ["IPI", "UPI"],
+      "installMethods": ["IPI", "UPI"],
       "outputFiles": ["install-config.yaml"]
     }
   ]

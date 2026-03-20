@@ -769,7 +769,9 @@ wipefs -a /dev/sdX`}</pre>
                               <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                               {" "}Use FQDN (shortname.baseDomain)
                             </label>
-                            <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
+                            <label>Root device — deviceName <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/vda or /dev/disk/by-path/..." /></label>
+                            <label>Root device — hctl <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0 (SCSI bus)" /></label>
+                            <label>Root device — min size (GB) <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" /></label>
                           </div>
                           <div className="divider" />
                           <h4><FieldLabelWithInfo label="BMC (IPI)" hint="Baseboard management controller. Required for installer-provisioned deployment." /></h4>
@@ -821,7 +823,9 @@ wipefs -a /dev/sdX`}</pre>
                           <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                           {" "}Use FQDN (shortname.baseDomain)
                         </label>
-                        <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
+                        <label>Root device — deviceName <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/vda or /dev/disk/by-path/..." /></label>
+                        <label>Root device — hctl <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0 (SCSI bus)" /></label>
+                        <label>Root device — min size (GB) <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" /></label>
                         <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking.">
                           <select value={selectedNode.primary?.type || "ethernet"} onChange={(e) => updatePrimary(selectedIndex, { type: e.target.value })}>
                             {PRIMARY_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}

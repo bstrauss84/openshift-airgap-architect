@@ -1,0 +1,49 @@
+# Canonical minimal install-config for VMware vSphere Agent-Based Installer (4.20).
+# Source: Red Hat 4.20 "Installation configuration parameters for the Agent-based Installer" Ch 9.1,
+#   https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent
+# vSphere platform parameters: Ch 9.1.5
+#   https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere
+# 3-node HA topology: platform.vsphere with apiVIPs/ingressVIPs derived from host inventory.
+apiVersion: v1
+baseDomain: example.com
+metadata:
+  name: airgap-cluster
+compute:
+  - name: worker
+    replicas: 0
+controlPlane:
+  name: master
+  replicas: 3
+networking:
+  networkType: OVNKubernetes
+  machineNetwork:
+    - cidr: 10.90.0.0/24
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  serviceNetwork:
+    - 172.30.0.0/16
+platform:
+  vsphere:
+    apiVIPs:
+      - 192.168.1.100
+    ingressVIPs:
+      - 192.168.1.101
+    vcenters:
+      - server: vcenter.example.com
+        datacenters:
+          - DC0
+        port: 443
+    failureDomains:
+      - name: fd-0
+        region: DC0
+        zone: cluster0
+        server: vcenter.example.com
+        topology:
+          datacenter: DC0
+          computeCluster: /DC0/host/cluster0
+          datastore: /DC0/datastore/datastore0
+          networks:
+            - VM Network
+pullSecret: '{"auths":{}}'
+sshKey: ''

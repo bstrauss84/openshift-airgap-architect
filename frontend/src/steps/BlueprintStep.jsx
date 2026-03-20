@@ -11,6 +11,15 @@ const archOptions = [
   { value: "s390x", label: "s390x", sub: "IBM Z" }
 ];
 
+/** OCP 4.20 supported architectures per platform (from platform-specific install docs). */
+const PLATFORM_ARCH_SUPPORT = {
+  "Bare Metal":       ["x86_64", "aarch64", "ppc64le", "s390x"],
+  "VMware vSphere":   ["x86_64", "aarch64"],
+  "Nutanix":          ["x86_64"],
+  "AWS GovCloud":     ["x86_64", "aarch64"],
+  "Azure Government": ["x86_64"]
+};
+
 const platformOptions = [
   { value: "Bare Metal", label: "Bare Metal", rec: "Rec: Agent" },
   { value: "VMware vSphere", label: "VMware vSphere", rec: "Rec: IPI" },
@@ -42,10 +51,22 @@ const BlueprintStep = () => {
     return r.valid ? "" : r.error;
   }, [blueprintPullSecretTrimmed]);
 
+  const allowedArchs = PLATFORM_ARCH_SUPPORT[blueprint?.platform] || archOptions.map((a) => a.value);
+  const allowedArchOptions = archOptions.filter((a) => allowedArchs.includes(a.value));
+
   const updateBlueprint = (patch) => {
     if (locked) return;
     updateState({ blueprint: { ...blueprint, ...patch, confirmed: false, confirmationTimestamp: null } });
   };
+
+  // When platform changes, reset arch to x86_64 if the current selection is no longer supported.
+  useEffect(() => {
+    if (locked) return;
+    const supported = PLATFORM_ARCH_SUPPORT[blueprint?.platform];
+    if (supported && blueprint?.arch && !supported.includes(blueprint.arch)) {
+      updateState({ blueprint: { ...blueprint, arch: "x86_64", confirmed: false, confirmationTimestamp: null } });
+    }
+  }, [blueprint?.platform]);
 
   const updateVersionSelection = (patch) => {
     updateState({
@@ -205,7 +226,7 @@ const BlueprintStep = () => {
             Target cluster host/node architecture (the machines that will run OpenShift). Not your local workstation or browser machine.
           </p>
           <div className="grid">
-            {archOptions.map((option) => (
+            {allowedArchOptions.map((option) => (
               <button
                 key={option.value}
                 className={`select-card ${blueprint?.arch === option.value ? "selected" : ""}`}

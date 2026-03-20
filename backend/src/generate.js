@@ -103,6 +103,8 @@ const buildInstallConfig = (state) => {
     creds.usingMirrorRegistry && creds.mirrorRegistryUnauthenticated
   );
   const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn || "registry.local:5000";
+  // "aWQ6cGFzcwo=" is base64 for "id:pass\n" — a placeholder credential for mirror registries
+  // configured with anonymous/unauthenticated access. The registry accepts any auth value.
   const anonymousPullSecretPayload = JSON.stringify({
     auths: { [registryFqdn]: { auth: "aWQ6cGFzcwo=", email: "" } }
   });
@@ -214,7 +216,11 @@ const buildInstallConfig = (state) => {
             };
           }
           if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
-          if ((node.rootDevice || "").trim()) host.rootDeviceHints = { deviceName: (node.rootDevice || "").trim() };
+          const rdh217 = {};
+          if ((node.rootDevice || "").trim()) rdh217.deviceName = node.rootDevice.trim();
+          if ((node.rootDeviceHintHctl || "").trim()) rdh217.hctl = node.rootDeviceHintHctl.trim();
+          if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") rdh217.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
+          if (Object.keys(rdh217).length > 0) host.rootDeviceHints = rdh217;
           return host;
         });
         baremetal.hosts = hosts;
@@ -253,7 +259,11 @@ const buildInstallConfig = (state) => {
           };
         }
         if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
-        if ((node.rootDevice || "").trim()) host.rootDeviceHints = { deviceName: (node.rootDevice || "").trim() };
+        const rdh256 = {};
+        if ((node.rootDevice || "").trim()) rdh256.deviceName = node.rootDevice.trim();
+        if ((node.rootDeviceHintHctl || "").trim()) rdh256.hctl = node.rootDeviceHintHctl.trim();
+        if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") rdh256.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
+        if (Object.keys(rdh256).length > 0) host.rootDeviceHints = rdh256;
         return host;
       });
       baremetal.hosts = hosts;
@@ -585,11 +595,15 @@ const buildInstallConfig = (state) => {
         password: includeCredentials ? nx.password || "" : ""
       };
     }
+    // subnetUUIDs: accept comma-separated list or single value (OCP 4.20 Nutanix params: plural array field).
     if (nx.subnet?.trim()) {
-      nutanix.subnetUUIDs = [nx.subnet.trim()];
+      nutanix.subnetUUIDs = nx.subnet.trim().split(",").map((s) => s.trim()).filter(Boolean);
     }
     if (nx.cluster?.trim()) {
       nutanix.clusterName = nx.cluster.trim();
+    }
+    if (nx.storageContainer?.trim()) {
+      nutanix.storageContainer = nx.storageContainer.trim();
     }
     const v4Api = (nx.apiVIP || "").trim();
     const v6Api = (nx.apiVIPV6 || "").trim();
@@ -614,7 +628,7 @@ const buildInstallConfig = (state) => {
     installConfig.credentialsMode = "Manual";
   }
 
-  if (state.blueprint?.platform === "Azure Government" && state.methodology?.method === "IPI") {
+  if (state.blueprint?.platform === "Azure Government" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
     const azure = {};
     if (platformConfig.azure?.cloudName) azure.cloudName = platformConfig.azure.cloudName;
     if (platformConfig.azure?.region) azure.region = platformConfig.azure.region;
@@ -680,7 +694,15 @@ const buildAgentConfig = (state) => {
       hostname: effectiveHostname(node, baseDomain),
       role: node.role,
       interfaces,
-      rootDeviceHints: node.rootDevice ? { deviceName: node.rootDevice } : undefined,
+      rootDeviceHints: (() => {
+        const hints = {};
+        if ((node.rootDevice || "").trim()) hints.deviceName = node.rootDevice.trim();
+        if ((node.rootDeviceHintHctl || "").trim()) hints.hctl = node.rootDeviceHintHctl.trim();
+        if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") {
+          hints.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
+        }
+        return Object.keys(hints).length > 0 ? hints : undefined;
+      })(),
       networkConfig: nmState
     };
   });
@@ -692,7 +714,7 @@ const buildAgentConfig = (state) => {
   const agentConfig = {
     apiVersion: "v1beta1",
     kind: "AgentConfig",
-    metadata: { name: "agent-config" },
+    metadata: { name: state.blueprint?.clusterName || "agent-cluster" },
     rendezvousIP,
     ...(additionalNTPSources.length > 0 ? { additionalNTPSources } : {}),
     ...(bootArtifactsBaseURL ? { bootArtifactsBaseURL } : {}),
@@ -1091,7 +1113,8 @@ const buildImageSetConfig = (state) => {
             minVersion: version,
             maxVersion: version
           }
-        ]
+        ],
+        graph: true
       },
       operators: []
     }
