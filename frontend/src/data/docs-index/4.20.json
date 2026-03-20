@@ -333,16 +333,43 @@
           "notes": "Nutanix IPI; primary platform install-config and procedures."
         },
         {
+          "id": "agent-based-installer-on-nutanix-ref",
+          "title": "Agent-based Installer on Nutanix (reference — not a wizard scenario)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer/#preparing-to-install-with-agent-based-installer",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "agent-based",
+            "not-in-wizard"
+          ],
+          "notes": "Linked from Installing on Nutanix Ch.1 §1.2. This app has no nutanix-agent scenario; only nutanix-ipi is implemented."
+        },
+        {
           "id": "installation-config-parameters-nutanix",
-          "title": "Nutanix configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix",
+          "title": "Installation configuration parameters for Nutanix",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix",
           "configTypes": [
             "install-config"
           ],
           "tags": [
             "install-config-table"
           ],
-          "notes": "Authoritative install-config parameter table for platform.nutanix (apiVIP, ingressVIP, prismCentral, etc.)."
+          "notes": "Nutanix book: install-config parameter tables (platform.nutanix, machine pools, networking, optional globals)."
+        },
+        {
+          "id": "installing-platform-agnostic",
+          "title": "Installing a cluster (platform-agnostic)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared install-config topics (e.g. cluster-wide proxy, trust) referenced from Nutanix procedures."
         },
         {
           "id": "installing-disconnected",

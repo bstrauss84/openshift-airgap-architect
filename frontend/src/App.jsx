@@ -922,37 +922,48 @@ const AppShell = () => {
               </button>
             ) : null}
             <div className="footer-spacer" />
-            <button
-              type="button"
-              className="primary"
-              onClick={() => {
-                const coreLockLocked =
-                  state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed);
-                if (visibleSteps[active]?.id === "blueprint" && !coreLockLocked) {
-                  setPendingNavIndex(active + 1);
-                  setShowCoreLockWarning(true);
-                  return;
+            {visibleSteps[active]?.id === "run-oc-mirror" ? (
+              <>
+                <button type="button" className="ghost" onClick={() => attemptNavigate(0)}>
+                  Back to Blueprint
+                </button>
+                <button type="button" className="primary" onClick={proceed} disabled={!canProceed}>
+                  Continue to Operations
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  const coreLockLocked =
+                    state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed);
+                  if (visibleSteps[active]?.id === "blueprint" && !coreLockLocked) {
+                    setPendingNavIndex(active + 1);
+                    setShowCoreLockWarning(true);
+                    return;
+                  }
+                  if (active === visibleSteps.length - 1) {
+                    attemptNavigate(firstIncompleteStepIndex);
+                  } else {
+                    proceed();
+                  }
+                }}
+                disabled={
+                  !canProceed ||
+                  (visibleSteps[active]?.id === "blueprint" && (!blueprintReady || !releaseReady))
                 }
-                if (active === visibleSteps.length - 1) {
-                  attemptNavigate(firstIncompleteStepIndex);
-                } else {
-                  proceed();
-                }
-              }}
-              disabled={
-                !canProceed ||
-                (visibleSteps[active]?.id === "blueprint" && (!blueprintReady || !releaseReady))
-              }
-            >
-              {active === visibleSteps.length - 1
-                ? "Finish"
-                : visibleSteps[active]?.id === "blueprint" &&
-                    !(state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed))
-                  ? "Confirm & Proceed"
-                  : visibleSteps[active]?.id === "blueprint"
-                    ? "Proceed"
-                    : "Proceed"}
-            </button>
+              >
+                {active === visibleSteps.length - 1
+                  ? "Finish"
+                  : visibleSteps[active]?.id === "blueprint" &&
+                      !(state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed))
+                    ? "Confirm & Proceed"
+                    : visibleSteps[active]?.id === "blueprint"
+                      ? "Proceed"
+                      : "Proceed"}
+              </button>
+            )}
           </footer>
         </div>
       </div>

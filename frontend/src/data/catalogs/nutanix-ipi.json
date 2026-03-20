@@ -15,10 +15,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -58,50 +58,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
-        }
-      ]
-    },
-    {
-      "path": "arbiter.name",
-      "outputFile": "install-config.yaml",
-      "type": "string",
-      "allowed": "e.g. arbiter",
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Name for arbiter nodes.",
-      "applies_to": [
-        "nutanix-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
-        }
-      ]
-    },
-    {
-      "path": "arbiter.replicas",
-      "outputFile": "install-config.yaml",
-      "type": "int",
-      "allowed": 1,
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Number of arbiter nodes. Cannot be greater than 1.",
-      "applies_to": [
-        "nutanix-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -118,10 +78,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -138,10 +98,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -158,10 +118,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -183,10 +143,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -203,10 +163,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -228,10 +188,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -251,10 +211,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -271,10 +231,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -283,22 +243,21 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": [
-        "baremetal",
-        "vsphere",
+        "nutanix",
         "{}"
       ],
       "default": "not specified in docs",
       "required": false,
-      "description": "Cloud provider for worker machines. Must match controlPlane.platform.",
+      "description": "Cloud provider for worker machines on Nutanix IPI. Use nutanix (must match control plane platform).",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -306,19 +265,19 @@
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
       "type": "int",
-      "allowed": "integer >= 2",
+      "allowed": "non-negative integer; 0 for three-node compact when control plane replicas is 3",
       "default": 3,
       "required": false,
-      "description": "Number of compute (worker) machines to provision.",
+      "description": "Worker machine count. Standard clusters use at least 3 workers; set 0 with control plane replicas 3 for a compact three-node cluster (OpenShift 4.20 Nutanix doc).",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -335,10 +294,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -360,10 +319,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -383,10 +342,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -403,10 +362,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -415,22 +374,21 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": [
-        "baremetal",
-        "vsphere",
+        "nutanix",
         "{}"
       ],
       "default": "not specified in docs",
       "required": false,
-      "description": "Cloud provider for control plane. Must match compute.platform.",
+      "description": "Cloud provider for control plane on Nutanix IPI. Use nutanix (must match compute platform).",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -440,22 +398,20 @@
       "type": "int",
       "allowed": [
         3,
-        4,
-        5,
         1
       ],
       "default": "not specified in docs",
       "required": false,
-      "description": "Number of control plane machines. 3, 4, 5, or 1 for single-node.",
+      "description": "Number of control plane machines for Nutanix IPI: 3 for standard or compact three-node (with compute.replicas 0), or 1 for single-node OpenShift (OpenShift 4.20 Nutanix install-config).",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -475,10 +431,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -487,23 +443,20 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": [
-        "Mint",
-        "Passthrough",
-        "Manual",
-        ""
+        "Manual"
       ],
-      "default": "not specified in docs",
+      "default": "Manual",
       "required": false,
-      "description": "Cloud Credential Operator (CCO) mode.",
+      "description": "Cloud Credential Operator (CCO) mode. Installing on Nutanix §1.4 requires manual mode; this app always emits credentialsMode: Manual in install-config (no Mint/Passthrough for this platform).",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "preparing-to-install-on-nutanix",
+          "docTitle": "Chapter 1. Installation methods (Installing on Nutanix)",
+          "sectionHeading": "1.4. Configuring the Cloud Credential Operator utility",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/preparing-to-install-on-nutanix"
         }
       ]
     },
@@ -520,10 +473,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -543,10 +496,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -563,10 +516,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -583,10 +536,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -603,10 +556,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -623,10 +576,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installing-disconnected",
+          "docTitle": "Installing a cluster on disconnected infrastructure",
+          "sectionHeading": "Mirroring and image sources (shared)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
         }
       ]
     },
@@ -643,10 +596,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installing-disconnected",
+          "docTitle": "Installing a cluster on disconnected infrastructure",
+          "sectionHeading": "Mirroring and image sources (shared)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
         }
       ]
     },
@@ -663,10 +616,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installing-disconnected",
+          "docTitle": "Installing a cluster on disconnected infrastructure",
+          "sectionHeading": "Mirroring and image sources (shared)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
         }
       ]
     },
@@ -683,10 +636,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -695,18 +648,18 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": "lowercase letters, hyphens, periods",
-      "default": "agent-cluster when not provided",
+      "default": "cluster name from Cluster Identity when not overridden",
       "required": false,
-      "description": "Cluster name. DNS records are subdomains of {{.metadata.name}}.{{.baseDomain}}. Ignored in agent-config if set in install-config.",
+      "description": "Cluster name (metadata.name). DNS records use <name>.<baseDomain>. Must match Cluster Identity in this app.",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -723,10 +676,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -743,10 +696,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -763,10 +716,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -783,10 +736,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -803,10 +756,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -823,10 +776,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -843,10 +796,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -863,10 +816,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -883,10 +836,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -903,10 +856,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -938,7 +891,9 @@
       "default": "not specified in docs",
       "required": true,
       "description": "Prism Central FQDN or IP address (install-config platform.nutanix.prismCentral.endpoint.address).",
-      "applies_to": ["nutanix-ipi"],
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
           "docId": "installation-config-parameters-nutanix",
@@ -962,7 +917,9 @@
       "default": 9440,
       "required": false,
       "description": "Prism Central API port under prismCentral.endpoint (default 9440).",
-      "applies_to": ["nutanix-ipi"],
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
           "docId": "installation-config-parameters-nutanix",
@@ -980,7 +937,9 @@
       "default": "not specified in docs",
       "required": true,
       "description": "Virtual IP for the Kubernetes API; must be on the machine network (OpenShift 4.20 Nutanix IPI install-config).",
-      "applies_to": ["nutanix-ipi"],
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
           "docId": "installation-config-parameters-nutanix",
@@ -1004,7 +963,9 @@
       "default": "not specified in docs",
       "required": true,
       "description": "Virtual IP for the default Ingress controller; must be on the machine network.",
-      "applies_to": ["nutanix-ipi"],
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
           "docId": "installation-config-parameters-nutanix",
@@ -1028,8 +989,17 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Prism Central username. Emitted in install-config only when including credentials.",
-      "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
     },
     {
       "path": "platform.nutanix.prismCentral.password",
@@ -1039,8 +1009,17 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Prism Central password. Emitted in install-config only when including credentials.",
-      "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
     },
     {
       "path": "platform.nutanix.clusterName",
@@ -1050,8 +1029,17 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Optional Nutanix cluster (Prism Element) name for VM placement.",
-      "applies_to": ["nutanix-ipi"],
-      "citations": [{"docId": "installing-nutanix-ipi", "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure", "sectionHeading": "Nutanix install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"}]
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
     },
     {
       "path": "platform.nutanix.subnet",
@@ -1083,16 +1071,16 @@
       ],
       "default": "External",
       "required": false,
-      "description": "How to publish cluster endpoints (Kubernetes API, routes). Internal not supported on non-cloud.",
+      "description": "How to publish cluster endpoints. Internal is not supported on Nutanix IPI (validation error); the generator coerces Internal to External in install-config. Prefer External.",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -1169,10 +1157,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },
@@ -1189,10 +1177,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     }

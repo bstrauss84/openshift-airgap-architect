@@ -736,6 +736,51 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     placeholder="Optional cluster name"
                   />
                 </FieldLabelWithInfo>
+                <h4 className="platform-specifics-subsection" style={{ marginTop: 16 }}>
+                  Machine counts (install-config)
+                </h4>
+                <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                  Nutanix IPI has no host inventory in this app. Set control plane and worker counts here (OpenShift 4.20: control plane replicas{" "}
+                  <strong>3</strong> or <strong>1</strong> for single-node; workers <strong>0</strong> with 3 control plane for a compact three-node cluster).
+                </p>
+                <div className="field-grid">
+                  <FieldLabelWithInfo
+                    label="Control plane replicas"
+                    hint="Must be 3 (standard or compact three-node) or 1 (single-node OpenShift)."
+                  >
+                    <input
+                      type="number"
+                      min={1}
+                      max={3}
+                      value={platformConfig.controlPlaneReplicas ?? 3}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? undefined : Number(e.target.value);
+                        updatePlatformConfig({ controlPlaneReplicas: v });
+                      }}
+                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Compute (worker) replicas"
+                    hint="Standard clusters use ≥3 workers; use 0 with 3 control plane for three-node compact."
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={platformConfig.computeReplicas ?? 3}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? undefined : Number(e.target.value);
+                        updatePlatformConfig({ computeReplicas: v });
+                      }}
+                    />
+                  </FieldLabelWithInfo>
+                </div>
+                <FieldLabelWithInfo
+                  label="Credentials mode"
+                  hint="OpenShift 4.20 Installing on Nutanix §1.4 requires the Cloud Credential Operator in Manual mode. This scenario always emits credentialsMode: Manual in install-config."
+                >
+                  <input readOnly value="Manual" aria-label="Credentials mode (Manual, required for Nutanix IPI)" />
+                </FieldLabelWithInfo>
               </div>
             </div>
           </section>

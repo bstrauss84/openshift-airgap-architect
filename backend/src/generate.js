@@ -71,12 +71,21 @@ const buildInstallConfig = (state) => {
   const arbiters = sortedNodes.filter((node) => node.role === "arbiter").length || 0;
   const platformConfig = state.platformConfig || {};
   const isAwsNoHostInventory = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
+  const isNutanixIpi = state.blueprint?.platform === "Nutanix" && state.methodology?.method === "IPI";
   if (isAwsNoHostInventory) {
     const cp = Number(platformConfig.controlPlaneReplicas);
     const comp = Number(platformConfig.computeReplicas);
     if (Number.isInteger(cp) && cp >= 0) masters = cp;
     else if (masters === 0) masters = 3;
     if (Number.isInteger(comp) && comp >= 0) workers = comp;
+  } else if (isNutanixIpi) {
+    // Nutanix IPI has no host inventory; replicas come from Platform Specifics (OpenShift 4.20 Nutanix doc: 3 or 1 control plane; workers 0+).
+    const cp = Number(platformConfig.controlPlaneReplicas);
+    const comp = Number(platformConfig.computeReplicas);
+    if (Number.isInteger(cp) && cp > 0) masters = cp;
+    else masters = 3;
+    if (Number.isInteger(comp) && comp >= 0) workers = comp;
+    else workers = 3;
   }
   const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
 
@@ -559,6 +568,9 @@ const buildInstallConfig = (state) => {
   }
 
   if (state.blueprint?.platform === "Nutanix" && state.methodology?.method === "IPI") {
+    installConfig.controlPlane.platform = { nutanix: {} };
+    installConfig.compute[0].platform = { nutanix: {} };
+
     const nx = platformConfig.nutanix || {};
     const nutanix = {};
     const endpointAddr = (nx.endpoint || "").trim();
@@ -579,15 +591,27 @@ const buildInstallConfig = (state) => {
     if (nx.cluster?.trim()) {
       nutanix.clusterName = nx.cluster.trim();
     }
-    if ((nx.apiVIP || "").trim()) {
-      nutanix.apiVIP = nx.apiVIP.trim();
-    }
-    if ((nx.ingressVIP || "").trim()) {
-      nutanix.ingressVIP = nx.ingressVIP.trim();
+    const v4Api = (nx.apiVIP || "").trim();
+    const v6Api = (nx.apiVIPV6 || "").trim();
+    const v4Ing = (nx.ingressVIP || "").trim();
+    const v6Ing = (nx.ingressVIPV6 || "").trim();
+    const machineV6 = (networkingState.machineNetworkV6 || "").trim();
+    const useDualStackVipLists = Boolean(machineV6) && (Boolean(v6Api) || Boolean(v6Ing));
+    if (useDualStackVipLists) {
+      const apiList = [v4Api, v6Api].filter(Boolean);
+      const ingList = [v4Ing, v6Ing].filter(Boolean);
+      if (apiList.length) nutanix.apiVIPs = apiList;
+      if (ingList.length) nutanix.ingressVIPs = ingList;
+    } else {
+      if (v4Api) nutanix.apiVIP = v4Api;
+      if (v4Ing) nutanix.ingressVIP = v4Ing;
     }
     if (Object.keys(nutanix).length) {
       installConfig.platform.nutanix = nutanix;
     }
+    // Installing on Nutanix §1.4: CCO must run in Manual mode (always emit; do not use Mint/Passthrough for this platform).
+    installConfig.publish = platformConfig.publish === "Internal" ? "External" : (platformConfig.publish || "External");
+    installConfig.credentialsMode = "Manual";
   }
 
   if (state.blueprint?.platform === "Azure Government" && state.methodology?.method === "IPI") {
