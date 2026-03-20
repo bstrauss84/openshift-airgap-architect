@@ -132,7 +132,9 @@ const defaultState = () => ({
       cluster: "",
       subnet: "",
       apiVIP: "",
-      ingressVIP: ""
+      ingressVIP: "",
+      apiVIPV6: "",
+      ingressVIPV6: ""
     },
     azure: {
       cloudName: "AzureUSGovernmentCloud",
