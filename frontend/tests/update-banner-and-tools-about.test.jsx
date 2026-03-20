@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import App, { shouldShowUpdateBanner } from "../src/App.jsx";
 import ToolsDrawer from "../src/components/ToolsDrawer.jsx";
 import { apiFetch } from "../src/api.js";
@@ -115,11 +115,12 @@ describe("Landing update banner", () => {
   });
 
   it("shows update banner on Landing when enabled, outdated, and no error", async () => {
-    render(<App />);
+    const { container } = render(<App />);
+    const view = within(container);
     await waitFor(() => {
-      expect(screen.getByText(/Update available/)).toBeInTheDocument();
+      expect(view.getByText(/Update available/)).toBeInTheDocument();
     });
-    expect(screen.getByText(/See Tools → About for update steps/)).toBeInTheDocument();
+    expect(view.getByText(/See Tools → About for update steps/)).toBeInTheDocument();
   });
 });
 

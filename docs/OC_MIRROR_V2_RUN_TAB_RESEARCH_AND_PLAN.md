@@ -2,7 +2,7 @@
 
 **Purpose:** Buildable contract for the "Run oc-mirror" tab. A later implementation pass can follow §1–§9 directly without re-deciding scope, APIs, state, or artifact rules.
 
-**Status:** Implementation contract complete (third pass: contract refinement). No feature implementation in this pass.
+**Status:** Implementation contract complete. v1 implementation completed on branch `feat/oc-mirror-run-tab-v1` (see "Implementation Pass (v1)" below).
 
 **Doc source:** OpenShift 4.20 Disconnected environments → Chapter 5 "Mirroring images for a disconnected installation by using the oc-mirror plugin v2" (docs.redhat.com).
 
@@ -823,6 +823,51 @@ Docs state oc-mirror v2 verifies that the complete image set is mirrored. Releas
 - **Code changes this pass:** None (doc only).
 - **Scripts run:** None. validate-docs-index and validate-catalog not run because no docs-index or catalog file was changed.
 - **Result:** No test execution; no regression. If a future pass edits code, it must run the relevant backend and frontend tests and report.
+
+---
+
+## Implementation Pass (v1) — Completed
+
+**Branch:** `feat/oc-mirror-run-tab-v1` (created for this pass; no commit/stage).
+
+### What was implemented
+
+| Contract section | Implementation |
+|-----------------|----------------|
+| **§1 v1 scope** | mirrorToDisk, diskToMirror, mirrorToMirror; dry-run (m2d only); paths (archive, workspace, cache); config source generated/external; registry URL; auth reuse/pasted/env; preflight; run/stop; job metadata; artifact summary; includeInExport. No delete, no break-glass, no enclave, no signature-policy, no deep reachability. |
+| **§2A Preflight** | `POST /api/ocmirror/preflight` with request/response shape; per-mode checks (archivePath, workspacePath, cachePath, config, auth, registryUrl); d2m archive structure; path-overlap blockers; no credential/registry/DNS checks. |
+| **§2B Run** | `POST /api/ocmirror/run` extended: mode, dryRun, configSourceType, configPath, authSource, pullSecret, advanced flags; workspacePath, cachePath, registryUrl; temp config/auth lifecycle; job metadata on start and on exit (exitCode, finishedAt, clusterResourcesPath, dryRunMappingPath, dryRunMissingPath). |
+| **§2C Stop** | Existing `POST /api/jobs/:id/stop`; no change. |
+| **§3 Run tab UI** | RunOcMirrorStep replaced with full v1 UI: Mode, Config source, Paths, Destination/registry, Auth, Advanced (collapsible), Preflight, Run status/last run. Long-help, preflight button, Run gated on no blockers, Stop when running, last-run summary with link to Operations. |
+| **§4 Job metadata** | `jobs.metadata_json` TEXT column (migration in db.js); createJob/updateJob/updateJobMetadata in utils; metadata fields: mode, dryRun, archiveDir, workspaceDir, cacheDir, registryUrl, configSourceType, configPath, exitCode, startedAt, finishedAt, clusterResourcesPath, dryRunMappingPath, dryRunMissingPath. Legacy jobs without metadata_json remain readable. |
+| **§5 Operations** | oc-mirror-run jobs: mode in row subtitle; expanded details show summary block (mode, status, exit code, paths, registry, cluster-resources, dry-run paths, timestamps). Non-oc-mirror and legacy jobs unchanged. |
+| **§6 Artifact/handoff** | Temp config/auth cleaned up; archive/workspace/cache preserved; includeInExport defaults false, adds archive path only; UI warns on export size; summary shows paths for manual continuation. |
+
+### Deviations from contract
+
+- None. Path-overlap rule: archive/workspace/cache overlap is a blocker (per §6C).
+
+### Test results
+
+- **Backend:** 71/71 tests pass. `backend/test/ocmirror.test.js`: preflight invalid mode 400; preflight response shape; run without version confirmed 400 (state explicitly set unconfirmed); run with version confirmed returns jobId and job metadata; createJob + updateJobMetadata persist metadata.
+- **Frontend:** 192 passed, 2 skipped. `frontend/tests/run-oc-mirror-step.test.jsx`: Run step renders mode selection and Run disabled until preflight; after preflight with no blockers, Run button enabled.
+- validate-docs-index / validate-catalog: not run (no docs-index or catalog changes).
+
+### Still deferred from v1
+
+- oc-mirror **delete**; break-glass **cleanup/reset**; **signature-policy / registries.d**; **enclave** flows; **deep reachability** checks.
+
+### Manual validation checklist (suggested)
+
+- [ ] **mirrorToDisk generated config** — Set archive/workspace/cache paths, run preflight, run; confirm job in Operations with metadata; confirm artifact paths in summary.
+- [ ] **mirrorToDisk external config** — External config path, preflight, run; confirm correct config used.
+- [ ] **diskToMirror** — Set archive (existing m2d output), workspace, cache, registry URL; preflight, run; confirm CLI and metadata.
+- [ ] **mirrorToMirror** — Workspace and registry URL only; preflight, run; confirm no archive/cache in CLI.
+- [ ] **dryRun mirrorToDisk** — Enable dry-run, run; confirm dry-run artifact paths in metadata/summary.
+- [ ] **Stop/cancel** — Start run, click Stop; confirm job cancelled and partial-artifact message.
+- [ ] **Operations metadata** — After run, open Operations, expand job; confirm mode, paths, exit code, timestamps in summary block.
+- [ ] **includeInExport** — Enable include in export, run m2d, export bundle; confirm archive path in ZIP; confirm UI warning when enabling.
+- [ ] **Manual handoff** — After run, use summary paths to run oc-mirror from CLI with same config; confirm no app-owned moves.
 
 ---
 

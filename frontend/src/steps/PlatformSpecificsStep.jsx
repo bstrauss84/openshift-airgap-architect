@@ -42,6 +42,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const [awsRegions, setAwsRegions] = useState([]);
   const [amiLookup, setAmiLookup] = useState({ loading: false, error: "", key: "" });
   const [showVspherePassword, setShowVspherePassword] = useState(false);
+  const [showNutanixPassword, setShowNutanixPassword] = useState(false);
 
   const showAwsAmiLookup =
     showAwsGovcloudSection &&
@@ -89,8 +90,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
     [selectedVersion, arch, updateAws]
   );
 
-  /** Agent options (boot artifacts etc.) only for bare-metal-agent. */
-  const showAgentOptionsSection = scenarioId === "bare-metal-agent" && catalogParams.some(
+  /** Agent options (boot artifacts etc.) for agent-based scenarios that expose agent-config params in catalog. */
+  const showAgentOptionsSection = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && catalogParams.some(
     (p) => p.path === "bootArtifactsBaseURL" && p.outputFile === AGENT_CONFIG
   );
   const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG);
@@ -121,8 +122,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
     (p) => (p.path === "platform.nutanix.prismCentral" || p.path === "platform.nutanix.subnet") && p.outputFile === INSTALL_CONFIG
   );
   const updateNutanix = (patch) => updatePlatformConfig({ nutanix: { ...(platformConfig.nutanix || {}), ...patch } });
-  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint", INSTALL_CONFIG);
-  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.port", INSTALL_CONFIG);
+  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.address", INSTALL_CONFIG);
+  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.port", INSTALL_CONFIG);
   const metaNutanixUsername = getParamMeta(scenarioId, "platform.nutanix.prismCentral.username", INSTALL_CONFIG);
   const metaNutanixPassword = getParamMeta(scenarioId, "platform.nutanix.prismCentral.password", INSTALL_CONFIG);
   const metaNutanixSubnet = getParamMeta(scenarioId, "platform.nutanix.subnet", INSTALL_CONFIG);
@@ -184,7 +185,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const showControlPlaneHyperthreading = hasParam(catalogParams, "controlPlane[].hyperthreading", INSTALL_CONFIG);
   const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
-  const showMinimalISO = scenarioId === "bare-metal-agent" && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
+  const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
   const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
@@ -676,7 +677,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Prism Central endpoint"
                   hint={metaNutanixEndpoint?.description}
-                  required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint")}
+                  required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint.address")}
                 >
                   <input
                     value={platformConfig.nutanix?.endpoint || ""}
@@ -693,6 +694,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     value={platformConfig.nutanix?.port ?? ""}
                     onChange={(e) => updateNutanix({ port: e.target.value || undefined })}
                     placeholder="9440"
+                    style={{ maxWidth: 120 }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -705,25 +707,44 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     placeholder="admin"
                   />
                 </FieldLabelWithInfo>
-                <label>
-                  <span>Prism Central password <span className="subtle">(optional; emitted when including credentials)</span></span>
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={platformConfig.nutanix?.password || ""}
-                    onChange={(e) => updateNutanix({ password: e.target.value })}
-                    placeholder="••••••••"
-                  />
-                </label>
                 <FieldLabelWithInfo
-                  label="Subnet UUID or name"
-                  hint={metaNutanixSubnet?.description}
+                  label="Prism Central password (optional; emitted when including credentials)"
+                  hint={metaNutanixPassword?.description || "Included in install-config only when you choose to include credentials in export. Do not save in browser."}
+                >
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      type={showNutanixPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      data-form-type="other"
+                      data-lpignore="true"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      value={platformConfig.nutanix?.password || ""}
+                      onChange={(e) => updateNutanix({ password: e.target.value })}
+                      placeholder="••••••••"
+                      style={{ flex: "1 1 auto", minWidth: 0 }}
+                    />
+                    <button
+                      type="button"
+                      className="ghost"
+                      style={{ padding: "2px 8px", fontSize: "0.75rem", flexShrink: 0 }}
+                      onClick={() => setShowNutanixPassword((s) => !s)}
+                      aria-label={showNutanixPassword ? "Hide password" : "Show password"}
+                    >
+                      {showNutanixPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Subnet UUID(s) or name(s)"
+                  hint={`${metaNutanixSubnet?.description || "Subnet UUID or name for the cluster network."} Comma-separate multiple values for multi-subnet environments.`}
                   required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
                 >
                   <input
                     value={platformConfig.nutanix?.subnet || ""}
                     onChange={(e) => updateNutanix({ subnet: e.target.value })}
-                    placeholder="Subnet UUID or name"
+                    placeholder="subnet-uuid or uuid1,uuid2"
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -736,6 +757,61 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     placeholder="Optional cluster name"
                   />
                 </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Storage container (optional)"
+                  hint="Nutanix storage container for the cluster's volumes. Leave blank to use the default storage container."
+                >
+                  <input
+                    value={platformConfig.nutanix?.storageContainer || ""}
+                    onChange={(e) => updateNutanix({ storageContainer: e.target.value })}
+                    placeholder="Optional storage container name"
+                  />
+                </FieldLabelWithInfo>
+                <h4 className="platform-specifics-subsection" style={{ marginTop: 16 }}>
+                  Machine counts (install-config)
+                </h4>
+                <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                  Nutanix IPI has no host inventory in this app. Set control plane and worker counts here (OpenShift 4.20: control plane replicas{" "}
+                  <strong>3</strong> or <strong>1</strong> for single-node; workers <strong>0</strong> with 3 control plane for a compact three-node cluster).
+                </p>
+                <div className="field-grid">
+                  <FieldLabelWithInfo
+                    label="Control plane replicas"
+                    hint="Must be 3 (standard or compact three-node) or 1 (single-node OpenShift)."
+                  >
+                    <input
+                      type="number"
+                      min={1}
+                      max={3}
+                      value={platformConfig.controlPlaneReplicas ?? 3}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? undefined : Number(e.target.value);
+                        updatePlatformConfig({ controlPlaneReplicas: v });
+                      }}
+                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Compute (worker) replicas"
+                    hint="Standard clusters use ≥3 workers; use 0 with 3 control plane for three-node compact."
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={platformConfig.computeReplicas ?? 3}
+                      onChange={(e) => {
+                        const v = e.target.value === "" ? undefined : Number(e.target.value);
+                        updatePlatformConfig({ computeReplicas: v });
+                      }}
+                    />
+                  </FieldLabelWithInfo>
+                </div>
+                <FieldLabelWithInfo
+                  label="Credentials mode"
+                  hint="OpenShift 4.20 Installing on Nutanix §1.4 requires the Cloud Credential Operator in Manual mode. This scenario always emits credentialsMode: Manual in install-config."
+                >
+                  <input readOnly value="Manual" aria-label="Credentials mode (Manual, required for Nutanix IPI)" />
+                </FieldLabelWithInfo>
               </div>
             </div>
           </section>
@@ -744,8 +820,15 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
         {showVsphereIpiSection && (
           <section className="card">
             <div className="card-header">
-              <h3 className="card-title">vSphere {scenarioId === "vsphere-upi" ? "UPI" : "IPI"}</h3>
-              <div className="card-subtitle">vCenter credentials, placement, and storage for vSphere (installer-provisioned or user-provisioned).</div>
+              <h3 className="card-title">
+                vSphere{" "}
+                {scenarioId === "vsphere-upi" ? "UPI" : scenarioId === "vsphere-agent" ? "Agent-based" : "IPI"}
+              </h3>
+              <div className="card-subtitle">
+                {scenarioId === "vsphere-agent"
+                  ? "vCenter placement for Agent-based installs (you provide VMs; install-config uses platform.vsphere with apiVIPs/ingressVIPs from Networking). IPI-only items (RHCOS template URL, topology.template, optional machine pool sizing) are hidden."
+                  : "vCenter credentials, placement, and storage for vSphere (installer-provisioned or user-provisioned)."}
+              </div>
             </div>
             <div className="card-body">
               <h4 className="platform-specifics-subsection">Credentials</h4>

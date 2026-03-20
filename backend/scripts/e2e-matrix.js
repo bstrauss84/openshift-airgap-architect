@@ -25,9 +25,11 @@ const SCENARIOS = [
   { id: "bare-metal-upi", platform: "Bare Metal", method: "UPI", agentConfig: false },
   { id: "vsphere-ipi", platform: "VMware vSphere", method: "IPI", agentConfig: false },
   { id: "vsphere-upi", platform: "VMware vSphere", method: "UPI", agentConfig: false },
+  { id: "vsphere-agent", platform: "VMware vSphere", method: "Agent-Based Installer", agentConfig: true },
   { id: "aws-govcloud-ipi", platform: "AWS GovCloud", method: "IPI", agentConfig: false },
   { id: "aws-govcloud-upi", platform: "AWS GovCloud", method: "UPI", agentConfig: false },
   { id: "azure-government-ipi", platform: "Azure Government", method: "IPI", agentConfig: false },
+  { id: "azure-government-upi", platform: "Azure Government", method: "UPI", agentConfig: false },
   { id: "nutanix-ipi", platform: "Nutanix", method: "IPI", agentConfig: false }
 ];
 
@@ -37,9 +39,9 @@ const PATH_APPLIES = {
   "with-fips": () => true,
   "with-proxy": () => true,
   "dual-stack": () => true,
-  "node-counts": (sid) => ["bare-metal-agent", "bare-metal-ipi"].includes(sid),
+  "node-counts": (sid) => ["bare-metal-agent", "bare-metal-ipi", "vsphere-agent"].includes(sid),
   "aws-with-instance-types": (sid) => sid === "aws-govcloud-ipi",
-  "vsphere-failure-domains": (sid) => ["vsphere-ipi", "vsphere-upi"].includes(sid),
+  "vsphere-failure-domains": (sid) => ["vsphere-ipi", "vsphere-upi", "vsphere-agent"].includes(sid),
   "bare-metal-provisioning": (sid) => sid === "bare-metal-ipi",
   "with-trust-bundle": () => true,
   "hyperthreading-enabled": () => true,
@@ -114,7 +116,18 @@ function minimalState() {
       publish: "External",
       aws: { region: "", subnets: "", hostedZone: "", amiId: "", controlPlaneInstanceType: "", workerInstanceType: "" },
       vsphere: { vcenter: "", datacenter: "", cluster: "", datastore: "", network: "", username: "", password: "" },
-      nutanix: { endpoint: "", port: "9440", username: "", password: "", cluster: "", subnet: "" },
+      nutanix: {
+        endpoint: "",
+        port: "9440",
+        username: "",
+        password: "",
+        cluster: "",
+        subnet: "",
+        apiVIP: "",
+        ingressVIP: "",
+        apiVIPV6: "",
+        ingressVIPV6: ""
+      },
       azure: { cloudName: "AzureUSGovernmentCloud", region: "", resourceGroupName: "", baseDomainResourceGroupName: "" }
     },
     trust: {},
@@ -180,6 +193,29 @@ function scenarioOverrides(scenarioId) {
         }
       }
     },
+    "vsphere-agent": {
+      blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "airgap-cluster" },
+      methodology: { method: "Agent-Based Installer" },
+      platformConfig: {
+        vsphere: {
+          placementMode: "legacy",
+          vcenter: "vcenter.example.com",
+          datacenter: "DC0",
+          cluster: "cluster0",
+          datastore: "datastore0",
+          network: "VM Network"
+        }
+      },
+      hostInventory: {
+        nodes: [
+          { hostname: "master-0", role: "master", primary: { ipv4Cidr: "192.168.1.10/24", ethernet: { name: "eth0", macAddress: "52:54:00:00:00:01" } }, bmc: {}, rootDevice: "" },
+          { hostname: "master-1", role: "master", primary: { ipv4Cidr: "192.168.1.11/24", ethernet: { name: "eth0", macAddress: "52:54:00:00:00:02" } }, bmc: {}, rootDevice: "" },
+          { hostname: "master-2", role: "master", primary: { ipv4Cidr: "192.168.1.12/24", ethernet: { name: "eth0", macAddress: "52:54:00:00:00:03" } }, bmc: {}, rootDevice: "" }
+        ],
+        apiVip: "192.168.1.100",
+        ingressVip: "192.168.1.101"
+      }
+    },
     "aws-govcloud-ipi": {
       blueprint: { platform: "AWS GovCloud", baseDomain: "example.com", clusterName: "airgap-cluster" },
       methodology: { method: "IPI" },
@@ -189,6 +225,13 @@ function scenarioOverrides(scenarioId) {
       blueprint: { platform: "AWS GovCloud", baseDomain: "example.com", clusterName: "airgap-cluster" },
       methodology: { method: "UPI" },
       platformConfig: { aws: { region: "us-gov-west-1" } }
+    },
+    "azure-government-upi": {
+      blueprint: { platform: "Azure Government", baseDomain: "example.com", clusterName: "airgap-cluster" },
+      methodology: { method: "UPI" },
+      platformConfig: {
+        azure: { cloudName: "AzureUSGovernmentCloud", region: "usgovvirginia", baseDomainResourceGroupName: "dns-rg" }
+      }
     },
     "azure-government-ipi": {
       blueprint: { platform: "Azure Government", baseDomain: "example.com", clusterName: "airgap-cluster" },
@@ -206,10 +249,16 @@ function scenarioOverrides(scenarioId) {
       blueprint: { platform: "Nutanix", baseDomain: "example.com", clusterName: "airgap-cluster" },
       methodology: { method: "IPI" },
       platformConfig: {
+        controlPlaneReplicas: 3,
+        computeReplicas: 3,
         nutanix: {
           endpoint: "prism-central.example.com",
           port: "9440",
-          subnet: "subnet-uuid-placeholder"
+          subnet: "subnet-uuid-placeholder",
+          apiVIP: "10.90.0.10",
+          ingressVIP: "10.90.0.11",
+          apiVIPV6: "",
+          ingressVIPV6: ""
         }
       }
     }
@@ -410,9 +459,11 @@ function validateInstallConfig(obj, scenarioId) {
       "bare-metal-ipi": "baremetal",
       "vsphere-ipi": "vsphere",
       "vsphere-upi": "vsphere",
+      "vsphere-agent": "vsphere",
       "aws-govcloud-ipi": "aws",
       "aws-govcloud-upi": "aws",
       "azure-government-ipi": "azure",
+      "azure-government-upi": "azure",
       "nutanix-ipi": "nutanix"
     };
     const expect = expectedPlatform[scenarioId];

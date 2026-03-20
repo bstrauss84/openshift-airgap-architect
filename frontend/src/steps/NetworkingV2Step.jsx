@@ -49,19 +49,26 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     updateState({ hostInventory: { ...hostInventory, ...patch } });
   const updateVsphere = (patch) =>
     updateState({ platformConfig: { ...platformConfig, vsphere: { ...platformConfig.vsphere, ...patch } } });
+  const updateNutanix = (patch) =>
+    updateState({ platformConfig: { ...platformConfig, nutanix: { ...platformConfig.nutanix, ...patch } } });
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
   const nodes = hostInventory.nodes || [];
   const masterCount = nodes.filter((n) => n.role === "master").length;
   const workerCount = nodes.filter((n) => n.role === "worker").length;
-  const isAgentSno = scenarioId === "bare-metal-agent" && masterCount === 1 && workerCount === 0;
+  const isAgentSno =
+    (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
   const vipsRequiredForBareMetalAgent = !isAgentSno;
 
   const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG);
   const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG);
   const metaApiVips = getParamMeta(scenarioId, "platform.baremetal.apiVIPs", INSTALL_CONFIG);
   const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG);
+  const metaApiVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG);
+  const metaIngressVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG);
+  const metaNutanixApiVIP = getParamMeta(scenarioId, "platform.nutanix.apiVIP", INSTALL_CONFIG);
+  const metaNutanixIngressVIP = getParamMeta(scenarioId, "platform.nutanix.ingressVIP", INSTALL_CONFIG);
 
   const overlapMessages = [];
   if (cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)) {
@@ -89,9 +96,22 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const catalogParams = getCatalogForScenario(scenarioId) || [];
   const hasNetworkingParam = (path) =>
     catalogParams.some((p) => p.path === path && p.outputFile === INSTALL_CONFIG);
-  const showBareMetalVips = scenarioId === "bare-metal-agent" || scenarioId === "bare-metal-ipi";
-const showVsphereIpiVips = scenarioId === "vsphere-ipi";
-    const showApiIngressVips = showBareMetalVips || showVsphereIpiVips;
+  const showBareMetalVips = catalogParams.some(
+    (p) =>
+      (p.path === "platform.baremetal.apiVIP" ||
+        p.path === "platform.baremetal.ingressVIP" ||
+        p.path === "platform.baremetal.apiVIPs" ||
+        p.path === "platform.baremetal.ingressVIPs") &&
+      p.outputFile === INSTALL_CONFIG
+  );
+  const showVsphereIpiVips = scenarioId === "vsphere-ipi";
+  const showVsphereAgentVips = catalogParams.some(
+    (p) => p.path === "platform.vsphere.apiVIPs" && p.outputFile === INSTALL_CONFIG
+  );
+  const showNutanixIpiVips = catalogParams.some(
+    (p) => p.path === "platform.nutanix.apiVIP" && p.outputFile === INSTALL_CONFIG
+  );
+  const showApiIngressVips = showBareMetalVips || showVsphereIpiVips || showVsphereAgentVips || showNutanixIpiVips;
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
@@ -161,7 +181,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                 </OptionRow>
                 {enableIpv6 ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    For dual-stack, IPv6 machine network follows IPv4. Machine network is used for node IP validation.
+                    When IPv6 is enabled, IPv6 fields for machine, cluster, and service networks appear together. OpenShift 4.20 documents IPv4, IPv6, and dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set an IPv6 machine CIDR and IPv6 API/Ingress VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
                   </p>
                 ) : null}
               </>
@@ -252,7 +272,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                   <>
                     <FieldLabelWithInfo
                       label="Cluster Network IPv6 CIDR (optional)"
-                      hint="Dual-stack pod IPv6. Default fd01::/48 if blank. Set when using dual-stack."
+                      hint="Pod network IPv6 (dual-stack or IPv6 data plane). Default fd01::/48 if blank."
                       className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                     >
                       <input
@@ -310,7 +330,7 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                 {showIpv6ForPlatform ? (
                   <FieldLabelWithInfo
                     label="Service Network IPv6 CIDR (optional)"
-                    hint="Dual-stack service IPv6. Default fd02::/112 if blank. Set when using dual-stack."
+                    hint="Service (ClusterIP) IPv6. Default fd02::/112 if blank."
                     className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                   >
                     <input
@@ -335,22 +355,38 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
               <div>
                 <h3 className="card-title">API and Ingress VIPs</h3>
                 <p className="card-subtitle">
-                  {showVsphereIpiVips ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer." : "Virtual IPs for API and ingress traffic (bare metal)."}
+                  {showNutanixIpiVips
+                    ? "Virtual IPs for API and ingress (Nutanix IPI). Single-stack: platform.nutanix.apiVIP / ingressVIP. With IPv6 machine network and IPv6 VIP fields set, emitted as apiVIPs / ingressVIPs lists ordered IPv4 then IPv6 (per Nutanix install-config examples)."
+                    : showVsphereIpiVips
+                      ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer."
+                      : showVsphereAgentVips
+                        ? "Virtual IPs for API and ingress (vSphere Agent-based). Required for multi-node when platform is vSphere; omitted when single-node (platform none). Same fields as bare metal agent—written to platform.vsphere.apiVIPs / ingressVIPs in install-config."
+                        : "Virtual IPs for API and ingress traffic (bare metal)."}
                 </p>
               </div>
             </div>
             <div className="card-body">
-              {showVsphereIpiVips ? (
+              {showNutanixIpiVips ? (
+                <p className="note">
+                  OpenShift 4.20 Nutanix IPI requires static API and Ingress VIPs on the installer-provisioned path (Installing on Nutanix §1.3.5.1). Match address family to your machine network; with dual-stack networking enabled below, set IPv6 VIPs to emit apiVIPs/ingressVIPs lists. NTP via DHCP is recommended for all nodes (§1.3.5).
+                </p>
+              ) : showVsphereIpiVips ? (
                 <p className="note">Leave blank if you use an external load balancer.</p>
+              ) : showVsphereAgentVips ? (
+                <p className="note">
+                  {vipsRequiredForBareMetalAgent
+                    ? "Required for vSphere Agent-based multi-node (OpenShift 4.20 validation before agent ISO creation). One IP per field for single-stack; with IPv6 enabled, use separate IPv4 and IPv6 fields so install-config lists match machine networks in order."
+                    : "Single-node OpenShift on vSphere Agent-based uses platform.none per the Agent guide; API/Ingress VIPs are not used. You can leave these blank."}
+                </p>
               ) : scenarioId === "bare-metal-agent" ? (
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
                     ? showIpv6ForPlatform
                       ? "Required for Bare Metal Agent-based multi-node installs when using dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below—do not comma-separate in one box. Official 4.20 install-config guidance requires IPv4 entries before IPv6 in apiVIPs/ingressVIPs lists; this app emits that order."
                       : "Required for Bare Metal Agent-based multi-node installs (single-stack IPv4 in this flow): set API VIP and Ingress VIP."
-                      : showIpv6ForPlatform
-                        ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record VIPs here. With IPv6 enabled, use the IPv4 and IPv6 fields separately for dual-stack documentation alignment."
-                        : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record IPv4 VIPs here."}
+                    : showIpv6ForPlatform
+                      ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record VIPs here. With IPv6 enabled, use the IPv4 and IPv6 fields separately for dual-stack documentation alignment."
+                      : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record IPv4 VIPs here."}
                 </p>
               ) : scenarioId === "bare-metal-ipi" ? (
                 <p className="note">
@@ -362,7 +398,79 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                 <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
               )}
               <div className="field-grid">
-                {showVsphereIpiVips ? (
+                {showNutanixIpiVips ? (
+                  showIpv6ForPlatform ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP (IPv4)"
+                        hint={metaNutanixApiVIP?.description || "Primary API VIP; required with IPv4 machine network."}
+                        required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.apiVIP || ""}
+                          onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.5"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="API VIP (IPv6)" hint="Second API VIP for dual-stack; generator emits apiVIPs when set.">
+                        <input
+                          className={fieldErrors.nutanixApiVIPV6 ? "input-error" : ""}
+                          value={platformConfig.nutanix?.apiVIPV6 || ""}
+                          onChange={(e) => updateNutanix({ apiVIPV6: e.target.value })}
+                          placeholder="e.g. fd00::5"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP (IPv4)"
+                        hint={metaNutanixIngressVIP?.description || "Primary Ingress VIP."}
+                        required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.ingressVIP || ""}
+                          onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.6"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="Ingress VIP (IPv6)" hint="Second Ingress VIP for dual-stack; generator emits ingressVIPs when set.">
+                        <input
+                          className={fieldErrors.nutanixIngressVIPV6 ? "input-error" : ""}
+                          value={platformConfig.nutanix?.ingressVIPV6 || ""}
+                          onChange={(e) => updateNutanix({ ingressVIPV6: e.target.value })}
+                          placeholder="e.g. fd00::6"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  ) : (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP"
+                        hint={metaNutanixApiVIP?.description || "platform.nutanix.apiVIP"}
+                        required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.apiVIP || ""}
+                          onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.5"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP"
+                        hint={metaNutanixIngressVIP?.description || "platform.nutanix.ingressVIP"}
+                        required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.ingressVIP || ""}
+                          onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.6"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  )
+                ) : showVsphereIpiVips ? (
                   <>
                     <FieldLabelWithInfo
                       label="API VIPs (comma-separated)"
@@ -385,6 +493,78 @@ const showVsphereIpiVips = scenarioId === "vsphere-ipi";
                       />
                     </FieldLabelWithInfo>
                   </>
+                ) : showVsphereAgentVips ? (
+                  showIpv6ForPlatform ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP (IPv4)"
+                        hint="Primary API VIP for vSphere Agent-based. With dual-stack, set IPv6 below; generator orders VIPs to match machine networks."
+                        required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVip ? "input-error" : ""}
+                          value={hostInventory.apiVip || ""}
+                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="API VIP (IPv6)" hint="Secondary API VIP for dual-stack. Leave blank for IPv4-only.">
+                        <input
+                          className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                          value={hostInventory.apiVipV6 ?? ""}
+                          onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
+                          placeholder="e.g. fd00::1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP (IPv4)"
+                        hint="Primary Ingress VIP."
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVip ? "input-error" : ""}
+                          value={hostInventory.ingressVip || ""}
+                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.2"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="Ingress VIP (IPv6)" hint="Secondary Ingress VIP for dual-stack. Leave blank for IPv4-only.">
+                        <input
+                          className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                          value={hostInventory.ingressVipV6 ?? ""}
+                          onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
+                          placeholder="e.g. fd00::2"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  ) : (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIPs"
+                        hint={metaApiVipsVsphere?.description || "One IPv4 address for single-stack vSphere Agent-based (enable IPv6 above for dual-stack VIP fields)."}
+                        required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVip ? "input-error" : ""}
+                          value={hostInventory.apiVip || ""}
+                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIPs"
+                        hint={metaIngressVipsVsphere?.description || "One IPv4 address for single-stack. Enable IPv6 above for a separate IPv6 Ingress VIP field."}
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVip ? "input-error" : ""}
+                          value={hostInventory.ingressVip || ""}
+                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          placeholder="e.g. 10.90.0.2"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  )
                 ) : showBareMetalVips ? (
                   showIpv6ForPlatform ? (
                     <>

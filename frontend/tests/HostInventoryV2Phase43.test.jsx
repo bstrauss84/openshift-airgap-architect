@@ -6,7 +6,7 @@
 
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, act, within } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor, within } from "@testing-library/react";
 import { getScenarioId } from "../src/hostInventoryV2Helpers.js";
 import { validateStep } from "../src/validation.js";
 import { AppContext } from "../src/store.jsx";
@@ -99,15 +99,15 @@ describe("Phase 4.3: enum field renders as select when allowed list present", ()
       fireEvent.change(cpInput, { target: { value: "2" } });
       fireEvent.change(workerInput, { target: { value: "0" } });
     });
-    const generateBtn = screen.getByRole("button", { name: /Generate nodes/i });
+    const generateBtn = nodeCountsSection.querySelector("button.primary");
+    expect(generateBtn).toBeTruthy();
     await act(async () => {
       fireEvent.click(generateBtn);
     });
     expect(updateState).toHaveBeenCalled();
-    const call = updateState.mock.calls[0][0];
-    expect(call).toHaveProperty("hostInventory");
-    expect(call.hostInventory).toHaveProperty("nodes");
-    const nodes = call.hostInventory.nodes;
+    const patch = updateState.mock.calls.map((c) => c[0]).find((p) => p.hostInventory?.nodes?.length);
+    expect(patch).toBeTruthy();
+    const nodes = patch.hostInventory.nodes;
     expect(nodes).toHaveLength(3);
     const masters = nodes.filter((n) => n.role === "master");
     const arbiters = nodes.filter((n) => n.role === "arbiter");
@@ -162,6 +162,61 @@ describe("Phase 4.3: enum field renders as select when allowed list present", ()
 
     // Root device hint warning should be skipped for arbiter targets.
     expect(within(container).queryByText(/Root device hint is missing/i)).toBeNull();
+  });
+
+  it("vSphere Agent: arbiter drawer does not offer bulk Apply settings to other nodes", async () => {
+    const nodes = [
+      {
+        role: "master",
+        hostname: "master-0",
+        rootDevice: "/dev/disk/by-id/a",
+        dnsServers: "",
+        dnsSearch: "",
+        primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:01" }, bond: {}, vlan: {}, advanced: {} }
+      },
+      {
+        role: "master",
+        hostname: "master-1",
+        rootDevice: "/dev/disk/by-id/b",
+        dnsServers: "",
+        dnsSearch: "",
+        primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:02" }, bond: {}, vlan: {}, advanced: {} }
+      },
+      {
+        role: "arbiter",
+        hostname: "arbiter-0",
+        rootDevice: "/dev/disk/by-id/c",
+        dnsServers: "",
+        dnsSearch: "",
+        primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:03" }, bond: {}, vlan: {}, advanced: {} }
+      }
+    ];
+    const state = {
+      ...baseState,
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" },
+      hostInventory: { ...baseState.hostInventory, nodes }
+    };
+    const { container } = render(
+      <MockAppProvider stateOverride={state}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+    expect(screen.queryByText(/Host Inventory v2 is not supported for this scenario/i)).toBeNull();
+    const arbTile = Array.from(container.querySelectorAll("button.host-inventory-v2-tile")).find((b) =>
+      b.textContent?.includes("arbiter-0")
+    );
+    expect(arbTile).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(arbTile);
+    });
+    const drawers = await waitFor(() => screen.getAllByRole("dialog", { name: /Edit node/i }));
+    const drawer = drawers.find((d) => within(d).queryByRole("heading", { name: /Edit: arbiter-0/i }));
+    expect(drawer).toBeTruthy();
+    expect(within(drawer).queryByRole("button", { name: /Apply settings to other nodes/i })).toBeNull();
+    expect(
+      within(drawer).getByText(/Bulk .*Apply settings to other nodes.* is not available while editing an arbiter/i)
+    ).toBeTruthy();
   });
 });
 

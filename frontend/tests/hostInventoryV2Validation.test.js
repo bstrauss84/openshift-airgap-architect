@@ -71,6 +71,23 @@ describe("Phase 4.3: getCatalogValidationForInventoryV2", () => {
     expect(result.errors).toContain("At least one host is required for bare metal IPI (install-config platform.baremetal.hosts).");
   });
 
+  it("vsphere-agent: two control plane without arbiter yields catalog error (same rule as bare-metal-agent)", () => {
+    const state = {
+      hostInventory: {
+        nodes: [
+          { role: "master", hostname: "m-0", primary: {} },
+          { role: "master", hostname: "m-1", primary: {} }
+        ],
+        apiVip: "10.0.0.1",
+        ingressVip: "10.0.0.2"
+      },
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" }
+    };
+    const result = getCatalogValidationForInventoryV2(state, "vsphere-agent");
+    expect(result.errors.some((e) => /arbiter/i.test(e))).toBe(true);
+  });
+
   it("bare-metal-ipi adds per-node warning when BMC address missing", () => {
     const state = {
       hostInventory: {

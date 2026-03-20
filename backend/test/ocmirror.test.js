@@ -1,0 +1,154 @@
+/**
+ * Tests for oc-mirror preflight and run endpoints, and job metadata.
+ */
+import { test } from "node:test";
+import assert from "node:assert";
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import { app } from "../src/index.js";
+import { createJob, updateJobMetadata, getJob } from "../src/utils.js";
+
+function createTestServer() {
+  return new Promise((resolve) => {
+    const server = http.createServer(app);
+    server.listen(0, "127.0.0.1", () => {
+      const port = server.address().port;
+      resolve({ server, port, baseUrl: `http://127.0.0.1:${port}` });
+    });
+  });
+}
+
+test("POST /api/ocmirror/preflight with invalid mode returns 400", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/ocmirror/preflight`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "invalidMode", workspacePath: "/tmp/ws" })
+    });
+    assert.strictEqual(res.status, 400);
+    const data = await res.json();
+    assert.ok(data.error);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/ocmirror/preflight returns shape with blockers and checks", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/ocmirror/preflight`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "mirrorToMirror",
+        workspacePath: "/nonexistent/path/for/workspace",
+        registryUrl: "docker://registry.local:5000",
+        configSourceType: "generated",
+        authSource: "env"
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.ok(Array.isArray(data.blockers));
+    assert.ok(Array.isArray(data.warnings));
+    assert.ok(typeof data.checks === "object");
+    assert.ok("workspacePath" in data.checks);
+    assert.ok("config" in data.checks);
+    assert.ok("auth" in data.checks);
+    assert.ok("registryUrl" in data.checks);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/ocmirror/run without version confirmed returns 400", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: false },
+        release: { confirmed: false }
+      })
+    });
+    const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "mirrorToDisk",
+        archivePath: "/tmp/arch",
+        workspacePath: "/tmp/ws",
+        cachePath: "/tmp/cache",
+        configSourceType: "generated",
+        authSource: "env"
+      })
+    });
+    assert.strictEqual(res.status, 400);
+    const data = await res.json();
+    assert.ok(data.error);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/ocmirror/run with version confirmed returns jobId and job has metadata", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocmirror-test-"));
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: true },
+        release: { channel: "stable-4.20", patchVersion: "4.20.0" }
+      })
+    });
+    const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "mirrorToDisk",
+        archivePath: tmpDir,
+        workspacePath: tmpDir,
+        cachePath: tmpDir,
+        configSourceType: "generated",
+        authSource: "env"
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.jobId);
+    const jobRes = await fetch(`${baseUrl}/api/jobs/${data.jobId}`);
+    assert.strictEqual(jobRes.status, 200);
+    const job = await jobRes.json();
+    assert.strictEqual(job.type, "oc-mirror-run");
+    assert.ok(job.metadata_json !== undefined);
+    const meta = typeof job.metadata_json === "string" ? JSON.parse(job.metadata_json) : job.metadata_json;
+    assert.strictEqual(meta.mode, "mirrorToDisk");
+    assert.ok(meta.workspaceDir);
+    assert.ok(meta.startedAt);
+  } finally {
+    try {
+      fs.rmSync(tmpDir, { recursive: true });
+    } catch {}
+    server.close();
+  }
+});
+
+test("createJob and updateJobMetadata persist metadata", () => {
+  const id = createJob("oc-mirror-run", "test");
+  const row = getJob(id);
+  assert.ok(row);
+  assert.strictEqual(row.type, "oc-mirror-run");
+  assert.ok(row.metadata_json !== undefined);
+  const empty = typeof row.metadata_json === "string" ? (row.metadata_json ? JSON.parse(row.metadata_json) : {}) : row.metadata_json;
+  updateJobMetadata(id, { mode: "diskToMirror", workspaceDir: "/path/ws" });
+  const updated = getJob(id);
+  const meta = typeof updated.metadata_json === "string" ? JSON.parse(updated.metadata_json) : updated.metadata_json;
+  assert.strictEqual(meta.mode, "diskToMirror");
+  assert.strictEqual(meta.workspaceDir, "/path/ws");
+});

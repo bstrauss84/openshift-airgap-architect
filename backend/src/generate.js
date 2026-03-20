@@ -1,5 +1,5 @@
 /**
- * Builds install-config.yaml and agent-config.yaml from app state. Platform blocks: bare metal (IPI/UPI), vSphere, AWS GovCloud, Azure Government, Nutanix.
+ * Builds install-config.yaml and agent-config.yaml from app state. Platform blocks: bare metal (IPI/UPI/agent), vSphere (IPI/UPI/agent), AWS GovCloud, Azure Government, Nutanix.
  * State keys follow camelCase (blueprint, globalStrategy, hostInventory, platformConfig, etc.). A2: bare-metal UPI emits platform = none for controlPlane/compute.
  */
 import yaml from "js-yaml";
@@ -71,12 +71,21 @@ const buildInstallConfig = (state) => {
   const arbiters = sortedNodes.filter((node) => node.role === "arbiter").length || 0;
   const platformConfig = state.platformConfig || {};
   const isAwsNoHostInventory = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
+  const isNutanixIpi = state.blueprint?.platform === "Nutanix" && state.methodology?.method === "IPI";
   if (isAwsNoHostInventory) {
     const cp = Number(platformConfig.controlPlaneReplicas);
     const comp = Number(platformConfig.computeReplicas);
     if (Number.isInteger(cp) && cp >= 0) masters = cp;
     else if (masters === 0) masters = 3;
     if (Number.isInteger(comp) && comp >= 0) workers = comp;
+  } else if (isNutanixIpi) {
+    // Nutanix IPI has no host inventory; replicas come from Platform Specifics (OpenShift 4.20 Nutanix doc: 3 or 1 control plane; workers 0+).
+    const cp = Number(platformConfig.controlPlaneReplicas);
+    const comp = Number(platformConfig.computeReplicas);
+    if (Number.isInteger(cp) && cp > 0) masters = cp;
+    else masters = 3;
+    if (Number.isInteger(comp) && comp >= 0) workers = comp;
+    else workers = 3;
   }
   const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
 
@@ -94,6 +103,8 @@ const buildInstallConfig = (state) => {
     creds.usingMirrorRegistry && creds.mirrorRegistryUnauthenticated
   );
   const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn || "registry.local:5000";
+  // "aWQ6cGFzcwo=" is base64 for "id:pass\n" — a placeholder credential for mirror registries
+  // configured with anonymous/unauthenticated access. The registry accepts any auth value.
   const anonymousPullSecretPayload = JSON.stringify({
     auths: { [registryFqdn]: { auth: "aWQ6cGFzcwo=", email: "" } }
   });
@@ -205,7 +216,11 @@ const buildInstallConfig = (state) => {
             };
           }
           if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
-          if ((node.rootDevice || "").trim()) host.rootDeviceHints = { deviceName: (node.rootDevice || "").trim() };
+          const rdh217 = {};
+          if ((node.rootDevice || "").trim()) rdh217.deviceName = node.rootDevice.trim();
+          if ((node.rootDeviceHintHctl || "").trim()) rdh217.hctl = node.rootDeviceHintHctl.trim();
+          if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") rdh217.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
+          if (Object.keys(rdh217).length > 0) host.rootDeviceHints = rdh217;
           return host;
         });
         baremetal.hosts = hosts;
@@ -244,12 +259,23 @@ const buildInstallConfig = (state) => {
           };
         }
         if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
-        if ((node.rootDevice || "").trim()) host.rootDeviceHints = { deviceName: (node.rootDevice || "").trim() };
+        const rdh256 = {};
+        if ((node.rootDevice || "").trim()) rdh256.deviceName = node.rootDevice.trim();
+        if ((node.rootDeviceHintHctl || "").trim()) rdh256.hctl = node.rootDeviceHintHctl.trim();
+        if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") rdh256.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
+        if (Object.keys(rdh256).length > 0) host.rootDeviceHints = rdh256;
         return host;
       });
       baremetal.hosts = hosts;
       installConfig.platform.baremetal = baremetal;
     }
+  }
+
+  // VMware vSphere Agent-based SNO: platform.none (4.20 Agent doc — sample install-config note 11; validation §1.11).
+  if (state.blueprint?.platform === "VMware vSphere" && state.methodology?.method === "Agent-Based Installer" && masters === 1 && workers === 0) {
+    installConfig.platform = { none: {} };
+    delete installConfig.controlPlane.platform;
+    delete installConfig.compute[0].platform;
   }
 
   if (state.globalStrategy?.fips) {
@@ -276,7 +302,7 @@ const buildInstallConfig = (state) => {
 
   // Agent-based 2 control plane + 1 arbiter (4.20 doc): controlPlane.replicas: 2, arbiter: { name: "arbiter", replicas: 1 }
   const isAgentBased = state.methodology?.method === "Agent-Based Installer";
-  if (isAgentBased && state.blueprint?.platform === "Bare Metal" && masters === 2 && arbiters === 1) {
+  if (isAgentBased && (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere") && masters === 2 && arbiters === 1) {
     installConfig.controlPlane.replicas = 2;
     installConfig.arbiter = { name: "arbiter", replicas: 1 };
   }
@@ -303,7 +329,7 @@ const buildInstallConfig = (state) => {
     }
   }
   // vSphere: Internal publish not supported (BZ#1953035). Emit External only.
-  if (state.blueprint?.platform === "VMware vSphere" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
+  if (state.blueprint?.platform === "VMware vSphere" && ["IPI", "UPI", "Agent-Based Installer"].includes(state.methodology?.method)) {
     installConfig.publish = platformConfig.publish === "Internal" ? "External" : (platformConfig.publish || "External");
   }
 
@@ -367,12 +393,21 @@ const buildInstallConfig = (state) => {
     }
   }
 
-  // vSphere (IPI and UPI): (1) legacy path: flat vcenter/datacenter/... only → vcenters + one failureDomains entry; (2) failure-domains path: only vs.failureDomains (and optional vs.vcenters). Selected path only; no mixing.
+  // vSphere (IPI, UPI, Agent-based multi-node): (1) legacy path: flat vcenter/datacenter/... only → vcenters + one failureDomains entry; (2) failure-domains path: only vs.failureDomains (and optional vs.vcenters). Selected path only; no mixing.
   // vcenters[].port: 4.20 doc default 443 (installation-config-parameters-vsphere 9.1.4); emit 443 when not specified.
-  if (state.blueprint?.platform === "VMware vSphere" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
+  // Agent-based SNO uses platform.none above; this block is skipped when masters===1 && workers===0 on vSphere Agent.
+  const isVsphereAgentMultiNode =
+    state.blueprint?.platform === "VMware vSphere" &&
+    state.methodology?.method === "Agent-Based Installer" &&
+    !(masters === 1 && workers === 0);
+  if (
+    state.blueprint?.platform === "VMware vSphere" &&
+    (state.methodology?.method === "IPI" || state.methodology?.method === "UPI" || isVsphereAgentMultiNode)
+  ) {
     const vsphere = {};
     const vs = platformConfig.vsphere || {};
     const isVsphereIpi = state.methodology?.method === "IPI";
+    const isVsphereAgent = state.methodology?.method === "Agent-Based Installer";
     const useLegacyPlacement = vs.placementMode === "legacy";
     const explicitFailureDomains = !useLegacyPlacement && Array.isArray(vs.failureDomains) && vs.failureDomains.length > 0;
     const explicitVcenters = Array.isArray(vs.vcenters) && vs.vcenters.length > 0;
@@ -500,11 +535,25 @@ const buildInstallConfig = (state) => {
     if (vs.memoryMB != null && Number.isFinite(Number(vs.memoryMB)) && Number(vs.memoryMB) > 0) {
       vsphere.memoryMB = Number(vs.memoryMB);
     }
-    if (isVsphereIpi && Array.isArray(vs.apiVIPs) && vs.apiVIPs.length > 0) {
-      vsphere.apiVIPs = vs.apiVIPs.filter((ip) => ip && String(ip).trim() !== "");
-    }
-    if (isVsphereIpi && Array.isArray(vs.ingressVIPs) && vs.ingressVIPs.length > 0) {
-      vsphere.ingressVIPs = vs.ingressVIPs.filter((ip) => ip && String(ip).trim() !== "");
+    if (isVsphereAgent) {
+      const hi = state.hostInventory || {};
+      const parseVipListVs = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const useDualStackVipsVs = Boolean(hi.enableIpv6);
+      const apiFromHi = useDualStackVipsVs
+        ? [hi.apiVip, hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean)
+        : parseVipListVs(hi.apiVip);
+      const ingressFromHi = useDualStackVipsVs
+        ? [hi.ingressVip, hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean)
+        : parseVipListVs(hi.ingressVip);
+      if (apiFromHi.length) vsphere.apiVIPs = apiFromHi;
+      if (ingressFromHi.length) vsphere.ingressVIPs = ingressFromHi;
+    } else if (isVsphereIpi) {
+      if (Array.isArray(vs.apiVIPs) && vs.apiVIPs.length > 0) {
+        vsphere.apiVIPs = vs.apiVIPs.filter((ip) => ip && String(ip).trim() !== "");
+      }
+      if (Array.isArray(vs.ingressVIPs) && vs.ingressVIPs.length > 0) {
+        vsphere.ingressVIPs = vs.ingressVIPs.filter((ip) => ip && String(ip).trim() !== "");
+      }
     }
 
     if (Object.keys(vsphere).length) {
@@ -530,27 +579,57 @@ const buildInstallConfig = (state) => {
   }
 
   if (state.blueprint?.platform === "Nutanix" && state.methodology?.method === "IPI") {
+    installConfig.controlPlane.platform = { nutanix: {} };
+    installConfig.compute[0].platform = { nutanix: {} };
+
+    const nx = platformConfig.nutanix || {};
     const nutanix = {};
-    if (platformConfig.nutanix?.endpoint) {
+    const endpointAddr = (nx.endpoint || "").trim();
+    if (endpointAddr) {
+      const portNum = Number(nx.port != null && nx.port !== "" ? nx.port : 9440);
       nutanix.prismCentral = {
-        endpoint: platformConfig.nutanix.endpoint,
-        port: Number(platformConfig.nutanix.port || 9440),
-        username: includeCredentials ? platformConfig.nutanix.username || "" : "",
-        password: includeCredentials ? platformConfig.nutanix.password || "" : ""
+        endpoint: {
+          address: endpointAddr,
+          port: Number.isFinite(portNum) ? portNum : 9440
+        },
+        username: includeCredentials ? nx.username || "" : "",
+        password: includeCredentials ? nx.password || "" : ""
       };
     }
-    if (platformConfig.nutanix?.subnet) {
-      nutanix.subnetUUIDs = [platformConfig.nutanix.subnet];
+    // subnetUUIDs: accept comma-separated list or single value (OCP 4.20 Nutanix params: plural array field).
+    if (nx.subnet?.trim()) {
+      nutanix.subnetUUIDs = nx.subnet.trim().split(",").map((s) => s.trim()).filter(Boolean);
     }
-    if (platformConfig.nutanix?.cluster) {
-      nutanix.clusterName = platformConfig.nutanix.cluster;
+    if (nx.cluster?.trim()) {
+      nutanix.clusterName = nx.cluster.trim();
+    }
+    if (nx.storageContainer?.trim()) {
+      nutanix.storageContainer = nx.storageContainer.trim();
+    }
+    const v4Api = (nx.apiVIP || "").trim();
+    const v6Api = (nx.apiVIPV6 || "").trim();
+    const v4Ing = (nx.ingressVIP || "").trim();
+    const v6Ing = (nx.ingressVIPV6 || "").trim();
+    const machineV6 = (networkingState.machineNetworkV6 || "").trim();
+    const useDualStackVipLists = Boolean(machineV6) && (Boolean(v6Api) || Boolean(v6Ing));
+    if (useDualStackVipLists) {
+      const apiList = [v4Api, v6Api].filter(Boolean);
+      const ingList = [v4Ing, v6Ing].filter(Boolean);
+      if (apiList.length) nutanix.apiVIPs = apiList;
+      if (ingList.length) nutanix.ingressVIPs = ingList;
+    } else {
+      if (v4Api) nutanix.apiVIP = v4Api;
+      if (v4Ing) nutanix.ingressVIP = v4Ing;
     }
     if (Object.keys(nutanix).length) {
       installConfig.platform.nutanix = nutanix;
     }
+    // Installing on Nutanix §1.4: CCO must run in Manual mode (always emit; do not use Mint/Passthrough for this platform).
+    installConfig.publish = platformConfig.publish === "Internal" ? "External" : (platformConfig.publish || "External");
+    installConfig.credentialsMode = "Manual";
   }
 
-  if (state.blueprint?.platform === "Azure Government" && state.methodology?.method === "IPI") {
+  if (state.blueprint?.platform === "Azure Government" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
     const azure = {};
     if (platformConfig.azure?.cloudName) azure.cloudName = platformConfig.azure.cloudName;
     if (platformConfig.azure?.region) azure.region = platformConfig.azure.region;
@@ -616,7 +695,15 @@ const buildAgentConfig = (state) => {
       hostname: effectiveHostname(node, baseDomain),
       role: node.role,
       interfaces,
-      rootDeviceHints: node.rootDevice ? { deviceName: node.rootDevice } : undefined,
+      rootDeviceHints: (() => {
+        const hints = {};
+        if ((node.rootDevice || "").trim()) hints.deviceName = node.rootDevice.trim();
+        if ((node.rootDeviceHintHctl || "").trim()) hints.hctl = node.rootDeviceHintHctl.trim();
+        if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") {
+          hints.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
+        }
+        return Object.keys(hints).length > 0 ? hints : undefined;
+      })(),
       networkConfig: nmState
     };
   });
@@ -628,7 +715,7 @@ const buildAgentConfig = (state) => {
   const agentConfig = {
     apiVersion: "v1beta1",
     kind: "AgentConfig",
-    metadata: { name: "agent-config" },
+    metadata: { name: state.blueprint?.clusterName || "agent-cluster" },
     rendezvousIP,
     ...(additionalNTPSources.length > 0 ? { additionalNTPSources } : {}),
     ...(bootArtifactsBaseURL ? { bootArtifactsBaseURL } : {}),
@@ -1027,7 +1114,8 @@ const buildImageSetConfig = (state) => {
             minVersion: version,
             maxVersion: version
           }
-        ]
+        ],
+        graph: true
       },
       operators: []
     }
@@ -1257,6 +1345,9 @@ const buildFieldManual = (state, docsLinks) => {
     lines.push(`vSphere scenario mapping:`);
     lines.push(`- IPI: vCenter, datacenter, cluster, datastore, network (and optional folder/resourcePool); disconnected uses mirrored content.`);
     lines.push(`- UPI: provision VMs and infrastructure yourself; follow platform-agnostic UPI and vSphere UPI docs.`);
+    if (state.methodology?.method === "Agent-Based Installer") {
+      lines.push(`- Agent-based: you provide VMs; install-config uses platform.vsphere (placement, apiVIPs/ingressVIPs for multi-node; platform none for single-node) plus agent-config for hosts/NMState; boot the agent ISO per the Agent-based Installer guide.`);
+    }
   }
   if (state.blueprint?.platform === "Nutanix") {
     lines.push(`## [HIGH SIDE] Nutanix prerequisites`);

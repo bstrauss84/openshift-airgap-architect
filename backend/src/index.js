@@ -27,6 +27,7 @@ import {
   safeUnlink,
   createJob,
   updateJob,
+  updateJobMetadata,
   appendJobOutput
 } from "./utils.js";
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
@@ -131,7 +132,11 @@ const defaultState = () => ({
       username: "",
       password: "",
       cluster: "",
-      subnet: ""
+      subnet: "",
+      apiVIP: "",
+      ingressVIP: "",
+      apiVIPV6: "",
+      ingressVIPV6: ""
     },
     azure: {
       cloudName: "AzureUSGovernmentCloud",
@@ -196,6 +201,9 @@ const defaultState = () => ({
   },
   mirrorWorkflow: {
     outputPath: path.join(dataDir, "oc-mirror-output"),
+    archivePath: path.join(dataDir, "oc-mirror", "archives"),
+    workspacePath: path.join(dataDir, "oc-mirror", "workspace"),
+    cachePath: path.join(dataDir, "oc-mirror", "cache"),
     includeInExport: false
   },
   ui: {
@@ -864,30 +872,353 @@ app.post("/api/ssh/keypair", async (req, res) => {
   }
 });
 
+/** Check if dir exists and contains working-dir or any .tar file (d2m source). */
+function checkD2mArchiveStructure(archivePath) {
+  try {
+    const resolved = path.resolve(archivePath);
+    if (!fs.existsSync(resolved)) return "missing";
+    const stat = fs.statSync(resolved);
+    if (!stat.isDirectory()) return "invalid";
+    const entries = fs.readdirSync(resolved);
+    if (entries.includes("working-dir")) {
+      const wd = path.join(resolved, "working-dir");
+      if (fs.statSync(wd).isDirectory()) return "ok";
+    }
+    if (entries.some((e) => e.endsWith(".tar"))) return "ok";
+    return "invalid";
+  } catch {
+    return "invalid";
+  }
+}
+
+/** Return blocker strings for path overlaps (contract §6C). */
+function checkPathOverlap(archivePath, workspacePath, cachePath, mode) {
+  const blockers = [];
+  const norm = (p) => (p ? path.resolve(String(p).trim()) : "");
+  const a = norm(archivePath);
+  const w = norm(workspacePath);
+  const c = norm(cachePath);
+  if (a && w) {
+    if (a === w) {
+      // same path allowed for m2d; contract says allow
+    } else if (a.startsWith(w + path.sep)) {
+      blockers.push("Archive path must not be inside workspace path.");
+    } else if (w.startsWith(a + path.sep)) {
+      blockers.push("Workspace path must not be inside archive path.");
+    }
+  }
+  if (c && w && c === w) {
+    blockers.push("Cache path must not equal workspace path.");
+  }
+  if (c && a && (c.startsWith(a + path.sep) || a.startsWith(c + path.sep))) {
+    blockers.push("Cache path must not be inside archive path or contain it.");
+  }
+  return blockers;
+}
+
+app.post("/api/ocmirror/preflight", async (req, res) => {
+  const state = ensureState();
+  const body = req.body || {};
+  const mode = body.mode || "mirrorToDisk";
+  const archivePath = body.archivePath?.trim() || "";
+  const workspacePath = body.workspacePath?.trim() || "";
+  const cachePath = body.cachePath?.trim() || "";
+  const registryUrl = body.registryUrl?.trim() || "";
+  const configSourceType = body.configSourceType || "generated";
+  const configPath = body.configPath?.trim() || "";
+  const authSource = body.authSource || "env";
+  const minBytes = Number(body.minBytes || 0);
+
+  const blockers = [];
+  const warnings = [];
+  const checks = {
+    archivePath: null,
+    workspacePath: null,
+    cachePath: null,
+    config: "missing",
+    auth: "missing",
+    registryUrl: "empty"
+  };
+
+  const validModes = ["mirrorToDisk", "diskToMirror", "mirrorToMirror"];
+  if (!validModes.includes(mode)) {
+    return res.status(400).json({ error: "Invalid mode." });
+  }
+
+  const pathOverlapBlockers = checkPathOverlap(
+    mode !== "mirrorToMirror" ? archivePath : null,
+    workspacePath,
+    mode !== "mirrorToMirror" ? cachePath : null,
+    mode
+  );
+  blockers.push(...pathOverlapBlockers);
+
+  const checkArchive = async () => {
+    if (!archivePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
+      blockers.push("Archive path is required.");
+      return;
+    }
+    if (!archivePath) return;
+    try {
+      const info = await checkPath(archivePath);
+      const meetsMin = !minBytes || info.freeBytes >= minBytes;
+      if (mode === "mirrorToDisk") {
+        if (!info.writable) blockers.push("Archive path is not writable.");
+        if (!meetsMin) blockers.push("Insufficient disk space at archive path.");
+        checks.archivePath = {
+          exists: info.exists,
+          writable: info.writable,
+          freeBytes: info.freeBytes,
+          meetsMin,
+          structure: "ok"
+        };
+      } else if (mode === "diskToMirror") {
+        if (!info.exists) blockers.push("Source archive path does not exist.");
+        const structure = checkD2mArchiveStructure(archivePath);
+        if (structure === "invalid") {
+          blockers.push("Source archive path must contain oc-mirror output (working-dir or tar files).");
+        }
+        checks.archivePath = {
+          exists: info.exists,
+          writable: info.writable,
+          freeBytes: info.freeBytes,
+          meetsMin: meetsMin,
+          structure
+        };
+      }
+    } catch (err) {
+      blockers.push(`Archive path check failed: ${String(err?.message || err)}.`);
+    }
+  };
+
+  const checkWorkspace = async () => {
+    if (!workspacePath) {
+      blockers.push("Workspace path is required.");
+      return;
+    }
+    try {
+      const info = await checkPath(workspacePath);
+      const parent = info.exists ? workspacePath : path.dirname(path.resolve(workspacePath));
+      let creatable = false;
+      let writable = false;
+      let freeBytes = 0;
+      try {
+        const parentInfo = await checkPath(parent);
+        writable = parentInfo.writable;
+        freeBytes = parentInfo.freeBytes;
+        creatable = parentInfo.writable;
+      } catch {}
+      if (!info.exists && !creatable) blockers.push("Workspace path is not creatable or writable.");
+      if (info.exists && !info.writable) blockers.push("Workspace path is not writable.");
+      const meetsMin = !minBytes || freeBytes >= minBytes;
+      if (minBytes && !meetsMin) warnings.push("Low disk space at workspace path.");
+      if (info.exists && fs.existsSync(path.join(path.resolve(workspacePath), "working-dir"))) {
+        warnings.push("Workspace already contains oc-mirror data.");
+      }
+      checks.workspacePath = {
+        exists: info.exists,
+        creatable: creatable || info.writable,
+        writable: info.exists ? info.writable : writable,
+        freeBytes: freeBytes || info.freeBytes
+      };
+    } catch (err) {
+      blockers.push(`Workspace path check failed: ${String(err?.message || err)}.`);
+    }
+  };
+
+  const checkCache = async () => {
+    if (mode === "mirrorToMirror") {
+      checks.cachePath = null;
+      return;
+    }
+    if (!cachePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
+      blockers.push("Cache path is required.");
+      return;
+    }
+    if (!cachePath) return;
+    try {
+      const info = await checkPath(cachePath);
+      const parent = info.exists ? cachePath : path.dirname(path.resolve(cachePath));
+      let creatable = false;
+      let writable = false;
+      try {
+        const parentInfo = await checkPath(parent);
+        writable = parentInfo.writable;
+        creatable = parentInfo.writable;
+      } catch {}
+      if (!info.exists && !creatable) blockers.push("Cache path is not creatable or writable.");
+      if (info.exists && !info.writable) blockers.push("Cache path is not writable.");
+      checks.cachePath = {
+        exists: info.exists,
+        creatable: creatable || info.writable,
+        writable: info.exists ? info.writable : writable
+      };
+    } catch (err) {
+      blockers.push(`Cache path check failed: ${String(err?.message || err)}.`);
+    }
+  };
+
+  await checkArchive();
+  await checkWorkspace();
+  await checkCache();
+
+  if (configSourceType === "generated") {
+    checks.config = "present";
+  } else if (configPath) {
+    try {
+      const resolved = path.resolve(configPath);
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+        checks.config = "present";
+      } else {
+        checks.config = "missing";
+        blockers.push("Config file not found.");
+      }
+    } catch {
+      checks.config = "missing";
+      blockers.push("Config file not found.");
+    }
+  } else {
+    blockers.push("Config path is required when using external config.");
+  }
+
+  if (authSource === "reuse") {
+    const secret = state.credentials?.mirrorRegistryPullSecret;
+    if (secret && typeof secret === "string" && secret.trim().length > 0) {
+      try {
+        JSON.parse(secret);
+        checks.auth = "present";
+      } catch {
+        checks.auth = "missing";
+        warnings.push("Mirror registry credentials in Identity & Access do not appear to be valid JSON.");
+      }
+    } else {
+      checks.auth = "missing";
+      if (authSource === "pasted") warnings.push("Pasted auth will be provided at run time.");
+    }
+  } else if (authSource === "env") {
+    checks.auth = process.env.REGISTRY_AUTH_FILE && fs.existsSync(process.env.REGISTRY_AUTH_FILE) ? "present" : "missing";
+    if (checks.auth === "missing") warnings.push("REGISTRY_AUTH_FILE is not set or file does not exist.");
+  }
+
+  if (mode === "diskToMirror" || mode === "mirrorToMirror") {
+    checks.registryUrl = registryUrl ? "non-empty" : "empty";
+    if (!registryUrl) blockers.push("Registry URL is required for this mode.");
+  }
+
+  const ok = blockers.length === 0;
+  res.json({ ok, blockers, warnings, checks });
+});
+
+/** Build oc-mirror CLI args for v1 modes (contract §2B). */
+function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePath, registryUrl, dryRun, advanced) {
+  const args = ["--config", configPath, "--v2"];
+  const adv = advanced || {};
+  if (adv.logLevel) args.push("--log-level", String(adv.logLevel));
+  if (adv.parallelImages != null) args.push("--parallel-images", String(adv.parallelImages));
+  if (adv.parallelLayers != null) args.push("--parallel-layers", String(adv.parallelLayers));
+  if (adv.imageTimeout) args.push("--image-timeout", String(adv.imageTimeout));
+  if (adv.retryTimes != null) args.push("--retry-times", String(adv.retryTimes));
+  if (adv.retryDelay) args.push("--retry-delay", String(adv.retryDelay));
+  if (adv.since) args.push("--since", String(adv.since));
+  if (adv.strictArchive) args.push("--strict-archive");
+  if (workspacePath) args.push("--workspace", `file://${path.resolve(workspacePath)}`);
+  if (cachePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
+    args.push("--cache-dir", path.resolve(cachePath));
+  }
+  if (mode === "mirrorToDisk") {
+    args.push(`file://${path.resolve(archivePath)}`);
+    if (dryRun) args.push("--dry-run");
+  } else if (mode === "diskToMirror") {
+    args.push("--from", `file://${path.resolve(archivePath)}`);
+    args.push(registryUrl.startsWith("docker://") ? registryUrl : `docker://${registryUrl}`);
+  } else {
+    args.push(registryUrl.startsWith("docker://") ? registryUrl : `docker://${registryUrl}`);
+  }
+  return args;
+}
+
 app.post("/api/ocmirror/run", async (req, res) => {
   const state = ensureState();
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
   if (!confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
-  const outputPath = req.body?.outputPath || state.mirrorWorkflow?.outputPath;
-  if (!outputPath) {
-    return res.status(400).json({ error: "Output path is required." });
+  const body = req.body || {};
+  const mode = body.mode || "mirrorToDisk";
+  const dryRun = Boolean(body.dryRun);
+  const archivePath = body.archivePath?.trim() || state.mirrorWorkflow?.archivePath?.trim() || state.mirrorWorkflow?.outputPath?.trim();
+  const workspacePath = body.workspacePath?.trim() || state.mirrorWorkflow?.workspacePath?.trim();
+  const cachePath = body.cachePath?.trim() || state.mirrorWorkflow?.cachePath?.trim();
+  const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn?.trim();
+  const registryUrl = body.registryUrl?.trim() || (registryFqdn ? `docker://${registryFqdn}` : "");
+  const configSourceType = body.configSourceType || "generated";
+  const configPathExternal = body.configPath?.trim();
+  const authSource = body.authSource || "env";
+  const pullSecretRaw = body.pullSecret;
+  const advanced = body.advanced && typeof body.advanced === "object" ? body.advanced : {};
+
+  if (!["mirrorToDisk", "diskToMirror", "mirrorToMirror"].includes(mode)) {
+    return res.status(400).json({ error: "Invalid mode." });
   }
-  const minBytes = Number(req.body?.minBytes || 0);
-  try {
-    const pathInfo = await checkPath(outputPath);
-    if (!pathInfo.writable) {
-      return res.status(400).json({ error: "Output path is not writable." });
-    }
-    if (minBytes && pathInfo.freeBytes < minBytes) {
-      return res.status(400).json({ error: "Insufficient free space at output path." });
-    }
-    fs.mkdirSync(outputPath, { recursive: true });
-  } catch (error) {
-    return res.status(500).json({ error: String(error?.message || error) });
+  if (mode !== "mirrorToDisk" && dryRun) {
+    return res.status(400).json({ error: "Dry run is only valid for mirrorToDisk." });
   }
+  if ((mode === "mirrorToDisk" || mode === "diskToMirror") && !archivePath) {
+    return res.status(400).json({ error: "Archive path is required." });
+  }
+  if (!workspacePath) {
+    return res.status(400).json({ error: "Workspace path is required." });
+  }
+  if ((mode === "diskToMirror" || mode === "mirrorToMirror") && !registryUrl) {
+    return res.status(400).json({ error: "Registry URL is required for this mode." });
+  }
+  if (configSourceType === "external" && !configPathExternal) {
+    return res.status(400).json({ error: "Config path is required when using external config." });
+  }
+
+  let configPathToUse = null;
+  const tmpDir = path.join(dataDir, "tmp");
+  fs.mkdirSync(tmpDir, { recursive: true });
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
+
+  if (configSourceType === "generated") {
+    const configContents = buildImageSetConfig(state);
+    configPathToUse = path.join(tmpDir, `imageset-${jobId}.yaml`);
+    fs.writeFileSync(configPathToUse, configContents, "utf8");
+  } else {
+    try {
+      const resolved = path.resolve(configPathExternal);
+      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+        updateJob(jobId, { status: "failed", message: "External config file not found.", progress: 100 });
+        return res.json({ jobId });
+      }
+      configPathToUse = resolved;
+    } catch (err) {
+      updateJob(jobId, { status: "failed", message: String(err?.message || err), progress: 100 });
+      return res.json({ jobId });
+    }
+  }
+
+  let authFile = null;
+  if (authSource === "reuse") {
+    const secret = state.credentials?.mirrorRegistryPullSecret;
+    if (secret && typeof secret === "string") {
+      try {
+        const normalized = normalizePullSecret(secret);
+        authFile = writeTempAuth(normalized);
+      } catch {}
+    }
+  } else if (authSource === "pasted" && pullSecretRaw) {
+    try {
+      const normalized = normalizePullSecret(pullSecretRaw);
+      authFile = writeTempAuth(normalized);
+    } catch (err) {
+      updateJob(jobId, { status: "failed", message: "Invalid pull secret JSON.", progress: 100 });
+      safeUnlink(configPathToUse);
+      return res.json({ jobId });
+    }
+  }
+
   const resolved = await resolveOcMirrorBinary(dataDir);
   if (resolved.error) {
     updateJob(jobId, {
@@ -896,23 +1227,51 @@ app.post("/api/ocmirror/run", async (req, res) => {
       message: resolved.error,
       output: resolved.rawStderr || resolved.error
     });
+    safeUnlink(configPathToUse);
+    if (authFile) safeUnlink(authFile);
     return res.json({ jobId });
   }
-  const configContents = buildImageSetConfig(state);
-  const tmpDir = path.join(dataDir, "tmp");
-  fs.mkdirSync(tmpDir, { recursive: true });
-  const configPath = path.join(tmpDir, `imageset-${jobId}.yaml`);
-  fs.writeFileSync(configPath, configContents, "utf8");
-  let authFile = null;
-  if (req.body?.pullSecret) {
-    const normalized = normalizePullSecret(req.body.pullSecret);
-    authFile = writeTempAuth(normalized);
+
+  try {
+    fs.mkdirSync(path.resolve(workspacePath), { recursive: true });
+    if (archivePath) fs.mkdirSync(path.resolve(archivePath), { recursive: true });
+    if (cachePath && mode !== "mirrorToMirror") fs.mkdirSync(path.resolve(cachePath), { recursive: true });
+  } catch (err) {
+    updateJob(jobId, { status: "failed", message: String(err?.message || err), progress: 100 });
+    safeUnlink(configPathToUse);
+    if (authFile) safeUnlink(authFile);
+    return res.json({ jobId });
   }
+
+  const startedAt = Date.now();
+  const meta = {
+    mode,
+    dryRun,
+    archiveDir: archivePath || "",
+    workspaceDir: workspacePath,
+    cacheDir: cachePath || "",
+    registryUrl: registryUrl || "",
+    configSourceType,
+    configPath: configPathExternal || "",
+    startedAt
+  };
+  updateJobMetadata(jobId, meta);
+
+  const args = buildOcMirrorArgs(
+    mode,
+    configPathToUse,
+    archivePath,
+    workspacePath,
+    cachePath,
+    registryUrl,
+    dryRun,
+    advanced
+  );
   const env = {
     ...process.env,
     REGISTRY_AUTH_FILE: authFile || process.env.REGISTRY_AUTH_FILE
   };
-  const child = spawn(resolved.path, ["--config", configPath, `file://${outputPath}`, "--v2"], { env });
+  const child = spawn(resolved.path, args, { env });
   activeProcesses.set(jobId, child);
   updateJob(jobId, { status: "running", progress: 0, message: "oc-mirror running." });
   child.stdout.on("data", (data) => appendJobOutput(jobId, data.toString()));
@@ -921,18 +1280,33 @@ app.post("/api/ocmirror/run", async (req, res) => {
     appendJobOutput(jobId, `\n${String(err)}\n`);
     updateJob(jobId, { status: "failed", message: "oc-mirror failed to start." });
     activeProcesses.delete(jobId);
-    safeUnlink(configPath);
+    safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
   child.on("close", (code) => {
     const status = code === 0 ? "completed" : "failed";
+    const finishedAt = Date.now();
+    const clusterResourcesPath = path.join(path.resolve(workspacePath), "working-dir", "cluster-resources");
+    const dryRunMappingPath = dryRun
+      ? path.join(path.resolve(workspacePath), "working-dir", "dry-run", "mapping.txt")
+      : "";
+    const dryRunMissingPath = dryRun
+      ? path.join(path.resolve(workspacePath), "working-dir", "dry-run", "missing.txt")
+      : "";
+    updateJobMetadata(jobId, {
+      exitCode: code,
+      finishedAt,
+      clusterResourcesPath,
+      dryRunMappingPath,
+      dryRunMissingPath
+    });
     updateJob(jobId, {
       status,
       progress: code === 0 ? 100 : 0,
       message: code === 0 ? "oc-mirror completed." : `oc-mirror exited with code ${code}.`
     });
     activeProcesses.delete(jobId);
-    safeUnlink(configPath);
+    safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
   res.json({ jobId });
@@ -1025,10 +1399,10 @@ const buildPreviewFiles = (state) => {
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
   const installConfig = buildInstallConfig(state);
-  const agentConfig =
-    state.blueprint?.platform === "Bare Metal" && state.methodology?.method === "Agent-Based Installer"
-      ? buildAgentConfig(state)
-      : null;
+  const wantsAgentConfig =
+    state.methodology?.method === "Agent-Based Installer" &&
+    (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere");
+  const agentConfig = wantsAgentConfig ? buildAgentConfig(state) : null;
   const imageSetConfig = buildImageSetConfig(state);
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);
@@ -1067,10 +1441,10 @@ const buildBundleZip = async (state, res) => {
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
   const installConfig = buildInstallConfig(state);
-  const agentConfig =
-    state.blueprint?.platform === "Bare Metal" && state.methodology?.method === "Agent-Based Installer"
-      ? buildAgentConfig(state)
-      : null;
+  const wantsAgentConfig =
+    state.methodology?.method === "Agent-Based Installer" &&
+    (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere");
+  const agentConfig = wantsAgentConfig ? buildAgentConfig(state) : null;
   const imageSetConfig = buildImageSetConfig(state);
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);
@@ -1135,8 +1509,9 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
-  if (state.mirrorWorkflow?.includeInExport && state.mirrorWorkflow?.outputPath) {
-    const rawPath = state.mirrorWorkflow.outputPath;
+  const mirrorOutputPath = state.mirrorWorkflow?.archivePath || state.mirrorWorkflow?.outputPath;
+  if (state.mirrorWorkflow?.includeInExport && mirrorOutputPath) {
+    const rawPath = mirrorOutputPath;
     try {
       const resolved = path.resolve(rawPath);
       const stat = fs.statSync(resolved);

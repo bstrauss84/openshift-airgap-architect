@@ -1,5 +1,5 @@
 /**
- * Host Inventory v2: node counts, node grid, BMC/interface/network config for bare-metal-agent and bare-metal-ipi.
+ * Host Inventory v2: node counts, node grid, BMC/interface/network config for bare-metal-agent, vsphere-agent, and bare-metal-ipi.
  * Section order is scenario-aware (hostInventoryV2Helpers). Validates nodes via validateNode and catalog-driven required paths.
  */
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -69,10 +69,9 @@ const AGENT_CONFIG = "agent-config.yaml";
 const ROLE_PATH_AGENT = "hosts[].role";
 
 function isScenarioSupported(platform, method) {
-  return (
-    platform === "Bare Metal" &&
-    (method === "Agent-Based Installer" || method === "IPI")
-  );
+  if (platform === "Bare Metal" && (method === "Agent-Based Installer" || method === "IPI")) return true;
+  if (platform === "VMware vSphere" && method === "Agent-Based Installer") return true;
+  return false;
 }
 
 function nodeCompletionLabel(node, validation) {
@@ -107,6 +106,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   /** Drawer content: only show IPI-specific form when user chose Bare Metal + IPI; otherwise show full agent-oriented form. */
   const showIpiDrawer = platform === "Bare Metal" && method === "IPI";
   const isIpiScenario = scenarioId === "bare-metal-ipi";
+  const isAgentInventoryScenario = scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent";
   const supported = isScenarioSupported(platform, method);
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
   const enableIpv6 = !!inventory.enableIpv6;
@@ -180,6 +180,15 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     setAdditionalAdvancedOpen({});
   }, [selectedIndex]);
 
+  /** Agent-based install-config: single-node OpenShift is one control plane and zero workers/infra (4.20). */
+  useEffect(() => {
+    if (!isAgentInventoryScenario) return;
+    if (countControlPlane === 1 && (countWorker > 0 || countInfra > 0)) {
+      setCountWorker(0);
+      setCountInfra(0);
+    }
+  }, [isAgentInventoryScenario, countControlPlane, countWorker, countInfra]);
+
   useEffect(() => {
     if (!showReplicate) return;
     const onKeyDown = (e) => {
@@ -194,7 +203,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const handleGenerateFromCounts = () => {
     let next = generateNodesFromCounts(countControlPlane, countWorker, countInfra);
     // Bare metal Agent: 2 control plane nodes require 1 arbiter (4.20 doc). Auto-add one when user generates with CP=2.
-    if (scenarioId === "bare-metal-agent" && countControlPlane === 2) {
+    if (isAgentInventoryScenario && countControlPlane === 2) {
       next = [...next, emptyNode("arbiter", 0)];
     }
     if (state?.ui?.placeholderValuesEnabled) {
@@ -318,6 +327,12 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
 
   const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
+  const isArbiterDrawer = (selectedNode?.role || "").trim() === "arbiter";
+  /** Bulk replicate must not target arbiter nodes (role-specific inventory). */
+  const replicateEligibleTargetIndices = useMemo(() => {
+    if (selectedIndex == null) return [];
+    return nodes.map((_, i) => i).filter((i) => i !== selectedIndex && (nodes[i]?.role || "").trim() !== "arbiter");
+  }, [nodes, selectedIndex]);
   const baseDomain = (state.blueprint?.baseDomain || "").trim();
   const effectiveHostname = (node) => {
     let short = (node?.hostname || "").trim();
@@ -365,8 +380,16 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
 
   const applyReplicate = () => {
     if (selectedIndex == null || !nodes[selectedIndex]) return;
+    if ((nodes[selectedIndex]?.role || "").trim() === "arbiter") return;
     const source = nodes[selectedIndex];
-    const targetIndices = replicateTargetIndices.size ? Array.from(replicateTargetIndices) : nodes.map((_, i) => i).filter((i) => i !== selectedIndex);
+    const eligible = (i) => i !== selectedIndex && (nodes[i]?.role || "").trim() !== "arbiter";
+    const targetIndices = (replicateTargetIndices.size ? Array.from(replicateTargetIndices) : nodes.map((_, i) => i).filter(eligible)).filter(
+      (i) => eligible(i)
+    );
+    if (!targetIndices.length) {
+      setShowReplicate(false);
+      return;
+    }
     const targetNodes = targetIndices.map((i) => nodes[i]);
     const nextNodes = applyReplicateSettings(source, targetNodes, replicateSelectedFields);
     const next = nodes.map((node, i) => (targetIndices.includes(i) ? nextNodes[targetIndices.indexOf(i)] : node));
@@ -400,7 +423,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
         </div>
         <div className="step-body">
           <div className="card">
-            <p className="note">Host Inventory v2 is not supported for this scenario yet. Use the standard Host Inventory step, or choose Bare Metal with Agent-Based Installer or IPI.</p>
+            <p className="note">Host Inventory v2 is not supported for this scenario yet. Use the standard Host Inventory step, or choose Bare Metal (Agent-Based or IPI) or VMware vSphere with Agent-Based Installer.</p>
           </div>
         </div>
       </div>
@@ -427,8 +450,9 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
         <div className="host-inventory-v2-main">
         <CollapsibleSection title="How to gather host info from nodes" defaultCollapsed={false}>
               <p className="note">
-                Boot each bare metal host with a RHEL 9+ (or Fedora) live ISO first. Log in and run the commands
+                Boot each target machine with a RHEL 9+ (or Fedora) live ISO (bare metal or VMware VM), log in, and run the commands
                 below to record interface names/MACs/MTU and stable disk IDs before installing OpenShift.
+                {scenarioId === "vsphere-agent" ? " On vSphere, you can use a live ISO in the VM console or a temporary helper VM on the same port group if attaching ISOs to every node is awkward." : ""}
               </p>
               <div className="host-inventory-v2-gather-info-list">
                 <div className="host-inventory-v2-gather-hint">Interfaces (name, state, MTU, MAC):</div>
@@ -535,7 +559,7 @@ wipefs -a /dev/sdX`}</pre>
 
           if (sectionId === SECTION_IDS.AGENT_OPTIONS) {
             if (state?.ui?.segmentedFlowV1 === true) return null;
-            if (scenarioId !== "bare-metal-agent") return null;
+            if (!isAgentInventoryScenario) return null;
             return (
               <section key={sectionId} className="card host-inventory-v2-section" data-section={sectionId}>
                 <div className="host-inventory-v2-section-heading">
@@ -565,13 +589,14 @@ wipefs -a /dev/sdX`}</pre>
                   <CompareBadge kind={sectionCompareBadge} />
                 </div>
                 <p className="note subtle">Generate nodes from counts. You can edit each node in the grid after.</p>
-                {scenarioId === "bare-metal-agent" && countControlPlane === 1 && (
-                  <p className="note">
-                    Single-node (SNO) requires exactly 1 control plane node and 0 workers/infra nodes.
-                  </p>
-                )}
-                {scenarioId === "bare-metal-agent" && countControlPlane === 2 && (
+                {isAgentInventoryScenario && countControlPlane === 2 && (
                   <p className="note">Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically.</p>
+                )}
+                {isAgentInventoryScenario && countControlPlane === 1 && (
+                  <p className="note">Single-node OpenShift uses one control plane and no worker or infra nodes. Worker and infra counts are kept at zero (OpenShift 4.20 Agent-based install-config).</p>
+                )}
+                {isAgentInventoryScenario && (countControlPlane === 4 || countControlPlane === 5) && (
+                  <p className="note subtle">Four or five control plane replicas are supported for Agent-based installs when documented for your environment; ensure total topology matches the installation guide.</p>
                 )}
                 {isIpiScenario && (
                   <p className="note">For bare metal IPI, these hosts populate install-config <code>platform.baremetal.hosts[]</code>. Each host needs BMC and boot MAC for provisioning.</p>
@@ -582,16 +607,17 @@ wipefs -a /dev/sdX`}</pre>
                     <input
                       type="number"
                       min={scenarioId === "bare-metal-ipi" ? 3 : 1}
-                      max={3}
+                      max={isAgentInventoryScenario ? 5 : scenarioId === "bare-metal-ipi" ? 3 : 9}
                       step={1}
                       value={countControlPlane}
                       onChange={(e) => {
                         const cpMin = scenarioId === "bare-metal-ipi" ? 3 : 1;
+                        const cpMax = isAgentInventoryScenario ? 5 : scenarioId === "bare-metal-ipi" ? 3 : 9;
                         const nextRaw = Number(e.target.value);
                         const next = Number.isFinite(nextRaw) ? nextRaw : cpMin;
-                        const clamped = Math.min(3, Math.max(cpMin, next));
+                        const clamped = Math.min(cpMax, Math.max(cpMin, next));
                         setCountControlPlane(clamped);
-                        if (scenarioId === "bare-metal-agent" && clamped === 1) {
+                        if (isAgentInventoryScenario && clamped === 1) {
                           setCountWorker(0);
                           setCountInfra(0);
                         }
@@ -605,7 +631,7 @@ wipefs -a /dev/sdX`}</pre>
                       min={0}
                       max={99}
                       value={countWorker}
-                      disabled={scenarioId === "bare-metal-agent" && countControlPlane === 1}
+                      disabled={isAgentInventoryScenario && countControlPlane === 1}
                       onChange={(e) => setCountWorker(Number(e.target.value) || 0)}
                     />
                   </label>
@@ -616,7 +642,7 @@ wipefs -a /dev/sdX`}</pre>
                       min={0}
                       max={99}
                       value={countInfra}
-                      disabled={scenarioId === "bare-metal-agent" && countControlPlane === 1}
+                      disabled={isAgentInventoryScenario && countControlPlane === 1}
                       onChange={(e) => setCountInfra(Number(e.target.value) || 0)}
                     />
                   </label>
@@ -708,16 +734,13 @@ wipefs -a /dev/sdX`}</pre>
                     <span className="subtle">{selectedIndex + 1} / {nodes.length}</span>
                     <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1}>Next →</button>
                   </div>
-                  {selectedNode.role !== "arbiter" ? (
-                    <button
-                      type="button"
-                      className="ghost"
-                      style={{ marginBottom: 8 }}
-                      onClick={() => setShowReplicate(true)}
-                    >
-                      Apply settings to other nodes…
-                    </button>
-                  ) : null}
+                  {!isArbiterDrawer ? (
+                    <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
+                  ) : (
+                    <p className="note subtle" style={{ marginBottom: 8 }}>
+                      Bulk “Apply settings to other nodes” is not available while editing an arbiter. Configure the arbiter directly; other nodes can copy from a control plane or worker.
+                    </p>
+                  )}
                   {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
                     <details className="host-inventory-v2-validation-summary host-inventory-v2-validation-details">
                       <summary className="host-inventory-v2-validation-summary-summary">
@@ -775,7 +798,9 @@ wipefs -a /dev/sdX`}</pre>
                               <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                               {" "}Use FQDN (shortname.baseDomain)
                             </label>
-                            <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
+                            <label>Root device — deviceName <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/vda or /dev/disk/by-path/..." /></label>
+                            <label>Root device — hctl <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0 (SCSI bus)" /></label>
+                            <label>Root device — min size (GB) <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" /></label>
                           </div>
                           <div className="divider" />
                           <h4><FieldLabelWithInfo label="BMC (IPI)" hint="Baseboard management controller. Required for installer-provisioned deployment." /></h4>
@@ -797,13 +822,13 @@ wipefs -a /dev/sdX`}</pre>
                       ) : (
                         <>
                       <div className="host-inventory-v2-section-heading">
-                        <h4>{scenarioId === "bare-metal-agent" ? "Host (Agent)" : "Basic"}</h4>
+                        <h4>{isAgentInventoryScenario ? "Host (Agent)" : "Basic"}</h4>
                         <CompareBadge kind={badgeBasicDrawer} />
                       </div>
-                      {scenarioId === "bare-metal-agent" && selectedNode.role === "arbiter" && (
+                      {isAgentInventoryScenario && selectedNode.role === "arbiter" && (
                         <p className="note subtle">Arbiter node: hostname and primary network are used in agent-config for this 2 control plane + 1 arbiter topology. Set primary interface and IP so the agent can configure the node.</p>
                       )}
-                      {scenarioId === "bare-metal-agent" && selectedNode.role !== "arbiter" && (
+                      {isAgentInventoryScenario && selectedNode.role !== "arbiter" && (
                         <p className="note subtle">These fields are used for agent-config and node configuration. Set primary interface and network for each host.</p>
                       )}
                       <div className="field-grid">
@@ -831,7 +856,11 @@ wipefs -a /dev/sdX`}</pre>
                           {" "}Use FQDN (shortname.baseDomain)
                         </label>
                         {selectedNode.role !== "arbiter" ? (
-                          <label>Root device hint <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/..." /></label>
+                          <>
+                            <label>Root device — deviceName <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/vda or /dev/disk/by-path/..." /></label>
+                            <label>Root device — hctl <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0 (SCSI bus)" /></label>
+                            <label>Root device — min size (GB) <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" /></label>
+                          </>
                         ) : null}
                         <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking.">
                           <select value={selectedNode.primary?.type || "ethernet"} onChange={(e) => updatePrimary(selectedIndex, { type: e.target.value })}>
@@ -896,9 +925,14 @@ wipefs -a /dev/sdX`}</pre>
                         )}
                         <label>DNS servers <input value={selectedNode.dnsServers || ""} onChange={(e) => updateNode(selectedIndex, { dnsServers: e.target.value })} placeholder="192.168.1.10,192.168.1.11" /></label>
                         <label>DNS search <input value={selectedNode.dnsSearch || ""} onChange={(e) => updateNode(selectedIndex, { dnsSearch: e.target.value })} /></label>
+                        {isArbiterDrawer ? (
+                          <p className="note subtle" style={{ gridColumn: "1 / -1" }}>
+                            Arbiter: primary interface, DNS, and root device hint are what this app emits to agent-config. Extra interfaces and primary advanced MTU/routes are hidden for this role to match the simplified arbiter workflow.
+                          </p>
+                        ) : null}
                       </div>
 
-                      {selectedNode.role !== "arbiter" ? (
+                      {!isArbiterDrawer ? (
                       <>
                       <div className="divider" />
                       <h4><FieldLabelWithInfo label="Additional Interfaces" hint="Use this for extra NIC networks or additional VLANs." /></h4>
@@ -1113,7 +1147,7 @@ wipefs -a /dev/sdX`}</pre>
                         </>
                       )}
 
-                      {showAdvancedDrawer && selectedNode.role !== "arbiter" && (
+                      {showAdvancedDrawer && !isArbiterDrawer && (
                         <>
                           <div className="card-header host-inventory-v2-section-heading host-inventory-v2-advanced-header">
                             <h4>Advanced</h4>
@@ -1193,7 +1227,7 @@ wipefs -a /dev/sdX`}</pre>
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowReplicate(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Apply settings to other nodes</h3>
-            <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default.</p>
+            <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default. Arbiter nodes are excluded from targets.</p>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
                 <h4>Settings to copy</h4>
@@ -1214,27 +1248,34 @@ wipefs -a /dev/sdX`}</pre>
                 <label className="toggle-row" style={{ marginBottom: 8 }}>
                   <input
                     type="checkbox"
-                    checked={selectedIndex != null && nodes.length > 1 && nodes.every((_, idx) => idx === selectedIndex || replicateTargetIndices.has(idx))}
+                    checked={
+                      selectedIndex != null &&
+                      replicateEligibleTargetIndices.length > 0 &&
+                      replicateEligibleTargetIndices.every((idx) => replicateTargetIndices.has(idx))
+                    }
                     onChange={(e) => {
-                      if (selectedIndex == null || nodes.length <= 1) return;
+                      if (selectedIndex == null || replicateEligibleTargetIndices.length === 0) return;
                       if (e.target.checked) {
-                        setReplicateTargetIndices(new Set(nodes.map((_, i) => i).filter((i) => i !== selectedIndex)));
+                        setReplicateTargetIndices(new Set(replicateEligibleTargetIndices));
                       } else {
                         setReplicateTargetIndices(new Set());
                       }
                     }}
                   />
-                  <span>Apply to all other nodes</span>
+                  <span>Apply to all other eligible nodes</span>
                 </label>
                 {nodes.map((node, idx) => (
                   <label key={idx} className="toggle-row">
                     <input
                       type="checkbox"
-                      disabled={idx === selectedIndex}
+                      disabled={idx === selectedIndex || (node.role || "").trim() === "arbiter"}
                       checked={replicateTargetIndices.has(idx)}
                       onChange={(e) => setReplicateTargetIndices((prev) => { const next = new Set(prev); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })}
                     />
-                    <span>{effectiveHostname(node) || `Node ${idx + 1}`} ({node.role})</span>
+                    <span>
+                      {effectiveHostname(node) || `Node ${idx + 1}`} ({node.role}
+                      {(node.role || "").trim() === "arbiter" ? "; not eligible for bulk copy" : ""})
+                    </span>
                   </label>
                 ))}
               </div>
