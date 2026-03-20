@@ -4,6 +4,7 @@
  */
 
 import { getFieldMeta } from "./catalogFieldMeta.js";
+import { getAgentBasedTopologyErrors } from "./hostInventoryV2Helpers.js";
 
 /** Catalog path for role: agent-config hosts[].role. */
 const ROLE_PATH_AGENT = "hosts[].role";
@@ -39,13 +40,9 @@ export function getCatalogValidationForInventoryV2(state, scenarioId) {
     });
   }
 
-  // Bare metal Agent: 2 control plane nodes require 1 arbiter (4.20 doc: only valid topology with 2 CP is 2 CP + arbiter).
-  if (scenarioId === "bare-metal-agent") {
-    const masterCount = nodes.filter((n) => n.role === "master").length;
-    const arbiterCount = nodes.filter((n) => n.role === "arbiter").length;
-    if (masterCount === 2 && arbiterCount === 0) {
-      errors.push("Two control plane nodes require one arbiter node for this topology. Add a host with role arbiter, or use 1 or 3+ control plane nodes.");
-    }
+  // Agent-based (bare metal + vSphere): full install-config topology (4.20 installation-config-parameters-agent).
+  if (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") {
+    errors.push(...getAgentBasedTopologyErrors(nodes));
   }
 
   // API/Ingress VIPs are validated on the Networking step; not on Hosts page.

@@ -39,17 +39,25 @@ export const SCENARIO_SECTION_ORDER = {
     SECTION_IDS.NODE_DRAWER_BASIC,
     SECTION_IDS.NODE_DRAWER_ADVANCED,
     SECTION_IDS.REPLICATE_MODAL
+  ],
+  "vsphere-agent": [
+    SECTION_IDS.AGENT_OPTIONS,
+    SECTION_IDS.NODE_COUNTS,
+    SECTION_IDS.NODE_GRID,
+    SECTION_IDS.NODE_DRAWER_BASIC,
+    SECTION_IDS.NODE_DRAWER_ADVANCED,
+    SECTION_IDS.REPLICATE_MODAL
   ]
 };
 
 /** Scenario ids for which the Hosts / Inventory step shows full UI (have host inventory in this app). */
-export const SCENARIO_IDS_WITH_HOST_INVENTORY = ["bare-metal-agent", "bare-metal-ipi"];
+export const SCENARIO_IDS_WITH_HOST_INVENTORY = ["bare-metal-agent", "bare-metal-ipi", "vsphere-agent"];
 
 /**
  * Derive scenarioId from platform and methodology.
  * @param {string} platform - e.g. "Bare Metal", "VMware vSphere"
  * @param {string} method - e.g. "Agent-Based Installer", "IPI", "UPI"
- * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "nutanix-ipi" | null
+ * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-agent" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "nutanix-ipi" | null
  */
 export function getScenarioId(platform, method) {
   if (platform === "Bare Metal") {
@@ -59,6 +67,7 @@ export function getScenarioId(platform, method) {
     return null;
   }
   if (platform === "VMware vSphere") {
+    if (method === "Agent-Based Installer") return "vsphere-agent";
     if (method === "IPI") return "vsphere-ipi";
     if (method === "UPI") return "vsphere-upi";
     return null;
@@ -176,6 +185,46 @@ export function generateNodesFromCounts(controlPlaneCount, workerCount, infraCou
     nodes.push(emptyNode("worker", i, "infra"));
   }
   return nodes;
+}
+
+/**
+ * OpenShift 4.20 Agent-based install-config: controlPlane.replicas may be 1 (SNO only), 3, 4, or 5,
+ * or 2 with exactly one arbiter (installation-config-parameters-agent).
+ * @param {Array<{ role?: string }>} nodes
+ * @returns {string[]} topology errors (empty if valid or nodes empty)
+ */
+export function getAgentBasedTopologyErrors(nodes) {
+  const list = Array.isArray(nodes) ? nodes : [];
+  if (list.length === 0) return [];
+
+  const masters = list.filter((n) => (n?.role || "").trim() === "master").length;
+  const arbiters = list.filter((n) => (n?.role || "").trim() === "arbiter").length;
+  const workers = list.filter((n) => (n?.role || "").trim() === "worker").length;
+  const errors = [];
+
+  if (![1, 2, 3, 4, 5].includes(masters)) {
+    errors.push(
+      `Agent-based install-config allows control plane replicas 1 (single-node only), 2 (with one arbiter), 3, 4, or 5 (OpenShift 4.20). Inventory has ${masters} control plane node(s).`
+    );
+  }
+  if (masters === 1) {
+    if (workers > 0) {
+      errors.push(
+        "Single-node OpenShift uses one control plane node and zero workers. Set workers and infra to zero, or use three or more control plane nodes."
+      );
+    }
+    if (arbiters > 0) {
+      errors.push("Arbiter is only used with exactly two control plane nodes.");
+    }
+  }
+  if (masters === 2) {
+    if (arbiters !== 1) {
+      errors.push("Two control plane nodes require exactly one arbiter node (OpenShift 4.20 Agent-based).");
+    }
+  } else if (arbiters > 0) {
+    errors.push("Arbiter is only valid when there are exactly two control plane nodes.");
+  }
+  return errors;
 }
 
 /** Keys that should NOT be copied by default when replicating (hostname, BMC, MACs). */

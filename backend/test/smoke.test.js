@@ -704,6 +704,113 @@ test("buildInstallConfig for vsphere-upi must NOT emit apiVIPs or ingressVIPs (r
   assert.strictEqual(out.platform.vsphere.ingressVIPs, undefined, "UPI must not emit ingressVIPs");
 });
 
+test("buildInstallConfig for vsphere-agent SNO emits platform.none", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsno" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "10.0.0.10/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" }
+          }
+        }
+      ]
+    },
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.deepStrictEqual(out.platform, { none: {} });
+});
+
+test("buildInstallConfig for vsphere-agent multi-node maps host VIPs to platform.vsphere", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      apiVip: "192.168.50.10",
+      ingressVip: "192.168.50.11",
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "192.168.50.5/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" }
+          }
+        },
+        {
+          role: "master",
+          hostname: "master-1",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "192.168.50.6/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:02" }
+          }
+        },
+        {
+          role: "master",
+          hostname: "master-2",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "192.168.50.7/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:03" }
+          }
+        }
+      ]
+    },
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "VM Network" }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.vsphere, "platform.vsphere for agent multi-node");
+  assert.deepStrictEqual(out.platform.vsphere.apiVIPs, ["192.168.50.10"]);
+  assert.deepStrictEqual(out.platform.vsphere.ingressVIPs, ["192.168.50.11"]);
+  assert.strictEqual(out.platform.vsphere.vcenters?.[0]?.server, "vc.example.com");
+});
+
+test("buildAgentConfig works for VMware vSphere Agent-based", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: {},
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "10.0.0.10/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" }
+          }
+        }
+      ]
+    }
+  };
+  const out = yaml.load(buildAgentConfig(state));
+  assert.strictEqual(out.kind, "AgentConfig");
+  assert.ok(Array.isArray(out.hosts) && out.hosts.length === 1);
+});
+
 test("buildInstallConfig for vsphere-ipi emits template in failure domain topology when set (and no clusterOSImage)", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
@@ -1257,7 +1364,9 @@ test("buildInstallConfig for nutanix-ipi emits platform.nutanix with prismCentra
         username: "admin",
         password: "secret",
         subnet: "subnet-uuid-123",
-        cluster: "my-cluster"
+        cluster: "my-cluster",
+        apiVIP: "10.90.0.10",
+        ingressVIP: "10.90.0.11"
       }
     },
     exportOptions: { includeCredentials: true }
@@ -1265,14 +1374,20 @@ test("buildInstallConfig for nutanix-ipi emits platform.nutanix with prismCentra
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.ok(out.platform?.nutanix, "platform.nutanix must be present for Nutanix IPI");
-  assert.strictEqual(out.platform.nutanix.prismCentral?.endpoint, "prism.example.com");
-  assert.strictEqual(out.platform.nutanix.prismCentral?.port, 9440);
+  assert.strictEqual(out.platform.nutanix.prismCentral?.endpoint?.address, "prism.example.com");
+  assert.strictEqual(out.platform.nutanix.prismCentral?.endpoint?.port, 9440);
   assert.strictEqual(out.platform.nutanix.prismCentral?.username, "admin");
   assert.strictEqual(out.platform.nutanix.prismCentral?.password, "secret");
   assert.deepStrictEqual(out.platform.nutanix.subnetUUIDs, ["subnet-uuid-123"]);
   assert.strictEqual(out.platform.nutanix.clusterName, "my-cluster");
-  assert.strictEqual(out.compute[0].platform, undefined, "K follow-up: compute.platform omitted unless required");
-  assert.strictEqual(out.controlPlane.platform, undefined, "K follow-up: controlPlane.platform omitted unless required");
+  assert.strictEqual(out.platform.nutanix.apiVIP, "10.90.0.10");
+  assert.strictEqual(out.platform.nutanix.ingressVIP, "10.90.0.11");
+  assert.deepStrictEqual(out.controlPlane.platform, { nutanix: {} }, "Nutanix IPI install-config sample includes controlPlane.platform.nutanix");
+  assert.deepStrictEqual(out.compute[0].platform, { nutanix: {} }, "Nutanix IPI sample includes compute platform.nutanix");
+  assert.strictEqual(out.controlPlane.replicas, 3);
+  assert.strictEqual(out.compute[0].replicas, 3);
+  assert.strictEqual(out.credentialsMode, "Manual", "Nutanix IPI requires CCO Manual mode (Installing on Nutanix §1.4)");
+  assert.strictEqual(out.publish, "External");
 });
 
 test("buildInstallConfig for nutanix-ipi includes required catalog params (Prompt J Phase 3)", () => {
@@ -1284,16 +1399,53 @@ test("buildInstallConfig for nutanix-ipi includes required catalog params (Promp
     platformConfig: {
       nutanix: {
         endpoint: "pc.local",
-        subnet: "subnet-uuid-456"
+        subnet: "subnet-uuid-456",
+        apiVIP: "10.90.0.5",
+        ingressVIP: "10.90.0.6"
       }
     }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
-  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint === "pc.local");
+  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint?.address === "pc.local");
   assert.deepStrictEqual(out.platform.nutanix.subnetUUIDs, ["subnet-uuid-456"]);
-  assert.strictEqual(out.compute[0].platform, undefined, "K follow-up: compute.platform omitted unless required");
-  assert.strictEqual(out.controlPlane.platform, undefined, "K follow-up: controlPlane.platform omitted unless required");
+  assert.deepStrictEqual(out.controlPlane.platform, { nutanix: {} });
+  assert.deepStrictEqual(out.compute[0].platform, { nutanix: {} });
+  assert.strictEqual(out.credentialsMode, "Manual");
+  assert.strictEqual(out.publish, "External");
+});
+
+test("buildInstallConfig for nutanix-ipi emits apiVIPs/ingressVIPs lists when machine IPv6 and IPv6 VIPs set", () => {
+  const state = {
+    blueprint: { platform: "Nutanix", baseDomain: "nutanix.example.com", clusterName: "nutanix-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: {
+      networking: {
+        machineNetworkV4: "10.90.0.0/24",
+        machineNetworkV6: "fd00:dead:beef::/64",
+        clusterNetworkCidr: "10.128.0.0/14",
+        serviceNetworkCidr: "172.30.0.0/16",
+        networkType: "OVNKubernetes"
+      }
+    },
+    credentials: {},
+    platformConfig: {
+      nutanix: {
+        endpoint: "pc.local",
+        subnet: "subnet-uuid",
+        apiVIP: "10.90.0.5",
+        apiVIPV6: "fd00:dead:beef::5",
+        ingressVIP: "10.90.0.6",
+        ingressVIPV6: "fd00:dead:beef::6"
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.platform.nutanix.apiVIPs, ["10.90.0.5", "fd00:dead:beef::5"]);
+  assert.deepStrictEqual(out.platform.nutanix.ingressVIPs, ["10.90.0.6", "fd00:dead:beef::6"]);
+  assert.strictEqual(out.platform.nutanix.apiVIP, undefined);
+  assert.strictEqual(out.platform.nutanix.ingressVIP, undefined);
 });
 
 test("buildInstallConfig for nutanix-ipi must NOT emit bare-metal or vsphere (scenario-consistency)", () => {
@@ -1303,14 +1455,19 @@ test("buildInstallConfig for nutanix-ipi must NOT emit bare-metal or vsphere (sc
     globalStrategy: { networking: {} },
     credentials: {},
     platformConfig: {
-      nutanix: { endpoint: "pc.local", subnet: "subnet-uuid" }
+      nutanix: {
+        endpoint: "pc.local",
+        subnet: "subnet-uuid",
+        apiVIP: "10.90.0.7",
+        ingressVIP: "10.90.0.8"
+      }
     }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.strictEqual(out.platform?.baremetal, undefined, "nutanix-ipi must not emit platform.baremetal");
   assert.strictEqual(out.platform?.vsphere, undefined, "nutanix-ipi must not emit platform.vsphere");
-  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint === "pc.local");
+  assert.ok(out.platform?.nutanix?.prismCentral?.endpoint?.address === "pc.local");
 });
 
 test("buildInstallConfig emits additionalTrustBundle as literal block (|) for readable PEM (#15)", () => {

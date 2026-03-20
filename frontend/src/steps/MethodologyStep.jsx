@@ -4,12 +4,16 @@ import { useApp } from "../store.jsx";
 const methods = [
   { value: "IPI", label: "IPI (Installer Provisioned)", sub: "Full stack automation." },
   { value: "UPI", label: "UPI (User Provisioned)", sub: "You provide the infrastructure." },
-  { value: "Agent-Based Installer", label: "Agent-Based Installer", sub: "Ideal for bare metal and airgapped." }
+  {
+    value: "Agent-Based Installer",
+    label: "Agent-Based Installer",
+    sub: "ISO or PXE with install-config + agent-config; strong fit for bare metal, VMware vSphere, and air-gapped installs."
+  }
 ];
 
 const supportedMethods = {
   "Bare Metal": ["Agent-Based Installer", "IPI", "UPI"],
-  "VMware vSphere": ["IPI", "UPI"],
+  "VMware vSphere": ["IPI", "UPI", "Agent-Based Installer"],
   Nutanix: ["IPI"],
   "AWS GovCloud": ["IPI", "UPI"],
   "Azure Government": ["IPI"]

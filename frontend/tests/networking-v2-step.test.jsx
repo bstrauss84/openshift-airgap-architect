@@ -266,6 +266,47 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
   });
 
 
+  it("vsphere-agent: when IPv6 is enabled, cluster and service IPv6 fields show without machine IPv6 filled (shared dual-stack visibility)", async () => {
+    const base = stateForNetworkingStep({
+      blueprint: { ...stateForNetworkingStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" },
+      hostInventory: {
+        enableIpv6: true,
+        schemaVersion: 2,
+        nodes: [
+          { role: "master", hostname: "m-0" },
+          { role: "master", hostname: "m-1" }
+        ],
+        apiVip: "10.90.0.10",
+        ingressVip: "10.90.0.11"
+      },
+      globalStrategy: {
+        ...stateForNetworkingStep().globalStrategy,
+        networking: {
+          machineNetworkV4: "10.90.0.0/24",
+          machineNetworkV6: "",
+          clusterNetworkCidr: "10.128.0.0/14",
+          clusterNetworkHostPrefix: 23,
+          serviceNetworkCidr: "172.30.0.0/16",
+          networkType: "OVNKubernetes"
+        }
+      }
+    });
+    expect(getScenarioId(base)).toBe("vsphere-agent");
+    const { container } = render(
+      <AppContext.Provider value={{ state: base, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+    const view = within(container);
+    await waitFor(() => {
+      expect(view.getByText(/Cluster Network IPv6 CIDR/i)).toBeInTheDocument();
+      expect(view.getByText(/Service Network IPv6 CIDR/i)).toBeInTheDocument();
+      expect(view.getByPlaceholderText("fd01::/48")).toBeInTheDocument();
+      expect(view.getByPlaceholderText("fd02::/112")).toBeInTheDocument();
+    });
+  });
+
   it("when scenario is aws-govcloud-ipi, getScenarioId returns aws-govcloud-ipi and Networking tab shows full form (A2 tab relevance)", () => {
     const state = stateForNetworkingStep({
       blueprint: {
@@ -328,5 +369,32 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     expect(screen.getAllByPlaceholderText("10.90.0.0/24").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByPlaceholderText("10.128.0.0/14").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByPlaceholderText("172.30.0.0/16").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("when scenario is nutanix-ipi, Networking shows Nutanix API and Ingress VIP fields", () => {
+    const base = stateForNetworkingStep({
+      blueprint: {
+        ...stateWithBlueprintCompleteMethodologyIncomplete().blueprint,
+        platform: "Nutanix"
+      },
+      methodology: { method: "IPI" },
+      globalStrategy: {
+        networking: {
+          machineNetworkV4: "10.90.0.0/24",
+          clusterNetworkCidr: "10.128.0.0/14",
+          serviceNetworkCidr: "172.30.0.0/16",
+          networkType: "OVNKubernetes"
+        }
+      }
+    });
+    expect(getScenarioId(base)).toBe("nutanix-ipi");
+    render(
+      <AppContext.Provider value={{ state: base, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+    expect(screen.getAllByText(/Nutanix IPI/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByPlaceholderText("e.g. 10.0.0.5")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. 10.0.0.6")).toBeInTheDocument();
   });
 });

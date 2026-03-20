@@ -22,25 +22,52 @@ const createJob = (type, message = "") => {
   const id = nanoid();
   const ts = now();
   db.prepare(
-    "INSERT INTO jobs (id, type, status, progress, message, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(id, type, "queued", 0, message, ts, ts);
+    "INSERT INTO jobs (id, type, status, progress, message, output, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(id, type, "queued", 0, message, null, ts, ts, "");
   return id;
 };
 
 const updateJob = (id, patch) => {
   const current = db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
   if (!current) return null;
+  const metadataJson =
+    patch.metadata_json !== undefined
+      ? (typeof patch.metadata_json === "string" ? patch.metadata_json : JSON.stringify(patch.metadata_json))
+      : current.metadata_json;
   const updated = {
     status: patch.status ?? current.status,
     progress: patch.progress ?? current.progress,
     message: patch.message ?? current.message,
     output: patch.output ?? current.output,
-    updated_at: now()
+    updated_at: now(),
+    metadata_json: metadataJson ?? ""
   };
   db.prepare(
-    "UPDATE jobs SET status = ?, progress = ?, message = ?, output = ?, updated_at = ? WHERE id = ?"
-  ).run(updated.status, updated.progress, updated.message, updated.output, updated.updated_at, id);
+    "UPDATE jobs SET status = ?, progress = ?, message = ?, output = ?, updated_at = ?, metadata_json = ? WHERE id = ?"
+  ).run(
+    updated.status,
+    updated.progress,
+    updated.message,
+    updated.output,
+    updated.updated_at,
+    updated.metadata_json,
+    id
+  );
   return updated;
+};
+
+/** Merge object into job metadata_json (for oc-mirror-run). Existing keys preserved if not in patch. */
+const updateJobMetadata = (id, patch) => {
+  const row = db.prepare("SELECT metadata_json FROM jobs WHERE id = ?").get(id);
+  if (!row) return null;
+  let meta = {};
+  try {
+    if (row.metadata_json) meta = JSON.parse(row.metadata_json);
+  } catch {}
+  const merged = { ...meta, ...patch };
+  const str = JSON.stringify(merged);
+  db.prepare("UPDATE jobs SET metadata_json = ?, updated_at = ? WHERE id = ?").run(str, now(), id);
+  return merged;
 };
 
 const getJob = (id) => db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
@@ -112,6 +139,7 @@ export {
   setCache,
   createJob,
   updateJob,
+  updateJobMetadata,
   getJob,
   listJobs,
   listJobsByType,

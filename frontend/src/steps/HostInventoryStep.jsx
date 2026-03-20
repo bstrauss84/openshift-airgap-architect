@@ -1,6 +1,7 @@
 import React from "react";
 import { useApp } from "../store.jsx";
 import { validateNode } from "../validation.js";
+import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "../hostInventoryV2Helpers.js";
 
 const PRIMARY_TYPES = [
   { id: "ethernet", label: "Single NIC ethernet" },
@@ -77,7 +78,8 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
   const platform = state.blueprint?.platform;
   const method = state.methodology?.method;
   const showBmc = platform === "Bare Metal" && method === "IPI";
-  const showInventory = platform === "Bare Metal" && (method === "Agent-Based Installer" || method === "IPI");
+  const scenarioIdLegacy = getScenarioId(platform, method);
+  const showInventory = Boolean(scenarioIdLegacy && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(scenarioIdLegacy));
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
   const networkHints = deriveNetworkHints(machineCidr);
   const nodeIpv4Placeholder = (role, index) => {

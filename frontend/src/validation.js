@@ -5,7 +5,7 @@
  */
 
 import { getTrustBundlePolicies } from "./shared/versionPolicy.js";
-import { getScenarioId } from "./hostInventoryV2Helpers.js";
+import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
@@ -251,7 +251,8 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     }
   }
 
-  const additional = node.additionalInterfaces || [];
+  // Arbiter hosts use a reduced inventory surface in the UI; do not validate additional interfaces for arbiter.
+  const additional = (node.role || "").trim() === "arbiter" ? [] : node.additionalInterfaces || [];
   additional.forEach((iface, idx) => {
     const prefix = `additional.${idx}`;
     const requireEthernet = iface.type === "ethernet" || iface.type === "vlan-on-ethernet";
@@ -400,14 +401,36 @@ const validatePlatformConfig = (state) => {
     }
   }
   if (method === "IPI" && platform === "Nutanix") {
-    if (!cfg.nutanix?.endpoint) errors.push("Prism Central endpoint is required for Nutanix IPI.");
+    if (!cfg.nutanix?.endpoint?.trim()) errors.push("Prism Central endpoint is required for Nutanix IPI.");
     if (!cfg.nutanix?.username) {
       (includeCredentials ? errors : warnings).push("Prism Central username is required for Nutanix IPI.");
     }
     if (!cfg.nutanix?.password) {
       (includeCredentials ? errors : warnings).push("Prism Central password is required for Nutanix IPI.");
     }
-    if (!cfg.nutanix?.subnet) errors.push("Subnet UUID is required for Nutanix IPI.");
+    if (!cfg.nutanix?.subnet?.trim()) errors.push("Subnet UUID is required for Nutanix IPI.");
+    if (!(cfg.nutanix?.apiVIP || "").trim()) errors.push("API VIP is required for Nutanix IPI (platform.nutanix.apiVIP).");
+    if (!(cfg.nutanix?.ingressVIP || "").trim()) {
+      errors.push("Ingress VIP is required for Nutanix IPI (platform.nutanix.ingressVIP).");
+    }
+    if (cfg.publish === "Internal") {
+      errors.push("Internal publish is not supported on non-cloud platforms (Nutanix). Use External. See BZ#1953035.");
+    }
+    const cmNx = (cfg.credentialsMode || "").trim();
+    if (cmNx && cmNx !== "Manual") {
+      errors.push("Nutanix IPI requires credentialsMode Manual (OpenShift 4.20 Installing on Nutanix §1.4).");
+    }
+    const cpRep = cfg.controlPlaneReplicas;
+    const compRep = cfg.computeReplicas;
+    if (cpRep != null && String(cpRep).trim() !== "") {
+      const n = Number(cpRep);
+      if (n !== 1 && n !== 3) {
+        errors.push("Nutanix IPI supports control plane replicas 3 (standard or compact three-node) or 1 (single-node OpenShift) per OpenShift 4.20 Nutanix install-config parameters.");
+      }
+      if (n === 1 && compRep != null && String(compRep).trim() !== "" && Number(compRep) !== 0) {
+        errors.push("Single-node OpenShift on Nutanix IPI requires compute (worker) replicas 0.");
+      }
+    }
   }
   if (method === "IPI" && platform === "Azure Government") {
     if (!cfg.azure?.cloudName) errors.push("Azure cloud name is required for Azure Government IPI.");
@@ -485,6 +508,7 @@ const validateMirrorRegistrySecret = (state) => {
 /** Networking format: machine/cluster/service CIDRs, API/Ingress VIPs, provisioning CIDR and cluster provisioning IP must be valid IPv4/CIDR. */
 const validateNetworkingFormat = (state) => {
   const errors = [];
+  const scenarioIdNw = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
   const networking = state.globalStrategy?.networking || {};
   const hostInventory = state.hostInventory || {};
   const machine = (networking.machineNetworkV4 || "").trim();
@@ -510,6 +534,21 @@ const validateNetworkingFormat = (state) => {
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) errors.push("Provisioning network CIDR must be a valid CIDR.");
   if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) errors.push("Cluster provisioning IP must be a valid IPv4 address.");
+  if (scenarioIdNw === "nutanix-ipi") {
+    const nx = state.platformConfig?.nutanix || {};
+    const apiNx = (nx.apiVIP || "").trim();
+    const ingNx = (nx.ingressVIP || "").trim();
+    const api6 = (nx.apiVIPV6 || "").trim();
+    const ing6 = (nx.ingressVIPV6 || "").trim();
+    if (apiNx && !isValidIpv4(apiNx) && !isValidIpv6(apiNx)) {
+      errors.push("Nutanix API VIP must be a valid IPv4 or IPv6 address.");
+    }
+    if (ingNx && !isValidIpv4(ingNx) && !isValidIpv6(ingNx)) {
+      errors.push("Nutanix Ingress VIP must be a valid IPv4 or IPv6 address.");
+    }
+    if (api6 && !isValidIpv6(api6)) errors.push("Nutanix API VIP (IPv6) must be a valid IPv6 address.");
+    if (ing6 && !isValidIpv6(ing6)) errors.push("Nutanix Ingress VIP (IPv6) must be a valid IPv6 address.");
+  }
   return { errors, warnings: [] };
 };
 
@@ -539,6 +578,26 @@ const validateVipsInMachineNetwork = (state) => {
     const vs = state.platformConfig?.vsphere || {};
     checkVips(vs.apiVIPs, "API VIPs", "apiVip");
     checkVips(vs.ingressVIPs, "Ingress VIPs", "ingressVip");
+  }
+  if (scenarioId === "vsphere-agent") {
+    const hi = state.hostInventory || {};
+    const parseList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+    checkVips(parseList(hi.apiVip), "API VIPs", "apiVip");
+    checkVips(parseList(hi.ingressVip), "Ingress VIPs", "ingressVip");
+    if ((hi.apiVipV6 || "").trim()) {
+      checkVips([(hi.apiVipV6 || "").trim()], "API VIPs (IPv6)", "apiVipV6");
+    }
+    if ((hi.ingressVipV6 || "").trim()) {
+      checkVips([(hi.ingressVipV6 || "").trim()], "Ingress VIPs (IPv6)", "ingressVipV6");
+    }
+  }
+  if (scenarioId === "nutanix-ipi") {
+    const nx = state.platformConfig?.nutanix || {};
+    const apiNx = (nx.apiVIP || "").trim();
+    const ingNx = (nx.ingressVIP || "").trim();
+    if (apiNx) checkVips([apiNx], "Nutanix API VIP", "nutanixApiVIP");
+    if (ingNx) checkVips([ingNx], "Nutanix Ingress VIP", "nutanixIngressVIP");
+    // IPv6 VIPs: format validated in validateNetworkingFormat; CIDR membership for IPv6 VIPs is not enforced here (same gap as other scenarios).
   }
   // Bare Metal UPI: no API/Ingress VIPs in install-config (platform.none only per 4.20 doc); user configures LB/DNS externally. Only validate for bare-metal-ipi.
   if (scenarioId === "bare-metal-ipi") {
@@ -672,9 +731,8 @@ const validateStep = (state, stepId) => {
     };
   }
   if (stepId === "inventory") {
-    const platform = state.blueprint?.platform;
-    const method = state.methodology?.method;
-    const showInventory = platform === "Bare Metal" && (method === "Agent-Based Installer" || method === "IPI");
+    const sid = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+    const showInventory = Boolean(sid && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(sid));
     return showInventory ? validateHostInventory(state) : { errors: [], warnings: [] };
   }
   if (stepId === "inventory-v2") {
@@ -791,6 +849,10 @@ const validateStep = (state, stepId) => {
       if (msg.includes("Machine network")) fieldErrors.machineNetworkV4 = msg;
       else if (msg.includes("Cluster network")) fieldErrors.clusterNetworkCidr = msg;
       else if (msg.includes("Service network")) fieldErrors.serviceNetworkCidr = msg;
+      else if (msg.includes("Nutanix API VIP (IPv6)")) fieldErrors.nutanixApiVIPV6 = msg;
+      else if (msg.includes("Nutanix Ingress VIP (IPv6)")) fieldErrors.nutanixIngressVIPV6 = msg;
+      else if (msg.includes("Nutanix API VIP")) fieldErrors.nutanixApiVIP = msg;
+      else if (msg.includes("Nutanix Ingress VIP")) fieldErrors.nutanixIngressVIP = msg;
       else if (msg.includes("API VIP")) fieldErrors.apiVip = msg;
       else if (msg.includes("Ingress VIP")) fieldErrors.ingressVip = msg;
     });
@@ -806,7 +868,8 @@ const validateStep = (state, stepId) => {
     const nodes = state.hostInventory?.nodes || [];
     const masterCount = nodes.filter((n) => n.role === "master").length;
     const workerCount = nodes.filter((n) => n.role === "worker").length;
-    const isAgentSno = scenarioId === "bare-metal-agent" && masterCount === 1 && workerCount === 0;
+    const isAgentSno =
+      (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
     const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
     if (!isAgentSno && requiredPaths.includes("platform.baremetal.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
       const msg = "API VIPs are required for Bare Metal Agent-based multi-node installs.";
@@ -817,6 +880,28 @@ const validateStep = (state, stepId) => {
       const msg = "Ingress VIPs are required for Bare Metal Agent-based multi-node installs.";
       fieldErrors.ingressVip = fieldErrors.ingressVip || msg;
       format.errors.push(msg);
+    }
+    if (!isAgentSno && requiredPaths.includes("platform.vsphere.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
+      const msg = "API VIPs are required for vSphere Agent-based multi-node installs.";
+      fieldErrors.apiVip = fieldErrors.apiVip || msg;
+      format.errors.push(msg);
+    }
+    if (!isAgentSno && requiredPaths.includes("platform.vsphere.ingressVIPs") && !(state.hostInventory?.ingressVip || "").trim()) {
+      const msg = "Ingress VIPs are required for vSphere Agent-based multi-node installs.";
+      fieldErrors.ingressVip = fieldErrors.ingressVip || msg;
+      format.errors.push(msg);
+    }
+    if (scenarioId === "nutanix-ipi") {
+      if (requiredPaths.includes("platform.nutanix.apiVIP") && !(state.platformConfig?.nutanix?.apiVIP || "").trim()) {
+        const msg = "API VIP is required for Nutanix IPI (platform.nutanix.apiVIP).";
+        fieldErrors.nutanixApiVIP = fieldErrors.nutanixApiVIP || msg;
+        format.errors.push(msg);
+      }
+      if (requiredPaths.includes("platform.nutanix.ingressVIP") && !(state.platformConfig?.nutanix?.ingressVIP || "").trim()) {
+        const msg = "Ingress VIP is required for Nutanix IPI (platform.nutanix.ingressVIP).";
+        fieldErrors.nutanixIngressVIP = fieldErrors.nutanixIngressVIP || msg;
+        format.errors.push(msg);
+      }
     }
     return {
       errors: [...format.errors, ...networking.errors, ...vipsInMachine.errors],
@@ -871,9 +956,10 @@ const validateStep = (state, stepId) => {
       }
       return { errors, warnings: [] };
     }
-    if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi") {
+    if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") {
       const errors = [];
-      const label = scenarioId === "vsphere-upi" ? "vSphere UPI" : "vSphere IPI";
+      const label =
+        scenarioId === "vsphere-upi" ? "vSphere UPI" : scenarioId === "vsphere-agent" ? "vSphere Agent-based" : "vSphere IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const placementMode = vsphere.placementMode || "failureDomains";
       if (state.platformConfig?.publish === "Internal") {
@@ -896,8 +982,8 @@ const validateStep = (state, stepId) => {
         if (!(vsphere.cluster || "").trim()) errors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
         if (!(vsphere.network || "").trim()) errors.push(`VM network is required for ${label} when using legacy single placement.`);
       } else {
-        // Failure-domains path: do not require top-level vcenter/datacenter; require at least one valid FD for IPI.
-        if (scenarioId === "vsphere-ipi") {
+        // Failure-domains path: require at least one valid FD for IPI and Agent-based multi-node (install-config platform.vsphere).
+        if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-agent") {
           const fds = Array.isArray(vsphere.failureDomains) ? vsphere.failureDomains : [];
           const validFd = fds.some((fd) => (fd.server || "").trim() && (fd.topology?.datacenter || "").trim() && (fd.topology?.computeCluster || "").trim() && (fd.topology?.datastore || "").trim() && Array.isArray(fd.topology?.networks) && fd.topology.networks.length > 0);
           if (fds.length === 0 || !validFd) {
@@ -952,11 +1038,10 @@ const validateStep = (state, stepId) => {
     }
     return { errors: [], warnings: [] };
   }
-  // hosts-inventory: only bare-metal agent and bare-metal IPI have host inventory in this app.
+  // hosts-inventory: scenarios listed in SCENARIO_IDS_WITH_HOST_INVENTORY (e.g. bare-metal-agent, vsphere-agent, bare-metal-ipi).
   if (stepId === "hosts-inventory") {
-    const platform = state.blueprint?.platform;
-    const method = state.methodology?.method;
-    const hasHostInventory = platform === "Bare Metal" && (method === "Agent-Based Installer" || method === "IPI");
+    const sid = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+    const hasHostInventory = Boolean(sid && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(sid));
     return hasHostInventory ? validateStep(state, "inventory-v2") : { errors: [], warnings: [] };
   }
   if (stepId === "global") {

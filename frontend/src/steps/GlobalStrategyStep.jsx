@@ -561,7 +561,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
             </label>
             {state.hostInventory?.enableIpv6 ? (
               <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                For dual-stack, IPv6 machineNetwork must come after IPv4. Machine network is used for node IP validation.
+                IPv6 machine, cluster, and service fields show together when enabled (same behavior as the Networking step in the segmented flow). Install-config order is still IPv4 then IPv6 machine networks when both are set.
               </p>
             ) : null}
           </div>
@@ -640,7 +640,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 <>
                   <FieldLabelWithInfo
                     label="Cluster Network IPv6 CIDR (optional)"
-                    hint="Dual-stack: pod network IPv6. Default fd01::/48 if blank. Set when using dual-stack."
+                    hint="Pod network IPv6 (dual-stack or IPv6 data plane). Default fd01::/48 if blank."
                   >
                     <input
                       value={networking.clusterNetworkCidrV6 || ""}
@@ -699,7 +699,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               {state.hostInventory?.enableIpv6 ? (
                 <FieldLabelWithInfo
                   label="Service Network IPv6 CIDR (optional)"
-                  hint="Dual-stack: service IPv6. Default fd02::/112 if blank. Set when using dual-stack."
+                  hint="Service (ClusterIP) IPv6. Default fd02::/112 if blank."
                 >
                   <input
                     value={networking.serviceNetworkCidrV6 || ""}
@@ -1088,7 +1088,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 <input value={platformConfig.nutanix?.subnet || ""} onChange={(e) => updateNutanix({ subnet: e.target.value })} />
               </label>
               <div className="note">
-                Nutanix scenario mapping: IPI uses Prism Central, subnet UUID(s), and cluster name; disconnected install uses mirrored content.
+                Nutanix scenario mapping: IPI uses Prism Central, subnet UUID(s), cluster name, and API/Ingress VIPs (set on the Networking step); disconnected install uses mirrored content.
               </div>
             </div>
           ) : null}

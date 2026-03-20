@@ -19,7 +19,7 @@
 
 | Purpose | Frontend path | Canonical source | When to sync |
 |--------|----------------|-------------------|--------------|
-| **Param catalogs** (scenario params for UI/validation) | `frontend/src/data/catalogs/*.json` | `data/params/<version>/<scenario-id>.json` | When canonical params change or a new scenario is added to the UI. **Copy only the scenario files the UI actually uses** (e.g. bare-metal-agent, bare-metal-ipi today). Do not copy all scenarios upfront; add a catalog when an agent implements support for that scenario (see § For agents and contributors). |
+| **Param catalogs** (scenario params for UI/validation) | `frontend/src/data/catalogs/*.json` | `data/params/<version>/<scenario-id>.json` | When canonical params change or a new scenario is added to the UI. **Copy only the scenario files the UI actually uses** (e.g. bare-metal-agent, bare-metal-ipi, nutanix-ipi). Do not copy all scenarios upfront; add a catalog when an agent implements support for that scenario (see § For agents and contributors). |
 | **Docs index** (scenario header doc links) | `frontend/src/data/docs-index/<version>.json` | `data/docs-index/<version>.json` | When canonical docs index changes (e.g. new version or updated doc URLs). |
 
 - **Do not** add new ad-hoc locations (e.g. a second “catalogs” folder under `public/` or elsewhere). Use one of these two subdirs.
