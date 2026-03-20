@@ -1322,8 +1322,12 @@ test("buildInstallConfig for nutanix-ipi emits platform.nutanix with prismCentra
   assert.strictEqual(out.platform.nutanix.clusterName, "my-cluster");
   assert.strictEqual(out.platform.nutanix.apiVIP, "10.90.0.10");
   assert.strictEqual(out.platform.nutanix.ingressVIP, "10.90.0.11");
-  assert.strictEqual(out.compute[0].platform, undefined, "K follow-up: compute.platform omitted unless required");
-  assert.strictEqual(out.controlPlane.platform, undefined, "K follow-up: controlPlane.platform omitted unless required");
+  assert.deepStrictEqual(out.controlPlane.platform, { nutanix: {} }, "Nutanix IPI install-config sample includes controlPlane.platform.nutanix");
+  assert.deepStrictEqual(out.compute[0].platform, { nutanix: {} }, "Nutanix IPI sample includes compute platform.nutanix");
+  assert.strictEqual(out.controlPlane.replicas, 3);
+  assert.strictEqual(out.compute[0].replicas, 3);
+  assert.strictEqual(out.credentialsMode, "Manual", "Nutanix IPI requires CCO Manual mode (Installing on Nutanix §1.4)");
+  assert.strictEqual(out.publish, "External");
 });
 
 test("buildInstallConfig for nutanix-ipi includes required catalog params (Prompt J Phase 3)", () => {
@@ -1345,8 +1349,43 @@ test("buildInstallConfig for nutanix-ipi includes required catalog params (Promp
   const out = yaml.load(raw);
   assert.ok(out.platform?.nutanix?.prismCentral?.endpoint?.address === "pc.local");
   assert.deepStrictEqual(out.platform.nutanix.subnetUUIDs, ["subnet-uuid-456"]);
-  assert.strictEqual(out.compute[0].platform, undefined, "K follow-up: compute.platform omitted unless required");
-  assert.strictEqual(out.controlPlane.platform, undefined, "K follow-up: controlPlane.platform omitted unless required");
+  assert.deepStrictEqual(out.controlPlane.platform, { nutanix: {} });
+  assert.deepStrictEqual(out.compute[0].platform, { nutanix: {} });
+  assert.strictEqual(out.credentialsMode, "Manual");
+  assert.strictEqual(out.publish, "External");
+});
+
+test("buildInstallConfig for nutanix-ipi emits apiVIPs/ingressVIPs lists when machine IPv6 and IPv6 VIPs set", () => {
+  const state = {
+    blueprint: { platform: "Nutanix", baseDomain: "nutanix.example.com", clusterName: "nutanix-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: {
+      networking: {
+        machineNetworkV4: "10.90.0.0/24",
+        machineNetworkV6: "fd00:dead:beef::/64",
+        clusterNetworkCidr: "10.128.0.0/14",
+        serviceNetworkCidr: "172.30.0.0/16",
+        networkType: "OVNKubernetes"
+      }
+    },
+    credentials: {},
+    platformConfig: {
+      nutanix: {
+        endpoint: "pc.local",
+        subnet: "subnet-uuid",
+        apiVIP: "10.90.0.5",
+        apiVIPV6: "fd00:dead:beef::5",
+        ingressVIP: "10.90.0.6",
+        ingressVIPV6: "fd00:dead:beef::6"
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.platform.nutanix.apiVIPs, ["10.90.0.5", "fd00:dead:beef::5"]);
+  assert.deepStrictEqual(out.platform.nutanix.ingressVIPs, ["10.90.0.6", "fd00:dead:beef::6"]);
+  assert.strictEqual(out.platform.nutanix.apiVIP, undefined);
+  assert.strictEqual(out.platform.nutanix.ingressVIP, undefined);
 });
 
 test("buildInstallConfig for nutanix-ipi must NOT emit bare-metal or vsphere (scenario-consistency)", () => {

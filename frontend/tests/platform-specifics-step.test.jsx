@@ -232,6 +232,8 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     const stateFilled = {
       ...state,
       platformConfig: {
+        controlPlaneReplicas: 3,
+        computeReplicas: 3,
         nutanix: {
           endpoint: "prism.example.com",
           subnet: "subnet-uuid-123",

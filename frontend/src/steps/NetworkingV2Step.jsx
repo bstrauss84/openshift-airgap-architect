@@ -181,7 +181,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 </OptionRow>
                 {enableIpv6 ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    When IPv6 is enabled, IPv6 fields for machine, cluster, and service networks appear together (OpenShift 4.20 Agent guide lists IPv4, IPv6, and dual-stack styles for vSphere/bare metal). You can fill them in any order; defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
+                    When IPv6 is enabled, IPv6 fields for machine, cluster, and service networks appear together. OpenShift 4.20 documents IPv4, IPv6, and dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set an IPv6 machine CIDR and IPv6 API/Ingress VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
                   </p>
                 ) : null}
               </>
@@ -356,7 +356,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 <h3 className="card-title">API and Ingress VIPs</h3>
                 <p className="card-subtitle">
                   {showNutanixIpiVips
-                    ? "Virtual IPs for API and ingress (Nutanix IPI). Emitted as platform.nutanix.apiVIP and platform.nutanix.ingressVIP in install-config; must be reachable on the machine network."
+                    ? "Virtual IPs for API and ingress (Nutanix IPI). Single-stack: platform.nutanix.apiVIP / ingressVIP. With IPv6 machine network and IPv6 VIP fields set, emitted as apiVIPs / ingressVIPs lists ordered IPv4 then IPv6 (per Nutanix install-config examples)."
                     : showVsphereIpiVips
                       ? "Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer."
                       : showVsphereAgentVips
@@ -368,7 +368,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <div className="card-body">
               {showNutanixIpiVips ? (
                 <p className="note">
-                  OpenShift 4.20 Nutanix IPI requires apiVIP and ingressVIP on the machine network segment. Use IPv4 or IPv6 to match your machine network configuration.
+                  OpenShift 4.20 Nutanix IPI requires static API and Ingress VIPs on the installer-provisioned path (Installing on Nutanix §1.3.5.1). Match address family to your machine network; with dual-stack networking enabled below, set IPv6 VIPs to emit apiVIPs/ingressVIPs lists. NTP via DHCP is recommended for all nodes (§1.3.5).
                 </p>
               ) : showVsphereIpiVips ? (
                 <p className="note">Leave blank if you use an external load balancer.</p>
@@ -391,32 +391,77 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               )}
               <div className="field-grid">
                 {showNutanixIpiVips ? (
-                  <>
-                    <FieldLabelWithInfo
-                      label="API VIP"
-                      hint={metaNutanixApiVIP?.description || "platform.nutanix.apiVIP"}
-                      required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
-                    >
-                      <input
-                        className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
-                        value={platformConfig.nutanix?.apiVIP || ""}
-                        onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
-                        placeholder="e.g. 10.0.0.5"
-                      />
-                    </FieldLabelWithInfo>
-                    <FieldLabelWithInfo
-                      label="Ingress VIP"
-                      hint={metaNutanixIngressVIP?.description || "platform.nutanix.ingressVIP"}
-                      required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
-                    >
-                      <input
-                        className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
-                        value={platformConfig.nutanix?.ingressVIP || ""}
-                        onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
-                        placeholder="e.g. 10.0.0.6"
-                      />
-                    </FieldLabelWithInfo>
-                  </>
+                  showIpv6ForPlatform ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP (IPv4)"
+                        hint={metaNutanixApiVIP?.description || "Primary API VIP; required with IPv4 machine network."}
+                        required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.apiVIP || ""}
+                          onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.5"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="API VIP (IPv6)" hint="Second API VIP for dual-stack; generator emits apiVIPs when set.">
+                        <input
+                          className={fieldErrors.nutanixApiVIPV6 ? "input-error" : ""}
+                          value={platformConfig.nutanix?.apiVIPV6 || ""}
+                          onChange={(e) => updateNutanix({ apiVIPV6: e.target.value })}
+                          placeholder="e.g. fd00::5"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP (IPv4)"
+                        hint={metaNutanixIngressVIP?.description || "Primary Ingress VIP."}
+                        required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.ingressVIP || ""}
+                          onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.6"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo label="Ingress VIP (IPv6)" hint="Second Ingress VIP for dual-stack; generator emits ingressVIPs when set.">
+                        <input
+                          className={fieldErrors.nutanixIngressVIPV6 ? "input-error" : ""}
+                          value={platformConfig.nutanix?.ingressVIPV6 || ""}
+                          onChange={(e) => updateNutanix({ ingressVIPV6: e.target.value })}
+                          placeholder="e.g. fd00::6"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  ) : (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP"
+                        hint={metaNutanixApiVIP?.description || "platform.nutanix.apiVIP"}
+                        required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.apiVIP || ""}
+                          onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.5"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP"
+                        hint={metaNutanixIngressVIP?.description || "platform.nutanix.ingressVIP"}
+                        required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
+                          value={platformConfig.nutanix?.ingressVIP || ""}
+                          onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                          placeholder="e.g. 10.0.0.6"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  )
                 ) : showVsphereIpiVips ? (
                   <>
                     <FieldLabelWithInfo

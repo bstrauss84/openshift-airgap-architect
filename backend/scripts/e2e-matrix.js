@@ -115,7 +115,18 @@ function minimalState() {
       publish: "External",
       aws: { region: "", subnets: "", hostedZone: "", amiId: "", controlPlaneInstanceType: "", workerInstanceType: "" },
       vsphere: { vcenter: "", datacenter: "", cluster: "", datastore: "", network: "", username: "", password: "" },
-      nutanix: { endpoint: "", port: "9440", username: "", password: "", cluster: "", subnet: "", apiVIP: "", ingressVIP: "" },
+      nutanix: {
+        endpoint: "",
+        port: "9440",
+        username: "",
+        password: "",
+        cluster: "",
+        subnet: "",
+        apiVIP: "",
+        ingressVIP: "",
+        apiVIPV6: "",
+        ingressVIPV6: ""
+      },
       azure: { cloudName: "AzureUSGovernmentCloud", region: "", resourceGroupName: "", baseDomainResourceGroupName: "" }
     },
     trust: {},
@@ -230,12 +241,16 @@ function scenarioOverrides(scenarioId) {
       blueprint: { platform: "Nutanix", baseDomain: "example.com", clusterName: "airgap-cluster" },
       methodology: { method: "IPI" },
       platformConfig: {
+        controlPlaneReplicas: 3,
+        computeReplicas: 3,
         nutanix: {
           endpoint: "prism-central.example.com",
           port: "9440",
           subnet: "subnet-uuid-placeholder",
           apiVIP: "10.90.0.10",
-          ingressVIP: "10.90.0.11"
+          ingressVIP: "10.90.0.11",
+          apiVIPV6: "",
+          ingressVIPV6: ""
         }
       }
     }

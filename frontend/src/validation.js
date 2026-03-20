@@ -407,6 +407,24 @@ const validatePlatformConfig = (state) => {
     if (!(cfg.nutanix?.ingressVIP || "").trim()) {
       errors.push("Ingress VIP is required for Nutanix IPI (platform.nutanix.ingressVIP).");
     }
+    if (cfg.publish === "Internal") {
+      errors.push("Internal publish is not supported on non-cloud platforms (Nutanix). Use External. See BZ#1953035.");
+    }
+    const cmNx = (cfg.credentialsMode || "").trim();
+    if (cmNx && cmNx !== "Manual") {
+      errors.push("Nutanix IPI requires credentialsMode Manual (OpenShift 4.20 Installing on Nutanix §1.4).");
+    }
+    const cpRep = cfg.controlPlaneReplicas;
+    const compRep = cfg.computeReplicas;
+    if (cpRep != null && String(cpRep).trim() !== "") {
+      const n = Number(cpRep);
+      if (n !== 1 && n !== 3) {
+        errors.push("Nutanix IPI supports control plane replicas 3 (standard or compact three-node) or 1 (single-node OpenShift) per OpenShift 4.20 Nutanix install-config parameters.");
+      }
+      if (n === 1 && compRep != null && String(compRep).trim() !== "" && Number(compRep) !== 0) {
+        errors.push("Single-node OpenShift on Nutanix IPI requires compute (worker) replicas 0.");
+      }
+    }
   }
   if (method === "IPI" && platform === "Azure Government") {
     if (!cfg.azure?.cloudName) errors.push("Azure cloud name is required for Azure Government IPI.");
@@ -514,12 +532,16 @@ const validateNetworkingFormat = (state) => {
     const nx = state.platformConfig?.nutanix || {};
     const apiNx = (nx.apiVIP || "").trim();
     const ingNx = (nx.ingressVIP || "").trim();
+    const api6 = (nx.apiVIPV6 || "").trim();
+    const ing6 = (nx.ingressVIPV6 || "").trim();
     if (apiNx && !isValidIpv4(apiNx) && !isValidIpv6(apiNx)) {
       errors.push("Nutanix API VIP must be a valid IPv4 or IPv6 address.");
     }
     if (ingNx && !isValidIpv4(ingNx) && !isValidIpv6(ingNx)) {
       errors.push("Nutanix Ingress VIP must be a valid IPv4 or IPv6 address.");
     }
+    if (api6 && !isValidIpv6(api6)) errors.push("Nutanix API VIP (IPv6) must be a valid IPv6 address.");
+    if (ing6 && !isValidIpv6(ing6)) errors.push("Nutanix Ingress VIP (IPv6) must be a valid IPv6 address.");
   }
   return { errors, warnings: [] };
 };
@@ -569,6 +591,7 @@ const validateVipsInMachineNetwork = (state) => {
     const ingNx = (nx.ingressVIP || "").trim();
     if (apiNx) checkVips([apiNx], "Nutanix API VIP", "nutanixApiVIP");
     if (ingNx) checkVips([ingNx], "Nutanix Ingress VIP", "nutanixIngressVIP");
+    // IPv6 VIPs: format validated in validateNetworkingFormat; CIDR membership for IPv6 VIPs is not enforced here (same gap as other scenarios).
   }
   // Bare Metal UPI: no API/Ingress VIPs in install-config (platform.none only per 4.20 doc); user configures LB/DNS externally. Only validate for bare-metal-ipi.
   if (scenarioId === "bare-metal-ipi") {
@@ -784,6 +807,8 @@ const validateStep = (state, stepId) => {
       if (msg.includes("Machine network")) fieldErrors.machineNetworkV4 = msg;
       else if (msg.includes("Cluster network")) fieldErrors.clusterNetworkCidr = msg;
       else if (msg.includes("Service network")) fieldErrors.serviceNetworkCidr = msg;
+      else if (msg.includes("Nutanix API VIP (IPv6)")) fieldErrors.nutanixApiVIPV6 = msg;
+      else if (msg.includes("Nutanix Ingress VIP (IPv6)")) fieldErrors.nutanixIngressVIPV6 = msg;
       else if (msg.includes("Nutanix API VIP")) fieldErrors.nutanixApiVIP = msg;
       else if (msg.includes("Nutanix Ingress VIP")) fieldErrors.nutanixIngressVIP = msg;
       else if (msg.includes("API VIP")) fieldErrors.apiVip = msg;
