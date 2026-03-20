@@ -1556,10 +1556,23 @@ if (process.env.NODE_ENV !== "test") {
   });
   const shutdown = (signal) => {
     console.log(`Received ${signal}, shutting down...`);
+    // Kill any active child processes (oc-mirror runs, scan jobs) — their I/O streams
+    // hold open event loop references that prevent a clean exit.
+    for (const [, child] of activeProcesses.entries()) {
+      try { child.kill("SIGTERM"); } catch {}
+    }
+    activeProcesses.clear();
+    // Force-close all open HTTP connections (keep-alive, SSE streams).
+    // Without this, server.close() waits indefinitely for them to drain.
+    // closeAllConnections() is available in Node.js >= 18.2 (this app uses Node 20).
+    if (typeof server.closeAllConnections === "function") {
+      server.closeAllConnections();
+    }
     server.close(() => {
       process.exit(0);
     });
-    setTimeout(() => process.exit(1), 5000).unref();
+    // Safety net: force exit after 1 s if something still hangs.
+    setTimeout(() => process.exit(1), 1000).unref();
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));

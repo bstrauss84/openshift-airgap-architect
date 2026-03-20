@@ -16,7 +16,7 @@ services:
       - backend-data:/data
     ports:
       - "127.0.0.1:4000:4000"
-    stop_grace_period: 5s
+    stop_grace_period: 3s
     stop_signal: SIGTERM
   frontend:
     image: localhost/openshift-airgap-architect-frontend:latest
@@ -30,7 +30,7 @@ services:
       - "127.0.0.1:5173:5173"
     depends_on:
       - backend
-    stop_grace_period: 5s
+    stop_grace_period: 3s
     stop_signal: SIGTERM
 volumes:
   backend-data:
