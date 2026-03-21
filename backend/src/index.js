@@ -1371,7 +1371,6 @@ app.post("/api/ocmirror/run", async (req, res) => {
     if (authFile) safeUnlink(authFile);
   });
   child.on("close", (code) => {
-    const status = code === 0 ? "completed" : "failed";
     const finishedAt = Date.now();
     const clusterResourcesPath = path.join(path.resolve(workspacePath), "working-dir", "cluster-resources");
     const dryRunMappingPath = dryRun
@@ -1380,17 +1379,69 @@ app.post("/api/ocmirror/run", async (req, res) => {
     const dryRunMissingPath = dryRun
       ? path.join(path.resolve(workspacePath), "working-dir", "dry-run", "missing.txt")
       : "";
+
+    // Parse accumulated output for oc-mirror result summary lines.
+    // Patterns:  ✓ 190 / 190 release images mirrored successfully
+    //            ✗ 109 / 112 operator images mirrored: Some operator images failed
+    const output = getJob(jobId)?.output || "";
+    const releaseMatch = output.match(/[✓✗]\s+(\d+)\s*\/\s*(\d+)\s+release images mirrored/);
+    const operatorMatch = output.match(/[✓✗]\s+(\d+)\s*\/\s*(\d+)\s+operator images mirrored/);
+    const releaseResult = releaseMatch
+      ? { succeeded: parseInt(releaseMatch[1], 10), total: parseInt(releaseMatch[2], 10) }
+      : null;
+    const operatorResult = operatorMatch
+      ? { succeeded: parseInt(operatorMatch[1], 10), total: parseInt(operatorMatch[2], 10) }
+      : null;
+
+    // Collect failed image refs from [ERROR]: [Worker] error mirroring image … lines.
+    const failedImages = [];
+    const failRe = /\[ERROR\].*?\[Worker\] error mirroring image\s+(\S+)/g;
+    let fm;
+    while ((fm = failRe.exec(output)) !== null) {
+      if (!failedImages.includes(fm[1])) failedImages.push(fm[1]);
+    }
+
+    // Determine nuanced status:
+    // "completed_with_warnings" when the run exited non-zero but all release images
+    // succeeded (cluster can still be installed) and at least some operators were
+    // attempted (partial operator failure rather than a total run failure).
+    let status;
+    if (code === 0) {
+      status = "completed";
+    } else if (
+      releaseResult && releaseResult.succeeded === releaseResult.total &&
+      operatorResult && operatorResult.total > 0
+    ) {
+      status = "completed_with_warnings";
+    } else {
+      status = "failed";
+    }
+
     updateJobMetadata(jobId, {
       exitCode: code,
       finishedAt,
       clusterResourcesPath,
       dryRunMappingPath,
-      dryRunMissingPath
+      dryRunMissingPath,
+      releaseResult,
+      operatorResult,
+      failedImages: failedImages.length ? failedImages : undefined
     });
+
+    let message;
+    if (status === "completed") {
+      message = "oc-mirror completed.";
+    } else if (status === "completed_with_warnings") {
+      const opFailed = operatorResult ? operatorResult.total - operatorResult.succeeded : "?";
+      message = `oc-mirror completed with warnings: ${opFailed} operator image(s) failed.`;
+    } else {
+      message = `oc-mirror exited with code ${code}.`;
+    }
+
     updateJob(jobId, {
       status,
-      progress: code === 0 ? 100 : 0,
-      message: code === 0 ? "oc-mirror completed." : `oc-mirror exited with code ${code}.`
+      progress: status === "completed" ? 100 : status === "completed_with_warnings" ? 100 : 0,
+      message
     });
     activeProcesses.delete(jobId);
     safeUnlink(configPathToUse);
