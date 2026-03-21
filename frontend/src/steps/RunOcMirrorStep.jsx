@@ -14,24 +14,33 @@ const DEFAULT_ARCHIVE_PATH = "/data/oc-mirror/archives";
 const DEFAULT_WORKSPACE_PATH = "/data/oc-mirror/workspace";
 const DEFAULT_CACHE_PATH = "/data/oc-mirror/cache";
 
-const MODES = [
+const WORKFLOW_GROUPS = [
   {
-    value: "mirrorToDisk",
-    label: "Mirror to disk",
-    help:
-      "Download release and operator images from the internet to a local directory (archives and working-dir). Use this first in a disconnected workflow. Requires archive (destination), workspace, and cache paths."
+    label: "Fully Disconnected — Multi-Step",
+    description: "Use when the registry host has no internet access. Run each step separately, transferring archives across the air gap between them.",
+    modes: [
+      {
+        value: "mirrorToDisk",
+        label: "Step 1 — Mirror to disk",
+        help: "Download release and operator images from the internet to a local directory (archives and working-dir). Use this first in a disconnected workflow. Requires archive (destination), workspace, and cache paths."
+      },
+      {
+        value: "diskToMirror",
+        label: "Step 2 — Disk to mirror",
+        help: "Publish images from a local archive (from a previous mirror-to-disk run) to your mirror registry. Requires source archive path, workspace, cache, and registry URL."
+      }
+    ]
   },
   {
-    value: "diskToMirror",
-    label: "Disk to mirror",
-    help:
-      "Publish images from a local archive (from a previous mirror-to-disk run) to your mirror registry. Requires source archive path, workspace, cache, and registry URL."
-  },
-  {
-    value: "mirrorToMirror",
-    label: "Mirror to mirror",
-    help:
-      "Stream images directly from source to your mirror registry without a local cache. Use when you have direct connectivity. Requires workspace and registry URL only."
+    label: "Directly Connected to Registry",
+    description: "Use when the machine running oc-mirror has network access to both Red Hat registries and your mirror registry.",
+    modes: [
+      {
+        value: "mirrorToMirror",
+        label: "Mirror to mirror",
+        help: "Stream images directly from source to your mirror registry without a local cache. Use when you have direct connectivity. Requires workspace and registry URL only."
+      }
+    ]
   }
 ];
 
@@ -64,8 +73,10 @@ export default function RunOcMirrorStep() {
 
   const [preflightResult, setPreflightResult] = React.useState(null);
   const [preflightLoading, setPreflightLoading] = React.useState(false);
-  const [authSource, setAuthSource] = React.useState("reuse");
-  const [pullSecretPaste, setPullSecretPaste] = React.useState("");
+  const [rhAuthSource, setRhAuthSource] = React.useState("retained");
+  const [mirrorAuthSource, setMirrorAuthSource] = React.useState("reuse");
+  const [rhPullSecretPaste, setRhPullSecretPaste] = React.useState("");
+  const [mirrorPullSecretPaste, setMirrorPullSecretPaste] = React.useState("");
   const [runningJobId, setRunningJobId] = React.useState(null);
   const [lastRunJob, setLastRunJob] = React.useState(null);
   const [runError, setRunError] = React.useState(null);
@@ -153,6 +164,17 @@ export default function RunOcMirrorStep() {
     return () => clearInterval(interval);
   }, [runningJobId, updateMirrorWorkflow]);
 
+  const hasRetainedRhSecret = Boolean(state?.blueprint?.blueprintRetainPullSecret && state?.blueprint?.blueprintPullSecretEphemeral);
+  const hasMirrorSecret = Boolean(state?.credentials?.mirrorRegistryPullSecret);
+
+  useEffect(() => {
+    if (!hasRetainedRhSecret && rhAuthSource === "retained") setRhAuthSource("pasted");
+  }, [hasRetainedRhSecret, rhAuthSource]);
+
+  useEffect(() => {
+    if (!hasMirrorSecret && mirrorAuthSource === "reuse") setMirrorAuthSource("pasted");
+  }, [hasMirrorSecret, mirrorAuthSource]);
+
   if (!state) return <div className="step"><div className="loading">Loading…</div></div>;
 
   const runPreflight = async () => {
@@ -167,7 +189,11 @@ export default function RunOcMirrorStep() {
         registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
         configSourceType,
         configPath: configSourceType === "external" ? configPath : undefined,
-        authSource
+        rhPullSecret: mode !== "diskToMirror"
+          ? (rhAuthSource === "retained" ? state?.blueprint?.blueprintPullSecretEphemeral : rhPullSecretPaste) || undefined
+          : undefined,
+        mirrorAuthSource: mode !== "mirrorToDisk" ? mirrorAuthSource : undefined,
+        mirrorPullSecret: mode !== "mirrorToDisk" && mirrorAuthSource === "pasted" ? mirrorPullSecretPaste || undefined : undefined
       };
       const result = await apiFetch("/api/ocmirror/preflight", { method: "POST", body: JSON.stringify(body) });
       setPreflightResult(result);
@@ -189,8 +215,11 @@ export default function RunOcMirrorStep() {
       registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
       configSourceType,
       configPath: configSourceType === "external" ? configPath : undefined,
-      authSource,
-      pullSecret: authSource === "pasted" && pullSecretPaste ? pullSecretPaste : undefined,
+      rhPullSecret: mode !== "diskToMirror"
+        ? (rhAuthSource === "retained" ? state?.blueprint?.blueprintPullSecretEphemeral : rhPullSecretPaste) || undefined
+        : undefined,
+      mirrorAuthSource: mode !== "mirrorToDisk" ? mirrorAuthSource : undefined,
+      mirrorPullSecret: mode !== "mirrorToDisk" && mirrorAuthSource === "pasted" ? mirrorPullSecretPaste || undefined : undefined,
       advanced: {
         logLevel,
         parallelImages,
@@ -262,21 +291,38 @@ export default function RunOcMirrorStep() {
             <h3 className="card-title">Choose workflow</h3>
           </div>
           <div className="card-body">
-            {MODES.map((m) => (
-              <OptionRow
-                key={m.value}
-                title={m.label}
-                description={m.help}
-              >
-                <input
-                  type="radio"
-                  name="ocmirror-mode"
-                  checked={mode === m.value}
-                  onChange={() => updateMirrorWorkflow({ mode: m.value })}
-                  aria-label={m.label}
-                />
-              </OptionRow>
-            ))}
+            {WORKFLOW_GROUPS.map((group) => {
+              const groupActive = group.modes.some((m) => m.value === mode);
+              return (
+                <div key={group.label} style={{ marginBottom: 8 }}>
+                  <div style={{
+                    borderLeft: groupActive ? "3px solid #3b82f6" : "3px solid transparent",
+                    paddingLeft: 10,
+                    marginBottom: 6
+                  }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{group.label}</div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", fontStyle: "italic" }}>{group.description}</div>
+                  </div>
+                  <div style={{ paddingLeft: 12 }}>
+                    {group.modes.map((m) => (
+                      <OptionRow
+                        key={m.value}
+                        title={m.label}
+                        description={m.help}
+                      >
+                        <input
+                          type="radio"
+                          name="ocmirror-mode"
+                          checked={mode === m.value}
+                          onChange={() => updateMirrorWorkflow({ mode: m.value })}
+                          aria-label={m.label}
+                        />
+                      </OptionRow>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -479,38 +525,106 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             <div className="card-subtitle">Credentials are used for this run only and are not stored.</div>
           </div>
           <div className="card-body">
-            <OptionRow
-              title="Use mirror-registry credentials from Identity & Access"
-              description="Use the pull secret already configured in the Identity & Access step."
-            >
-              <input
-                type="radio"
-                name="ocmirror-auth"
-                checked={authSource === "reuse"}
-                onChange={() => setAuthSource("reuse")}
-              />
-            </OptionRow>
-            <OptionRow
-              title="Paste or upload pull secret for this run"
-              description="Supply credentials only for this run. Not saved."
-            >
-              <input
-                type="radio"
-                name="ocmirror-auth"
-                checked={authSource === "pasted"}
-                onChange={() => setAuthSource("pasted")}
-              />
-            </OptionRow>
-            {authSource === "pasted" ? (
-              <FieldLabelWithInfo label="Pull secret (JSON)" hint="Paste registry auth JSON. Used once and not stored.">
-                <textarea
-                  value={pullSecretPaste}
-                  onChange={(e) => setPullSecretPaste(e.target.value)}
-                  placeholder='{"auths":{"registry.example.com":{...}}}'
-                  rows={3}
-                />
-              </FieldLabelWithInfo>
-            ) : null}
+            {/* Red Hat credentials — shown for mirrorToDisk and mirrorToMirror */}
+            {(mode === "mirrorToDisk" || mode === "mirrorToMirror") && (
+              <div>
+                {mode === "mirrorToMirror" && (
+                  <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 6 }}>Red Hat source credentials</div>
+                )}
+                <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: 8 }}>
+                  Red Hat pull secret authenticates to registry.redhat.io and quay.io.
+                </div>
+                {hasRetainedRhSecret && (
+                  <OptionRow
+                    title="Use retained Red Hat pull secret from Blueprint"
+                    description="The pull secret retained in the Blueprint step will be used."
+                  >
+                    <input
+                      type="radio"
+                      name="ocmirror-rh-auth"
+                      checked={rhAuthSource === "retained"}
+                      onChange={() => setRhAuthSource("retained")}
+                    />
+                  </OptionRow>
+                )}
+                <OptionRow
+                  title="Paste Red Hat pull secret for this run"
+                  description="Supply a Red Hat pull secret only for this run. Not saved."
+                >
+                  <input
+                    type="radio"
+                    name="ocmirror-rh-auth"
+                    checked={rhAuthSource === "pasted"}
+                    onChange={() => setRhAuthSource("pasted")}
+                  />
+                </OptionRow>
+                {rhAuthSource === "pasted" && (
+                  <FieldLabelWithInfo label="Red Hat pull secret (JSON)" hint="Paste registry auth JSON from console.redhat.com. Used once and not stored.">
+                    <textarea
+                      value={rhPullSecretPaste}
+                      onChange={(e) => setRhPullSecretPaste(e.target.value)}
+                      placeholder='{"auths":{"registry.redhat.io":{...}}}'
+                      rows={3}
+                    />
+                  </FieldLabelWithInfo>
+                )}
+              </div>
+            )}
+
+            {/* Divider between sections for mirrorToMirror */}
+            {mode === "mirrorToMirror" && <div className="divider" />}
+
+            {/* Mirror registry credentials — shown for diskToMirror and mirrorToMirror */}
+            {(mode === "diskToMirror" || mode === "mirrorToMirror") && (
+              <div>
+                {mode === "mirrorToMirror" && (
+                  <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 6 }}>Mirror registry destination credentials</div>
+                )}
+                <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: 8 }}>
+                  Mirror registry credentials authenticate pushes to your registry.
+                </div>
+                {hasMirrorSecret && (
+                  <OptionRow
+                    title="Use mirror registry credentials from Identity & Access"
+                    description="Use the pull secret already configured in the Identity & Access step."
+                  >
+                    <input
+                      type="radio"
+                      name="ocmirror-mirror-auth"
+                      checked={mirrorAuthSource === "reuse"}
+                      onChange={() => setMirrorAuthSource("reuse")}
+                    />
+                  </OptionRow>
+                )}
+                <OptionRow
+                  title="Paste mirror registry credentials for this run"
+                  description="Supply credentials only for this run. Not saved."
+                >
+                  <input
+                    type="radio"
+                    name="ocmirror-mirror-auth"
+                    checked={mirrorAuthSource === "pasted"}
+                    onChange={() => setMirrorAuthSource("pasted")}
+                  />
+                </OptionRow>
+                {mirrorAuthSource === "pasted" && (
+                  <FieldLabelWithInfo label="Mirror registry credentials (JSON)" hint="Paste registry auth JSON. Used once and not stored.">
+                    <textarea
+                      value={mirrorPullSecretPaste}
+                      onChange={(e) => setMirrorPullSecretPaste(e.target.value)}
+                      placeholder='{"auths":{"registry.example.com":{...}}}'
+                      rows={3}
+                    />
+                  </FieldLabelWithInfo>
+                )}
+              </div>
+            )}
+
+            {mode === "mirrorToMirror" && (
+              <div className="note" style={{ marginTop: 8 }}>
+                Both credentials are combined into a single auth file for this run.
+              </div>
+            )}
           </div>
         </section>
 
@@ -576,17 +690,21 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               placeholder="1s"
             />
           </FieldLabelWithInfo>
-          <FieldLabelWithInfo label="Since (incremental)" hint="Only mirror images newer than this (ISO or digest). Optional.">
-            <input
-              type="text"
-              value={since}
-              onChange={(e) => updateMirrorWorkflow({ since: e.target.value })}
-              placeholder=""
-            />
-          </FieldLabelWithInfo>
-          <OptionRow title="Strict archive" description="Strict archive validation.">
-            <Switch checked={strictArchive} onChange={(v) => updateMirrorWorkflow({ strictArchive: v })} />
-          </OptionRow>
+          {mode === "mirrorToDisk" && (
+            <FieldLabelWithInfo label="Since (incremental)" hint="Only mirror images newer than this (ISO or digest). Optional.">
+              <input
+                type="text"
+                value={since}
+                onChange={(e) => updateMirrorWorkflow({ since: e.target.value })}
+                placeholder=""
+              />
+            </FieldLabelWithInfo>
+          )}
+          {mode === "diskToMirror" && (
+            <OptionRow title="Strict archive" description="Strict archive validation.">
+              <Switch checked={strictArchive} onChange={(v) => updateMirrorWorkflow({ strictArchive: v })} />
+            </OptionRow>
+          )}
         </CollapsibleSection>
 
         <OptionRow

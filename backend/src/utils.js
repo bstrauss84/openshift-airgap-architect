@@ -117,6 +117,12 @@ const writeTempAuth = (contents) => {
   return filePath;
 };
 
+const mergePullSecrets = (a, b) => {
+  const parsedA = JSON.parse(a);
+  const parsedB = JSON.parse(b);
+  return JSON.stringify({ auths: { ...parsedA.auths, ...parsedB.auths } });
+};
+
 const safeUnlink = (filePath) => {
   try {
     fs.unlinkSync(filePath);
@@ -149,6 +155,7 @@ export {
   getState,
   setState,
   writeTempAuth,
+  mergePullSecrets,
   safeUnlink,
   appendJobOutput
 };
