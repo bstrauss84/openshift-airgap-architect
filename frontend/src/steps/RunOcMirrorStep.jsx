@@ -9,6 +9,7 @@ import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
+import SecretInput from "../components/SecretInput.jsx";
 
 const DEFAULT_ARCHIVE_PATH = "/data/oc-mirror/archives";
 const DEFAULT_WORKSPACE_PATH = "/data/oc-mirror/workspace";
@@ -79,6 +80,7 @@ export default function RunOcMirrorStep() {
   const [mirrorPullSecretPaste, setMirrorPullSecretPaste] = React.useState("");
   const [runningJobId, setRunningJobId] = React.useState(null);
   const [lastRunJob, setLastRunJob] = React.useState(null);
+  const [ocMirrorCompleteModal, setOcMirrorCompleteModal] = React.useState(null);
   const [runError, setRunError] = React.useState(null);
   const [browseOpen, setBrowseOpen] = React.useState(false);
   const [browseTarget, setBrowseTarget] = React.useState(null);
@@ -158,6 +160,9 @@ export default function RunOcMirrorStep() {
         if (["completed", "failed", "cancelled"].includes(job.status)) {
           setRunningJobId(null);
           updateMirrorWorkflow({ lastRunJobId: job.id });
+          let completeMeta = null;
+          try { completeMeta = job.metadata_json ? JSON.parse(job.metadata_json) : null; } catch {}
+          setOcMirrorCompleteModal({ job, meta: completeMeta });
         }
       });
     }, 2000);
@@ -380,7 +385,7 @@ export default function RunOcMirrorStep() {
               </span>
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="ghost"
                 style={{ fontSize: "0.78rem", padding: "2px 8px", marginLeft: "auto", whiteSpace: "nowrap" }}
                 onClick={resetPaths}
               >
@@ -559,14 +564,14 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   />
                 </OptionRow>
                 {rhAuthSource === "pasted" && (
-                  <FieldLabelWithInfo label="Red Hat pull secret (JSON)" hint="Paste registry auth JSON from console.redhat.com. Used once and not stored.">
-                    <textarea
-                      value={rhPullSecretPaste}
-                      onChange={(e) => setRhPullSecretPaste(e.target.value)}
-                      placeholder='{"auths":{"registry.redhat.io":{...}}}'
-                      rows={3}
-                    />
-                  </FieldLabelWithInfo>
+                  <SecretInput
+                    label="Red Hat pull secret"
+                    labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
+                    value={rhPullSecretPaste}
+                    onChange={setRhPullSecretPaste}
+                    placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
+                    rows={4}
+                  />
                 )}
               </div>
             )}
@@ -608,14 +613,14 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   />
                 </OptionRow>
                 {mirrorAuthSource === "pasted" && (
-                  <FieldLabelWithInfo label="Mirror registry credentials (JSON)" hint="Paste registry auth JSON. Used once and not stored.">
-                    <textarea
-                      value={mirrorPullSecretPaste}
-                      onChange={(e) => setMirrorPullSecretPaste(e.target.value)}
-                      placeholder='{"auths":{"registry.example.com":{...}}}'
-                      rows={3}
-                    />
-                  </FieldLabelWithInfo>
+                  <SecretInput
+                    label="Mirror registry credentials"
+                    labelHint="Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored."
+                    value={mirrorPullSecretPaste}
+                    onChange={setMirrorPullSecretPaste}
+                    placeholder="Paste, drag and drop, or upload mirror registry credentials JSON"
+                    rows={4}
+                  />
                 )}
               </div>
             )}
@@ -630,6 +635,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
 
         {/* 6. Advanced */}
         <CollapsibleSection title="Advanced options" defaultCollapsed={true}>
+          {/* Toggle rows span full width */}
           {mode === "mirrorToDisk" && (
             <OptionRow
               title="Dry run (no mirror)"
@@ -638,82 +644,77 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               <Switch checked={dryRun} onChange={(v) => updateMirrorWorkflow({ dryRun: v })} />
             </OptionRow>
           )}
-          <FieldLabelWithInfo label="Log level" hint="Log level: info or debug.">
-            <select
-              value={logLevel}
-              onChange={(e) => updateMirrorWorkflow({ logLevel: e.target.value })}
-            >
-              <option value="info">info</option>
-              <option value="debug">debug</option>
-            </select>
-          </FieldLabelWithInfo>
-          <FieldLabelWithInfo label="Parallel images" hint="Max concurrent image pulls (1–32).">
-            <input
-              type="number"
-              min={1}
-              max={32}
-              value={parallelImages}
-              onChange={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
-            />
-          </FieldLabelWithInfo>
-          <FieldLabelWithInfo label="Parallel layers" hint="Max concurrent layer pulls (1–32).">
-            <input
-              type="number"
-              min={1}
-              max={32}
-              value={parallelLayers}
-              onChange={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
-            />
-          </FieldLabelWithInfo>
-          <FieldLabelWithInfo label="Image timeout" hint="Timeout per image (e.g. 10m).">
-            <input
-              type="text"
-              value={imageTimeout}
-              onChange={(e) => updateMirrorWorkflow({ imageTimeout: e.target.value })}
-              placeholder="10m"
-            />
-          </FieldLabelWithInfo>
-          <FieldLabelWithInfo label="Retry times" hint="Number of retries on failure (0–10).">
-            <input
-              type="number"
-              min={0}
-              max={10}
-              value={retryTimes}
-              onChange={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
-            />
-          </FieldLabelWithInfo>
-          <FieldLabelWithInfo label="Retry delay" hint="Delay between retries (e.g. 1s).">
-            <input
-              type="text"
-              value={retryDelay}
-              onChange={(e) => updateMirrorWorkflow({ retryDelay: e.target.value })}
-              placeholder="1s"
-            />
-          </FieldLabelWithInfo>
-          {mode === "mirrorToDisk" && (
-            <FieldLabelWithInfo label="Since (incremental)" hint="Only mirror images newer than this (ISO or digest). Optional.">
-              <input
-                type="text"
-                value={since}
-                onChange={(e) => updateMirrorWorkflow({ since: e.target.value })}
-                placeholder=""
-              />
-            </FieldLabelWithInfo>
-          )}
           {mode === "diskToMirror" && (
             <OptionRow title="Strict archive" description="Strict archive validation.">
               <Switch checked={strictArchive} onChange={(v) => updateMirrorWorkflow({ strictArchive: v })} />
             </OptionRow>
           )}
+          {/* Compact 3-column grid for short-value fields */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 16px", alignItems: "end" }}>
+            <FieldLabelWithInfo label="Log level" hint="Log level: info or debug.">
+              <select
+                value={logLevel}
+                onChange={(e) => updateMirrorWorkflow({ logLevel: e.target.value })}
+              >
+                <option value="info">info</option>
+                <option value="debug">debug</option>
+              </select>
+            </FieldLabelWithInfo>
+            <FieldLabelWithInfo label="Parallel images" hint="Max concurrent image pulls (1–32).">
+              <input
+                type="number"
+                min={1}
+                max={32}
+                value={parallelImages}
+                onChange={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
+              />
+            </FieldLabelWithInfo>
+            <FieldLabelWithInfo label="Parallel layers" hint="Max concurrent layer pulls (1–32).">
+              <input
+                type="number"
+                min={1}
+                max={32}
+                value={parallelLayers}
+                onChange={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
+              />
+            </FieldLabelWithInfo>
+            <FieldLabelWithInfo label="Image timeout" hint="Timeout per image (e.g. 10m).">
+              <input
+                type="text"
+                value={imageTimeout}
+                onChange={(e) => updateMirrorWorkflow({ imageTimeout: e.target.value })}
+                placeholder="10m"
+              />
+            </FieldLabelWithInfo>
+            <FieldLabelWithInfo label="Retry times" hint="Number of retries on failure (0–10).">
+              <input
+                type="number"
+                min={0}
+                max={10}
+                value={retryTimes}
+                onChange={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
+              />
+            </FieldLabelWithInfo>
+            <FieldLabelWithInfo label="Retry delay" hint="Delay between retries (e.g. 1s).">
+              <input
+                type="text"
+                value={retryDelay}
+                onChange={(e) => updateMirrorWorkflow({ retryDelay: e.target.value })}
+                placeholder="1s"
+              />
+            </FieldLabelWithInfo>
+            {mode === "mirrorToDisk" && (
+              <FieldLabelWithInfo label="Since (incremental)" hint="Only mirror images newer than this (ISO or digest). Optional.">
+                <input
+                  type="text"
+                  value={since}
+                  onChange={(e) => updateMirrorWorkflow({ since: e.target.value })}
+                  placeholder=""
+                />
+              </FieldLabelWithInfo>
+            )}
+          </div>
         </CollapsibleSection>
-
-        <OptionRow
-          title="Include mirror output in export bundle"
-          description="Add the archive directory to the downloadable ZIP. May greatly increase bundle size."
-          warning={includeInExport ? "Enabling this can make the export bundle very large." : null}
-        >
-          <Switch checked={includeInExport} onChange={(v) => updateMirrorWorkflow({ includeInExport: v })} />
-        </OptionRow>
 
         {/* 7. Preflight */}
         <section className="card">
@@ -722,9 +723,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             <div className="card-subtitle">Check paths and config before running. Run must pass with no blockers.</div>
           </div>
           <div className="card-body">
-            <Button variant="secondary" onClick={runPreflight} disabled={preflightLoading} data-testid="run-preflight-btn">
-              {preflightLoading ? "Running preflight…" : "Run preflight"}
-            </Button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <Button variant="secondary" onClick={runPreflight} disabled={preflightLoading} data-testid="run-preflight-btn">
+                {preflightLoading ? "Running preflight…" : "Run preflight"}
+              </Button>
+            </div>
             {preflightResult ? (
               <>
                 {preflightResult.blockers?.length > 0 ? (
@@ -816,6 +819,72 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
         </section>
       </div>
 
+      {/* oc-mirror completion modal */}
+      {ocMirrorCompleteModal ? (() => {
+        const { job, meta } = ocMirrorCompleteModal;
+        const succeeded = job.status === "completed";
+        const elapsed = meta?.startedAt && meta?.finishedAt
+          ? Math.round((meta.finishedAt - meta.startedAt) / 1000)
+          : null;
+        const modeLabel = meta?.mode === "mirrorToDisk" ? "Mirror to disk"
+          : meta?.mode === "diskToMirror" ? "Disk to mirror"
+          : meta?.mode === "mirrorToMirror" ? "Mirror to mirror"
+          : meta?.mode || "Unknown";
+        return (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <h3 style={{ margin: "0 0 8px", color: succeeded ? undefined : "var(--color-danger)" }}>
+                {succeeded ? "oc-mirror completed" : job.status === "cancelled" ? "oc-mirror cancelled" : "oc-mirror failed"}
+              </h3>
+              {succeeded ? (
+                <>
+                  <p className="modal-copy subtle">The mirror run finished successfully.</p>
+                  {meta && (
+                    <dl className="modal-summary">
+                      <dt>Workflow</dt><dd>{modeLabel}</dd>
+                      {elapsed != null && <><dt>Elapsed</dt><dd>{elapsed}s</dd></>}
+                      {meta.archiveDir && <><dt>Archive directory</dt><dd><code>{meta.archiveDir}</code></dd></>}
+                      {meta.workspaceDir && <><dt>Workspace directory</dt><dd><code>{meta.workspaceDir}</code></dd></>}
+                    </dl>
+                  )}
+                  {meta?.mode === "mirrorToDisk" && meta?.archiveDir && (
+                    <div className="note" style={{ marginTop: 12 }}>
+                      <strong>Next steps:</strong> Transfer the contents of <code>{meta.archiveDir}</code> (tar archives and working-dir) across the air gap along with your other deliverables. You will need these files for the disk-to-mirror step on the disconnected side.
+                    </div>
+                  )}
+                  {meta?.mode === "diskToMirror" && (
+                    <div className="note" style={{ marginTop: 12 }}>
+                      Images have been pushed to your mirror registry. Proceed to install or update your cluster.
+                    </div>
+                  )}
+                  {meta?.mode === "mirrorToMirror" && (
+                    <div className="note" style={{ marginTop: 12 }}>
+                      Images have been mirrored directly to your registry. Proceed to install or update your cluster.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="modal-copy subtle">
+                    {job.status === "cancelled" ? "The run was stopped." : "The run did not complete successfully."}
+                  </p>
+                  {job.message && (
+                    <div className="note warning" style={{ marginBottom: 12 }}>{job.message}</div>
+                  )}
+                  <p style={{ fontSize: "0.875rem", color: "var(--text-subtle)" }}>
+                    Open the Operations tab to view the full log output for this run.
+                  </p>
+                </>
+              )}
+              <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+                <Button variant="ghost" onClick={() => { setOcMirrorCompleteModal(null); goToOperations(); }}>View logs in Operations</Button>
+                <Button variant="primary" onClick={() => setOcMirrorCompleteModal(null)}>Dismiss</Button>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
+
       {/* Browse modal */}
       {browseOpen ? (
         <div
@@ -841,7 +910,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="ghost"
                 style={{ fontSize: "0.78rem", padding: "2px 8px" }}
                 onClick={() => {
                   const parent = browsePath.replace(/\/[^/]+$/, "") || "/";

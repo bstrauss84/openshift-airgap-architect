@@ -1100,6 +1100,12 @@ body[data-theme="dark"] .primary:hover:not(:disabled) {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.45);
 }
 
+body[data-theme="dark"] .primary:disabled {
+  background: #1e3a8a;
+  color: #93c5fd;
+  box-shadow: none;
+}
+
 .danger {
   background: #dc2626;
   color: #fff;
