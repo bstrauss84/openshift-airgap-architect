@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import yaml from "js-yaml";
-import { buildInstallConfig, buildAgentConfig } from "../src/generate.js";
+import { buildInstallConfig, buildAgentConfig, buildFieldManual } from "../src/generate.js";
 
 test("buildInstallConfig returns install config shape", () => {
   const state = {
@@ -1496,4 +1496,137 @@ MIIDdzCCAI+gAwIBAgIUFakeProxyCA
   assert.ok(out.additionalTrustBundle.includes("-----BEGIN CERTIFICATE-----"));
   assert.ok(out.additionalTrustBundle.includes("FakeMirrorRegistryCA"));
   assert.ok(out.additionalTrustBundle.includes("FakeProxyCA"));
+});
+
+// --- buildFieldManual / buildFieldGuide tests ---
+
+test("buildFieldManual (vsphere-ipi+mirror) includes expected sections in correct order", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", clusterName: "my-cluster", baseDomain: "example.com" },
+    release: { patchVersion: "4.20.5", channel: "4.20" },
+    methodology: { method: "IPI" },
+    globalStrategy: {
+      fips: false,
+      proxyEnabled: false,
+      proxies: {},
+      ntpServers: ["ntp1.example.com"],
+      networking: {},
+      mirroring: { registryFqdn: "registry.example.com:5000" },
+    },
+    credentials: {
+      usingMirrorRegistry: true,
+      pullSecretPlaceholder: '{"auths":{}}',
+      mirrorRegistryPullSecret: '{"auths":{"registry.example.com:5000":{}}}',
+    },
+    hostInventory: { apiVip: "192.168.1.10", ingressVip: "192.168.1.11", nodes: [] },
+    docs: { connectivity: "fully-disconnected" },
+    mirrorWorkflow: { archivePath: "/data/archives", workspacePath: "/data/workspace" },
+    platformConfig: { vsphere: { vcenter: "vcenter.example.com", datacenter: "DC1", cluster: "Cluster1", datastore: "/DC1/ds1", network: "VM Network" } },
+    operators: { selected: [] },
+    trust: { mirrorRegistryCaPem: "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----" },
+  };
+  const raw = buildFieldManual(state, []);
+  assert.strictEqual(typeof raw, "string");
+  // Check header
+  assert.ok(raw.includes("my-cluster.example.com"), "should include cluster FQDN");
+  // Key sections should appear
+  assert.ok(raw.includes("Installation Prerequisites"), "should have prereqs section");
+  assert.ok(raw.includes("NTP Configuration"), "should have NTP section (ntpServers configured)");
+  assert.ok(raw.includes("vSphere IPI Prerequisites"), "should have vSphere IPI prereqs");
+  assert.ok(raw.includes("Mirror Registry Setup"), "should have mirror registry section");
+  assert.ok(raw.includes("Mirror to Disk"), "should have oc-mirror low side section");
+  assert.ok(raw.includes("Disk to Mirror"), "should have oc-mirror high side section");
+  assert.ok(raw.includes("vSphere IPI Installation"), "should have vSphere IPI install section");
+  assert.ok(raw.includes("Post-Install Validation"), "should have post-install section");
+  // Proxy section should NOT appear (proxyEnabled=false)
+  assert.ok(!raw.includes("Proxy Environment Setup"), "should not have proxy section when proxy disabled");
+  // Template substitution
+  assert.ok(raw.includes("vcenter.example.com"), "vcenter should be substituted");
+  assert.ok(raw.includes("registry.example.com:5000"), "registry FQDN should be substituted");
+  assert.ok(raw.includes("192.168.1.10"), "apiVip should be substituted");
+});
+
+test("buildFieldManual (bm-agent+proxy, no mirror) includes proxy and bare-metal sections, omits mirror sections", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", clusterName: "bm-cluster", baseDomain: "gov.local" },
+    release: { patchVersion: "4.20.3", channel: "4.20" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: {
+      fips: false,
+      proxyEnabled: true,
+      proxies: { httpProxy: "http://proxy.gov.local:3128", httpsProxy: "http://proxy.gov.local:3128", noProxy: "localhost,.gov.local" },
+      ntpServers: [],
+      networking: {},
+      mirroring: { registryFqdn: "" },
+    },
+    credentials: {
+      usingMirrorRegistry: false,
+      pullSecretPlaceholder: '{"auths":{"quay.io":{}}}',
+      mirrorRegistryPullSecret: '{"auths":{}}',
+    },
+    hostInventory: { apiVip: "10.0.0.10", ingressVip: "10.0.0.11", nodes: [] },
+    docs: { connectivity: "fully-disconnected" },
+    mirrorWorkflow: {},
+    operators: { selected: [] },
+    trust: {},
+  };
+  const raw = buildFieldManual(state, []);
+  assert.strictEqual(typeof raw, "string");
+  // Proxy section present
+  assert.ok(raw.includes("Proxy Environment Setup"), "should have proxy section");
+  assert.ok(raw.includes("http://proxy.gov.local:3128"), "proxy URL should be substituted");
+  // Bare-metal agent sections present
+  assert.ok(raw.includes("Bare Metal Agent Prerequisites"), "should have BM agent prereqs");
+  assert.ok(raw.includes("Bare Metal Agent Installation"), "should have BM agent install");
+  // Mirror sections absent
+  assert.ok(!raw.includes("Mirror Registry Setup"), "should not have mirror setup when not using mirror");
+  assert.ok(!raw.includes("Mirror to Disk"), "should not have oc-mirror low side when not using mirror");
+  // NTP section absent (no NTP servers)
+  assert.ok(!raw.includes("NTP Configuration"), "should not have NTP section when no NTP servers configured");
+  // Air Gap Transfer present (fully-disconnected, even without mirror)
+  assert.ok(raw.includes("Air Gap Transfer"), "should have air gap transfer section for disconnected scenario");
+});
+
+test("buildFieldManual template substitution replaces known variables and preserves unknown placeholders", () => {
+  const state = {
+    blueprint: { platform: "Nutanix", clusterName: "nutanix-prod", baseDomain: "example.mil" },
+    release: { patchVersion: "4.20.1", channel: "4.20" },
+    methodology: { method: "IPI" },
+    globalStrategy: {
+      fips: false,
+      proxyEnabled: false,
+      proxies: {},
+      ntpServers: [],
+      networking: {},
+      mirroring: { registryFqdn: "registry.mil:5000" },
+    },
+    credentials: {
+      usingMirrorRegistry: true,
+      pullSecretPlaceholder: '{"auths":{}}',
+      mirrorRegistryPullSecret: '{"auths":{"registry.mil:5000":{}}}',
+    },
+    hostInventory: { apiVip: "172.16.0.5", ingressVip: "172.16.0.6", nodes: [] },
+    docs: { connectivity: "fully-disconnected" },
+    mirrorWorkflow: { archivePath: "/mnt/transfer", workspacePath: "/mnt/workspace" },
+    platformConfig: { nutanix: { endpoint: "prism.example.mil", cluster: "PROD-CLUSTER", subnet: "subnet-abc-uuid" } },
+    operators: { selected: [] },
+    trust: {},
+  };
+  const raw = buildFieldManual(state, [{ label: "Test Doc", url: "https://docs.redhat.com/test", validated: true }]);
+  assert.strictEqual(typeof raw, "string");
+  // Known substitutions
+  assert.ok(raw.includes("nutanix-prod.example.mil"), "clusterFqdn substituted in header");
+  assert.ok(raw.includes("172.16.0.5"), "apiVip substituted");
+  assert.ok(raw.includes("registry.mil:5000"), "registryFqdn substituted");
+  assert.ok(raw.includes("prism.example.mil"), "nutanixEndpoint substituted");
+  assert.ok(raw.includes("/mnt/transfer"), "archivePath substituted");
+  // Nutanix IPI sections present
+  assert.ok(raw.includes("Nutanix IPI Prerequisites"), "should have Nutanix IPI prereqs");
+  assert.ok(raw.includes("Nutanix IPI Installation"), "should have Nutanix IPI install");
+  // Sources section includes the injected docsLinks
+  assert.ok(raw.includes("Test Doc"), "existing docsLinks should appear in sources");
+  assert.ok(raw.includes("https://docs.redhat.com/test"), "existing doc URL should appear");
+  // Configuration summary present
+  assert.ok(raw.includes("Configuration Summary"), "should have config summary section");
+  assert.ok(raw.includes("OCP 4.20.1"), "version should appear in config summary");
 });
