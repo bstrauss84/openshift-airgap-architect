@@ -1124,7 +1124,7 @@ const buildImageSetConfig = (state) => {
   const images = {
     apiVersion: "mirror.openshift.io/v2alpha1",
     kind: "ImageSetConfiguration",
-    ...(archiveSize ? { storageConfig: { local: { path: "./oc-mirror-workspace", archiveSize } } } : {}),
+    ...(archiveSize ? { archiveSize } : {}),
     mirror: {
       platform: {
         channels: [
@@ -1182,7 +1182,8 @@ const buildFieldManual = (state, docsLinks) => {
   const mirrorPrivate = state.trust?.mirrorRegistryUsesPrivateCa ? "Yes" : "No";
   const proxyEnabled = state.globalStrategy?.proxyEnabled ? "Enabled" : "Disabled";
   const ntpServers = normalizeNtpServers(state.globalStrategy?.ntpServers);
-  const outputPath = state.mirrorWorkflow?.outputPath || "/data/oc-mirror-output";
+  const outputPath = state.mirrorWorkflow?.archivePath || state.mirrorWorkflow?.outputPath || "/data/oc-mirror/archives";
+  const workspacePath = state.mirrorWorkflow?.workspacePath || "/data/oc-mirror/workspace";
   const operators = state.operators?.selected || [];
   const operatorList = operators.length
     ? operators.map((op) => `${op.name} (${op.defaultChannel || "unknown"})`).join(", ")
@@ -1307,7 +1308,7 @@ const buildFieldManual = (state, docsLinks) => {
     lines.push(`1. Push mirrored content into the registry (disk-to-mirror):`);
     lines.push(`   - oc-mirror --config ${imageSetName} --from ${outputPath} docker://${mirrorRegistry} --v2`);
     lines.push(`2. Apply the generated cluster-resources manifests after install:`);
-    lines.push(`   - oc apply -f ${outputPath}/working-dir/cluster-resources`);
+    lines.push(`   - oc apply -f ${workspacePath}/working-dir/cluster-resources`);
     lines.push(``);
   } else {
     lines.push(`## [HIGH SIDE] Mirror registry`);
