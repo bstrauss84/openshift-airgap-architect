@@ -4,6 +4,7 @@
  */
 import yaml from "js-yaml";
 import { getTrustBundlePolicies } from "./versionPolicy.js";
+import { buildFieldGuide } from "./fieldGuide/index.js";
 
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
@@ -1156,7 +1157,9 @@ const buildImageSetConfig = (state) => {
   return yaml.dump(images, { lineWidth: 120 });
 };
 
-const buildFieldManual = (state, docsLinks) => {
+const buildFieldManual = (state, docsLinks) => buildFieldGuide(state, docsLinks);
+
+const _buildFieldManualLegacy = (state, docsLinks) => {
   const lines = [];
   const version = state.release?.patchVersion || "unknown";
   const channel = state.release?.channel ? `stable-${state.release.channel}` : "unknown";
