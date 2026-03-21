@@ -331,13 +331,14 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
                         key={m.value}
                         title={m.label}
                         description={m.help}
+                        htmlFor={`ocmirror-mode-${m.value}`}
                       >
                         <input
                           type="radio"
+                          id={`ocmirror-mode-${m.value}`}
                           name="ocmirror-mode"
                           checked={mode === m.value}
                           onChange={() => updateMirrorWorkflow({ mode: m.value })}
-                          aria-label={m.label}
                         />
                       </OptionRow>
                     ))}
@@ -358,9 +359,11 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
             <OptionRow
               title="Use generated imageset-config"
               description="Build config from current Blueprint and Connectivity & Mirroring settings."
+              htmlFor="ocmirror-config-generated"
             >
               <input
                 type="radio"
+                id="ocmirror-config-generated"
                 name="ocmirror-config-source"
                 checked={configSourceType === "generated"}
                 onChange={() => updateMirrorWorkflow({ configSourceType: "generated", configPath: "" })}
@@ -369,9 +372,11 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
             <OptionRow
               title="External file"
               description="Path to an existing ImageSetConfiguration YAML file."
+              htmlFor="ocmirror-config-external"
             >
               <input
                 type="radio"
+                id="ocmirror-config-external"
                 name="ocmirror-config-source"
                 checked={configSourceType === "external"}
                 onChange={() => updateMirrorWorkflow({ configSourceType: "external" })}
@@ -562,9 +567,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   <OptionRow
                     title="Use mounted Red Hat pull secret"
                     description="Use the pull secret file detected in the container."
+                    htmlFor="ocmirror-rh-auth-mounted"
                   >
                     <input
                       type="radio"
+                      id="ocmirror-rh-auth-mounted"
                       name="ocmirror-rh-auth"
                       checked={rhAuthSource === "mounted"}
                       onChange={() => setRhAuthSource("mounted")}
@@ -575,9 +582,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   <OptionRow
                     title="Use retained Red Hat pull secret from Blueprint"
                     description="The pull secret retained in the Blueprint step will be used."
+                    htmlFor="ocmirror-rh-auth-retained"
                   >
                     <input
                       type="radio"
+                      id="ocmirror-rh-auth-retained"
                       name="ocmirror-rh-auth"
                       checked={rhAuthSource === "retained"}
                       onChange={() => setRhAuthSource("retained")}
@@ -587,9 +596,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <OptionRow
                   title="Paste Red Hat pull secret for this run"
                   description="Supply a Red Hat pull secret only for this run. Not saved."
+                  htmlFor="ocmirror-rh-auth-pasted"
                 >
                   <input
                     type="radio"
+                    id="ocmirror-rh-auth-pasted"
                     name="ocmirror-rh-auth"
                     checked={rhAuthSource === "pasted"}
                     onChange={() => setRhAuthSource("pasted")}
@@ -624,9 +635,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   <OptionRow
                     title="Use mirror registry credentials from Identity & Access"
                     description="Use the pull secret already configured in the Identity & Access step."
+                    htmlFor="ocmirror-mirror-auth-reuse"
                   >
                     <input
                       type="radio"
+                      id="ocmirror-mirror-auth-reuse"
                       name="ocmirror-mirror-auth"
                       checked={mirrorAuthSource === "reuse"}
                       onChange={() => setMirrorAuthSource("reuse")}
@@ -636,9 +649,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <OptionRow
                   title="Paste mirror registry credentials for this run"
                   description="Supply credentials only for this run. Not saved."
+                  htmlFor="ocmirror-mirror-auth-pasted"
                 >
                   <input
                     type="radio"
+                    id="ocmirror-mirror-auth-pasted"
                     name="ocmirror-mirror-auth"
                     checked={mirrorAuthSource === "pasted"}
                     onChange={() => setMirrorAuthSource("pasted")}
