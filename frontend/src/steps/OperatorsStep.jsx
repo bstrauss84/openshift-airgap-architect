@@ -569,7 +569,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
               Archive chunk size — GiB (optional)
             </label>
             <p className="note subtle" style={{ marginTop: 0, marginBottom: 6 }}>
-              Split oc-mirror output into archive files of this size. Leave blank for no limit. Sets storageConfig.local.archiveSize in ImageSetConfiguration (oc-mirror v2).
+              Split oc-mirror output into archive files of this size. Leave blank for the default (500 GiB). Sets the top-level <code>archiveSize</code> field in ImageSetConfiguration (oc-mirror v2). Archives are named mirror_000001.tar, mirror_000002.tar, etc.
             </p>
             <input
               type="number"
