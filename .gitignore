@@ -115,3 +115,7 @@ LOCAL_BACKLOG.md
 
 # Snapshot script (local backup; do not commit)
 create-app-snapshot.sh
+
+# Local compose overrides (host-specific volume mounts, env overrides; do not commit)
+compose.override.yml
+docker-compose.override.yml
