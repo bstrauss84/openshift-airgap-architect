@@ -96,7 +96,9 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
   const isArchMismatch = (stderr) =>
     typeof stderr === "string" && ARCH_MISMATCH_SIGNATURES.some((sig) => stderr.includes(sig));
   const ARCH_GUIDANCE =
-    "Operators scan requires a linux/amd64 backend container. On Apple Silicon, set `platform: linux/amd64` for the backend in docker-compose.yml and rebuild (see README).";
+    "The oc-mirror binary is not compatible with this container's CPU architecture. " +
+    "Rebuild the container so it bakes in the correct native binary, or set OC_MIRROR_BIN " +
+    "to a compatible binary path, or set OC_MIRROR_URL to a download URL (see README).";
 
   child.on("close", (code) => {
     if (authFile) safeUnlink(authFile);

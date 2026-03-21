@@ -76,6 +76,7 @@ export default function RunOcMirrorStep() {
   const [preflightLoading, setPreflightLoading] = React.useState(false);
   const [rhAuthSource, setRhAuthSource] = React.useState("retained");
   const [mirrorAuthSource, setMirrorAuthSource] = React.useState("reuse");
+  const [mountedRhAvailable, setMountedRhAvailable] = React.useState(false);
   const [rhPullSecretPaste, setRhPullSecretPaste] = React.useState("");
   const [mirrorPullSecretPaste, setMirrorPullSecretPaste] = React.useState("");
   const [runningJobId, setRunningJobId] = React.useState(null);
@@ -173,8 +174,18 @@ export default function RunOcMirrorStep() {
   const hasMirrorSecret = Boolean(state?.credentials?.mirrorRegistryPullSecret);
 
   useEffect(() => {
+    apiFetch("/api/secrets/rh-pull-secret")
+      .then((d) => setMountedRhAvailable(Boolean(d.available)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!hasRetainedRhSecret && rhAuthSource === "retained") setRhAuthSource("pasted");
   }, [hasRetainedRhSecret, rhAuthSource]);
+
+  useEffect(() => {
+    if (rhAuthSource === "mounted" && !mountedRhAvailable) setRhAuthSource("pasted");
+  }, [mountedRhAvailable, rhAuthSource]);
 
   useEffect(() => {
     if (!hasMirrorSecret && mirrorAuthSource === "reuse") setMirrorAuthSource("pasted");
@@ -194,7 +205,8 @@ export default function RunOcMirrorStep() {
         registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
         configSourceType,
         configPath: configSourceType === "external" ? configPath : undefined,
-        rhPullSecret: mode !== "diskToMirror"
+        rhAuthSource: mode !== "diskToMirror" ? rhAuthSource : undefined,
+        rhPullSecret: mode !== "diskToMirror" && rhAuthSource !== "mounted"
           ? (rhAuthSource === "retained" ? state?.blueprint?.blueprintPullSecretEphemeral : rhPullSecretPaste) || undefined
           : undefined,
         mirrorAuthSource: mode !== "mirrorToDisk" ? mirrorAuthSource : undefined,
@@ -220,7 +232,8 @@ export default function RunOcMirrorStep() {
       registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
       configSourceType,
       configPath: configSourceType === "external" ? configPath : undefined,
-      rhPullSecret: mode !== "diskToMirror"
+      rhAuthSource: mode !== "diskToMirror" ? rhAuthSource : undefined,
+      rhPullSecret: mode !== "diskToMirror" && rhAuthSource !== "mounted"
         ? (rhAuthSource === "retained" ? state?.blueprint?.blueprintPullSecretEphemeral : rhPullSecretPaste) || undefined
         : undefined,
       mirrorAuthSource: mode !== "mirrorToDisk" ? mirrorAuthSource : undefined,
@@ -541,6 +554,19 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: 8 }}>
                   Red Hat pull secret authenticates to registry.redhat.io and quay.io.
                 </div>
+                {mountedRhAvailable && (
+                  <OptionRow
+                    title="Use mounted Red Hat pull secret"
+                    description="Use the pull secret file detected in the container."
+                  >
+                    <input
+                      type="radio"
+                      name="ocmirror-rh-auth"
+                      checked={rhAuthSource === "mounted"}
+                      onChange={() => setRhAuthSource("mounted")}
+                    />
+                  </OptionRow>
+                )}
                 {hasRetainedRhSecret && (
                   <OptionRow
                     title="Use retained Red Hat pull secret from Blueprint"
