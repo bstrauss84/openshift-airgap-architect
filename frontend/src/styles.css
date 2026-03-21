@@ -1113,6 +1113,10 @@ body[data-theme="dark"] .primary:hover:not(:disabled) {
   background: #fecaca;
   color: #7f1d1d;
 }
+body[data-theme="dark"] .danger:disabled {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
 
 .ghost {
   background: #F0F3F7;
@@ -1323,7 +1327,8 @@ body[data-theme="dark"] .review-preview-resize-handle:hover {
 
 .trust-intro.note code {
   font-size: 11px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--code-bg);
+  color: var(--code-color);
   padding: 1px 4px;
   border-radius: 4px;
 }
@@ -1755,6 +1760,9 @@ body[data-theme="dark"] .code-header {
   background: #e5e7eb;
   margin: 16px 0;
 }
+body[data-theme="dark"] .divider {
+  background: #374151;
+}
 
 .mirror-header {
   display: grid;
@@ -1763,6 +1771,9 @@ body[data-theme="dark"] .code-header {
   font-size: 12px;
   color: #6b7280;
   margin: 8px 0;
+}
+body[data-theme="dark"] .mirror-header {
+  color: #94a3b8;
 }
 
 .mirror-row {

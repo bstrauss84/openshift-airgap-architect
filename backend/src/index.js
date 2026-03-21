@@ -24,6 +24,7 @@ import {
   deleteCompletedJobs,
   getJobsCount,
   writeTempAuth,
+  mergePullSecrets,
   safeUnlink,
   createJob,
   updateJob,
@@ -931,7 +932,9 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
   const registryUrl = body.registryUrl?.trim() || "";
   const configSourceType = body.configSourceType || "generated";
   const configPath = body.configPath?.trim() || "";
-  const authSource = body.authSource || "env";
+  const rhPullSecret = body.rhPullSecret;
+  const mirrorAuthSource = body.mirrorAuthSource || "reuse";
+  const mirrorPullSecret = body.mirrorPullSecret;
   const minBytes = Number(body.minBytes || 0);
 
   const blockers = [];
@@ -1086,23 +1089,36 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
     blockers.push("Config path is required when using external config.");
   }
 
-  if (authSource === "reuse") {
-    const secret = state.credentials?.mirrorRegistryPullSecret;
-    if (secret && typeof secret === "string" && secret.trim().length > 0) {
-      try {
-        JSON.parse(secret);
-        checks.auth = "present";
-      } catch {
-        checks.auth = "missing";
-        warnings.push("Mirror registry credentials in Identity & Access do not appear to be valid JSON.");
-      }
+  // Auth checks per mode
+  if (mode === "mirrorToDisk" || mode === "mirrorToMirror") {
+    if (rhPullSecret && typeof rhPullSecret === "string" && rhPullSecret.trim().length > 0) {
+      checks.auth = "present";
     } else {
       checks.auth = "missing";
-      if (authSource === "pasted") warnings.push("Pasted auth will be provided at run time.");
+      warnings.push("Red Hat pull secret is required to pull from registry.redhat.io / quay.io.");
     }
-  } else if (authSource === "env") {
-    checks.auth = process.env.REGISTRY_AUTH_FILE && fs.existsSync(process.env.REGISTRY_AUTH_FILE) ? "present" : "missing";
-    if (checks.auth === "missing") warnings.push("REGISTRY_AUTH_FILE is not set or file does not exist.");
+  }
+  if (mode === "diskToMirror" || mode === "mirrorToMirror") {
+    let mirrorSecretPresent = false;
+    if (mirrorAuthSource === "reuse") {
+      const secret = state.credentials?.mirrorRegistryPullSecret;
+      if (secret && typeof secret === "string" && secret.trim().length > 0) {
+        try {
+          JSON.parse(secret);
+          mirrorSecretPresent = true;
+        } catch {
+          warnings.push("Mirror registry credentials in Identity & Access do not appear to be valid JSON.");
+        }
+      } else {
+        warnings.push("Mirror registry credentials not found in Identity & Access.");
+      }
+    } else if (mirrorPullSecret && typeof mirrorPullSecret === "string" && mirrorPullSecret.trim().length > 0) {
+      mirrorSecretPresent = true;
+    } else {
+      warnings.push("Mirror registry credentials will be required at run time.");
+    }
+    if (mode === "diskToMirror") checks.auth = mirrorSecretPresent ? "present" : "missing";
+    else if (!mirrorSecretPresent) checks.auth = "missing";
   }
 
   if (mode === "diskToMirror" || mode === "mirrorToMirror") {
@@ -1158,8 +1174,9 @@ app.post("/api/ocmirror/run", async (req, res) => {
   const registryUrl = body.registryUrl?.trim() || (registryFqdn ? `docker://${registryFqdn}` : "");
   const configSourceType = body.configSourceType || "generated";
   const configPathExternal = body.configPath?.trim();
-  const authSource = body.authSource || "env";
-  const pullSecretRaw = body.pullSecret;
+  const rhPullSecretRaw = body.rhPullSecret;
+  const mirrorAuthSource = body.mirrorAuthSource || "reuse";
+  const mirrorPullSecretRaw = body.mirrorPullSecret;
   const advanced = body.advanced && typeof body.advanced === "object" ? body.advanced : {};
 
   if (!["mirrorToDisk", "diskToMirror", "mirrorToMirror"].includes(mode)) {
@@ -1205,23 +1222,35 @@ app.post("/api/ocmirror/run", async (req, res) => {
   }
 
   let authFile = null;
-  if (authSource === "reuse") {
-    const secret = state.credentials?.mirrorRegistryPullSecret;
-    if (secret && typeof secret === "string") {
-      try {
-        const normalized = normalizePullSecret(secret);
-        authFile = writeTempAuth(normalized);
-      } catch {}
+  try {
+    if (mode === "mirrorToDisk") {
+      if (rhPullSecretRaw) {
+        authFile = writeTempAuth(normalizePullSecret(rhPullSecretRaw));
+      }
+    } else if (mode === "diskToMirror") {
+      if (mirrorAuthSource === "reuse") {
+        const secret = state.credentials?.mirrorRegistryPullSecret;
+        if (secret && typeof secret === "string") authFile = writeTempAuth(normalizePullSecret(secret));
+      } else if (mirrorPullSecretRaw) {
+        authFile = writeTempAuth(normalizePullSecret(mirrorPullSecretRaw));
+      }
+    } else if (mode === "mirrorToMirror") {
+      const rhRaw = rhPullSecretRaw;
+      const mirrorRaw = mirrorAuthSource === "reuse"
+        ? state.credentials?.mirrorRegistryPullSecret
+        : mirrorPullSecretRaw;
+      if (rhRaw && mirrorRaw) {
+        authFile = writeTempAuth(mergePullSecrets(normalizePullSecret(rhRaw), normalizePullSecret(mirrorRaw)));
+      } else if (rhRaw) {
+        authFile = writeTempAuth(normalizePullSecret(rhRaw));
+      } else if (mirrorRaw) {
+        authFile = writeTempAuth(normalizePullSecret(mirrorRaw));
+      }
     }
-  } else if (authSource === "pasted" && pullSecretRaw) {
-    try {
-      const normalized = normalizePullSecret(pullSecretRaw);
-      authFile = writeTempAuth(normalized);
-    } catch (err) {
-      updateJob(jobId, { status: "failed", message: "Invalid pull secret JSON.", progress: 100 });
-      safeUnlink(configPathToUse);
-      return res.json({ jobId });
-    }
+  } catch (err) {
+    updateJob(jobId, { status: "failed", message: "Invalid pull secret JSON.", progress: 100 });
+    safeUnlink(configPathToUse);
+    return res.json({ jobId });
   }
 
   const resolved = await resolveOcMirrorBinary(dataDir);
