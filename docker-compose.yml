@@ -8,7 +8,10 @@ services:
     environment:
       - PORT=4000
       - DATA_DIR=/data
-      - REGISTRY_AUTH_FILE=/data/registry-auth.json
+      # REGISTRY_AUTH_FILE is intentionally NOT set here. oc-mirror v2's internal
+      # distribution/distribution storage registry reads REGISTRY_* env vars as YAML
+      # registry config parameters — setting it to a JSON auth file path causes a
+      # panic on startup. Auth is passed via --authfile flag by the backend instead.
       - MOCK_MODE=${MOCK_MODE:-false}
       - APP_REPO=${APP_REPO:-bstrauss84/openshift-airgap-architect}
       - APP_BRANCH=${APP_BRANCH:-main}

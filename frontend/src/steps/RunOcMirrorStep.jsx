@@ -189,7 +189,7 @@ export default function RunOcMirrorStep() {
       const body = {
         mode,
         archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
-        workspacePath: mode !== "mirrorToDisk" ? workspacePath : undefined,
+        workspacePath: mode === "mirrorToMirror" ? workspacePath : undefined,
         cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
         registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
         configSourceType,
@@ -213,9 +213,9 @@ export default function RunOcMirrorStep() {
     setRunError(null);
     const body = {
       mode,
-      dryRun: mode === "mirrorToDisk" ? dryRun : false,
+      dryRun,
       archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
-      workspacePath: mode !== "mirrorToDisk" ? workspacePath : undefined,
+      workspacePath: mode === "mirrorToMirror" ? workspacePath : undefined,
       cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
       registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
       configSourceType,
@@ -380,7 +380,7 @@ export default function RunOcMirrorStep() {
             <div className="card-subtitle" style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span>
                 {mode === "mirrorToDisk" && "Archive = destination for tar archives. Cache speeds up subsequent incremental runs. No workspace needed — the archive path serves that role."}
-                {mode === "diskToMirror" && "Archive = source from a previous mirror-to-disk run. Workspace (optional) specifies where cluster-resources are written. Cache is optional."}
+                {mode === "diskToMirror" && "Archive = source from a previous mirror-to-disk run. Cache is optional. Cluster-resources output is written inside the archive directory."}
                 {mode === "mirrorToMirror" && "Workspace is required (cluster-resources output). No archive or cache needed."}
               </span>
               <button
@@ -461,12 +461,10 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 </div>
               </FieldLabelWithInfo>
             )}
-            {mode !== "mirrorToDisk" && (
+            {mode === "mirrorToMirror" && (
               <FieldLabelWithInfo
                 label="Workspace directory"
-                hint={mode === "mirrorToMirror"
-                  ? "Required. Directory for oc-mirror metadata and cluster-resources output (creates a working-dir/ subdirectory here). Container-internal path under /data. Typically 1–5 GB."
-                  : "Optional. Directory where cluster-resources output is written. If omitted, oc-mirror writes inside the archive directory. Container-internal path under /data."}
+                hint="Required. Directory for oc-mirror metadata and cluster-resources output (creates a working-dir/ subdirectory here). Container-internal path under /data. Typically 1–5 GB."
               >
                 <div style={{ display: "flex", gap: 6 }}>
                   <input
@@ -640,14 +638,12 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
         {/* 6. Advanced */}
         <CollapsibleSection title="Advanced options" defaultCollapsed={true}>
           {/* Toggle rows span full width */}
-          {mode === "mirrorToDisk" && (
-            <OptionRow
-              title="Dry run (no mirror)"
-              description="Only validate config and produce mapping.txt / missing.txt; do not download images."
-            >
-              <Switch checked={dryRun} onChange={(v) => updateMirrorWorkflow({ dryRun: v })} />
-            </OptionRow>
-          )}
+          <OptionRow
+            title="Dry run (no mirror)"
+            description="Print actions without actually mirroring images. Validates config and produces mapping.txt / missing.txt where applicable."
+          >
+            <Switch checked={dryRun} onChange={(v) => updateMirrorWorkflow({ dryRun: v })} />
+          </OptionRow>
           {mode === "diskToMirror" && (
             <OptionRow title="Strict archive" description="Strict archive validation.">
               <Switch checked={strictArchive} onChange={(v) => updateMirrorWorkflow({ strictArchive: v })} />

@@ -1067,7 +1067,7 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
   };
 
   await checkArchive();
-  if (mode !== "mirrorToDisk") await checkWorkspace();
+  if (mode === "mirrorToMirror") await checkWorkspace();
   await checkCache();
 
   if (configSourceType === "generated") {
@@ -1131,8 +1131,9 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
 });
 
 /** Build oc-mirror CLI args for v1 modes (contract §2B). */
-function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePath, registryUrl, dryRun, advanced) {
+function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePath, registryUrl, dryRun, advanced, authFile) {
   const args = ["--config", configPath, "--v2"];
+  if (authFile) args.push("--authfile", authFile);
   const adv = advanced || {};
   if (adv.logLevel) args.push("--log-level", String(adv.logLevel));
   if (adv.parallelImages != null) args.push("--parallel-images", String(adv.parallelImages));
@@ -1142,13 +1143,13 @@ function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePa
   if (adv.retryDelay) args.push("--retry-delay", String(adv.retryDelay));
   if (adv.since) args.push("--since", String(adv.since));
   if (adv.strictArchive) args.push("--strict-archive");
-  if (mode !== "mirrorToDisk" && workspacePath) args.push("--workspace", `file://${path.resolve(workspacePath)}`);
+  if (mode === "mirrorToMirror" && workspacePath) args.push("--workspace", `file://${path.resolve(workspacePath)}`);
   if (cachePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
     args.push("--cache-dir", path.resolve(cachePath));
   }
+  if (dryRun) args.push("--dry-run");
   if (mode === "mirrorToDisk") {
     args.push(`file://${path.resolve(archivePath)}`);
-    if (dryRun) args.push("--dry-run");
   } else if (mode === "diskToMirror") {
     args.push("--from", `file://${path.resolve(archivePath)}`);
     args.push(registryUrl.startsWith("docker://") ? registryUrl : `docker://${registryUrl}`);
@@ -1182,9 +1183,7 @@ app.post("/api/ocmirror/run", async (req, res) => {
   if (!["mirrorToDisk", "diskToMirror", "mirrorToMirror"].includes(mode)) {
     return res.status(400).json({ error: "Invalid mode." });
   }
-  if (mode !== "mirrorToDisk" && dryRun) {
-    return res.status(400).json({ error: "Dry run is only valid for mirrorToDisk." });
-  }
+  // --dry-run is a global oc-mirror v2 flag valid for all modes
   if ((mode === "mirrorToDisk" || mode === "diskToMirror") && !archivePath) {
     return res.status(400).json({ error: "Archive path is required." });
   }
@@ -1267,7 +1266,7 @@ app.post("/api/ocmirror/run", async (req, res) => {
   }
 
   try {
-    if (mode !== "mirrorToDisk" && workspacePath) fs.mkdirSync(path.resolve(workspacePath), { recursive: true });
+    if (mode === "mirrorToMirror" && workspacePath) fs.mkdirSync(path.resolve(workspacePath), { recursive: true });
     if (mode !== "mirrorToMirror" && archivePath) fs.mkdirSync(path.resolve(archivePath), { recursive: true });
     if (cachePath && mode !== "mirrorToMirror") fs.mkdirSync(path.resolve(cachePath), { recursive: true });
   } catch (err) {
@@ -1299,15 +1298,17 @@ app.post("/api/ocmirror/run", async (req, res) => {
     cachePath,
     registryUrl,
     dryRun,
-    advanced
+    advanced,
+    authFile
   );
-  const fullCommand = `oc-mirror ${args.join(" ")}`;
+  const fullCommand = `${resolved.path} ${args.join(" ")}`;
   updateJobMetadata(jobId, { ...meta, fullCommand });
-  const env = {
-    ...process.env,
-    REGISTRY_AUTH_FILE: authFile || process.env.REGISTRY_AUTH_FILE
-  };
-  const child = spawn(resolved.path, args, { env });
+  // Do NOT pass REGISTRY_AUTH_FILE to oc-mirror — that env var is consumed by
+  // the distribution/distribution local registry component as a YAML config file
+  // path (not an OCI auth JSON), causing a startup panic.  Auth is supplied via
+  // --authfile flag instead.
+  const { REGISTRY_AUTH_FILE: _drop, ...envWithoutRegistryAuthFile } = process.env;
+  const child = spawn(resolved.path, args, { env: envWithoutRegistryAuthFile });
   activeProcesses.set(jobId, child);
   updateJob(jobId, { status: "running", progress: 0, message: "oc-mirror running." });
   child.stdout.on("data", (data) => appendJobOutput(jobId, data.toString()));
