@@ -928,7 +928,21 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               {browseLoading ? (
                 <div style={{ padding: 16, color: "var(--text-subtle)" }}>Loading…</div>
               ) : browseError ? (
-                <div style={{ padding: 16, color: "var(--color-danger)", fontSize: "0.875rem" }}>{browseError}</div>
+                <div style={{ padding: 12 }}>
+                  {/EACCES|EPERM|permission denied/i.test(browseError) ? (
+                    <div className="note warning" style={{ fontSize: "0.82rem" }}>
+                      <strong>Permission denied.</strong> The container cannot read this directory. Fix one or more of the following:
+                      <ul style={{ margin: "6px 0 0", paddingLeft: 18, lineHeight: 1.6 }}>
+                        <li><strong>SELinux (Fedora/RHEL/CentOS):</strong> Add <code>:Z</code> to the volume mount in <code>compose.override.yml</code>, then rebuild (<code>podman compose down --remove-orphans &amp;&amp; podman compose up --build -d</code>).</li>
+                        <li><strong>Directory created with sudo:</strong> On your host, run <code>sudo chown $USER /path/to/oc-mirror</code> so the user running podman owns it.</li>
+                        <li><strong>Wrong permissions:</strong> On your host, run <code>chmod 755 /path/to/oc-mirror</code>.</li>
+                      </ul>
+                      <div style={{ marginTop: 8, color: "var(--text-subtle)" }}>{browseError}</div>
+                    </div>
+                  ) : (
+                    <div style={{ color: "var(--color-danger)", fontSize: "0.875rem" }}>{browseError}</div>
+                  )}
+                </div>
               ) : browseEntries.length === 0 ? (
                 <div style={{ padding: 16, color: "var(--text-subtle)" }}>Empty directory</div>
               ) : browseEntries.map((entry) => (

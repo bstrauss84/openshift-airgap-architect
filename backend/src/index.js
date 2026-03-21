@@ -1595,7 +1595,11 @@ app.get("/api/fs/ls", (req, res) => {
       }
     }
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    const isPermission = err.code === "EACCES" || err.code === "EPERM";
+    const hint = isPermission
+      ? " — Check that the host directory is owned by the user running podman/docker (not root) and that the volume mount includes :Z on SELinux hosts (Fedora/RHEL/CentOS). See README: Run oc-mirror → Mounting external storage."
+      : "";
+    return res.status(400).json({ error: err.message + hint });
   }
   // dirs first, then files, alphabetical within each group
   entries.sort((a, b) => {

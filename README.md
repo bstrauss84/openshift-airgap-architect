@@ -218,29 +218,47 @@ All three paths live inside the `backend-data` Docker/Podman named volume by def
 
 ### Mounting external storage for oc-mirror (recommended for large mirrors)
 
-Create a `compose.override.yml` file in the same directory as `docker-compose.yml`:
+Create a `compose.override.yml` file in the same directory as `docker-compose.yml`. This file is gitignored and will never be committed.
+
+#### Option A — Single path (all three subdirs under one mount)
 
 ```yaml
 # compose.override.yml
 services:
   backend:
     volumes:
-      - /path/to/large-drive/oc-mirror:/data/oc-mirror
+      - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
 ```
 
-Replace `/path/to/large-drive/oc-mirror` with a path on your host that has enough space (plan for 50–200+ GB minimum for a single OCP release + common operators). You can also mount individual subdirectories if your storage is split across drives:
+Replace `/path/to/large-drive/oc-mirror` with a host path that has enough space (50–200+ GB minimum for a single OCP release + common operators).
+
+**What happens with the subdirectories:** The app uses three subdirectories under this path — `archives/`, `workspace/`, and `cache/`. **You do not need to create them.** The app creates all three automatically on the first run. You will see them appear in the archive/workspace/cache path fields as `/data/oc-mirror/archives`, `/data/oc-mirror/workspace`, and `/data/oc-mirror/cache` — which map to `<your-host-path>/archives`, `<your-host-path>/workspace`, and `<your-host-path>/cache` on the host. Nothing is dumped directly into the root of the mounted directory.
+
+#### Option B — Split paths (each subdir mounted from a different host location)
+
+Use this if your storage is spread across multiple drives or you want fine-grained control:
 
 ```yaml
-# compose.override.yml (split storage example)
+# compose.override.yml
 services:
   backend:
     volumes:
-      - /mnt/fast-ssd/oc-mirror/archives:/data/oc-mirror/archives
-      - /mnt/fast-ssd/oc-mirror/workspace:/data/oc-mirror/workspace
-      - /mnt/fast-ssd/oc-mirror/cache:/data/oc-mirror/cache
+      - /mnt/fast-ssd/oc-mirror/archives:/data/oc-mirror/archives:Z
+      - /mnt/fast-ssd/oc-mirror/workspace:/data/oc-mirror/workspace:Z
+      - /mnt/fast-ssd/oc-mirror/cache:/data/oc-mirror/cache:Z
 ```
 
-Then rebuild and restart the stack:
+**With split paths you must pre-create the host directories** before starting the stack, because Compose will error if a bind-mount target doesn't exist on the host:
+
+```bash
+mkdir -p /mnt/fast-ssd/oc-mirror/archives
+mkdir -p /mnt/fast-ssd/oc-mirror/workspace
+mkdir -p /mnt/fast-ssd/oc-mirror/cache
+```
+
+> **Do not use `sudo mkdir`** — the directory must be owned by the user who runs `podman compose` / `docker compose`, not by root. See [Permissions and SELinux](#permissions-and-selinux-podman-on-fedorarhelcentos) below.
+
+#### Rebuild and restart after adding the override
 
 ```bash
 # Podman
@@ -250,13 +268,56 @@ podman compose down --remove-orphans && podman image prune -f && podman compose 
 docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
 ```
 
-The named `backend-data` volume (app state, SQLite database) is **preserved** — only the `oc-mirror` subpaths are now served from your external mount. Compose merges `docker-compose.yml` and `compose.override.yml` automatically; you don't need to modify `docker-compose.yml` directly.
+The named `backend-data` volume (app state, SQLite database) is **preserved** — only the `oc-mirror` paths are now served from your external mount. Compose merges `docker-compose.yml` and `compose.override.yml` automatically; you do not need to modify `docker-compose.yml` directly.
 
-**SELinux note (Podman on Fedora/RHEL):** Add `:Z` to the volume mount if you get permission errors:
+### Permissions and SELinux (Podman on Fedora/RHEL/CentOS)
+
+**This section applies to you if you are running Podman on a Linux host with SELinux enforcing (Fedora, RHEL, CentOS Stream).** If you skip these steps you will see `EACCES: permission denied` when the app tries to browse or write to the mounted directory.
+
+There are two independent requirements — both must be satisfied:
+
+#### 1. `:Z` volume label (SELinux relabeling — required on Fedora/RHEL/CentOS)
+
+All volume mounts in `compose.override.yml` **must** include `:Z` so Podman relabels the host directory with the correct SELinux context for container access:
 
 ```yaml
       - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
 ```
+
+Without `:Z`, SELinux blocks the container from reading or writing the directory at the kernel level, even if the file permissions look correct. This is the most common cause of `EACCES: permission denied` on Fedora.
+
+> **Note:** `:Z` (uppercase) sets a private, unshared label — safe for a single container. `:z` (lowercase) sets a shared label for multiple containers. Use `:Z` unless you have a specific reason for `:z`.
+
+#### 2. Directory ownership (must be owned by the user running podman, not root)
+
+Create the host directory as yourself — **not with `sudo`**:
+
+```bash
+# Correct — owned by your user
+mkdir -p /path/to/large-drive/oc-mirror
+
+# Wrong — owned by root; the container's chown step cannot fix this
+sudo mkdir -p /path/to/large-drive/oc-mirror
+```
+
+If you already created it with `sudo`, fix it:
+
+```bash
+sudo chown $USER /path/to/large-drive/oc-mirror
+# or for a split-path setup:
+sudo chown $USER /path/to/archives /path/to/workspace /path/to/cache
+```
+
+**Why this matters:** The backend container runs the app as UID 1001 (`appuser`). The entrypoint starts as root and attempts `chown -R 1001:0` on the data directory before dropping privileges. With rootless Podman, the container's root maps to your host UID, so it can only chown files your host user owns. If the directory was created with `sudo` (owned by host root), the chown fails silently and UID 1001 cannot access the directory. The entrypoint falls back to `chmod o+rwX` in that case, but `:Z` is still required for SELinux.
+
+#### Quick diagnosis
+
+If you see `EACCES: permission denied` in the Browse directory modal or in oc-mirror run logs:
+
+1. Check that your `compose.override.yml` includes `:Z` on every volume mount.
+2. Check that the host directory is owned by your user: `ls -la /path/to/large-drive/`
+3. If both look correct, check SELinux context: `ls -laZ /path/to/large-drive/oc-mirror` — it should include `container_file_t` or similar after a `:Z`-mounted start.
+4. Rebuild after any change: `podman compose down --remove-orphans && podman compose up --build -d`
 
 ### Mounting a Red Hat pull secret for oc-mirror (persistent, no paste required)
 
@@ -386,6 +447,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
 - **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). If the job fails with a message about the binary not running, the backend runtime architecture may not have a usable oc-mirror (e.g. Apple Silicon: use native aarch64 binary or set **OC_MIRROR_BIN** / **OC_MIRROR_URL**). See **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`.
 - **oc-mirror run fails with auth error** — Ensure the correct credentials are provided for the selected workflow. Mirror-to-disk needs a Red Hat pull secret (registry.redhat.io / quay.io); disk-to-mirror needs mirror registry credentials; mirror-to-mirror needs both. If using `REGISTRY_AUTH_FILE`, verify the file is mounted and accessible inside the container.
+- **"EACCES: permission denied" in Browse directory or run logs** — Two causes on Fedora/RHEL/CentOS: (1) missing `:Z` SELinux label on the volume mount in `compose.override.yml` — add `:Z` to every bind-mount line and rebuild; (2) host directory created with `sudo` (owned by root) — fix with `sudo chown $USER /your/path`. See [Permissions and SELinux](#permissions-and-selinux-podman-on-fedorarhelcentos) for full details.
 - **oc-mirror archives not found on host** — If using the default named volume, use `podman volume inspect openshift-airgap-architect_backend-data` (or `docker volume inspect`) to find the volume mountpoint on the host. For large mirrors, use `compose.override.yml` to bind-mount a host path instead; see [Mounting external storage for oc-mirror](#mounting-external-storage-for-oc-mirror-recommended-for-large-mirrors).
 - **Cincinnati or docs stale** — Use **Update** (release channels) or **Update Docs Links** (field manual links) in the UI; the backend refreshes caches on demand.
 - **Validation errors on a step** — Required fields are marked; check Identity & Access (pull secret, SSH key), Networking (CIDRs), and Platform Specifics for your scenario.
