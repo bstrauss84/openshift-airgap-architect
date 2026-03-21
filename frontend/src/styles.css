@@ -13,11 +13,27 @@ body {
   background: #f5f6f8;
   color: #1f2937;
   overflow: hidden;
+  /* Semantic CSS variables — light mode defaults */
+  --code-bg: #f0f2f5;
+  --code-color: #1f2937;
+  --card-bg: #ffffff;
+  --card-bg-subtle: #f9fafb;
+  --border-color: #d1d5db;
+  --text-subtle: #6b7280;
+  --color-danger: #c00;
 }
 
 body[data-theme="dark"] {
   background: #0b1120;
   color: #e2e8f0;
+  /* Dark mode overrides for semantic variables */
+  --code-bg: #0f172a;
+  --code-color: #e2e8f0;
+  --card-bg: #131e35;
+  --card-bg-subtle: #1e293b;
+  --border-color: #374151;
+  --text-subtle: #94a3b8;
+  --color-danger: #f87171;
 }
 
 /* Dark mode: links and visited links readable; avoid low-contrast purple default (#27) */

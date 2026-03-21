@@ -51,6 +51,7 @@ export const vsphereIpiInstall = {
     { label: "Installing a cluster on vSphere with IPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#installing-vsphere" },
   ],
   items: [
+    { text: "Place install-config.yaml in {{installDir}}. If you used the app and downloaded the export bundle, copy it from the bundle (it already contains vCenter credentials, VIPs, and mirror settings).", cmd: "mkdir -p {{installDir}}\ncp /path/to/bundle/install-config.yaml {{installDir}}/" },
     { text: "Back up install-config.yaml before running the installer (it will be consumed):", cmd: "cp {{installDir}}/install-config.yaml {{installDir}}/install-config.yaml.bak" },
     { text: "Run the installer (IPI — it provisions all infrastructure):", cmd: "openshift-install create cluster --dir {{installDir}} --log-level=info" },
     { text: "Monitor the bootstrap phase in a separate terminal (optional but recommended):", cmd: "openshift-install wait-for bootstrap-complete --dir {{installDir}} --log-level=info" },
@@ -174,6 +175,7 @@ export const vsphereAgentInstall = {
     { label: "Installing with Agent-based Installer — cluster creation (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#installing-ocp-agent_installing-with-agent-based-installer" },
   ],
   items: [
+    { text: "Ensure install-config.yaml and agent-config.yaml are in {{installDir}}. If you used the app and downloaded the export bundle, both files are pre-generated — copy them from the bundle.", cmd: "ls {{installDir}}/install-config.yaml {{installDir}}/agent-config.yaml" },
     { text: "Attach the agent ISO to all VMs in vCenter and set boot order to CD/DVD first (or use a virtual media mount)." },
     { text: "Power on all VMs simultaneously (or start with the rendezvous host first if timing is critical)." },
     { text: "Monitor the agent installation from the installer host:", cmd: "openshift-install agent wait-for bootstrap-complete --dir {{installDir}} --log-level=info" },

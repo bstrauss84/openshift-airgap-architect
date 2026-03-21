@@ -48,6 +48,7 @@ export const awsGovCloudInstall = {
     { label: "Installing a cluster on AWS — create cluster (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-aws#installing-aws" },
   ],
   items: [
+    { text: "Place install-config.yaml in {{installDir}}. If you used the app and downloaded the export bundle, copy it from the bundle (it already has the AWS region, AMI ID, and mirror settings).", cmd: "mkdir -p {{installDir}}\ncp /path/to/bundle/install-config.yaml {{installDir}}/" },
     { text: "Back up install-config.yaml:", cmd: "cp {{installDir}}/install-config.yaml {{installDir}}/install-config.yaml.bak" },
     { text: "For manual credentials mode, generate and apply CredentialsRequests before running the installer:", cmd: "openshift-install create manifests --dir {{installDir}}\n# Process CredentialsRequests manually for each component\n# Apply with ccoctl or manually create IAM roles" },
     { text: "Start the installation:", cmd: "openshift-install create cluster --dir {{installDir}} --log-level=info" },

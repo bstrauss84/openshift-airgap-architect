@@ -51,6 +51,7 @@ export const bmAgentInstall = {
     { label: "Agent-based Installer — creating and booting the cluster (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#installing-ocp-agent_installing-with-agent-based-installer" },
   ],
   items: [
+    { text: "Ensure install-config.yaml and agent-config.yaml are in {{installDir}}. If you used the app and downloaded the export bundle, both files are pre-generated with your host inventory, NMState, and root device hints — copy them from the bundle.", cmd: "ls {{installDir}}/install-config.yaml {{installDir}}/agent-config.yaml" },
     { text: "Mount the agent ISO to all nodes via BMC virtual media or USB, then boot each node from the ISO." },
     { text: "Monitor bootstrap-complete from the installer host:", cmd: "openshift-install agent wait-for bootstrap-complete --dir {{installDir}} --log-level=info" },
     { text: "Monitor agent logs on the rendezvous host if any node does not check in within 10 minutes:", cmd: "# SSH to the rendezvous node:\nssh core@{{apiVip}}\nsudo journalctl -u assisted-service --no-pager -n 50" },
@@ -117,6 +118,7 @@ export const bmIpiInstall = {
     { label: "Installing cluster on bare metal IPI — cluster creation (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#installing-bare-metal" },
   ],
   items: [
+    { text: "Place install-config.yaml in {{installDir}}. If you used the app and downloaded the export bundle, copy it from the bundle (it already has all BMC addresses, boot MACs, and mirror settings).", cmd: "mkdir -p {{installDir}}\ncp /path/to/bundle/install-config.yaml {{installDir}}/" },
     { text: "Back up install-config.yaml before running the installer:", cmd: "cp {{installDir}}/install-config.yaml {{installDir}}/install-config.yaml.bak" },
     { text: "Start the IPI installation — the installer provisions all nodes via Ironic and BMC:", cmd: "openshift-install create cluster --dir {{installDir}} --log-level=info" },
     { text: "Monitor Ironic provisioning state for each host (the installer logs 'provisioning' stage progress).", cmd: "openshift-install wait-for bootstrap-complete --dir {{installDir}} --log-level=info" },

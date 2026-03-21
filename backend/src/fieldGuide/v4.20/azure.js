@@ -44,6 +44,7 @@ export const azureGovInstall = {
     { label: "Installing a cluster on Azure — create cluster (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-azure#installing-azure" },
   ],
   items: [
+    { text: "Place install-config.yaml in {{installDir}}. If you used the app and downloaded the export bundle, copy it from the bundle (it already has the Azure cloud name, region, and resource group settings).", cmd: "mkdir -p {{installDir}}\ncp /path/to/bundle/install-config.yaml {{installDir}}/" },
     { text: "Back up install-config.yaml:", cmd: "cp {{installDir}}/install-config.yaml {{installDir}}/install-config.yaml.bak" },
     { text: "For manual credentials mode, create manifests and process CredentialsRequests:", cmd: "openshift-install create manifests --dir {{installDir}}\n# Use ccoctl azure to create managed identities for each component" },
     { text: "Start the installation:", cmd: "openshift-install create cluster --dir {{installDir}} --log-level=info" },

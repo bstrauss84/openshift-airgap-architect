@@ -47,6 +47,7 @@ export const nutanixIpiInstall = {
     { label: "Installing a cluster on Nutanix — cluster creation (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-nutanix#installing-nutanix" },
   ],
   items: [
+    { text: "Place install-config.yaml in {{installDir}}. If you used the app and downloaded the export bundle, copy it from the bundle (it already contains Prism Central endpoint, cluster/subnet UUIDs, and VIPs).", cmd: "mkdir -p {{installDir}}\ncp /path/to/bundle/install-config.yaml {{installDir}}/" },
     { text: "Back up install-config.yaml before running the installer:", cmd: "cp {{installDir}}/install-config.yaml {{installDir}}/install-config.yaml.bak" },
     { text: "Start the IPI installation:", cmd: "openshift-install create cluster --dir {{installDir}} --log-level=info" },
     { text: "Monitor bootstrap-complete. The installer creates VMs in Nutanix via Prism Central API:", cmd: "openshift-install wait-for bootstrap-complete --dir {{installDir}} --log-level=info" },
