@@ -27,7 +27,7 @@ function getOcMirrorMeta(job) {
 }
 
 const OperationsStep = () => {
-  useApp(); // app context available for future (e.g. filter by run)
+  const { state, updateState } = useApp();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState(null);
@@ -54,6 +54,13 @@ const OperationsStep = () => {
     const interval = setInterval(loadJobs, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const jobId = state?.ui?.highlightJobId;
+    if (!jobId) return;
+    setSelectedJobId(jobId);
+    updateState({ ui: { ...state.ui, highlightJobId: undefined } });
+  }, [state?.ui?.highlightJobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When a job is selected, fetch its latest snapshot immediately so logs show without waiting for SSE
   useEffect(() => {
@@ -238,6 +245,7 @@ const OperationsStep = () => {
                               {meta.dryRunMappingPath ? <><dt>Dry-run mapping</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.dryRunMappingPath}</code></dd></> : null}
                               {meta.dryRunMissingPath ? <><dt>Dry-run missing</dt><dd><code style={{ fontSize: "0.85em" }}>{meta.dryRunMissingPath}</code></dd></> : null}
                               {meta.startedAt && meta.finishedAt ? <><dt>Elapsed</dt><dd>{Math.round((meta.finishedAt - meta.startedAt) / 1000)}s</dd></> : null}
+                              {meta.fullCommand ? <><dt>Command</dt><dd><code style={{ fontSize: "0.82em", wordBreak: "break-all" }}>{meta.fullCommand}</code></dd></> : null}
                             </dl>
                           </div>
                         );

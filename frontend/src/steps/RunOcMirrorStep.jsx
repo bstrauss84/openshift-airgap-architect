@@ -23,12 +23,12 @@ const WORKFLOW_GROUPS = [
       {
         value: "mirrorToDisk",
         label: "Step 1 — Mirror to disk",
-        help: "Download release and operator images from the internet to a local directory (archives and working-dir). Use this first in a disconnected workflow. Requires archive (destination), workspace, and cache paths."
+        help: "Download release and operator images from the internet to a local archive directory. The archive path acts as both destination and workspace. Cache speeds up subsequent incremental runs."
       },
       {
         value: "diskToMirror",
         label: "Step 2 — Disk to mirror",
-        help: "Publish images from a local archive (from a previous mirror-to-disk run) to your mirror registry. Requires source archive path, workspace, cache, and registry URL."
+        help: "Publish images from a local archive (from a previous mirror-to-disk run) to your mirror registry. Requires source archive path and registry URL. Workspace and cache are optional."
       }
     ]
   },
@@ -39,7 +39,7 @@ const WORKFLOW_GROUPS = [
       {
         value: "mirrorToMirror",
         label: "Mirror to mirror",
-        help: "Stream images directly from source to your mirror registry without a local cache. Use when you have direct connectivity. Requires workspace and registry URL only."
+        help: "Stream images directly from source to your mirror registry. Use when you have direct connectivity to both Red Hat registries and your mirror. Requires workspace and registry URL."
       }
     ]
   }
@@ -189,7 +189,7 @@ export default function RunOcMirrorStep() {
       const body = {
         mode,
         archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
-        workspacePath,
+        workspacePath: mode !== "mirrorToDisk" ? workspacePath : undefined,
         cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
         registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
         configSourceType,
@@ -215,7 +215,7 @@ export default function RunOcMirrorStep() {
       mode,
       dryRun: mode === "mirrorToDisk" ? dryRun : false,
       archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
-      workspacePath,
+      workspacePath: mode !== "mirrorToDisk" ? workspacePath : undefined,
       cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
       registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
       configSourceType,
@@ -255,8 +255,8 @@ export default function RunOcMirrorStep() {
     }
   };
 
-  const goToOperations = () => {
-    updateState({ ui: { ...state.ui, activeStepId: "operations" } });
+  const goToOperations = (jobId) => {
+    updateState({ ui: { ...state.ui, activeStepId: "operations", highlightJobId: jobId || undefined } });
   };
 
   const hasBlockers = preflightResult && Array.isArray(preflightResult.blockers) && preflightResult.blockers.length > 0;
@@ -379,9 +379,9 @@ export default function RunOcMirrorStep() {
             <h3 className="card-title">Paths</h3>
             <div className="card-subtitle" style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span>
-                {mode === "mirrorToDisk" && "Archive = destination for tar and working-dir. Workspace and cache enable incremental runs."}
-                {mode === "diskToMirror" && "Archive = source from a previous mirror-to-disk. Workspace and cache should match that run."}
-                {mode === "mirrorToMirror" && "Only workspace is used (no local cache)."}
+                {mode === "mirrorToDisk" && "Archive = destination for tar archives. Cache speeds up subsequent incremental runs. No workspace needed — the archive path serves that role."}
+                {mode === "diskToMirror" && "Archive = source from a previous mirror-to-disk run. Workspace (optional) specifies where cluster-resources are written. Cache is optional."}
+                {mode === "mirrorToMirror" && "Workspace is required (cluster-resources output). No archive or cache needed."}
               </span>
               <button
                 type="button"
@@ -461,23 +461,27 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 </div>
               </FieldLabelWithInfo>
             )}
-            <FieldLabelWithInfo
-              label="Workspace directory"
-              hint="Directory for oc-mirror metadata, cluster-resources, and logs (creates a working-dir/ subdirectory here). Required for all modes. Container-internal path under /data. Keep between runs to enable incremental mirroring with --since. Typically 1–5 GB."
-            >
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  type="text"
-                  value={workspacePath}
-                  onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
-                  placeholder={DEFAULT_WORKSPACE_PATH}
-                  style={{ flex: 1 }}
-                />
-                <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)} style={{ whiteSpace: "nowrap" }}>
-                  Browse…
-                </Button>
-              </div>
-            </FieldLabelWithInfo>
+            {mode !== "mirrorToDisk" && (
+              <FieldLabelWithInfo
+                label="Workspace directory"
+                hint={mode === "mirrorToMirror"
+                  ? "Required. Directory for oc-mirror metadata and cluster-resources output (creates a working-dir/ subdirectory here). Container-internal path under /data. Typically 1–5 GB."
+                  : "Optional. Directory where cluster-resources output is written. If omitted, oc-mirror writes inside the archive directory. Container-internal path under /data."}
+              >
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="text"
+                    value={workspacePath}
+                    onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
+                    placeholder={DEFAULT_WORKSPACE_PATH}
+                    style={{ flex: 1 }}
+                  />
+                  <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)} style={{ whiteSpace: "nowrap" }}>
+                    Browse…
+                  </Button>
+                </div>
+              </FieldLabelWithInfo>
+            )}
             {mode !== "mirrorToMirror" && (
               <FieldLabelWithInfo
                 label="Cache directory"
@@ -802,13 +806,19 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                     {meta.startedAt && meta.finishedAt ? (
                       <p><strong>Elapsed:</strong> {Math.round((meta.finishedAt - meta.startedAt) / 1000)}s</p>
                     ) : null}
+                    {meta.fullCommand ? (
+                      <div style={{ marginTop: 8 }}>
+                        <strong>Command:</strong>
+                        <pre style={{ marginTop: 4, padding: "6px 10px", background: "var(--code-bg)", color: "var(--code-color)", borderRadius: 4, fontSize: "0.78rem", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{meta.fullCommand}</pre>
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
                 <p className="note subtle" style={{ marginTop: 8 }}>
                   To continue manually, use the paths above. Run oc-mirror from the command line with the same
                   workspace and cache for incremental runs.
                 </p>
-                <Button variant="ghost" onClick={goToOperations} style={{ marginTop: 8 }}>
+                <Button variant="ghost" onClick={() => goToOperations(lastRunJob?.id)} style={{ marginTop: 8 }}>
                   View full logs in Operations
                 </Button>
               </div>
@@ -877,7 +887,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 </>
               )}
               <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-                <Button variant="ghost" onClick={() => { setOcMirrorCompleteModal(null); goToOperations(); }}>View logs in Operations</Button>
+                <Button variant="ghost" onClick={() => { setOcMirrorCompleteModal(null); goToOperations(job.id); }}>View logs in Operations</Button>
                 <Button variant="primary" onClick={() => setOcMirrorCompleteModal(null)}>Dismiss</Button>
               </div>
             </div>
