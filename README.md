@@ -9,7 +9,7 @@ OpenShift Airgap Architect guides you through scenario-based configuration (Bare
 - **install-config.yaml** — Installer input for your chosen platform
 - **agent-config.yaml** — For Bare Metal + Agent-Based Installer only
 - **imageset-config.yaml** — oc-mirror v2 format for mirroring release and operator content
-- **FIELD_MANUAL.md** — A tailored markdown guide with version-specific notes and doc links
+- **FIELD_MANUAL.md** — A compartmentalized, scenario-specific field guide with numbered, actionable sections drawn from OCP 4.17–4.20 documentation, tailored to your exact configuration (platform, connectivity, FIPS, proxy, NTP, mirroring, operators, and specific values like cluster name, VIPs, and registry FQDN). Each section cites official Red Hat doc sources.
 - **NTP MachineConfigs** — When NTP servers are set (e.g. `99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`)
 
 The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns generated YAML with the docs for the selected version.
@@ -27,6 +27,8 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion. Helpers generate pull secrets and SSH keypairs locally and are not stored (see [Identity & Access](#screenshots) and [Mirror secret helper](#screenshots)).
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
+- **Run oc-mirror** — Built-in tab to run oc-mirror v2 directly from the app (mirror-to-disk, disk-to-mirror, mirror-to-mirror workflows; per-run credentials; preflight checks; live job streaming to Operations)
+- **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
 
 ## Quick start (container)
@@ -37,7 +39,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 docker compose up --build
 ```
 
-**Podman:** Use **`podman compose`** (Compose V2), the same `docker-compose.yml` (one file for both Docker and Podman); so build and run use the same daemon and you avoid “image not known” after build:
+**Podman:** Use **`podman compose`** (Compose V2), the same `docker-compose.yml` (one file for both Docker and Podman); so build and run use the same daemon and you avoid "image not known" after build:
 
 ```bash
 podman compose up --build
@@ -46,6 +48,20 @@ podman compose up --build
 If your system only has `podman-compose` (Python), use that; the project does not ship a separate `podman-compose.yml`.
 
 Then open the UI at **http://localhost:5173** (ports are bound to localhost by default; see [Container run](#container-run) to change that).
+
+### Rebuild and restart (preserving data)
+
+The command flow to cleanly rebuild and restart the stack while keeping all existing state:
+
+```bash
+# Podman
+podman compose down --remove-orphans && podman image prune -f && podman compose up --build -d
+
+# Docker
+docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
+```
+
+The `backend-data` named volume is preserved unless you explicitly pass `-v` to `compose down`. All app state (wizard configuration, job history) lives in that volume.
 
 ### SELinux (Podman on Fedora/RHEL)
 
@@ -102,7 +118,7 @@ So the backend does **not** run the application as root; root is used only brief
 ### Same-host vs remote access
 
 - **Same-host:** Using the app on the same machine where Compose runs: leave `VITE_API_BASE` as `http://localhost:4000`. The frontend is built with this URL, so the browser (on the same host) can reach the backend at localhost:4000.
-- **Remote access:** To use the UI from another machine (e.g. laptop to dev server), (1) expose ports on the host by changing port mappings to `0.0.0.0:5173:5173` and `0.0.0.0:4000:4000`, and (2) set `VITE_API_BASE` to the URL where the backend is reachable from the **client** browser (e.g. `http://<host-ip-or-name>:4000`). The frontend container reads this at startup; if you keep `VITE_API_BASE=http://localhost:4000`, API calls from a remote browser will go to the client’s localhost and fail. Override the env when starting the stack (e.g. `VITE_API_BASE=http://192.168.1.10:4000 docker compose up`) or in a compose override file.
+- **Remote access:** To use the UI from another machine (e.g. laptop to dev server), (1) expose ports on the host by changing port mappings to `0.0.0.0:5173:5173` and `0.0.0.0:4000:4000`, and (2) set `VITE_API_BASE` to the URL where the backend is reachable from the **client** browser (e.g. `http://<host-ip-or-name>:4000`). The frontend container reads this at startup; if you keep `VITE_API_BASE=http://localhost:4000`, API calls from a remote browser will go to the client's localhost and fail. Override the env when starting the stack (e.g. `VITE_API_BASE=http://192.168.1.10:4000 docker compose up`) or in a compose override file.
 
 ### Running behind a reverse proxy or OpenShift Route
 
@@ -115,25 +131,25 @@ When users reach the app through a **different hostname** than the one the front
 1. **Set `VITE_ALLOWED_HOSTS`** to the exact hostname (or hostnames) that users type in the browser.
    - **One host:** `VITE_ALLOWED_HOSTS=airgap-architect.example.com`
    - **Several hosts:** Comma-separated, no spaces: `VITE_ALLOWED_HOSTS=app.example.com,airgap-architect.example.com`
-   - Use the same value that appears in the browser’s address bar (including subdomain). Do not include `https://` or a path—only the hostname.
+   - Use the same value that appears in the browser's address bar (including subdomain). Do not include `https://` or a path—only the hostname.
 
 2. **Where to set it** depends on how you run the app:
-   - **Docker Compose / Podman Compose:** Add to the `frontend` service in `docker-compose.yml` under `environment`, or pass it when starting:  
+   - **Docker Compose / Podman Compose:** Add to the `frontend` service in `docker-compose.yml` under `environment`, or pass it when starting:
      `VITE_ALLOWED_HOSTS=airgap-architect.example.com docker compose up --build`
    - **OpenShift (Deployment, DeploymentConfig, etc.):** Add an environment variable to the **frontend** container spec:
      - **Name:** `VITE_ALLOWED_HOSTS`
-     - **Value:** The hostname of your Route (e.g. `airgap-architect.cjmays.com`). You can find it in the OpenShift console under **Networking → Routes** for your app, or in the Route’s **Host** field.
-   - **Kubernetes:** Set `VITE_ALLOWED_HOSTS` in the frontend Pod/Deployment’s env (e.g. `env` or `envFrom`).
-   - **Local dev (npm run dev):** Export before starting, e.g.  
+     - **Value:** The hostname of your Route (e.g. `airgap-architect.cjmays.com`). You can find it in the OpenShift console under **Networking → Routes** for your app, or in the Route's **Host** field.
+   - **Kubernetes:** Set `VITE_ALLOWED_HOSTS` in the frontend Pod/Deployment's env (e.g. `env` or `envFrom`).
+   - **Local dev (npm run dev):** Export before starting, e.g.
      `export VITE_ALLOWED_HOSTS=my-app.mycompany.com` then `npm run dev`, or pass inline: `VITE_ALLOWED_HOSTS=my-app.mycompany.com npm run dev`.
 
-3. **If the UI still can’t reach the backend**, you are likely using a reverse proxy or Route for the **frontend** only. The browser then needs to call the backend at a URL it can reach (often the same host with a path, or a separate backend host). Set **`VITE_API_BASE`** to that URL (e.g. `https://airgap-architect.example.com/api` if your proxy forwards `/api` to the backend, or `https://airgap-architect-backend.example.com` if the backend has its own hostname). The frontend container reads both `VITE_ALLOWED_HOSTS` and `VITE_API_BASE` at startup; rebuild or restart the frontend after changing them.
+3. **If the UI still can't reach the backend**, you are likely using a reverse proxy or Route for the **frontend** only. The browser then needs to call the backend at a URL it can reach (often the same host with a path, or a separate backend host). Set **`VITE_API_BASE`** to that URL (e.g. `https://airgap-architect.example.com/api` if your proxy forwards `/api` to the backend, or `https://airgap-architect-backend.example.com` if the backend has its own hostname). The frontend container reads both `VITE_ALLOWED_HOSTS` and `VITE_API_BASE` at startup; rebuild or restart the frontend after changing them.
 
 4. **Security note:** Only add hostnames you control and that users are supposed to use. Leaving `VITE_ALLOWED_HOSTS` unset is safe for local use (localhost remains allowed). For production-like deployments behind a proxy or Route, setting it to your actual hostname(s) is the intended approach.
 
 ## Updating the app
 
-When the Landing page or **Tools → About** shows that an update is available, follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment. Build info and update checks depend on how the image was built (see [Build info and update checks](#build-info-and-update-checks)); builds from a git clone get real SHA/time; builds from a tarball without `.git` show “unknown” and cannot report update availability.
+When the Landing page or **Tools → About** shows that an update is available, follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment. Build info and update checks depend on how the image was built (see [Build info and update checks](#build-info-and-update-checks)); builds from a git clone get real SHA/time; builds from a tarball without `.git` show "unknown" and cannot report update availability.
 
 ## Generating assets
 
@@ -161,6 +177,144 @@ When the Landing page or **Tools → About** shows that an update is available, 
 
 - **Optional:** In the Operators step you can paste a Red Hat pull secret; it is used only for the scan, not stored, and is cleared on **Start Over**.
 - Scans can take several minutes; navigation does not cancel running jobs. Use the Operations step to view logs and clear completed jobs.
+
+## Run oc-mirror
+
+The **Run oc-mirror** tab lets you run oc-mirror v2 directly from the app against the generated (or an external) `imageset-config.yaml`. oc-mirror runs as a background job inside the backend container. You can stream its output and manage the job from the Operations tab.
+
+### Workflows
+
+Three workflows are supported. The correct choice depends on whether the machine running the app has direct internet access to Red Hat registries:
+
+| Workflow | When to use | Steps |
+|---|---|---|
+| **Step 1 — Mirror to disk** | Fully disconnected: internet side | Pulls from Red Hat → writes tar archives + working-dir to a local path |
+| **Step 2 — Disk to mirror** | Fully disconnected: disconnected side | Reads tar archives from a local path → pushes to your mirror registry |
+| **Mirror to mirror** | Machine has access to both Red Hat and the registry | Pulls from Red Hat → pushes directly to mirror registry in one step |
+
+For **fully disconnected** environments: run Step 1 on an internet-connected machine, physically transfer the archive directory (and working-dir) across the air gap, then run Step 2 on or near the disconnected registry. Mirror-to-mirror is for jumpbox or partially connected scenarios.
+
+### Credentials per workflow
+
+| Workflow | Credentials needed |
+|---|---|
+| Mirror to disk | Red Hat pull secret (registry.redhat.io / quay.io) |
+| Disk to mirror | Mirror registry credentials only |
+| Mirror to mirror | Both Red Hat pull secret + mirror registry credentials (combined into a single auth file) |
+
+The Authentication section on the Run oc-mirror tab is conditionally rendered based on which workflow is selected and what credentials are already available from earlier steps (Blueprint retained pull secret, Identity & Access mirror registry credentials).
+
+### Storage: archive, workspace, and cache paths
+
+oc-mirror requires three directories inside the backend container:
+
+| Path (container-internal) | Default | Purpose | Typical size |
+|---|---|---|---|
+| **Archive** | `/data/oc-mirror/archives` | Mirror-to-disk: destination for tar archives and working-dir. Disk-to-mirror: source for those archives. | 50–200+ GB per OCP release + operators |
+| **Workspace** | `/data/oc-mirror/workspace` | oc-mirror metadata, cluster-resources, logs (`working-dir/`). Keep between runs for incremental mirroring (`--since`). | 1–5 GB |
+| **Cache** | `/data/oc-mirror/cache` | Image layer cache. Safe to delete (rebuilds automatically); keeping it saves significant time on re-runs. Not used in mirror-to-mirror mode. | 5–50+ GB |
+
+All three paths live inside the `backend-data` Docker/Podman named volume by default. For large mirrors (50–200+ GB archives), the default named volume likely lacks space. **Mount external storage** instead.
+
+### Mounting external storage for oc-mirror (recommended for large mirrors)
+
+Create a `compose.override.yml` file in the same directory as `docker-compose.yml`:
+
+```yaml
+# compose.override.yml
+services:
+  backend:
+    volumes:
+      - /path/to/large-drive/oc-mirror:/data/oc-mirror
+```
+
+Replace `/path/to/large-drive/oc-mirror` with a path on your host that has enough space (plan for 50–200+ GB minimum for a single OCP release + common operators). You can also mount individual subdirectories if your storage is split across drives:
+
+```yaml
+# compose.override.yml (split storage example)
+services:
+  backend:
+    volumes:
+      - /mnt/fast-ssd/oc-mirror/archives:/data/oc-mirror/archives
+      - /mnt/fast-ssd/oc-mirror/workspace:/data/oc-mirror/workspace
+      - /mnt/fast-ssd/oc-mirror/cache:/data/oc-mirror/cache
+```
+
+Then rebuild and restart the stack:
+
+```bash
+# Podman
+podman compose down --remove-orphans && podman image prune -f && podman compose up --build -d
+
+# Docker
+docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
+```
+
+The named `backend-data` volume (app state, SQLite database) is **preserved** — only the `oc-mirror` subpaths are now served from your external mount. Compose merges `docker-compose.yml` and `compose.override.yml` automatically; you don't need to modify `docker-compose.yml` directly.
+
+**SELinux note (Podman on Fedora/RHEL):** Add `:Z` to the volume mount if you get permission errors:
+
+```yaml
+      - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
+```
+
+### Mounting a Red Hat pull secret for oc-mirror (persistent, no paste required)
+
+If you want oc-mirror to authenticate to Red Hat registries without pasting a pull secret on every run, mount your pull secret JSON and set `REGISTRY_AUTH_FILE`:
+
+```yaml
+# compose.override.yml
+services:
+  backend:
+    environment:
+      - REGISTRY_AUTH_FILE=/data/registry-auth.json
+    volumes:
+      - /path/to/your/pull-secret.json:/data/registry-auth.json:Z
+      - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
+```
+
+The `REGISTRY_AUTH_FILE` variable is already declared in `docker-compose.yml` pointing at `/data/registry-auth.json`; you only need to mount the file there. This also satisfies the "retain Red Hat pull secret" option in the Blueprint tab — the mounted file is available to both the Operators scan and the Run oc-mirror tab.
+
+Alternatively, on the Blueprint step check **"Retain pull secret for this session"** after entering your Red Hat pull secret. The session-retained secret is then available as a one-click option in the Run oc-mirror Authentication section for the mirror-to-disk and mirror-to-mirror workflows.
+
+### Running oc-mirror without Compose (local / standalone)
+
+If you're running the backend directly (not via Compose), ensure:
+
+1. The backend process has write access to the archive, workspace, and cache directories you configure.
+2. Set `DATA_DIR` to a path with sufficient space (or configure paths individually in the Run oc-mirror tab).
+3. Any pull secret you need is either mounted at `REGISTRY_AUTH_FILE`, retained from Blueprint, or pasted directly in the Authentication section.
+
+```bash
+DATA_DIR=/mnt/large-drive/airgap-data \
+REGISTRY_AUTH_FILE=/mnt/large-drive/airgap-data/registry-auth.json \
+  cd backend && npm run dev
+```
+
+Then configure the archive, workspace, and cache paths in the Run oc-mirror tab to point inside `DATA_DIR` (e.g. `/mnt/large-drive/airgap-data/oc-mirror/archives`).
+
+### After a successful mirror-to-disk run
+
+When the run completes, a summary modal appears automatically showing:
+- Elapsed time
+- Archive directory path (inside the container)
+- Next-step instructions
+
+The archive directory contains tar archives and a `working-dir/` subdirectory. **You must transfer the entire archive directory** (not just the tar files — oc-mirror needs `working-dir/` for disk-to-mirror) to the disconnected side, along with your other deliverables (install-config, agent-config, field manual, cluster-resources).
+
+To find the archive on your host when using Compose with the default named volume:
+
+```bash
+# Podman
+podman volume inspect openshift-airgap-architect_backend-data
+
+# Docker
+docker volume inspect openshift-airgap-architect_backend-data
+```
+
+Look for the `Mountpoint` field — that host directory corresponds to `/data` inside the container. The archives will be at `<Mountpoint>/oc-mirror/archives/`.
+
+If you used a `compose.override.yml` mount (recommended for large mirrors), the archives are at the host path you specified directly.
 
 ## Mock mode (offline demo)
 
@@ -199,7 +353,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 
 **Wiring examples:**
 
-- **Podman Compose / Docker Compose:** The backend image computes **APP_GIT_SHA** and **APP_BUILD_TIME** from **.git** during the image build (see `backend/Containerfile`). Run **`podman compose up --build`** from a **git clone** (with `.git` present) and Tools → About will show the current commit and build time. **If you build from a tarball or snapshot that has no `.git` directory**, the image cannot determine build SHA or time, so Tools → About will show “Build unknown • unknown • main” and update availability cannot be determined (update check will show as unavailable). That is expected behavior, not a bug. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
+- **Podman Compose / Docker Compose:** The backend image computes **APP_GIT_SHA** and **APP_BUILD_TIME** from **.git** during the image build (see `backend/Containerfile`). Run **`podman compose up --build`** from a **git clone** (with `.git` present) and Tools → About will show the current commit and build time. **If you build from a tarball or snapshot that has no `.git` directory**, the image cannot determine build SHA or time, so Tools → About will show "Build unknown • unknown • main" and update availability cannot be determined (update check will show as unavailable). That is expected behavior, not a bug. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
 
 - **Docker / Podman run:** Pass at start:
   ```bash
@@ -222,15 +376,17 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
       value: "2025-03-03"
   ```
 
-**Git clone vs tarball:** Builds from a normal **git clone** (with `.git`) get real build SHA and time; Tools → About and update checks work as intended. Builds from a **tarball or archive without `.git`** get “unknown” build info and cannot determine update availability; that is expected. No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
+**Git clone vs tarball:** Builds from a normal **git clone** (with `.git`) get real build SHA and time; Tools → About and update checks work as intended. Builds from a **tarball or archive without `.git`** get "unknown" build info and cannot determine update availability; that is expected. No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
 
 ## Troubleshooting
 
 - **"Blocked request. This host ("…") is not allowed"** — You are running the Vite dev server (e.g. in a container or locally) and opening the app using a hostname that Vite does not allow by default (for example an OpenShift Route hostname like `airgap-architect.cjmays.com`). Set the environment variable **`VITE_ALLOWED_HOSTS`** to that hostname so the dev server accepts the request. Example: `VITE_ALLOWED_HOSTS=airgap-architect.cjmays.com`. For multiple hostnames, use a comma-separated list with no spaces. See [Running behind a reverse proxy or OpenShift Route](#running-behind-a-reverse-proxy-or-openshift-route) for where to set it (Compose, OpenShift, Kubernetes, or local dev) and how to confirm the correct hostname.
-- **“additional properties 'platform' not allowed”** — You’re using the Python **`docker-compose`** with an old schema. Prefer **`podman compose`** so Podman doesn’t delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container). On macOS, see also the compose-provider workaround in `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md` or CONTRIBUTING.
-- **“no such image” or “image not known” after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
+- **"additional properties 'platform' not allowed"** — You're using the Python **`docker-compose`** with an old schema. Prefer **`podman compose`** so Podman doesn't delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container). On macOS, see also the compose-provider workaround in `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md` or CONTRIBUTING.
+- **"no such image" or "image not known" after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
 - **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). If the job fails with a message about the binary not running, the backend runtime architecture may not have a usable oc-mirror (e.g. Apple Silicon: use native aarch64 binary or set **OC_MIRROR_BIN** / **OC_MIRROR_URL**). See **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`.
+- **oc-mirror run fails with auth error** — Ensure the correct credentials are provided for the selected workflow. Mirror-to-disk needs a Red Hat pull secret (registry.redhat.io / quay.io); disk-to-mirror needs mirror registry credentials; mirror-to-mirror needs both. If using `REGISTRY_AUTH_FILE`, verify the file is mounted and accessible inside the container.
+- **oc-mirror archives not found on host** — If using the default named volume, use `podman volume inspect openshift-airgap-architect_backend-data` (or `docker volume inspect`) to find the volume mountpoint on the host. For large mirrors, use `compose.override.yml` to bind-mount a host path instead; see [Mounting external storage for oc-mirror](#mounting-external-storage-for-oc-mirror-recommended-for-large-mirrors).
 - **Cincinnati or docs stale** — Use **Update** (release channels) or **Update Docs Links** (field manual links) in the UI; the backend refreshes caches on demand.
 - **Validation errors on a step** — Required fields are marked; check Identity & Access (pull secret, SSH key), Networking (CIDRs), and Platform Specifics for your scenario.
 - **SELinux denials (Podman)** — Use `:Z` on volume mounts or adjust context as needed for your host.
@@ -243,7 +399,7 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 
 ![Landing page: Install, Upgrade, Operator mirroring cards](docs/images/landing.png?v=2)
 
-**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret.
+**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret. Check "Retain pull secret for this session" to make it available for operator scan and Run oc-mirror without re-pasting.
 
 ![Blueprint: platform, architecture, release, pull secret](docs/images/blueprint.png?v=2)
 
@@ -307,7 +463,7 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 
 ![imageset-config.yaml preview](docs/images/imageset-config-preview.png)
 
-**Tools menu.** Theme (dark mode), Export Run / Import Run, Open Operations (background jobs), and Start Over.
+**Tools menu.** Theme (light/dark mode toggle), Export Run / Import Run, Open Operations (background jobs), and Start Over.
 
 ![Tools: theme, export/import, operations, start over](docs/images/tools-menu.png)
 
