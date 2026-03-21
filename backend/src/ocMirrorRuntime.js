@@ -12,7 +12,6 @@ import { pipeline } from "node:stream/promises";
 const MIRROR_BASE = "https://mirror.openshift.com/pub/openshift-v4";
 const BAKED_IN_OC = "/usr/local/bin/oc";
 const BAKED_IN_OC_MIRROR = "/usr/local/bin/oc-mirror";
-const BAKED_IN_ARCH = "x86_64";
 
 /** Normalize runtime arch to a canonical name for mirror paths. */
 function normalizeRuntimeArch(arch) {
@@ -25,6 +24,8 @@ function normalizeRuntimeArch(arch) {
   if (s === "x86_64") return "x86_64";
   return null;
 }
+
+const BAKED_IN_ARCH = normalizeRuntimeArch(process.arch) || "x86_64";
 
 /** Get current runtime architecture (Node process.arch). */
 function getRuntimeArch() {

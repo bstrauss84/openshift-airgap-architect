@@ -411,20 +411,21 @@ const AppShell = () => {
     setHighlightErrors(hasErrors);
   }, [active, visibleSteps, state]);
 
-  // Sync active step index from persisted activeStepId only once when state first loads (e.g. from API), so we land on the correct step without undoing user navigation.
-  const hasSyncedActiveFromState = useRef(false);
+  // Sync active step index from persisted activeStepId. Fires on every change so programmatic
+  // navigation (e.g. "View full logs in Operations") actually moves the user to the target step.
+  const lastSyncedActiveStepId = useRef(null);
   useEffect(() => {
     if (!state?.ui?.activeStepId || !visibleSteps.length) return;
-    if (hasSyncedActiveFromState.current) return;
+    if (state.ui.activeStepId === lastSyncedActiveStepId.current) return;
     const currentStepId = visibleSteps[active]?.id;
     if (state.ui.activeStepId === currentStepId) {
-      hasSyncedActiveFromState.current = true;
+      lastSyncedActiveStepId.current = state.ui.activeStepId;
       return;
     }
     const idx = visibleSteps.findIndex((s) => s.id === state.ui.activeStepId);
     if (idx >= 0) {
       setActive(idx);
-      hasSyncedActiveFromState.current = true;
+      lastSyncedActiveStepId.current = state.ui.activeStepId;
     }
   }, [state?.ui?.activeStepId, visibleSteps, active]);
 

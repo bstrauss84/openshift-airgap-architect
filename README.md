@@ -385,15 +385,47 @@ With no registry access, run with bundled Cincinnati and operator data:
 MOCK_MODE=true docker compose up --build
 ```
 
-## Platform and architecture (Apple Silicon / non-x86_64)
+## Platform and architecture (multi-arch / Apple Silicon)
 
-**Operators scan** uses a local **oc-mirror** binary inside the backend container. The binary is chosen to match the **backend container runtime architecture** (not the Blueprint/target cluster architecture). The default backend image bakes in **x86_64** `oc`/`oc-mirror`, so **Operator scan works out of the box on amd64/x86_64 Linux**. On **Apple Silicon (aarch64)** the backend runs natively as arm64; the app can auto-download native aarch64 binaries from the OpenShift mirror, or you can provide your own via **`OC_MIRROR_BIN`** or **`OC_MIRROR_URL`** (overrides, not required for standard x86_64 users).
+**The backend image builds natively for the host architecture.** `Containerfile` detects `$(uname -m)` at build time and downloads the matching `oc`/`oc-mirror` binaries (x86_64, aarch64, ppc64le, s390x). No `platform: linux/amd64` override is needed — Apple Silicon users get a native aarch64 image that runs without emulation.
 
-- **Mirror path pattern:** `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/latest/` (e.g. `oc-mirror.tar.gz`, `openshift-client-linux.tar.gz`). Supported `<arch>`: x86_64, amd64, aarch64, arm64, ppc64le, s390x.
-- **Apple Silicon:** Prefer a **native aarch64** oc-mirror (auto-download or mount a binary and set **`OC_MIRROR_BIN=/opt/tools/oc-mirror`**). Do not use forced linux/amd64 emulation; it was removed because oc-mirror segfaults under emulation.
-- **Export bundle:** The Assets step can include oc/oc-mirror in the download bundle; you can select which **architecture** to include (default: reuse the backend's local binaries when the selected arch matches). That selection does not change the backend's Operators scan binary.
+- **Supported build architectures:** x86_64 (amd64), aarch64 (arm64), ppc64le, s390x.
+- **Custom binary URLs:** Pass `--build-arg OCP_CLIENT_URL=<url>` and/or `--build-arg OCP_MIRROR_URL=<url>` to override the auto-detected download URLs at build time.
+- **Runtime override:** Set **`OC_MIRROR_BIN`** to a path or **`OC_MIRROR_URL`** to a download URL to override the baked-in binary at runtime without rebuilding.
+- **Mirror path pattern:** `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/latest/` — Supported `<arch>`: x86_64, amd64, aarch64, arm64, ppc64le, s390x.
+- **Export bundle:** The Assets step can include oc/oc-mirror in the download bundle; you can select which architecture to include (default: reuse the backend's local binaries when the selected arch matches). That selection does not change the backend's Operators scan binary.
 
 See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Podman/macOS notes.
+
+## Mounted Red Hat pull secret
+
+In pipeline or hardened-container environments you can pre-mount a Red Hat pull secret file into the backend container instead of pasting it in the UI each session.
+
+**Detection priority (first match wins):**
+1. `PULL_SECRET_FILE` env var — explicit path override
+2. `/run/secrets/pull-secret` — Docker/Podman native `--secret` mount
+3. `/data/pull-secret.json` — bind-mount into the data directory
+4. `~/.openshift/pull-secret` — `oc` CLI default location (non-container dev runs)
+
+The file must be valid JSON with an `.auths` key containing at least one Red Hat registry entry (`registry.redhat.io`, `quay.io`, `cloud.openshift.com`, or `registry.connect.redhat.com`).
+
+When a mounted secret is detected:
+- **Blueprint step** — the pull secret field is pre-populated automatically (you can override or clear it).
+- **Run oc-mirror step** — a "Use mounted Red Hat pull secret" option appears in the Authentication section for `mirrorToDisk` and `mirrorToMirror` modes.
+- The secret is **never stored to disk or database** — it is held in memory only for the lifetime of the backend process.
+
+**Example `compose.override.yml`** to mount a pull secret:
+```yaml
+services:
+  backend:
+    environment:
+      - PULL_SECRET_FILE=/run/secrets/pull-secret
+    secrets:
+      - pull-secret
+secrets:
+  pull-secret:
+    file: /home/user/pull-secret.json
+```
 
 ## Build info and update checks
 

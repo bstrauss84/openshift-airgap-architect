@@ -54,6 +54,31 @@ warmCincinnatiCache();
 
 const activeProcesses = new Map();
 
+// Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
+let mountedRhPullSecret = null;
+
+function detectMountedPullSecret() {
+  const candidates = [
+    process.env.PULL_SECRET_FILE,
+    "/run/secrets/pull-secret",
+    path.join(dataDir, "pull-secret.json"),
+    path.join(process.env.HOME || "/root", ".openshift", "pull-secret"),
+  ].filter(Boolean);
+  const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "registry.connect.redhat.com"];
+  for (const p of candidates) {
+    try {
+      const raw = fs.readFileSync(p, "utf8").trim();
+      const parsed = JSON.parse(raw);
+      if (parsed?.auths && RH_REGISTRIES.some((r) => parsed.auths[r])) {
+        mountedRhPullSecret = raw;
+        console.log(`[startup] Mounted Red Hat pull secret detected at: ${p}`);
+        return;
+      }
+    } catch { /* continue */ }
+  }
+}
+detectMountedPullSecret();
+
 const defaultState = () => ({
   runId: nanoid(),
   blueprint: {
@@ -210,7 +235,21 @@ const defaultState = () => ({
     archivePath: path.join(dataDir, "oc-mirror", "archives"),
     workspacePath: path.join(dataDir, "oc-mirror", "workspace"),
     cachePath: path.join(dataDir, "oc-mirror", "cache"),
-    includeInExport: false
+    includeInExport: false,
+    mode: "mirrorToDisk",
+    configSourceType: "generated",
+    configPath: "",
+    registryUrl: "",
+    dryRun: false,
+    logLevel: "info",
+    parallelImages: 4,
+    parallelLayers: 5,
+    imageTimeout: "10m",
+    retryTimes: 2,
+    retryDelay: "1s",
+    since: "",
+    strictArchive: false,
+    lastRunJobId: null
   },
   ui: {
     activeStepId: "blueprint",
@@ -541,6 +580,16 @@ app.post("/api/state", (req, res) => {
   }
   const merged = updateState(patch);
   res.json(merged);
+});
+
+// Mounted Red Hat pull secret endpoints
+app.get("/api/secrets/rh-pull-secret", (req, res) => {
+  res.json({ available: Boolean(mountedRhPullSecret) });
+});
+
+app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
+  if (!mountedRhPullSecret) return res.status(404).json({ error: "No mounted pull secret." });
+  res.json({ pullSecret: mountedRhPullSecret });
 });
 
 app.post("/api/start-over", (req, res) => {
@@ -932,7 +981,8 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
   const registryUrl = body.registryUrl?.trim() || "";
   const configSourceType = body.configSourceType || "generated";
   const configPath = body.configPath?.trim() || "";
-  const rhPullSecret = body.rhPullSecret;
+  const rhAuthSource = body.rhAuthSource;
+  const rhPullSecret = rhAuthSource === "mounted" ? mountedRhPullSecret : body.rhPullSecret;
   const mirrorAuthSource = body.mirrorAuthSource || "reuse";
   const mirrorPullSecret = body.mirrorPullSecret;
   const minBytes = Number(body.minBytes || 0);
@@ -1175,7 +1225,7 @@ app.post("/api/ocmirror/run", async (req, res) => {
   const registryUrl = body.registryUrl?.trim() || (registryFqdn ? `docker://${registryFqdn}` : "");
   const configSourceType = body.configSourceType || "generated";
   const configPathExternal = body.configPath?.trim();
-  const rhPullSecretRaw = body.rhPullSecret;
+  const rhPullSecretRaw = body.rhAuthSource === "mounted" ? mountedRhPullSecret : body.rhPullSecret;
   const mirrorAuthSource = body.mirrorAuthSource || "reuse";
   const mirrorPullSecretRaw = body.mirrorPullSecret;
   const advanced = body.advanced && typeof body.advanced === "object" ? body.advanced : {};

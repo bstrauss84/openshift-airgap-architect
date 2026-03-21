@@ -44,6 +44,7 @@ const BlueprintStep = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNote, setRefreshNote] = useState("");
   const [updatedMessage, setUpdatedMessage] = useState(false);
+  const [mountedSecretBadge, setMountedSecretBadge] = useState(false);
   /** After a forced patch refresh, skip the release.channel effect once so it does not overwrite POST results with a stale GET. */
   const skipChannelPatchFetchRef = useRef(false);
   const blueprintPullSecretRaw = state.blueprint?.blueprintPullSecretEphemeral ?? "";
@@ -69,6 +70,22 @@ const BlueprintStep = () => {
       updateState({ blueprint: { ...blueprint, arch: "x86_64", confirmed: false, confirmationTimestamp: null } });
     }
   }, [blueprint?.platform]);
+
+  // Check for a mounted Red Hat pull secret and pre-populate if the field is empty and not locked.
+  useEffect(() => {
+    if (locked || blueprintPullSecretTrimmed) return;
+    apiFetch("/api/secrets/rh-pull-secret")
+      .then((d) => {
+        if (!d.available) return;
+        return apiFetch("/api/secrets/rh-pull-secret/content").then((c) => {
+          if (c.pullSecret) {
+            updateBlueprint({ blueprintPullSecretEphemeral: c.pullSecret });
+            setMountedSecretBadge(true);
+          }
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const updateVersionSelection = (patch) => {
     updateState({
@@ -327,11 +344,28 @@ const BlueprintStep = () => {
 
         <section className="card pull-secret-section">
           <h3>Red Hat pull secret</h3>
+          {mountedSecretBadge && blueprintPullSecretTrimmed && (
+            <div style={{
+              display: "inline-block",
+              marginBottom: 10,
+              padding: "4px 10px",
+              borderRadius: 4,
+              fontSize: "0.8rem",
+              background: "var(--card-bg-subtle, var(--card-bg))",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-subtle)"
+            }}>
+              Pre-populated from a mounted pull secret file — you can override or clear this.
+            </div>
+          )}
           <div className="pull-secret-layout">
             <div className="pull-secret-left">
               <SecretInput
                 value={blueprintPullSecretRaw}
-                onChange={(v) => updateBlueprint({ blueprintPullSecretEphemeral: v })}
+                onChange={(v) => {
+                  if (!v.trim()) setMountedSecretBadge(false);
+                  updateBlueprint({ blueprintPullSecretEphemeral: v });
+                }}
                 label="Pull secret (JSON)"
                 labelEmphasis="Pull secret (JSON)"
                 labelHint="Not stored or exported. Optional; required only if you plan to include Operators in your mirror."
