@@ -754,7 +754,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               <div className="field-grid" style={{ marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Subnet UUID(s)"
-                  hint={`${metaNutanixSubnet?.description || "Subnet UUID or name for the cluster network."} Comma-separate multiple values for multi-subnet environments.`}
+                  hint="UUID or name of the Nutanix subnet (network segment/VLAN) where the installer creates OpenShift VMs. This is a Nutanix infrastructure identifier, not an IP range — IP address ranges are configured as Machine/Cluster/Service network CIDRs in the Networking step. Comma-separate multiple UUIDs for multi-subnet environments."
                   required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
                 >
                   <input
@@ -989,7 +989,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="VM network (required for legacy path)"
-                    hint="Single VM network name for legacy placement; must contain the virtual IPs and DNS records. 4.20 doc: one network for legacy path."
+                    hint="vCenter network (port group or DPG) name where the installer attaches VM NICs. Must contain the virtual IPs and DNS records. Not an IP range — IP address ranges are set in the Networking step."
                   >
                     <input
                       value={platformConfig.vsphere?.network || ""}
@@ -1043,7 +1043,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="Datastore path" />
                         </label>
                         <label>
-                          <FieldLabelWithInfo label="Topology: Networks (comma delimited)" hint="4.20 doc: array of network name strings. Enter one or more VM network names separated by commas; e.g. VM Network or VM Network, DPG-1." />
+                          <FieldLabelWithInfo label="Topology: Networks (comma delimited)" hint="One or more vCenter port group or Distributed Port Group (DPG) names that the installer connects OpenShift VM NICs to. These are vSphere network object names (e.g. 'VM Network', 'DPG-OCP'), not IP ranges — IP address ranges are configured as Machine/Cluster/Service network CIDRs in the Networking step. Comma-separate multiple names." />
                           <input value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")} onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()) })} placeholder="e.g. VM Network or VM Network, DPG-1" />
                         </label>
                         <div style={{ gridColumn: "1 / -1" }}>
