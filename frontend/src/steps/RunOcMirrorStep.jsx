@@ -71,10 +71,11 @@ export default function RunOcMirrorStep() {
   const [runError, setRunError] = React.useState(null);
   const [browseOpen, setBrowseOpen] = React.useState(false);
   const [browseTarget, setBrowseTarget] = React.useState(null);
-  const [browsePath, setBrowsePath] = React.useState("/data");
+  const [browsePath, setBrowsePath] = React.useState("/");
   const [browseEntries, setBrowseEntries] = React.useState([]);
   const [browseLoading, setBrowseLoading] = React.useState(false);
   const [browseError, setBrowseError] = React.useState(null);
+  const [browseMissingNotice, setBrowseMissingNotice] = React.useState(null);
 
   const updateMirrorWorkflow = useCallback(
     (patch) => updateState({ mirrorWorkflow: { ...mw, ...patch } }),
@@ -86,16 +87,20 @@ export default function RunOcMirrorStep() {
   };
 
   const openBrowse = async (target, currentPath) => {
-    const startPath = currentPath || "/data";
+    const startPath = currentPath || "/";
     setBrowseTarget(target);
     setBrowsePath(startPath);
     setBrowseOpen(true);
     setBrowseError(null);
+    setBrowseMissingNotice(null);
     setBrowseLoading(true);
     try {
       const result = await apiFetch(`/api/fs/ls?path=${encodeURIComponent(startPath)}`);
       setBrowseEntries(result.entries || []);
       setBrowsePath(result.path);
+      if (result.requestedMissing) {
+        setBrowseMissingNotice(`"${result.requestedPath}" doesn't exist yet — showing nearest parent. You can still select any path or navigate here and use "Select this directory" to set it.`);
+      }
     } catch (err) {
       setBrowseError(err.message || "Could not list directory.");
       setBrowseEntries([]);
@@ -106,6 +111,7 @@ export default function RunOcMirrorStep() {
 
   const navigateBrowse = async (newPath) => {
     setBrowseError(null);
+    setBrowseMissingNotice(null);
     setBrowseLoading(true);
     try {
       const result = await apiFetch(`/api/fs/ls?path=${encodeURIComponent(newPath)}`);
@@ -345,7 +351,7 @@ export default function RunOcMirrorStep() {
                 </p>
                 <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border-color, #ddd)" }}>
+                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
                       <th style={{ textAlign: "left", padding: "4px 8px 4px 0", fontWeight: 600 }}>Path</th>
                       <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>Size guidance</th>
                     </tr>
@@ -706,9 +712,14 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 4px 32px rgba(0,0,0,0.18)"
           }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 12, gap: 8 }}>
-              <strong style={{ flex: 1, fontSize: "0.95rem" }}>Browse directory</strong>
-              <button type="button" onClick={() => setBrowseOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>✕</button>
+              <strong style={{ flex: 1, fontSize: "0.95rem", color: "inherit" }}>Browse directory</strong>
+              <button type="button" onClick={() => setBrowseOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", color: "inherit", lineHeight: 1 }}>✕</button>
             </div>
+            {browseMissingNotice && (
+              <div style={{ marginBottom: 8, padding: "6px 10px", background: "var(--card-bg-subtle)", border: "1px solid var(--border-color)", borderRadius: 4, fontSize: "0.8rem", color: "var(--text-subtle)" }}>
+                ℹ️ {browseMissingNotice}
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
               <button
                 type="button"
@@ -726,28 +737,28 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 {browsePath}
               </code>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--border-color, #ddd)", borderRadius: 4, minHeight: 160 }}>
+            <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--border-color)", borderRadius: 4, minHeight: 160 }}>
               {browseLoading ? (
-                <div style={{ padding: 16, color: "var(--text-subtle, #888)" }}>Loading…</div>
+                <div style={{ padding: 16, color: "var(--text-subtle)" }}>Loading…</div>
               ) : browseError ? (
-                <div style={{ padding: 16, color: "var(--color-danger, #c00)" }}>{browseError}</div>
+                <div style={{ padding: 16, color: "var(--color-danger)", fontSize: "0.875rem" }}>{browseError}</div>
               ) : browseEntries.length === 0 ? (
-                <div style={{ padding: 16, color: "var(--text-subtle, #888)" }}>Empty directory</div>
+                <div style={{ padding: 16, color: "var(--text-subtle)" }}>Empty directory</div>
               ) : browseEntries.map((entry) => (
                 <div
                   key={entry.name}
                   style={{
                     padding: "6px 12px", cursor: entry.type === "dir" ? "pointer" : "default",
-                    color: entry.type === "dir" ? "inherit" : "var(--text-subtle, #888)",
+                    color: entry.type === "dir" ? "inherit" : "var(--text-subtle)",
                     display: "flex", alignItems: "center", gap: 8,
-                    borderBottom: "1px solid var(--border-color, #eee)"
+                    borderBottom: "1px solid var(--border-color)"
                   }}
                   onClick={() => { if (entry.type === "dir") navigateBrowse(browsePath.replace(/\/$/, "") + "/" + entry.name); }}
                 >
                   <span style={{ fontSize: "0.9rem" }}>{entry.type === "dir" ? "📁" : "📄"}</span>
                   <span style={{ flex: 1 }}>{entry.name}</span>
                   {entry.type === "file" && entry.size != null ? (
-                    <span style={{ fontSize: "0.78rem", color: "var(--text-subtle, #888)" }}>
+                    <span style={{ fontSize: "0.78rem", color: "var(--text-subtle)" }}>
                       {entry.size > 1073741824 ? `${(entry.size / 1073741824).toFixed(1)} GB`
                         : entry.size > 1048576 ? `${(entry.size / 1048576).toFixed(1)} MB`
                         : entry.size > 1024 ? `${(entry.size / 1024).toFixed(1)} KB`
