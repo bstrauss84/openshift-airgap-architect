@@ -1538,6 +1538,35 @@ const buildBundleZip = async (state, res) => {
   archive.finalize();
 };
 
+app.get("/api/fs/ls", (req, res) => {
+  const reqPath = (req.query.path || "/data").toString();
+  let entries = [];
+  try {
+    const items = fs.readdirSync(reqPath, { withFileTypes: true });
+    for (const item of items) {
+      try {
+        let type = "file";
+        // resolve symlinks
+        const stat = fs.statSync(path.join(reqPath, item.name));
+        if (stat.isDirectory()) type = "dir";
+        const entry = { name: item.name, type };
+        if (type === "file") entry.size = stat.size;
+        entries.push(entry);
+      } catch {
+        // skip entries with permission errors
+      }
+    }
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  // dirs first, then files, alphabetical within each group
+  entries.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  res.json({ path: reqPath, entries });
+});
+
 app.get("/api/bundle.zip", async (req, res) => {
   const state = ensureState();
   await buildBundleZip(state, res);

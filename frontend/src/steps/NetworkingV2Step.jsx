@@ -151,6 +151,16 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             For AWS GovCloud, cluster and service networks are in install-config; machine network is typically derived from your VPC subnets. These CIDRs define address ranges for the cluster; they do not define AWS subnet IDs (subnet IDs are set in Platform Specifics).
           </Banner>
         ) : null}
+        {scenarioId === "nutanix-ipi" ? (
+          <Banner variant="info">
+            Machine, cluster, and service network CIDRs define IP address ranges for cluster components. In Platform Specifics, the Nutanix subnet UUID identifies the Nutanix network segment (VLAN) where the installer creates VMs — these operate at different layers. The UUID selects the virtual network; the CIDR defines the address range within it.
+          </Banner>
+        ) : null}
+        {(scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") ? (
+          <Banner variant="info">
+            Machine, cluster, and service network CIDRs define IP address ranges for cluster components. In Platform Specifics, vSphere topology network names are vCenter port group or Distributed Port Group names used to attach VM NICs to the correct virtual switch — these are not IP ranges. The port group name selects the virtual switch; the CIDR defines the address range.
+          </Banner>
+        ) : null}
 
         <section className={`card ${clusterCardHasErrors ? "highlight-errors" : ""}`}>
           <div className="card-header">

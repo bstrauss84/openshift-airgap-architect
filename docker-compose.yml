@@ -32,5 +32,15 @@ services:
       - backend
     stop_grace_period: 3s
     stop_signal: SIGTERM
+# To mount external storage for large oc-mirror archives (50–200+ GB per OCP release + operators),
+# create a compose.override.yml in the same directory as this file:
+#
+#   services:
+#     backend:
+#       volumes:
+#         - /path/to/large-drive/oc-mirror:/data/oc-mirror
+#
+# Then restart: podman compose down --remove-orphans && podman compose up --build -d
+# (data in backend-data volume is preserved unless you pass -v to compose down)
 volumes:
   backend-data:
