@@ -887,6 +887,14 @@ const AppShell = () => {
                     fieldErrors={fieldErrors}
                     incompleteStepLabels={incompleteStepLabels}
                     onRequestStartOver={handleStartOverClick}
+                    onNavigateToOperations={(jobId) => {
+                      const opsIdx = visibleSteps.findIndex((s) => s.id === "operations");
+                      if (opsIdx < 0) return;
+                      const prevStepId = visibleSteps[active]?.id;
+                      const visitedSteps = { ...(state.ui?.visitedSteps || {}), ...(prevStepId ? { [prevStepId]: true } : {}), operations: true };
+                      setActive(opsIdx);
+                      updateState({ ui: { ...state.ui, activeStepId: "operations", highlightJobId: jobId || undefined, visitedSteps } });
+                    }}
                   />
               </ErrorBoundary>
             </main>

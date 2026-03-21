@@ -50,7 +50,7 @@ const defaultRegistryUrl = (state) => {
   return fqdn ? `docker://${fqdn}` : "";
 };
 
-export default function RunOcMirrorStep() {
+export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const { state, updateState } = useApp();
   const mw = state?.mirrorWorkflow || {};
   const mode = mw.mode || "mirrorToDisk";
@@ -158,7 +158,7 @@ export default function RunOcMirrorStep() {
     const interval = setInterval(() => {
       apiFetch(`/api/jobs/${runningJobId}`).then((job) => {
         setLastRunJob(job);
-        if (["completed", "failed", "cancelled"].includes(job.status)) {
+        if (["completed", "completed_with_warnings", "failed", "cancelled"].includes(job.status)) {
           setRunningJobId(null);
           updateMirrorWorkflow({ lastRunJobId: job.id });
           let completeMeta = null;
@@ -269,7 +269,11 @@ export default function RunOcMirrorStep() {
   };
 
   const goToOperations = (jobId) => {
-    updateState({ ui: { ...state.ui, activeStepId: "operations", highlightJobId: jobId || undefined } });
+    if (onNavigateToOperations) {
+      onNavigateToOperations(jobId);
+    } else {
+      updateState({ ui: { ...state.ui, activeStepId: "operations", highlightJobId: jobId || undefined } });
+    }
   };
 
   const hasBlockers = preflightResult && Array.isArray(preflightResult.blockers) && preflightResult.blockers.length > 0;
@@ -809,10 +813,27 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             {lastRunJob ? (
               <div className="run-oc-mirror-summary" style={{ marginTop: 16 }}>
                 <h4 className="card-subtitle">Last run</h4>
-                <p><strong>Status:</strong> {lastRunJob.status}</p>
+                <p>
+                  <strong>Status:</strong>{" "}
+                  {lastRunJob.status === "completed_with_warnings" ? (
+                    <span style={{ color: "var(--color-warning, #b87800)" }}>completed with warnings</span>
+                  ) : lastRunJob.status}
+                </p>
                 {meta ? (
                   <>
                     <p><strong>Mode:</strong> {meta.mode}</p>
+                    {meta.releaseResult ? (
+                      <p><strong>Release images:</strong> {meta.releaseResult.succeeded} / {meta.releaseResult.total}</p>
+                    ) : null}
+                    {meta.operatorResult ? (
+                      <p>
+                        <strong>Operator images:</strong>{" "}
+                        <span style={{ color: meta.operatorResult.succeeded < meta.operatorResult.total ? "var(--color-warning, #b87800)" : undefined }}>
+                          {meta.operatorResult.succeeded} / {meta.operatorResult.total}
+                        </span>
+                        {meta.operatorResult.succeeded < meta.operatorResult.total ? " — re-run to retry" : ""}
+                      </p>
+                    ) : null}
                     {meta.archiveDir ? <p><strong>Archive dir:</strong> <code>{meta.archiveDir}</code></p> : null}
                     {meta.workspaceDir ? <p><strong>Workspace dir:</strong> <code>{meta.workspaceDir}</code></p> : null}
                     {meta.cacheDir ? <p><strong>Cache dir:</strong> <code>{meta.cacheDir}</code></p> : null}
@@ -855,6 +876,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
       {ocMirrorCompleteModal ? (() => {
         const { job, meta } = ocMirrorCompleteModal;
         const succeeded = job.status === "completed";
+        const partial = job.status === "completed_with_warnings";
         const elapsed = meta?.startedAt && meta?.finishedAt
           ? Math.round((meta.finishedAt - meta.startedAt) / 1000)
           : null;
@@ -862,36 +884,63 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
           : meta?.mode === "diskToMirror" ? "Disk to mirror"
           : meta?.mode === "mirrorToMirror" ? "Mirror to mirror"
           : meta?.mode || "Unknown";
+        const titleColor = succeeded ? undefined : partial ? "var(--color-warning, #b87800)" : "var(--color-danger)";
+        const titleText = succeeded ? "oc-mirror completed"
+          : partial ? "oc-mirror completed with warnings"
+          : job.status === "cancelled" ? "oc-mirror cancelled"
+          : "oc-mirror failed";
         return (
           <div className="modal-backdrop" role="dialog" aria-modal="true">
             <div className="modal">
-              <h3 style={{ margin: "0 0 8px", color: succeeded ? undefined : "var(--color-danger)" }}>
-                {succeeded ? "oc-mirror completed" : job.status === "cancelled" ? "oc-mirror cancelled" : "oc-mirror failed"}
+              <h3 style={{ margin: "0 0 8px", color: titleColor }}>
+                {titleText}
               </h3>
-              {succeeded ? (
+              {(succeeded || partial) ? (
                 <>
-                  <p className="modal-copy subtle">The mirror run finished successfully.</p>
+                  <p className="modal-copy subtle">
+                    {succeeded ? "The mirror run finished successfully." : "Release images mirrored successfully; some operator images failed."}
+                  </p>
                   {meta && (
                     <dl className="modal-summary">
                       <dt>Workflow</dt><dd>{modeLabel}</dd>
                       {elapsed != null && <><dt>Elapsed</dt><dd>{elapsed}s</dd></>}
+                      {meta.releaseResult && (
+                        <><dt>Release images</dt><dd>{meta.releaseResult.succeeded} / {meta.releaseResult.total}</dd></>
+                      )}
+                      {meta.operatorResult && (
+                        <><dt>Operator images</dt><dd style={{ color: meta.operatorResult.succeeded < meta.operatorResult.total ? "var(--color-warning, #b87800)" : undefined }}>{meta.operatorResult.succeeded} / {meta.operatorResult.total}</dd></>
+                      )}
                       {meta.archiveDir && <><dt>Archive directory</dt><dd><code>{meta.archiveDir}</code></dd></>}
                       {meta.workspaceDir && <><dt>Workspace directory</dt><dd><code>{meta.workspaceDir}</code></dd></>}
                     </dl>
                   )}
-                  {meta?.mode === "mirrorToDisk" && meta?.archiveDir && (
+                  {partial && meta?.failedImages?.length > 0 && (
+                    <div className="note warning" style={{ marginTop: 12, fontSize: "0.82rem" }}>
+                      <strong>Failed images:</strong>
+                      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                        {meta.failedImages.map((img) => <li key={img}><code>{img}</code></li>)}
+                      </ul>
+                      <p style={{ marginTop: 6, marginBottom: 0 }}>These operators will be missing from your mirror. Re-run to retry, increase Image timeout in Advanced options, or remove them from your imageset config.</p>
+                    </div>
+                  )}
+                  {!partial && meta?.mode === "mirrorToDisk" && meta?.archiveDir && (
                     <div className="note" style={{ marginTop: 12 }}>
                       <strong>Next steps:</strong> Transfer the contents of <code>{meta.archiveDir}</code> (tar archives and working-dir) across the air gap along with your other deliverables. You will need these files for the disk-to-mirror step on the disconnected side.
                     </div>
                   )}
-                  {meta?.mode === "diskToMirror" && (
+                  {!partial && meta?.mode === "diskToMirror" && (
                     <div className="note" style={{ marginTop: 12 }}>
                       Images have been pushed to your mirror registry. Proceed to install or update your cluster.
                     </div>
                   )}
-                  {meta?.mode === "mirrorToMirror" && (
+                  {!partial && meta?.mode === "mirrorToMirror" && (
                     <div className="note" style={{ marginTop: 12 }}>
                       Images have been mirrored directly to your registry. Proceed to install or update your cluster.
+                    </div>
+                  )}
+                  {partial && meta?.mode === "mirrorToMirror" && (
+                    <div className="note" style={{ marginTop: 12 }}>
+                      Successfully mirrored release images are available in your registry. Re-run to retry failed operators.
                     </div>
                   )}
                 </>
