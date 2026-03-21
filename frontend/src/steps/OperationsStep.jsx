@@ -225,7 +225,7 @@ const OperationsStep = () => {
                         const meta = getOcMirrorMeta(streamingJob || job);
                         if (!meta) return null;
                         return (
-                          <div className="oc-mirror-job-summary" style={{ marginBottom: "12px", padding: "10px", background: "var(--card-bg, #f8fafc)", borderRadius: "6px", fontSize: "0.9rem" }}>
+                          <div className="oc-mirror-job-summary" style={{ marginBottom: "12px", padding: "10px", background: "var(--card-bg-subtle)", borderRadius: "6px", fontSize: "0.9rem" }}>
                             <strong>oc-mirror run</strong>
                             <dl className="summary-dl" style={{ marginTop: "6px", marginBottom: 0 }}>
                               <dt>Mode</dt><dd>{meta.mode}</dd>

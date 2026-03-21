@@ -10,6 +10,10 @@ import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 
+const DEFAULT_ARCHIVE_PATH = "/data/oc-mirror/archives";
+const DEFAULT_WORKSPACE_PATH = "/data/oc-mirror/workspace";
+const DEFAULT_CACHE_PATH = "/data/oc-mirror/cache";
+
 const MODES = [
   {
     value: "mirrorToDisk",
@@ -65,11 +69,62 @@ export default function RunOcMirrorStep() {
   const [runningJobId, setRunningJobId] = React.useState(null);
   const [lastRunJob, setLastRunJob] = React.useState(null);
   const [runError, setRunError] = React.useState(null);
+  const [browseOpen, setBrowseOpen] = React.useState(false);
+  const [browseTarget, setBrowseTarget] = React.useState(null);
+  const [browsePath, setBrowsePath] = React.useState("/data");
+  const [browseEntries, setBrowseEntries] = React.useState([]);
+  const [browseLoading, setBrowseLoading] = React.useState(false);
+  const [browseError, setBrowseError] = React.useState(null);
 
   const updateMirrorWorkflow = useCallback(
     (patch) => updateState({ mirrorWorkflow: { ...mw, ...patch } }),
     [updateState, mw]
   );
+
+  const resetPaths = () => {
+    updateMirrorWorkflow({ archivePath: DEFAULT_ARCHIVE_PATH, workspacePath: DEFAULT_WORKSPACE_PATH, cachePath: DEFAULT_CACHE_PATH });
+  };
+
+  const openBrowse = async (target, currentPath) => {
+    const startPath = currentPath || "/data";
+    setBrowseTarget(target);
+    setBrowsePath(startPath);
+    setBrowseOpen(true);
+    setBrowseError(null);
+    setBrowseLoading(true);
+    try {
+      const result = await apiFetch(`/api/fs/ls?path=${encodeURIComponent(startPath)}`);
+      setBrowseEntries(result.entries || []);
+      setBrowsePath(result.path);
+    } catch (err) {
+      setBrowseError(err.message || "Could not list directory.");
+      setBrowseEntries([]);
+    } finally {
+      setBrowseLoading(false);
+    }
+  };
+
+  const navigateBrowse = async (newPath) => {
+    setBrowseError(null);
+    setBrowseLoading(true);
+    try {
+      const result = await apiFetch(`/api/fs/ls?path=${encodeURIComponent(newPath)}`);
+      setBrowseEntries(result.entries || []);
+      setBrowsePath(result.path);
+    } catch (err) {
+      setBrowseError(err.message || "Could not list directory.");
+      setBrowseEntries([]);
+    } finally {
+      setBrowseLoading(false);
+    }
+  };
+
+  const selectBrowsePath = () => {
+    if (browseTarget === "archive") updateMirrorWorkflow({ archivePath: browsePath });
+    else if (browseTarget === "workspace") updateMirrorWorkflow({ workspacePath: browsePath });
+    else if (browseTarget === "cache") updateMirrorWorkflow({ cachePath: browsePath });
+    setBrowseOpen(false);
+  };
 
   useEffect(() => {
     if (!lastRunJobId) return;
@@ -265,48 +320,124 @@ export default function RunOcMirrorStep() {
         <section className="card">
           <div className="card-header">
             <h3 className="card-title">Paths</h3>
-            <div className="card-subtitle">
-              {mode === "mirrorToDisk" && "Archive = destination for tar and working-dir. Workspace and cache enable incremental runs."}
-              {mode === "diskToMirror" && "Archive = source from a previous mirror-to-disk. Workspace and cache should match that run."}
-              {mode === "mirrorToMirror" && "Only workspace is used (no local cache)."}
+            <div className="card-subtitle" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span>
+                {mode === "mirrorToDisk" && "Archive = destination for tar and working-dir. Workspace and cache enable incremental runs."}
+                {mode === "diskToMirror" && "Archive = source from a previous mirror-to-disk. Workspace and cache should match that run."}
+                {mode === "mirrorToMirror" && "Only workspace is used (no local cache)."}
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: "0.78rem", padding: "2px 8px", marginLeft: "auto", whiteSpace: "nowrap" }}
+                onClick={resetPaths}
+              >
+                Reset to defaults
+              </button>
             </div>
           </div>
           <div className="card-body">
+            <CollapsibleSection title="Container paths & storage setup" defaultCollapsed={true}>
+              <div style={{ fontSize: "0.875rem", lineHeight: 1.6 }}>
+                <p style={{ margin: "0 0 8px" }}>
+                  These paths are <strong>inside the backend container</strong>, backed by the <code>backend-data</code> Docker volume.
+                  oc-mirror runs as a container process — paths here are container-internal, not host paths.
+                </p>
+                <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border-color, #ddd)" }}>
+                      <th style={{ textAlign: "left", padding: "4px 8px 4px 0", fontWeight: 600 }}>Path</th>
+                      <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600 }}>Size guidance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ padding: "4px 8px 4px 0", verticalAlign: "top" }}><strong>Archive</strong></td>
+                      <td style={{ padding: "4px 8px", verticalAlign: "top" }}>50–200+ GB per OCP release + operators. Empty dir for first run. Keep archives after a successful run for disk-to-mirror.</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "4px 8px 4px 0", verticalAlign: "top" }}><strong>Workspace</strong></td>
+                      <td style={{ padding: "4px 8px", verticalAlign: "top" }}>1–5 GB. Contains cluster-resources and metadata. Keep between runs to enable incremental mirroring (--since).</td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "4px 8px 4px 0", verticalAlign: "top" }}><strong>Cache</strong></td>
+                      <td style={{ padding: "4px 8px", verticalAlign: "top" }}>5–50+ GB. Image layer cache — safe to delete (rebuilds automatically), but keeping it saves significant time on subsequent runs. Not used in mirror-to-mirror mode.</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Mounting external storage (large mirrors):</p>
+                <p style={{ margin: "0 0 4px" }}>Create a <code>compose.override.yml</code> in the same directory as <code>docker-compose.yml</code>:</p>
+                <pre style={{ background: "var(--code-bg)", color: "var(--code-color)", padding: "8px 12px", borderRadius: 4, overflowX: "auto", margin: "0 0 12px", fontSize: "0.8rem" }}>{`services:
+  backend:
+    volumes:
+      - /path/to/large-drive/oc-mirror:/data/oc-mirror`}</pre>
+                <p style={{ margin: "0 0 4px" }}>Then restart:</p>
+                <pre style={{ background: "var(--code-bg)", color: "var(--code-color)", padding: "8px 12px", borderRadius: 4, overflowX: "auto", margin: "0 0 12px", fontSize: "0.8rem" }}>{`podman compose down --remove-orphans && podman compose up --build -d`}</pre>
+                <p style={{ margin: "0 0 4px", fontWeight: 600 }}>Container management commands:</p>
+                <p style={{ margin: "0 0 2px" }}>Rebuild &amp; restart (data preserved):</p>
+                <pre style={{ background: "var(--code-bg)", color: "var(--code-color)", padding: "8px 12px", borderRadius: 4, overflowX: "auto", margin: "0 0 6px", fontSize: "0.8rem" }}>{`podman compose down --remove-orphans && podman image prune -f && podman compose up --build -d
+docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d`}</pre>
+                <p style={{ margin: "0 0 2px" }}>Full reset — <strong>DESTROYS all mirrored data in named volume</strong>:</p>
+                <pre style={{ background: "var(--code-bg)", color: "var(--code-color)", padding: "8px 12px", borderRadius: 4, overflowX: "auto", margin: "0 0 0", fontSize: "0.8rem" }}>{`podman compose down -v --remove-orphans && podman image prune -f && podman compose up --build -d
+docker compose down -v --remove-orphans && docker image prune -f && docker compose up --build -d`}</pre>
+              </div>
+            </CollapsibleSection>
+
             {(mode === "mirrorToDisk" || mode === "diskToMirror") && (
               <FieldLabelWithInfo
                 label={mode === "mirrorToDisk" ? "Archive directory (destination)" : "Archive directory (source)"}
-                hint={mode === "mirrorToDisk" ? "Directory where oc-mirror will write tar archives and working-dir." : "Directory containing tar archives and working-dir from a previous mirror-to-disk run."}
+                hint={mode === "mirrorToDisk"
+                  ? "Destination directory for oc-mirror tar archives and working-dir. Container-internal path under /data. Typically 50–200+ GB for a full OCP + operator mirror. Should be empty (or contain only prior run archives) before the first mirror-to-disk run. Keep archives after a successful run — they are the input for disk-to-mirror."
+                  : "Source directory containing tar archives from a previous mirror-to-disk run. Must contain the working-dir structure written by oc-mirror. Container-internal path under /data."}
               >
-                <input
-                  type="text"
-                  value={archivePath}
-                  onChange={(e) => updateMirrorWorkflow({ archivePath: e.target.value })}
-                  placeholder="/path/to/archive"
-                />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="text"
+                    value={archivePath}
+                    onChange={(e) => updateMirrorWorkflow({ archivePath: e.target.value })}
+                    placeholder={DEFAULT_ARCHIVE_PATH}
+                    style={{ flex: 1 }}
+                  />
+                  <Button variant="secondary" onClick={() => openBrowse("archive", archivePath || DEFAULT_ARCHIVE_PATH)} style={{ whiteSpace: "nowrap" }}>
+                    Browse…
+                  </Button>
+                </div>
               </FieldLabelWithInfo>
             )}
             <FieldLabelWithInfo
               label="Workspace directory"
-              hint="Working directory for cluster-resources, logs, and metadata. Required for all modes."
+              hint="Directory for oc-mirror metadata, cluster-resources, and logs (creates a working-dir/ subdirectory here). Required for all modes. Container-internal path under /data. Keep between runs to enable incremental mirroring with --since. Typically 1–5 GB."
             >
-              <input
-                type="text"
-                value={workspacePath}
-                onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
-                placeholder="/path/to/workspace"
-              />
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  type="text"
+                  value={workspacePath}
+                  onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
+                  placeholder={DEFAULT_WORKSPACE_PATH}
+                  style={{ flex: 1 }}
+                />
+                <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)} style={{ whiteSpace: "nowrap" }}>
+                  Browse…
+                </Button>
+              </div>
             </FieldLabelWithInfo>
             {mode !== "mirrorToMirror" && (
               <FieldLabelWithInfo
                 label="Cache directory"
-                hint="Persistent cache for image layers; enables incremental and --since. Back up after successful runs."
+                hint="Persistent image layer cache. Significantly speeds up subsequent runs. Container-internal path under /data. Safe to delete — oc-mirror rebuilds it automatically. Typically 5–50+ GB. Not used in mirror-to-mirror mode."
               >
-                <input
-                  type="text"
-                  value={cachePath}
-                  onChange={(e) => updateMirrorWorkflow({ cachePath: e.target.value })}
-                  placeholder="/path/to/cache"
-                />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="text"
+                    value={cachePath}
+                    onChange={(e) => updateMirrorWorkflow({ cachePath: e.target.value })}
+                    placeholder={DEFAULT_CACHE_PATH}
+                    style={{ flex: 1 }}
+                  />
+                  <Button variant="secondary" onClick={() => openBrowse("cache", cachePath || DEFAULT_CACHE_PATH)} style={{ whiteSpace: "nowrap" }}>
+                    Browse…
+                  </Button>
+                </div>
               </FieldLabelWithInfo>
             )}
           </div>
@@ -560,6 +691,79 @@ export default function RunOcMirrorStep() {
           </div>
         </section>
       </div>
+
+      {/* Browse modal */}
+      {browseOpen ? (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center"
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setBrowseOpen(false); }}
+        >
+          <div style={{
+            background: "var(--card-bg)", borderRadius: 8, padding: 24, minWidth: 400, maxWidth: 560,
+            maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 4px 32px rgba(0,0,0,0.18)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 12, gap: 8 }}>
+              <strong style={{ flex: 1, fontSize: "0.95rem" }}>Browse directory</strong>
+              <button type="button" onClick={() => setBrowseOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>✕</button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ fontSize: "0.78rem", padding: "2px 8px" }}
+                onClick={() => {
+                  const parent = browsePath.replace(/\/[^/]+$/, "") || "/";
+                  if (parent !== browsePath) navigateBrowse(parent);
+                }}
+                disabled={browsePath === "/"}
+              >
+                ↑ Up
+              </button>
+              <code style={{ fontSize: "0.82rem", background: "var(--code-bg)", color: "var(--code-color)", padding: "2px 8px", borderRadius: 4, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {browsePath}
+              </code>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--border-color, #ddd)", borderRadius: 4, minHeight: 160 }}>
+              {browseLoading ? (
+                <div style={{ padding: 16, color: "var(--text-subtle, #888)" }}>Loading…</div>
+              ) : browseError ? (
+                <div style={{ padding: 16, color: "var(--color-danger, #c00)" }}>{browseError}</div>
+              ) : browseEntries.length === 0 ? (
+                <div style={{ padding: 16, color: "var(--text-subtle, #888)" }}>Empty directory</div>
+              ) : browseEntries.map((entry) => (
+                <div
+                  key={entry.name}
+                  style={{
+                    padding: "6px 12px", cursor: entry.type === "dir" ? "pointer" : "default",
+                    color: entry.type === "dir" ? "inherit" : "var(--text-subtle, #888)",
+                    display: "flex", alignItems: "center", gap: 8,
+                    borderBottom: "1px solid var(--border-color, #eee)"
+                  }}
+                  onClick={() => { if (entry.type === "dir") navigateBrowse(browsePath.replace(/\/$/, "") + "/" + entry.name); }}
+                >
+                  <span style={{ fontSize: "0.9rem" }}>{entry.type === "dir" ? "📁" : "📄"}</span>
+                  <span style={{ flex: 1 }}>{entry.name}</span>
+                  {entry.type === "file" && entry.size != null ? (
+                    <span style={{ fontSize: "0.78rem", color: "var(--text-subtle, #888)" }}>
+                      {entry.size > 1073741824 ? `${(entry.size / 1073741824).toFixed(1)} GB`
+                        : entry.size > 1048576 ? `${(entry.size / 1048576).toFixed(1)} MB`
+                        : entry.size > 1024 ? `${(entry.size / 1024).toFixed(1)} KB`
+                        : `${entry.size} B`}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+              <Button variant="ghost" onClick={() => setBrowseOpen(false)}>Cancel</Button>
+              <Button variant="primary" onClick={selectBrowsePath}>Select this directory</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
