@@ -798,9 +798,30 @@ wipefs -a /dev/sdX`}</pre>
                               <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                               {" "}Use FQDN (shortname.baseDomain)
                             </label>
-                            <label>Root device — deviceName <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/vda or /dev/disk/by-path/..." /></label>
-                            <label>Root device — hctl <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0 (SCSI bus)" /></label>
-                            <label>Root device — min size (GB) <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" /></label>
+                            <p className="note subtle" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>
+                              Root device hints — <strong>all optional</strong>. Fill in one or more to identify the boot disk.{" "}
+                              <strong>deviceName</strong> and <strong>hctl</strong> are alternative ways to pinpoint the same disk — pick one, not both.{" "}
+                              <strong>minSizeGb</strong> is a size filter; it can stand alone or pair with either identifier.{" "}
+                              If the host has only one disk, hints are usually unnecessary.
+                            </p>
+                            <FieldLabelWithInfo
+                              label="Root device — deviceName (optional)"
+                              hint="Stable device path for the boot disk. Prefer /dev/disk/by-id/... or /dev/disk/by-path/... over /dev/vda — kernel names like /dev/vda can shift if disks are added or removed. This and hctl are alternative identifiers for the same device; use one or the other. If you fill in both, the disk must satisfy both criteria (usually redundant)."
+                            >
+                              <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/... or /dev/vda" />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — hctl (optional)"
+                              hint="SCSI address of the boot disk in host:channel:target:lun format (e.g. 0:0:0:0). An alternative to deviceName — use this when you know the SCSI bus address but not a stable device path. If you fill in both hctl and deviceName, the disk must satisfy both criteria."
+                            >
+                              <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0" />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — min size GB (optional)"
+                              hint="Minimum disk size in gigabytes. Can be combined with deviceName or hctl as a confirming filter, or used alone. Used alone it selects the smallest disk that meets the threshold — risky on hosts with multiple large disks of similar size where you need a specific one."
+                            >
+                              <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" />
+                            </FieldLabelWithInfo>
                           </div>
                           <div className="divider" />
                           <h4><FieldLabelWithInfo label="BMC (IPI)" hint="Baseboard management controller. Required for installer-provisioned deployment." /></h4>
@@ -857,9 +878,30 @@ wipefs -a /dev/sdX`}</pre>
                         </label>
                         {selectedNode.role !== "arbiter" ? (
                           <>
-                            <label>Root device — deviceName <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/vda or /dev/disk/by-path/..." /></label>
-                            <label>Root device — hctl <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0 (SCSI bus)" /></label>
-                            <label>Root device — min size (GB) <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" /></label>
+                            <p className="note subtle" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>
+                              Root device hints — <strong>all optional</strong>. Fill in one or more to identify the boot disk.{" "}
+                              <strong>deviceName</strong> and <strong>hctl</strong> are alternative ways to pinpoint the same disk — pick one, not both.{" "}
+                              <strong>minSizeGb</strong> is a size filter; it can stand alone or pair with either identifier.{" "}
+                              If the host has only one disk, hints are usually unnecessary.
+                            </p>
+                            <FieldLabelWithInfo
+                              label="Root device — deviceName (optional)"
+                              hint="Stable device path for the boot disk. Prefer /dev/disk/by-id/... or /dev/disk/by-path/... over /dev/vda — kernel names like /dev/vda can shift if disks are added or removed. This and hctl are alternative identifiers for the same device; use one or the other. If you fill in both, the disk must satisfy both criteria (usually redundant)."
+                            >
+                              <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/... or /dev/vda" />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — hctl (optional)"
+                              hint="SCSI address of the boot disk in host:channel:target:lun format (e.g. 0:0:0:0). An alternative to deviceName — use this when you know the SCSI bus address but not a stable device path. If you fill in both hctl and deviceName, the disk must satisfy both criteria."
+                            >
+                              <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0" />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — min size GB (optional)"
+                              hint="Minimum disk size in gigabytes. Can be combined with deviceName or hctl as a confirming filter, or used alone. Used alone it selects the smallest disk that meets the threshold — risky on hosts with multiple large disks of similar size where you need a specific one."
+                            >
+                              <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" />
+                            </FieldLabelWithInfo>
                           </>
                         ) : null}
                         <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking.">
