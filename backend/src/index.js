@@ -1539,15 +1539,24 @@ const buildBundleZip = async (state, res) => {
 };
 
 app.get("/api/fs/ls", (req, res) => {
-  const reqPath = (req.query.path || "/data").toString();
+  const reqPath = (req.query.path || "/").toString();
+  // Walk up to nearest existing ancestor if the requested path doesn't exist
+  let resolved = reqPath;
+  let requestedMissing = false;
+  while (resolved && resolved !== path.dirname(resolved)) {
+    if (fs.existsSync(resolved)) break;
+    requestedMissing = true;
+    resolved = path.dirname(resolved);
+  }
+  // Final fallback: root "/"
+  if (!fs.existsSync(resolved)) resolved = "/";
   let entries = [];
   try {
-    const items = fs.readdirSync(reqPath, { withFileTypes: true });
+    const items = fs.readdirSync(resolved, { withFileTypes: true });
     for (const item of items) {
       try {
         let type = "file";
-        // resolve symlinks
-        const stat = fs.statSync(path.join(reqPath, item.name));
+        const stat = fs.statSync(path.join(resolved, item.name));
         if (stat.isDirectory()) type = "dir";
         const entry = { name: item.name, type };
         if (type === "file") entry.size = stat.size;
@@ -1564,7 +1573,7 @@ app.get("/api/fs/ls", (req, res) => {
     if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
-  res.json({ path: reqPath, entries });
+  res.json({ path: resolved, entries, requestedPath: reqPath, requestedMissing });
 });
 
 app.get("/api/bundle.zip", async (req, res) => {
