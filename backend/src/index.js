@@ -1001,7 +1001,7 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
 
   const checkWorkspace = async () => {
     if (!workspacePath) {
-      blockers.push("Workspace path is required.");
+      if (mode === "mirrorToMirror") blockers.push("Workspace path is required.");
       return;
     }
     try {
@@ -1067,7 +1067,7 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
   };
 
   await checkArchive();
-  await checkWorkspace();
+  if (mode !== "mirrorToDisk") await checkWorkspace();
   await checkCache();
 
   if (configSourceType === "generated") {
@@ -1142,7 +1142,7 @@ function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePa
   if (adv.retryDelay) args.push("--retry-delay", String(adv.retryDelay));
   if (adv.since) args.push("--since", String(adv.since));
   if (adv.strictArchive) args.push("--strict-archive");
-  if (workspacePath) args.push("--workspace", `file://${path.resolve(workspacePath)}`);
+  if (mode !== "mirrorToDisk" && workspacePath) args.push("--workspace", `file://${path.resolve(workspacePath)}`);
   if (cachePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
     args.push("--cache-dir", path.resolve(cachePath));
   }
@@ -1188,7 +1188,7 @@ app.post("/api/ocmirror/run", async (req, res) => {
   if ((mode === "mirrorToDisk" || mode === "diskToMirror") && !archivePath) {
     return res.status(400).json({ error: "Archive path is required." });
   }
-  if (!workspacePath) {
+  if (mode === "mirrorToMirror" && !workspacePath) {
     return res.status(400).json({ error: "Workspace path is required." });
   }
   if ((mode === "diskToMirror" || mode === "mirrorToMirror") && !registryUrl) {
@@ -1267,8 +1267,8 @@ app.post("/api/ocmirror/run", async (req, res) => {
   }
 
   try {
-    fs.mkdirSync(path.resolve(workspacePath), { recursive: true });
-    if (archivePath) fs.mkdirSync(path.resolve(archivePath), { recursive: true });
+    if (mode !== "mirrorToDisk" && workspacePath) fs.mkdirSync(path.resolve(workspacePath), { recursive: true });
+    if (mode !== "mirrorToMirror" && archivePath) fs.mkdirSync(path.resolve(archivePath), { recursive: true });
     if (cachePath && mode !== "mirrorToMirror") fs.mkdirSync(path.resolve(cachePath), { recursive: true });
   } catch (err) {
     updateJob(jobId, { status: "failed", message: String(err?.message || err), progress: 100 });
@@ -1301,6 +1301,8 @@ app.post("/api/ocmirror/run", async (req, res) => {
     dryRun,
     advanced
   );
+  const fullCommand = `oc-mirror ${args.join(" ")}`;
+  updateJobMetadata(jobId, { ...meta, fullCommand });
   const env = {
     ...process.env,
     REGISTRY_AUTH_FILE: authFile || process.env.REGISTRY_AUTH_FILE
