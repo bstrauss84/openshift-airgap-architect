@@ -665,6 +665,8 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByRole("heading", { name: /IBM Cloud IPI/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/existing-network-rg/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/existing-vpc-name/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/bx2-8x32/i)).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText(/crn:v1:bluemix:public:kms:/i).length).toBeGreaterThanOrEqual(3);
     expect(screen.getByDisplayValue(/Manual \(required for IBM Cloud IPI\)/i)).toBeInTheDocument();
   });
 

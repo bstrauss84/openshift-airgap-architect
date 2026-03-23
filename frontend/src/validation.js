@@ -549,6 +549,12 @@ const validateNetworkingFormat = (state) => {
   if (scenarioIdNw === "ibm-cloud-ipi" && (networking.machineNetworkV6 || "").trim()) {
     errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
   }
+  if (scenarioIdNw === "ibm-cloud-ipi" && clusterV6) {
+    errors.push("IBM Cloud install-config clusterNetwork in OpenShift 4.20 is documented as IPv4 only.");
+  }
+  if (scenarioIdNw === "ibm-cloud-ipi" && serviceV6) {
+    errors.push("IBM Cloud install-config serviceNetwork in OpenShift 4.20 is documented as IPv4 only.");
+  }
   if (scenarioIdNw === "nutanix-ipi") {
     const nx = state.platformConfig?.nutanix || {};
     const apiNx = (nx.apiVIP || "").trim();

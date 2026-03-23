@@ -117,8 +117,10 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
   const enableIpv6 = Boolean(hostInventory.enableIpv6);
   const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
-  /** AWS install-config supports IPv4 only (4.20); dual-stack is not available for this platform. */
-  const showIpv6ForPlatform = enableIpv6 && !isAwsGovCloud;
+  const isIbmCloudIpi = scenarioId === "ibm-cloud-ipi";
+  /** AWS GovCloud and IBM Cloud install-config support IPv4-only in 4.20. */
+  const isIpv4OnlyScenario = isAwsGovCloud || isIbmCloudIpi;
+  const showIpv6ForPlatform = enableIpv6 && !isIpv4OnlyScenario;
 
   const clusterCardHasErrors = Boolean(
     highlightErrors &&
@@ -151,6 +153,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             For AWS GovCloud, cluster and service networks are in install-config; machine network is typically derived from your VPC subnets. These CIDRs define address ranges for the cluster; they do not define AWS subnet IDs (subnet IDs are set in Platform Specifics).
           </Banner>
         ) : null}
+        {isIbmCloudIpi ? (
+          <Banner variant="info">
+            IBM Cloud disconnected install in OpenShift 4.20 documents IPv4-only networking. Use machine, cluster, and service IPv4 CIDRs; dual-stack and IPv6 fields are intentionally disabled for this scenario.
+          </Banner>
+        ) : null}
         {scenarioId === "nutanix-ipi" ? (
           <Banner variant="info">
             Machine, cluster, and service network CIDRs define IP address ranges for cluster components. In Platform Specifics, the Nutanix subnet UUID identifies the Nutanix network segment (VLAN) where the installer creates VMs — these operate at different layers. The UUID selects the virtual network; the CIDR defines the address range within it.
@@ -173,9 +180,9 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <Banner variant="error">{overlapMessages.join(" ")} Overlapping networks are not supported.</Banner>
           ) : null}
           <div className="card-body">
-            {isAwsGovCloud ? (
+            {isIpv4OnlyScenario ? (
               <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
-                AWS install-config supports IPv4 only (OpenShift 4.20). Dual-stack and IPv6 are not available for this platform.
+                This scenario supports IPv4-only networking in OpenShift 4.20. Dual-stack and IPv6 are not available.
               </p>
             ) : (
               <>
