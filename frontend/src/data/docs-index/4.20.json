@@ -23,7 +23,7 @@
         {
           "id": "installing-aws-govcloud-ipi",
           "title": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installer-provisioned-infrastructure",
           "configTypes": [
             "install-config"
           ],
@@ -36,7 +36,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "AWS GovCloud IPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
+          "notes": "AWS GovCloud IPI; install-config. Government-region specifics are included in the AWS install family."
         },
         {
           "id": "installing-disconnected",
@@ -76,7 +76,7 @@
         {
           "id": "installing-aws-govcloud-upi",
           "title": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_aws_govcloud/installing-aws-govcloud-upi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/user-provisioned-infrastructure",
           "configTypes": [
             "install-config"
           ],
@@ -89,7 +89,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "AWS GovCloud UPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
+          "notes": "AWS GovCloud UPI; install-config. Government-region specifics are included in the AWS install family."
         },
         {
           "id": "installing-disconnected",
@@ -129,7 +129,7 @@
         {
           "id": "installing-azure-government-ipi",
           "title": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_azure_government/installing-azure-government-ipi.html",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installer-provisioned-infrastructure",
           "configTypes": [
             "install-config"
           ],
@@ -142,7 +142,7 @@
             "proxy",
             "trust-bundle"
           ],
-          "notes": "Azure Government IPI; install-config. Red Hat 4.20 HTML path not located; docs.openshift.com URL used."
+          "notes": "Azure Government IPI; install-config. Government-region specifics are included in the Azure install family."
         },
         {
           "id": "installing-disconnected",
@@ -159,6 +159,72 @@
             "trust-bundle"
           ],
           "notes": "Shared disconnected install."
+        }
+      ]
+    },
+    "ibm-cloud-ipi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-ibm-cloud",
+          "title": "Installation configuration parameters for IBM Cloud",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "install-config-table",
+            "restricted-network",
+            "existing-vpc",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "IBM Cloud Chapter 9 includes required, network, optional, and IBM-specific install-config parameters."
+        },
+        {
+          "id": "installing-ibm-cloud-restricted",
+          "title": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "existing-vpc",
+            "private-cluster",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "IBM disconnected flow is installer-provisioned only and uses an existing VPC with mirrored content."
+        },
+        {
+          "id": "installing-ibm-cloud",
+          "title": "Installing on IBM Cloud",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "platform-install-family",
+            "restricted-network"
+          ],
+          "notes": "IBM Cloud install family states installer-provisioned is supported and user-provisioned is not supported."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install methods; IBM section links to the IBM restricted-network procedure."
         }
       ]
     },

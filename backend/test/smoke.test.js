@@ -1630,3 +1630,86 @@ test("buildFieldManual template substitution replaces known variables and preser
   assert.ok(raw.includes("Configuration Summary"), "should have config summary section");
   assert.ok(raw.includes("OCP 4.20.1"), "version should appear in config summary");
 });
+
+test("buildInstallConfig for ibm-cloud-ipi emits platform.ibmcloud existing VPC fields and Manual credentials mode", () => {
+  const state = {
+    blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: { machineNetworkV4: "10.90.0.0/16", machineNetworkV6: "fd00::/64" } },
+    credentials: {},
+    platformConfig: {
+      publish: "Internal",
+      ibmcloud: {
+        region: "us-east",
+        resourceGroupName: "cluster-rg",
+        networkResourceGroupName: "network-rg",
+        vpcName: "existing-vpc",
+        controlPlaneSubnets: "cp-a,cp-b,cp-c",
+        computeSubnets: "compute-a,compute-b,compute-c",
+        serviceEndpoints: "IAM=https://private.us-east.iam.cloud.ibm.com\nVPC=https://us-east.private.iaas.cloud.ibm.com/v1"
+      }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.ibmcloud, "platform.ibmcloud must be emitted");
+  assert.strictEqual(out.platform.ibmcloud.region, "us-east");
+  assert.strictEqual(out.platform.ibmcloud.vpcName, "existing-vpc");
+  assert.deepStrictEqual(out.platform.ibmcloud.controlPlaneSubnets, ["cp-a", "cp-b", "cp-c"]);
+  assert.deepStrictEqual(out.platform.ibmcloud.computeSubnets, ["compute-a", "compute-b", "compute-c"]);
+  assert.strictEqual(out.publish, "Internal");
+  assert.strictEqual(out.credentialsMode, "Manual");
+  // IBM Cloud IPI path is validated/emitted as IPv4 only.
+  assert.ok(Array.isArray(out.networking?.machineNetwork) && out.networking.machineNetwork.length === 1);
+  assert.strictEqual(out.networking.machineNetwork[0].cidr, "10.90.0.0/16");
+});
+
+test("buildInstallConfig for ibm-cloud-ipi defaults publish External when not set", () => {
+  const state = {
+    blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: { machineNetworkV4: "10.90.0.0/16" } },
+    credentials: {},
+    platformConfig: {
+      ibmcloud: {
+        region: "us-east",
+        networkResourceGroupName: "network-rg",
+        vpcName: "existing-vpc",
+        controlPlaneSubnets: "cp-a,cp-b,cp-c",
+        computeSubnets: "compute-a,compute-b,compute-c"
+      }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.strictEqual(out.publish, "External");
+  assert.strictEqual(out.credentialsMode, "Manual");
+});
+
+test("buildFieldManual for ibm-cloud-ipi includes IBM prerequisites and installation sections", () => {
+  const state = {
+    blueprint: { platform: "IBM Cloud", clusterName: "ibm-prod", baseDomain: "example.com" },
+    release: { patchVersion: "4.20.3", channel: "4.20" },
+    methodology: { method: "IPI" },
+    globalStrategy: {
+      fips: false,
+      proxyEnabled: false,
+      proxies: {},
+      ntpServers: [],
+      networking: {},
+      mirroring: { registryFqdn: "registry.internal:5000" }
+    },
+    credentials: {
+      usingMirrorRegistry: true,
+      pullSecretPlaceholder: '{"auths":{"quay.io":{}}}',
+      mirrorRegistryPullSecret: '{"auths":{"registry.internal:5000":{}}}'
+    },
+    docs: { connectivity: "fully-disconnected" },
+    mirrorWorkflow: {},
+    platformConfig: { ibmcloud: { region: "us-east" } },
+    hostInventory: { nodes: [] },
+    operators: { selected: [] },
+    trust: {}
+  };
+  const raw = buildFieldManual(state, []);
+  assert.ok(raw.includes("IBM Cloud IPI Prerequisites"), "IBM Cloud prerequisites section should be present");
+  assert.ok(raw.includes("IBM Cloud IPI Installation"), "IBM Cloud installation section should be present");
+});

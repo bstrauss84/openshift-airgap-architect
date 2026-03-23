@@ -169,6 +169,15 @@ const defaultState = () => ({
       region: "",
       resourceGroupName: "",
       baseDomainResourceGroupName: ""
+    },
+    ibmcloud: {
+      region: "",
+      resourceGroupName: "",
+      networkResourceGroupName: "",
+      vpcName: "",
+      controlPlaneSubnets: "",
+      computeSubnets: "",
+      serviceEndpoints: ""
     }
   },
   hostInventory: {

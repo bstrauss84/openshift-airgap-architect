@@ -236,6 +236,31 @@ const mapping = {
           `${baseDocs(version)}/disconnected_environments/installing-disconnected-environments`
         ]
       }
+    ],
+    "IBM Cloud": (version) => [
+      {
+        id: "ibm-cloud-install",
+        label: "Installing on IBM Cloud",
+        urls: [
+          `${baseDocs(version)}/installing_on_ibm_cloud/index`,
+          `${baseDocs(version)}/installing_on_ibm_cloud/installing-ibm-cloud-restricted`
+        ]
+      },
+      {
+        id: "ibm-cloud-params",
+        label: "IBM Cloud installation configuration parameters",
+        urls: [
+          `https://docs.redhat.com/en/documentation/openshift_container_platform/${version}/html-single/installing_on_ibm_cloud/`
+        ]
+      },
+      {
+        id: "ibm-cloud-disconnected",
+        label: "Installing a cluster on IBM Cloud in a disconnected environment",
+        urls: [
+          `${baseDocs(version)}/installing_on_ibm_cloud/installing-ibm-cloud-restricted`,
+          `${baseDocs(version)}/disconnected_environments/installing-disconnected-environments`
+        ]
+      }
     ]
   },
   methodology: {

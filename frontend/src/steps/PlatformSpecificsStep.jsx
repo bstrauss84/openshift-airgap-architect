@@ -66,6 +66,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const updatePlatformConfig = (patch) => updateState({ platformConfig: { ...platformConfig, ...patch } });
   const updateAws = (patch) => updatePlatformConfig({ aws: { ...(platformConfig.aws || {}), ...patch } });
   const updateAzure = (patch) => updatePlatformConfig({ azure: { ...(platformConfig.azure || {}), ...patch } });
+  const updateIbmCloud = (patch) => updatePlatformConfig({ ibmcloud: { ...(platformConfig.ibmcloud || {}), ...patch } });
 
   const fetchAmiFromInstaller = useCallback(
     async (region, force = false) => {
@@ -116,6 +117,18 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const metaAzureRegion = getParamMeta(scenarioId, "platform.azure.region", INSTALL_CONFIG);
   const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG);
   const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG);
+
+  /** IBM Cloud IPI: show when catalog has platform.ibmcloud.region. */
+  const showIbmCloudSection = catalogParams.some(
+    (p) => p.path === "platform.ibmcloud.region" && p.outputFile === INSTALL_CONFIG
+  );
+  const metaIbmRegion = getParamMeta(scenarioId, "platform.ibmcloud.region", INSTALL_CONFIG);
+  const metaIbmResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.resourceGroupName", INSTALL_CONFIG);
+  const metaIbmNetworkResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.networkResourceGroupName", INSTALL_CONFIG);
+  const metaIbmVpcName = getParamMeta(scenarioId, "platform.ibmcloud.vpcName", INSTALL_CONFIG);
+  const metaIbmControlPlaneSubnets = getParamMeta(scenarioId, "platform.ibmcloud.controlPlaneSubnets", INSTALL_CONFIG);
+  const metaIbmComputeSubnets = getParamMeta(scenarioId, "platform.ibmcloud.computeSubnets", INSTALL_CONFIG);
+  const metaIbmServiceEndpoints = getParamMeta(scenarioId, "platform.ibmcloud.serviceEndpoints", INSTALL_CONFIG);
 
   /** Nutanix IPI: show when catalog has platform.nutanix params. */
   const showNutanixIpiSection = catalogParams.some(
@@ -660,6 +673,113 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <option value="Passthrough">Passthrough</option>
                     <option value="Manual">Manual</option>
                   </select>
+                </FieldLabelWithInfo>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {showIbmCloudSection && (
+          <section className="card">
+            <div className="card-header">
+              <h3 className="card-title">IBM Cloud IPI</h3>
+              <div className="card-subtitle">Disconnected IBM Cloud install requires existing VPC/subnets and Manual credentials mode (CCO).</div>
+            </div>
+            <div className="card-body">
+              <div className="field-grid" style={{ marginTop: 12 }}>
+                <FieldLabelWithInfo
+                  label="Region"
+                  hint={metaIbmRegion?.description || "IBM Cloud region for the cluster."}
+                  required={metaIbmRegion?.required || isRequiredInstall("platform.ibmcloud.region")}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.region || ""}
+                    onChange={(e) => updateIbmCloud({ region: e.target.value })}
+                    placeholder="e.g. us-east"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Resource group name (optional)"
+                  hint={metaIbmResourceGroupName?.description || "Resource group for installer-provisioned cluster resources."}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.resourceGroupName || ""}
+                    onChange={(e) => updateIbmCloud({ resourceGroupName: e.target.value })}
+                    placeholder="cluster-resource-group"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Network resource group name"
+                  hint={metaIbmNetworkResourceGroupName?.description || "Resource group containing the existing VPC and subnets."}
+                  required={metaIbmNetworkResourceGroupName?.required || isRequiredInstall("platform.ibmcloud.networkResourceGroupName")}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.networkResourceGroupName || ""}
+                    onChange={(e) => updateIbmCloud({ networkResourceGroupName: e.target.value })}
+                    placeholder="existing-network-rg"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="VPC name"
+                  hint={metaIbmVpcName?.description || "Existing VPC name for disconnected IBM Cloud install."}
+                  required={metaIbmVpcName?.required || isRequiredInstall("platform.ibmcloud.vpcName")}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.vpcName || ""}
+                    onChange={(e) => updateIbmCloud({ vpcName: e.target.value })}
+                    placeholder="existing-vpc-name"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Control plane subnets"
+                  hint={metaIbmControlPlaneSubnets?.description || "Comma-separated existing control plane subnets (one per AZ)."}
+                  required={metaIbmControlPlaneSubnets?.required || isRequiredInstall("platform.ibmcloud.controlPlaneSubnets")}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.controlPlaneSubnets || ""}
+                    onChange={(e) => updateIbmCloud({ controlPlaneSubnets: e.target.value })}
+                    placeholder="cp-subnet-a,cp-subnet-b,cp-subnet-c"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Compute subnets"
+                  hint={metaIbmComputeSubnets?.description || "Comma-separated existing compute subnets (one per AZ)."}
+                  required={metaIbmComputeSubnets?.required || isRequiredInstall("platform.ibmcloud.computeSubnets")}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.computeSubnets || ""}
+                    onChange={(e) => updateIbmCloud({ computeSubnets: e.target.value })}
+                    placeholder="compute-subnet-a,compute-subnet-b,compute-subnet-c"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Service endpoints (optional)"
+                  hint={metaIbmServiceEndpoints?.description || "Optional alternate IBM service endpoints. One entry per line as NAME=URL (for example: IAM=https://private.us-east.iam.cloud.ibm.com)."}
+                >
+                  <textarea
+                    value={platformConfig.ibmcloud?.serviceEndpoints || ""}
+                    onChange={(e) => updateIbmCloud({ serviceEndpoints: e.target.value })}
+                    rows={5}
+                    placeholder={"IAM=https://private.us-east.iam.cloud.ibm.com\nVPC=https://us-east.private.iaas.cloud.ibm.com/v1"}
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Publish (optional)"
+                  hint={metaPublish?.description || "Internal creates private endpoints; External is the default public strategy."}
+                >
+                  <select
+                    value={platformConfig.publish || metaPublish?.default || "External"}
+                    onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
+                  >
+                    <option value="External">External</option>
+                    <option value="Internal">Internal</option>
+                  </select>
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Credentials mode"
+                  hint={metaCredentialsMode?.description || "IBM Cloud installer path requires Manual credentials mode with ccoctl-managed IAM resources."}
+                >
+                  <input readOnly value="Manual (required for IBM Cloud IPI)" aria-label="Credentials mode (Manual, required for IBM Cloud IPI)" />
                 </FieldLabelWithInfo>
               </div>
             </div>

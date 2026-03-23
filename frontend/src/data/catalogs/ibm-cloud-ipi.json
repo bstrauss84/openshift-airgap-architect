@@ -1,0 +1,434 @@
+{
+  "version": "4.20",
+  "scenarioId": "ibm-cloud-ipi",
+  "parameters": [
+    {
+      "path": "apiVersion",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "v1 (current)",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "API version for install-config.yaml.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "baseDomain",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "fully-qualified domain or subdomain",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Base domain used with metadata.name to form cluster DNS names.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "metadata.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "lowercase letters, hyphens, periods",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Cluster name used in DNS and object naming.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "pullSecret",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "JSON with auths",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Pull secret JSON used to authenticate image pulls.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "sshKey",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "ssh public key",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "SSH public key for node access and troubleshooting workflows.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.4. Generating a key pair for cluster node SSH access",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "networking.machineNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "IPv4 CIDR",
+      "default": "10.0.0.0/16",
+      "required": false,
+      "description": "Machine network CIDR. For existing VPC, CIDR must contain controlPlaneSubnets and computeSubnets.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.region",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IBM Cloud region",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "IBM Cloud region where the cluster is installed.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.resourceGroupName",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "existing resource group name",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Resource group for installer-provisioned cluster resources.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.networkResourceGroupName",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "existing resource group name",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Resource group that contains the existing VPC and subnets used for disconnected installation.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.3.2. VPC validation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.vpcName",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "existing VPC name",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Existing VPC name where the cluster is deployed.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.3.2. VPC validation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.controlPlaneSubnets",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "existing subnet names",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Existing control plane subnet names, one per availability zone.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.3.2. VPC validation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.computeSubnets",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "existing subnet names",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Existing compute subnet names, one per availability zone.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.3.2. VPC validation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.serviceEndpoints",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of name/url endpoint objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional alternate IBM Cloud service endpoints when public endpoints are constrained.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.2.3. Access to IBM service endpoints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "publish",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Internal",
+        "External"
+      ],
+      "default": "External",
+      "required": false,
+      "description": "Endpoint publishing strategy. Internal creates private endpoint exposure.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.7. Manually creating the installation configuration file",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "credentialsMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Manual"
+      ],
+      "default": "Manual",
+      "required": true,
+      "description": "IBM Cloud installation uses CCO manual mode and ccoctl-managed credentials.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.11. Manually creating IAM",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "proxy.httpProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "http URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "HTTP proxy used for external traffic from cluster components.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.7.1. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "proxy.httpsProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "https URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "HTTPS proxy used for external traffic from cluster components.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.7.1. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "proxy.noProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "comma-separated domains, IPs, CIDRs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "No-proxy destinations excluded from proxying.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.7.1. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "additionalTrustBundle",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "PEM-encoded X.509 bundle",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Additional trusted CA bundle, commonly used for mirror registry and proxy trust.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.7.1. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "additionalTrustBundlePolicy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Proxyonly",
+        "Always"
+      ],
+      "default": "Proxyonly",
+      "required": false,
+      "description": "Policy controlling when Proxy trustedCA references user-ca-bundle.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-ibm-cloud-restricted",
+          "docTitle": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "sectionHeading": "8.7.1. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+        }
+      ]
+    },
+    {
+      "path": "imageDigestSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of source/mirrors objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Release image mirror mappings for disconnected installation.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "image-based-installation-sno",
+          "docTitle": "Image-based installation for single-node OpenShift",
+          "sectionHeading": "Optional specifications for image-based-installation-config",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift"
+        }
+      ]
+    }
+  ]
+}

@@ -55,6 +55,11 @@ describe("catalogResolver: getScenarioId(state)", () => {
     expect(getScenarioId(state)).toBe("nutanix-ipi");
   });
 
+  it("returns ibm-cloud-ipi when platform is IBM Cloud and method is IPI", () => {
+    const state = { blueprint: { platform: "IBM Cloud" }, methodology: { method: "IPI" } };
+    expect(getScenarioId(state)).toBe("ibm-cloud-ipi");
+  });
+
   it("returns null when platform is not a known scenario (e.g. vSphere typo or empty)", () => {
     expect(getScenarioId({ blueprint: { platform: "vSphere" }, methodology: { method: "IPI" } })).toBeNull();
     expect(getScenarioId({ blueprint: {}, methodology: { method: "Agent-Based Installer" } })).toBeNull();
@@ -110,6 +115,15 @@ describe("catalogResolver: getCatalogForScenario", () => {
     expect(params.some((p) => p.path === "platform.nutanix.apiVIP" && p.outputFile === "install-config.yaml")).toBe(true);
     expect(params.some((p) => p.path === "platform.nutanix.ingressVIP" && p.outputFile === "install-config.yaml")).toBe(true);
     expect(params.some((p) => p.path === "platform.nutanix.subnet" && p.outputFile === "install-config.yaml")).toBe(true);
+  });
+
+  it("returns parameters array for ibm-cloud-ipi with platform.ibmcloud.region and VPC requirements", () => {
+    const params = getCatalogForScenario("ibm-cloud-ipi");
+    expect(Array.isArray(params)).toBe(true);
+    expect(params.length).toBeGreaterThan(0);
+    expect(params.some((p) => p.path === "platform.ibmcloud.region" && p.outputFile === "install-config.yaml")).toBe(true);
+    expect(params.some((p) => p.path === "platform.ibmcloud.vpcName" && p.outputFile === "install-config.yaml")).toBe(true);
+    expect(params.some((p) => p.path === "credentialsMode" && p.outputFile === "install-config.yaml")).toBe(true);
   });
 
   it("returns empty array for unknown scenario", () => {

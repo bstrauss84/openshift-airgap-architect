@@ -57,7 +57,7 @@ const effectiveHostname = (node, baseDomain) => {
   return short;
 };
 
-// Deferred per PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md: featureSet, arbiter.*, imageContentSources (we use imageDigestSources), credentialsMode/publish for bare metal (cloud-only in generate).
+// Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, imageContentSources (we use imageDigestSources), credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
   const mirror = state.globalStrategy?.mirroring || {};
   const imageDigestSources = mirror.sources?.map((s) => ({
@@ -105,8 +105,9 @@ const buildInstallConfig = (state) => {
 
   const networkingState = state.globalStrategy?.networking || {};
   const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
+  const isIbmCloudIpi = state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI";
   /** AWS install-config supports IPv4 only (4.20); do not emit dual-stack for AWS. */
-  const dualStack = !isAwsGovCloud && Boolean(networkingState.machineNetworkV6);
+  const dualStack = !isAwsGovCloud && !isIbmCloudIpi && Boolean(networkingState.machineNetworkV6);
   const machineNetworks = dualStack
     ? [networkingState.machineNetworkV4, networkingState.machineNetworkV6].filter(Boolean).map((cidr) => ({ cidr }))
     : [networkingState.machineNetworkV4].filter(Boolean).map((cidr) => ({ cidr }));
@@ -656,6 +657,42 @@ const buildInstallConfig = (state) => {
     }
   }
 
+  if (state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI") {
+    const ibmRaw = platformConfig.ibmcloud || {};
+    const splitCsv = (value) => (value || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const ibm = {};
+    if ((ibmRaw.region || "").trim()) ibm.region = ibmRaw.region.trim();
+    if ((ibmRaw.resourceGroupName || "").trim()) ibm.resourceGroupName = ibmRaw.resourceGroupName.trim();
+    if ((ibmRaw.networkResourceGroupName || "").trim()) ibm.networkResourceGroupName = ibmRaw.networkResourceGroupName.trim();
+    if ((ibmRaw.vpcName || "").trim()) ibm.vpcName = ibmRaw.vpcName.trim();
+    const controlPlaneSubnets = splitCsv(ibmRaw.controlPlaneSubnets);
+    if (controlPlaneSubnets.length) ibm.controlPlaneSubnets = controlPlaneSubnets;
+    const computeSubnets = splitCsv(ibmRaw.computeSubnets);
+    if (computeSubnets.length) ibm.computeSubnets = computeSubnets;
+    if (Array.isArray(ibmRaw.serviceEndpoints)) {
+      const endpoints = ibmRaw.serviceEndpoints
+        .filter((ep) => (ep?.name || "").trim() && (ep?.url || "").trim())
+        .map((ep) => ({ name: ep.name.trim(), url: ep.url.trim() }));
+      if (endpoints.length) ibm.serviceEndpoints = endpoints;
+    } else if (typeof ibmRaw.serviceEndpoints === "string" && ibmRaw.serviceEndpoints.trim()) {
+      const endpoints = ibmRaw.serviceEndpoints
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const idx = line.indexOf("=");
+          if (idx <= 0) return null;
+          return { name: line.slice(0, idx).trim(), url: line.slice(idx + 1).trim() };
+        })
+        .filter((ep) => ep && ep.name && ep.url);
+      if (endpoints.length) ibm.serviceEndpoints = endpoints;
+    }
+    installConfig.platform.ibmcloud = ibm;
+    installConfig.publish = platformConfig.publish || "External";
+    // IBM Cloud install docs require CCO manual mode for installer-provisioned installs.
+    installConfig.credentialsMode = "Manual";
+  }
+
   const trust = state.trust || {};
   const trustBundle = buildEffectiveTrustBundle(trust);
   if (trustBundle) {
@@ -693,6 +730,8 @@ const normalizePlatformKey = (platform) => {
       return "aws";
     case "Azure Government":
       return "azure";
+    case "IBM Cloud":
+      return "ibmcloud";
     default:
       return "none";
   }
