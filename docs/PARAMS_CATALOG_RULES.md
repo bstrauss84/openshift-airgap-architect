@@ -28,11 +28,30 @@ The install-config parameters **proxy.httpProxy**, **proxy.httpsProxy**, **proxy
 
 ## Image mirroring (imageContentSources vs imageDigestSources)
 
-**imageContentSources** (with sub-fields **imageContentSources[].source** and **imageContentSources[].mirrors**) is the documented parameter for release-image mirroring in the 4.20 Agent/install parameter tables. **imageDigestSources** is the replacement for soon-to-be-deprecated imageContentSources; it has the same sub-field structure (**mirrors**, **source**) and the same meaning (sources and repositories for release-image content). Both are included in all scenario catalogs for install-config.yaml.
+Catalogs keep `imageDigestSources` as the canonical mirror-source parameter path used by app logic.
 
-- **imageDigestSources** is documented in 4.20 **Edge computing → Image-based installation for single-node OpenShift** (Table 17.5 Optional specifications for image-based-installation-config.yaml; Table 17.8 for ImageClusterInstall). Doc reference: [Image-based installation for single-node OpenShift](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install).
-- All scenario catalogs include **imageDigestSources**, **imageDigestSources[].mirrors**, and **imageDigestSources[].source** for install-config.yaml, with descriptions that state they replace imageContentSources and that sub-fields are the same.
-- Post-install digest mirroring uses cluster API resources (**ImageDigestMirrorSet**, **ImageTagMirrorSet**) from oc-mirror v2, which are not install-config parameters.
+- Generator emission is version-gated for install-config compatibility:
+  - OCP `4.14+` emits `imageDigestSources`.
+  - OCP `4.13` and earlier emits `imageContentSources`.
+- `imageDigestSources` and `imageContentSources` use the same source/mirror structure for release-image mapping.
+- Post-install digest mirroring uses cluster API resources (`ImageDigestMirrorSet`, `ImageTagMirrorSet`) from oc-mirror v2; those are cluster objects, not install-config parameters.
+
+### Installer code tie-breaker reference
+
+When docs appear mixed across books/versions, use OpenShift installer source as a product-truth tie-breaker:
+
+- `release-4.20` installer code includes both fields in the cluster info model:
+  - `ImageDigestSources []types.ImageDigestSource`
+  - `DeprecatedImageContentSources []types.ImageContentSource`
+- Source: [openshift/installer `clusterinfo.go` (release-4.20)](https://github.com/openshift/installer/blob/release-4.20/pkg/asset/agent/joiner/clusterinfo.go)
+
+Interpretation rule for this repo:
+
+- Treat `ImageDigestSources` as the active path for modern versions.
+- Treat `DeprecatedImageContentSources` as compatibility-only for older versions.
+- Do not re-open this decision without either:
+  - installer source changes in the target release branch, or
+  - explicit Red Hat product guidance that supersedes current behavior.
 
 ## Agent-config hosts.networkConfig (nmstate)
 
@@ -54,4 +73,4 @@ The **Installation configuration parameters for the Agent-based Installer** (Cha
 node scripts/expand-catalogs-from-agent-doc.js
 ```
 
-This reads `data/params/4.20/bare-metal-agent.json`, takes all `install-config.yaml` parameters (shared + platform.baremetal), and merges them into each of: bare-metal-ipi, bare-metal-upi, vsphere-ipi, vsphere-upi, nutanix-ipi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi (with `applies_to` set to that scenario and existing platform-specific params preserved). Run from the repo root. Then run `node scripts/validate-catalog.js` to confirm.
+This reads `data/params/4.20/bare-metal-agent.json`, takes all `install-config.yaml` parameters (shared + platform.baremetal), and merges them into each of: bare-metal-ipi, bare-metal-upi, vsphere-ipi, vsphere-upi, nutanix-ipi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi (with `applies_to` set to that scenario and existing platform-specific params preserved). `ibm-cloud-ipi` is curated from IBM Cloud installation docs and is not part of this bulk-expansion script. Run from the repo root. Then run `node scripts/validate-catalog.js` to confirm.

@@ -1,0 +1,80 @@
+# Documentation Index and Authority Map
+
+This is the canonical map for project documentation authority, ownership, and usage.
+
+Use this file first when deciding where new information belongs.
+
+## Authority tiers
+
+### Tier 1: Authoritative current truth
+
+These files define current expected behavior and process.
+
+- Product behavior and operations: `README.md`
+- Contributor workflow: `docs/CONTRIBUTING.md`
+- Security and secrets policy: `docs/SECURITY_NOTES.md`
+- Update workflow: `docs/UPDATING.md`
+- Data and docs source-of-truth rules:
+  - `docs/DATA_AND_FRONTEND_COPIES.md`
+  - `docs/DOC_INDEX_RULES.md`
+  - `docs/PARAMS_CATALOG_RULES.md`
+  - `docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`
+- UI consistency contract: `docs/DESIGN_SYSTEM.md`
+- Backlog and status truth: `docs/BACKLOG_STATUS.md`
+- Helper selection and usage: `docs/HELPER_USAGE.md`
+- AI governance and compliance: `AI_GOVERNANCE.md`
+
+### Tier 2: Working docs
+
+These files are valuable but may include historical context, implementation notes, and in-progress decisions.
+
+- Scenario review and reconciliation docs:
+  - `docs/*_DOC_REVIEW_AND_PLAN.md`
+  - `docs/*_AUDIT*.md`
+  - `docs/*_FINDINGS*.md`
+  - `docs/*_VERIFICATION*.md`
+- Comparative and exploratory docs:
+  - `docs/CLUSTERFILE_*`
+  - `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`
+  - `docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md`
+
+### Tier 3: Historical or superseded
+
+Historical snapshots are retained for context but are not authoritative when they conflict with Tier 1.
+
+When updating a historical doc, add a short banner at top with:
+
+- `Authority: Historical`
+- `Superseded by: <Tier 1 path>`
+- `Reason: <short reason>`
+
+## Canonical ownership by topic
+
+- Docs index and doc URL policy: `docs/DOC_INDEX_RULES.md`
+- Parameter catalog policy: `docs/PARAMS_CATALOG_RULES.md`
+- Data copy and sync policy: `docs/DATA_AND_FRONTEND_COPIES.md`
+- Backlog status and intake: `docs/BACKLOG_STATUS.md`
+- Helper and agent invocation strategy: `docs/HELPER_USAGE.md`
+- AI assistance governance and compliance: `AI_GOVERNANCE.md`
+
+## Contradiction handling rule
+
+When two docs conflict:
+
+1. Tier 1 beats Tier 2 and Tier 3.
+2. Machine-checked truth (code/tests/CI) beats text claims.
+3. Resolve the conflict in Tier 1 first, then mark older statements as superseded.
+
+## Where to add new information
+
+- New process or policy: add to Tier 1 doc and link here.
+- New scenario investigation: create/update a Tier 2 working doc and cross-link from `docs/BACKLOG_STATUS.md`.
+- New future request or deferred item: add to `docs/BACKLOG_STATUS.md` using the intake template there.
+
+## Required cross-check before merge
+
+For any doc-governance change:
+
+1. Update this index when authority or ownership changes.
+2. Confirm linked files exist and are tracked.
+3. Confirm no new references to local-only files (for example `LOCAL_BACKLOG.md`).

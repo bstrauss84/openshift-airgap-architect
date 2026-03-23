@@ -3288,6 +3288,31 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   padding-top: 0;
 }
 
+/* Platform Specifics field sizing refinements: prevent unnecessary full-width stretching. */
+.platform-specifics .field-with-info-row.platform-specifics-field-short > :is(input, select, textarea) {
+  inline-size: min(100%, 16rem);
+  max-inline-size: 100%;
+  align-self: flex-start;
+}
+
+.platform-specifics .field-with-info-row.platform-specifics-field-medium > :is(input, select, textarea) {
+  inline-size: min(100%, 24rem);
+  max-inline-size: 100%;
+  align-self: flex-start;
+}
+
+.platform-specifics .field-with-info-row.platform-specifics-field-long > :is(input, select, textarea) {
+  inline-size: min(100%, 34rem);
+  max-inline-size: 100%;
+  align-self: flex-start;
+}
+
+.platform-specifics .field-with-info-row.platform-specifics-field-full > :is(input, select, textarea) {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  align-self: stretch;
+}
+
 /* Platform Specifics: AWS AMI auto-discovery row */
 .platform-specifics-radio-label {
   display: block;

@@ -55,6 +55,11 @@ import {
   azureGovUpiInstall,
 } from "./azure.js";
 
+import {
+  ibmCloudIpiPrereqs,
+  ibmCloudIpiInstall
+} from "./ibmcloud.js";
+
 const compartments_v420 = [
   // Global
   globalPrereqs,
@@ -99,6 +104,9 @@ const compartments_v420 = [
   azureGovInstall,
   azureGovUpiPrereqs,
   azureGovUpiInstall,
+  // IBM Cloud
+  ibmCloudIpiPrereqs,
+  ibmCloudIpiInstall,
 ];
 
 export { compartments_v420 };
