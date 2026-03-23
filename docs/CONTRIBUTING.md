@@ -99,6 +99,8 @@ When to run: before committing, and after changing backend `src/` or frontend `s
 - `imageset-config.yaml` (oc-mirror v2)
 - `FIELD_MANUAL.md`
 - NTP MachineConfigs when NTP is set: `99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`
+- Mirror-source install-config key is version-gated: `imageDigestSources` for OCP `4.14+`, `imageContentSources` for OCP `4.13` and earlier.
+- If this is questioned, use installer source for the target release branch as tie-breaker (for 4.20: `pkg/asset/agent/joiner/clusterinfo.go` has `ImageDigestSources` plus `DeprecatedImageContentSources`).
 
 ## Project rules
 

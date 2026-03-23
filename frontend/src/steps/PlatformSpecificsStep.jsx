@@ -149,6 +149,20 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   );
   const ibmVpcMode = platformConfig.ibmcloud?.vpcMode || "existing-vpc";
   const isIbmExistingVpcMode = ibmVpcMode === "existing-vpc";
+  const setIbmDedicatedHostsProfile = (value) => {
+    const next = (value || "").trim();
+    updateIbmCloud({
+      dedicatedHostsProfile: value,
+      ...(next ? { dedicatedHostsName: "" } : {})
+    });
+  };
+  const setIbmDedicatedHostsName = (value) => {
+    const next = (value || "").trim();
+    updateIbmCloud({
+      dedicatedHostsName: value,
+      ...(next ? { dedicatedHostsProfile: "" } : {})
+    });
+  };
 
   /** Nutanix IPI: show when catalog has platform.nutanix params. */
   const showNutanixIpiSection = catalogParams.some(
@@ -821,6 +835,9 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               )}
 
               <h4 className="platform-specifics-subsection">Dedicated hosts (optional)</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Choose one path: set a dedicated host profile to create/use a profile-based host, or set an existing dedicated host name. Do not set both.
+              </p>
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Dedicated host profile (optional)"
@@ -829,7 +846,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 >
                   <input
                     value={platformConfig.ibmcloud?.dedicatedHostsProfile || ""}
-                    onChange={(e) => updateIbmCloud({ dedicatedHostsProfile: e.target.value })}
+                    onChange={(e) => setIbmDedicatedHostsProfile(e.target.value)}
                     placeholder="e.g. cx2-host-152x304"
                   />
                 </FieldLabelWithInfo>
@@ -840,7 +857,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 >
                   <input
                     value={platformConfig.ibmcloud?.dedicatedHostsName || ""}
-                    onChange={(e) => updateIbmCloud({ dedicatedHostsName: e.target.value })}
+                    onChange={(e) => setIbmDedicatedHostsName(e.target.value)}
                     placeholder="existing-dedicated-host"
                   />
                 </FieldLabelWithInfo>

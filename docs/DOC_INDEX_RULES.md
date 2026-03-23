@@ -19,7 +19,7 @@ Machine-readable index for OpenShift Container Platform docs that maps (platform
 ## Scenario mapping
 
 - **Scenario ID** = one (platform, install method) pair.
-- Current 4.20 docs-index scenarios (authoritative list): `bare-metal-agent`, `bare-metal-ipi`, `bare-metal-upi`, `vsphere-ipi`, `vsphere-upi`, `vsphere-agent`, `nutanix-ipi`, `aws-govcloud-ipi`, `aws-govcloud-upi`, `azure-government-ipi`.
+- Current 4.20 docs-index scenarios (authoritative list): `bare-metal-agent`, `bare-metal-ipi`, `bare-metal-upi`, `vsphere-ipi`, `vsphere-upi`, `vsphere-agent`, `nutanix-ipi`, `aws-govcloud-ipi`, `aws-govcloud-upi`, `azure-government-ipi`, `ibm-cloud-ipi`.
 - `schema/scenarios.json` includes Azure Government UPI as a supported install method. If/when `azure-government-upi` is added to docs-index, update this list and keep scenario IDs aligned across schema, docs-index, and catalogs.
 - Do **not** invent ad-hoc scenario IDs outside the canonical list in `data/docs-index/<version>.json`.
 - **Connectivity/variant** is metadata on doc entries via **tags**, not a new scenario ID. Tags include: `restricted-network`, `gov-region`, `secret-region`, `top-secret-region`, `private-cluster`, `existing-vpc`, `existing-vnet`, `fully-disconnected`, `jumpbox`, `mirroring`, `proxy`, `trust-bundle`. Only add tags when the docs explicitly distinguish that variant.

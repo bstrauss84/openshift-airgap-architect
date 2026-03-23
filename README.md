@@ -4,7 +4,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
 
 ## What it is
 
-OpenShift Airgap Architect guides you through scenario-based configuration (Bare Metal Agent-Based, Bare Metal IPI/UPI, VMware vSphere, AWS GovCloud, Azure Government, Nutanix) and produces:
+OpenShift Airgap Architect guides you through scenario-based configuration (Bare Metal Agent-Based, Bare Metal IPI/UPI, VMware vSphere IPI/UPI, AWS GovCloud IPI/UPI, Azure Government IPI, Nutanix IPI, IBM Cloud IPI) and produces:
 
 - **install-config.yaml** — Installer input for your chosen platform
 - **agent-config.yaml** — For Bare Metal + Agent-Based Installer only
@@ -157,6 +157,8 @@ When the Landing page or **Tools → About** shows that an update is available, 
 2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML and the field manual. Export options control inclusion of credentials, certificates, and client tools.
 3. **install-config.yaml** and **agent-config.yaml** (when applicable) are also available as inline copy/download from the same step.
 4. Use **Update Docs Links** to refresh cached documentation links used in the field manual.
+
+For disconnected mirror mapping in `install-config.yaml`, the generator emits `imageDigestSources` for OCP `4.14+` and `imageContentSources` for OCP `4.13` and earlier.
 
 ## Operator workflows
 

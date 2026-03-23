@@ -20,7 +20,7 @@ Sources: OpenShift 4.20 installation docs (Red Hat), data/docs-index/4.20.json, 
 | install-config/nutanix-ipi_minimal.yaml | nutanix-ipi | minimal | **Synthetic from params** — data/params/4.20/nutanix-ipi.json, installing-nutanix-ipi |
 | install-config/disconnected_imageDigestSources.yaml | (snippet) | mirroring | 4.20 disconnected; imageDigestSources with multiple sources/mirrors |
 
-**Coverage:** The listed scenarios have >=1 example. Doc-sourced: bare-metal-agent (4 variants), bare-metal-upi (minimal). Synthetic from params: bare-metal-ipi, vsphere-ipi, vsphere-upi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi, nutanix-ipi (minimal each). Non-minimal paths for the latter scenarios use the minimal example for structure comparison.
+**Coverage:** The listed scenarios have >=1 example. Doc-sourced: bare-metal-agent (4 variants), bare-metal-upi (minimal). Synthetic from params: bare-metal-ipi, vsphere-ipi, vsphere-upi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi, nutanix-ipi (minimal each). `ibm-cloud-ipi` is a supported scenario in the app and docs-index, but an install-config e2e example fixture is not yet added in this collection.
 
 ## agent-config examples
 
