@@ -169,6 +169,22 @@ const defaultState = () => ({
       region: "",
       resourceGroupName: "",
       baseDomainResourceGroupName: ""
+    },
+    ibmcloud: {
+      vpcMode: "existing-vpc",
+      region: "",
+      resourceGroupName: "",
+      networkResourceGroupName: "",
+      vpcName: "",
+      controlPlaneSubnets: "",
+      computeSubnets: "",
+      serviceEndpoints: "",
+      type: "",
+      dedicatedHostsProfile: "",
+      dedicatedHostsName: "",
+      defaultMachineBootVolumeEncryptionKey: "",
+      controlPlaneBootVolumeEncryptionKey: "",
+      computeBootVolumeEncryptionKey: ""
     }
   },
   hostInventory: {

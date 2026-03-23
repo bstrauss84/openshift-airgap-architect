@@ -15,6 +15,10 @@ describe("getScenarioId / SCENARIO_IDS_WITH_HOST_INVENTORY", () => {
   it("includes vsphere-agent in host inventory scenarios", () => {
     expect(SCENARIO_IDS_WITH_HOST_INVENTORY).toContain("vsphere-agent");
   });
+  it("maps IBM Cloud + IPI to ibm-cloud-ipi and does not include it in host inventory scenarios", () => {
+    expect(getScenarioId("IBM Cloud", "IPI")).toBe("ibm-cloud-ipi");
+    expect(SCENARIO_IDS_WITH_HOST_INVENTORY).not.toContain("ibm-cloud-ipi");
+  });
 });
 
 describe("getAgentBasedTopologyErrors", () => {

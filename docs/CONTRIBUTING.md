@@ -2,9 +2,9 @@
 
 ## UI Contract (North Star)
 
-- **`docs/UI_NORTH_STAR.md`** is the UI contract for this project.
+- **`docs/DESIGN_SYSTEM.md`** is the tracked UI contract for this project.
 - If a change conflicts with it, the change must **STOP** and propose an alternative.
-- No new tabs or steps should be added unless they map to a door in the contract.
+- No new tabs or steps should be added unless they map to the documented workflow.
 
 ## Run and build
 
@@ -13,7 +13,7 @@
 - **UI:** http://localhost:5173  
 - **Backend:** http://localhost:4000
 
-On **Apple Silicon or other non-x86_64 hosts**, Operator scan is not yet supported by the default container image (the previous forced-amd64 workaround was removed because oc-mirror is not reliable under emulation). See **README** (“Platform and architecture”) and **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for current status and the planned architecture-aware solution.
+On **Apple Silicon or other non-x86_64 hosts**, follow **README** (“Platform and architecture”) as the product source of truth for current runtime behavior. Use **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** as historical/working context.
 
 If you use `compose down --remove-orphans` followed by `image prune --force` before `compose up --build`, prune may report *image is in use by a container*. That usually means another container (or Podman’s reference) still uses that image; you can ignore it or run `podman container prune -f` (or `docker container prune -f`) first. The app will still run. In the frontend container, *Re-optimizing dependencies because lockfile has changed* is normal when the lockfile or mounts differ from Vite’s cache and is safe to ignore.
 
@@ -99,7 +99,18 @@ When to run: before committing, and after changing backend `src/` or frontend `s
 - `imageset-config.yaml` (oc-mirror v2)
 - `FIELD_MANUAL.md`
 - NTP MachineConfigs when NTP is set: `99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`
+- Mirror-source install-config key is version-gated: `imageDigestSources` for OCP `4.14+`, `imageContentSources` for OCP `4.13` and earlier.
+- If this is questioned, use installer source for the target release branch as tie-breaker (for 4.20: `pkg/asset/agent/joiner/clusterinfo.go` has `ImageDigestSources` plus `DeprecatedImageContentSources`).
 
 ## Project rules
 
 See `.cursor/rules/` and `AGENTS.md` for AI/agent guidance. Align to official OpenShift docs for the selected version (4.17–4.20); do not store or export credentials by default.
+
+## Governance docs map
+
+For canonical ownership and status tracking:
+
+- `docs/INDEX.md` (documentation authority map)
+- `docs/BACKLOG_STATUS.md` (canonical backlog/status registry)
+- `docs/HELPER_USAGE.md` (helper selection and usage)
+- `AI_GOVERNANCE.md` (AI-assisted workflow policy)

@@ -1,6 +1,6 @@
 # Code style rules (Workstream H)
 
-**Purpose:** Consistent naming and structure across `frontend/src` and `backend/src`. No behavior change. See [PHASE_5_POST_SCENARIO_AGENT_PLAN.md](./PHASE_5_POST_SCENARIO_AGENT_PLAN.md) § 3 H and [PARAMS_CATALOG_RULES.md](./PARAMS_CATALOG_RULES.md).
+**Purpose:** Consistent naming and structure across `frontend/src` and `backend/src`. No behavior change. See `docs/INDEX.md` for authority mapping and `docs/PARAMS_CATALOG_RULES.md` for catalog standards.
 
 ---
 

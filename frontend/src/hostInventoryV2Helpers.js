@@ -57,7 +57,7 @@ export const SCENARIO_IDS_WITH_HOST_INVENTORY = ["bare-metal-agent", "bare-metal
  * Derive scenarioId from platform and methodology.
  * @param {string} platform - e.g. "Bare Metal", "VMware vSphere"
  * @param {string} method - e.g. "Agent-Based Installer", "IPI", "UPI"
- * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-agent" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "nutanix-ipi" | null
+ * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-agent" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "ibm-cloud-ipi" | "nutanix-ipi" | null
  */
 export function getScenarioId(platform, method) {
   if (platform === "Bare Metal") {
@@ -79,6 +79,10 @@ export function getScenarioId(platform, method) {
   }
   if (platform === "Azure Government") {
     if (method === "IPI") return "azure-government-ipi";
+    return null;
+  }
+  if (platform === "IBM Cloud") {
+    if (method === "IPI") return "ibm-cloud-ipi";
     return null;
   }
   if (platform === "Nutanix") {

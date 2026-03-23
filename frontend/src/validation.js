@@ -364,7 +364,7 @@ const validateTrust = (state) => {
   return { errors, warnings };
 };
 
-/** Platform-specific required fields: AWS GovCloud (region), vSphere (vcenter, datacenter, cluster, datastore, network; creds by includeCredentials), Nutanix, Azure Government. */
+/** Platform-specific required fields: AWS GovCloud, vSphere, Nutanix, Azure Government, IBM Cloud. */
 const validatePlatformConfig = (state) => {
   const errors = [];
   const warnings = [];
@@ -437,6 +437,26 @@ const validatePlatformConfig = (state) => {
     if (!cfg.azure?.region) errors.push("Azure region is required for Azure Government IPI.");
     if (!cfg.azure?.resourceGroupName) errors.push("Resource group name is required for Azure Government IPI.");
     if (!cfg.azure?.baseDomainResourceGroupName) errors.push("Base domain resource group is required for Azure Government IPI.");
+  }
+  if (method === "IPI" && platform === "IBM Cloud") {
+    const vpcMode = cfg.ibmcloud?.vpcMode || "existing-vpc";
+    const dedicatedHostsProfile = (cfg.ibmcloud?.dedicatedHostsProfile || "").trim();
+    const dedicatedHostsName = (cfg.ibmcloud?.dedicatedHostsName || "").trim();
+    if (!(cfg.ibmcloud?.region || "").trim()) errors.push("IBM Cloud region is required for IBM Cloud IPI.");
+    if (vpcMode === "existing-vpc") {
+      if (!(cfg.ibmcloud?.networkResourceGroupName || "").trim()) {
+        errors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
+      }
+      if (!(cfg.ibmcloud?.vpcName || "").trim()) errors.push("vpcName is required when using an existing IBM Cloud VPC.");
+      if (!(cfg.ibmcloud?.controlPlaneSubnets || "").trim()) errors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
+      if (!(cfg.ibmcloud?.computeSubnets || "").trim()) errors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
+    }
+    if (cfg.credentialsMode && cfg.credentialsMode !== "Manual") {
+      errors.push("IBM Cloud IPI requires credentialsMode Manual.");
+    }
+    if (dedicatedHostsProfile && dedicatedHostsName) {
+      errors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
+    }
   }
   return { errors, warnings };
 };
@@ -534,6 +554,15 @@ const validateNetworkingFormat = (state) => {
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) errors.push("Provisioning network CIDR must be a valid CIDR.");
   if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) errors.push("Cluster provisioning IP must be a valid IPv4 address.");
+  if (scenarioIdNw === "ibm-cloud-ipi" && (networking.machineNetworkV6 || "").trim()) {
+    errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
+  }
+  if (scenarioIdNw === "ibm-cloud-ipi" && clusterV6) {
+    errors.push("IBM Cloud install-config clusterNetwork in OpenShift 4.20 is documented as IPv4 only.");
+  }
+  if (scenarioIdNw === "ibm-cloud-ipi" && serviceV6) {
+    errors.push("IBM Cloud install-config serviceNetwork in OpenShift 4.20 is documented as IPv4 only.");
+  }
   if (scenarioIdNw === "nutanix-ipi") {
     const nx = state.platformConfig?.nutanix || {};
     const apiNx = (nx.apiVIP || "").trim();
@@ -931,7 +960,7 @@ const validateStep = (state, stepId) => {
     }
     return { errors, warnings: [], fieldErrors };
   }
-  // platform-specifics: required fields per scenario (Azure, vSphere, AWS GovCloud, Nutanix) from catalog required paths.
+  // platform-specifics: required fields per scenario from catalog required paths.
   if (stepId === "platform-specifics") {
     const platform = state.blueprint?.platform;
     const method = state.methodology?.method;
@@ -939,6 +968,7 @@ const validateStep = (state, stepId) => {
     const vsphere = state.platformConfig?.vsphere || {};
     const aws = state.platformConfig?.aws || {};
     const azure = state.platformConfig?.azure || {};
+    const ibmcloud = state.platformConfig?.ibmcloud || {};
     if (scenarioId === "azure-government-ipi") {
       const errors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
@@ -1035,6 +1065,34 @@ const validateStep = (state, stepId) => {
     }
     if (scenarioId === "nutanix-ipi") {
       return validatePlatformConfig(state);
+    }
+    if (scenarioId === "ibm-cloud-ipi") {
+      const errors = [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const vpcMode = ibmcloud.vpcMode || "existing-vpc";
+      const dedicatedHostsProfile = (ibmcloud.dedicatedHostsProfile || "").trim();
+      const dedicatedHostsName = (ibmcloud.dedicatedHostsName || "").trim();
+      if (requiredPaths.includes("platform.ibmcloud.region") && !(ibmcloud.region || "").trim()) {
+        errors.push("IBM Cloud region is required for IBM Cloud IPI.");
+      }
+      if (vpcMode === "existing-vpc") {
+        if (!(ibmcloud.networkResourceGroupName || "").trim()) {
+          errors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
+        }
+        if (!(ibmcloud.vpcName || "").trim()) {
+          errors.push("vpcName is required when using an existing IBM Cloud VPC.");
+        }
+        if (!(ibmcloud.controlPlaneSubnets || "").trim()) {
+          errors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
+        }
+        if (!(ibmcloud.computeSubnets || "").trim()) {
+          errors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
+        }
+      }
+      if (dedicatedHostsProfile && dedicatedHostsName) {
+        errors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
+      }
+      return { errors, warnings: [] };
     }
     return { errors: [], warnings: [] };
   }

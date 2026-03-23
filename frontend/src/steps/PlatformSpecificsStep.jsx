@@ -66,6 +66,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const updatePlatformConfig = (patch) => updateState({ platformConfig: { ...platformConfig, ...patch } });
   const updateAws = (patch) => updatePlatformConfig({ aws: { ...(platformConfig.aws || {}), ...patch } });
   const updateAzure = (patch) => updatePlatformConfig({ azure: { ...(platformConfig.azure || {}), ...patch } });
+  const updateIbmCloud = (patch) => updatePlatformConfig({ ibmcloud: { ...(platformConfig.ibmcloud || {}), ...patch } });
 
   const fetchAmiFromInstaller = useCallback(
     async (region, force = false) => {
@@ -116,6 +117,52 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const metaAzureRegion = getParamMeta(scenarioId, "platform.azure.region", INSTALL_CONFIG);
   const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG);
   const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG);
+
+  /** IBM Cloud IPI: show when catalog has platform.ibmcloud.region. */
+  const showIbmCloudSection = catalogParams.some(
+    (p) => p.path === "platform.ibmcloud.region" && p.outputFile === INSTALL_CONFIG
+  );
+  const metaIbmRegion = getParamMeta(scenarioId, "platform.ibmcloud.region", INSTALL_CONFIG);
+  const metaIbmResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.resourceGroupName", INSTALL_CONFIG);
+  const metaIbmNetworkResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.networkResourceGroupName", INSTALL_CONFIG);
+  const metaIbmVpcName = getParamMeta(scenarioId, "platform.ibmcloud.vpcName", INSTALL_CONFIG);
+  const metaIbmControlPlaneSubnets = getParamMeta(scenarioId, "platform.ibmcloud.controlPlaneSubnets", INSTALL_CONFIG);
+  const metaIbmComputeSubnets = getParamMeta(scenarioId, "platform.ibmcloud.computeSubnets", INSTALL_CONFIG);
+  const metaIbmServiceEndpoints = getParamMeta(scenarioId, "platform.ibmcloud.serviceEndpoints", INSTALL_CONFIG);
+  const metaIbmType = getParamMeta(scenarioId, "platform.ibmcloud.type", INSTALL_CONFIG);
+  const metaIbmDedicatedHostsProfile = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.profile", INSTALL_CONFIG);
+  const metaIbmDedicatedHostsName = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.name", INSTALL_CONFIG);
+  const metaIbmDefaultMachineBootVolumeKey = getParamMeta(
+    scenarioId,
+    "platform.ibmcloud.defaultMachinePlatform.bootVolume.encryptionKey",
+    INSTALL_CONFIG
+  );
+  const metaIbmControlPlaneBootVolumeKey = getParamMeta(
+    scenarioId,
+    "controlPlane.platform.ibmcloud.bootVolume.encryptionKey",
+    INSTALL_CONFIG
+  );
+  const metaIbmComputeBootVolumeKey = getParamMeta(
+    scenarioId,
+    "compute[].platform.ibmcloud.bootVolume.encryptionKey",
+    INSTALL_CONFIG
+  );
+  const ibmVpcMode = platformConfig.ibmcloud?.vpcMode || "existing-vpc";
+  const isIbmExistingVpcMode = ibmVpcMode === "existing-vpc";
+  const setIbmDedicatedHostsProfile = (value) => {
+    const next = (value || "").trim();
+    updateIbmCloud({
+      dedicatedHostsProfile: value,
+      ...(next ? { dedicatedHostsName: "" } : {})
+    });
+  };
+  const setIbmDedicatedHostsName = (value) => {
+    const next = (value || "").trim();
+    updateIbmCloud({
+      dedicatedHostsName: value,
+      ...(next ? { dedicatedHostsProfile: "" } : {})
+    });
+  };
 
   /** Nutanix IPI: show when catalog has platform.nutanix params. */
   const showNutanixIpiSection = catalogParams.some(
@@ -662,6 +709,232 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </select>
                 </FieldLabelWithInfo>
               </div>
+            </div>
+          </section>
+        )}
+
+        {showIbmCloudSection && (
+          <section className="card">
+            <div className="card-header">
+              <h3 className="card-title">IBM Cloud IPI</h3>
+              <div className="card-subtitle">Placement, VPC path, endpoint overrides, and encryption settings for IBM Cloud installer-provisioned infrastructure.</div>
+            </div>
+            <div className="card-body">
+              <h4 className="platform-specifics-subsection">Placement</h4>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
+                <FieldLabelWithInfo
+                  label="Region"
+                  hint={`${metaIbmRegion?.description ? `${metaIbmRegion.description} ` : ""}Choose the region where the cluster will run (for example, us-east). It must match the location of your target VPC/subnets and satisfy latency/compliance requirements.`}
+                  required={metaIbmRegion?.required || isRequiredInstall("platform.ibmcloud.region")}
+                  className="platform-specifics-field-short"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.region || ""}
+                    onChange={(e) => updateIbmCloud({ region: e.target.value })}
+                    placeholder="e.g. us-east"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Resource group name (optional)"
+                  hint={`${metaIbmResourceGroupName?.description ? `${metaIbmResourceGroupName.description} ` : ""}Use the resource group for cluster-managed artifacts. Leave blank to use the account default. This is distinct from the network resource group unless both intentionally match.`}
+                  className="platform-specifics-field-medium"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.resourceGroupName || ""}
+                    onChange={(e) => updateIbmCloud({ resourceGroupName: e.target.value })}
+                    placeholder="cluster-resource-group"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Instance type (optional)"
+                  hint={`${metaIbmType?.description ? `${metaIbmType.description} ` : ""}Enter a default IBM Cloud VSI profile (for example, bx2-8x32) when you need explicit CPU/memory sizing. Leave blank to use installer defaults.`}
+                  className="platform-specifics-field-short"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.type || ""}
+                    onChange={(e) => updateIbmCloud({ type: e.target.value })}
+                    placeholder="e.g. bx2-8x32"
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
+              <h4 className="platform-specifics-subsection">VPC path</h4>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
+                <FieldLabelWithInfo
+                  label="VPC deployment mode"
+                  hint="Choose whether you provide existing VPC resources or let the installer create them. For disconnected/restricted environments, existing VPC/subnets are the common path. This choice controls which VPC fields are shown and emitted."
+                  className="platform-specifics-field-medium"
+                >
+                  <select
+                    value={ibmVpcMode}
+                    onChange={(e) => updateIbmCloud({ vpcMode: e.target.value })}
+                  >
+                    <option value="existing-vpc">Existing VPC and subnets</option>
+                    <option value="installer-managed">Installer-managed VPC</option>
+                  </select>
+                </FieldLabelWithInfo>
+              </div>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                VPC fields below expect IBM Cloud resource names in the selected region. They are not CIDR values from the Networking tab.
+              </p>
+              {isIbmExistingVpcMode ? (
+                <div className="field-grid" style={{ marginBottom: 16 }}>
+                <FieldLabelWithInfo
+                  label="Network resource group name"
+                  hint={`${metaIbmNetworkResourceGroupName?.description ? `${metaIbmNetworkResourceGroupName.description} ` : ""}Required in Existing VPC mode. Enter the resource group that already contains the VPC and subnet resources for this cluster.`}
+                  required={true}
+                  className="platform-specifics-field-medium"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.networkResourceGroupName || ""}
+                    onChange={(e) => updateIbmCloud({ networkResourceGroupName: e.target.value })}
+                    placeholder="existing-network-rg"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="VPC name"
+                  hint={`${metaIbmVpcName?.description ? `${metaIbmVpcName.description} ` : ""}Required in Existing VPC mode. Enter the existing VPC name in the selected region where cluster nodes are placed.`}
+                  required={true}
+                  className="platform-specifics-field-medium"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.vpcName || ""}
+                    onChange={(e) => updateIbmCloud({ vpcName: e.target.value })}
+                    placeholder="existing-vpc-name"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Control plane subnets"
+                  hint={`${metaIbmControlPlaneSubnets?.description ? `${metaIbmControlPlaneSubnets.description} ` : ""}Required in Existing VPC mode. Provide comma-separated existing subnet names for control plane nodes (typically one per AZ) with API/control-plane connectivity.`}
+                  required={true}
+                  className="platform-specifics-field-long"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.controlPlaneSubnets || ""}
+                    onChange={(e) => updateIbmCloud({ controlPlaneSubnets: e.target.value })}
+                    placeholder="cp-subnet-a,cp-subnet-b,cp-subnet-c"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Compute subnets"
+                  hint={`${metaIbmComputeSubnets?.description ? `${metaIbmComputeSubnets.description} ` : ""}Required in Existing VPC mode. Provide comma-separated existing subnet names for worker nodes in the same VPC/region with required workload connectivity.`}
+                  required={true}
+                  className="platform-specifics-field-long"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.computeSubnets || ""}
+                    onChange={(e) => updateIbmCloud({ computeSubnets: e.target.value })}
+                    placeholder="compute-subnet-a,compute-subnet-b,compute-subnet-c"
+                  />
+                </FieldLabelWithInfo>
+                </div>
+              ) : (
+                <p className="note subtle" style={{ marginTop: 0, marginBottom: 16 }}>
+                  Installer-managed VPC selected. Existing-VPC-only fields are hidden and omitted from generated output.
+                </p>
+              )}
+
+              <h4 className="platform-specifics-subsection">Dedicated hosts (optional)</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Choose one path: set a dedicated host profile to create/use a profile-based host, or set an existing dedicated host name. Do not set both.
+              </p>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
+                <FieldLabelWithInfo
+                  label="Dedicated host profile (optional)"
+                  hint={`${metaIbmDedicatedHostsProfile?.description ? `${metaIbmDedicatedHostsProfile.description} ` : ""}Set when machines must run on dedicated hosts. Use a valid dedicated-host profile (for example, cx2-host-*).`}
+                  className="platform-specifics-field-medium"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.dedicatedHostsProfile || ""}
+                    onChange={(e) => setIbmDedicatedHostsProfile(e.target.value)}
+                    placeholder="e.g. cx2-host-152x304"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Dedicated host name (optional)"
+                  hint={`${metaIbmDedicatedHostsName?.description ? `${metaIbmDedicatedHostsName.description} ` : ""}Use when placing nodes on a pre-created dedicated host. Enter the existing host name with sufficient remaining capacity.`}
+                  className="platform-specifics-field-medium"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.dedicatedHostsName || ""}
+                    onChange={(e) => setIbmDedicatedHostsName(e.target.value)}
+                    placeholder="existing-dedicated-host"
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
+              <h4 className="platform-specifics-subsection">Service endpoint overrides (optional)</h4>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
+                <FieldLabelWithInfo
+                  label="Service endpoints (optional)"
+                  hint={`${metaIbmServiceEndpoints?.description ? `${metaIbmServiceEndpoints.description} ` : ""}Override endpoints only when default public IBM endpoints are unreachable (private/restricted routing). Enter one NAME=URL pair per line, such as IAM=... or VPC=....`}
+                  className="platform-specifics-field-full"
+                >
+                  <textarea
+                    value={platformConfig.ibmcloud?.serviceEndpoints || ""}
+                    onChange={(e) => updateIbmCloud({ serviceEndpoints: e.target.value })}
+                    rows={5}
+                    placeholder={"IAM=https://private.us-east.iam.cloud.ibm.com\nVPC=https://us-east.private.iaas.cloud.ibm.com/v1"}
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
+              <h4 className="platform-specifics-subsection">Boot volume encryption (optional)</h4>
+              <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
+                <FieldLabelWithInfo
+                  label="Boot volume encryption key (all machine pools, optional)"
+                  hint={`${metaIbmDefaultMachineBootVolumeKey?.description ? `${metaIbmDefaultMachineBootVolumeKey.description} ` : ""}Set a Key Protect root key CRN to apply one cluster-wide default boot-volume key to all machine pools.`}
+                  className="platform-specifics-field-long"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey || ""}
+                    onChange={(e) => updateIbmCloud({ defaultMachineBootVolumeEncryptionKey: e.target.value })}
+                    placeholder="crn:v1:bluemix:public:kms:..."
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Boot volume encryption key (control plane, optional)"
+                  hint={`${metaIbmControlPlaneBootVolumeKey?.description ? `${metaIbmControlPlaneBootVolumeKey.description} ` : ""}Optional override for control plane boot volumes when masters must use a different key than the cluster-wide default.`}
+                  className="platform-specifics-field-long"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey || ""}
+                    onChange={(e) => updateIbmCloud({ controlPlaneBootVolumeEncryptionKey: e.target.value })}
+                    placeholder="crn:v1:bluemix:public:kms:..."
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Boot volume encryption key (compute, optional)"
+                  hint={`${metaIbmComputeBootVolumeKey?.description ? `${metaIbmComputeBootVolumeKey.description} ` : ""}Optional override for worker boot volumes when compute nodes require a different key from control plane or the cluster default.`}
+                  className="platform-specifics-field-long"
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.computeBootVolumeEncryptionKey || ""}
+                    onChange={(e) => updateIbmCloud({ computeBootVolumeEncryptionKey: e.target.value })}
+                    placeholder="crn:v1:bluemix:public:kms:..."
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
+              <h4 className="platform-specifics-subsection">Publishing and credentials</h4>
+              <div className="field-grid" style={{ marginTop: 8 }}>
+                <FieldLabelWithInfo
+                  label="Publish (optional)"
+                  hint={`${metaPublish?.description ? `${metaPublish.description} ` : ""}External exposes API/apps via public endpoints. Internal keeps endpoints private to your network/VPC path and is typical for private-cluster designs.`}
+                  className="platform-specifics-field-short"
+                >
+                  <select
+                    value={platformConfig.publish || metaPublish?.default || "External"}
+                    onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
+                  >
+                    <option value="External">External</option>
+                    <option value="Internal">Internal</option>
+                  </select>
+                </FieldLabelWithInfo>
+              </div>
+              <p className="note subtle" style={{ marginTop: 8, marginBottom: 0 }}>
+                Credentials mode is fixed to <code>Manual</code> for IBM Cloud IPI and is emitted automatically in generated assets.
+              </p>
             </div>
           </section>
         )}

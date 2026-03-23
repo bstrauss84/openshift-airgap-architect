@@ -18,7 +18,8 @@ const PLATFORM_ARCH_SUPPORT = {
   "VMware vSphere":   ["x86_64", "aarch64"],
   "Nutanix":          ["x86_64"],
   "AWS GovCloud":     ["x86_64", "aarch64"],
-  "Azure Government": ["x86_64"]
+  "Azure Government": ["x86_64"],
+  "IBM Cloud":        ["x86_64"]
 };
 
 const platformOptions = [
@@ -26,7 +27,8 @@ const platformOptions = [
   { value: "VMware vSphere", label: "VMware vSphere", rec: "Rec: IPI" },
   { value: "Nutanix", label: "Nutanix", rec: "Rec: IPI" },
   { value: "AWS GovCloud", label: "AWS GovCloud", rec: "Rec: IPI" },
-  { value: "Azure Government", label: "Azure Government", rec: "Rec: IPI" }
+  { value: "Azure Government", label: "Azure Government", rec: "Rec: IPI" },
+  { value: "IBM Cloud", label: "IBM Cloud", rec: "Rec: IPI" }
 ];
 
 const BlueprintStep = () => {

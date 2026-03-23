@@ -320,6 +320,43 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     expect(Array.isArray(requiredPaths)).toBe(true);
   });
 
+  it("when scenario is ibm-cloud-ipi, networking enforces IPv4-only and hides IPv6 fields", () => {
+    const state = stateForNetworkingStep({
+      blueprint: {
+        ...stateWithBlueprintCompleteMethodologyIncomplete().blueprint,
+        platform: "IBM Cloud"
+      },
+      methodology: { method: "IPI" },
+      hostInventory: { enableIpv6: true },
+      globalStrategy: {
+        ...(stateForNetworkingStep().globalStrategy || {}),
+        networking: {
+          machineNetworkV4: "10.90.0.0/24",
+          machineNetworkV6: "fd10:90::/64",
+          clusterNetworkCidr: "10.128.0.0/14",
+          clusterNetworkCidrV6: "fd01::/48",
+          serviceNetworkCidr: "172.30.0.0/16",
+          serviceNetworkCidrV6: "fd02::/112"
+        }
+      }
+    });
+    expect(getScenarioId(state)).toBe("ibm-cloud-ipi");
+    const result = validateStep(state, "networking-v2");
+    expect(result.errors).toContain("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
+    expect(result.errors).toContain("IBM Cloud install-config clusterNetwork in OpenShift 4.20 is documented as IPv4 only.");
+    expect(result.errors).toContain("IBM Cloud install-config serviceNetwork in OpenShift 4.20 is documented as IPv4 only.");
+    const { container } = render(
+      <AppContext.Provider value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+    const view = within(container);
+    expect(view.getByText(/IBM Cloud disconnected install in OpenShift 4.20 documents IPv4-only networking/i)).toBeInTheDocument();
+    expect(view.queryByLabelText(/Enable IPv6/i)).not.toBeInTheDocument();
+    expect(view.queryByPlaceholderText("fd01::/48")).not.toBeInTheDocument();
+    expect(view.queryByPlaceholderText("fd02::/112")).not.toBeInTheDocument();
+  });
+
   it("when IPv6 is enabled, cluster and service IPv6 fields are visible without requiring machineNetworkV6", () => {
     const state = stateForNetworkingStep({
       blueprint: {

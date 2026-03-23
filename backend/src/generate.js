@@ -57,7 +57,7 @@ const effectiveHostname = (node, baseDomain) => {
   return short;
 };
 
-// Deferred per PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md: featureSet, arbiter.*, imageContentSources (we use imageDigestSources), credentialsMode/publish for bare metal (cloud-only in generate).
+// Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
   const mirror = state.globalStrategy?.mirroring || {};
   const imageDigestSources = mirror.sources?.map((s) => ({
@@ -105,8 +105,9 @@ const buildInstallConfig = (state) => {
 
   const networkingState = state.globalStrategy?.networking || {};
   const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
+  const isIbmCloudIpi = state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI";
   /** AWS install-config supports IPv4 only (4.20); do not emit dual-stack for AWS. */
-  const dualStack = !isAwsGovCloud && Boolean(networkingState.machineNetworkV6);
+  const dualStack = !isAwsGovCloud && !isIbmCloudIpi && Boolean(networkingState.machineNetworkV6);
   const machineNetworks = dualStack
     ? [networkingState.machineNetworkV4, networkingState.machineNetworkV6].filter(Boolean).map((cidr) => ({ cidr }))
     : [networkingState.machineNetworkV4].filter(Boolean).map((cidr) => ({ cidr }));
@@ -329,9 +330,21 @@ const buildInstallConfig = (state) => {
     };
   }
 
+  // Mirror-source key pivot: 4.14+ uses imageDigestSources; 4.13 and below use imageContentSources.
+  const parsedVersion = String(state.blueprint?.version || "").match(/^(\d+)\.(\d+)/);
+  const major = parsedVersion ? Number(parsedVersion[1]) : NaN;
+  const minor = parsedVersion ? Number(parsedVersion[2]) : NaN;
+  const useImageDigestSources = !Number.isFinite(major)
+    ? true
+    : (major > 4 || (major === 4 && Number.isFinite(minor) && minor >= 14));
+
   // Only emit mirror mapping into install-config when mirror registry is actually in use.
   if (useMirrorPath && Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
-    installConfig.imageDigestSources = imageDigestSources;
+    if (useImageDigestSources) {
+      installConfig.imageDigestSources = imageDigestSources;
+    } else {
+      installConfig.imageContentSources = imageDigestSources;
+    }
   }
 
   if (state.blueprint?.platform === "AWS GovCloud" || state.blueprint?.platform === "Azure Government") {
@@ -656,6 +669,76 @@ const buildInstallConfig = (state) => {
     }
   }
 
+  if (state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI") {
+    const ibmRaw = platformConfig.ibmcloud || {};
+    const splitCsv = (value) => (value || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const ibm = {};
+    const vpcMode = ibmRaw.vpcMode || "existing-vpc";
+    if ((ibmRaw.region || "").trim()) ibm.region = ibmRaw.region.trim();
+    if ((ibmRaw.resourceGroupName || "").trim()) ibm.resourceGroupName = ibmRaw.resourceGroupName.trim();
+    if (vpcMode === "existing-vpc") {
+      if ((ibmRaw.networkResourceGroupName || "").trim()) ibm.networkResourceGroupName = ibmRaw.networkResourceGroupName.trim();
+      if ((ibmRaw.vpcName || "").trim()) ibm.vpcName = ibmRaw.vpcName.trim();
+    }
+    if ((ibmRaw.type || "").trim()) ibm.type = ibmRaw.type.trim();
+    if (vpcMode === "existing-vpc") {
+      const controlPlaneSubnets = splitCsv(ibmRaw.controlPlaneSubnets);
+      if (controlPlaneSubnets.length) ibm.controlPlaneSubnets = controlPlaneSubnets;
+      const computeSubnets = splitCsv(ibmRaw.computeSubnets);
+      if (computeSubnets.length) ibm.computeSubnets = computeSubnets;
+    }
+    const dedicatedHostsProfile = (ibmRaw.dedicatedHostsProfile || "").trim();
+    const dedicatedHostsName = (ibmRaw.dedicatedHostsName || "").trim();
+    if (dedicatedHostsProfile || dedicatedHostsName) {
+      ibm.dedicatedHosts = {};
+      // Docs model dedicatedHosts.profile and dedicatedHosts.name as alternative paths.
+      if (dedicatedHostsName) {
+        ibm.dedicatedHosts.name = dedicatedHostsName;
+      } else if (dedicatedHostsProfile) {
+        ibm.dedicatedHosts.profile = dedicatedHostsProfile;
+      }
+    }
+    if ((ibmRaw.defaultMachineBootVolumeEncryptionKey || "").trim()) {
+      ibm.defaultMachinePlatform = {
+        bootVolume: { encryptionKey: ibmRaw.defaultMachineBootVolumeEncryptionKey.trim() }
+      };
+    }
+    if (Array.isArray(ibmRaw.serviceEndpoints)) {
+      const endpoints = ibmRaw.serviceEndpoints
+        .filter((ep) => (ep?.name || "").trim() && (ep?.url || "").trim())
+        .map((ep) => ({ name: ep.name.trim(), url: ep.url.trim() }));
+      if (endpoints.length) ibm.serviceEndpoints = endpoints;
+    } else if (typeof ibmRaw.serviceEndpoints === "string" && ibmRaw.serviceEndpoints.trim()) {
+      const endpoints = ibmRaw.serviceEndpoints
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const idx = line.indexOf("=");
+          if (idx <= 0) return null;
+          return { name: line.slice(0, idx).trim(), url: line.slice(idx + 1).trim() };
+        })
+        .filter((ep) => ep && ep.name && ep.url);
+      if (endpoints.length) ibm.serviceEndpoints = endpoints;
+    }
+    installConfig.platform.ibmcloud = ibm;
+    if ((ibmRaw.controlPlaneBootVolumeEncryptionKey || "").trim()) {
+      installConfig.controlPlane.platform = installConfig.controlPlane.platform || {};
+      installConfig.controlPlane.platform.ibmcloud = {
+        bootVolume: { encryptionKey: ibmRaw.controlPlaneBootVolumeEncryptionKey.trim() }
+      };
+    }
+    if ((ibmRaw.computeBootVolumeEncryptionKey || "").trim()) {
+      installConfig.compute[0].platform = installConfig.compute[0].platform || {};
+      installConfig.compute[0].platform.ibmcloud = {
+        bootVolume: { encryptionKey: ibmRaw.computeBootVolumeEncryptionKey.trim() }
+      };
+    }
+    installConfig.publish = platformConfig.publish || "External";
+    // IBM Cloud install docs require CCO manual mode for installer-provisioned installs.
+    installConfig.credentialsMode = "Manual";
+  }
+
   const trust = state.trust || {};
   const trustBundle = buildEffectiveTrustBundle(trust);
   if (trustBundle) {
@@ -693,6 +776,8 @@ const normalizePlatformKey = (platform) => {
       return "aws";
     case "Azure Government":
       return "azure";
+    case "IBM Cloud":
+      return "ibmcloud";
     default:
       return "none";
   }

@@ -616,6 +616,98 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByPlaceholderText(/Resource group containing DNS zone for base domain/i)).toBeInTheDocument();
   });
 
+  it("when scenario is ibm-cloud-ipi with existing VPC path, validation requires IBM VPC/network fields", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "IBM Cloud" },
+      methodology: { method: "IPI" }
+    });
+    expect(getScenarioId(state)).toBe("ibm-cloud-ipi");
+    const resultEmpty = validateStep(state, "platform-specifics");
+    expect(resultEmpty.errors).toContain("IBM Cloud region is required for IBM Cloud IPI.");
+    expect(resultEmpty.errors).toContain("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
+    expect(resultEmpty.errors).toContain("vpcName is required when using an existing IBM Cloud VPC.");
+    expect(resultEmpty.errors).toContain("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
+    expect(resultEmpty.errors).toContain("computeSubnets is required when using an existing IBM Cloud VPC.");
+    const stateFilled = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "IBM Cloud" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        ibmcloud: {
+          vpcMode: "existing-vpc",
+          region: "us-east",
+          networkResourceGroupName: "network-rg",
+          vpcName: "vpc-01",
+          controlPlaneSubnets: "cp-a,cp-b,cp-c",
+          computeSubnets: "compute-a,compute-b,compute-c"
+        }
+      }
+    });
+    const resultFilled = validateStep(stateFilled, "platform-specifics");
+    expect(resultFilled.errors).toHaveLength(0);
+  });
+
+  it("ibm-cloud-ipi installer-managed VPC path: existing-VPC fields are not required", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "IBM Cloud" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        ibmcloud: {
+          vpcMode: "installer-managed",
+          region: "us-east"
+        }
+      }
+    });
+    const result = validateStep(state, "platform-specifics");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("ibm-cloud-ipi: dedicated host profile and name are mutually exclusive", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "IBM Cloud" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        ibmcloud: {
+          region: "us-east",
+          networkResourceGroupName: "network-rg",
+          vpcName: "vpc-01",
+          controlPlaneSubnets: "cp-a,cp-b,cp-c",
+          computeSubnets: "compute-a,compute-b,compute-c",
+          dedicatedHostsProfile: "cx2-host-152x304",
+          dedicatedHostsName: "existing-dedicated-host"
+        }
+      }
+    });
+    const result = validateStep(state, "platform-specifics");
+    expect(result.errors).toContain("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
+  });
+
+  it("ibm-cloud-ipi: Platform Specifics renders IBM Cloud IPI card and Manual credentials mode guidance", () => {
+    const state = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "IBM Cloud" },
+      methodology: { method: "IPI" }
+    });
+    const value = {
+      state,
+      updateState: vi.fn(),
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    expect(screen.getByRole("heading", { name: /IBM Cloud IPI/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/VPC deployment mode/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/existing-network-rg/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/existing-vpc-name/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/bx2-8x32/i)).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText(/crn:v1:bluemix:public:kms:/i).length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByDisplayValue(/Manual \(required for IBM Cloud IPI\)/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Credentials mode is fixed to/i)).toBeInTheDocument();
+  });
+
   it("aws-govcloud-ipi existing VPC: when one subnet has roles and another has none, validation errors", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },

@@ -64,6 +64,8 @@ describe("Start Over oc-mirror safety", () => {
     await waitFor(() => {
       expect(screen.getByText(/An oc-mirror run is currently active/i)).toBeInTheDocument();
     });
+    const activeCountNote = screen.getByText(/Active oc-mirror runs:/i).closest("div");
+    expect(activeCountNote?.textContent || "").toMatch(/Active oc-mirror runs:\s*1/i);
 
     const confirmButton = screen.getByRole("button", { name: /cancel run and start over/i });
     fireEvent.click(confirmButton);
