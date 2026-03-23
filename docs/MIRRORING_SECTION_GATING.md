@@ -12,10 +12,23 @@ This documents **what the code does today**. It is **not** a scenario-by-scenari
 Source:
 
 - `frontend/src/steps/ConnectivityMirroringStep.jsx` — `useMirrorPath`, `showMirroringConfig`
-- `backend/src/generate.js` — `useMirrorPath` when building `install-config` pull secret and `imageDigestSources`
+- `backend/src/generate.js` — `useMirrorPath` when building `install-config` pull secret and mirror-source key emission
 - `backend/src/generate.js` — same predicate for FIELD_MANUAL / runbook mirror registry lines (`useMirrorPathForManual`)
 
-**`imageDigestSources`** are emitted only when `useMirrorPath` is true **and** there is at least one mirroring source with mirrors configured (`mirror.sources` mapped to `imageDigestSources`).
+Mirror sources are emitted only when `useMirrorPath` is true **and** there is at least one mirroring source with mirrors configured (`mirror.sources`).
+
+- OCP `4.14+`: emit `imageDigestSources`
+- OCP `4.13` and earlier: emit `imageContentSources`
+
+## Product-truth anchor for future disputes
+
+If documentation language conflicts across pages, use installer code as the tie-breaker for the target release:
+
+- [openshift/installer `release-4.20` `clusterinfo.go`](https://github.com/openshift/installer/blob/release-4.20/pkg/asset/agent/joiner/clusterinfo.go)
+  - `ImageDigestSources []types.ImageDigestSource`
+  - `DeprecatedImageContentSources []types.ImageContentSource`
+
+This repo treats the deprecated field as compatibility path only and keeps modern emission on `imageDigestSources` for OCP `4.14+`.
 
 ## Registry FQDN carry-over
 

@@ -57,7 +57,7 @@ const effectiveHostname = (node, baseDomain) => {
   return short;
 };
 
-// Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, imageContentSources (we use imageDigestSources), credentialsMode/publish for bare metal (cloud-only in generate).
+// Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
   const mirror = state.globalStrategy?.mirroring || {};
   const imageDigestSources = mirror.sources?.map((s) => ({
@@ -330,12 +330,20 @@ const buildInstallConfig = (state) => {
     };
   }
 
+  // Mirror-source key pivot: 4.14+ uses imageDigestSources; 4.13 and below use imageContentSources.
+  const parsedVersion = String(state.blueprint?.version || "").match(/^(\d+)\.(\d+)/);
+  const major = parsedVersion ? Number(parsedVersion[1]) : NaN;
+  const minor = parsedVersion ? Number(parsedVersion[2]) : NaN;
+  const useImageDigestSources = !Number.isFinite(major)
+    ? true
+    : (major > 4 || (major === 4 && Number.isFinite(minor) && minor >= 14));
+
   // Only emit mirror mapping into install-config when mirror registry is actually in use.
   if (useMirrorPath && Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
-    if (state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI") {
-      installConfig.imageContentSources = imageDigestSources;
-    } else {
+    if (useImageDigestSources) {
       installConfig.imageDigestSources = imageDigestSources;
+    } else {
+      installConfig.imageContentSources = imageDigestSources;
     }
   }
 
@@ -679,10 +687,16 @@ const buildInstallConfig = (state) => {
       const computeSubnets = splitCsv(ibmRaw.computeSubnets);
       if (computeSubnets.length) ibm.computeSubnets = computeSubnets;
     }
-    if ((ibmRaw.dedicatedHostsProfile || "").trim() || (ibmRaw.dedicatedHostsName || "").trim()) {
+    const dedicatedHostsProfile = (ibmRaw.dedicatedHostsProfile || "").trim();
+    const dedicatedHostsName = (ibmRaw.dedicatedHostsName || "").trim();
+    if (dedicatedHostsProfile || dedicatedHostsName) {
       ibm.dedicatedHosts = {};
-      if ((ibmRaw.dedicatedHostsProfile || "").trim()) ibm.dedicatedHosts.profile = ibmRaw.dedicatedHostsProfile.trim();
-      if ((ibmRaw.dedicatedHostsName || "").trim()) ibm.dedicatedHosts.name = ibmRaw.dedicatedHostsName.trim();
+      // Docs model dedicatedHosts.profile and dedicatedHosts.name as alternative paths.
+      if (dedicatedHostsName) {
+        ibm.dedicatedHosts.name = dedicatedHostsName;
+      } else if (dedicatedHostsProfile) {
+        ibm.dedicatedHosts.profile = dedicatedHostsProfile;
+      }
     }
     if ((ibmRaw.defaultMachineBootVolumeEncryptionKey || "").trim()) {
       ibm.defaultMachinePlatform = {

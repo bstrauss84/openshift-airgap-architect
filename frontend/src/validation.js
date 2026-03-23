@@ -440,6 +440,8 @@ const validatePlatformConfig = (state) => {
   }
   if (method === "IPI" && platform === "IBM Cloud") {
     const vpcMode = cfg.ibmcloud?.vpcMode || "existing-vpc";
+    const dedicatedHostsProfile = (cfg.ibmcloud?.dedicatedHostsProfile || "").trim();
+    const dedicatedHostsName = (cfg.ibmcloud?.dedicatedHostsName || "").trim();
     if (!(cfg.ibmcloud?.region || "").trim()) errors.push("IBM Cloud region is required for IBM Cloud IPI.");
     if (vpcMode === "existing-vpc") {
       if (!(cfg.ibmcloud?.networkResourceGroupName || "").trim()) {
@@ -451,6 +453,9 @@ const validatePlatformConfig = (state) => {
     }
     if (cfg.credentialsMode && cfg.credentialsMode !== "Manual") {
       errors.push("IBM Cloud IPI requires credentialsMode Manual.");
+    }
+    if (dedicatedHostsProfile && dedicatedHostsName) {
+      errors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
     }
   }
   return { errors, warnings };
@@ -1065,6 +1070,8 @@ const validateStep = (state, stepId) => {
       const errors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const vpcMode = ibmcloud.vpcMode || "existing-vpc";
+      const dedicatedHostsProfile = (ibmcloud.dedicatedHostsProfile || "").trim();
+      const dedicatedHostsName = (ibmcloud.dedicatedHostsName || "").trim();
       if (requiredPaths.includes("platform.ibmcloud.region") && !(ibmcloud.region || "").trim()) {
         errors.push("IBM Cloud region is required for IBM Cloud IPI.");
       }
@@ -1081,6 +1088,9 @@ const validateStep = (state, stepId) => {
         if (!(ibmcloud.computeSubnets || "").trim()) {
           errors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
         }
+      }
+      if (dedicatedHostsProfile && dedicatedHostsName) {
+        errors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
       }
       return { errors, warnings: [] };
     }
