@@ -332,7 +332,11 @@ const buildInstallConfig = (state) => {
 
   // Only emit mirror mapping into install-config when mirror registry is actually in use.
   if (useMirrorPath && Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
-    installConfig.imageDigestSources = imageDigestSources;
+    if (state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI") {
+      installConfig.imageContentSources = imageDigestSources;
+    } else {
+      installConfig.imageDigestSources = imageDigestSources;
+    }
   }
 
   if (state.blueprint?.platform === "AWS GovCloud" || state.blueprint?.platform === "Azure Government") {
@@ -665,10 +669,21 @@ const buildInstallConfig = (state) => {
     if ((ibmRaw.resourceGroupName || "").trim()) ibm.resourceGroupName = ibmRaw.resourceGroupName.trim();
     if ((ibmRaw.networkResourceGroupName || "").trim()) ibm.networkResourceGroupName = ibmRaw.networkResourceGroupName.trim();
     if ((ibmRaw.vpcName || "").trim()) ibm.vpcName = ibmRaw.vpcName.trim();
+    if ((ibmRaw.type || "").trim()) ibm.type = ibmRaw.type.trim();
     const controlPlaneSubnets = splitCsv(ibmRaw.controlPlaneSubnets);
     if (controlPlaneSubnets.length) ibm.controlPlaneSubnets = controlPlaneSubnets;
     const computeSubnets = splitCsv(ibmRaw.computeSubnets);
     if (computeSubnets.length) ibm.computeSubnets = computeSubnets;
+    if ((ibmRaw.dedicatedHostsProfile || "").trim() || (ibmRaw.dedicatedHostsName || "").trim()) {
+      ibm.dedicatedHosts = {};
+      if ((ibmRaw.dedicatedHostsProfile || "").trim()) ibm.dedicatedHosts.profile = ibmRaw.dedicatedHostsProfile.trim();
+      if ((ibmRaw.dedicatedHostsName || "").trim()) ibm.dedicatedHosts.name = ibmRaw.dedicatedHostsName.trim();
+    }
+    if ((ibmRaw.defaultMachineBootVolumeEncryptionKey || "").trim()) {
+      ibm.defaultMachinePlatform = {
+        bootVolume: { encryptionKey: ibmRaw.defaultMachineBootVolumeEncryptionKey.trim() }
+      };
+    }
     if (Array.isArray(ibmRaw.serviceEndpoints)) {
       const endpoints = ibmRaw.serviceEndpoints
         .filter((ep) => (ep?.name || "").trim() && (ep?.url || "").trim())
@@ -688,6 +703,18 @@ const buildInstallConfig = (state) => {
       if (endpoints.length) ibm.serviceEndpoints = endpoints;
     }
     installConfig.platform.ibmcloud = ibm;
+    if ((ibmRaw.controlPlaneBootVolumeEncryptionKey || "").trim()) {
+      installConfig.controlPlane.platform = installConfig.controlPlane.platform || {};
+      installConfig.controlPlane.platform.ibmcloud = {
+        bootVolume: { encryptionKey: ibmRaw.controlPlaneBootVolumeEncryptionKey.trim() }
+      };
+    }
+    if ((ibmRaw.computeBootVolumeEncryptionKey || "").trim()) {
+      installConfig.compute[0].platform = installConfig.compute[0].platform || {};
+      installConfig.compute[0].platform.ibmcloud = {
+        bootVolume: { encryptionKey: ibmRaw.computeBootVolumeEncryptionKey.trim() }
+      };
+    }
     installConfig.publish = platformConfig.publish || "External";
     // IBM Cloud install docs require CCO manual mode for installer-provisioned installs.
     installConfig.credentialsMode = "Manual";

@@ -177,7 +177,13 @@ const defaultState = () => ({
       vpcName: "",
       controlPlaneSubnets: "",
       computeSubnets: "",
-      serviceEndpoints: ""
+      serviceEndpoints: "",
+      type: "",
+      dedicatedHostsProfile: "",
+      dedicatedHostsName: "",
+      defaultMachineBootVolumeEncryptionKey: "",
+      controlPlaneBootVolumeEncryptionKey: "",
+      computeBootVolumeEncryptionKey: ""
     }
   },
   hostInventory: {

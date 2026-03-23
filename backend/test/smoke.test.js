@@ -1635,8 +1635,18 @@ test("buildInstallConfig for ibm-cloud-ipi emits platform.ibmcloud existing VPC 
   const state = {
     blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
     methodology: { method: "IPI" },
-    globalStrategy: { networking: { machineNetworkV4: "10.90.0.0/16", machineNetworkV6: "fd00::/64" } },
-    credentials: {},
+    globalStrategy: {
+      networking: { machineNetworkV4: "10.90.0.0/16", machineNetworkV6: "fd00::/64" },
+      mirroring: {
+        registryFqdn: "registry.local:5000",
+        sources: [{ source: "quay.io/openshift-release-dev/ocp-release", mirrors: ["registry.local:5000/ocp4/release"] }]
+      }
+    },
+    credentials: {
+      usingMirrorRegistry: true,
+      mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"aWQ6cGFzcwo="}}}',
+      pullSecretPlaceholder: '{"auths":{"quay.io":{"auth":"eA=="}}}'
+    },
     platformConfig: {
       publish: "Internal",
       ibmcloud: {
@@ -1646,6 +1656,12 @@ test("buildInstallConfig for ibm-cloud-ipi emits platform.ibmcloud existing VPC 
         vpcName: "existing-vpc",
         controlPlaneSubnets: "cp-a,cp-b,cp-c",
         computeSubnets: "compute-a,compute-b,compute-c",
+        type: "bx2-8x32",
+        dedicatedHostsProfile: "cx2-host-152x304",
+        dedicatedHostsName: "existing-dedicated-host",
+        defaultMachineBootVolumeEncryptionKey: "crn:v1:bluemix:public:kms:us-east:a/123:key:default",
+        controlPlaneBootVolumeEncryptionKey: "crn:v1:bluemix:public:kms:us-east:a/123:key:cp",
+        computeBootVolumeEncryptionKey: "crn:v1:bluemix:public:kms:us-east:a/123:key:compute",
         serviceEndpoints: "IAM=https://private.us-east.iam.cloud.ibm.com\nVPC=https://us-east.private.iaas.cloud.ibm.com/v1"
       }
     }
@@ -1656,8 +1672,16 @@ test("buildInstallConfig for ibm-cloud-ipi emits platform.ibmcloud existing VPC 
   assert.strictEqual(out.platform.ibmcloud.vpcName, "existing-vpc");
   assert.deepStrictEqual(out.platform.ibmcloud.controlPlaneSubnets, ["cp-a", "cp-b", "cp-c"]);
   assert.deepStrictEqual(out.platform.ibmcloud.computeSubnets, ["compute-a", "compute-b", "compute-c"]);
+  assert.strictEqual(out.platform.ibmcloud.type, "bx2-8x32");
+  assert.strictEqual(out.platform.ibmcloud.dedicatedHosts.profile, "cx2-host-152x304");
+  assert.strictEqual(out.platform.ibmcloud.dedicatedHosts.name, "existing-dedicated-host");
+  assert.strictEqual(out.platform.ibmcloud.defaultMachinePlatform.bootVolume.encryptionKey, "crn:v1:bluemix:public:kms:us-east:a/123:key:default");
+  assert.strictEqual(out.controlPlane.platform.ibmcloud.bootVolume.encryptionKey, "crn:v1:bluemix:public:kms:us-east:a/123:key:cp");
+  assert.strictEqual(out.compute[0].platform.ibmcloud.bootVolume.encryptionKey, "crn:v1:bluemix:public:kms:us-east:a/123:key:compute");
   assert.strictEqual(out.publish, "Internal");
   assert.strictEqual(out.credentialsMode, "Manual");
+  assert.ok(Array.isArray(out.imageContentSources) && out.imageContentSources.length > 0, "IBM disconnected emits imageContentSources");
+  assert.strictEqual(out.imageDigestSources, undefined, "IBM disconnected should not emit imageDigestSources");
   // IBM Cloud IPI path is validated/emitted as IPv4 only.
   assert.ok(Array.isArray(out.networking?.machineNetwork) && out.networking.machineNetwork.length === 1);
   assert.strictEqual(out.networking.machineNetwork[0].cidr, "10.90.0.0/16");

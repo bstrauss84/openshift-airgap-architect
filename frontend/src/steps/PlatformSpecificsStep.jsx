@@ -129,6 +129,24 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const metaIbmControlPlaneSubnets = getParamMeta(scenarioId, "platform.ibmcloud.controlPlaneSubnets", INSTALL_CONFIG);
   const metaIbmComputeSubnets = getParamMeta(scenarioId, "platform.ibmcloud.computeSubnets", INSTALL_CONFIG);
   const metaIbmServiceEndpoints = getParamMeta(scenarioId, "platform.ibmcloud.serviceEndpoints", INSTALL_CONFIG);
+  const metaIbmType = getParamMeta(scenarioId, "platform.ibmcloud.type", INSTALL_CONFIG);
+  const metaIbmDedicatedHostsProfile = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.profile", INSTALL_CONFIG);
+  const metaIbmDedicatedHostsName = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.name", INSTALL_CONFIG);
+  const metaIbmDefaultMachineBootVolumeKey = getParamMeta(
+    scenarioId,
+    "platform.ibmcloud.defaultMachinePlatform.bootVolume.encryptionKey",
+    INSTALL_CONFIG
+  );
+  const metaIbmControlPlaneBootVolumeKey = getParamMeta(
+    scenarioId,
+    "controlPlane.platform.ibmcloud.bootVolume.encryptionKey",
+    INSTALL_CONFIG
+  );
+  const metaIbmComputeBootVolumeKey = getParamMeta(
+    scenarioId,
+    "compute[].platform.ibmcloud.bootVolume.encryptionKey",
+    INSTALL_CONFIG
+  );
 
   /** Nutanix IPI: show when catalog has platform.nutanix params. */
   const showNutanixIpiSection = catalogParams.some(
@@ -753,6 +771,36 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
+                  label="Instance type (optional)"
+                  hint={metaIbmType?.description || "Default IBM Cloud machine instance type for cluster machines."}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.type || ""}
+                    onChange={(e) => updateIbmCloud({ type: e.target.value })}
+                    placeholder="e.g. bx2-8x32"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Dedicated host profile (optional)"
+                  hint={metaIbmDedicatedHostsProfile?.description || "Dedicated host profile to create when using dedicated hosts."}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.dedicatedHostsProfile || ""}
+                    onChange={(e) => updateIbmCloud({ dedicatedHostsProfile: e.target.value })}
+                    placeholder="e.g. cx2-host-152x304"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Dedicated host name (optional)"
+                  hint={metaIbmDedicatedHostsName?.description || "Existing dedicated host name when deploying onto an existing dedicated host."}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.dedicatedHostsName || ""}
+                    onChange={(e) => updateIbmCloud({ dedicatedHostsName: e.target.value })}
+                    placeholder="existing-dedicated-host"
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
                   label="Service endpoints (optional)"
                   hint={metaIbmServiceEndpoints?.description || "Optional alternate IBM service endpoints. One entry per line as NAME=URL (for example: IAM=https://private.us-east.iam.cloud.ibm.com)."}
                 >
@@ -761,6 +809,36 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     onChange={(e) => updateIbmCloud({ serviceEndpoints: e.target.value })}
                     rows={5}
                     placeholder={"IAM=https://private.us-east.iam.cloud.ibm.com\nVPC=https://us-east.private.iaas.cloud.ibm.com/v1"}
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Boot volume encryption key (all machine pools, optional)"
+                  hint={metaIbmDefaultMachineBootVolumeKey?.description || "IBM Key Protect root key CRN for all machine pools."}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey || ""}
+                    onChange={(e) => updateIbmCloud({ defaultMachineBootVolumeEncryptionKey: e.target.value })}
+                    placeholder="crn:v1:bluemix:public:kms:..."
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Boot volume encryption key (control plane, optional)"
+                  hint={metaIbmControlPlaneBootVolumeKey?.description || "IBM Key Protect root key CRN for control-plane machines."}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey || ""}
+                    onChange={(e) => updateIbmCloud({ controlPlaneBootVolumeEncryptionKey: e.target.value })}
+                    placeholder="crn:v1:bluemix:public:kms:..."
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Boot volume encryption key (compute, optional)"
+                  hint={metaIbmComputeBootVolumeKey?.description || "IBM Key Protect root key CRN for compute machines."}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.computeBootVolumeEncryptionKey || ""}
+                    onChange={(e) => updateIbmCloud({ computeBootVolumeEncryptionKey: e.target.value })}
+                    placeholder="crn:v1:bluemix:public:kms:..."
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
