@@ -665,15 +665,20 @@ const buildInstallConfig = (state) => {
     const ibmRaw = platformConfig.ibmcloud || {};
     const splitCsv = (value) => (value || "").split(",").map((s) => s.trim()).filter(Boolean);
     const ibm = {};
+    const vpcMode = ibmRaw.vpcMode || "existing-vpc";
     if ((ibmRaw.region || "").trim()) ibm.region = ibmRaw.region.trim();
     if ((ibmRaw.resourceGroupName || "").trim()) ibm.resourceGroupName = ibmRaw.resourceGroupName.trim();
-    if ((ibmRaw.networkResourceGroupName || "").trim()) ibm.networkResourceGroupName = ibmRaw.networkResourceGroupName.trim();
-    if ((ibmRaw.vpcName || "").trim()) ibm.vpcName = ibmRaw.vpcName.trim();
+    if (vpcMode === "existing-vpc") {
+      if ((ibmRaw.networkResourceGroupName || "").trim()) ibm.networkResourceGroupName = ibmRaw.networkResourceGroupName.trim();
+      if ((ibmRaw.vpcName || "").trim()) ibm.vpcName = ibmRaw.vpcName.trim();
+    }
     if ((ibmRaw.type || "").trim()) ibm.type = ibmRaw.type.trim();
-    const controlPlaneSubnets = splitCsv(ibmRaw.controlPlaneSubnets);
-    if (controlPlaneSubnets.length) ibm.controlPlaneSubnets = controlPlaneSubnets;
-    const computeSubnets = splitCsv(ibmRaw.computeSubnets);
-    if (computeSubnets.length) ibm.computeSubnets = computeSubnets;
+    if (vpcMode === "existing-vpc") {
+      const controlPlaneSubnets = splitCsv(ibmRaw.controlPlaneSubnets);
+      if (controlPlaneSubnets.length) ibm.controlPlaneSubnets = controlPlaneSubnets;
+      const computeSubnets = splitCsv(ibmRaw.computeSubnets);
+      if (computeSubnets.length) ibm.computeSubnets = computeSubnets;
+    }
     if ((ibmRaw.dedicatedHostsProfile || "").trim() || (ibmRaw.dedicatedHostsName || "").trim()) {
       ibm.dedicatedHosts = {};
       if ((ibmRaw.dedicatedHostsProfile || "").trim()) ibm.dedicatedHosts.profile = ibmRaw.dedicatedHostsProfile.trim();

@@ -1,6 +1,6 @@
 # E2E example collection inventory (K follow-up part 2, FINAL K part 3, Part 4 exhaustive)
 
-Sources: OpenShift 4.20 installation docs (Red Hat), data/docs-index/4.20.json, nmstate.io examples. Each entry lists source (doc/section or URL), scenario/variant, and file location. **All 9 scenarios** have at least one install-config example (doc or synthetic from params).
+Sources: OpenShift 4.20 installation docs (Red Hat), data/docs-index/4.20.json, nmstate.io examples. Each entry lists source (doc/section or URL), scenario/variant, and file location. This inventory currently tracks install-config coverage for the core scenario set used by this E2E collection; it is not the canonical scenario-ID registry (see `docs/DOC_INDEX_RULES.md` and `data/docs-index/4.20.json`).
 
 ## install-config examples
 
@@ -20,7 +20,7 @@ Sources: OpenShift 4.20 installation docs (Red Hat), data/docs-index/4.20.json, 
 | install-config/nutanix-ipi_minimal.yaml | nutanix-ipi | minimal | **Synthetic from params** — data/params/4.20/nutanix-ipi.json, installing-nutanix-ipi |
 | install-config/disconnected_imageDigestSources.yaml | (snippet) | mirroring | 4.20 disconnected; imageDigestSources with multiple sources/mirrors |
 
-**Coverage:** All 9 scenarios have ≥1 example. Doc-sourced: bare-metal-agent (4 variants), bare-metal-upi (minimal). Synthetic from params: bare-metal-ipi, vsphere-ipi, vsphere-upi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi, nutanix-ipi (minimal each). Non-minimal paths for the latter scenarios use the minimal example for structure comparison.
+**Coverage:** The listed scenarios have >=1 example. Doc-sourced: bare-metal-agent (4 variants), bare-metal-upi (minimal). Synthetic from params: bare-metal-ipi, vsphere-ipi, vsphere-upi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi, nutanix-ipi (minimal each). Non-minimal paths for the latter scenarios use the minimal example for structure comparison.
 
 ## agent-config examples
 

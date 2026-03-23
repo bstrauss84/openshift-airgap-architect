@@ -2,7 +2,7 @@
  * Shared catalog resolver for Phase 5 replacement tabs.
  * Read-only: resolve scenario from state, load catalog, get param meta.
  * Validation rules only when catalog explicitly specifies required or allowed.
- * See docs/PHASE_5_TRANSITION_PLAN.md (§ Scope control), docs/PARAMS_CATALOG_RULES.md.
+ * See docs/INDEX.md (authority map) and docs/PARAMS_CATALOG_RULES.md.
  */
 
 import { getScenarioId as getScenarioIdFromPlatformMethod } from "./hostInventoryV2Helpers.js";

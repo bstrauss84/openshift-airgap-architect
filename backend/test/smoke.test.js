@@ -1708,6 +1708,30 @@ test("buildInstallConfig for ibm-cloud-ipi defaults publish External when not se
   assert.strictEqual(out.credentialsMode, "Manual");
 });
 
+test("buildInstallConfig for ibm-cloud-ipi installer-managed VPC path omits existing-VPC fields", () => {
+  const state = {
+    blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: { machineNetworkV4: "10.90.0.0/16" } },
+    credentials: {},
+    platformConfig: {
+      ibmcloud: {
+        vpcMode: "installer-managed",
+        region: "us-east",
+        resourceGroupName: "cluster-rg"
+      }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.ibmcloud, "platform.ibmcloud should be present");
+  assert.strictEqual(out.platform.ibmcloud.region, "us-east");
+  assert.strictEqual(out.platform.ibmcloud.resourceGroupName, "cluster-rg");
+  assert.strictEqual(out.platform.ibmcloud.networkResourceGroupName, undefined);
+  assert.strictEqual(out.platform.ibmcloud.vpcName, undefined);
+  assert.strictEqual(out.platform.ibmcloud.controlPlaneSubnets, undefined);
+  assert.strictEqual(out.platform.ibmcloud.computeSubnets, undefined);
+});
+
 test("buildFieldManual for ibm-cloud-ipi includes IBM prerequisites and installation sections", () => {
   const state = {
     blueprint: { platform: "IBM Cloud", clusterName: "ibm-prod", baseDomain: "example.com" },

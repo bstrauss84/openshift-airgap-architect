@@ -171,6 +171,7 @@ const defaultState = () => ({
       baseDomainResourceGroupName: ""
     },
     ibmcloud: {
+      vpcMode: "existing-vpc",
       region: "",
       resourceGroupName: "",
       networkResourceGroupName: "",
