@@ -7,8 +7,8 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { app } from "../src/index.js";
-import { createJob, updateJobMetadata, getJob } from "../src/utils.js";
+import { app, resolveOcMirrorArtifactsBaseDir } from "../src/index.js";
+import { createJob, updateJob, updateJobMetadata, getJob } from "../src/utils.js";
 
 function createTestServer() {
   return new Promise((resolve) => {
@@ -151,4 +151,34 @@ test("createJob and updateJobMetadata persist metadata", () => {
   const meta = typeof updated.metadata_json === "string" ? JSON.parse(updated.metadata_json) : updated.metadata_json;
   assert.strictEqual(meta.mode, "diskToMirror");
   assert.strictEqual(meta.workspaceDir, "/path/ws");
+});
+
+test("resolveOcMirrorArtifactsBaseDir uses archive for m2d/d2m and workspace for m2m", () => {
+  const m2d = resolveOcMirrorArtifactsBaseDir("mirrorToDisk", "", "/tmp/archive");
+  const d2m = resolveOcMirrorArtifactsBaseDir("diskToMirror", "/tmp/ws-unused", "/tmp/archive");
+  const m2m = resolveOcMirrorArtifactsBaseDir("mirrorToMirror", "/tmp/workspace", "/tmp/archive");
+  assert.strictEqual(m2d, path.resolve("/tmp/archive"));
+  assert.strictEqual(d2m, path.resolve("/tmp/archive"));
+  assert.strictEqual(m2m, path.resolve("/tmp/workspace"));
+  const empty = resolveOcMirrorArtifactsBaseDir("mirrorToMirror");
+  assert.strictEqual(empty, "");
+});
+
+test("POST /api/start-over cancels running oc-mirror jobs", async () => {
+  const runningJobId = createJob("oc-mirror-run", "Running run");
+  updateJob(runningJobId, { status: "running", progress: 1, message: "oc-mirror running." });
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/start-over`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cancelRunningOcMirror: true })
+    });
+    assert.strictEqual(res.status, 200);
+    const job = getJob(runningJobId);
+    assert.strictEqual(job.status, "cancelled");
+    assert.match(job.message || "", /Start Over/i);
+  } finally {
+    server.close();
+  }
 });

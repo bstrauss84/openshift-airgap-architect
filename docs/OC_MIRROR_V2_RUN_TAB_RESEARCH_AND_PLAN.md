@@ -842,6 +842,7 @@ Docs state oc-mirror v2 verifies that the complete image set is mirrored. Releas
 | **§4 Job metadata** | `jobs.metadata_json` TEXT column (migration in db.js); createJob/updateJob/updateJobMetadata in utils; metadata fields: mode, dryRun, archiveDir, workspaceDir, cacheDir, registryUrl, configSourceType, configPath, exitCode, startedAt, finishedAt, clusterResourcesPath, dryRunMappingPath, dryRunMissingPath. Legacy jobs without metadata_json remain readable. |
 | **§5 Operations** | oc-mirror-run jobs: mode in row subtitle; expanded details show summary block (mode, status, exit code, paths, registry, cluster-resources, dry-run paths, timestamps). Non-oc-mirror and legacy jobs unchanged. |
 | **§6 Artifact/handoff** | Temp config/auth cleaned up; archive/workspace/cache preserved; includeInExport defaults false, adds archive path only; UI warns on export size; summary shows paths for manual continuation. |
+| **Start Over safety** | Start Over now checks for active `oc-mirror` runs, conditionally warns in the confirmation modal, and cancels tracked running `oc-mirror` jobs if the user proceeds. Modal includes artifact path reminders to review for partial content. |
 
 ### Deviations from contract
 

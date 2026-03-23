@@ -109,6 +109,17 @@ const LEGACY_STEP_ID_MAP = {
   "hosts-inventory": "hosts-inventory"
 };
 
+function getOcMirrorJobMetadata(job) {
+  if (!job?.metadata_json) return null;
+  try {
+    return typeof job.metadata_json === "string"
+      ? JSON.parse(job.metadata_json)
+      : job.metadata_json;
+  } catch {
+    return null;
+  }
+}
+
 function buildWizardSteps(stepMap) {
   if (!stepMap?.mvpSteps?.length) return FALLBACK_WIZARD_STEPS;
   const wizard = stepMap.mvpSteps
@@ -177,6 +188,9 @@ const AppShell = () => {
   const [confirmingRelease, setConfirmingRelease] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
   const [showStartOverModal, setShowStartOverModal] = useState(false);
+  const [startOverRunningJobs, setStartOverRunningJobs] = useState([]);
+  const [startOverCheckingJobs, setStartOverCheckingJobs] = useState(false);
+  const [startOverCheckError, setStartOverCheckError] = useState("");
   const [stepMap, setStepMap] = useState(null);
   const [blockedMessage, setBlockedMessage] = useState("");
   const [runActionsOpen, setRunActionsOpen] = useState(false);
@@ -364,6 +378,30 @@ const AppShell = () => {
   }, [visibleSteps, state?.ui?.completedSteps, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
 
   const previewStepId = visibleSteps[active]?.id;
+  const hasRunningOcMirrorJobs = startOverRunningJobs.length > 0;
+  const startOverArtifactPaths = useMemo(() => {
+    const paths = new Set();
+    startOverRunningJobs.forEach((job) => {
+      const meta = getOcMirrorJobMetadata(job);
+      if (meta?.archiveDir) paths.add(meta.archiveDir);
+      if (meta?.workspaceDir) paths.add(meta.workspaceDir);
+      if (meta?.cacheDir) paths.add(meta.cacheDir);
+    });
+    if (!paths.size) {
+      const archivePath = state?.mirrorWorkflow?.archivePath?.trim();
+      const workspacePath = state?.mirrorWorkflow?.workspacePath?.trim();
+      const cachePath = state?.mirrorWorkflow?.cachePath?.trim();
+      if (archivePath) paths.add(archivePath);
+      if (workspacePath) paths.add(workspacePath);
+      if (cachePath) paths.add(cachePath);
+    }
+    return Array.from(paths);
+  }, [
+    startOverRunningJobs,
+    state?.mirrorWorkflow?.archivePath,
+    state?.mirrorWorkflow?.workspacePath,
+    state?.mirrorWorkflow?.cachePath
+  ]);
   const previewTarget = useMemo(() => {
     if (previewStepId === "review") return "install-config.yaml";
     if (previewStepId === "global") return "install-config.yaml";
@@ -638,7 +676,22 @@ const AppShell = () => {
     setActive(hasProgress ? firstIncompleteStepIndex : 0);
   };
 
-  const handleStartOverClick = () => setShowStartOverModal(true);
+  const handleStartOverClick = async () => {
+    setShowStartOverModal(true);
+    setStartOverRunningJobs([]);
+    setStartOverCheckError("");
+    setStartOverCheckingJobs(true);
+    try {
+      const data = await apiFetch("/api/jobs?type=oc-mirror-run");
+      const running = (data.jobs || []).filter((job) => job.status === "running");
+      setStartOverRunningJobs(running);
+    } catch (error) {
+      setStartOverCheckError(String(error?.message || error));
+      setStartOverRunningJobs([]);
+    } finally {
+      setStartOverCheckingJobs(false);
+    }
+  };
 
   const lockAndProceed = async () => {
     if (!blueprintReady || !releaseReady || lockAndProceedLoading) return;
@@ -697,9 +750,11 @@ const AppShell = () => {
   };
 
   const confirmStartOver = async () => {
-    const nextState = await startOver();
+    const nextState = await startOver({ cancelRunningOcMirror: hasRunningOcMirrorJobs });
     if (nextState) setState(nextState);
     setShowStartOverModal(false);
+    setStartOverRunningJobs([]);
+    setStartOverCheckError("");
     setShowLanding(true);
     setActive(0);
   };
@@ -788,12 +843,35 @@ const AppShell = () => {
               <p className="subtle">
                 This will clear all selections, lock-ins, and user entries, and return you to the landing page.
               </p>
+              {startOverCheckingJobs ? (
+                <div className="note subtle">Checking for active oc-mirror runs…</div>
+              ) : null}
+              {startOverCheckError ? (
+                <div className="note warning">
+                  Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
+                </div>
+              ) : null}
+              {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
+                <>
+                  <div className="note warning">
+                    An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
+                  </div>
+                  <div className="note subtle">
+                    Review and validate these paths before restarting a mirror run:
+                    <ul style={{ marginTop: 6, marginBottom: 0 }}>
+                      {startOverArtifactPaths.map((p) => (
+                        <li key={p}><code>{p}</code></li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
               <div className="actions">
                 <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
                   Cancel
                 </button>
-                <button type="button" className="primary" onClick={confirmStartOver}>
-                  Yes, start over
+                <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
+                  {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
                 </button>
               </div>
             </div>
@@ -1098,12 +1176,35 @@ const AppShell = () => {
               <p className="subtle">
                 This will clear all selections, lock-ins, and user entries, and return you to the landing page.
               </p>
+              {startOverCheckingJobs ? (
+                <div className="note subtle">Checking for active oc-mirror runs…</div>
+              ) : null}
+              {startOverCheckError ? (
+                <div className="note warning">
+                  Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
+                </div>
+              ) : null}
+              {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
+                <>
+                  <div className="note warning">
+                    An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
+                  </div>
+                  <div className="note subtle">
+                    Review and validate these paths before restarting a mirror run:
+                    <ul style={{ marginTop: 6, marginBottom: 0 }}>
+                      {startOverArtifactPaths.map((p) => (
+                        <li key={p}><code>{p}</code></li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
               <div className="actions">
                 <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
                   Cancel
                 </button>
-                <button type="button" className="primary" onClick={confirmStartOver}>
-                  Yes, start over
+                <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
+                  {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
                 </button>
               </div>
             </div>
