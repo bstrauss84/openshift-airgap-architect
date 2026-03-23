@@ -583,3 +583,12 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 ## License and contributing
 
 See the repository license file. Contributions are welcome; please read `docs/CONTRIBUTING.md` and `docs/CODE_STYLE_RULES.md` before opening a pull request.
+
+## Documentation and governance map
+
+For canonical process and policy ownership:
+
+- `docs/INDEX.md` — authority map for docs and working artifacts
+- `docs/BACKLOG_STATUS.md` — canonical backlog and status registry
+- `docs/HELPER_USAGE.md` — helper/agent selection and usage
+- `AI_GOVERNANCE.md` — AI-assistance governance and compliance policy

@@ -853,6 +853,9 @@ const AppShell = () => {
               ) : null}
               {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
                 <>
+                  <div className="note subtle">
+                    Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
+                  </div>
                   <div className="note warning">
                     An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
                   </div>
@@ -1186,6 +1189,9 @@ const AppShell = () => {
               ) : null}
               {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
                 <>
+                  <div className="note subtle">
+                    Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
+                  </div>
                   <div className="note warning">
                     An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
                   </div>
