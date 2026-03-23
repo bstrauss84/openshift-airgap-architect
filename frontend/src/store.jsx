@@ -59,8 +59,12 @@ const useAppProvider = () => {
 
   const updateState = (patch) => setState((prev) => ({ ...prev, ...patch }));
 
-  const startOver = async () => {
-    const data = await apiFetch("/api/start-over", { method: "POST" });
+  const startOver = async (options = {}) => {
+    const cancelRunningOcMirror = options.cancelRunningOcMirror !== false;
+    const data = await apiFetch("/api/start-over", {
+      method: "POST",
+      body: JSON.stringify({ cancelRunningOcMirror })
+    });
     const next = {
       ...data,
       reviewFlags: {

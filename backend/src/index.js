@@ -593,6 +593,26 @@ app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
 });
 
 app.post("/api/start-over", (req, res) => {
+  const cancelRunningOcMirror = req.body?.cancelRunningOcMirror !== false;
+  if (cancelRunningOcMirror) {
+    const runningOcMirrorJobs = listJobsByType("oc-mirror-run").filter((job) => job.status === "running");
+    for (const job of runningOcMirrorJobs) {
+      const proc = activeProcesses.get(job.id);
+      if (proc) {
+        try {
+          proc.kill("SIGTERM");
+        } catch {
+          // Best-effort cancellation; mark cancelled either way.
+        }
+      }
+      activeProcesses.delete(job.id);
+      updateJob(job.id, {
+        status: "cancelled",
+        message: "Cancelled by Start Over.",
+        progress: 0
+      });
+    }
+  }
   const next = defaultState();
   next.reviewFlags = {
     methodology: false,
@@ -1209,6 +1229,17 @@ function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePa
   return args;
 }
 
+/** Safely resolve the directory that owns working-dir outputs for a run mode. */
+function resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath) {
+  const raw = mode === "mirrorToMirror" ? workspacePath : archivePath;
+  if (!raw || typeof raw !== "string" || !raw.trim()) return "";
+  try {
+    return path.resolve(raw);
+  } catch {
+    return "";
+  }
+}
+
 app.post("/api/ocmirror/run", async (req, res) => {
   const state = ensureState();
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
@@ -1372,12 +1403,15 @@ app.post("/api/ocmirror/run", async (req, res) => {
   });
   child.on("close", (code) => {
     const finishedAt = Date.now();
-    const clusterResourcesPath = path.join(path.resolve(workspacePath), "working-dir", "cluster-resources");
+    const artifactsBaseDir = resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath);
+    const clusterResourcesPath = artifactsBaseDir
+      ? path.join(artifactsBaseDir, "working-dir", "cluster-resources")
+      : "";
     const dryRunMappingPath = dryRun
-      ? path.join(path.resolve(workspacePath), "working-dir", "dry-run", "mapping.txt")
+      ? (artifactsBaseDir ? path.join(artifactsBaseDir, "working-dir", "dry-run", "mapping.txt") : "")
       : "";
     const dryRunMissingPath = dryRun
-      ? path.join(path.resolve(workspacePath), "working-dir", "dry-run", "missing.txt")
+      ? (artifactsBaseDir ? path.join(artifactsBaseDir, "working-dir", "dry-run", "missing.txt") : "")
       : "";
 
     // Parse accumulated output for oc-mirror result summary lines.
@@ -1751,4 +1785,4 @@ function clearUpdateInfoCache() {
   updateInfoCache = null;
 }
 
-export { app, clearUpdateInfoCache };
+export { app, clearUpdateInfoCache, resolveOcMirrorArtifactsBaseDir };

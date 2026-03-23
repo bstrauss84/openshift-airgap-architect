@@ -177,6 +177,7 @@ When the Landing page or **Tools → About** shows that an update is available, 
 
 - **Optional:** In the Operators step you can paste a Red Hat pull secret; it is used only for the scan, not stored, and is cleared on **Start Over**.
 - Scans can take several minutes; navigation does not cancel running jobs. Use the Operations step to view logs and clear completed jobs.
+- If an `oc-mirror` run is active and you click **Start Over**, the confirmation modal warns you and lists relevant paths. Continuing cancels the active `oc-mirror` run safely (non-destructive) and returns to Landing; review those paths for partial artifacts before re-running.
 
 ## Run oc-mirror
 
