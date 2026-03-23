@@ -12,6 +12,7 @@ import vsphereUpiCatalog from "./data/catalogs/vsphere-upi.json";
 import awsGovcloudIpiCatalog from "./data/catalogs/aws-govcloud-ipi.json";
 import awsGovcloudUpiCatalog from "./data/catalogs/aws-govcloud-upi.json";
 import azureGovernmentIpiCatalog from "./data/catalogs/azure-government-ipi.json";
+import ibmCloudIpiCatalog from "./data/catalogs/ibm-cloud-ipi.json";
 import nutanixIpiCatalog from "./data/catalogs/nutanix-ipi.json";
 import vsphereAgentCatalog from "./data/catalogs/vsphere-agent.json";
 
@@ -25,6 +26,7 @@ const CATALOGS = {
   "aws-govcloud-ipi": awsGovcloudIpiCatalog,
   "aws-govcloud-upi": awsGovcloudUpiCatalog,
   "azure-government-ipi": azureGovernmentIpiCatalog,
+  "ibm-cloud-ipi": ibmCloudIpiCatalog,
   "nutanix-ipi": nutanixIpiCatalog
 };
 

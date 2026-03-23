@@ -42,6 +42,13 @@
       "installFamilies": ["IPI", "UPI"],
       "installMethods": ["IPI", "UPI"],
       "outputFiles": ["install-config.yaml"]
+    },
+    {
+      "platform": "IBM Cloud",
+      "versionRange": ["4.17", "4.18", "4.19", "4.20"],
+      "installFamilies": ["IPI"],
+      "installMethods": ["IPI"],
+      "outputFiles": ["install-config.yaml"]
     }
   ]
 }

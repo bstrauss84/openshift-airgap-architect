@@ -16,7 +16,8 @@ const supportedMethods = {
   "VMware vSphere": ["IPI", "UPI", "Agent-Based Installer"],
   Nutanix: ["IPI"],
   "AWS GovCloud": ["IPI", "UPI"],
-  "Azure Government": ["IPI"]
+  "Azure Government": ["IPI"],
+  "IBM Cloud": ["IPI"]
 };
 
 const MethodologyStep = ({ highlightErrors }) => {
