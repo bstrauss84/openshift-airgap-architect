@@ -18,7 +18,10 @@ Machine-readable index for OpenShift Container Platform docs that maps (platform
 
 ## Scenario mapping
 
-- **Scenario ID** = one (platform, install method) pair. Use Phase 0 scenario IDs exactly: `bare-metal-agent`, `bare-metal-ipi`, `bare-metal-upi`, `vsphere-ipi`, `vsphere-upi`, `nutanix-ipi`, `aws-govcloud-ipi`, `aws-govcloud-upi`, `azure-government-ipi`. Do **not** invent new scenario IDs.
+- **Scenario ID** = one (platform, install method) pair.
+- Current 4.20 docs-index scenarios (authoritative list): `bare-metal-agent`, `bare-metal-ipi`, `bare-metal-upi`, `vsphere-ipi`, `vsphere-upi`, `vsphere-agent`, `nutanix-ipi`, `aws-govcloud-ipi`, `aws-govcloud-upi`, `azure-government-ipi`.
+- `schema/scenarios.json` includes Azure Government UPI as a supported install method. If/when `azure-government-upi` is added to docs-index, update this list and keep scenario IDs aligned across schema, docs-index, and catalogs.
+- Do **not** invent ad-hoc scenario IDs outside the canonical list in `data/docs-index/<version>.json`.
 - **Connectivity/variant** is metadata on doc entries via **tags**, not a new scenario ID. Tags include: `restricted-network`, `gov-region`, `secret-region`, `top-secret-region`, `private-cluster`, `existing-vpc`, `existing-vnet`, `fully-disconnected`, `jumpbox`, `mirroring`, `proxy`, `trust-bundle`. Only add tags when the docs explicitly distinguish that variant.
 - Each file `data/docs-index/<version>.json` has a **scenarios** object: keys are scenario IDs, each value is `{ "docs": [ ... ] }`. Each doc in the array has: `id`, `title`, `url`, `configTypes` (array), `tags` (array), and optional `notes`.
 

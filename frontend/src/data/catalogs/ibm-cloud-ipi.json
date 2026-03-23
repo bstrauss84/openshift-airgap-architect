@@ -525,7 +525,7 @@
       ],
       "default": "Manual",
       "required": true,
-      "description": "IBM Cloud disconnected installation requires CCO manual credentials mode (ccoctl workflow).",
+      "description": "Derived for IBM Cloud IPI and emitted as Manual.",
       "applies_to": [
         "ibm-cloud-ipi"
       ],
@@ -850,7 +850,7 @@
       ],
       "default": "OVNKubernetes",
       "required": false,
-      "description": "Cluster network plugin. OVNKubernetes is the only supported value.",
+      "description": "Cluster network plugin. OVNKubernetes is the only supported value for this scenario.",
       "applies_to": [
         "ibm-cloud-ipi"
       ],
@@ -929,8 +929,8 @@
       "type": "array",
       "allowed": "existing subnet names",
       "default": "not specified in docs",
-      "required": true,
-      "description": "Existing compute subnet names (one per availability zone).",
+      "required": false,
+      "description": "Existing compute subnet names (one per availability zone). Required when using an existing VPC path.",
       "applies_to": [
         "ibm-cloud-ipi"
       ],
@@ -949,8 +949,8 @@
       "type": "array",
       "allowed": "existing subnet names",
       "default": "not specified in docs",
-      "required": true,
-      "description": "Existing control-plane subnet names (one per availability zone).",
+      "required": false,
+      "description": "Existing control-plane subnet names (one per availability zone). Required when using an existing VPC path.",
       "applies_to": [
         "ibm-cloud-ipi"
       ],
@@ -1029,8 +1029,8 @@
       "type": "string",
       "allowed": "existing network resource group name",
       "default": "not specified in docs",
-      "required": true,
-      "description": "Existing resource group that contains the pre-created VPC and subnets for disconnected installation.",
+      "required": false,
+      "description": "Existing resource group that contains the pre-created VPC and subnets for disconnected installation. Required when using an existing VPC path.",
       "applies_to": [
         "ibm-cloud-ipi"
       ],
@@ -1129,8 +1129,8 @@
       "type": "string",
       "allowed": "existing VPC name",
       "default": "not specified in docs",
-      "required": true,
-      "description": "Name of the existing VPC for cluster deployment.",
+      "required": false,
+      "description": "Name of the existing VPC for cluster deployment. Required when using an existing VPC path.",
       "applies_to": [
         "ibm-cloud-ipi"
       ],

@@ -439,13 +439,16 @@ const validatePlatformConfig = (state) => {
     if (!cfg.azure?.baseDomainResourceGroupName) errors.push("Base domain resource group is required for Azure Government IPI.");
   }
   if (method === "IPI" && platform === "IBM Cloud") {
+    const vpcMode = cfg.ibmcloud?.vpcMode || "existing-vpc";
     if (!(cfg.ibmcloud?.region || "").trim()) errors.push("IBM Cloud region is required for IBM Cloud IPI.");
-    if (!(cfg.ibmcloud?.networkResourceGroupName || "").trim()) {
-      errors.push("networkResourceGroupName is required for IBM Cloud disconnected installs on an existing VPC.");
+    if (vpcMode === "existing-vpc") {
+      if (!(cfg.ibmcloud?.networkResourceGroupName || "").trim()) {
+        errors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
+      }
+      if (!(cfg.ibmcloud?.vpcName || "").trim()) errors.push("vpcName is required when using an existing IBM Cloud VPC.");
+      if (!(cfg.ibmcloud?.controlPlaneSubnets || "").trim()) errors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
+      if (!(cfg.ibmcloud?.computeSubnets || "").trim()) errors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
     }
-    if (!(cfg.ibmcloud?.vpcName || "").trim()) errors.push("vpcName is required for IBM Cloud disconnected installs.");
-    if (!(cfg.ibmcloud?.controlPlaneSubnets || "").trim()) errors.push("controlPlaneSubnets is required for IBM Cloud disconnected installs.");
-    if (!(cfg.ibmcloud?.computeSubnets || "").trim()) errors.push("computeSubnets is required for IBM Cloud disconnected installs.");
     if (cfg.credentialsMode && cfg.credentialsMode !== "Manual") {
       errors.push("IBM Cloud IPI requires credentialsMode Manual.");
     }
@@ -1061,20 +1064,23 @@ const validateStep = (state, stepId) => {
     if (scenarioId === "ibm-cloud-ipi") {
       const errors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const vpcMode = ibmcloud.vpcMode || "existing-vpc";
       if (requiredPaths.includes("platform.ibmcloud.region") && !(ibmcloud.region || "").trim()) {
         errors.push("IBM Cloud region is required for IBM Cloud IPI.");
       }
-      if (requiredPaths.includes("platform.ibmcloud.networkResourceGroupName") && !(ibmcloud.networkResourceGroupName || "").trim()) {
-        errors.push("networkResourceGroupName is required for IBM Cloud disconnected installs.");
-      }
-      if (requiredPaths.includes("platform.ibmcloud.vpcName") && !(ibmcloud.vpcName || "").trim()) {
-        errors.push("vpcName is required for IBM Cloud disconnected installs.");
-      }
-      if (requiredPaths.includes("platform.ibmcloud.controlPlaneSubnets") && !(ibmcloud.controlPlaneSubnets || "").trim()) {
-        errors.push("controlPlaneSubnets is required for IBM Cloud disconnected installs.");
-      }
-      if (requiredPaths.includes("platform.ibmcloud.computeSubnets") && !(ibmcloud.computeSubnets || "").trim()) {
-        errors.push("computeSubnets is required for IBM Cloud disconnected installs.");
+      if (vpcMode === "existing-vpc") {
+        if (!(ibmcloud.networkResourceGroupName || "").trim()) {
+          errors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
+        }
+        if (!(ibmcloud.vpcName || "").trim()) {
+          errors.push("vpcName is required when using an existing IBM Cloud VPC.");
+        }
+        if (!(ibmcloud.controlPlaneSubnets || "").trim()) {
+          errors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
+        }
+        if (!(ibmcloud.computeSubnets || "").trim()) {
+          errors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
+        }
       }
       return { errors, warnings: [] };
     }
