@@ -712,6 +712,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   label="Region"
                   hint={`${metaIbmRegion?.description ? `${metaIbmRegion.description} ` : ""}Choose the region where the cluster will run (for example, us-east). It must match the location of your target VPC/subnets and satisfy latency/compliance requirements.`}
                   required={metaIbmRegion?.required || isRequiredInstall("platform.ibmcloud.region")}
+                  className="platform-specifics-field-short"
                 >
                   <input
                     value={platformConfig.ibmcloud?.region || ""}
@@ -722,6 +723,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Resource group name (optional)"
                   hint={`${metaIbmResourceGroupName?.description ? `${metaIbmResourceGroupName.description} ` : ""}Use the resource group for cluster-managed artifacts. Leave blank to use the account default. This is distinct from the network resource group unless both intentionally match.`}
+                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.resourceGroupName || ""}
@@ -732,6 +734,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Instance type (optional)"
                   hint={`${metaIbmType?.description ? `${metaIbmType.description} ` : ""}Enter a default IBM Cloud VSI profile (for example, bx2-8x32) when you need explicit CPU/memory sizing. Leave blank to use installer defaults.`}
+                  className="platform-specifics-field-short"
                 >
                   <input
                     value={platformConfig.ibmcloud?.type || ""}
@@ -746,6 +749,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="VPC deployment mode"
                   hint="Choose whether you provide existing VPC resources or let the installer create them. For disconnected/restricted environments, existing VPC/subnets are the common path. This choice controls which VPC fields are shown and emitted."
+                  className="platform-specifics-field-medium"
                 >
                   <select
                     value={ibmVpcMode}
@@ -765,6 +769,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   label="Network resource group name"
                   hint={`${metaIbmNetworkResourceGroupName?.description ? `${metaIbmNetworkResourceGroupName.description} ` : ""}Required in Existing VPC mode. Enter the resource group that already contains the VPC and subnet resources for this cluster.`}
                   required={true}
+                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.networkResourceGroupName || ""}
@@ -776,6 +781,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   label="VPC name"
                   hint={`${metaIbmVpcName?.description ? `${metaIbmVpcName.description} ` : ""}Required in Existing VPC mode. Enter the existing VPC name in the selected region where cluster nodes are placed.`}
                   required={true}
+                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.vpcName || ""}
@@ -787,6 +793,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   label="Control plane subnets"
                   hint={`${metaIbmControlPlaneSubnets?.description ? `${metaIbmControlPlaneSubnets.description} ` : ""}Required in Existing VPC mode. Provide comma-separated existing subnet names for control plane nodes (typically one per AZ) with API/control-plane connectivity.`}
                   required={true}
+                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.controlPlaneSubnets || ""}
@@ -798,6 +805,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   label="Compute subnets"
                   hint={`${metaIbmComputeSubnets?.description ? `${metaIbmComputeSubnets.description} ` : ""}Required in Existing VPC mode. Provide comma-separated existing subnet names for worker nodes in the same VPC/region with required workload connectivity.`}
                   required={true}
+                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.computeSubnets || ""}
@@ -817,6 +825,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Dedicated host profile (optional)"
                   hint={`${metaIbmDedicatedHostsProfile?.description ? `${metaIbmDedicatedHostsProfile.description} ` : ""}Set when machines must run on dedicated hosts. Use a valid dedicated-host profile (for example, cx2-host-*).`}
+                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.dedicatedHostsProfile || ""}
@@ -827,6 +836,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Dedicated host name (optional)"
                   hint={`${metaIbmDedicatedHostsName?.description ? `${metaIbmDedicatedHostsName.description} ` : ""}Use when placing nodes on a pre-created dedicated host. Enter the existing host name with sufficient remaining capacity.`}
+                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.dedicatedHostsName || ""}
@@ -841,6 +851,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Service endpoints (optional)"
                   hint={`${metaIbmServiceEndpoints?.description ? `${metaIbmServiceEndpoints.description} ` : ""}Override endpoints only when default public IBM endpoints are unreachable (private/restricted routing). Enter one NAME=URL pair per line, such as IAM=... or VPC=....`}
+                  className="platform-specifics-field-full"
                 >
                   <textarea
                     value={platformConfig.ibmcloud?.serviceEndpoints || ""}
@@ -856,6 +867,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Boot volume encryption key (all machine pools, optional)"
                   hint={`${metaIbmDefaultMachineBootVolumeKey?.description ? `${metaIbmDefaultMachineBootVolumeKey.description} ` : ""}Set a Key Protect root key CRN to apply one cluster-wide default boot-volume key to all machine pools.`}
+                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey || ""}
@@ -866,6 +878,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Boot volume encryption key (control plane, optional)"
                   hint={`${metaIbmControlPlaneBootVolumeKey?.description ? `${metaIbmControlPlaneBootVolumeKey.description} ` : ""}Optional override for control plane boot volumes when masters must use a different key than the cluster-wide default.`}
+                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey || ""}
@@ -876,6 +889,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Boot volume encryption key (compute, optional)"
                   hint={`${metaIbmComputeBootVolumeKey?.description ? `${metaIbmComputeBootVolumeKey.description} ` : ""}Optional override for worker boot volumes when compute nodes require a different key from control plane or the cluster default.`}
+                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.computeBootVolumeEncryptionKey || ""}
@@ -890,6 +904,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <FieldLabelWithInfo
                   label="Publish (optional)"
                   hint={`${metaPublish?.description ? `${metaPublish.description} ` : ""}External exposes API/apps via public endpoints. Internal keeps endpoints private to your network/VPC path and is typical for private-cluster designs.`}
+                  className="platform-specifics-field-short"
                 >
                   <select
                     value={platformConfig.publish || metaPublish?.default || "External"}
