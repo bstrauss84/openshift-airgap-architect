@@ -47,6 +47,7 @@ These files are valuable but may include historical context, implementation note
   - `docs/*_VERIFICATION*.md`
 - Comparative and exploratory docs:
   - `docs/CLUSTERFILE_*`
+  - `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
   - `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`
   - `docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md`
 

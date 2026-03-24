@@ -88,3 +88,9 @@ Do not add noisy per-line attribution comments in source files.
 - Review this policy when major workflow changes occur (new assistant tools, new CI guardrails, or major product direction changes).
 - Update `docs/INDEX.md` if authority or ownership changes.
 - Any policy exception must be documented in a tracked doc with rationale and scope.
+
+## Comparative merger planning alignment (bounded)
+
+- Comparative merger strategy work (for example Bill + Daniel combined-direction planning) must treat this governance doc as policy baseline, not replace it.
+- Comparative planning artifacts may define governance/security decision gates, but must avoid introducing standalone implementation mandates unless explicitly approved.
+- Architecture/security/helper recommendations from comparative analysis require human review before they become canonical policy or implementation work.

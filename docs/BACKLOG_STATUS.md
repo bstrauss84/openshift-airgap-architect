@@ -62,6 +62,7 @@ For each status update:
 | DOC-026 | Split cloud and Nutanix family docs for cleaner scenario governance | verified_done | p1 | `docs/SCENARIOS_GUIDE.md`, `docs/INDEX.md`, former cloud+nutanix family guide | `docs/SCENARIOS_CLOUD_FAMILY.md`, `docs/SCENARIOS_NUTANIX_FAMILY.md`, updated family references | Keep scenario map updated as cloud/nutanix complexity changes. |
 | DOC-027 | Remove tracked raw OCP snapshot docs from canonical reading path | verified_done | p1 | previous tracked `docs/ocp-4.20-*` snapshot docs | deleted tracked snapshot files + updated `docs/INDEX.md` and `docs/SCENARIOS_GUIDE.md` | Keep raw external captures local/archive-only going forward; do not reintroduce as canonical tracked docs. |
 | DOC-028 | Remove local-only pattern leak from tracked docs (`docs/PHASE*`) | verified_done | p1 | `.gitignore` local-only rules (`docs/PHASE*`) | removed tracked `docs/PHASE_G_ADDING_A_VERSION.md` from repo | Keep local-only pattern files out of tracked history going forward. |
+| DOC-029 | Execute comprehensive comparative integration planning artifact and canonical linkage | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`, `.cursor/plans/comprehensive_comparative_integration_plan_58fa5b4f.plan.md` | master artifact in `docs/`, comparative/gov/security/stakeholder sections | Verify cross-links and ensure follow-on backlog items are registered before moving to `verified_done`. |
 
 ## Archived phase progression (fully reconciled)
 
