@@ -83,6 +83,33 @@ Hooks run on `git commit`; the secret check is included when gitleaks is availab
 - **Lint:** From repo root, `npx eslint backend frontend` (uses `.eslintrc.cjs`). Fix issues before committing if you touch linted files.
 - **Format:** `npx prettier --check .` to check; `npx prettier --write .` to format (respects `.prettierignore`). Not enforced in CI.
 
+## Feedback feature local configuration (DOC-041)
+
+Feedback submission is backend-configured; do not hardcode recipient addresses in code or docs.
+
+- `FEEDBACK_MODE=disabled|relay|managed|offline`
+- `FEEDBACK_RELAY_URL` and `FEEDBACK_RELAY_TOKEN` for relay mode
+- `FEEDBACK_PROVIDER`, `FEEDBACK_PROVIDER_WEBHOOK_URL`, and `FEEDBACK_PROVIDER_TOKEN` for managed mode
+- `FEEDBACK_CHALLENGE_SECRET` for anti-bot challenge signing
+
+Recommended local default:
+
+```bash
+FEEDBACK_MODE=disabled
+```
+
+If you want local offline handoff export, set:
+
+```bash
+FEEDBACK_MODE=offline
+```
+
+Online modes fail closed unless fully configured:
+- `FEEDBACK_MODE=relay` requires `FEEDBACK_RELAY_URL` and `FEEDBACK_CHALLENGE_SECRET`
+- `FEEDBACK_MODE=managed` requires `FEEDBACK_PROVIDER_WEBHOOK_URL` and `FEEDBACK_CHALLENGE_SECRET`
+
+High-side/disconnected deployments should set mode/operating profile so feedback is hidden and submission is disabled.
+
 ## Tests (for agents and contributors)
 
 - **Frontend:** `cd frontend && npm run test` — runs Vitest once (`vitest run`). Frontend tests can live in **`frontend/tests/`** (e.g. routing, step UI, fixtures) or next to source in `frontend/src` (e.g. `LandingPage.smoke.test.jsx`). Add `*.test.jsx` / `*.spec.jsx` in either location for new coverage.

@@ -33,6 +33,14 @@ import {
 } from "./utils.js";
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
+import {
+  createChallengeToken,
+  resolveFeedbackConfig,
+  validateFeedbackPayload,
+  verifyChallengeToken
+} from "./feedback.js";
+import { deliverFeedback } from "./feedbackTransport.js";
+import { createInMemoryRateLimiter } from "./feedbackRateLimit.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -41,6 +49,53 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
 markStaleJobs();
+
+const getClientAddress = (req) => {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.trim()) {
+    return fwd.split(",")[0].trim();
+  }
+  return req.ip || "unknown";
+};
+
+let submitLimiter = null;
+let submitLimiterKey = "";
+let challengeLimiter = null;
+let challengeLimiterKey = "";
+
+function currentSubmitLimiter() {
+  const key = [
+    process.env.FEEDBACK_RATE_LIMIT_WINDOW_MS || "",
+    process.env.FEEDBACK_RATE_LIMIT_MAX || "",
+    process.env.FEEDBACK_BURST_WINDOW_MS || "",
+    process.env.FEEDBACK_BURST_MAX || ""
+  ].join("|");
+  if (submitLimiter && submitLimiterKey === key) return submitLimiter;
+  submitLimiterKey = key;
+  submitLimiter = createInMemoryRateLimiter({
+    windowMs: Number(process.env.FEEDBACK_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+    max: Number(process.env.FEEDBACK_RATE_LIMIT_MAX || 5),
+    burstWindowMs: Number(process.env.FEEDBACK_BURST_WINDOW_MS || 60 * 1000),
+    burstMax: Number(process.env.FEEDBACK_BURST_MAX || 2),
+    keyFn: getClientAddress
+  });
+  return submitLimiter;
+}
+
+function currentChallengeLimiter() {
+  const key = [
+    process.env.FEEDBACK_CHALLENGE_WINDOW_MS || "",
+    process.env.FEEDBACK_CHALLENGE_MAX || ""
+  ].join("|");
+  if (challengeLimiter && challengeLimiterKey === key) return challengeLimiter;
+  challengeLimiterKey = key;
+  challengeLimiter = createInMemoryRateLimiter({
+    windowMs: Number(process.env.FEEDBACK_CHALLENGE_WINDOW_MS || 60 * 1000),
+    max: Number(process.env.FEEDBACK_CHALLENGE_MAX || 20),
+    keyFn: getClientAddress
+  });
+  return challengeLimiter;
+}
 
 const warmCincinnatiCache = async () => {
   try {
@@ -78,6 +133,25 @@ function detectMountedPullSecret() {
   }
 }
 detectMountedPullSecret();
+
+function logFeedbackStartupStatus() {
+  const config = resolveFeedbackConfig();
+  if (config.mode === "disabled") {
+    if (config.selectedMode && config.selectedMode !== "disabled") {
+      console.warn("[startup] Feedback disabled due to configuration:", {
+        selectedMode: config.selectedMode,
+        reason: config.reason
+      });
+      return;
+    }
+    console.log("[startup] Feedback mode disabled.");
+    return;
+  }
+  console.log("[startup] Feedback mode enabled:", { mode: config.mode });
+}
+if (process.env.NODE_ENV !== "test") {
+  logFeedbackStartupStatus();
+}
 
 const defaultState = () => ({
   runId: nanoid(),
@@ -429,6 +503,98 @@ app.get("/api/build-info", (_req, res) => {
   const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
   const branch = (process.env.APP_BRANCH || "main").trim();
   res.json({ gitSha, buildTime, repo, branch });
+});
+
+app.get("/api/feedback/config", (_req, res) => {
+  const config = resolveFeedbackConfig();
+  res.json({
+    enabled: config.enabled,
+    visible: config.visible,
+    mode: config.mode,
+    reason: config.reason,
+    challengeRequired: config.enabled,
+    minDwellMs: config.minDwellMs,
+    limits: config.limits,
+    enums: config.enums
+  });
+});
+
+app.get("/api/feedback/challenge", (req, res, next) => currentChallengeLimiter()(req, res, next), (_req, res) => {
+  const config = resolveFeedbackConfig();
+  if (!config.enabled) {
+    return res.status(403).json({ error: config.reason || "Feedback is unavailable." });
+  }
+  const challenge = createChallengeToken(config);
+  return res.json({
+    token: challenge.token,
+    issuedAt: challenge.issuedAt,
+    expiresAt: challenge.expiresAt,
+    minDwellMs: config.minDwellMs
+  });
+});
+
+app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req, res, next), async (req, res) => {
+  const config = resolveFeedbackConfig();
+  if (!config.enabled) {
+    return res.status(403).json({ error: config.reason || "Feedback is unavailable." });
+  }
+  const parsed = validateFeedbackPayload(req.body, config);
+  if (!parsed.ok) {
+    return res.status(400).json({ error: parsed.error });
+  }
+  const challengeResult = verifyChallengeToken(parsed.challengeToken, config);
+  if (!challengeResult.ok) {
+    return res.status(400).json({ error: challengeResult.error });
+  }
+
+  const build = {
+    gitSha: (process.env.APP_GIT_SHA || "unknown").trim(),
+    buildTime: (process.env.APP_BUILD_TIME || "unknown").trim(),
+    branch: (process.env.APP_BRANCH || "main").trim()
+  };
+  const submissionId = nanoid();
+  const submission = {
+    schemaVersion: 1,
+    submissionId,
+    receivedAt: new Date().toISOString(),
+    build,
+    mode: config.mode,
+    payload: parsed.payload
+  };
+
+  try {
+    const result = await deliverFeedback({
+      mode: config.mode,
+      payload: submission
+    });
+    // Keep logs metadata-only and never include feedback text.
+    if (process.env.NODE_ENV !== "test") {
+      console.log("Feedback accepted", {
+        submissionId,
+        mode: config.mode,
+        delivered: Boolean(result.delivered)
+      });
+    }
+    return res.json({
+      ok: true,
+      submissionId,
+      mode: config.mode,
+      delivered: Boolean(result.delivered),
+      handoff: result.handoff || null
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV !== "test") {
+      console.error("Feedback delivery failed", {
+        submissionId,
+        mode: config.mode,
+        error: String(error?.message || error).slice(0, 120)
+      });
+    }
+    return res.status(503).json({
+      error: "Feedback delivery is temporarily unavailable. Please try again later.",
+      offlineAvailable: true
+    });
+  }
 });
 
 // Update check: GitHub latest commit vs APP_GIT_SHA. CHECK_UPDATES=false|0 disables. Cache: success 6h, failure 15min.

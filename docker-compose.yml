@@ -13,6 +13,7 @@ services:
       # registry config parameters — setting it to a JSON auth file path causes a
       # panic on startup. Auth is passed via --authfile flag by the backend instead.
       - MOCK_MODE=${MOCK_MODE:-false}
+      - FEEDBACK_MODE=${FEEDBACK_MODE:-disabled}
       - APP_REPO=${APP_REPO:-bstrauss84/openshift-airgap-architect}
       - APP_BRANCH=${APP_BRANCH:-main}
     volumes:
