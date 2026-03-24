@@ -24,10 +24,12 @@ import PlatformSpecificsStep from "./steps/PlatformSpecificsStep.jsx";
 import HostsInventorySegmentStep from "./steps/HostsInventorySegmentStep.jsx";
 import ScenarioHeaderPanel from "./components/ScenarioHeaderPanel.jsx";
 import ToolsDrawer from "./components/ToolsDrawer.jsx";
+import FeedbackDrawer from "./components/FeedbackDrawer.jsx";
 import { validateStep, validateBlueprintPullSecretOptional } from "./validation.js";
 import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { apiFetch } from "./api.js";
+import { getFeedbackConfig } from "./feedbackApi.js";
 
 /** Used for Landing banner and tests; true only when update is available and no error/unknown. */
 export function shouldShowUpdateBanner(updateInfo) {
@@ -200,6 +202,13 @@ const AppShell = () => {
   const [lockToast, setLockToast] = useState("");
   const [updateInfo, setUpdateInfo] = useState(null);
   const [buildInfo, setBuildInfo] = useState(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackConfig, setFeedbackConfig] = useState({
+    visible: false,
+    enabled: false,
+    mode: "disabled",
+    reason: ""
+  });
   const importRef = useRef(null);
   const runActionsRef = useRef(null);
   const prefsRef = useRef(null);
@@ -219,6 +228,18 @@ const AppShell = () => {
   // Build info: fetch once on load. Update info: fetch only when Landing is shown (once on initial Landing, again when user returns to Landing).
   useEffect(() => {
     apiFetch("/api/build-info").then(setBuildInfo).catch(() => setBuildInfo({ gitSha: "unknown", buildTime: "unknown", repo: "", branch: "" }));
+  }, []);
+  useEffect(() => {
+    getFeedbackConfig()
+      .then(setFeedbackConfig)
+      .catch(() =>
+        setFeedbackConfig({
+          visible: false,
+          enabled: false,
+          mode: "disabled",
+          reason: "Feedback configuration unavailable."
+        })
+      );
   }, []);
   useEffect(() => {
     if (!showLanding) return;
@@ -408,6 +429,16 @@ const AppShell = () => {
     return "install-config.yaml";
   }, [previewStepId]);
   const previewEnabled = useMemo(() => ["global", "review"].includes(previewStepId), [previewStepId]);
+  const feedbackScenarioContext = useMemo(
+    () => ({
+      platform: state?.blueprint?.platform || "",
+      methodology: state?.methodology?.method || "",
+      connectivity: state?.docs?.connectivity || "",
+      version: state?.release?.patchVersion || "",
+      scenarioId: getScenarioId(state) || ""
+    }),
+    [state]
+  );
   const extraPreviewFiles = useMemo(() => {
     if (!previewFiles) return [];
     return Object.entries(previewFiles).filter(([name]) => name.startsWith("99-chrony-ntp-"));
@@ -912,6 +943,17 @@ const AppShell = () => {
           >
             ⚙ Tools
           </button>
+          {feedbackConfig?.visible ? (
+            <button
+              type="button"
+              className="ghost icon-button feedback-trigger"
+              onClick={() => setFeedbackOpen(true)}
+              title="Share feedback"
+              aria-label="Open Feedback"
+            >
+              💬 Feedback
+            </button>
+          ) : null}
         </div>
       </header>
       {showLanding ? (
@@ -1230,6 +1272,13 @@ const AppShell = () => {
           logAction={logAction}
           buildInfo={buildInfo}
           updateInfo={updateInfo}
+        />
+        <FeedbackDrawer
+          isOpen={feedbackOpen}
+          onClose={() => setFeedbackOpen(false)}
+          config={feedbackConfig}
+          uiContext={visibleSteps[active]?.id || ""}
+          scenarioContext={feedbackScenarioContext}
         />
     </div>
   );

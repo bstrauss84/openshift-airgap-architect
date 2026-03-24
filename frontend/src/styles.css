@@ -353,6 +353,10 @@ body[data-theme="dark"] .app-header {
   flex-wrap: wrap;
 }
 
+.header-actions .feedback-trigger {
+  white-space: nowrap;
+}
+
 .header-actions .dropdown {
   position: relative;
 }
