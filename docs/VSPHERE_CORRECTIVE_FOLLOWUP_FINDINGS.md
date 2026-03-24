@@ -1,5 +1,9 @@
 # vSphere IPI/UPI Corrective Follow-up — Doc and Code Findings
 
+> Authority: Working verification note
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Date:** 2026-03.  
 **Scope:** Final corrective pass before using vSphere as replication template for other platforms.
 

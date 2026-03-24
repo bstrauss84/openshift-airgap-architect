@@ -4,6 +4,12 @@ This is the canonical map for project documentation authority, ownership, and us
 
 Use this file first when deciding where new information belongs.
 
+## Scope note
+
+This authority map is built from tracked repository docs (`git ls-files`).
+Local ignored docs under `docs/` are not treated as canonical until they are explicitly triaged and promoted.
+Triage source and process: `docs/LOCAL_IGNORED_DOCS_TRIAGE.md`.
+
 ## Authority tiers
 
 ### Tier 1: Authoritative current truth
@@ -20,9 +26,15 @@ These files define current expected behavior and process.
   - `docs/PARAMS_CATALOG_RULES.md`
   - `docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`
 - UI consistency contract: `docs/DESIGN_SYSTEM.md`
+- Scenario navigation hub: `docs/SCENARIOS_GUIDE.md`
 - Backlog and status truth: `docs/BACKLOG_STATUS.md`
 - Helper selection and usage: `docs/HELPER_USAGE.md`
 - AI governance and compliance: `AI_GOVERNANCE.md`
+
+Policy-retention rule:
+
+- Keep only non-duplicative policy docs in Tier 1.
+- If two policy docs govern the same behavior, one becomes canonical and the other must be downgraded or merged.
 
 ### Tier 2: Working docs
 
@@ -48,11 +60,22 @@ When updating a historical doc, add a short banner at top with:
 - `Superseded by: <Tier 1 path>`
 - `Reason: <short reason>`
 
+### Raw external captures (non-canonical)
+
+Raw external snapshots are not tracked as canonical project docs in this repository.
+If a temporary capture is needed for research, keep it local/archive-only and ingest durable conclusions into Tier 1 docs.
+
 ## Canonical ownership by topic
 
 - Docs index and doc URL policy: `docs/DOC_INDEX_RULES.md`
 - Parameter catalog policy: `docs/PARAMS_CATALOG_RULES.md`
 - Data copy and sync policy: `docs/DATA_AND_FRONTEND_COPIES.md`
+- Scenario-specific navigation and grouping: `docs/SCENARIOS_GUIDE.md`
+- Scenario family consolidation hubs:
+  - `docs/SCENARIOS_BARE_METAL_FAMILY.md`
+  - `docs/SCENARIOS_VSPHERE_FAMILY.md`
+  - `docs/SCENARIOS_CLOUD_FAMILY.md`
+  - `docs/SCENARIOS_NUTANIX_FAMILY.md`
 - Backlog status and intake: `docs/BACKLOG_STATUS.md`
 - Helper and agent invocation strategy: `docs/HELPER_USAGE.md`
 - AI assistance governance and compliance: `AI_GOVERNANCE.md`
@@ -68,8 +91,9 @@ When two docs conflict:
 ## Where to add new information
 
 - New process or policy: add to Tier 1 doc and link here.
-- New scenario investigation: create/update a Tier 2 working doc and cross-link from `docs/BACKLOG_STATUS.md`.
+- New scenario investigation: update `docs/SCENARIOS_GUIDE.md`, then create/update Tier 2 working docs and cross-link from `docs/BACKLOG_STATUS.md`.
 - New future request or deferred item: add to `docs/BACKLOG_STATUS.md` using the intake template there.
+- New promotion of local ignored content: follow `docs/LOCAL_IGNORED_DOCS_TRIAGE.md`.
 
 ## Required cross-check before merge
 

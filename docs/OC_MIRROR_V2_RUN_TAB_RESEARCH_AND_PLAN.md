@@ -1,5 +1,9 @@
 # oc-mirror v2 Run Tab — Implementation Contract (OpenShift 4.20)
 
+> Authority: Working implementation contract and history
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/INDEX.md`
+
 **Purpose:** Buildable contract for the "Run oc-mirror" tab. A later implementation pass can follow §1–§9 directly without re-deciding scope, APIs, state, or artifact rules.
 
 **Status:** Implementation contract complete. v1 implementation completed on branch `feat/oc-mirror-run-tab-v1` (see "Implementation Pass (v1)" below).

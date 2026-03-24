@@ -43,6 +43,114 @@ For each status update:
 | DOC-007 | Introduce AI governance policy for Cursor-first workflow | done_pending_verification | p1 | `AI_GOVERNANCE.md` | CI and process docs | Adopt policy in contributor flow and future PR templates if added. |
 | DOC-008 | Resolve E2E inventory count drift ("9 scenarios" vs current docs-index) | done_pending_verification | p2 | `docs/e2e-examples/INVENTORY.md`, `data/docs-index/4.20.json` | N/A | Clarify scope language to avoid mismatch with scenario IDs. |
 | DOC-009 | Investigate missing README screenshots under `docs/images/` | active | p2 | `README.md` | N/A | Either add assets, update paths, or remove image links. |
+| DOC-010 | Create single scenario navigation hub with TOC and links | done_pending_verification | p1 | `docs/SCENARIOS_GUIDE.md`, `docs/INDEX.md` | N/A | Keep scenario map current as scenario IDs and working docs change. |
+| DOC-011 | Add authority banners to high-traffic working docs | done_pending_verification | p2 | scenario and comparative working docs under `docs/` | N/A | Expand to remaining working docs over time where useful. |
+| DOC-012 | Expand authority banners to remaining verification/reference working docs | done_pending_verification | p2 | vSphere verification docs, bare-metal VIP truth doc, UBI/pull-secret verification docs, cached `ocp-4.20-*` docs | N/A | Keep canonical pointers in place so readers can distinguish working/reference artifacts from policy docs. |
+| DOC-013 | Consolidate scenarios into a handful of family-level hub docs with TOCs | done_pending_verification | p1 | `docs/SCENARIOS_BARE_METAL_FAMILY.md`, `docs/SCENARIOS_VSPHERE_FAMILY.md`, `docs/SCENARIOS_CLOUD_FAMILY.md`, `docs/SCENARIOS_NUTANIX_FAMILY.md`, `docs/SCENARIOS_GUIDE.md` | N/A | Keep all deep docs linked; no relevant detail removed from source docs. |
+| DOC-014 | Validate relevance of scenario-related docs during consolidation | done_pending_verification | p1 | scenario family guides + deep working docs | N/A | Maintain relevance snapshot tables and review when scenario scope changes. |
+| DOC-015 | Triage local ignored docs and decide promotion/archive strategy | verified_done | p1 | ignored `docs/*` inventory from git ignored set | `git ls-files --others -i --exclude-standard docs`, `docs/LOCAL_IGNORED_DOCS_TRIAGE.md` | Keep the final reconciliation table updated when new ignored docs appear. |
+| DOC-016 | Create tracked local-doc triage and promotion framework | done_pending_verification | p1 | `docs/LOCAL_IGNORED_DOCS_TRIAGE.md` | local ignored docs inventory command | Use this framework to safely ingest relevant local docs into tracked canonical sources. |
+| DOC-017 | Ingest still-relevant items from local Phase 5/E2E docs into canonical backlog | verified_done | p1 | local `docs/PHASE_*`, `docs/E2E_*` | `docs/LOCAL_IGNORED_DOCS_TRIAGE.md` reconciliation table + existing code/doc evidence | Keep future ingestion incremental and canonical; archive local source docs after reconciliation. |
+| DOC-018 | Implement E2E dual-stack assertion parity from local backlog (B-3) | verified_done | p1 | `docs/E2E_BACKLOG.md`, `docs/PHASE_5_REMAINING_WORK.md` | `backend/scripts/validate-e2e-examples.js` (`enforceDualStackInstallChecks`), `node backend/scripts/validate-e2e-examples.js` | Keep this assertion in sync with dual-stack generation behavior and future e2e matrix paths. |
+| DOC-019 | Evaluate OVN MTU and optional OVN knobs from local backlog (B-4) | deferred | p2 | `docs/E2E_BACKLOG.md` | `backend/src/generate.js` (currently emits only `ovnKubernetesConfig.ipv4.internalJoinSubnet`) | Keep deferred unless product scope requires `mtu`/`genevePort`/`ipsecConfig`; implement catalog + generate + E2E together if reactivated. |
+| DOC-020 | Reconcile trust-bundle policy local backlog note (B-5) with tracked docs | superseded | p2 | `docs/E2E_BACKLOG.md`, `docs/PHASE_5_REMAINING_WORK.md` | `docs/PARAMS_CATALOG_RULES.md`, `frontend/src/steps/TrustProxyStep.jsx` | Treated as covered by tracked Trust/Proxy guidance; reopen only if user-facing docs remain unclear. |
+| DOC-021 | Reconcile local header-actions reorg item (§9.2) with current UI | done_pending_verification | p2 | `docs/PHASE_5_REMAINING_WORK.md` | `frontend/src/App.jsx` (`runActionsOpen`, `prefsOpen`, export/import/start-over handlers), `frontend/tests/start-over-ocmirror-warning.test.jsx` | Add/confirm explicit tests for run-actions and preferences keyboard/a11y interactions before moving to `verified_done`. |
+| DOC-022 | Reconcile local "Help me decide" deferral with segmented flow | deferred | p2 | `docs/PHASE_5_REMAINING_WORK.md`, `docs/PHASE_5_B_DEFERRAL_LIST.md` | `frontend/src/steps/GlobalStrategyStep.jsx` ("Help me decide" controls/modal), segmented flow step set in `frontend/src/App.jsx` (no Global Strategy step) | Deferred for a docs-only consolidation pass; reactivate in a UI implementation pass. |
+| DOC-023 | Stabilize `docs/SCENARIOS_GUIDE.md` TOC link behavior across markdown renderers | done_pending_verification | p1 | user-reported navigation issue in `docs/SCENARIOS_GUIDE.md` | explicit section anchors in `docs/SCENARIOS_GUIDE.md` | Verify link resolution in Cursor preview and GitHub-style rendering; extend anchor normalization if any section still fails. |
+| DOC-024 | Keep reconciled local docs ignored and out of commits/pushes | verified_done | p2 | `docs/LOCAL_IGNORED_DOCS_TRIAGE.md`, user decision for local ignored retention | `git ls-files --others -i --exclude-standard docs` (ignored set remains local-only) | Maintain `.gitignore` coverage and avoid staging ignored docs in docs-only pushes. |
+| DOC-025 | Ingest durable local prompt/UI/testing guardrails into tracked governance docs | verified_done | p1 | `docs/UI_NORTH_STAR.md`, `docs/PROMPT_GUARDRAILS.md`, `docs/TESTING_NOTES.md` | updates to `docs/DESIGN_SYSTEM.md`, `docs/HELPER_USAGE.md`, `AI_GOVERNANCE.md`, `docs/CONTRIBUTING.md` | Keep tracked governance docs authoritative; archive local source notes. |
+| DOC-026 | Split cloud and Nutanix family docs for cleaner scenario governance | verified_done | p1 | `docs/SCENARIOS_GUIDE.md`, `docs/INDEX.md`, former cloud+nutanix family guide | `docs/SCENARIOS_CLOUD_FAMILY.md`, `docs/SCENARIOS_NUTANIX_FAMILY.md`, updated family references | Keep scenario map updated as cloud/nutanix complexity changes. |
+| DOC-027 | Remove tracked raw OCP snapshot docs from canonical reading path | verified_done | p1 | previous tracked `docs/ocp-4.20-*` snapshot docs | deleted tracked snapshot files + updated `docs/INDEX.md` and `docs/SCENARIOS_GUIDE.md` | Keep raw external captures local/archive-only going forward; do not reintroduce as canonical tracked docs. |
+
+## Archived phase progression (fully reconciled)
+
+The following progression consolidates archived local phase docs from:
+
+- `/home/billstrauss/code/archived_docs/openshift-airgap-architect-local-docs-20260323-193417/docs`
+
+| phase_or_workstream | canonical_status | evidence_paths | notes |
+|---|---|---|---|
+| Phase 1-3 docs-index/catalog normalization | verified_done | `data/docs-index/4.20.json`, `scripts/validate-docs-index.js`, `scripts/validate-catalog.js` | Folded into `DOC-001` and `DOC-002`. |
+| Phase 4.5 coverage mapping | superseded | segmented flow + catalog-driven step set in tracked frontend | Historical planning artifact; replaced by implemented flow. |
+| Phase 5 A1 param alignment | verified_done | tracked catalogs + `frontend/src/steps/PlatformSpecificsStep.jsx` | Historical A1 items resolved in tracked implementation. |
+| Phase 5 A2 tab relevance/platform none handling | verified_done | `frontend/src/App.jsx`, `frontend/src/steps/NetworkingV2Step.jsx`, `backend/src/generate.js` | Historical A2 items reconciled. |
+| Phase 5 B restore + carry-over | done_pending_verification | `frontend/src/steps/TrustProxyStep.jsx`, `frontend/src/steps/GlobalStrategyStep.jsx` | `DOC-022` remains deferred for segmented parity. |
+| Phase 5 C segmented default flow | verified_done | segmented step map in `frontend/src/App.jsx` | Treated as complete. |
+| Phase 5 D wizard checkmarks/progress | verified_done | `frontend/tests/wizard-flow-progress.test.jsx` | Reconciled as complete. |
+| Phase 5 E vulnerability/audit | done_pending_verification | package manifests + audit process | Keep periodic audit reruns in backlog. |
+| Phase 5 F git hygiene | verified_done | `.github/workflows/ci.yml`, `.gitignore` | Hygiene workflow is active. |
+| Phase 5 G bloat/archive manifest | active | archive triage docs + archived local set | Manifest-style archival curation remains active. |
+| Phase 5 H code consistency | done_pending_verification | tracked docs and comments | Requires occasional drift checks. |
+| Phase 5 I UX polish | done_pending_verification | current UI + targeted tests | Keep in verification cadence. |
+| Phase 5 J AMI/discovery | verified_done | installer/warming routes + Platform Specifics UI | Marked complete by repo evidence. |
+| Phase 5 K E2E matrix/validation | active | `backend/scripts/e2e-matrix.js`, `backend/scripts/validate-e2e-examples.js` | Active as ongoing validation system. |
+| Phase 5 L extras (a11y/perf/error boundaries) | deferred | scattered tests/docs | Future hardening bucket. |
+| Phase 5 section 9.1 oc-mirror gate | superseded | `frontend/src/steps/RunOcMirrorStep.jsx` | Replaced by implemented flow. |
+| Phase 5 section 9.2 header actions verify/reorg | done_pending_verification | `frontend/src/App.jsx`, `DOC-021` | Pending explicit a11y verification closure. |
+| Phase 5 section 9.3 operations panel maturation | done_pending_verification | `frontend/src/steps/OperationsStep.jsx` | Needs final verification sweep. |
+| REFACTOR_MVP_TRACKER multi-phase plan | superseded | tracked Phase 5 outcomes + canonical backlog | Kept historical only in archive. |
+| Scenario catalog plan (future versions) | deferred | tracked 4.20 data/rules docs | 4.21+ remains future work. |
+
+## Consolidated archived item registry
+
+All actionable items found across archived phase/backlog docs are tracked here (including historical IDs where present).
+
+| item_id | title | status | priority | source_docs | code_evidence | next_action |
+|---|---|---|---|---|---|---|
+| PHX-001 (B-1) | Dual-stack emit IPv6 cluster/service networks in generation | verified_done | p1 | archived `E2E_BACKLOG.md` | `backend/src/generate.js` | Keep regression tests aligned with matrix expansion. |
+| PHX-002 (B-2) | Expose dual-stack IPv6 CIDRs in wizard/state | verified_done | p1 | archived `E2E_BACKLOG.md` | `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js` | Maintain catalog parity if paths change. |
+| PHX-003 (B-3) | Validate dual-stack has >=2 cluster/service network entries | verified_done | p1 | archived `E2E_BACKLOG.md`, `PHASE_5_REMAINING_WORK.md` | `backend/scripts/validate-e2e-examples.js` (`enforceDualStackInstallChecks`) | Keep validator rule synchronized with generator behavior. |
+| PHX-004 (B-4) | OVN MTU/geneve/ipsec optional support | deferred | p2 | archived `E2E_BACKLOG.md`, `E2E_FINDINGS_AND_RECOMMENDATIONS.md` | `backend/src/generate.js` | Reactivate only with explicit product scope. |
+| PHX-005 (B-5) | Trust-bundle policy guidance | superseded | p2 | archived `E2E_BACKLOG.md` | `docs/PARAMS_CATALOG_RULES.md`, `frontend/src/steps/TrustProxyStep.jsx` | Reopen only if tracked docs become unclear. |
+| PHX-006 (B-6) | Add E2E path for host MTU/SR-IOV agent-config output | active | p3 | archived `E2E_BACKLOG.md` | current matrix scripts do not include host-advanced path | Add optional matrix cell + assertions. |
+| PHX-007 (B-7) | Add E2E/UI path for bond/VLAN nmstate outputs | deferred | p3 | archived `E2E_BACKLOG.md` | host networking generation exists but path coverage partial | Revisit when product requires bond/VLAN validation. |
+| PHX-008 (B-8) | Optional value-level E2E comparison vs doc examples | deferred | p3 | archived `E2E_BACKLOG.md` | validator currently structure-oriented | Add flag-based value diff mode if needed. |
+| PHX-009 (B-9) | credentialsMode/arbiter/featureSet extended paths | deferred | p3 | archived `E2E_BACKLOG.md` | partial implementation in platform-specific UI | Keep deferred until product scope says otherwise. |
+| PHX-010 (B-10) | Cluster-name/replicas placeholder parity with docs | deferred | p3 | archived `E2E_BACKLOG.md` | fixtures/defaults intentionally differ | Document intentional differences or align defaults later. |
+| PHX-011 (sec 9.1) | oc-mirror "Coming soon" gate | superseded | p2 | archived `PHASE_5_POST_SCENARIO_AGENT_PLAN.md` | `frontend/src/steps/RunOcMirrorStep.jsx` | No action; feature is implemented. |
+| PHX-012 (sec 9.2) | Header actions verify/reorganize | done_pending_verification | p2 | archived `PHASE_5_REMAINING_WORK.md` | `frontend/src/App.jsx`, `DOC-021` | Complete targeted a11y/keyboard verification tests. |
+| PHX-013 (sec 9.3) | Operations logs/clear/export placement | done_pending_verification | p2 | archived `PHASE_5_REMAINING_WORK.md` | `frontend/src/steps/OperationsStep.jsx` | Run final behavior verification and close. |
+| PHX-014 (G) | Bloat review and archive manifest decisions | active | p2 | archived post-phase docs | `docs/LOCAL_IGNORED_DOCS_TRIAGE.md` | Maintain manifest-like archive registry as docs evolve. |
+| PHX-015 (E) | Periodic npm vulnerability reconciliation | done_pending_verification | p2 | archived `PHASE_5_E_VULN_AND_AUDIT.md` | package manifests and audit workflow | Run periodic audit and capture result in tracked docs. |
+| PHX-016 (B-help) | "Help me decide" segmented-flow parity | deferred | p2 | archived `PHASE_5_B_DEFERRAL_LIST.md` | legacy control in `frontend/src/steps/GlobalStrategyStep.jsx` | Deferred in docs-only pass; reactivate in UI pass. |
+| PHX-017 (GAP-arch) | Blueprint architecture carry-over to install-config | verified_done | p1 | archived `PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md` | `backend/src/generate.js` | Keep mapping documented and tested. |
+| PHX-018 (GAP-adv) | Advanced params (hyperthreading/capabilities/cpuPartitioning/minimalISO) | verified_done | p2 | archived gap/remediation docs | platform-specific and validation tracked files | Keep catalog and UI mapping synchronized. |
+| PHX-019 (GAP-vsphere) | vSphere failureDomains field parity | verified_done | p1 | archived gap/remediation docs | `frontend/src/steps/PlatformSpecificsStep.jsx` | Monitor for drift as docs/catalogs evolve. |
+| PHX-020 (GAP-defer) | Deferred featureSet/arbiter/imageContentSources | deferred | p2 | archived gap/remediation docs | tracked defer items and rules docs | Maintain as explicit defer set. |
+| PHX-021 (overrides) | YAML overrides escape hatch concept | deferred | p3 | archived recommendations/UI north-star docs | no tracked implementation | Keep as optional future UX enhancement. |
+| PHX-022 (apiVersion) | Verify agent-config apiVersion alignment | done_pending_verification | p2 | archived recommendations docs | backend tests + generation | Confirm with explicit test assertion and close. |
+| PHX-023 (rootDeviceHints) | Expand rootDeviceHints beyond minimal fields | deferred | p3 | archived findings/recommendations docs | host inventory + generate logic | Revisit for advanced bare-metal use cases. |
+| PHX-024 (SR-IOV/VRF parity) | Host advanced networking parity gaps | deferred | p3 | archived recommendations docs | host inventory + generation | Reassess when day-2 style networking scope expands. |
+| PHX-025 (bond mode naming) | Bond mode naming vs nmstate alignment | deferred | p3 | archived recommendations/findings docs | generation nmstate builder | Validate naming semantics before activating. |
+| PHX-026 (identity header) | Scenario header collapsible behavior | verified_done | p2 | archived identity/header follow-up docs | `frontend/src/components/ScenarioHeaderPanel.jsx` | None. |
+| PHX-027 (identity pull-secret) | Pull-secret/mirror-secret gating and handling | done_pending_verification | p1 | archived identity/header follow-up docs | identity/access step + store/export paths | Add/verify secret persistence exclusion tests. |
+| PHX-028 (identity key downloads) | Separate SSH pub/pem download ergonomics | verified_done | p2 | archived identity/header follow-up docs | Identity step implementation | None. |
+| PHX-029 (landing workflow) | Pre-wizard landing net-new/upgrade/mirror-only flows | deferred | p2 | archived requirements docs | current landing page provides partial coverage | Treat as future product feature decision. |
+| PHX-030 (PatternFly contradiction) | Reconcile PatternFly status mismatch across requirement docs | active | p2 | archived `REQUIREMENTS_VERBATIM.md`, `REQUIREMENTS_REMAINING.md` | tracked UI implementation and styling docs | Resolve single canonical status statement. |
+| PHX-031 (host apply confirm) | Host apply confirmation modal for overwrite | active | p2 | archived requirements docs | host inventory flows | Implement and test in UI pass. |
+| PHX-032 (iface/mac paste helper) | Paste helper for `<iface> <mac>` pairs | active | p2 | archived requirements docs | host inventory paths | Implement parsing helper + tests. |
+| PHX-033 (import credential notice) | Post-import "credentials not configured" warning | active | p2 | archived requirements docs | import path in app/store | Implement import-state warning UX + tests. |
+| PHX-034 (backend YAML unit coverage) | Broaden generation unit tests (NIC/bond/VLAN/IPv6) | active | p2 | archived requirements docs | `backend/test/` suite | Add targeted backend test cases. |
+| PHX-035 (import cert warning) | Post-import certificate exclusion warning | active | p2 | archived requirements docs | import/export handling | Implement warning and validation signal. |
+| PHX-036 (duplicate run) | Clone/duplicate run workflow | deferred | p3 | archived requirements docs | export/import exists | Keep as lower-priority UX enhancement. |
+| PHX-037 (version fingerprint) | Version dependency fingerprinting per page | deferred | p3 | archived requirements docs | no tracked implementation | Optional future UX telemetry signal. |
+| PHX-038 (left-nav incomplete badge) | Sidebar incomplete badges | deferred | p3 | archived requirements docs | step flags currently available in app state | Implement only if UX priority increases. |
+| PHX-039 (MVP phases 2-12) | Legacy MVP tracker continuation | superseded | p3 | archived `REFACTOR_MVP_TRACKER.md` | segmented flow/canonical backlog supersedes | Keep historical only. |
+| PHX-040 (4.21 catalog/index) | Add 4.21 docs-index and param coverage | deferred | p3 | archived scenario-catalog plan docs | current tracked data is 4.20 | Activate when version support moves forward. |
+| PHX-041 (coverage awareness view) | In-app catalog coverage awareness reporting | deferred | p3 | archived UI north-star docs | no tracked implementation | Optional dev/admin feature. |
+| PHX-042 (review diff view) | Review-step "what changed" diff panel | deferred | p3 | archived UI north-star docs | no tracked implementation | Optional UX improvement. |
+| PHX-043 (CI docs host rules) | Ensure CI/rules prefer docs.redhat.com and avoid hard host assumptions | active | p1 | archived CI prompt docs | docs-index scripts + rules docs | Finish remaining host normalization under `DOC-001`. |
+| PHX-044 (matrix/checklist count drift) | Reconcile archived E2E checklist counts with current matrix | active | p2 | archived E2E checklists/reports | `backend/scripts/e2e-matrix.js`, tracked inventory docs | Update tracked inventory language to current matrix dimensions. |
+
+## Archived contradiction resolution map
+
+| contradiction_id | source_conflict | canonical_resolution |
+|---|---|---|
+| C-001 | Archived B-3 marked open in one file and done in another | Canonical status is `verified_done` via `PHX-003` and `DOC-018`. |
+| C-002 | Archived B-5 marked "Next" despite tracked trust/proxy guidance present | Canonical status is `superseded` via `PHX-005` and `DOC-020`. |
+| C-003 | Archived section 9.1 says "Coming soon" while repo has working Run oc-mirror flow | Canonical status is `superseded` via `PHX-011`. |
+| C-004 | PatternFly listed done in one archived requirements doc and not done in another | Canonical status is `active` via `PHX-030` until explicitly reconciled. |
+| C-005 | Archived E2E reports/checklists use old scenario/cell counts | Canonical status is `active` via `PHX-044`; tracked matrix script is source of current count truth. |
 
 ## Deferred items
 
@@ -54,8 +162,7 @@ For each status update:
 
 ## Completed and verified
 
-No items have been marked `verified_done` in this initial consolidation pass.
-Verification requires explicit code/test evidence capture.
+Verified items: `DOC-015`, `DOC-017`, `DOC-018`, `DOC-024`, `DOC-025`, `DOC-026`, `DOC-027`.
 
 ## Intake template for future recommendations
 

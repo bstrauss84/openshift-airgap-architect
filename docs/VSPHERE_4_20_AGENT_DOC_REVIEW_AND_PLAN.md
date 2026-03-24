@@ -1,5 +1,9 @@
 # VMware vSphere + OpenShift 4.20 + Agent-Based Installer — doc review, scenario truth, and implementation
 
+> Authority: Working doc (scenario deep-dive)
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Status:** **Topology / node-count / arbiter / SNO inventory enforcement is closed** for `vsphere-agent` (shared with `bare-metal-agent` where the same install-config rules apply). **Not “fully closed” as a blanket doc-truth claim** — VIP §1.11 vs user-managed LB, §1.11 host `role` bullet vs arbiter chapters, and empty-inventory VIP gating remain explicitly caveated below.  
 **Date:** 2026-03-19 (updated same day — dual-stack + arbiter + doc-tightening pass)  
 **Do not treat as substitute for reading Red Hat docs before production installs.**

@@ -33,6 +33,13 @@ For non-trivial changes, include:
 
 Use existing project checks from `docs/CONTRIBUTING.md` and CI.
 
+## Prompt scope guardrails
+
+- Keep prompts scoped to requested behavior and directly affected files.
+- Do not refactor unrelated modules during targeted changes.
+- Do not change backend contracts unless explicitly requested.
+- For UI work, follow the tracked contract in `docs/DESIGN_SYSTEM.md`.
+
 ## Secret and data safety
 
 - Never include real credentials or customer data in prompts.

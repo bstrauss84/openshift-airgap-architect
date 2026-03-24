@@ -1,5 +1,9 @@
 # Bare metal scenarios — IPv4 / IPv6 / dual-stack and VIPs (4.20, doc-backed where cited)
 
+> Authority: Working cross-scenario technical note
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 This table supports Networking / VIP UI text. **Do not treat “Kubernetes in general” as evidence**—only the cited 4.20 material and in-repo working docs.
 
 ## Official pages reviewed (this pass)

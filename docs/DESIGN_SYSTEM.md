@@ -5,6 +5,19 @@ Update this doc whenever a new pattern is established or an existing one is revi
 
 ---
 
+## Product UI Contract
+
+These contract rules govern UI structure and scope decisions:
+
+- Keep a stable "hallway with doors" flow across scenarios. Hallway navigation stays consistent; door content is scenario-aware.
+- Top-level door model remains: Identity and Access, Networking, Connectivity and Mirroring, Trust and Proxy, Platform Specifics, Hosts/Inventory, Review and Export.
+- Default to a guided lane with curated fields; advanced lane is opt-in and curated.
+- Prefer conditionally required fields with clear reason text when dependencies are enabled.
+- Do not expand the wizard by exposing every YAML path directly as a form field.
+- Stop and propose alternatives if a change conflicts with this contract.
+
+---
+
 ## Color Palette & CSS Variables
 
 All semantic colors are defined as CSS custom properties on `body` (light mode defaults) and overridden on `body[data-theme="dark"]`. **Never hardcode a semantic color** — use the variable.

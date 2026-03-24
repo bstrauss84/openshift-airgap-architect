@@ -1,5 +1,9 @@
 # vSphere Hardening Pass — Doc Verification Findings
 
+> Authority: Working verification note
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Date:** 2026-03.  
 **Scope:** OpenShift 4.20 vSphere IPI/UPI; no UI changes in Phase 1.
 

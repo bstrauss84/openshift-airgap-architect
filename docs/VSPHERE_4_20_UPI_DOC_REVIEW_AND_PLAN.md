@@ -1,5 +1,9 @@
 # vSphere 4.20 UPI — Doc Review, Params Truth, AS-IS Inventory, and Implementation Plan
 
+> Authority: Working doc (scenario deep-dive)
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Scope:** Platform VMware vSphere, OpenShift 4.20, Install method **User-provisioned infrastructure (UPI)** only.  
 **Pass:** Scenario-by-scenario truth (Phases A–J). No implementation in this pass.
 

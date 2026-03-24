@@ -1,5 +1,9 @@
 # Clusterfile Comparison, Gap Analysis, and Revised Implementation Plan
 
+> Authority: Working comparative analysis
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/INDEX.md`
+
 Date: 2026-03-17
 Scope: OpenShift Airgap Architect current snapshot vs https://github.com/purefield/clusterfile
 Pass type: Research and plan only. No code changes.

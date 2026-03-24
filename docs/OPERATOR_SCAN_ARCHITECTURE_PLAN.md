@@ -1,5 +1,9 @@
 # Operator scan: OS/CPU architecture and oc-mirror
 
+> Authority: Working architecture plan and historical context
+> Canonical product behavior source: `README.md` (Platform and architecture)
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+
 **Purpose:** Document the Operator scan failure on Apple Silicon (and other non-x86_64 hosts), root cause, and a plan to fix it while moving toward an **OS/CPU architecture–agnostic** posture for the app.
 
 **Status:** Plan only. Implementation is tracked here; code and compose changes are done in separate work.

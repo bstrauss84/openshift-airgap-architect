@@ -1,5 +1,9 @@
 # Post-UBI container verification
 
+> Authority: Working verification note
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/INDEX.md`
+
 After migrating app containers from Debian/Alpine to Red Hat UBI 9, use this doc to verify that all critical flows still work. The main failure mode was **backend failing to start** because the mounted data volume (`/data`) was not writable by the app user (UID 1001), causing `SqliteError: attempt to write a readonly database` at startup (`markStaleJobs()`). When the backend does not start, **every** button that calls the API (Start Over, Yes lock selections, operator scan, etc.) will fail because the frontend cannot reach a healthy backend.
 
 ## Root cause and fix

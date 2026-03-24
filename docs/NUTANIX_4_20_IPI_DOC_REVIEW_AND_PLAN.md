@@ -1,5 +1,9 @@
 # Nutanix + OpenShift 4.20 — platform-family closeout (app scope)
 
+> Authority: Working doc (scenario deep-dive)
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Date:** 2026-03-19  
 **Status:** **App-scope closed** for Nutanix **IPI** (`nutanix-ipi`). The Nutanix **documentation family** includes **Agent-based Installer** on Nutanix; this app **does not** implement a Nutanix Agent scenario (see Part 1).  
 **Do not treat this file as a substitute for reading Red Hat documentation before production installs.**
