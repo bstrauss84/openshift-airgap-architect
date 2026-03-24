@@ -28,3 +28,12 @@ They are listed in `.gitignore`. If you need to use them locally, keep them outs
 
 - The app does **not** store or export credentials by default; generators are user-initiated and avoid persistence/logging of secrets (see `.cursor/rules/core-guidelines.mdc`).
 - **Pull-secret retention:** On Blueprint lock, the user can choose “Retain pull secret for use on subsequent pages.” When retained, the value stays in memory only for the session; it is never persisted (frontend `getStateForPersistence` and backend state/export strip it). Backend receives credentials only when the user initiates generate/export and has opted in, or operator scan at lock (user-initiated).
+
+## Feedback mechanism (DOC-041)
+
+- Recipient identity/contact details for feedback must never appear in tracked frontend code, tracked docs, or client payloads.
+- Feedback transport destinations are configured server-side only using environment variables or deployment secrets.
+- Feedback payloads are validated and rate-limited, with anti-bot controls (challenge token + honeypot).
+- Online feedback modes fail closed unless required runtime config is present (including explicit challenge signing secret).
+- Feedback text is never written to logs; only metadata such as submission ID, mode, and status may be logged.
+- High-side/disconnected mode must disable and hide feedback submission paths when that runtime mode is active.

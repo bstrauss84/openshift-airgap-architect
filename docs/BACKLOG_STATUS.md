@@ -63,6 +63,61 @@ For each status update:
 | DOC-027 | Remove tracked raw OCP snapshot docs from canonical reading path | verified_done | p1 | previous tracked `docs/ocp-4.20-*` snapshot docs | deleted tracked snapshot files + updated `docs/INDEX.md` and `docs/SCENARIOS_GUIDE.md` | Keep raw external captures local/archive-only going forward; do not reintroduce as canonical tracked docs. |
 | DOC-028 | Remove local-only pattern leak from tracked docs (`docs/PHASE*`) | verified_done | p1 | `.gitignore` local-only rules (`docs/PHASE*`) | removed tracked `docs/PHASE_G_ADDING_A_VERSION.md` from repo | Keep local-only pattern files out of tracked history going forward. |
 | DOC-029 | Execute comprehensive comparative integration planning artifact and canonical linkage | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`, `.cursor/plans/comprehensive_comparative_integration_plan_58fa5b4f.plan.md` | master artifact in `docs/`, comparative/gov/security/stakeholder sections | Verify cross-links and ensure follow-on backlog items are registered before moving to `verified_done`. |
+| DOC-030 | Add per-operation log download for current and historical Operations jobs | active | p1 | user backlog intake (2026-03-24) | `frontend/src/steps/OperationsStep.jsx`, backend jobs/log endpoints | Add per-job log export/download action with clear filename and status metadata. |
+| DOC-031 | Perform full disconnected-scenario support audit across all documented/supported scenarios | active | p1 | user backlog intake (2026-03-24), `docs/SCENARIOS_GUIDE.md`, `data/docs-index/4.20.json` | scenario mappings, validation rules, generator paths | Produce scenario-by-scenario disconnected support matrix and register gaps with priority. |
+| DOC-032 | Normalize cross-scenario tab/field aesthetics and logical grouping to IBM Cloud IPI quality bar | active | p2 | user backlog intake (2026-03-24), `docs/DESIGN_SYSTEM.md` | step UIs under `frontend/src/steps/` | Define reusable layout contract and apply per scenario tab set without regressions. |
+| DOC-033 | Verify root device hints path from UI/state to generated YAML previews and exports | active | p1 | user backlog intake (2026-03-24), bare metal docs and host inventory notes | host inventory state + generator output + preview pipeline | Trace and fix any rootDeviceHints drop between form, preview, and final export. |
+| DOC-034 | Implement persistent real-time YAML side drawer per tab/scenario | active | p2 | user backlog intake (2026-03-24), `docs/DESIGN_SYSTEM.md` | preview generation flow + drawer components | Design/implement collapsible persistent YAML drawer that coexists with Tools and Host drawers. |
+| DOC-035 | Research and add support for OpenShift 4.20 `platform: none` install paths where valid | active | p1 | user backlog intake (2026-03-24), OpenShift 4.20 docs | scenario gating + generator + validation + docs-index alignment | Deliver docs-grounded support boundaries and implementation plan for `platform: none`. |
+| DOC-036 | Fix import-run reload override issue (post-import edits not replaced by same import) | active | p1 | user backlog intake (2026-03-24) | import/run state handling in app store and import path | Reproduce deterministically and fix merge/overwrite semantics for re-import of same run file. |
+| DOC-037 | Design high-side/low-side local-first operating modes with capability gating | active | p1 | user backlog intake (2026-03-24), governance and security docs | feature toggles, external-call sites, workflow state | Add explicit runtime mode that disables internet-dependent actions in disconnected high-side mode. |
+| DOC-038 | Add high-side hardening controls for government/disconnected operation profiles | active | p1 | user backlog intake (2026-03-24), `docs/SECURITY_NOTES.md`, `AI_GOVERNANCE.md` | network call surfaces, secret handling, operation safeguards | Define and implement hardening baseline (network restrictions, logging hygiene, safe defaults) for high-side runs. |
+| DOC-039 | Expand methodology/sub-scenario intelligence for disconnected decision support (e.g. vSphere SDK constraints) | active | p1 | user backlog intake (2026-03-24), scenario family docs | methodology flow logic + scenario constraints + guidance content | Add rules and guidance that steer users to valid disconnected paths based on environmental constraints. |
+| DOC-040 | Expand UPI support with standardized manifest/prep assistance where feasible | active | p1 | user backlog intake (2026-03-24), UPI scenario docs | UPI scenario flows + generated artifacts + field manual content | Identify repeatable UPI prep tasks and add standardized helpers/templates without over-assuming infra specifics. |
+| DOC-041 | Implement secure in-app feedback mechanism with anti-abuse and hidden destination identity | active | p1 | user backlog intake (2026-03-24) | top-bar UI + backend feedback endpoint + rate limiting/abuse controls | Keep destination identity server-side only, fail closed for unconfigured online modes, require explicit online challenge secret, and disable/hide feedback on high-side/disconnected profiles. |
+| DOC-042 | Deep comparative enrichment P1 baseline hardening with file-level capability evidence | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`, deep enrichment plan (P1) | capability map and evidence model (`E1-E4`) added to master comparative artifact | Verify cited code/doc surfaces remain current after next implementation wave; then move to `verified_done`. |
+| DOC-043 | Deep comparative enrichment P2 per-tool deep dives with equal depth and implications | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`, `docs/ABA_COMPARISON_REVISED_PLAN_2026-03-24.md`, `docs/DISCOVERY_ISO_COMPARISON_REVISED_PLAN_2026-03-24.md`, `docs/CLUSTERFILE_COMPARISON_REVISED_PLAN_2026-03-17.md` | per-tool evidence ledgers + explicit implications/gate outcomes appended, including clusterfile deep capability dossier, ABA/discovery execution packets, and cross-tool granularity standard | Verify each comparative doc includes capability IDs, execution packets, scenario matrix, trust boundaries, and verification checklist before moving to `verified_done`. |
+| DOC-044 | Deep comparative enrichment P3 capability taxonomy and scored cross-tool matrix | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md` | stable capability ID taxonomy + scored matrix with absorb outcomes | Confirm scoring assumptions with stakeholder review before converting to implementation backlog commitments. |
+| DOC-045 | Deep comparative enrichment P4 bounded source-of-truth/security/governance/product gates | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`, `AI_GOVERNANCE.md`, `docs/HELPER_USAGE.md` | G1-G4 gate model applied to major recommendations with pass/fail outcomes | Validate gate language with governance owners; promote to `verified_done` when accepted. |
+| DOC-046 | Deep comparative enrichment P5 canonical backlog translation and ownership linkage | done_pending_verification | p1 | `docs/BACKLOG_STATUS.md`, `docs/INDEX.md`, `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md` | comparative outcomes translated into canonical rows and index linkage | Confirm ownership and sequence alignment with active DOC-030+ roadmap items. |
+| DOC-047 | Deep comparative enrichment P6 low-drift future-agent execution packets | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md` | FP-01 through FP-04 packets include scope, non-goals, evidence, acceptance criteria | Validate packet readiness with next implementation planning session; then mark `verified_done`. |
+
+## Execution sequencing (DOC-030 to DOC-041)
+
+This sequence is intended to maximize risk reduction and unblock dependent work.
+
+| order | item_id | rationale |
+|---|---|---|
+| 1 | DOC-031 | Full disconnected-scenario audit is foundational; prevents building features on incorrect scenario assumptions. |
+| 2 | DOC-035 | `platform: none` support boundary depends on audit outcomes and OpenShift 4.20 doc-grounded scope. |
+| 3 | DOC-039 | Methodology/sub-scenario decision intelligence depends on validated scenario matrix from DOC-031 and DOC-035. |
+| 4 | DOC-033 | Root device hints correctness is a high-confidence correctness bug and should be fixed early. |
+| 5 | DOC-036 | Import override issue is a user-facing data integrity bug; fix before larger UX expansions. |
+| 6 | DOC-030 | Per-operation log download is operationally valuable and low-risk once operations data semantics are confirmed. |
+| 7 | DOC-037 | High/low-side mode design defines runtime capability gating model used by several later enhancements. |
+| 8 | DOC-038 | High-side hardening profile builds directly on DOC-037 operating-mode boundaries. |
+| 9 | DOC-040 | UPI simplification should follow audit + methodology + mode/hardening baselines to avoid inconsistent helpers. |
+| 10 | DOC-032 | Cross-scenario layout normalization is broad and should follow correctness and scenario-truth fixes. |
+| 11 | DOC-034 | Persistent live YAML drawer depends on stable per-tab relevance and UX/layout conventions from DOC-032. |
+| 12 | DOC-041 | Feedback mechanism should be implemented after core usability/correctness updates to capture meaningful usage feedback. |
+
+## Dependency map (DOC-030 to DOC-041)
+
+| item_id | depends_on | unblock_condition |
+|---|---|---|
+| DOC-035 | DOC-031 | disconnected scenario audit completed with explicit supported/unsupported matrix |
+| DOC-039 | DOC-031, DOC-035 | scenario constraint model documented and accepted |
+| DOC-038 | DOC-037 | high/low-side capability gating model defined |
+| DOC-040 | DOC-031, DOC-039 | scenario/methodology constraints finalized for UPI helper scope |
+| DOC-034 | DOC-032 | tab/section consistency baseline established |
+| DOC-041 | DOC-037, DOC-038 | mode/hardening/privacy constraints defined for secure feedback design |
+
+## Suggested sprint buckets
+
+- **Sprint A (correctness + scope truth):** DOC-031, DOC-035, DOC-033, DOC-036  
+- **Sprint B (operations + mode controls):** DOC-030, DOC-037, DOC-038  
+- **Sprint C (UX/system expansion):** DOC-039, DOC-040, DOC-032, DOC-034  
+- **Sprint D (feedback channel):** DOC-041
 
 ## Archived phase progression (fully reconciled)
 
