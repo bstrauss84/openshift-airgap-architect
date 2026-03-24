@@ -77,6 +77,21 @@ Primary references:
 - `AI_GOVERNANCE.md`
 - `docs/CONTRIBUTING.md`
 
+### 6) Comparative-integration helper (Bill + Daniel direction)
+
+Use when:
+
+- evaluating wrap vs merge vs rewrite decisions across external inspirations
+- evaluating schema-truth vs docs-truth vs installer-truth decision gates
+- framing bounded governance/security implications in planning artifacts
+- preparing stakeholder/productization decision packets
+
+Primary references:
+
+- `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
+- `docs/BACKLOG_STATUS.md`
+- `AI_GOVERNANCE.md`
+
 ## How to choose a helper quickly
 
 - Status conflict? Use backlog-truth helper.
@@ -84,6 +99,7 @@ Primary references:
 - Policy/risk question? Use governance helper.
 - Need verification matrix? Use validation helper.
 - Need final narrative for review/PR? Use release-note helper.
+- Working comparative merger decision? Use comparative-integration helper.
 
 ## Prompt template (shared)
 

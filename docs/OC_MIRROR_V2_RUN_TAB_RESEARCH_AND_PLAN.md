@@ -3,6 +3,7 @@
 > Authority: Working implementation contract and history
 > Canonical status source: `docs/BACKLOG_STATUS.md`
 > Canonical navigation source: `docs/INDEX.md`
+> Program-level consolidation: `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
 
 **Purpose:** Buildable contract for the "Run oc-mirror" tab. A later implementation pass can follow §1–§9 directly without re-deciding scope, APIs, state, or artifact rules.
 
