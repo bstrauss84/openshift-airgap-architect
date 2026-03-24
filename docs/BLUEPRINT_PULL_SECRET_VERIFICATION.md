@@ -1,5 +1,9 @@
 # Blueprint pull secret & locked message – verification notes
 
+> Authority: Working verification note
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/INDEX.md`
+
 ## Summary of changes
 
 ### 1) "Foundational selections are locked" message position

@@ -1,5 +1,9 @@
 # vSphere IPI / UPI Doc-Truth Audit and Implementation Plan
 
+> Authority: Working scenario synthesis
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Scope:** OpenShift 4.20 disconnected vSphere IPI and vSphere UPI only.  
 **Date:** 2026-03.  
 **Status:** Audit, plan, and **implementation complete** (params metadata, Platform Specifics redesign, backend alignment, tests). Machine-pool params deferred.

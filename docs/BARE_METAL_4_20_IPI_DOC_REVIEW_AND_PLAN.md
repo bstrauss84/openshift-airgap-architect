@@ -1,5 +1,9 @@
 ## Bare Metal 4.20 IPI — Working Doc
 
+> Authority: Working doc (scenario deep-dive)
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 This file is the **working record** for the Bare Metal / 4.20 / IPI truth pass (docs-index mapping, full-doc review, params reconciliation, AS-IS inventory, discrepancy analysis, and implementation plan). It is intentionally concise; the main narrative and matrices live in this markdown plus the primary source docs.
 
 ### Snapshot

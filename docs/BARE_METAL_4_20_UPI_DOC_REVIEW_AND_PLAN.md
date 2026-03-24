@@ -1,5 +1,9 @@
 # Bare Metal 4.20 UPI — Working Doc
 
+> Authority: Working doc (scenario deep-dive)
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 Working record for the Bare Metal / 4.20 / UPI scenario truth and implementation alignment.
 
 ## Snapshot

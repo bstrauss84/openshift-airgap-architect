@@ -8,6 +8,8 @@ This file defines how to choose and use helpers/agents with minimal prompt spraw
 - Put detailed process rules in canonical docs, not repeated in prompt text.
 - For any helper output that changes behavior, require code/doc evidence links.
 - For security/network/disconnected recommendations, require human validation before merge.
+- Scope helpers tightly to requested files and behavior; do not perform unrelated refactors.
+- Reference the tracked UI contract at `docs/DESIGN_SYSTEM.md` for UI changes.
 
 ## Helper taxonomy
 
@@ -96,6 +98,12 @@ Output contract:
 Evidence required:
 ```
 
+Prompt header snippet for UI work:
+
+```text
+This work must align with docs/DESIGN_SYSTEM.md. If anything conflicts, STOP and propose an alternative.
+```
+
 ## Output contract requirements
 
 Every helper output should include:
@@ -111,3 +119,4 @@ Every helper output should include:
 - Do not create helper-specific policy duplicates when policy already exists in Tier 1 docs.
 - Do not add new helper docs unless existing taxonomy cannot cover the request.
 - If a helper instruction grows beyond one screen, move reusable content into canonical docs and link to it.
+- Treat local ignored prompt packs (for example `docs/PHASE_*` and `docs/PROMPT_*`) as non-canonical until triaged in `docs/LOCAL_IGNORED_DOCS_TRIAGE.md`.

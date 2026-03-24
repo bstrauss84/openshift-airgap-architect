@@ -1,5 +1,9 @@
 # vSphere IPI/UPI — Final Authoritative Verification (Phase 0 & 1)
 
+> Authority: Working verification snapshot
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Date:** 2026-03.  
 **Source:** OpenShift 4.20 official docs (installation-config-parameters-vsphere, sections 9.1.1–9.1.6).
 

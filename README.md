@@ -2,6 +2,36 @@
 
 A local-first wizard that generates OpenShift disconnected (air-gapped) installation assets. It runs entirely on your machine using Docker or Podman—no data is sent to external services except when you explicitly trigger operator discovery or release-channel updates.
 
+## Table of contents
+
+- **Overview**
+  - [What it is](#what-it-is)
+  - [Who it's for](#who-its-for)
+  - [Key features](#key-features)
+- **Getting Started**
+  - [Quick start (container)](#quick-start-container)
+  - [Local development](#local-development)
+  - [Running without Compose](#running-without-compose)
+  - [Container run](#container-run)
+  - [Updating the app](#updating-the-app)
+- **Core Workflows**
+  - [Generating assets](#generating-assets)
+  - [Operator workflows](#operator-workflows)
+  - [Run oc-mirror](#run-oc-mirror)
+  - [Mock mode (offline demo)](#mock-mode-offline-demo)
+- **Platform, Security, and Operations**
+  - [Platform and architecture (multi-arch / Apple Silicon)](#platform-and-architecture-multi-arch--apple-silicon)
+  - [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret)
+  - [Build info and update checks](#build-info-and-update-checks)
+  - [Troubleshooting](#troubleshooting)
+- **Reference**
+  - [Screenshots](#screenshots)
+  - [Architecture](#architecture)
+  - [Install-config references (4.20)](#install-config-references-420)
+  - [License and contributing](#license-and-contributing)
+  - [Documentation and governance map](#documentation-and-governance-map)
+
+<a id="what-it-is"></a>
 ## What it is
 
 OpenShift Airgap Architect guides you through scenario-based configuration (Bare Metal Agent-Based, Bare Metal IPI/UPI, VMware vSphere IPI/UPI, AWS GovCloud IPI/UPI, Azure Government IPI, Nutanix IPI, IBM Cloud IPI) and produces:
@@ -14,12 +44,14 @@ OpenShift Airgap Architect guides you through scenario-based configuration (Bare
 
 The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns generated YAML with the docs for the selected version.
 
+<a id="who-its-for"></a>
 ## Who it's for
 
 - Platform engineers and SREs planning disconnected or restricted-network OpenShift installs
 - Anyone who wants a single place to configure cluster identity, networking, mirroring, trust bundles, and platform-specific settings before running the installer or oc-mirror
 - Teams that need repeatable, documented config generation without storing credentials in the app
 
+<a id="key-features"></a>
 ## Key features
 
 - **Scenario-driven UI** — Pick install method (e.g. Agent-Based, vSphere IPI); the wizard shows only relevant steps and fields
@@ -31,6 +63,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
 
+<a id="quick-start-container"></a>
 ## Quick start (container)
 
 **Docker:**
@@ -67,6 +100,7 @@ The `backend-data` named volume is preserved unless you explicitly pass `-v` to 
 
 If you mount files or folders with Podman, add `:Z` or `:z` to volume mounts as needed.
 
+<a id="local-development"></a>
 ## Local development
 
 - **Backend:** `cd backend && npm install && npm run dev` (or start via your IDE). Set `DATA_DIR` if you want state outside `./data` (e.g. `backend/data`).
@@ -75,6 +109,7 @@ If you mount files or folders with Podman, add `:Z` or `:z` to volume mounts as 
 
 The backend uses SQLite for state and job history; the frontend uses React + Vite.
 
+<a id="running-without-compose"></a>
 ## Running without Compose
 
 If you prefer not to use Docker Compose or Podman Compose, you can run the frontend and backend yourself on the host.
@@ -95,6 +130,7 @@ If you prefer not to use Docker Compose or Podman Compose, you can run the front
 
 Operator scan and bundle generation (including oc/oc-mirror binaries) require the same backend environment (Node, oc-mirror resolution, `DATA_DIR`) as when run via Compose; only the process manager differs.
 
+<a id="container-run"></a>
 ## Container run
 
 The stack is two services (frontend, backend). Ports in `docker-compose.yml` are bound to **127.0.0.1** by default so the app is not exposed on the LAN. To allow access from other machines, change the left side of the port mapping to `0.0.0.0` (e.g. `"0.0.0.0:5173:5173"`).
@@ -147,10 +183,12 @@ When users reach the app through a **different hostname** than the one the front
 
 4. **Security note:** Only add hostnames you control and that users are supposed to use. Leaving `VITE_ALLOWED_HOSTS` unset is safe for local use (localhost remains allowed). For production-like deployments behind a proxy or Route, setting it to your actual hostname(s) is the intended approach.
 
+<a id="updating-the-app"></a>
 ## Updating the app
 
 When the Landing page or **Tools → About** shows that an update is available, follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment. Build info and update checks depend on how the image was built (see [Build info and update checks](#build-info-and-update-checks)); builds from a git clone get real SHA/time; builds from a tarball without `.git` show "unknown" and cannot report update availability.
 
+<a id="generating-assets"></a>
 ## Generating assets
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).
@@ -160,6 +198,7 @@ When the Landing page or **Tools → About** shows that an update is available, 
 
 For disconnected mirror mapping in `install-config.yaml`, the generator emits `imageDigestSources` for OCP `4.14+` and `imageContentSources` for OCP `4.13` and earlier.
 
+<a id="operator-workflows"></a>
 ## Operator workflows
 
 - **Operator scan** uses `oc-mirror list operators` and requires valid **registry.redhat.io** credentials.
@@ -181,6 +220,7 @@ For disconnected mirror mapping in `install-config.yaml`, the generator emits `i
 - Scans can take several minutes; navigation does not cancel running jobs. Use the Operations step to view logs and clear completed jobs.
 - If an `oc-mirror` run is active and you click **Start Over**, the confirmation modal warns you and lists relevant paths. Continuing cancels the active `oc-mirror` run safely (non-destructive) and returns to Landing; review those paths for partial artifacts before re-running.
 
+<a id="run-oc-mirror"></a>
 ## Run oc-mirror
 
 The **Run oc-mirror** tab lets you run oc-mirror v2 directly from the app against the generated (or an external) `imageset-config.yaml`. oc-mirror runs as a background job inside the backend container. You can stream its output and manage the job from the Operations tab.
@@ -380,6 +420,7 @@ Look for the `Mountpoint` field — that host directory corresponds to `/data` i
 
 If you used a `compose.override.yml` mount (recommended for large mirrors), the archives are at the host path you specified directly.
 
+<a id="mock-mode-offline-demo"></a>
 ## Mock mode (offline demo)
 
 With no registry access, run with bundled Cincinnati and operator data:
@@ -388,6 +429,7 @@ With no registry access, run with bundled Cincinnati and operator data:
 MOCK_MODE=true docker compose up --build
 ```
 
+<a id="platform-and-architecture-multi-arch--apple-silicon"></a>
 ## Platform and architecture (multi-arch / Apple Silicon)
 
 **The backend image builds natively for the host architecture.** `Containerfile` detects `$(uname -m)` at build time and downloads the matching `oc`/`oc-mirror` binaries (x86_64, aarch64, ppc64le, s390x). No `platform: linux/amd64` override is needed — Apple Silicon users get a native aarch64 image that runs without emulation.
@@ -400,6 +442,7 @@ MOCK_MODE=true docker compose up --build
 
 See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Podman/macOS notes.
 
+<a id="mounted-red-hat-pull-secret"></a>
 ## Mounted Red Hat pull secret
 
 In pipeline or hardened-container environments you can pre-mount a Red Hat pull secret file into the backend container instead of pasting it in the UI each session.
@@ -430,6 +473,7 @@ secrets:
     file: /home/user/pull-secret.json
 ```
 
+<a id="build-info-and-update-checks"></a>
 ## Build info and update checks
 
 The **Tools → About** panel shows build info (Git SHA, build time, repo, branch) and update status. The backend exposes:
@@ -474,6 +518,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 
 **Git clone vs tarball:** Builds from a normal **git clone** (with `.git`) get real build SHA and time; Tools → About and update checks work as intended. Builds from a **tarball or archive without `.git`** get "unknown" build info and cannot determine update availability; that is expected. No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
 
+<a id="troubleshooting"></a>
 ## Troubleshooting
 
 - **"Blocked request. This host ("…") is not allowed"** — You are running the Vite dev server (e.g. in a container or locally) and opening the app using a hostname that Vite does not allow by default (for example an OpenShift Route hostname like `airgap-architect.cjmays.com`). Set the environment variable **`VITE_ALLOWED_HOSTS`** to that hostname so the dev server accepts the request. Example: `VITE_ALLOWED_HOSTS=airgap-architect.cjmays.com`. For multiple hostnames, use a comma-separated list with no spaces. See [Running behind a reverse proxy or OpenShift Route](#running-behind-a-reverse-proxy-or-openshift-route) for where to set it (Compose, OpenShift, Kubernetes, or local dev) and how to confirm the correct hostname.
@@ -488,6 +533,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 - **Validation errors on a step** — Required fields are marked; check Identity & Access (pull secret, SSH key), Networking (CIDRs), and Platform Specifics for your scenario.
 - **SELinux denials (Podman)** — Use `:Z` on volume mounts or adjust context as needed for your host.
 
+<a id="screenshots"></a>
 ## Screenshots
 
 The wizard walks through Blueprint → Methodology → scenario-specific steps → Operators (optional) → Assets & Guide. Below are key screens in order.
@@ -564,12 +610,14 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 
 ![Tools: theme, export/import, operations, start over](docs/images/tools-menu.png)
 
+<a id="architecture"></a>
 ## Architecture
 
 - **Frontend:** React, Vite, PatternFly-derived styling. Container image: Red Hat UBI 9 Node.js 20.
 - **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 20; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. oc/oc-mirror are installed in-image from the OpenShift mirror.
 - **Data:** Parameter catalogs and doc index under `data/params` and `data/docs-index`; frontend copies under `frontend/src/data` for the build. See `docs/DATA_AND_FRONTEND_COPIES.md`.
 
+<a id="install-config-references-420"></a>
 ## Install-config references (4.20)
 
 Use these official docs to validate `install-config.yaml` for supported platforms:
@@ -582,15 +630,18 @@ Use these official docs to validate `install-config.yaml` for supported platform
 
 Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, Nutanix, and bare metal agent-based installs, see the platform-specific docs for required and optional fields.
 
+<a id="license-and-contributing"></a>
 ## License and contributing
 
 See the repository license file. Contributions are welcome; please read `docs/CONTRIBUTING.md` and `docs/CODE_STYLE_RULES.md` before opening a pull request.
 
+<a id="documentation-and-governance-map"></a>
 ## Documentation and governance map
 
 For canonical process and policy ownership:
 
 - `docs/INDEX.md` — authority map for docs and working artifacts
+- `docs/SCENARIOS_GUIDE.md` — scenario-specific navigation hub and working-doc map
 - `docs/BACKLOG_STATUS.md` — canonical backlog and status registry
 - `docs/HELPER_USAGE.md` — helper/agent selection and usage
 - `AI_GOVERNANCE.md` — AI-assistance governance and compliance policy

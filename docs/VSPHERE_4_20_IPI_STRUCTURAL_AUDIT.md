@@ -1,5 +1,9 @@
 # vSphere 4.20 IPI — Structural Integrity Audit
 
+> Authority: Working verification note
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/SCENARIOS_GUIDE.md`
+
 **Scope:** Code-level truth validation of completed implementation. No planning, no code changes, no commit.
 
 **Update (post-audit):** The load balancer type dropdown was **removed**. The doc Note (“parameter applies only to IPI without an external load balancer”) is satisfied by the existing UI note: “Virtual IPs for API and ingress (vSphere IPI). Leave blank if using an external load balancer.” No `platform.vsphere.loadBalancer.type` in UI or emitted install-config; user leaves VIPs blank when using external LB.

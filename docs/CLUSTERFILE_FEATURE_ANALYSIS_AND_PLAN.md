@@ -1,5 +1,9 @@
 # Clusterfile vs OpenShift Airgap Architect — Feature Analysis and Implementation Plan
 
+> Authority: Working comparative analysis
+> Canonical status source: `docs/BACKLOG_STATUS.md`
+> Canonical navigation source: `docs/INDEX.md`
+
 **Purpose:** Comprehensive comparison between our app (OpenShift Airgap Architect) in its current state and [purefield/clusterfile](https://github.com/purefield/clusterfile), followed by a detailed plan for adopting beneficial and doc-aligned improvements in our own way (not as a 1:1 clone).
 
 **References:**

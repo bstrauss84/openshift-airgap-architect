@@ -90,6 +90,11 @@ Hooks run on `git commit`; the secret check is included when gitleaks is availab
 
 When to run: before committing, and after changing backend `src/` or frontend `src/`. CI runs both on push/PR.
 
+Testing guardrails:
+
+- Keep `App.jsx` null-state guards (`state?.ui`, `state?.ui?.activeStepId`, and early-return effects) intact; they prevent boot/hydration/import crashes and reduce async test flakiness.
+- Keep theme readability checks in place (`frontend/tests/theme-readability.test.jsx`) to protect light/dark contrast regressions.
+
 **Lockfile and audit:** Do not run `npm audit fix --force` unless explicitly requested; it can cause lockfile churn and breaking dependency upgrades.
 
 ## Key outputs (reference)
