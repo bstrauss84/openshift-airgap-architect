@@ -151,6 +151,27 @@ function compareInstallConfig(artifact, example) {
   return discrepancies;
 }
 
+function enforceDualStackInstallChecks(cell, artifact) {
+  const discrepancies = [];
+  if (!artifact || cell.path !== "dual-stack") return discrepancies;
+
+  const clusterNetwork = Array.isArray(artifact?.networking?.clusterNetwork) ? artifact.networking.clusterNetwork : [];
+  if (clusterNetwork.length < 2) {
+    discrepancies.push(
+      `dual-stack path requires networking.clusterNetwork with >= 2 entries; found ${clusterNetwork.length}.`
+    );
+  }
+
+  const serviceNetwork = Array.isArray(artifact?.networking?.serviceNetwork) ? artifact.networking.serviceNetwork : [];
+  if (serviceNetwork.length < 2) {
+    discrepancies.push(
+      `dual-stack path requires networking.serviceNetwork with >= 2 entries; found ${serviceNetwork.length}.`
+    );
+  }
+
+  return discrepancies;
+}
+
 function compareAgentConfig(artifact, example) {
   const discrepancies = [];
   const artKeys = allKeys(artifact);
@@ -193,6 +214,7 @@ function run() {
     const agentExample = agentExamplePath && fs.existsSync(agentExamplePath) ? loadYaml(agentExamplePath) : null;
 
     const installDiscrepancies = installArt ? compareInstallConfig(installArt, installExample) : ["missing install-config.yaml"];
+    const dualStackDiscrepancies = enforceDualStackInstallChecks(cell, installArt);
     const agentDiscrepancies = agentArt ? compareAgentConfig(agentArt, agentExample) : (exampleSpec.agent ? ["missing agent-config.yaml"] : []);
 
     const hasMatchingExample = !!(installExample || (agentArt && agentExample));
@@ -206,7 +228,7 @@ function run() {
       path: cell.path,
       exampleUsed: installExample ? path.relative(REPO_ROOT, installExamplePath) : (agentExample ? path.relative(REPO_ROOT, agentExamplePath) : "none"),
       agentExampleUsed: agentExample ? path.relative(REPO_ROOT, agentExamplePath) : "none",
-      discrepancies: [...installDiscrepancies, ...agentDiscrepancies],
+      discrepancies: [...installDiscrepancies, ...dualStackDiscrepancies, ...agentDiscrepancies],
       unverified,
       passAgainstExample: hasMatchingExample && installDiscrepancies.length === 0 && agentDiscrepancies.length === 0,
       noExampleWithUnverified: !hasMatchingExample && (installArt || agentArt)
