@@ -119,3 +119,8 @@ create-app-snapshot.sh
 # Local compose overrides (host-specific volume mounts, env overrides; do not commit)
 compose.override.yml
 docker-compose.override.yml
+
+# Comparative planning artifacts (local analysis workspace)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md
+docs/*_COMPARISON_*.md
+docs/*_FEATURE_ANALYSIS_*.md
