@@ -46,6 +46,7 @@ Use existing project checks from `docs/CONTRIBUTING.md` and CI.
 - Never commit generated secrets, pull secrets, kubeconfigs, keys, or auth files.
 - Follow `docs/SECURITY_NOTES.md` and `.gitignore` policy.
 - AI-generated scripts and examples must default to non-sensitive placeholders.
+- Feedback destinations/recipient identities must remain server-side configuration (env/secret injection), never tracked in frontend/docs payloads.
 
 ## Airgap and networking guardrails
 
@@ -94,3 +95,4 @@ Do not add noisy per-line attribution comments in source files.
 - Comparative merger strategy work (for example Bill + Daniel combined-direction planning) must treat this governance doc as policy baseline, not replace it.
 - Comparative planning artifacts may define governance/security decision gates, but must avoid introducing standalone implementation mandates unless explicitly approved.
 - Architecture/security/helper recommendations from comparative analysis require human review before they become canonical policy or implementation work.
+- Comparative recommendations should be evidence-first (`E1-E4`: repo path, execution surface, OpenShift alignment, residual risk) before they are considered for backlog translation.

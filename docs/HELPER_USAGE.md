@@ -92,6 +92,12 @@ Primary references:
 - `docs/BACKLOG_STATUS.md`
 - `AI_GOVERNANCE.md`
 
+Execution expectations for deep comparative work:
+
+- require evidence levels `E1-E4` on major recommendations (repo path, execution surface, OpenShift alignment, residual risk)
+- use stable capability IDs (`CAP-*`) when comparing cross-tool behaviors
+- run bounded decision gates (source-of-truth, secrets/security, governance, productization) before proposing implementation work
+
 ## How to choose a helper quickly
 
 - Status conflict? Use backlog-truth helper.
