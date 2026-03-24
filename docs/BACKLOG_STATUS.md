@@ -61,6 +61,7 @@ For each status update:
 | DOC-025 | Ingest durable local prompt/UI/testing guardrails into tracked governance docs | verified_done | p1 | `docs/UI_NORTH_STAR.md`, `docs/PROMPT_GUARDRAILS.md`, `docs/TESTING_NOTES.md` | updates to `docs/DESIGN_SYSTEM.md`, `docs/HELPER_USAGE.md`, `AI_GOVERNANCE.md`, `docs/CONTRIBUTING.md` | Keep tracked governance docs authoritative; archive local source notes. |
 | DOC-026 | Split cloud and Nutanix family docs for cleaner scenario governance | verified_done | p1 | `docs/SCENARIOS_GUIDE.md`, `docs/INDEX.md`, former cloud+nutanix family guide | `docs/SCENARIOS_CLOUD_FAMILY.md`, `docs/SCENARIOS_NUTANIX_FAMILY.md`, updated family references | Keep scenario map updated as cloud/nutanix complexity changes. |
 | DOC-027 | Remove tracked raw OCP snapshot docs from canonical reading path | verified_done | p1 | previous tracked `docs/ocp-4.20-*` snapshot docs | deleted tracked snapshot files + updated `docs/INDEX.md` and `docs/SCENARIOS_GUIDE.md` | Keep raw external captures local/archive-only going forward; do not reintroduce as canonical tracked docs. |
+| DOC-028 | Remove local-only pattern leak from tracked docs (`docs/PHASE*`) | verified_done | p1 | `.gitignore` local-only rules (`docs/PHASE*`) | removed tracked `docs/PHASE_G_ADDING_A_VERSION.md` from repo | Keep local-only pattern files out of tracked history going forward. |
 
 ## Archived phase progression (fully reconciled)
 
