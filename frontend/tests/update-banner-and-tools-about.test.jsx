@@ -98,6 +98,18 @@ describe("Landing update banner", () => {
       if (path === "/api/state") return Promise.resolve(stateWithBlueprintCompleteMethodologyIncomplete());
       if (path === "/api/schema/stepMap") return Promise.resolve({ version: "1", mvpSteps: [] });
       if (path === "/api/build-info") return Promise.resolve({ gitSha: "abc1234", buildTime: "2025-03-03", repo: "owner/repo", branch: "main" });
+      if (path === "/api/feedback/config") {
+        return Promise.resolve({
+          visible: true,
+          enabled: true,
+          mode: "offline",
+          reason: "",
+          challengeRequired: true,
+          minDwellMs: 0,
+          limits: { summaryMaxChars: 200, detailsMaxChars: 4000, contactMaxChars: 200, maxPayloadBytes: 32768 },
+          enums: { categories: ["bug", "docs", "ux", "request", "security", "other"], severities: ["low", "medium", "high", "critical"] }
+        });
+      }
       if (path === "/api/update-info") {
         return Promise.resolve({
           enabled: true,
@@ -121,6 +133,17 @@ describe("Landing update banner", () => {
       expect(view.getByText(/Update available/)).toBeInTheDocument();
     });
     expect(view.getByText(/See Tools → About for update steps/)).toBeInTheDocument();
+  });
+
+  it("renders Feedback button to the right of Tools in wizard header", async () => {
+    render(<App />);
+    const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+    startButton.click();
+    const tools = await screen.findByRole("button", { name: /open tools/i });
+    const feedback = await screen.findByRole("button", { name: /open feedback/i });
+    const toolsPos = tools.getBoundingClientRect().left;
+    const feedbackPos = feedback.getBoundingClientRect().left;
+    expect(feedbackPos).toBeGreaterThanOrEqual(toolsPos);
   });
 });
 
