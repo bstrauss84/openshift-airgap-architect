@@ -66,7 +66,7 @@ test("GET /api/feedback/config returns disabled when feedback mode disabled", as
 test("GET /api/feedback/config is hidden when high-side/disconnected mode is set", async () =>
   withEnv(
     {
-      FEEDBACK_MODE: "relay",
+      FEEDBACK_MODE: "github",
       AIRGAP_RUNTIME_SIDE: "high-side"
     },
     async () => {
@@ -84,12 +84,10 @@ test("GET /api/feedback/config is hidden when high-side/disconnected mode is set
     }
   ));
 
-test("GET /api/feedback/config hides relay mode when relay URL is missing", async () =>
+test("GET /api/feedback/config returns github mode by default", async () =>
   withEnv(
     {
-      FEEDBACK_MODE: "relay",
-      FEEDBACK_RELAY_URL: "",
-      FEEDBACK_CHALLENGE_SECRET: "test-secret",
+      FEEDBACK_MODE: "",
       AIRGAP_RUNTIME_SIDE: ""
     },
     async () => {
@@ -98,58 +96,9 @@ test("GET /api/feedback/config hides relay mode when relay URL is missing", asyn
         const res = await fetch(`${baseUrl}/api/feedback/config`);
         assert.strictEqual(res.status, 200);
         const data = await res.json();
-        assert.strictEqual(data.enabled, false);
-        assert.strictEqual(data.visible, false);
-        assert.strictEqual(data.mode, "disabled");
-        assert.match(String(data.reason || ""), /FEEDBACK_RELAY_URL/i);
-      } finally {
-        server.close();
-      }
-    }
-  ));
-
-test("GET /api/feedback/config hides managed mode when webhook URL is missing", async () =>
-  withEnv(
-    {
-      FEEDBACK_MODE: "managed",
-      FEEDBACK_PROVIDER_WEBHOOK_URL: "",
-      FEEDBACK_CHALLENGE_SECRET: "test-secret",
-      AIRGAP_RUNTIME_SIDE: ""
-    },
-    async () => {
-      const { server, baseUrl } = await createTestServer();
-      try {
-        const res = await fetch(`${baseUrl}/api/feedback/config`);
-        assert.strictEqual(res.status, 200);
-        const data = await res.json();
-        assert.strictEqual(data.enabled, false);
-        assert.strictEqual(data.visible, false);
-        assert.strictEqual(data.mode, "disabled");
-        assert.match(String(data.reason || ""), /FEEDBACK_PROVIDER_WEBHOOK_URL/i);
-      } finally {
-        server.close();
-      }
-    }
-  ));
-
-test("GET /api/feedback/config hides relay mode when challenge secret is missing", async () =>
-  withEnv(
-    {
-      FEEDBACK_MODE: "relay",
-      FEEDBACK_RELAY_URL: "https://relay.example.invalid/submit",
-      FEEDBACK_CHALLENGE_SECRET: "",
-      AIRGAP_RUNTIME_SIDE: ""
-    },
-    async () => {
-      const { server, baseUrl } = await createTestServer();
-      try {
-        const res = await fetch(`${baseUrl}/api/feedback/config`);
-        assert.strictEqual(res.status, 200);
-        const data = await res.json();
-        assert.strictEqual(data.enabled, false);
-        assert.strictEqual(data.visible, false);
-        assert.strictEqual(data.mode, "disabled");
-        assert.match(String(data.reason || ""), /FEEDBACK_CHALLENGE_SECRET/i);
+        assert.strictEqual(data.enabled, true);
+        assert.strictEqual(data.visible, true);
+        assert.strictEqual(data.mode, "github");
       } finally {
         server.close();
       }
@@ -175,10 +124,11 @@ test("GET /api/feedback/challenge returns token when enabled", async () =>
     }
   ));
 
-test("POST /api/feedback/submit returns offline handoff payload in offline mode", async () =>
+test("POST /api/feedback/submit returns GitHub issue draft in github mode", async () =>
   withEnv(
     {
-      FEEDBACK_MODE: "offline",
+      FEEDBACK_MODE: "github",
+      APP_REPO: "owner/repo",
       FEEDBACK_CHALLENGE_SECRET: "test-secret",
       FEEDBACK_MIN_DWELL_MS: "1"
     },
@@ -208,9 +158,51 @@ test("POST /api/feedback/submit returns offline handoff payload in offline mode"
         assert.strictEqual(res.status, 200);
         const data = await res.json();
         assert.strictEqual(data.ok, true);
-        assert.strictEqual(data.mode, "offline");
-        assert.strictEqual(data.delivered, false);
+        assert.strictEqual(data.mode, "github");
+        assert.match(String(data.githubIssueUrl || ""), /github\.com\/owner\/repo\/issues\/new/);
+        assert.match(String(data.issueDraft?.markdown || ""), /## Summary/);
+        assert.match(String(data.issueDraft?.markdown || ""), /## Metadata/);
         assert.ok(data.handoff?.payload?.submissionId);
+      } finally {
+        server.close();
+      }
+    }
+  ));
+
+test("POST /api/feedback/submit returns offline handoff payload in offline mode", async () =>
+  withEnv(
+    {
+      FEEDBACK_MODE: "offline",
+      FEEDBACK_CHALLENGE_SECRET: "test-secret",
+      FEEDBACK_MIN_DWELL_MS: "1",
+      FEEDBACK_RATE_LIMIT_WINDOW_MS: "60000",
+      FEEDBACK_RATE_LIMIT_MAX: "100",
+      FEEDBACK_BURST_WINDOW_MS: "60000",
+      FEEDBACK_BURST_MAX: "100"
+    },
+    async () => {
+      const { server, baseUrl } = await createTestServer();
+      try {
+        const challenge = await getChallenge(baseUrl);
+        assert.strictEqual(challenge.res.status, 200);
+        await sleep(3);
+        const res = await fetch(`${baseUrl}/api/feedback/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            category: "other",
+            severity: "low",
+            summary: "Offline test",
+            details: "Offline details",
+            honeypot: "",
+            challengeToken: challenge.data.token
+          })
+        });
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.strictEqual(data.ok, true);
+        assert.strictEqual(data.mode, "offline");
+        assert.ok(data.handoff?.issueDraft?.markdown);
       } finally {
         server.close();
       }
@@ -299,8 +291,8 @@ test("POST /api/feedback/submit rate limits repeated submissions", async () =>
     }
   ));
 
-test("docker compose defaults feedback mode to disabled", () => {
+test("docker compose defaults feedback mode to github", () => {
   const composePath = path.resolve(process.cwd(), "..", "docker-compose.yml");
   const compose = fs.readFileSync(composePath, "utf8");
-  assert.match(compose, /FEEDBACK_MODE=\$\{FEEDBACK_MODE:-disabled\}/);
+  assert.match(compose, /FEEDBACK_MODE=\$\{FEEDBACK_MODE:-github\}/);
 });

@@ -69,6 +69,32 @@ function downloadHandoffJson(handoff) {
   URL.revokeObjectURL(url);
 }
 
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fallback below
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "true");
+    area.style.position = "absolute";
+    area.style.left = "-9999px";
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(area);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 export default function FeedbackDrawer({
   isOpen,
   onClose,
@@ -82,6 +108,7 @@ export default function FeedbackDrawer({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const categoryOptions = config?.enums?.categories || [
     "bug",
@@ -134,6 +161,7 @@ export default function FeedbackDrawer({
       setSubmitting(false);
       setLoadingChallenge(false);
       setChallengeToken("");
+      setCopied(false);
     }
   }, [isOpen]);
 
@@ -154,12 +182,17 @@ export default function FeedbackDrawer({
         scenarioContext
       });
       setResult(response);
-      if (response?.handoff) downloadHandoffJson(response.handoff);
     } catch (err) {
       setError(String(err?.message || err));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const copyIssueBody = async () => {
+    const ok = await copyTextToClipboard(result?.issueDraft?.markdown || "");
+    setCopied(ok);
+    if (!ok) setError("Could not copy markdown automatically. Copy from preview text.");
   };
 
   const content = (
@@ -208,7 +241,7 @@ export default function FeedbackDrawer({
                 </p>
                 {isOfflineMode ? (
                   <div className="note">
-                    This instance is in offline feedback mode. Submissions are packaged locally for manual transfer.
+                    This instance is in offline feedback mode. A markdown issue draft and JSON handoff are generated locally.
                   </div>
                 ) : null}
                 {loadingChallenge ? (
@@ -217,10 +250,13 @@ export default function FeedbackDrawer({
                 {error ? <div className="note warning">{error}</div> : null}
                 {result?.ok ? (
                   <div className="note">
-                    Feedback submitted successfully.
-                    {result?.delivered ? " Delivered to configured destination." : " Saved as offline handoff JSON."}
+                    Issue draft ready.
+                    {result?.githubIssueUrl
+                      ? " Use Open GitHub Issue, or copy markdown if needed."
+                      : " GitHub URL unavailable; copy markdown and paste it manually."}
                   </div>
                 ) : null}
+                {copied ? <div className="note">Issue markdown copied to clipboard.</div> : null}
 
                 <label>
                   Category
@@ -315,14 +351,49 @@ export default function FeedbackDrawer({
                   <Button variant="secondary" type="button" onClick={onClose}>
                     Close
                   </Button>
+                  {result?.ok ? (
+                    <>
+                      <Button
+                        variant="secondary"
+                        type="button"
+                        onClick={copyIssueBody}
+                      >
+                        Copy issue markdown
+                      </Button>
+                      {result?.handoff ? (
+                        <Button
+                          variant="secondary"
+                          type="button"
+                          onClick={() => downloadHandoffJson(result.handoff)}
+                        >
+                          Download issue JSON
+                        </Button>
+                      ) : null}
+                      {result?.githubIssueUrl ? (
+                        <a
+                          href={result.githubIssueUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="primary"
+                        >
+                          Open GitHub issue
+                        </a>
+                      ) : null}
+                    </>
+                  ) : null}
                   <Button
                     variant="primary"
                     type="submit"
                     disabled={submitting || loadingChallenge || !challengeToken}
                   >
-                    {submitting ? "Submitting..." : "Submit feedback"}
+                    {submitting ? "Generating..." : "Generate issue draft"}
                   </Button>
                 </div>
+                {result?.issueDraft?.markdown ? (
+                  <pre className="preview" style={{ marginTop: 12 }}>
+                    {result.issueDraft.markdown}
+                  </pre>
+                ) : null}
               </form>
             )}
           </div>

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { nanoid } from "nanoid";
 
-const FEEDBACK_MODES = new Set(["disabled", "relay", "managed", "offline"]);
+const FEEDBACK_MODES = new Set(["disabled", "github", "offline"]);
 const CATEGORY_VALUES = ["bug", "docs", "ux", "request", "security", "other"];
 const SEVERITY_VALUES = ["low", "medium", "high", "critical"];
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
@@ -34,36 +34,89 @@ function signPayload(payloadJson, secret) {
     .digest("base64url");
 }
 
-function getModeConfigIssues(mode) {
-  const issues = [];
-  const relayUrl = (process.env.FEEDBACK_RELAY_URL || "").trim();
-  const providerWebhookUrl = (process.env.FEEDBACK_PROVIDER_WEBHOOK_URL || "").trim();
-  const challengeSecret = (process.env.FEEDBACK_CHALLENGE_SECRET || "").trim();
-
-  if (mode === "relay" && !relayUrl) {
-    issues.push("Relay mode requires FEEDBACK_RELAY_URL.");
-  }
-  if (mode === "managed" && !providerWebhookUrl) {
-    issues.push("Managed mode requires FEEDBACK_PROVIDER_WEBHOOK_URL.");
-  }
-  if ((mode === "relay" || mode === "managed") && !challengeSecret) {
-    issues.push("Online feedback requires FEEDBACK_CHALLENGE_SECRET.");
-  }
-
-  return issues;
+function getChallengeSecret() {
+  return (
+    process.env.FEEDBACK_CHALLENGE_SECRET ||
+    process.env.APP_GIT_SHA ||
+    "feedback-local-dev"
+  );
 }
 
-function getChallengeSecret(config) {
-  const explicit = (process.env.FEEDBACK_CHALLENGE_SECRET || "").trim();
-  if (explicit) return explicit;
-  if (config.mode === "offline") {
-    return process.env.APP_GIT_SHA || "feedback-local-dev";
-  }
-  throw new Error("Challenge signing secret is not configured.");
+function getGithubRepo() {
+  const repo = (
+    process.env.FEEDBACK_GITHUB_REPO ||
+    process.env.APP_REPO ||
+    "bstrauss84/openshift-airgap-architect"
+  ).trim();
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? repo : "";
+}
+
+function categoryLabel(category) {
+  const labels = {
+    bug: "Bug report",
+    docs: "Documentation",
+    ux: "UX / usability",
+    request: "Feature request",
+    security: "Security",
+    other: "General feedback"
+  };
+  return labels[category] || category;
+}
+
+function buildGithubIssueUrl(repo, title, body) {
+  if (!repo) return "";
+  const params = new URLSearchParams();
+  params.set("title", title);
+  params.set("body", body);
+  return `https://github.com/${repo}/issues/new?${params.toString()}`;
+}
+
+function scenarioSummary(scenarioContext = {}) {
+  const parts = [];
+  if (scenarioContext.platform) parts.push(`platform=${scenarioContext.platform}`);
+  if (scenarioContext.methodology) parts.push(`methodology=${scenarioContext.methodology}`);
+  if (scenarioContext.connectivity) parts.push(`connectivity=${scenarioContext.connectivity}`);
+  if (scenarioContext.version) parts.push(`version=${scenarioContext.version}`);
+  if (scenarioContext.scenarioId) parts.push(`scenario=${scenarioContext.scenarioId}`);
+  return parts.join(", ") || "n/a";
+}
+
+export function buildFeedbackIssueDraft({ submission, config }) {
+  const payload = submission?.payload || {};
+  const build = submission?.build || {};
+  const title = `[feedback] ${payload.summary || "General feedback"}`.slice(0, 120);
+  const body = [
+    "## Summary",
+    payload.summary || "",
+    "",
+    "## Details",
+    payload.details || "",
+    "",
+    "## Metadata",
+    `- Category: ${categoryLabel(payload.category || "other")}`,
+    `- Severity: ${payload.severity || "medium"}`,
+    `- UI context: ${payload.uiContext || "n/a"}`,
+    `- Scenario: ${scenarioSummary(payload.scenarioContext)}`,
+    `- Contact requested: ${payload.contactRequested ? "yes" : "no"}`,
+    `- Contact handle: ${payload.contactHandle || "n/a"}`,
+    `- Submission ID: ${submission?.submissionId || "n/a"}`,
+    `- Report mode: ${config.mode}`,
+    `- Build SHA: ${build.gitSha || "unknown"}`,
+    `- Build branch: ${build.branch || "unknown"}`,
+    `- Build time: ${build.buildTime || "unknown"}`,
+    `- Submitted at: ${submission?.receivedAt || "n/a"}`
+  ].join("\n");
+  const repo = getGithubRepo();
+  return {
+    title,
+    markdown: body,
+    githubRepo: repo,
+    githubIssueUrl: config.mode === "github" ? buildGithubIssueUrl(repo, title, body) : ""
+  };
 }
 
 export function resolveFeedbackConfig() {
-  const modeRaw = (process.env.FEEDBACK_MODE || "disabled").trim().toLowerCase();
+  const modeRaw = (process.env.FEEDBACK_MODE || "github").trim().toLowerCase();
   const mode = FEEDBACK_MODES.has(modeRaw) ? modeRaw : "disabled";
 
   const sideSignal = (
@@ -80,9 +133,7 @@ export function resolveFeedbackConfig() {
   const maxPayloadBytes = parseNum(process.env.FEEDBACK_MAX_PAYLOAD_BYTES, 32 * 1024);
   const challengeTtlMs = parseNum(process.env.FEEDBACK_CHALLENGE_TTL_MS, 10 * 60 * 1000);
   const minDwellMs = parseNum(process.env.FEEDBACK_MIN_DWELL_MS, 3000);
-  const modeConfigIssues = getModeConfigIssues(mode);
-  const onlineModeUnavailable =
-    (mode === "relay" || mode === "managed") && modeConfigIssues.length > 0;
+  const githubRepo = getGithubRepo();
 
   if (highSide) {
     return {
@@ -99,7 +150,9 @@ export function resolveFeedbackConfig() {
         contactMaxChars,
         maxPayloadBytes
       },
-      enums: { categories: CATEGORY_VALUES, severities: SEVERITY_VALUES }
+      enums: { categories: CATEGORY_VALUES, severities: SEVERITY_VALUES },
+      githubRepo,
+      issueSubmission: "disabled"
     };
   }
 
@@ -118,27 +171,9 @@ export function resolveFeedbackConfig() {
         contactMaxChars,
         maxPayloadBytes
       },
-      enums: { categories: CATEGORY_VALUES, severities: SEVERITY_VALUES }
-    };
-  }
-
-  if (onlineModeUnavailable) {
-    return {
-      visible: false,
-      enabled: false,
-      mode: "disabled",
-      selectedMode: mode,
-      reason: modeConfigIssues[0] || "Feedback transport is not configured.",
-      challengeTtlMs,
-      minDwellMs,
-      limits: {
-        summaryMaxChars,
-        detailsMaxChars,
-        contactMaxChars,
-        maxPayloadBytes
-      },
       enums: { categories: CATEGORY_VALUES, severities: SEVERITY_VALUES },
-      modeConfigIssues
+      githubRepo,
+      issueSubmission: "disabled"
     };
   }
 
@@ -147,7 +182,10 @@ export function resolveFeedbackConfig() {
     enabled: true,
     mode,
     selectedMode: mode,
-    reason: "",
+    reason:
+      mode === "github" && !githubRepo
+        ? "GitHub repository is not configured; use copy/export fallback."
+        : "",
     challengeTtlMs,
     minDwellMs,
     limits: {
@@ -156,7 +194,9 @@ export function resolveFeedbackConfig() {
       contactMaxChars,
       maxPayloadBytes
     },
-    enums: { categories: CATEGORY_VALUES, severities: SEVERITY_VALUES }
+    enums: { categories: CATEGORY_VALUES, severities: SEVERITY_VALUES },
+    githubRepo,
+    issueSubmission: mode
   };
 }
 
@@ -168,7 +208,7 @@ export function createChallengeToken(config) {
   };
   const payloadJson = JSON.stringify(payload);
   const payloadB64 = Buffer.from(payloadJson).toString("base64url");
-  const signature = signPayload(payloadJson, getChallengeSecret(config));
+  const signature = signPayload(payloadJson, getChallengeSecret());
   return {
     token: `${payloadB64}.${signature}`,
     issuedAt,
@@ -190,7 +230,7 @@ export function verifyChallengeToken(token, config) {
     return { ok: false, error: "Challenge token is invalid." };
   }
 
-  const expectedSig = signPayload(payloadJson, getChallengeSecret(config));
+  const expectedSig = signPayload(payloadJson, getChallengeSecret());
   const gotBuf = Buffer.from(signature);
   const expBuf = Buffer.from(expectedSig);
   if (gotBuf.length !== expBuf.length || !crypto.timingSafeEqual(gotBuf, expBuf)) {

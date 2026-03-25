@@ -32,8 +32,7 @@ They are listed in `.gitignore`. If you need to use them locally, keep them outs
 ## Feedback mechanism (DOC-041)
 
 - Recipient identity/contact details for feedback must never appear in tracked frontend code, tracked docs, or client payloads.
-- Feedback transport destinations are configured server-side only using environment variables or deployment secrets.
+- Feedback uses GitHub issue drafts (prefilled URL + markdown fallback) and does not require hosted relay/email services.
 - Feedback payloads are validated and rate-limited, with anti-bot controls (challenge token + honeypot).
-- Online feedback modes fail closed unless required runtime config is present (including explicit challenge signing secret).
+- High-side/disconnected profiles hide and disable feedback submission paths.
 - Feedback text is never written to logs; only metadata such as submission ID, mode, and status may be logged.
-- High-side/disconnected mode must disable and hide feedback submission paths when that runtime mode is active.
