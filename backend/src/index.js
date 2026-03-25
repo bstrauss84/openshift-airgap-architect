@@ -34,12 +34,12 @@ import {
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import {
+  buildFeedbackIssueDraft,
   createChallengeToken,
   resolveFeedbackConfig,
   validateFeedbackPayload,
   verifyChallengeToken
 } from "./feedback.js";
-import { deliverFeedback } from "./feedbackTransport.js";
 import { createInMemoryRateLimiter } from "./feedbackRateLimit.js";
 
 const app = express();
@@ -515,7 +515,8 @@ app.get("/api/feedback/config", (_req, res) => {
     challengeRequired: config.enabled,
     minDwellMs: config.minDwellMs,
     limits: config.limits,
-    enums: config.enums
+    enums: config.enums,
+    githubRepo: config.githubRepo || ""
   });
 });
 
@@ -562,39 +563,29 @@ app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req,
     payload: parsed.payload
   };
 
-  try {
-    const result = await deliverFeedback({
-      mode: config.mode,
-      payload: submission
-    });
-    // Keep logs metadata-only and never include feedback text.
-    if (process.env.NODE_ENV !== "test") {
-      console.log("Feedback accepted", {
-        submissionId,
-        mode: config.mode,
-        delivered: Boolean(result.delivered)
-      });
-    }
-    return res.json({
-      ok: true,
+  const issueDraft = buildFeedbackIssueDraft({ submission, config });
+  const handoff = {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    issueDraft,
+    payload: submission
+  };
+  // Keep logs metadata-only and never include feedback text.
+  if (process.env.NODE_ENV !== "test") {
+    console.log("Feedback accepted", {
       submissionId,
       mode: config.mode,
-      delivered: Boolean(result.delivered),
-      handoff: result.handoff || null
-    });
-  } catch (error) {
-    if (process.env.NODE_ENV !== "test") {
-      console.error("Feedback delivery failed", {
-        submissionId,
-        mode: config.mode,
-        error: String(error?.message || error).slice(0, 120)
-      });
-    }
-    return res.status(503).json({
-      error: "Feedback delivery is temporarily unavailable. Please try again later.",
-      offlineAvailable: true
+      githubIssueUrlReady: Boolean(issueDraft.githubIssueUrl)
     });
   }
+  return res.json({
+    ok: true,
+    submissionId,
+    mode: config.mode,
+    githubIssueUrl: issueDraft.githubIssueUrl || "",
+    issueDraft,
+    handoff
+  });
 });
 
 // Update check: GitHub latest commit vs APP_GIT_SHA. CHECK_UPDATES=false|0 disables. Cache: success 6h, failure 15min.

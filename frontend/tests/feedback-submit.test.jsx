@@ -64,8 +64,12 @@ describe("Feedback submit behavior", () => {
       Promise.resolve({
         ok: true,
         submissionId: "abc123",
-        mode: "offline",
-        delivered: false,
+        mode: "github",
+        githubIssueUrl: "https://github.com/owner/repo/issues/new?title=x&body=y",
+        issueDraft: {
+          title: "[feedback] Need improvement",
+          markdown: "## Summary\nNeed improvement"
+        },
         handoff: {
           schemaVersion: 1,
           exportedAt: "2026-03-24T00:00:00.000Z",
@@ -77,11 +81,12 @@ describe("Feedback submit behavior", () => {
 
     fireEvent.change(screen.getByLabelText(/summary/i), { target: { value: "Need improvement" } });
     fireEvent.change(screen.getByLabelText(/details/i), { target: { value: "More detail here" } });
-    fireEvent.click(screen.getByRole("button", { name: /submit feedback/i }));
+    fireEvent.click(screen.getByRole("button", { name: /generate issue draft/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/feedback submitted successfully/i)).toBeInTheDocument();
+      expect(screen.getByText(/issue draft ready/i)).toBeInTheDocument();
     });
+    expect(screen.getByRole("link", { name: /open github issue/i })).toBeInTheDocument();
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/feedback/submit",
       expect.objectContaining({ method: "POST" })
@@ -94,7 +99,7 @@ describe("Feedback submit behavior", () => {
 
     fireEvent.change(screen.getByLabelText(/summary/i), { target: { value: "Need improvement" } });
     fireEvent.change(screen.getByLabelText(/details/i), { target: { value: "More detail here" } });
-    fireEvent.click(screen.getByRole("button", { name: /submit feedback/i }));
+    fireEvent.click(screen.getByRole("button", { name: /generate issue draft/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/too many feedback submissions/i)).toBeInTheDocument();
@@ -108,7 +113,7 @@ describe("Feedback submit behavior", () => {
         visible: false,
         enabled: false,
         mode: "disabled",
-        reason: "Relay mode requires FEEDBACK_RELAY_URL."
+        reason: "Feedback disabled"
       }
     );
     const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });

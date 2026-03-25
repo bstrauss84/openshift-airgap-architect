@@ -85,29 +85,19 @@ Hooks run on `git commit`; the secret check is included when gitleaks is availab
 
 ## Feedback feature local configuration (DOC-041)
 
-Feedback submission is backend-configured; do not hardcode recipient addresses in code or docs.
+Feedback submission generates a structured GitHub issue draft; do not hardcode maintainer contact details in code or docs.
 
-- `FEEDBACK_MODE=disabled|relay|managed|offline`
-- `FEEDBACK_RELAY_URL` and `FEEDBACK_RELAY_TOKEN` for relay mode
-- `FEEDBACK_PROVIDER`, `FEEDBACK_PROVIDER_WEBHOOK_URL`, and `FEEDBACK_PROVIDER_TOKEN` for managed mode
-- `FEEDBACK_CHALLENGE_SECRET` for anti-bot challenge signing
+- `FEEDBACK_MODE=disabled|github|offline`
+- `FEEDBACK_GITHUB_REPO` (optional override, defaults to `APP_REPO`)
+- `FEEDBACK_CHALLENGE_SECRET` (optional; fallback used for local/dev if unset)
 
-Recommended local default:
-
-```bash
-FEEDBACK_MODE=disabled
-```
-
-If you want local offline handoff export, set:
+Default local behavior:
 
 ```bash
-FEEDBACK_MODE=offline
+FEEDBACK_MODE=github
 ```
 
-Online modes fail closed unless fully configured:
-- `FEEDBACK_MODE=relay` requires `FEEDBACK_RELAY_URL` and `FEEDBACK_CHALLENGE_SECRET`
-- `FEEDBACK_MODE=managed` requires `FEEDBACK_PROVIDER_WEBHOOK_URL` and `FEEDBACK_CHALLENGE_SECRET`
-
+`offline` mode still generates/copies markdown and exports a handoff JSON, but does not provide an auto-open GitHub URL.
 High-side/disconnected deployments should set mode/operating profile so feedback is hidden and submission is disabled.
 
 ## Tests (for agents and contributors)

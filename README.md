@@ -60,7 +60,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
 - **Run oc-mirror** — Built-in tab to run oc-mirror v2 directly from the app (mirror-to-disk, disk-to-mirror, mirror-to-mirror workflows; per-run credentials; preflight checks; live job streaming to Operations)
-- **Feedback (configurable)** — Optional in-app feedback drawer with backend validation/rate-limits and server-side-only destination config. Hidden/disabled on high-side profiles.
+- **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
 
@@ -491,7 +491,8 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 | `APP_REPO` | GitHub repo for update check (e.g. `owner/repo`). | `bstrauss84/openshift-airgap-architect` |
 | `APP_BRANCH` | Branch to compare against (e.g. `main`). | `main` |
 | `CHECK_UPDATES` | Set to `false` or `0` to disable update checks. | enabled |
-| `FEEDBACK_MODE` | Feedback transport mode: `disabled`, `relay`, `managed`, or `offline`. | `disabled` |
+| `FEEDBACK_MODE` | Feedback mode: `disabled`, `github`, or `offline`. | `github` |
+| `FEEDBACK_GITHUB_REPO` | Optional GitHub issue target override (`owner/repo`). | `APP_REPO` |
 
 **Wiring examples:**
 
@@ -534,7 +535,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 - **Cincinnati or docs stale** — Use **Update** (release channels) or **Update Docs Links** (field manual links) in the UI; the backend refreshes caches on demand.
 - **Validation errors on a step** — Required fields are marked; check Identity & Access (pull secret, SSH key), Networking (CIDRs), and Platform Specifics for your scenario.
 - **SELinux denials (Podman)** — Use `:Z` on volume mounts or adjust context as needed for your host.
-- **Feedback not visible** — The feature is hidden when `FEEDBACK_MODE=disabled`, when running in a high-side/disconnected operating profile, or when online mode is selected but required feedback env vars are missing.
+- **Feedback not visible** — The feature is hidden when `FEEDBACK_MODE=disabled` or when running in a high-side/disconnected operating profile.
 
 <a id="screenshots"></a>
 ## Screenshots
