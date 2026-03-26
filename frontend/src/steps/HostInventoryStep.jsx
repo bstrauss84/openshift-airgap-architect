@@ -491,46 +491,52 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
 done</pre>
                 </div>
 
-                <div className="subtle">Stable disk IDs and drive characteristics:</div>
+                <div className="subtle">Root device hints inventory (all supported subfields):</div>
                 <div className="code-block">
                   <div className="code-header">
-                    <span>Disk inventory (size, type, speed)</span>
+                    <span>Per-disk rootDeviceHints values (4.20)</span>
                     <button
                       className="ghost copy-button"
                       onClick={() =>
                         copyCommand(
-                          "disks",
-                          "lsblk -d -o NAME,SIZE,MODEL,SERIAL,TYPE,ROTA,TRAN"
+                          "rdh",
+                          "for name in $(lsblk -dn -o NAME,TYPE | awk '$2==\"disk\"{print $1}'); do dev=\"/dev/$name\"; props=$(udevadm info --query=property --name=\"$dev\" 2>/dev/null); id_path=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_PATH=/{print $2; exit}'); model=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_MODEL=/{print $2; exit}'); vendor=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_VENDOR=/{print $2; exit}'); serial=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_SERIAL_SHORT=/{print $2; exit}'); [ -z \"$serial\" ] && serial=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_SERIAL=/{print $2; exit}'); wwn=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_WWN_WITH_EXTENSION=/{print $2; exit}'); [ -z \"$wwn\" ] && wwn=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_WWN=/{print $2; exit}'); hctl=$(cat \"/sys/block/$name/device/hctl\" 2>/dev/null || true); rota=$(cat \"/sys/block/$name/queue/rotational\" 2>/dev/null || echo \"\"); size_bytes=$(lsblk -dn -b -o SIZE \"$dev\" 2>/dev/null || echo \"\"); size_gb=\"\"; [ -n \"$size_bytes\" ] && size_gb=$((size_bytes / 1024 / 1024 / 1024)); printf \"\\n=== %s ===\\n\" \"$dev\"; printf \"deviceName (preferred): %s\\n\" \"${id_path:+/dev/disk/by-path/$id_path}\"; [ -z \"$id_path\" ] && printf \"deviceName (fallback): %s\\n\" \"$dev\"; printf \"hctl: %s\\n\" \"${hctl:-not found}\"; printf \"model: %s\\n\" \"${model:-not found}\"; printf \"vendor: %s\\n\" \"${vendor:-not found}\"; printf \"serialNumber: %s\\n\" \"${serial:-not found}\"; printf \"wwn: %s\\n\" \"${wwn:-not found}\"; printf \"rotational: %s\\n\" \"$( [ \"$rota\" = \"1\" ] && echo true || [ \"$rota\" = \"0\" ] && echo false || echo not\\ found )\"; printf \"minSizeGigabytes: %s\\n\" \"${size_gb:-not found}\"; done"
                         )
                       }
                     >
-                      {copiedCommand === "disks" ? "Copied" : "Copy"}
+                      {copiedCommand === "rdh" ? "Copied" : "Copy"}
                     </button>
                   </div>
-                  <pre className="code">lsblk -d -o NAME,SIZE,MODEL,SERIAL,TYPE,ROTA,TRAN</pre>
+                  <pre className="code">{`for name in $(lsblk -dn -o NAME,TYPE | awk '$2=="disk"{print $1}'); do
+  dev="/dev/$name"
+  props=$(udevadm info --query=property --name="$dev" 2>/dev/null)
+  id_path=$(printf "%s\n" "$props" | awk -F= '/^ID_PATH=/{print $2; exit}')
+  model=$(printf "%s\n" "$props" | awk -F= '/^ID_MODEL=/{print $2; exit}')
+  vendor=$(printf "%s\n" "$props" | awk -F= '/^ID_VENDOR=/{print $2; exit}')
+  serial=$(printf "%s\n" "$props" | awk -F= '/^ID_SERIAL_SHORT=/{print $2; exit}')
+  [ -z "$serial" ] && serial=$(printf "%s\n" "$props" | awk -F= '/^ID_SERIAL=/{print $2; exit}')
+  wwn=$(printf "%s\n" "$props" | awk -F= '/^ID_WWN_WITH_EXTENSION=/{print $2; exit}')
+  [ -z "$wwn" ] && wwn=$(printf "%s\n" "$props" | awk -F= '/^ID_WWN=/{print $2; exit}')
+  hctl=$(cat "/sys/block/$name/device/hctl" 2>/dev/null || true)
+  rota=$(cat "/sys/block/$name/queue/rotational" 2>/dev/null || echo "")
+  size_bytes=$(lsblk -dn -b -o SIZE "$dev" 2>/dev/null || echo "")
+  size_gb=""
+  [ -n "$size_bytes" ] && size_gb=$((size_bytes / 1024 / 1024 / 1024))
+  printf "\n=== %s ===\n" "$dev"
+  printf "deviceName (preferred): %s\n" "\${id_path:+/dev/disk/by-path/$id_path}"
+  [ -z "$id_path" ] && printf "deviceName (fallback): %s\n" "$dev"
+  printf "hctl: %s\n" "\${hctl:-not found}"
+  printf "model: %s\n" "\${model:-not found}"
+  printf "vendor: %s\n" "\${vendor:-not found}"
+  printf "serialNumber: %s\n" "\${serial:-not found}"
+  printf "wwn: %s\n" "\${wwn:-not found}"
+  printf "rotational: %s\n" "$( [ "$rota" = "1" ] && echo true || [ "$rota" = "0" ] && echo false || echo not\ found )"
+  printf "minSizeGigabytes: %s\n" "\${size_gb:-not found}"
+done`}</pre>
                 </div>
                 <div className="note">
-                  ROTA=0 means SSD/NVMe, ROTA=1 means spinning disk. Prefer NVMe &gt; SSD &gt; HDD.
-                  Target disks should be at least 300GB when possible.
-                </div>
-
-                <div className="subtle">Find stable by-id paths (use these as Root Device Hint):</div>
-                <div className="code-block">
-                  <div className="code-header">
-                    <span>List /dev/disk/by-id</span>
-                    <button
-                      className="ghost copy-button"
-                      onClick={() =>
-                        copyCommand(
-                          "byid",
-                          "ls -l /dev/disk/by-id/ | grep -v part"
-                        )
-                      }
-                    >
-                      {copiedCommand === "byid" ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                  <pre className="code">ls -l /dev/disk/by-id/ | grep -v part</pre>
+                  OpenShift 4.20 allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
+                  <code>wwn</code>, use <code>ID_WWN_WITH_EXTENSION</code> when present.
                 </div>
 
                 <div className="subtle">Check if a disk has existing data/signatures:</div>
@@ -647,7 +653,7 @@ wipefs -a /dev/sdX</pre>
                   <input
                     value={node.rootDevice}
                     onChange={(e) => updateNode(index, { rootDevice: e.target.value })}
-                    placeholder="/dev/disk/by-id/..."
+                    placeholder="/dev/disk/by-path/..."
                     className={fieldError("rootDevice") ? "input-error" : ""}
                   />
                   {fieldError("rootDevice") ? <div className="note warning">{fieldError("rootDevice")}</div> : null}
