@@ -53,7 +53,7 @@ const REPLICATE_OPTIONS = [
   { key: "primary.bond.slaves.macAddress", label: "Bond member MACs (usually leave unchecked)" },
   { key: "hostname", label: "Hostname (usually leave unchecked)" },
   { key: "hostnameUseFqdn", label: "Use FQDN for hostname" },
-  { key: "rootDevice", label: "Root device (usually leave unchecked)" },
+  { key: "rootDevice", label: "Root device hints (usually leave unchecked)" },
   { key: "bmc", label: "BMC credentials (usually leave unchecked)" }
 ];
 
@@ -482,39 +482,54 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
 done`}</pre>
                 </div>
 
-                <div className="host-inventory-v2-gather-hint">Stable disk IDs and drive characteristics:</div>
+                <div className="host-inventory-v2-gather-hint">Root device hints inventory (all supported subfields):</div>
                 <div className="code-block">
                   <div className="code-header">
-                    <span>Disk inventory (size, type, speed)</span>
+                    <span>Per-disk rootDeviceHints values (4.20)</span>
                     <button
                       type="button"
                       className="ghost copy-button"
-                      onClick={() => copyGatherCommand("disks", "lsblk -d -o NAME,SIZE,MODEL,SERIAL,TYPE,ROTA,TRAN")}
+                      onClick={() =>
+                        copyGatherCommand(
+                          "rdh",
+                          "for name in $(lsblk -dn -o NAME,TYPE | awk '$2==\"disk\"{print $1}'); do dev=\"/dev/$name\"; props=$(udevadm info --query=property --name=\"$dev\" 2>/dev/null); id_path=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_PATH=/{print $2; exit}'); model=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_MODEL=/{print $2; exit}'); vendor=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_VENDOR=/{print $2; exit}'); serial=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_SERIAL_SHORT=/{print $2; exit}'); [ -z \"$serial\" ] && serial=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_SERIAL=/{print $2; exit}'); wwn=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_WWN_WITH_EXTENSION=/{print $2; exit}'); [ -z \"$wwn\" ] && wwn=$(printf \"%s\\n\" \"$props\" | awk -F= '/^ID_WWN=/{print $2; exit}'); hctl=$(cat \"/sys/block/$name/device/hctl\" 2>/dev/null || true); rota=$(cat \"/sys/block/$name/queue/rotational\" 2>/dev/null || echo \"\"); size_bytes=$(lsblk -dn -b -o SIZE \"$dev\" 2>/dev/null || echo \"\"); size_gb=\"\"; [ -n \"$size_bytes\" ] && size_gb=$((size_bytes / 1024 / 1024 / 1024)); printf \"\\n=== %s ===\\n\" \"$dev\"; printf \"deviceName (preferred): %s\\n\" \"${id_path:+/dev/disk/by-path/$id_path}\"; [ -z \"$id_path\" ] && printf \"deviceName (fallback): %s\\n\" \"$dev\"; printf \"hctl: %s\\n\" \"${hctl:-not found}\"; printf \"model: %s\\n\" \"${model:-not found}\"; printf \"vendor: %s\\n\" \"${vendor:-not found}\"; printf \"serialNumber: %s\\n\" \"${serial:-not found}\"; printf \"wwn: %s\\n\" \"${wwn:-not found}\"; printf \"rotational: %s\\n\" \"$( [ \"$rota\" = \"1\" ] && echo true || [ \"$rota\" = \"0\" ] && echo false || echo not\\ found )\"; printf \"minSizeGigabytes: %s\\n\" \"${size_gb:-not found}\"; done"
+                        )
+                      }
                     >
-                      {copiedGatherCommand === "disks" ? "Copied" : "Copy"}
+                      {copiedGatherCommand === "rdh" ? "Copied" : "Copy"}
                     </button>
                   </div>
-                  <pre className="code">lsblk -d -o NAME,SIZE,MODEL,SERIAL,TYPE,ROTA,TRAN</pre>
+                  <pre className="code">{`for name in $(lsblk -dn -o NAME,TYPE | awk '$2=="disk"{print $1}'); do
+  dev="/dev/$name"
+  props=$(udevadm info --query=property --name="$dev" 2>/dev/null)
+  id_path=$(printf "%s\n" "$props" | awk -F= '/^ID_PATH=/{print $2; exit}')
+  model=$(printf "%s\n" "$props" | awk -F= '/^ID_MODEL=/{print $2; exit}')
+  vendor=$(printf "%s\n" "$props" | awk -F= '/^ID_VENDOR=/{print $2; exit}')
+  serial=$(printf "%s\n" "$props" | awk -F= '/^ID_SERIAL_SHORT=/{print $2; exit}')
+  [ -z "$serial" ] && serial=$(printf "%s\n" "$props" | awk -F= '/^ID_SERIAL=/{print $2; exit}')
+  wwn=$(printf "%s\n" "$props" | awk -F= '/^ID_WWN_WITH_EXTENSION=/{print $2; exit}')
+  [ -z "$wwn" ] && wwn=$(printf "%s\n" "$props" | awk -F= '/^ID_WWN=/{print $2; exit}')
+  hctl=$(cat "/sys/block/$name/device/hctl" 2>/dev/null || true)
+  rota=$(cat "/sys/block/$name/queue/rotational" 2>/dev/null || echo "")
+  size_bytes=$(lsblk -dn -b -o SIZE "$dev" 2>/dev/null || echo "")
+  size_gb=""
+  [ -n "$size_bytes" ] && size_gb=$((size_bytes / 1024 / 1024 / 1024))
+  printf "\n=== %s ===\n" "$dev"
+  printf "deviceName (preferred): %s\n" "\${id_path:+/dev/disk/by-path/$id_path}"
+  [ -z "$id_path" ] && printf "deviceName (fallback): %s\n" "$dev"
+  printf "hctl: %s\n" "\${hctl:-not found}"
+  printf "model: %s\n" "\${model:-not found}"
+  printf "vendor: %s\n" "\${vendor:-not found}"
+  printf "serialNumber: %s\n" "\${serial:-not found}"
+  printf "wwn: %s\n" "\${wwn:-not found}"
+  printf "rotational: %s\n" "$( [ "$rota" = "1" ] && echo true || [ "$rota" = "0" ] && echo false || echo not\ found )"
+  printf "minSizeGigabytes: %s\n" "\${size_gb:-not found}"
+done`}</pre>
                 </div>
                 <p className="note subtle">
-                  ROTA=0 means SSD/NVMe, ROTA=1 means spinning disk. Prefer NVMe &gt; SSD &gt; HDD.
-                  Target disks should be at least 300GB when possible.
+                  OpenShift 4.20 allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
+                  <code>wwn</code>, use the value from <code>ID_WWN_WITH_EXTENSION</code> when present.
                 </p>
-
-                <div className="host-inventory-v2-gather-hint">Find stable by-id paths (use these as Root Device Hint):</div>
-                <div className="code-block">
-                  <div className="code-header">
-                    <span>List /dev/disk/by-id</span>
-                    <button
-                      type="button"
-                      className="ghost copy-button"
-                      onClick={() => copyGatherCommand("byid", "ls -l /dev/disk/by-id/ | grep -v part")}
-                    >
-                      {copiedGatherCommand === "byid" ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                  <pre className="code">ls -l /dev/disk/by-id/ | grep -v part</pre>
-                </div>
 
                 <div className="host-inventory-v2-gather-hint">Check if a disk has existing data/signatures:</div>
                 <div className="code-block">
@@ -800,27 +815,66 @@ wipefs -a /dev/sdX`}</pre>
                             </label>
                             <p className="note subtle" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>
                               Root device hints — <strong>all optional</strong>. Fill in one or more to identify the boot disk.{" "}
-                              <strong>deviceName</strong> and <strong>hctl</strong> are alternative ways to pinpoint the same disk — pick one, not both.{" "}
-                              <strong>minSizeGb</strong> is a size filter; it can stand alone or pair with either identifier.{" "}
-                              If the host has only one disk, hints are usually unnecessary.
+                              OpenShift can evaluate multiple hints together; the selected disk must match <strong>all</strong> populated hints.{" "}
+                              If hints conflict, no disk will match and installation fails validation/runtime.{" "}
+                              If the host has only one disk, hints are usually unnecessary. These values are emitted to{" "}
+                              <code>agent-config.yaml hosts[].rootDeviceHints</code> and to{" "}
+                              <code>install-config.yaml platform.baremetal.hosts[].rootDeviceHints</code> for bare-metal IPI.
                             </p>
                             <FieldLabelWithInfo
                               label="Root device — deviceName (optional)"
-                              hint="Stable device path for the boot disk. Prefer /dev/disk/by-id/... or /dev/disk/by-path/... over /dev/vda — kernel names like /dev/vda can shift if disks are added or removed. This and hctl are alternative identifiers for the same device; use one or the other. If you fill in both, the disk must satisfy both criteria (usually redundant)."
+                              hint="Stable Linux device path. Prefer /dev/disk/by-path/... over transient kernel names like /dev/sdX or /dev/vdX."
                             >
-                              <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/... or /dev/vda" />
+                              <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-path/... or /dev/sda" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — hctl (optional)"
-                              hint="SCSI address of the boot disk in host:channel:target:lun format (e.g. 0:0:0:0). An alternative to deviceName — use this when you know the SCSI bus address but not a stable device path. If you fill in both hctl and deviceName, the disk must satisfy both criteria."
+                              hint="SCSI address in host:channel:target:lun format (for example, 0:0:0:0)."
                             >
                               <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
+                              label="Root device — model (optional)"
+                              hint="Device model match. This hint can be a substring of the discovered value."
+                            >
+                              <input value={selectedNode.rootDeviceHintModel || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintModel: e.target.value })} placeholder="INTEL SSDPE..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — vendor (optional)"
+                              hint="Device vendor/manufacturer match. This hint can be a substring of the discovered value."
+                            >
+                              <input value={selectedNode.rootDeviceHintVendor || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintVendor: e.target.value })} placeholder="ATA, NVMe, Samsung..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — serial number (optional)"
+                              hint="Exact serial number match."
+                            >
+                              <input value={selectedNode.rootDeviceHintSerialNumber || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintSerialNumber: e.target.value })} placeholder="S3Z9..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — wwn (optional)"
+                              hint="Exact WWN match. If udevadm shows ID_WWN_WITH_EXTENSION, use that value for this field."
+                            >
+                              <input value={selectedNode.rootDeviceHintWwn || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintWwn: e.target.value })} placeholder="0x5000..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
                               label="Root device — min size GB (optional)"
-                              hint="Minimum disk size in gigabytes. Can be combined with deviceName or hctl as a confirming filter, or used alone. Used alone it selects the smallest disk that meets the threshold — risky on hosts with multiple large disks of similar size where you need a specific one."
+                              hint="Minimum disk size in gigabytes (rootDeviceHints.minSizeGigabytes)."
                             >
                               <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — rotational (optional)"
+                              hint="Require spinning media or non-rotational media."
+                            >
+                              <select
+                                value={selectedNode.rootDeviceHintRotational ?? ""}
+                                onChange={(e) => updateNode(selectedIndex, { rootDeviceHintRotational: e.target.value })}
+                              >
+                                <option value="">Any</option>
+                                <option value="false">false (SSD/NVMe)</option>
+                                <option value="true">true (HDD)</option>
+                              </select>
                             </FieldLabelWithInfo>
                           </div>
                           <div className="divider" />
@@ -880,27 +934,65 @@ wipefs -a /dev/sdX`}</pre>
                           <>
                             <p className="note subtle" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>
                               Root device hints — <strong>all optional</strong>. Fill in one or more to identify the boot disk.{" "}
-                              <strong>deviceName</strong> and <strong>hctl</strong> are alternative ways to pinpoint the same disk — pick one, not both.{" "}
-                              <strong>minSizeGb</strong> is a size filter; it can stand alone or pair with either identifier.{" "}
-                              If the host has only one disk, hints are usually unnecessary.
+                              OpenShift can evaluate multiple hints together; the selected disk must match <strong>all</strong> populated hints.{" "}
+                              If hints conflict, no disk will match and installation fails validation/runtime.{" "}
+                              If the host has only one disk, hints are usually unnecessary. For agent scenarios, these values are emitted to{" "}
+                              <code>agent-config.yaml hosts[].rootDeviceHints</code>. They appear in <strong>Assets / Review</strong>, not in step-level preview panes.
                             </p>
                             <FieldLabelWithInfo
                               label="Root device — deviceName (optional)"
-                              hint="Stable device path for the boot disk. Prefer /dev/disk/by-id/... or /dev/disk/by-path/... over /dev/vda — kernel names like /dev/vda can shift if disks are added or removed. This and hctl are alternative identifiers for the same device; use one or the other. If you fill in both, the disk must satisfy both criteria (usually redundant)."
+                              hint="Stable Linux device path. Prefer /dev/disk/by-path/... over transient kernel names like /dev/sdX or /dev/vdX."
                             >
-                              <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-id/... or /dev/vda" />
+                              <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-path/... or /dev/sda" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — hctl (optional)"
-                              hint="SCSI address of the boot disk in host:channel:target:lun format (e.g. 0:0:0:0). An alternative to deviceName — use this when you know the SCSI bus address but not a stable device path. If you fill in both hctl and deviceName, the disk must satisfy both criteria."
+                              hint="SCSI address in host:channel:target:lun format (for example, 0:0:0:0)."
                             >
                               <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
+                              label="Root device — model (optional)"
+                              hint="Device model match. This hint can be a substring of the discovered value."
+                            >
+                              <input value={selectedNode.rootDeviceHintModel || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintModel: e.target.value })} placeholder="INTEL SSDPE..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — vendor (optional)"
+                              hint="Device vendor/manufacturer match. This hint can be a substring of the discovered value."
+                            >
+                              <input value={selectedNode.rootDeviceHintVendor || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintVendor: e.target.value })} placeholder="ATA, NVMe, Samsung..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — serial number (optional)"
+                              hint="Exact serial number match."
+                            >
+                              <input value={selectedNode.rootDeviceHintSerialNumber || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintSerialNumber: e.target.value })} placeholder="S3Z9..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — wwn (optional)"
+                              hint="Exact WWN match. If udevadm shows ID_WWN_WITH_EXTENSION, use that value for this field."
+                            >
+                              <input value={selectedNode.rootDeviceHintWwn || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintWwn: e.target.value })} placeholder="0x5000..." />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
                               label="Root device — min size GB (optional)"
-                              hint="Minimum disk size in gigabytes. Can be combined with deviceName or hctl as a confirming filter, or used alone. Used alone it selects the smallest disk that meets the threshold — risky on hosts with multiple large disks of similar size where you need a specific one."
+                              hint="Minimum disk size in gigabytes (rootDeviceHints.minSizeGigabytes)."
                             >
                               <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" />
+                            </FieldLabelWithInfo>
+                            <FieldLabelWithInfo
+                              label="Root device — rotational (optional)"
+                              hint="Require spinning media or non-rotational media."
+                            >
+                              <select
+                                value={selectedNode.rootDeviceHintRotational ?? ""}
+                                onChange={(e) => updateNode(selectedIndex, { rootDeviceHintRotational: e.target.value })}
+                              >
+                                <option value="">Any</option>
+                                <option value="false">false (SSD/NVMe)</option>
+                                <option value="true">true (HDD)</option>
+                              </select>
                             </FieldLabelWithInfo>
                           </>
                         ) : null}

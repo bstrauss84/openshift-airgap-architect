@@ -276,6 +276,52 @@ test("buildInstallConfig for bare-metal-agent multi-node with Day-2 toggle inclu
   assert.strictEqual(out.platform.baremetal.provisioningNetwork, "Unmanaged");
 });
 
+test("buildInstallConfig for bare-metal-agent Day-2 hosts emits rootDeviceHints hctl and minSizeGigabytes", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
+    credentials: {},
+    hostInventory: {
+      includeBareMetalDay2InInstallConfig: true,
+      apiVip: "192.168.1.100",
+      ingressVip: "192.168.1.101",
+      nodes: [
+        {
+          hostname: "master-0",
+          role: "master",
+          rootDevice: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1",
+          rootDeviceHintHctl: "0:0:0:0",
+          rootDeviceHintModel: "INTEL SSDPE",
+          rootDeviceHintVendor: "INTEL",
+          rootDeviceHintSerialNumber: "SER123",
+          rootDeviceHintWwn: "0x5000cca12345",
+          rootDeviceHintMinSizeGb: "300",
+          rootDeviceHintRotational: "false",
+          primary: {},
+          bmc: { address: "redfish+http://x" }
+        },
+        {
+          hostname: "master-1",
+          role: "master",
+          primary: {}
+        }
+      ]
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.deepStrictEqual(out.platform?.baremetal?.hosts?.[0]?.rootDeviceHints, {
+    deviceName: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1",
+    hctl: "0:0:0:0",
+    model: "INTEL SSDPE",
+    vendor: "INTEL",
+    serialNumber: "SER123",
+    wwn: "0x5000cca12345",
+    minSizeGigabytes: 300,
+    rotational: false
+  });
+});
+
 test("buildInstallConfig and buildAgentConfig for 2 CP + 1 arbiter (bare-metal-agent) emit correct topology", () => {
   const state = {
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
@@ -306,6 +352,48 @@ test("buildInstallConfig and buildAgentConfig for 2 CP + 1 arbiter (bare-metal-a
   const roles = agentOut.hosts.map((h) => h.role);
   assert.deepStrictEqual(roles, ["master", "master", "arbiter"]);
   assert.strictEqual(agentOut.rendezvousIP, "192.168.1.10");
+});
+
+test("buildAgentConfig emits rootDeviceHints hctl and minSizeGigabytes", () => {
+  const state = {
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: {},
+    credentials: {},
+    hostInventory: {
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          rootDevice: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1",
+          rootDeviceHintHctl: "0:0:0:0",
+          rootDeviceHintModel: "INTEL SSDPE",
+          rootDeviceHintVendor: "INTEL",
+          rootDeviceHintSerialNumber: "SER123",
+          rootDeviceHintWwn: "0x5000cca12345",
+          rootDeviceHintMinSizeGb: "300",
+          rootDeviceHintRotational: "false",
+          primary: {
+            type: "ethernet",
+            mode: "static",
+            ipv4Cidr: "10.0.0.10/24",
+            ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" }
+          }
+        }
+      ]
+    }
+  };
+  const out = yaml.load(buildAgentConfig(state));
+  assert.deepStrictEqual(out.hosts?.[0]?.rootDeviceHints, {
+    deviceName: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1",
+    hctl: "0:0:0:0",
+    model: "INTEL SSDPE",
+    vendor: "INTEL",
+    serialNumber: "SER123",
+    wwn: "0x5000cca12345",
+    minSizeGigabytes: 300,
+    rotational: false
+  });
 });
 
 test("buildAgentConfig emits additionalNTPSources and bootArtifactsBaseURL when set (Phase 4.4)", () => {

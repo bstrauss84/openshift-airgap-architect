@@ -18,6 +18,27 @@ const normalizePullSecretString = (input) => {
   }
 };
 
+const buildRootDeviceHints = (node) => {
+  const hints = {};
+  if ((node.rootDevice || "").trim()) hints.deviceName = node.rootDevice.trim();
+  if ((node.rootDeviceHintHctl || "").trim()) hints.hctl = node.rootDeviceHintHctl.trim();
+  if ((node.rootDeviceHintModel || "").trim()) hints.model = node.rootDeviceHintModel.trim();
+  if ((node.rootDeviceHintVendor || "").trim()) hints.vendor = node.rootDeviceHintVendor.trim();
+  if ((node.rootDeviceHintSerialNumber || "").trim()) hints.serialNumber = node.rootDeviceHintSerialNumber.trim();
+  if ((node.rootDeviceHintWwn || "").trim()) hints.wwn = node.rootDeviceHintWwn.trim();
+  if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") {
+    const minSize = Number(node.rootDeviceHintMinSizeGb);
+    if (Number.isFinite(minSize)) hints.minSizeGigabytes = minSize;
+  }
+  if (node.rootDeviceHintRotational === true || node.rootDeviceHintRotational === false) {
+    hints.rotational = node.rootDeviceHintRotational;
+  } else if (typeof node.rootDeviceHintRotational === "string" && node.rootDeviceHintRotational.trim() !== "") {
+    const normalized = node.rootDeviceHintRotational.trim().toLowerCase();
+    if (normalized === "true" || normalized === "false") hints.rotational = normalized === "true";
+  }
+  return Object.keys(hints).length > 0 ? hints : undefined;
+};
+
 /** Dual-stack: clusterNetwork must have IPv4 then IPv6 entries when machineNetworkV6 is set (4.20 doc). */
 const buildClusterNetwork = (networkingState, dualStack) => {
   if (!dualStack) {
@@ -231,11 +252,8 @@ const buildInstallConfig = (state) => {
             };
           }
           if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
-          const rdh217 = {};
-          if ((node.rootDevice || "").trim()) rdh217.deviceName = node.rootDevice.trim();
-          if ((node.rootDeviceHintHctl || "").trim()) rdh217.hctl = node.rootDeviceHintHctl.trim();
-          if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") rdh217.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
-          if (Object.keys(rdh217).length > 0) host.rootDeviceHints = rdh217;
+          const rdh217 = buildRootDeviceHints(node);
+          if (rdh217) host.rootDeviceHints = rdh217;
           return host;
         });
         baremetal.hosts = hosts;
@@ -274,11 +292,8 @@ const buildInstallConfig = (state) => {
           };
         }
         if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
-        const rdh256 = {};
-        if ((node.rootDevice || "").trim()) rdh256.deviceName = node.rootDevice.trim();
-        if ((node.rootDeviceHintHctl || "").trim()) rdh256.hctl = node.rootDeviceHintHctl.trim();
-        if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") rdh256.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
-        if (Object.keys(rdh256).length > 0) host.rootDeviceHints = rdh256;
+        const rdh256 = buildRootDeviceHints(node);
+        if (rdh256) host.rootDeviceHints = rdh256;
         return host;
       });
       baremetal.hosts = hosts;
@@ -794,15 +809,7 @@ const buildAgentConfig = (state) => {
       hostname: effectiveHostname(node, baseDomain),
       role: node.role,
       interfaces,
-      rootDeviceHints: (() => {
-        const hints = {};
-        if ((node.rootDevice || "").trim()) hints.deviceName = node.rootDevice.trim();
-        if ((node.rootDeviceHintHctl || "").trim()) hints.hctl = node.rootDeviceHintHctl.trim();
-        if (node.rootDeviceHintMinSizeGb != null && String(node.rootDeviceHintMinSizeGb).trim() !== "") {
-          hints.minSizeGigabytes = Number(node.rootDeviceHintMinSizeGb);
-        }
-        return Object.keys(hints).length > 0 ? hints : undefined;
-      })(),
+      rootDeviceHints: buildRootDeviceHints(node),
       networkConfig: nmState
     };
   });
