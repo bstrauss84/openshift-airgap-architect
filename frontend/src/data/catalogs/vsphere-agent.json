@@ -1285,16 +1285,16 @@
       "allowed": "key-value pairs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Provision RHCOS to a particular device. First device matching hints is used.",
+      "description": "Provision RHCOS to a particular device. First discovered device that matches all provided hints is used.",
       "applies_to": [
         "vsphere-agent"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.2.2. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
         }
       ]
     },
@@ -1302,19 +1302,162 @@
       "path": "hosts[].rootDeviceHints.deviceName",
       "outputFile": "agent-config.yaml",
       "type": "string",
-      "allowed": "not specified in docs",
+      "allowed": "Linux device name (for example, /dev/disk/by-path/...)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Name of device the RHCOS image is provisioned to.",
+      "description": "Exact-match device path for installation target.",
       "applies_to": [
         "vsphere-agent"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.2.2. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.hctl",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "SCSI address (for example, 0:0:0:0)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact-match SCSI bus address for installation target.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.model",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "substring match",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Device model hint (substring match).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.vendor",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "substring match",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Device vendor hint (substring match).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.serialNumber",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "exact device serial number",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact serial number hint for installation target.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.minSizeGigabytes",
+      "outputFile": "agent-config.yaml",
+      "type": "int",
+      "allowed": "integer >= 0",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Minimum device size in gigabytes.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.wwn",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "exact world wide name",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact WWN hint for installation target.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.rotational",
+      "outputFile": "agent-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Require rotating media (true) or non-rotating media (false).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
         }
       ]
     },

@@ -2,7 +2,7 @@
  * Placeholder-values mode for sensitive disconnected-environment inputs.
  *
  * This pass intentionally focuses on the host-inventory-driven bare metal flows:
- * - hostInventory.nodes[] (hostname, MACs, rootDevice, static IPs/gateways, BMC for IPI)
+ * - hostInventory.nodes[] (hostname, MACs, rootDevice hints, static IPs/gateways, BMC for IPI)
  * - hostInventory VIPs (apiVip/ingressVip and v6 variants)
  *
  * The placeholder patterns are deterministic and valid enough to satisfy the app-side
@@ -28,7 +28,7 @@ export function placeholderV6(nodeIndex, hostOffset = 10) {
 }
 
 function placeholderRootDevice(nodeIndex) {
-  return `/dev/disk/by-id/placeholder-disk-${nodeIndex}`;
+  return `/dev/disk/by-path/pci-0000:00:${String(16 + nodeIndex).padStart(2, "0")}.0-ata-1`;
 }
 
 function placeholderBmcAddress(nodeIndex) {
