@@ -162,6 +162,13 @@ export const emptyNode = (role, index, hostnamePrefix = null) => {
     hostname: `${prefix}-${index}`,
     hostnameUseFqdn: false,
     rootDevice: "",
+    rootDeviceHintHctl: "",
+    rootDeviceHintModel: "",
+    rootDeviceHintVendor: "",
+    rootDeviceHintSerialNumber: "",
+    rootDeviceHintWwn: "",
+    rootDeviceHintMinSizeGb: "",
+    rootDeviceHintRotational: "",
     dnsServers: "",
     dnsSearch: "",
     bmc: { address: "", username: "", password: "", bootMACAddress: "", disableCertificateVerification: false },
@@ -294,7 +301,7 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
 
   return targetNodes.map((node) => {
     const next = { ...node };
-    // Arbiter nodes in bare-metal-agent intentionally hide Root device and Advanced (MTU/routes).
+    // Arbiter nodes in bare-metal-agent intentionally hide Root device hints and Advanced (MTU/routes).
     // Even if the modal user checked those copy options, do not apply them to arbiter targets.
     const isArbiterTarget = node?.role === "arbiter";
     const selectedFieldsForNode = isArbiterTarget
@@ -306,7 +313,16 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
     if (selectedFieldsForNode.has("dnsSearch")) next.dnsSearch = sourceNode.dnsSearch ?? "";
     if (selectedFieldsForNode.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
     if (selectedFieldsForNode.has("hostnameUseFqdn")) next.hostnameUseFqdn = !!sourceNode.hostnameUseFqdn;
-    if (selectedFieldsForNode.has("rootDevice")) next.rootDevice = sourceNode.rootDevice ?? "";
+    if (selectedFieldsForNode.has("rootDevice")) {
+      next.rootDevice = sourceNode.rootDevice ?? "";
+      next.rootDeviceHintHctl = sourceNode.rootDeviceHintHctl ?? "";
+      next.rootDeviceHintModel = sourceNode.rootDeviceHintModel ?? "";
+      next.rootDeviceHintVendor = sourceNode.rootDeviceHintVendor ?? "";
+      next.rootDeviceHintSerialNumber = sourceNode.rootDeviceHintSerialNumber ?? "";
+      next.rootDeviceHintWwn = sourceNode.rootDeviceHintWwn ?? "";
+      next.rootDeviceHintMinSizeGb = sourceNode.rootDeviceHintMinSizeGb ?? "";
+      next.rootDeviceHintRotational = sourceNode.rootDeviceHintRotational ?? "";
+    }
     if (selectedFieldsForNode.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
     if (
       [

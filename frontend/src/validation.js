@@ -182,7 +182,7 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
   const isArbiterNodeInBareMetalAgent =
     platform === "Bare Metal" && method === "Agent-Based Installer" && node.role === "arbiter";
   if (!node.rootDevice && !isArbiterNodeInBareMetalAgent) {
-    addWarning("rootDevice", "Root device hint is missing (by-id/by-path recommended).");
+    addWarning("rootDevice", "Root device hint is missing (by-path recommended when available).");
   }
   // Bare-metal IPI: BMC address, credentials (error if includeCredentials; else warning), boot MAC required.
   if (platform === "Bare Metal" && method === "IPI") {
