@@ -203,7 +203,12 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       logAction("generate_review", { stepId: "review" });
       setFiles(data.files || {});
     } catch (error) {
-      setGenerateError(String(error?.message || error));
+      const mismatch = error?.payload?.analysisHashMismatch;
+      if (mismatch) {
+        setGenerateError(`${String(error?.message || error)} Re-run trust analysis on Trust & Proxy, then explicitly choose original or reduced bundle.`);
+      } else {
+        setGenerateError(String(error?.message || error));
+      }
     } finally {
       setLoading(false);
     }
@@ -238,7 +243,12 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         }
       });
     } catch (error) {
-      setGenerateError(String(error?.message || error));
+      const mismatch = error?.payload?.analysisHashMismatch;
+      if (mismatch) {
+        setGenerateError(`${String(error?.message || error)} Re-run trust analysis on Trust & Proxy, then retry export.`);
+      } else {
+        setGenerateError(String(error?.message || error));
+      }
     } finally {
       setDownloading(false);
     }
@@ -497,6 +507,9 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <h3 style={{ margin: 0 }}>install-config.yaml</h3>
+            <span className="note">
+              Trust source: {state.trust?.bundleSelectionMode === "reduced" ? "Reduced (explicit opt-in)" : "Original"}
+            </span>
             {includeCredentials && installConfigContent ? (
               <button
                 type="button"

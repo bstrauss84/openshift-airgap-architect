@@ -361,6 +361,11 @@ const validateTrust = (state) => {
   if (effective.length && !policies.length) {
     warnings.push("Selected version is not supported for trust bundle policy; default behavior may be conservative.");
   }
+  if (trust.bundleSelectionMode === "reduced") {
+    if (!trust.reducedSelection?.analysisHash || !Array.isArray(trust.reducedSelection?.selectedCertFingerprints) || trust.reducedSelection.selectedCertFingerprints.length === 0) {
+      errors.push("Reduced trust bundle mode requires a current trust analysis and explicit reduced certificate selection.");
+    }
+  }
   return { errors, warnings };
 };
 

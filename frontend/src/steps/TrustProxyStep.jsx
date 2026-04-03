@@ -7,6 +7,7 @@ import React from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
 import { getTrustBundlePolicies } from "../shared/versionPolicy.js";
+import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
@@ -19,6 +20,12 @@ const trustBundleBlocks = (pem) =>
   (pem || "")
     .match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)
     ?.map((block) => block.trim()) || [];
+
+const DEFAULT_ANALYSIS_TRIGGER = {
+  explicitAnalyzeBytesThreshold: 128 * 1024,
+  explicitAnalyzeCertsThreshold: 40,
+  debounceMs: 1000
+};
 
 function PemField({ label, required, value, onChange, onFiles, error, placeholder }) {
   return (
@@ -54,16 +61,33 @@ export default function TrustProxyStep({ highlightErrors }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
   const strategy = state.globalStrategy || {};
+  const mirroring = strategy.mirroring || {};
   const proxies = strategy.proxies || {};
   const trust = state.trust || {};
   const selectedVersion = state.release?.patchVersion || state.version?.selectedVersion || "";
   const [proxyCaError, setProxyCaError] = React.useState("");
   const [mirrorCaError, setMirrorCaError] = React.useState("");
+  const [analysis, setAnalysis] = React.useState(null);
+  const [analysisError, setAnalysisError] = React.useState("");
+  const [analysisLoading, setAnalysisLoading] = React.useState(false);
+  const [triggerDefaults, setTriggerDefaults] = React.useState(DEFAULT_ANALYSIS_TRIGGER);
+  const [selectionInvalidated, setSelectionInvalidated] = React.useState(false);
+  const previousInvalidationKeyRef = React.useRef(null);
 
   const updateStrategy = (patch) => updateState({ globalStrategy: { ...strategy, ...patch } });
   const updateProxy = (field, value) =>
     updateStrategy({ proxies: { ...proxies, [field]: value } });
-  const updateTrust = (patch) => updateState({ trust: { ...trust, ...patch } });
+  const updateTrust = (patch) => {
+    const nextTrust = { ...trust, ...patch };
+    const touchesAnalysisInputs = Object.prototype.hasOwnProperty.call(patch, "mirrorRegistryCaPem")
+      || Object.prototype.hasOwnProperty.call(patch, "proxyCaPem");
+    if (touchesAnalysisInputs && nextTrust.bundleSelectionMode === "reduced") {
+      nextTrust.bundleSelectionMode = "original";
+      nextTrust.reducedSelection = null;
+      setSelectionInvalidated(true);
+    }
+    updateState({ trust: nextTrust });
+  };
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
@@ -87,6 +111,31 @@ export default function TrustProxyStep({ highlightErrors }) {
   const proxyBlocks = trustBundleBlocks(trust.proxyCaPem);
   const effectiveBundle = Array.from(new Set([...mirrorBlocks, ...proxyBlocks])).join("\n");
   const totalCerts = mirrorBlocks.length + proxyBlocks.length;
+  const bundleBytes = new TextEncoder().encode(effectiveBundle || "").length;
+  const needsExplicitAnalyze = bundleBytes >= (triggerDefaults.explicitAnalyzeBytesThreshold || DEFAULT_ANALYSIS_TRIGGER.explicitAnalyzeBytesThreshold)
+    || totalCerts >= (triggerDefaults.explicitAnalyzeCertsThreshold || DEFAULT_ANALYSIS_TRIGGER.explicitAnalyzeCertsThreshold);
+
+  const runTrustAnalysis = React.useCallback(async () => {
+    if (!effectiveBundle.trim()) {
+      setAnalysis(null);
+      setAnalysisError("");
+      return;
+    }
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    try {
+      const response = await apiFetch("/api/trust/analyze", {
+        method: "POST",
+        body: JSON.stringify({ state })
+      });
+      setAnalysis(response.analysis || null);
+      if (response.triggerDefaults) setTriggerDefaults(response.triggerDefaults);
+    } catch (error) {
+      setAnalysisError(String(error?.message || error));
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, [effectiveBundle, state]);
 
   const validatePemInput = (text, setError) => {
     if (!text) {
@@ -135,6 +184,51 @@ export default function TrustProxyStep({ highlightErrors }) {
     }
   }, [effectiveBundle, selectedVersion, strategy.proxyEnabled]);
 
+  React.useEffect(() => {
+    const invalidationKey = JSON.stringify({
+      mirrorPem: trust.mirrorRegistryCaPem || "",
+      proxyPem: trust.proxyCaPem || "",
+      httpProxy: proxies.httpProxy || "",
+      httpsProxy: proxies.httpsProxy || "",
+      registryFqdn: mirroring.registryFqdn || "",
+      mirrorTargets: (mirroring.sources || []).flatMap((row) => row?.mirrors || []),
+      fips: Boolean(strategy.fips)
+    });
+    if (previousInvalidationKeyRef.current == null) {
+      previousInvalidationKeyRef.current = invalidationKey;
+      return;
+    }
+    if (previousInvalidationKeyRef.current !== invalidationKey && trust.bundleSelectionMode === "reduced") {
+      updateState({
+        trust: {
+          ...trust,
+          bundleSelectionMode: "original",
+          reducedSelection: null
+        }
+      });
+      setSelectionInvalidated(true);
+    }
+    previousInvalidationKeyRef.current = invalidationKey;
+  }, [
+    trust.mirrorRegistryCaPem,
+    trust.proxyCaPem,
+    trust.bundleSelectionMode,
+    proxies.httpProxy,
+    proxies.httpsProxy,
+    mirroring.registryFqdn,
+    JSON.stringify((mirroring.sources || []).flatMap((row) => row?.mirrors || [])),
+    strategy.fips
+  ]);
+
+  React.useEffect(() => {
+    if (!effectiveBundle.trim()) return;
+    if (needsExplicitAnalyze) return;
+    const timeout = setTimeout(() => {
+      runTrustAnalysis().catch(() => {});
+    }, triggerDefaults.debounceMs || DEFAULT_ANALYSIS_TRIGGER.debounceMs);
+    return () => clearTimeout(timeout);
+  }, [effectiveBundle, needsExplicitAnalyze, runTrustAnalysis, triggerDefaults.debounceMs]);
+
   const proxyErrors = {};
   if (strategy.proxyEnabled) {
     if (proxies.httpProxy && !proxies.httpProxy.startsWith("http://")) {
@@ -147,6 +241,33 @@ export default function TrustProxyStep({ highlightErrors }) {
 
   const proxyCardHasErrors = Boolean(proxyErrors.httpProxy || proxyErrors.httpsProxy);
   const trustCardHasErrors = Boolean(mirrorCaError || proxyCaError);
+  const reducedAvailable = Boolean(analysis?.proposal?.available);
+  const reducedConfidence = analysis?.proposal?.confidence || "unable_to_classify";
+  const analysisHash = analysis?.analysisHash || "";
+
+  const selectReducedProposal = () => {
+    if (!analysis?.proposal?.available) return;
+    updateState({
+      trust: {
+        ...trust,
+        bundleSelectionMode: "reduced",
+        reducedSelection: {
+          analysisHash: analysis.analysisHash,
+          selectedCertFingerprints: analysis.proposal.selectedCertFingerprints || []
+        }
+      }
+    });
+    setSelectionInvalidated(false);
+  };
+
+  const selectOriginalBundle = () => {
+    updateState({
+      trust: {
+        ...trust,
+        bundleSelectionMode: "original"
+      }
+    });
+  };
 
   return (
     <div className="step">
@@ -334,9 +455,91 @@ export default function TrustProxyStep({ highlightErrors }) {
               )}
             </div>
 
+            {selectionInvalidated ? (
+              <Banner variant="warning">
+                Reduced trust selection was invalidated due to trust/proxy input changes. Re-run analysis and explicitly reselect reduced mode if desired.
+                <div className="actions">
+                  <Button variant="secondary" onClick={() => setSelectionInvalidated(false)}>
+                    Dismiss
+                  </Button>
+                </div>
+              </Banner>
+            ) : null}
+
+            <div className="trust-analysis card" style={{ marginTop: 12 }}>
+              <div className="card-header">
+                <div>
+                  <h4 className="card-title">Trust analysis</h4>
+                  <p className="card-subtitle">Warn-only analysis with explicit reduced-bundle opt-in.</p>
+                </div>
+                <div className="actions">
+                  <Button
+                    variant="secondary"
+                    onClick={() => runTrustAnalysis().catch(() => {})}
+                    disabled={analysisLoading || !effectiveBundle.trim()}
+                  >
+                    {analysisLoading ? "Analyzing..." : "Analyze trust bundle"}
+                  </Button>
+                </div>
+              </div>
+              <div className="card-body">
+                {needsExplicitAnalyze ? (
+                  <p className="note">
+                    Large bundle detected. Explicit analysis mode is enabled to avoid expensive background parsing.
+                  </p>
+                ) : null}
+                {analysisError ? <Banner variant="error">Trust analysis failed: {analysisError}</Banner> : null}
+                {!analysis && !analysisLoading ? (
+                  <div className="note">Run analysis to view risk, confidence, and reduced-bundle eligibility.</div>
+                ) : null}
+                {analysis ? (
+                  <div className="trust-analysis-results">
+                    <p className="note">
+                      Risk band: <strong>{analysis.risk?.band || "unknown"}</strong> (score {analysis.risk?.score ?? "n/a"}) | Confidence: <strong>{reducedConfidence}</strong>
+                    </p>
+                    <p className="note">
+                      Valid certs: {analysis.inventory?.validCertificates ?? 0}, malformed: {analysis.inventory?.malformedBlocks ?? 0}, duplicate noise: {analysis.inventory?.duplicateNoiseCount ?? 0}
+                    </p>
+                    <p className="note">Analysis hash: <code>{analysisHash || "n/a"}</code></p>
+                    <p className="note">
+                      FIPS findings: {(analysis.fips?.findings || []).length} total (
+                      cryptographic weakness: {(analysis.fips?.findings || []).filter((f) => f.category === "cryptographic_weakness").length},
+                      hygiene/validity: {(analysis.fips?.findings || []).filter((f) => f.category === "certificate_hygiene_validity").length},
+                      chain/issuer misuse: {(analysis.fips?.findings || []).filter((f) => f.category === "chain_or_issuer_misuse").length},
+                      unknown/ambiguous: {(analysis.fips?.findings || []).filter((f) => f.category === "unknown_or_ambiguous").length}
+                      )
+                    </p>
+                    {reducedAvailable ? (
+                      <div className="actions" style={{ gap: 8 }}>
+                        <Button
+                          variant={trust.bundleSelectionMode === "reduced" ? "primary" : "secondary"}
+                          onClick={selectReducedProposal}
+                        >
+                          Use reduced proposal ({analysis.proposal?.selectedCertFingerprints?.length || 0} certs)
+                        </Button>
+                        <Button
+                          variant={trust.bundleSelectionMode !== "reduced" ? "primary" : "secondary"}
+                          onClick={selectOriginalBundle}
+                        >
+                          Use original bundle
+                        </Button>
+                      </div>
+                    ) : (
+                      <Banner variant="warning">
+                        Reduced proposal is unavailable for these inputs ({reducedConfidence}). Keep original bundle and resolve warnings.
+                      </Banner>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
             <div className="trust-bundle-preview">
               <div className="trust-bundle-preview-header">
                 <span className="trust-bundle-preview-title">Combined trust bundle (preview)</span>
+                <span className="note" style={{ marginLeft: 8 }}>
+                  Source: {trust.bundleSelectionMode === "reduced" ? "Reduced (explicit opt-in)" : "Original"}
+                </span>
                 {totalCerts > 0 ? (
                   <span className="trust-bundle-preview-badge">
                     {totalCerts} certificate{totalCerts !== 1 ? "s" : ""}
