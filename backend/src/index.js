@@ -42,7 +42,11 @@ import {
 } from "./feedback.js";
 import { createInMemoryRateLimiter } from "./feedbackRateLimit.js";
 import { ANALYSIS_TRIGGER_DEFAULTS } from "./trustAnalysis/riskConstants.js";
-import { TrustAnalysisHashMismatchError, analyzeTrustState } from "./trustAnalysis/index.js";
+import {
+  TrustAnalysisHashMismatchError,
+  TrustSelectionHardLimitError,
+  analyzeTrustState
+} from "./trustAnalysis/index.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -417,7 +421,10 @@ const TRUST_ANALYSIS_CACHE_MAX = 128;
 
 const getCachedTrustAnalysis = (state) => {
   const analysis = analyzeTrustState(state);
-  const key = analysis.analysisHash;
+  const selection = state?.trust?.bundleSelectionMode === "reduced"
+    ? JSON.stringify(state?.trust?.reducedSelection?.selectedCertFingerprints || [])
+    : "original";
+  const key = `${analysis.analysisHash}:${state?.trust?.bundleSelectionMode || "original"}:${selection}`;
   const now = Date.now();
   const cached = trustAnalysisCache.get(key);
   if (cached && now - cached.timestamp <= TRUST_ANALYSIS_CACHE_TTL_MS) {
@@ -1834,6 +1841,14 @@ app.get("/api/generate", (req, res) => {
         details: error.details || {}
       });
     }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
+        details: error.details || {}
+      });
+    }
     return res.status(500).json({ error: String(error?.message || error) });
   }
 });
@@ -1851,6 +1866,14 @@ app.post("/api/generate", (req, res) => {
         error: error.message,
         code: error.code,
         analysisHashMismatch: true,
+        details: error.details || {}
+      });
+    }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
         details: error.details || {}
       });
     }
@@ -2016,6 +2039,14 @@ app.get("/api/bundle.zip", async (req, res) => {
         details: error.details || {}
       });
     }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
+        details: error.details || {}
+      });
+    }
     return res.status(500).json({ error: String(error?.message || error) });
   }
 });
@@ -2031,6 +2062,14 @@ app.post("/api/bundle.zip", async (req, res) => {
         error: error.message,
         code: error.code,
         analysisHashMismatch: true,
+        details: error.details || {}
+      });
+    }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
         details: error.details || {}
       });
     }

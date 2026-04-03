@@ -50,6 +50,44 @@ test("POST /api/trust/analyze returns analysis payload", async () => {
     assert.ok(data.analysis);
     assert.ok(data.analysis.analysisHash);
     assert.ok(data.triggerDefaults);
+    assert.ok(data.analysis.currentSelectionSummary);
+    assert.ok(Array.isArray(data.analysis.certs));
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/trust/analyze includes current selection summary shape", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const state = {
+      trust: {
+        mirrorRegistryCaPem: TEST_CA_PEM,
+        proxyCaPem: "",
+        additionalTrustBundlePolicy: "Always",
+        bundleSelectionMode: "reduced",
+        reducedSelection: {
+          analysisHash: "placeholder-hash",
+          selectedCertFingerprints: [],
+          userModified: true
+        }
+      },
+      globalStrategy: {
+        fips: false,
+        mirroring: { registryFqdn: "registry.local:5000", sources: [] },
+        proxies: { httpProxy: "", httpsProxy: "" }
+      }
+    };
+    const res = await fetch(`${baseUrl}/api/trust/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state })
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.analysis.currentSelectionSummary);
+    assert.ok(data.analysis.currentSelectionSummary.thresholds);
+    assert.ok(["within_recommended", "caution_exceeded", "hard_max_exceeded"].includes(data.analysis.currentSelectionSummary.thresholdBand));
   } finally {
     server.close();
   }

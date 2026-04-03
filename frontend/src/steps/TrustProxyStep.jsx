@@ -27,6 +27,41 @@ const DEFAULT_ANALYSIS_TRIGGER = {
   debounceMs: 1000
 };
 
+const CERT_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "selected", label: "Selected" },
+  { id: "excluded", label: "Excluded" },
+  { id: "likely_required", label: "Likely required" },
+  { id: "likely_optional", label: "Likely optional" },
+  { id: "kept_due_to_ambiguity", label: "Ambiguous" },
+  { id: "flagged_risky_or_problematic", label: "Risky/problematic" },
+  { id: "mirror_related", label: "Mirror-related" },
+  { id: "proxy_related", label: "Proxy-related" }
+];
+
+const classifyStatusTone = (band) => {
+  if (band === "hard_max_exceeded") return "warning";
+  if (band === "caution_exceeded") return "warning";
+  return "";
+};
+
+const summarizeReason = (code) => {
+  switch (code) {
+    case "root_anchor_candidate":
+      return "Selected as likely root anchor";
+    case "intermediate_candidate":
+      return "Selected as likely intermediate";
+    case "issuer_chain_parent":
+      return "Selected as likely issuer-chain parent";
+    case "endpoint_linked":
+      return "Endpoint-linked signal found";
+    case "excluded_leaf_default":
+      return "Excluded as likely leaf/server cert";
+    default:
+      return code.replaceAll("_", " ");
+  }
+};
+
 function PemField({ label, required, value, onChange, onFiles, error, placeholder }) {
   return (
     <div className="trust-pem-field">
@@ -72,6 +107,8 @@ export default function TrustProxyStep({ highlightErrors }) {
   const [analysisLoading, setAnalysisLoading] = React.useState(false);
   const [triggerDefaults, setTriggerDefaults] = React.useState(DEFAULT_ANALYSIS_TRIGGER);
   const [selectionInvalidated, setSelectionInvalidated] = React.useState(false);
+  const [certSearch, setCertSearch] = React.useState("");
+  const [certFilter, setCertFilter] = React.useState("selected");
   const previousInvalidationKeyRef = React.useRef(null);
 
   const updateStrategy = (patch) => updateState({ globalStrategy: { ...strategy, ...patch } });
@@ -130,12 +167,30 @@ export default function TrustProxyStep({ highlightErrors }) {
       });
       setAnalysis(response.analysis || null);
       if (response.triggerDefaults) setTriggerDefaults(response.triggerDefaults);
+      const nextSummary = response.analysis?.currentSelectionSummary || null;
+      const currentSummary = trust.reducedSelection?.selectionSummary || null;
+      if (
+        trust.bundleSelectionMode === "reduced"
+        && trust.reducedSelection
+        && nextSummary
+        && JSON.stringify(nextSummary) !== JSON.stringify(currentSummary)
+      ) {
+        updateState({
+          trust: {
+            ...trust,
+            reducedSelection: {
+              ...trust.reducedSelection,
+              selectionSummary: nextSummary
+            }
+          }
+        });
+      }
     } catch (error) {
       setAnalysisError(String(error?.message || error));
     } finally {
       setAnalysisLoading(false);
     }
-  }, [effectiveBundle, state]);
+  }, [effectiveBundle, state, trust, updateState]);
 
   const validatePemInput = (text, setError) => {
     if (!text) {
@@ -244,30 +299,99 @@ export default function TrustProxyStep({ highlightErrors }) {
   const reducedAvailable = Boolean(analysis?.proposal?.available);
   const reducedConfidence = analysis?.proposal?.confidence || "unable_to_classify";
   const analysisHash = analysis?.analysisHash || "";
+  const reducedSelection = trust.reducedSelection || null;
+  const selectedFingerprints = trust.bundleSelectionMode === "reduced"
+    ? (reducedSelection?.selectedCertFingerprints || [])
+    : (analysis?.proposal?.selectedCertFingerprints || []);
+  const certs = analysis?.certs || [];
+  const selectedSet = new Set(selectedFingerprints);
+  const selectedSummary = analysis?.currentSelectionSummary || reducedSelection?.selectionSummary || null;
+  const hardMaxExceeded = selectedSummary?.thresholdBand === "hard_max_exceeded";
+  const cautionExceeded = selectedSummary?.thresholdBand === "caution_exceeded";
+  const cautionAcknowledged = Boolean(reducedSelection?.cautionAcknowledged);
+  const userModified = Boolean(reducedSelection?.userModified);
 
-  const selectReducedProposal = () => {
-    if (!analysis?.proposal?.available) return;
+  const filteredCerts = certs.filter((cert) => {
+    const haystack = [
+      cert.subject || "",
+      cert.issuer || "",
+      cert.fingerprintSha256 || "",
+      ...(cert.sanDns || [])
+    ].join(" ").toLowerCase();
+    const searchMatch = !certSearch.trim() || haystack.includes(certSearch.trim().toLowerCase());
+    if (!searchMatch) return false;
+    const selected = selectedSet.has(cert.fingerprintSha256);
+    if (certFilter === "all") return true;
+    if (certFilter === "selected") return selected;
+    if (certFilter === "excluded") return !selected;
+    if (certFilter === "mirror_related") return cert.mirrorRelated;
+    if (certFilter === "proxy_related") return cert.proxyRelated;
+    return cert.classification === certFilter;
+  });
+
+  const pushReducedSelection = (nextFingerprints, options = {}) => {
+    const sorted = Array.from(new Set(nextFingerprints || [])).sort();
     updateState({
       trust: {
         ...trust,
         bundleSelectionMode: "reduced",
         reducedSelection: {
-          analysisHash: analysis.analysisHash,
-          selectedCertFingerprints: analysis.proposal.selectedCertFingerprints || []
+          analysisHash: analysisHash,
+          selectedCertFingerprints: sorted,
+          baseProposalFingerprints: analysis?.proposal?.selectedCertFingerprints || [],
+          userModified: Boolean(options.userModified),
+          cautionAcknowledged: Boolean(options.cautionAcknowledged),
+          selectionSummary: analysis?.currentSelectionSummary || null
         }
       }
     });
     setSelectionInvalidated(false);
   };
 
+  const selectReducedProposal = () => {
+    if (!analysis?.proposal?.available) return;
+    pushReducedSelection(analysis.proposal.selectedCertFingerprints || [], {
+      userModified: false,
+      cautionAcknowledged: false
+    });
+  };
+
   const selectOriginalBundle = () => {
     updateState({
       trust: {
         ...trust,
-        bundleSelectionMode: "original"
+        bundleSelectionMode: "original",
+        reducedSelection: null
       }
     });
   };
+
+  const toggleCertSelection = (fingerprint, checked) => {
+    const next = new Set(selectedFingerprints || []);
+    if (checked) next.add(fingerprint);
+    else next.delete(fingerprint);
+    pushReducedSelection(Array.from(next), {
+      userModified: true,
+      cautionAcknowledged: false
+    });
+  };
+
+  const resetToProposal = () => {
+    if (!analysis?.proposal?.available) return;
+    pushReducedSelection(analysis.proposal.selectedCertFingerprints || [], {
+      userModified: false,
+      cautionAcknowledged: false
+    });
+  };
+
+  React.useEffect(() => {
+    if (trust.bundleSelectionMode !== "reduced") return;
+    if (!analysis) return;
+    const timeout = setTimeout(() => {
+      runTrustAnalysis().catch(() => {});
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [trust.bundleSelectionMode, JSON.stringify(selectedFingerprints), analysisHash]);
 
   return (
     <div className="step">
@@ -510,7 +634,7 @@ export default function TrustProxyStep({ highlightErrors }) {
                       )
                     </p>
                     {reducedAvailable ? (
-                      <div className="actions" style={{ gap: 8 }}>
+                      <div className="actions" style={{ gap: 8, flexWrap: "wrap" }}>
                         <Button
                           variant={trust.bundleSelectionMode === "reduced" ? "primary" : "secondary"}
                           onClick={selectReducedProposal}
@@ -523,12 +647,114 @@ export default function TrustProxyStep({ highlightErrors }) {
                         >
                           Use original bundle
                         </Button>
+                        {trust.bundleSelectionMode === "reduced" ? (
+                          <Button variant="secondary" onClick={resetToProposal}>
+                            Reset to backend proposal
+                          </Button>
+                        ) : null}
                       </div>
                     ) : (
                       <Banner variant="warning">
                         Reduced proposal is unavailable for these inputs ({reducedConfidence}). Keep original bundle and resolve warnings.
                       </Banner>
                     )}
+                    {trust.bundleSelectionMode === "reduced" ? (
+                      <div className="note" style={{ marginTop: 10 }}>
+                        Reduced mode: {userModified ? "Reduced + manual overrides" : "Backend proposal only"}.
+                      </div>
+                    ) : null}
+                    {selectedSummary ? (
+                      <div className="note" style={{ marginTop: 10 }}>
+                        Selected set: {selectedSummary.selectedCertCount} certs, {selectedSummary.selectedBytes} bytes, {selectedSummary.selectedLineCount} lines. Status: <strong>{selectedSummary.thresholdBand}</strong>.
+                        <br />
+                        Mirror trust path: <strong>{selectedSummary.sufficiency?.mirrorPath?.status || "unknown"}</strong> ({selectedSummary.sufficiency?.mirrorPath?.confidence || "unknown"}). Proxy trust path: <strong>{selectedSummary.sufficiency?.proxyPath?.status || "unknown"}</strong> ({selectedSummary.sufficiency?.proxyPath?.confidence || "unknown"}).
+                      </div>
+                    ) : null}
+                    {cautionExceeded && trust.bundleSelectionMode === "reduced" ? (
+                      <Banner variant="warning">
+                        Selected reduced bundle exceeds caution thresholds. Review and trim if possible.
+                        <label style={{ display: "block", marginTop: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={cautionAcknowledged}
+                            onChange={(e) => {
+                              pushReducedSelection(selectedFingerprints, {
+                                userModified,
+                                cautionAcknowledged: e.target.checked
+                              });
+                            }}
+                          />
+                          <span style={{ marginLeft: 8 }}>I acknowledge this caution and want to proceed with reduced mode.</span>
+                        </label>
+                      </Banner>
+                    ) : null}
+                    {hardMaxExceeded && trust.bundleSelectionMode === "reduced" ? (
+                      <Banner variant="error">
+                        Selected reduced bundle exceeds hard maximum thresholds and cannot be exported in reduced mode. Deselect certificates or switch back to original bundle mode.
+                      </Banner>
+                    ) : null}
+                    {trust.bundleSelectionMode === "reduced" && certs.length ? (
+                      <div style={{ marginTop: 12 }}>
+                        <h4 style={{ marginBottom: 8 }}>Reduced bundle manual cert review</h4>
+                        <div className="trust-cert-toolbar">
+                          <input
+                            className="proxy-field-input"
+                            value={certSearch}
+                            onChange={(e) => setCertSearch(e.target.value)}
+                            placeholder="Search subject, issuer, SAN, fingerprint"
+                          />
+                          <select
+                            className="trust-policy-select"
+                            value={certFilter}
+                            onChange={(e) => setCertFilter(e.target.value)}
+                          >
+                            {CERT_FILTERS.map((f) => (
+                              <option key={f.id} value={f.id}>{f.label}</option>
+                            ))}
+                          </select>
+                          <span className={`badge ${classifyStatusTone(selectedSummary?.thresholdBand) || ""}`}>
+                            Showing {filteredCerts.length} of {certs.length}
+                          </span>
+                        </div>
+                        <div className="trust-cert-list">
+                          {filteredCerts.map((cert) => {
+                            const selected = selectedSet.has(cert.fingerprintSha256);
+                            return (
+                              <details key={cert.fingerprintSha256} className="trust-cert-row">
+                                <summary>
+                                  <label className="trust-cert-summary">
+                                    <input
+                                      type="checkbox"
+                                      checked={selected}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        toggleCertSelection(cert.fingerprintSha256, e.target.checked);
+                                      }}
+                                    />
+                                    <span className="trust-cert-primary">
+                                      {cert.subject || cert.fingerprintSha256}
+                                    </span>
+                                    <span className="trust-cert-pill">{cert.classification}</span>
+                                  </label>
+                                </summary>
+                                <div className="note" style={{ marginTop: 8 }}>
+                                  Issuer: {cert.issuer || "n/a"}
+                                  <br />
+                                  Fingerprint: <code>{cert.fingerprintSha256}</code>
+                                  <br />
+                                  Type: {cert.isCa ? "CA" : "Leaf/unknown"}; key: {cert.keyType}{cert.keySize ? `/${cert.keySize}` : ""}
+                                  <br />
+                                  Reasons: {(cert.reasonCodes || []).length ? cert.reasonCodes.map((r) => summarizeReason(r)).join(", ") : "None"}
+                                </div>
+                              </details>
+                            );
+                          })}
+                          {!filteredCerts.length ? (
+                            <div className="note">No certificates match this filter/search.</div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -536,9 +762,9 @@ export default function TrustProxyStep({ highlightErrors }) {
 
             <div className="trust-bundle-preview">
               <div className="trust-bundle-preview-header">
-                <span className="trust-bundle-preview-title">Combined trust bundle (preview)</span>
+                <span className="trust-bundle-preview-title">Combined trust bundle input (preview)</span>
                 <span className="note" style={{ marginLeft: 8 }}>
-                  Source: {trust.bundleSelectionMode === "reduced" ? "Reduced (explicit opt-in)" : "Original"}
+                  This preview shows raw mirror/proxy input PEMs. Reduced/manual output is enforced during generation/export.
                 </span>
                 {totalCerts > 0 ? (
                   <span className="trust-bundle-preview-badge">

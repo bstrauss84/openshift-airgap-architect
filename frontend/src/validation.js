@@ -365,6 +365,13 @@ const validateTrust = (state) => {
     if (!trust.reducedSelection?.analysisHash || !Array.isArray(trust.reducedSelection?.selectedCertFingerprints) || trust.reducedSelection.selectedCertFingerprints.length === 0) {
       errors.push("Reduced trust bundle mode requires a current trust analysis and explicit reduced certificate selection.");
     }
+    const band = trust.reducedSelection?.selectionSummary?.thresholdBand;
+    if (band === "hard_max_exceeded") {
+      errors.push("Reduced trust selection exceeds hard maximum thresholds. Reduce selected certificates or switch to original bundle mode.");
+    }
+    if (band === "caution_exceeded" && !trust.reducedSelection?.cautionAcknowledged) {
+      errors.push("Reduced trust selection exceeds caution thresholds and requires explicit acknowledgment in Trust & Proxy.");
+    }
   }
   return { errors, warnings };
 };

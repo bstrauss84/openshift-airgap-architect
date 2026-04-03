@@ -204,8 +204,11 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       setFiles(data.files || {});
     } catch (error) {
       const mismatch = error?.payload?.analysisHashMismatch;
+      const hardLimit = error?.payload?.trustSelectionHardLimitExceeded;
       if (mismatch) {
         setGenerateError(`${String(error?.message || error)} Re-run trust analysis on Trust & Proxy, then explicitly choose original or reduced bundle.`);
+      } else if (hardLimit) {
+        setGenerateError(`${String(error?.message || error)} Go to Trust & Proxy and reduce selected certificates or switch to original bundle.`);
       } else {
         setGenerateError(String(error?.message || error));
       }
@@ -244,8 +247,11 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       });
     } catch (error) {
       const mismatch = error?.payload?.analysisHashMismatch;
+      const hardLimit = error?.payload?.trustSelectionHardLimitExceeded;
       if (mismatch) {
         setGenerateError(`${String(error?.message || error)} Re-run trust analysis on Trust & Proxy, then retry export.`);
+      } else if (hardLimit) {
+        setGenerateError(`${String(error?.message || error)} Reduced selection is above hard maximum; adjust selection first.`);
       } else {
         setGenerateError(String(error?.message || error));
       }
@@ -314,6 +320,11 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   }, []);
 
   const installConfigContent = files["install-config.yaml"];
+  const trustSelectionSummary = state.trust?.reducedSelection?.selectionSummary || null;
+  const trustMode = state.trust?.bundleSelectionMode === "reduced" ? "Reduced" : "Original";
+  const trustModeDetail = state.trust?.bundleSelectionMode === "reduced"
+    ? (state.trust?.reducedSelection?.userModified ? "Reduced + manual overrides" : "Reduced proposal only")
+    : "Original input bundle";
   const installConfigDisplay = (() => {
     if (!installConfigContent) return installConfigContent;
     if (!includeCredentials) {
@@ -508,7 +519,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <h3 style={{ margin: 0 }}>install-config.yaml</h3>
             <span className="note">
-              Trust source: {state.trust?.bundleSelectionMode === "reduced" ? "Reduced (explicit opt-in)" : "Original"}
+              Trust source: {trustModeDetail}
             </span>
             {includeCredentials && installConfigContent ? (
               <button
@@ -526,6 +537,21 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
             content={installConfigDisplay}
             placeholder="Not generated yet."
           />
+        </div>
+        <div className="card">
+          <h3>Trust selection summary</h3>
+          <p className="note">
+            Mode: <strong>{trustMode}</strong>.
+            {trustSelectionSummary ? (
+              <>
+                {" "}Selected certs: <strong>{trustSelectionSummary.selectedCertCount}</strong>, excluded: <strong>{trustSelectionSummary.excludedCertCount}</strong>, bytes: <strong>{trustSelectionSummary.selectedBytes}</strong>, status: <strong>{trustSelectionSummary.thresholdBand}</strong>.
+                <br />
+                Sufficiency: mirror <strong>{trustSelectionSummary.sufficiency?.mirrorPath?.status || "unknown"}</strong>, proxy <strong>{trustSelectionSummary.sufficiency?.proxyPath?.status || "unknown"}</strong>, overall <strong>{trustSelectionSummary.sufficiency?.overallStatus || "unknown"}</strong>.
+              </>
+            ) : (
+              " Reduced-mode selection summary appears after running trust analysis."
+            )}
+          </p>
         </div>
 
         {files["agent-config.yaml"] ? (

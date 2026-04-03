@@ -26,3 +26,13 @@ export const ANALYSIS_TRIGGER_DEFAULTS = {
   debounceMs: 1000
 };
 
+// Selected reduced bundle guardrails.
+// caution: warn + explicit user acknowledgment
+// hardMax: backend-enforced rejection for reduced-mode generation
+export const REDUCED_SELECTION_THRESHOLDS = {
+  cautionBytes: 128 * 1024,
+  hardMaxBytes: 512 * 1024,
+  cautionCertCount: 40,
+  hardMaxCertCount: 160
+};
+

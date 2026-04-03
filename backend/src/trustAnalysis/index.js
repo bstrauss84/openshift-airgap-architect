@@ -1,11 +1,25 @@
 import { createHash, X509Certificate } from "node:crypto";
-import { RISK_BANDS, RISK_SCORING_DEFAULTS, TRUST_ANALYSIS_SCHEMA_VERSION } from "./riskConstants.js";
+import {
+  REDUCED_SELECTION_THRESHOLDS,
+  RISK_BANDS,
+  RISK_SCORING_DEFAULTS,
+  TRUST_ANALYSIS_SCHEMA_VERSION
+} from "./riskConstants.js";
 
 class TrustAnalysisHashMismatchError extends Error {
   constructor(message, details = {}) {
     super(message);
     this.name = "TrustAnalysisHashMismatchError";
     this.code = "TRUST_ANALYSIS_HASH_MISMATCH";
+    this.details = details;
+  }
+}
+
+class TrustSelectionHardLimitError extends Error {
+  constructor(message, details = {}) {
+    super(message);
+    this.name = "TrustSelectionHardLimitError";
+    this.code = "TRUST_SELECTION_HARD_LIMIT_EXCEEDED";
     this.details = details;
   }
 }
@@ -39,18 +53,24 @@ const parseHost = (input) => {
 const extractEndpointHosts = (state) => {
   const mirroring = state?.globalStrategy?.mirroring || {};
   const proxies = state?.globalStrategy?.proxies || {};
-  const hosts = new Set();
-  const add = (v) => {
+  const mirrorHosts = new Set();
+  const proxyHosts = new Set();
+  const add = (setRef, v) => {
     const h = parseHost(v);
-    if (h) hosts.add(h);
+    if (h) setRef.add(h);
   };
-  add(mirroring.registryFqdn);
+  add(mirrorHosts, mirroring.registryFqdn);
   (mirroring.sources || []).forEach((row) => {
-    (row?.mirrors || []).forEach((mirror) => add(mirror));
+    (row?.mirrors || []).forEach((mirror) => add(mirrorHosts, mirror));
   });
-  add(proxies.httpProxy);
-  add(proxies.httpsProxy);
-  return Array.from(hosts).sort();
+  add(proxyHosts, proxies.httpProxy);
+  add(proxyHosts, proxies.httpsProxy);
+  const hosts = new Set([...mirrorHosts, ...proxyHosts]);
+  return {
+    all: Array.from(hosts).sort(),
+    mirror: Array.from(mirrorHosts).sort(),
+    proxy: Array.from(proxyHosts).sort()
+  };
 };
 
 const parseCertRecord = (entry) => {
@@ -387,7 +407,7 @@ const computeHash = (input) => createHash("sha256").update(input).digest("hex");
 const minimizeBundle = ({ validRecords, endpointHosts, graph }) => {
   const reasonsByFingerprint = {};
   const endpointLinked = new Set();
-  const endpointSans = endpointHosts.map((h) => h.split(":")[0]);
+  const endpointSans = endpointHosts.all.map((h) => h.split(":")[0]);
   for (const cert of validRecords) {
     const hit = cert.sanDns.some((dns) => endpointSans.includes(dns));
     if (hit) endpointLinked.add(cert.fingerprintSha256);
@@ -499,7 +519,7 @@ const analyzeTrustState = (state) => {
   const chainAmbiguityCount = Array.from(graph.parentsByChild.values()).filter((parents) => parents.length > 1).length;
   const leafCount = dedupedValid.filter((cert) => !cert.isCa).length;
   const clusterCount = graph.clusters.length;
-  const unrelatedClusterCount = Math.max(0, clusterCount - (endpointHosts.length ? 1 : 0));
+  const unrelatedClusterCount = Math.max(0, clusterCount - (endpointHosts.all.length ? 1 : 0));
   const bundleBytes = Buffer.byteLength(normalizeNewlines(`${trust.mirrorRegistryCaPem || ""}\n${trust.proxyCaPem || ""}`), "utf8");
   const lineCount = normalizeNewlines(`${trust.mirrorRegistryCaPem || ""}\n${trust.proxyCaPem || ""}`).split("\n").length;
   const metrics = {
@@ -520,37 +540,119 @@ const analyzeTrustState = (state) => {
   const fipsFindings = categorizeFipsFindings(dedupedValid, chainFindings);
   const normalizedHashInput = buildNormalizedHashInput({
     validRecords: dedupedValid,
-    endpointHosts,
+    endpointHosts: endpointHosts.all,
     fips: state?.globalStrategy?.fips
   });
   const analysisHash = computeHash(normalizedHashInput);
 
-  return {
-    analysisSchemaVersion: TRUST_ANALYSIS_SCHEMA_VERSION,
-    analysisHash,
-    triggerHints: {
-      bundleBytes,
-      certCount: dedupedValid.length
-    },
-    endpointHosts,
-    inventory: {
-      totalBlocks: parsedRecords.length,
-      validCertificates: dedupedValid.length,
-      malformedBlocks: malformedCount,
-      duplicateNoiseCount
-    },
-    metrics,
-    risk,
-    confidence,
-    proposal,
-    fips: {
-      enabled: Boolean(state?.globalStrategy?.fips),
-      findings: fipsFindings
-    },
-    certs: dedupedValid
-      .slice()
-      .sort((a, b) => a.fingerprintSha256.localeCompare(b.fingerprintSha256))
-      .map((cert) => ({
+  const selectedFromState = state?.trust?.bundleSelectionMode === "reduced"
+    ? (state?.trust?.reducedSelection?.selectedCertFingerprints || [])
+    : null;
+
+  const summarizeSelection = (selectedFingerprints) => {
+    const selectedSet = new Set((selectedFingerprints || []).filter(Boolean));
+    const selected = dedupedValid
+      .filter((cert) => selectedSet.has(cert.fingerprintSha256))
+      .sort((a, b) => a.fingerprintSha256.localeCompare(b.fingerprintSha256));
+    const selectedPem = selected.map((cert) => cert.rawPem).join("\n\n");
+    const selectedBytes = Buffer.byteLength(selectedPem, "utf8");
+    const selectedLineCount = normalizeNewlines(selectedPem).split("\n").length;
+
+    const thresholdFlags = {
+      overCaution: (
+        selectedBytes >= REDUCED_SELECTION_THRESHOLDS.cautionBytes
+        || selected.length >= REDUCED_SELECTION_THRESHOLDS.cautionCertCount
+      ),
+      overHardMax: (
+        selectedBytes >= REDUCED_SELECTION_THRESHOLDS.hardMaxBytes
+        || selected.length >= REDUCED_SELECTION_THRESHOLDS.hardMaxCertCount
+      )
+    };
+    const thresholdBand = thresholdFlags.overHardMax
+      ? "hard_max_exceeded"
+      : thresholdFlags.overCaution
+        ? "caution_exceeded"
+        : "within_recommended";
+
+    const selectedSans = new Set(
+      selected.flatMap((cert) => cert.sanDns || []).map((v) => String(v || "").toLowerCase())
+    );
+    const classifyCoverage = (hosts) => {
+      if (!hosts.length) return { status: "not_configured", confidence: "high", reason: "No endpoints configured for this path." };
+      const hostSans = hosts.map((host) => host.split(":")[0].toLowerCase());
+      const matched = hostSans.filter((host) => selectedSans.has(host));
+      if (matched.length > 0) {
+        return {
+          status: "likely_covered",
+          confidence: "best_effort",
+          reason: "Selected certificates include SAN matches for one or more configured endpoints."
+        };
+      }
+      const hasCa = selected.some((cert) => cert.isCa);
+      if (hasCa) {
+        return {
+          status: "uncertain",
+          confidence: "best_effort",
+          reason: "Selected set includes CA certificates, but static analysis cannot prove endpoint trust path coverage."
+        };
+      }
+      return {
+        status: "uncovered_or_unknown",
+        confidence: "low",
+        reason: "No endpoint SAN matches and no clear CA chain anchors found in selected set."
+      };
+    };
+
+    const mirrorCoverage = classifyCoverage(endpointHosts.mirror);
+    const proxyCoverage = classifyCoverage(endpointHosts.proxy);
+    const overallStatus = [mirrorCoverage.status, proxyCoverage.status].includes("uncovered_or_unknown")
+      ? "risky"
+      : [mirrorCoverage.status, proxyCoverage.status].includes("uncertain")
+        ? "best_effort_only"
+        : "likely_sufficient";
+    const overallConfidence = [mirrorCoverage.confidence, proxyCoverage.confidence].includes("low")
+      ? "low"
+      : [mirrorCoverage.confidence, proxyCoverage.confidence].includes("best_effort")
+        ? "best_effort"
+        : "high";
+
+    return {
+      selectedCertCount: selected.length,
+      excludedCertCount: Math.max(0, dedupedValid.length - selected.length),
+      selectedBytes,
+      selectedLineCount,
+      thresholdBand,
+      thresholdFlags,
+      thresholds: REDUCED_SELECTION_THRESHOLDS,
+      sufficiency: {
+        overallStatus,
+        overallConfidence,
+        mirrorPath: mirrorCoverage,
+        proxyPath: proxyCoverage
+      }
+    };
+  };
+
+  const proposalSelectionSummary = summarizeSelection(proposal.selectedCertFingerprints || []);
+  const currentSelectionFingerprints = Array.isArray(selectedFromState) && selectedFromState.length
+    ? selectedFromState
+    : (proposal.selectedCertFingerprints || []);
+  const currentSelectionSummary = summarizeSelection(currentSelectionFingerprints);
+  const proposalSet = new Set(proposal.selectedCertFingerprints || []);
+
+  const certDetails = dedupedValid
+    .slice()
+    .sort((a, b) => a.fingerprintSha256.localeCompare(b.fingerprintSha256))
+    .map((cert) => {
+      const reasonCodes = proposal.reasonsByFingerprint?.[cert.fingerprintSha256] || [];
+      const isSelectedInProposal = proposalSet.has(cert.fingerprintSha256);
+      const isSelectedNow = currentSelectionFingerprints.includes(cert.fingerprintSha256);
+      let classification = "unknown";
+      if (reasonCodes.includes("endpoint_linked") || reasonCodes.includes("issuer_chain_parent")) classification = "likely_required";
+      else if (reasonCodes.includes("excluded_leaf_default")) classification = "flagged_risky_or_problematic";
+      else if (isSelectedInProposal && reasonCodes.length) classification = "kept_due_to_ambiguity";
+      else if (!isSelectedInProposal) classification = "likely_optional";
+      return {
         certId: cert.certId,
         fingerprintSha256: cert.fingerprintSha256,
         fingerprintSha1: cert.fingerprintSha1,
@@ -566,8 +668,45 @@ const analyzeTrustState = (state) => {
         keyType: cert.keyType,
         keySize: cert.keySize,
         namedCurve: cert.namedCurve,
-        signatureAlgorithm: cert.signatureAlgorithm
-      })),
+        signatureAlgorithm: cert.signatureAlgorithm,
+        proposalStatus: isSelectedInProposal ? "selected" : "excluded",
+        currentSelectionStatus: isSelectedNow ? "selected" : "excluded",
+        reasonCodes,
+        classification,
+        mirrorRelated: cert.source === "mirror",
+        proxyRelated: cert.source === "proxy"
+      };
+    });
+
+  return {
+    analysisSchemaVersion: TRUST_ANALYSIS_SCHEMA_VERSION,
+    analysisHash,
+    triggerHints: {
+      bundleBytes,
+      certCount: dedupedValid.length
+    },
+    endpointHosts: endpointHosts.all,
+    endpointGroups: {
+      mirror: endpointHosts.mirror,
+      proxy: endpointHosts.proxy
+    },
+    inventory: {
+      totalBlocks: parsedRecords.length,
+      validCertificates: dedupedValid.length,
+      malformedBlocks: malformedCount,
+      duplicateNoiseCount
+    },
+    metrics,
+    risk,
+    confidence,
+    proposal,
+    proposalSelectionSummary,
+    currentSelectionSummary,
+    fips: {
+      enabled: Boolean(state?.globalStrategy?.fips),
+      findings: fipsFindings
+    },
+    certs: certDetails,
     explainability: {
       reasonsByFingerprint: proposal.reasonsByFingerprint
     }
@@ -647,6 +786,15 @@ const resolveReducedBundleOrThrow = (state) => {
       { reason: "proposal_unavailable" }
     );
   }
+  if (enriched?.currentSelectionSummary?.thresholdFlags?.overHardMax) {
+    throw new TrustSelectionHardLimitError(
+      "Reduced trust selection exceeds the app hard maximum. Reduce selected certificates or switch to original bundle mode.",
+      {
+        reason: "reduced_selection_hard_max_exceeded",
+        selectionSummary: enriched.currentSelectionSummary
+      }
+    );
+  }
   return {
     bundle: buildReducedBundlePem(enriched, reducedSelection.selectedCertFingerprints),
     analysisHash: analysis.analysisHash
@@ -654,6 +802,7 @@ const resolveReducedBundleOrThrow = (state) => {
 };
 
 export {
+  TrustSelectionHardLimitError,
   TrustAnalysisHashMismatchError,
   analyzeTrustState,
   extractEndpointHosts,
