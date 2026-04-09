@@ -16,6 +16,21 @@ const MAX_PREVIEW_HEIGHT = 800;
 
 const PULLSECRET_PLACEHOLDER_LINE = "pullSecret: '{\"auths\":{}}'";
 const SENSITIVE_REDACTED = "*** REDACTED (click Show sensitive values to reveal) ***";
+const DOWNLOAD_REVOKE_DELAY_MS = 60000;
+
+function triggerBrowserDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    anchor.remove();
+  }, DOWNLOAD_REVOKE_DELAY_MS);
+}
 
 /** Masks or replaces pullSecret value in install-config YAML. For obscured preview use replacement; for placeholder use replacement. */
 function replacePullSecretInYaml(yamlContent, replacementLine) {
@@ -144,12 +159,7 @@ const downloadZip = async (stateForBundle) => {
   const match = disposition.match(/filename=([^;]+)/i);
   const filename = match ? match[1].replace(/"/g, "") : "airgap-install-configs-bundle.zip";
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  triggerBrowserDownload(blob, filename);
 };
 
 const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilities = {}, profileContract = {} }) => {
@@ -271,12 +281,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
   const exportRun = async () => {
     const data = await apiFetch("/api/run/export");
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = getExportRunFilename(state);
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerBrowserDownload(blob, getExportRunFilename(state));
   };
 
   const importRun = async (file) => {

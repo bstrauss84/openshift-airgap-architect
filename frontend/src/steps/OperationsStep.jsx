@@ -32,8 +32,13 @@ function downloadTextFile(filename, content) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 60000);
 }
 
 function downloadJsonFile(filename, payload) {
@@ -42,8 +47,13 @@ function downloadJsonFile(filename, payload) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 60000);
 }
 
 const OperationsStep = () => {
@@ -185,8 +195,13 @@ const OperationsStep = () => {
       const a = document.createElement("a");
       a.href = url;
       a.download = `operations-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 60000);
     } catch (err) {
       console.error(err);
     }

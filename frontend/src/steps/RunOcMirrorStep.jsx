@@ -298,8 +298,13 @@ export default function RunOcMirrorStep({ onNavigateToOperations, capabilities =
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 60000);
   };
 
   const downloadJsonFile = (filename, payload) => {
@@ -308,8 +313,13 @@ export default function RunOcMirrorStep({ onNavigateToOperations, capabilities =
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 60000);
   };
 
   const buildMirrorHandoffMarkdown = (job, meta) => {
