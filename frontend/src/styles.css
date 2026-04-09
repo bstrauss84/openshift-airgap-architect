@@ -1525,6 +1525,56 @@ body[data-theme="dark"] .trust-file-input {
   font-style: italic;
 }
 
+.trust-cert-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.trust-cert-list {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+
+.trust-cert-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+}
+
+.trust-cert-row:last-child {
+  margin-bottom: 0;
+}
+
+.trust-cert-summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.trust-cert-primary {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.trust-cert-pill {
+  font-size: 11px;
+  color: #0f172a;
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 body[data-theme="dark"] .trust-section-title,
 body[data-theme="dark"] .trust-policy-label,
 body[data-theme="dark"] .toggle-row.trust-label-style {
@@ -1564,6 +1614,21 @@ body[data-theme="dark"] .trust-bundle-preview-badge {
 
 body[data-theme="dark"] .trust-bundle-preview-empty {
   color: #94a3b8;
+}
+
+body[data-theme="dark"] .trust-cert-list {
+  border-color: #334155;
+  background: #0f172a;
+}
+
+body[data-theme="dark"] .trust-cert-row {
+  border-color: #334155;
+  background: #1e293b;
+}
+
+body[data-theme="dark"] .trust-cert-pill {
+  color: #cbd5e1;
+  background: #334155;
 }
 
 .loading {

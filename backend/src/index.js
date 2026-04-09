@@ -48,6 +48,12 @@ import {
   verifyChallengeToken
 } from "./feedback.js";
 import { createInMemoryRateLimiter } from "./feedbackRateLimit.js";
+import { ANALYSIS_TRIGGER_DEFAULTS } from "./trustAnalysis/riskConstants.js";
+import {
+  TrustAnalysisHashMismatchError,
+  TrustSelectionHardLimitError,
+  analyzeTrustState
+} from "./trustAnalysis/index.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -311,7 +317,9 @@ const defaultState = () => ({
     mirrorRegistryUsesPrivateCa: false,
     mirrorRegistryCaPem: "",
     proxyCaPem: "",
-    additionalTrustBundlePolicy: ""
+    additionalTrustBundlePolicy: "",
+    bundleSelectionMode: "original",
+    reducedSelection: null
   },
   docs: {
     connectivity: "fully-disconnected",
@@ -367,7 +375,24 @@ const defaultState = () => ({
 
 const ensureState = () => {
   const existing = getState();
-  if (existing) return existing;
+  if (existing) {
+    let changed = false;
+    const next = { ...existing };
+    next.trust = { ...(existing.trust || {}) };
+    if (!Object.prototype.hasOwnProperty.call(next.trust, "bundleSelectionMode")) {
+      next.trust.bundleSelectionMode = "original";
+      changed = true;
+    }
+    if (!Object.prototype.hasOwnProperty.call(next.trust, "reducedSelection")) {
+      next.trust.reducedSelection = null;
+      changed = true;
+    }
+    if (changed) {
+      setState(next);
+      return next;
+    }
+    return existing;
+  }
   const initial = defaultState();
   setState(initial);
   return initial;
@@ -462,11 +487,38 @@ const sanitizeStateForExport = (state, options = {}) => {
     next.trust.mirrorRegistryCaPem = "";
     next.trust.proxyCaPem = "";
     next.trust.additionalTrustBundlePolicy = "";
+    next.trust.bundleSelectionMode = "original";
+    next.trust.reducedSelection = null;
   }
   if (includeCredentials && next.credentials?.mirrorRegistryPullSecret) {
     next.credentials.mirrorRegistryPullSecret = normalizePullSecret(next.credentials.mirrorRegistryPullSecret);
   }
   return next;
+};
+
+const trustAnalysisCache = new Map();
+const TRUST_ANALYSIS_CACHE_TTL_MS = 30 * 60 * 1000;
+const TRUST_ANALYSIS_CACHE_MAX = 128;
+
+const getCachedTrustAnalysis = (state) => {
+  const analysis = analyzeTrustState(state);
+  const selection = state?.trust?.bundleSelectionMode === "reduced"
+    ? JSON.stringify(state?.trust?.reducedSelection?.selectedCertFingerprints || [])
+    : "original";
+  const key = `${analysis.analysisHash}:${state?.trust?.bundleSelectionMode || "original"}:${selection}`;
+  const now = Date.now();
+  const cached = trustAnalysisCache.get(key);
+  if (cached && now - cached.timestamp <= TRUST_ANALYSIS_CACHE_TTL_MS) {
+    return cached.value;
+  }
+  trustAnalysisCache.set(key, { timestamp: now, value: analysis });
+  if (trustAnalysisCache.size > TRUST_ANALYSIS_CACHE_MAX) {
+    const oldest = Array.from(trustAnalysisCache.entries())
+      .sort((a, b) => a[1].timestamp - b[1].timestamp)
+      .slice(0, trustAnalysisCache.size - TRUST_ANALYSIS_CACHE_MAX);
+    for (const [oldKey] of oldest) trustAnalysisCache.delete(oldKey);
+  }
+  return analysis;
 };
 
 const normalizePullSecret = (input) => {
@@ -2007,19 +2059,73 @@ const buildPreviewFiles = (rawState) => {
   };
 };
 
+app.post("/api/trust/analyze", (req, res) => {
+  const bodyState = req.body?.state;
+  const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
+  try {
+    const analysis = getCachedTrustAnalysis(state);
+    res.json({
+      analysis,
+      triggerDefaults: ANALYSIS_TRIGGER_DEFAULTS
+    });
+  } catch (error) {
+    res.status(400).json({ error: String(error?.message || error) });
+  }
+});
+
 app.get("/api/generate", (req, res) => {
   const state = ensureState();
-  const files = buildPreviewFiles(state);
-  if (!files) return res.status(400).json({ error: "Version not confirmed." });
-  res.json({ files });
+  try {
+    const files = buildPreviewFiles(state);
+    if (!files) return res.status(400).json({ error: "Version not confirmed." });
+    res.json({ files });
+  } catch (error) {
+    if (error instanceof TrustAnalysisHashMismatchError) {
+      return res.status(409).json({
+        error: error.message,
+        code: error.code,
+        analysisHashMismatch: true,
+        details: error.details || {}
+      });
+    }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
+        details: error.details || {}
+      });
+    }
+    return res.status(500).json({ error: String(error?.message || error) });
+  }
 });
 
 app.post("/api/generate", (req, res) => {
   const bodyState = req.body?.state;
   const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
-  const files = buildPreviewFiles(state);
-  if (!files) return res.status(400).json({ error: "Version not confirmed." });
-  res.json({ files });
+  try {
+    const files = buildPreviewFiles(state);
+    if (!files) return res.status(400).json({ error: "Version not confirmed." });
+    res.json({ files });
+  } catch (error) {
+    if (error instanceof TrustAnalysisHashMismatchError) {
+      return res.status(409).json({
+        error: error.message,
+        code: error.code,
+        analysisHashMismatch: true,
+        details: error.details || {}
+      });
+    }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
+        details: error.details || {}
+      });
+    }
+    return res.status(500).json({ error: String(error?.message || error) });
+  }
 });
 
 const buildBundleZip = async (rawState, res) => {
@@ -2187,13 +2293,53 @@ app.get("/api/fs/ls", (req, res) => {
 
 app.get("/api/bundle.zip", async (req, res) => {
   const state = ensureState();
-  await buildBundleZip(state, res);
+  try {
+    await buildBundleZip(state, res);
+  } catch (error) {
+    if (error instanceof TrustAnalysisHashMismatchError) {
+      return res.status(409).json({
+        error: error.message,
+        code: error.code,
+        analysisHashMismatch: true,
+        details: error.details || {}
+      });
+    }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
+        details: error.details || {}
+      });
+    }
+    return res.status(500).json({ error: String(error?.message || error) });
+  }
 });
 
 app.post("/api/bundle.zip", async (req, res) => {
   const bodyState = req.body?.state;
   const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
-  await buildBundleZip(state, res);
+  try {
+    await buildBundleZip(state, res);
+  } catch (error) {
+    if (error instanceof TrustAnalysisHashMismatchError) {
+      return res.status(409).json({
+        error: error.message,
+        code: error.code,
+        analysisHashMismatch: true,
+        details: error.details || {}
+      });
+    }
+    if (error instanceof TrustSelectionHardLimitError) {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        trustSelectionHardLimitExceeded: true,
+        details: error.details || {}
+      });
+    }
+    return res.status(500).json({ error: String(error?.message || error) });
+  }
 });
 
 let server;
