@@ -57,7 +57,7 @@ test("POST /api/trust/analyze returns analysis payload", async () => {
   }
 });
 
-test("POST /api/trust/analyze includes current selection summary shape", async () => {
+test("POST /api/trust/analyze verify if ca bundle value exceeds documented and API restricted length & size", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
     const state = {
