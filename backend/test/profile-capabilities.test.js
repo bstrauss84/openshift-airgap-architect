@@ -73,3 +73,36 @@ test("bundle.zip includes readiness manifest and installer error artifact", asyn
     server.close();
   }
 });
+
+test("bundle.prepare token supports one native streamed download", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const bundleState = {
+      version: { versionConfirmed: true },
+      release: { channel: "stable-4.20", patchVersion: "4.20.0" },
+      exportOptions: {
+        includeCredentials: false,
+        includeCertificates: true,
+        includeClientTools: false,
+        includeInstaller: false
+      }
+    };
+    const prepRes = await fetch(`${baseUrl}/api/bundle.prepare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: bundleState })
+    });
+    assert.strictEqual(prepRes.status, 200);
+    const prep = await prepRes.json();
+    assert.ok(prep.token);
+
+    const first = await fetch(`${baseUrl}/api/bundle.zip?token=${encodeURIComponent(prep.token)}`);
+    assert.strictEqual(first.status, 200);
+    assert.match(first.headers.get("content-type") || "", /application\/zip/);
+
+    const second = await fetch(`${baseUrl}/api/bundle.zip?token=${encodeURIComponent(prep.token)}`);
+    assert.strictEqual(second.status, 410);
+  } finally {
+    server.close();
+  }
+});
