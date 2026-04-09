@@ -114,6 +114,15 @@ const warmCincinnatiCache = async () => {
 warmCincinnatiCache();
 
 const activeProcesses = new Map();
+const pendingBundleStates = new Map();
+const BUNDLE_STATE_TTL_MS = 10 * 60 * 1000;
+
+const purgeExpiredBundleStates = () => {
+  const now = Date.now();
+  for (const [token, entry] of pendingBundleStates.entries()) {
+    if (!entry || now >= entry.expiresAt) pendingBundleStates.delete(token);
+  }
+};
 
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
@@ -2026,28 +2035,58 @@ app.get("/api/fs/ls", (req, res) => {
   res.json({ path: resolved, entries, requestedPath: reqPath, requestedMissing });
 });
 
+const handleBundleZipError = (res, error) => {
+  if (error instanceof TrustAnalysisHashMismatchError) {
+    return res.status(409).json({
+      error: error.message,
+      code: error.code,
+      analysisHashMismatch: true,
+      details: error.details || {}
+    });
+  }
+  if (error instanceof TrustSelectionHardLimitError) {
+    return res.status(422).json({
+      error: error.message,
+      code: error.code,
+      trustSelectionHardLimitExceeded: true,
+      details: error.details || {}
+    });
+  }
+  return res.status(500).json({ error: String(error?.message || error) });
+};
+
+app.post("/api/bundle.prepare", (req, res) => {
+  const bodyState = req.body?.state;
+  const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
+  purgeExpiredBundleStates();
+  const token = nanoid();
+  pendingBundleStates.set(token, {
+    state,
+    expiresAt: Date.now() + BUNDLE_STATE_TTL_MS
+  });
+  res.json({
+    token,
+    expiresAt: new Date(Date.now() + BUNDLE_STATE_TTL_MS).toISOString()
+  });
+});
+
 app.get("/api/bundle.zip", async (req, res) => {
-  const state = ensureState();
+  purgeExpiredBundleStates();
+  const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
+  let state = null;
+  if (token) {
+    const pending = pendingBundleStates.get(token);
+    pendingBundleStates.delete(token);
+    if (!pending || Date.now() >= pending.expiresAt) {
+      return res.status(410).json({ error: "Bundle token expired. Regenerate and retry download." });
+    }
+    state = pending.state;
+  }
+  if (!state) state = ensureState();
   try {
     await buildBundleZip(state, res);
   } catch (error) {
-    if (error instanceof TrustAnalysisHashMismatchError) {
-      return res.status(409).json({
-        error: error.message,
-        code: error.code,
-        analysisHashMismatch: true,
-        details: error.details || {}
-      });
-    }
-    if (error instanceof TrustSelectionHardLimitError) {
-      return res.status(422).json({
-        error: error.message,
-        code: error.code,
-        trustSelectionHardLimitExceeded: true,
-        details: error.details || {}
-      });
-    }
-    return res.status(500).json({ error: String(error?.message || error) });
+    return handleBundleZipError(res, error);
   }
 });
 
@@ -2057,23 +2096,7 @@ app.post("/api/bundle.zip", async (req, res) => {
   try {
     await buildBundleZip(state, res);
   } catch (error) {
-    if (error instanceof TrustAnalysisHashMismatchError) {
-      return res.status(409).json({
-        error: error.message,
-        code: error.code,
-        analysisHashMismatch: true,
-        details: error.details || {}
-      });
-    }
-    if (error instanceof TrustSelectionHardLimitError) {
-      return res.status(422).json({
-        error: error.message,
-        code: error.code,
-        trustSelectionHardLimitExceeded: true,
-        details: error.details || {}
-      });
-    }
-    return res.status(500).json({ error: String(error?.message || error) });
+    return handleBundleZipError(res, error);
   }
 });
 

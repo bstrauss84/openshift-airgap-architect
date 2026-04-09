@@ -16,7 +16,7 @@ const MAX_PREVIEW_HEIGHT = 800;
 
 const PULLSECRET_PLACEHOLDER_LINE = "pullSecret: '{\"auths\":{}}'";
 const SENSITIVE_REDACTED = "*** REDACTED (click Show sensitive values to reveal) ***";
-const DOWNLOAD_REVOKE_DELAY_MS = 60000;
+const DOWNLOAD_REVOKE_DELAY_MS = 60 * 60 * 1000;
 
 function triggerBrowserDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -143,23 +143,26 @@ function ResizablePreviewPane({ id, content, placeholder = "Not generated yet.",
   );
 }
 
+const triggerNativeDownload = (url) => {
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  window.setTimeout(() => anchor.remove(), 1000);
+};
+
 const downloadZip = async (stateForBundle) => {
-  const res = stateForBundle
-    ? await fetch(`${API_BASE}/api/bundle.zip`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: stateForBundle })
-      })
-    : await fetch(`${API_BASE}/api/bundle.zip`);
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(body || `Failed to download bundle (HTTP ${res.status})`);
+  const prep = await apiFetch("/api/bundle.prepare", {
+    method: "POST",
+    body: JSON.stringify({ state: stateForBundle || null })
+  });
+  if (!prep?.token) {
+    throw new Error("Failed to prepare bundle download token.");
   }
-  const disposition = res.headers.get("content-disposition") || "";
-  const match = disposition.match(/filename=([^;]+)/i);
-  const filename = match ? match[1].replace(/"/g, "") : "airgap-install-configs-bundle.zip";
-  const blob = await res.blob();
-  triggerBrowserDownload(blob, filename);
+  const downloadUrl = `${API_BASE}/api/bundle.zip?token=${encodeURIComponent(prep.token)}`;
+  triggerNativeDownload(downloadUrl);
 };
 
 const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
