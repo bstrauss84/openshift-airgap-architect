@@ -26,6 +26,35 @@ function getOcMirrorMeta(job) {
   }
 }
 
+function downloadTextFile(filename, content) {
+  const blob = new Blob([String(content || "")], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 60000);
+}
+
+function downloadJsonFile(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 60000);
+}
 const OperationsStep = () => {
   const { state, updateState } = useApp();
   const [jobs, setJobs] = useState([]);
@@ -164,8 +193,13 @@ const OperationsStep = () => {
       const a = document.createElement("a");
       a.href = url;
       a.download = `operations-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 60000);
     } catch (err) {
       console.error(err);
     }
