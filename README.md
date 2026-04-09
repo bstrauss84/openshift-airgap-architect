@@ -60,9 +60,10 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
 - **Run oc-mirror** — Built-in tab to run oc-mirror v2 directly from the app (mirror-to-disk, disk-to-mirror, mirror-to-mirror workflows; per-run credentials; preflight checks; live job streaming to Operations)
+- **Operational profiles** — Backend-owned connected/disconnected capability contract gates internet-backed actions safely in disconnected execution mode
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
-- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
+- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle, with installer target-host packaging controls (RHEL 8/9, x86_64, target-host FIPS requirement flag)
 
 <a id="quick-start-container"></a>
 ## Quick start (container)
@@ -193,11 +194,20 @@ When the Landing page or **Tools → About** shows that an update is available, 
 ## Generating assets
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).
-2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML and the field manual. Export options control inclusion of credentials, certificates, and client tools.
+2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML, field manual, and `EXPORT_READINESS_MANIFEST.json`. Export options control inclusion of credentials, certificates, and client tools.
 3. **install-config.yaml** and **agent-config.yaml** (when applicable) are also available as inline copy/download from the same step.
 4. Use **Update Docs Links** to refresh cached documentation links used in the field manual.
 
 For disconnected mirror mapping in `install-config.yaml`, the generator emits `imageDigestSources` for OCP `4.14+` and `imageContentSources` for OCP `4.13` and earlier.
+
+### Operational profile and capability gating
+
+- The backend is the source of truth for runtime profile capabilities via `GET /api/profile/capabilities`.
+- Default profile:
+  - `connected-authoring` when `AIRGAP_RUNTIME_SIDE` is unset or not `high-side`
+  - `disconnected-execution` when `AIRGAP_RUNTIME_SIDE=high-side`
+- In `disconnected-execution`, internet-backed actions are blocked quickly and predictably (release refresh, operator scan/prefetch, docs refresh, AWS live lookups, update checks, binary downloads, and mirror-to-disk / mirror-to-mirror runs).
+- Offline-safe actions remain available (state import/export, local generation/export, disk-to-mirror runs, operations review/downloads).
 
 <a id="operator-workflows"></a>
 ## Operator workflows
@@ -237,6 +247,8 @@ Three workflows are supported. The correct choice depends on whether the machine
 | **Mirror to mirror** | Machine has access to both Red Hat and the registry | Pulls from Red Hat → pushes directly to mirror registry in one step |
 
 For **fully disconnected** environments: run Step 1 on an internet-connected machine, physically transfer the archive directory (and working-dir) across the air gap, then run Step 2 on or near the disconnected registry. Mirror-to-mirror is for jumpbox or partially connected scenarios.
+
+After a successful mirror-to-disk run, the completion modal provides handoff downloads (Markdown handoff doc, JSON handoff manifest, logs, support bundle). This is intentionally separate from the app transfer bundle; large mirror payloads are not embedded into the app bundle by default.
 
 ### Credentials per workflow
 

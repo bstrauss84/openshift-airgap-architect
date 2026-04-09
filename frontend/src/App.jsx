@@ -213,6 +213,10 @@ const AppShell = () => {
   const runActionsRef = useRef(null);
   const prefsRef = useRef(null);
   const mainContentRef = useRef(null);
+  const [profileContract, setProfileContract] = useState({
+    profile: "connected-authoring",
+    capabilities: {}
+  });
 
   useEffect(() => {
     const el = mainContentRef.current;
@@ -240,6 +244,11 @@ const AppShell = () => {
           reason: "Feedback configuration unavailable."
         })
       );
+  }, []);
+  useEffect(() => {
+    apiFetch("/api/profile/capabilities")
+      .then((data) => setProfileContract(data))
+      .catch(() => setProfileContract({ profile: "connected-authoring", capabilities: {} }));
   }, []);
   useEffect(() => {
     if (!showLanding) return;
@@ -1006,6 +1015,8 @@ const AppShell = () => {
                 <Current
                     previewControls={{ showPreview, setShowPreview }}
                     previewEnabled={previewEnabled}
+                    profileContract={profileContract}
+                    capabilities={profileContract?.capabilities || {}}
                     highlightErrors={highlightErrors}
                     fieldErrors={fieldErrors}
                     incompleteStepLabels={incompleteStepLabels}

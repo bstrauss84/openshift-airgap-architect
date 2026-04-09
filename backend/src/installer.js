@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 const dataDir = process.env.DATA_DIR || "/data";
 const toolsDir = path.join(dataDir, "tools");
 const cacheDir = path.join(dataDir, "cache");
+const VERIFIED_INSTALLER_TARGET_ARCHES = new Set(["x86_64"]);
 
 const runCmd = (cmd, args, options = {}) =>
   new Promise((resolve, reject) => {
@@ -31,26 +32,75 @@ const runCmd = (cmd, args, options = {}) =>
     });
   });
 
-const installerPathFor = (version) => path.join(toolsDir, `openshift-install-${version}`);
+const normalizeInstallerArch = (arch) => {
+  const raw = String(arch || "x86_64").trim().toLowerCase();
+  if (raw === "amd64" || raw === "x64") return "x86_64";
+  if (raw === "arm64") return "aarch64";
+  if (raw === "x86_64" || raw === "aarch64" || raw === "ppc64le" || raw === "s390x") return raw;
+  return raw;
+};
 
-const ensureInstaller = async (version) => {
+const installerMirrorArch = (arch) => {
+  if (arch === "x86_64") return "amd64";
+  if (arch === "aarch64") return "arm64";
+  return arch;
+};
+
+const installerPathFor = (version, arch = "x86_64") => path.join(
+  toolsDir,
+  `openshift-install-${version}-${normalizeInstallerArch(arch)}`
+);
+
+const buildInstallerDownloadCandidates = (version, arch) => {
+  const base = `https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${version}`;
+  const mirrorArch = installerMirrorArch(arch);
+  if (arch === "x86_64") {
+    return [
+      `${base}/openshift-install-linux.tar.gz`,
+      `${base}/openshift-install-linux-${mirrorArch}.tar.gz`
+    ];
+  }
+  return [`${base}/openshift-install-linux-${mirrorArch}.tar.gz`];
+};
+
+const ensureInstaller = async (version, options = {}) => {
   if (!version) {
     throw new Error("OpenShift version is required to download openshift-install.");
   }
+  const arch = normalizeInstallerArch(options.arch || "x86_64");
+  if (!VERIFIED_INSTALLER_TARGET_ARCHES.has(arch)) {
+    throw new Error(
+      `Installer packaging for architecture "${arch}" is not verified in this release. ` +
+      `Supported installer target architectures: ${Array.from(VERIFIED_INSTALLER_TARGET_ARCHES).join(", ")}.`
+    );
+  }
   await fs.promises.mkdir(toolsDir, { recursive: true });
-  const target = installerPathFor(version);
+  const target = installerPathFor(version, arch);
   if (fs.existsSync(target)) {
     return target;
   }
-  const tarPath = path.join(toolsDir, `openshift-install-${version}.tar.gz`);
-  const url = `https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${version}/openshift-install-linux.tar.gz`;
-  await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
+  const tarPath = path.join(toolsDir, `openshift-install-${version}-${arch}.tar.gz`);
+  const candidates = buildInstallerDownloadCandidates(version, arch);
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError) {
+    throw new Error(`Failed to download openshift-install for ${version} (${arch}): ${String(lastError?.message || lastError)}`);
+  }
   await runCmd("tar", ["-xzf", tarPath, "-C", toolsDir]);
   const extracted = path.join(toolsDir, "openshift-install");
   if (!fs.existsSync(extracted)) {
     throw new Error("openshift-install binary not found after extraction.");
   }
   await fs.promises.rename(extracted, target);
+  await fs.promises.unlink(tarPath).catch(() => {});
   await runCmd("chmod", ["+x", target]);
   return target;
 };
@@ -106,4 +156,12 @@ const getAwsAmi = async (version, arch, region, force = false) => {
   return metadata?.architectures?.[archKey]?.images?.aws?.regions?.[region]?.image || null;
 };
 
-export { ensureInstaller, getStreamMetadata, getAwsRegions, getAwsAmi, installerPathFor, warmInstallerStream };
+export {
+  ensureInstaller,
+  getStreamMetadata,
+  getAwsRegions,
+  getAwsAmi,
+  installerPathFor,
+  normalizeInstallerArch,
+  warmInstallerStream
+};

@@ -31,7 +31,7 @@ const platformOptions = [
   { value: "IBM Cloud", label: "IBM Cloud", rec: "Rec: IPI" }
 ];
 
-const BlueprintStep = () => {
+const BlueprintStep = ({ capabilities = {} }) => {
   const { state, updateState } = useApp();
   const blueprint = state.blueprint;
   const release = state.release;
@@ -58,6 +58,7 @@ const BlueprintStep = () => {
   }, [blueprintPullSecretTrimmed]);
 
   const allowedArchs = PLATFORM_ARCH_SUPPORT[blueprint?.platform] || archOptions.map((a) => a.value);
+  const canRefreshReleaseData = capabilities.releaseRefreshAllowed !== false;
 
   const updateBlueprint = (patch) => {
     if (locked) return;
@@ -130,13 +131,15 @@ const BlueprintStep = () => {
       })
       .finally(() => {
         setLoading(false);
-        apiFetch("/api/cincinnati/update", { method: "POST" })
-          .then((data) => {
-            if (data.channels?.length) {
-              setChannels(sortChannelsBySemverDescending(data.channels));
-            }
-          })
-          .catch(() => {});
+        if (canRefreshReleaseData) {
+          apiFetch("/api/cincinnati/update", { method: "POST" })
+            .then((data) => {
+              if (data.channels?.length) {
+                setChannels(sortChannelsBySemverDescending(data.channels));
+              }
+            })
+            .catch(() => {});
+        }
       });
   }, []);
 
@@ -199,6 +202,10 @@ const BlueprintStep = () => {
   };
 
   const refresh = async () => {
+    if (!canRefreshReleaseData) {
+      setRefreshNote("Release refresh is disabled in the disconnected execution profile.");
+      return;
+    }
     setRefreshing(true);
     setRefreshNote("Refreshing channels from upstream…");
     try {
@@ -291,7 +298,7 @@ const BlueprintStep = () => {
           <div className="card-header" style={{ marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>OpenShift release</h3>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked}>
+              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || !canRefreshReleaseData}>
                 Update
               </button>
               <span
@@ -343,6 +350,11 @@ const BlueprintStep = () => {
             {releaseLocked ? " Release is locked; use Start Over to change it." : ""}
           </p>
         </section>
+        {!canRefreshReleaseData ? (
+          <div className="note warning" style={{ marginTop: 8 }}>
+            This profile uses cached release data only. Manual refresh from upstream is disabled.
+          </div>
+        ) : null}
 
         <section className="card pull-secret-section">
           <h3>Red Hat pull secret</h3>

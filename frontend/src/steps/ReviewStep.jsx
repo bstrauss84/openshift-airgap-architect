@@ -152,7 +152,7 @@ const downloadZip = async (stateForBundle) => {
   URL.revokeObjectURL(url);
 };
 
-const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
+const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilities = {}, profileContract = {} }) => {
   const { state, updateState, setState } = useApp();
   const importRef = useRef(null);
   const exportOptions = state.exportOptions || {};
@@ -245,6 +245,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   };
 
   const updateDocs = async () => {
+    if (!canRefreshDocs) return;
     setDocsUpdating(true);
     await apiFetch("/api/docs/update", { method: "POST" });
     await refresh();
@@ -290,6 +291,11 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
 
   const includeCredentials = exportOptions.includeCredentials || false;
   const includeCertificates = exportOptions.includeCertificates !== false;
+  const canRefreshDocs = capabilities.docsRefreshAllowed !== false;
+  const canDownloadBinaries = capabilities.binaryDownloadAllowed !== false;
+  const installerTargetHostOsFamily = exportOptions.installerTargetHostOsFamily || "rhel9";
+  const installerTargetArch = exportOptions.installerTargetArch || "x86_64";
+  const installerTargetFipsRequired = Boolean(exportOptions.installerTargetFipsRequired);
   const [showPullSecretInPreview, setShowPullSecretInPreview] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState({ runtimeArch: null, localBinaryArch: null });
 
@@ -346,7 +352,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 <button type="button" className="header-actions-dropdown-item" onClick={() => { refresh(); setActionsMenuOpen(false); }}>
                   Refresh Previews
                 </button>
-                <button type="button" className="header-actions-dropdown-item" onClick={() => { updateDocs(); setActionsMenuOpen(false); }} disabled={docsUpdating}>
+                <button type="button" className="header-actions-dropdown-item" onClick={() => { updateDocs(); setActionsMenuOpen(false); }} disabled={docsUpdating || !canRefreshDocs}>
                   {docsUpdating ? "Updating Docs…" : "Update Docs Links"}
                 </button>
               </div>
@@ -420,6 +426,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 onChange={(checked) =>
                   updateState({ exportOptions: { ...exportOptions, includeClientTools: checked } })
                 }
+                disabled={!canDownloadBinaries}
                 aria-label="Include oc and oc-mirror binaries"
               />
             </OptionRow>
@@ -457,9 +464,75 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 onChange={(checked) =>
                   updateState({ exportOptions: { ...exportOptions, includeInstaller: checked } })
                 }
+                disabled={!canDownloadBinaries}
                 aria-label="Include version-specific openshift-install"
               />
             </OptionRow>
+            {exportOptions.includeInstaller ? (
+              <>
+                <OptionRow
+                  title="Installer target host OS family"
+                  description="First release runtime packaging is validated for RHEL 8 and RHEL 9 hosts."
+                >
+                  <select
+                    value={installerTargetHostOsFamily}
+                    onChange={(e) =>
+                      updateState({
+                        exportOptions: {
+                          ...exportOptions,
+                          installerTargetHostOsFamily: e.target.value
+                        }
+                      })
+                    }
+                    aria-label="Installer target host OS family"
+                  >
+                    <option value="rhel8">RHEL 8</option>
+                    <option value="rhel9">RHEL 9</option>
+                  </select>
+                </OptionRow>
+                <OptionRow
+                  title="Installer target host architecture"
+                  description="Current verified packaging target is x86_64."
+                >
+                  <select
+                    value={installerTargetArch}
+                    onChange={(e) =>
+                      updateState({
+                        exportOptions: {
+                          ...exportOptions,
+                          installerTargetArch: e.target.value
+                        }
+                      })
+                    }
+                    aria-label="Installer target host architecture"
+                  >
+                    <option value="x86_64">x86_64</option>
+                  </select>
+                </OptionRow>
+                <OptionRow
+                  title="Target host requires FIPS mode"
+                  description="Packaging target requirement only. Cluster FIPS remains controlled in Global settings."
+                >
+                  <Switch
+                    checked={installerTargetFipsRequired}
+                    onChange={(checked) =>
+                      updateState({
+                        exportOptions: {
+                          ...exportOptions,
+                          installerTargetFipsRequired: checked
+                        }
+                      })
+                    }
+                    aria-label="Target host requires FIPS mode"
+                  />
+                </OptionRow>
+              </>
+            ) : null}
+            {!canDownloadBinaries ? (
+              <div className="note warning">
+                Binary downloads are disabled in profile {profileContract?.profile || "disconnected-execution"}.
+              </div>
+            ) : null}
           </CollapsibleSection>
         </div>
         {needsReview ? (
@@ -485,6 +558,11 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         {generateError ? (
           <Banner variant="error">
             Failed to generate assets. {generateError}
+          </Banner>
+        ) : null}
+        {!canRefreshDocs ? (
+          <Banner variant="warning">
+            Docs link refresh is disabled in this profile. Cached links are still included in generated outputs.
           </Banner>
         ) : null}
         {!blocked && hasWarnings ? (

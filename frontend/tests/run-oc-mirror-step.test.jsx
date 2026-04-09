@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/react";
 import React from "react";
 import { AppProvider } from "../src/store.jsx";
 import RunOcMirrorStep from "../src/steps/RunOcMirrorStep.jsx";
@@ -58,6 +58,9 @@ describe("Run oc-mirror step (v1)", () => {
       if (path === "/api/jobs") return Promise.resolve({ jobs: [] });
       return Promise.resolve({});
     });
+  });
+  afterEach(() => {
+    cleanup();
   });
 
   it("renders Run oc-mirror step with mode selection and Run button disabled until preflight", async () => {

@@ -65,7 +65,7 @@ const catalogImages = (version) => ({
   community: `registry.redhat.io/redhat/community-operator-index:v${version}`
 });
 
-const OperatorsStep = ({ previewControls, previewEnabled }) => {
+const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) => {
   const { state, updateState, setState } = useApp();
   const [activeTab, setActiveTab] = useState("redhat");
   const [authAvailable, setAuthAvailable] = useState(false);
@@ -93,6 +93,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const scansInProgressOrComplete = hasScanJobs && !anyScanFailed;
   const showStaleWarning = staleResults && !scansInProgressOrComplete;
   const discoveryAlreadyRunningOrDone = hasScanJobs || hasScanJobsFromState;
+  const canRefreshOperators = capabilities.operatorCatalogRefreshAllowed !== false;
 
   const version = state.release?.channel;
   const normalizeCatalogs = (data) => ({
@@ -169,15 +170,16 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
 
   useEffect(() => {
     if (!confirmed || !version) return;
+    if (!canRefreshOperators) return;
     if (hasResults) return;
     if (!authAvailable) return;
     if (fastMode) return;
     if (Object.keys(state.operators?.scanJobs || {}).length > 0) return;
     startScan().catch(() => {});
-  }, [authAvailable, confirmed, version, fastMode, state.operators?.scanJobs]);
+  }, [authAvailable, confirmed, version, fastMode, state.operators?.scanJobs, canRefreshOperators]);
 
   const canScan = confirmed;
-  const scanEnabled = canScan && hasCredentialSource;
+  const scanEnabled = canScan && hasCredentialSource && canRefreshOperators;
   const scenarioReady = hasResults;
 
   const ensureSources = (op, source) => {
@@ -275,6 +277,10 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   };
 
   const startScan = async () => {
+    if (!canRefreshOperators) {
+      setScanError("Operator catalog refresh is disabled in the disconnected execution profile.");
+      return;
+    }
     setLoadingCatalogs(true);
     setScanError("");
     updateState({ operators: { ...state.operators, stale: false } });
@@ -291,6 +297,10 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   };
 
   const prefetchCatalogs = async () => {
+    if (!canRefreshOperators) {
+      setScanError("Operator catalog prefetch is disabled in the disconnected execution profile.");
+      return;
+    }
     setPrefetching(true);
     setScanError("");
     try {
@@ -488,7 +498,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
                       <Button variant="primary" onClick={startScan} disabled={!scanEnabled}>
                         {loadingCatalogs ? "Scanning…" : "Scan / Update Operators (5-10 min)"}
                       </Button>
-                      <Button variant="secondary" onClick={prefetchCatalogs} disabled={!authAvailable || prefetching}>
+                      <Button variant="secondary" onClick={prefetchCatalogs} disabled={!authAvailable || prefetching || !canRefreshOperators}>
                         {prefetching ? "Prefetching…" : "Prefetch catalogs"}
                       </Button>
                     </div>
@@ -602,6 +612,11 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
             ))}
           </div>
         </section>
+        {!canRefreshOperators ? (
+          <Banner variant="warning">
+            This profile uses cached operator metadata only. Live scan and prefetch are disabled.
+          </Banner>
+        ) : null}
 
         <section className="card">
         <h3>Selected Operators</h3>

@@ -13,7 +13,14 @@ import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
 import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
 import { resolveOcMirrorBinary, getRuntimeArch, getLocalBinaryArch, getBinariesForExportArch } from "./ocMirrorRuntime.js";
 import { db, dataDir } from "./db.js";
-import { ensureInstaller, getAwsAmi, getAwsRegions, installerPathFor, warmInstallerStream } from "./installer.js";
+import {
+  ensureInstaller,
+  getAwsAmi,
+  getAwsRegions,
+  installerPathFor,
+  normalizeInstallerArch,
+  warmInstallerStream
+} from "./installer.js";
 import {
   getState,
   setState,
@@ -98,6 +105,9 @@ function currentChallengeLimiter() {
 }
 
 const warmCincinnatiCache = async () => {
+  if (String(process.env.AIRGAP_RUNTIME_SIDE || "").trim().toLowerCase() === "high-side") {
+    return;
+  }
   try {
     await fetchChannels(false);
   } catch {
@@ -318,6 +328,9 @@ const defaultState = () => ({
     includeClientTools: false,
     includeInstaller: false,
     exportBinaryArch: null,
+    installerTargetHostOsFamily: "rhel9",
+    installerTargetArch: "x86_64",
+    installerTargetFipsRequired: false,
     draftMode: false
   },
   mirrorWorkflow: {
@@ -346,6 +359,9 @@ const defaultState = () => ({
     visitedSteps: {},
     completedSteps: {},
     segmentedFlowV1: true
+  },
+  runtime: {
+    operationalProfile: null
   }
 });
 
@@ -362,6 +378,71 @@ const updateState = (patch) => {
   const merged = { ...current, ...patch };
   setState(merged);
   return merged;
+};
+
+const defaultOperationalProfile = () => {
+  const runtimeSide = String(process.env.AIRGAP_RUNTIME_SIDE || "").trim().toLowerCase();
+  return runtimeSide === "high-side" ? "disconnected-execution" : "connected-authoring";
+};
+
+const resolveOperationalProfile = (state) => {
+  return defaultOperationalProfile();
+};
+
+const capabilitiesForProfile = (profile) => {
+  if (profile === "disconnected-execution") {
+    return {
+      internetEgressAllowed: false,
+      releaseRefreshAllowed: false,
+      operatorCatalogRefreshAllowed: false,
+      docsRefreshAllowed: false,
+      awsLiveLookupAllowed: false,
+      binaryDownloadAllowed: false,
+      mirrorToDiskAllowed: false,
+      mirrorToMirrorAllowed: false,
+      diskToMirrorAllowed: true,
+      updateCheckAllowed: false,
+      feedbackWebActionsAllowed: false,
+      highSidePackageExportAllowed: true
+    };
+  }
+  return {
+    internetEgressAllowed: true,
+    releaseRefreshAllowed: true,
+    operatorCatalogRefreshAllowed: true,
+    docsRefreshAllowed: true,
+    awsLiveLookupAllowed: true,
+    binaryDownloadAllowed: true,
+    mirrorToDiskAllowed: true,
+    mirrorToMirrorAllowed: true,
+    diskToMirrorAllowed: true,
+    updateCheckAllowed: true,
+    feedbackWebActionsAllowed: true,
+    highSidePackageExportAllowed: true
+  };
+};
+
+const getProfileContract = (state) => {
+  const profile = resolveOperationalProfile(state);
+  return {
+    profile,
+    capabilities: capabilitiesForProfile(profile),
+    source: "runtime-default"
+  };
+};
+
+const hasCapability = (state, capabilityKey) => {
+  const contract = getProfileContract(state);
+  return Boolean(contract.capabilities?.[capabilityKey]);
+};
+
+const rejectForCapability = (res, state, capabilityKey, actionLabel) => {
+  const contract = getProfileContract(state);
+  return res.status(403).json({
+    error: `${actionLabel} is unavailable in the ${contract.profile} profile.`,
+    profile: contract.profile,
+    capability: capabilityKey
+  });
 };
 
 const sanitizeStateForExport = (state, options = {}) => {
@@ -506,13 +587,15 @@ app.get("/api/build-info", (_req, res) => {
 });
 
 app.get("/api/feedback/config", (_req, res) => {
+  const state = ensureState();
+  const feedbackAllowed = hasCapability(state, "feedbackWebActionsAllowed");
   const config = resolveFeedbackConfig();
   res.json({
-    enabled: config.enabled,
-    visible: config.visible,
-    mode: config.mode,
-    reason: config.reason,
-    challengeRequired: config.enabled,
+    enabled: feedbackAllowed ? config.enabled : false,
+    visible: feedbackAllowed ? config.visible : false,
+    mode: feedbackAllowed ? config.mode : "disabled",
+    reason: feedbackAllowed ? config.reason : "Feedback is disabled in high-side/disconnected execution profile.",
+    challengeRequired: feedbackAllowed ? config.enabled : false,
     minDwellMs: config.minDwellMs,
     limits: config.limits,
     enums: config.enums,
@@ -521,6 +604,10 @@ app.get("/api/feedback/config", (_req, res) => {
 });
 
 app.get("/api/feedback/challenge", (req, res, next) => currentChallengeLimiter()(req, res, next), (_req, res) => {
+  const state = ensureState();
+  if (!hasCapability(state, "feedbackWebActionsAllowed")) {
+    return rejectForCapability(res, state, "feedbackWebActionsAllowed", "Feedback challenge");
+  }
   const config = resolveFeedbackConfig();
   if (!config.enabled) {
     return res.status(403).json({ error: config.reason || "Feedback is unavailable." });
@@ -535,6 +622,10 @@ app.get("/api/feedback/challenge", (req, res, next) => currentChallengeLimiter()
 });
 
 app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req, res, next), async (req, res) => {
+  const state = ensureState();
+  if (!hasCapability(state, "feedbackWebActionsAllowed")) {
+    return rejectForCapability(res, state, "feedbackWebActionsAllowed", "Feedback submission");
+  }
   const config = resolveFeedbackConfig();
   if (!config.enabled) {
     return res.status(403).json({ error: config.reason || "Feedback is unavailable." });
@@ -682,6 +773,21 @@ async function fetchUpdateInfo() {
 }
 
 app.get("/api/update-info", async (_req, res) => {
+  const state = ensureState();
+  if (!hasCapability(state, "updateCheckAllowed")) {
+    const contract = getProfileContract(state);
+    return res.json({
+      enabled: false,
+      currentSha: (process.env.APP_GIT_SHA || "unknown").trim() || "unknown",
+      latestSha: null,
+      isOutdated: false,
+      checkedAt: new Date().toISOString(),
+      error: `Update checks are disabled in ${contract.profile}.`,
+      branch: (process.env.APP_BRANCH || "main").trim(),
+      repo: (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim(),
+      profile: contract.profile
+    });
+  }
   const now = Date.now();
   if (updateInfoCache) {
     const { result, cachedAt, isSuccess } = updateInfoCache;
@@ -732,6 +838,12 @@ app.get("/api/schema/stepMap", (req, res) => {
     }
   }
   res.json(defaultStepMap);
+});
+
+app.get("/api/profile/capabilities", (_req, res) => {
+  const state = ensureState();
+  const contract = getProfileContract(state);
+  res.json(contract);
 });
 
 app.get("/api/state", (req, res) => {
@@ -865,6 +977,10 @@ app.get("/api/cincinnati/channels", async (req, res) => {
 });
 
 app.post("/api/cincinnati/update", async (req, res) => {
+  const state = ensureState();
+  if (!hasCapability(state, "releaseRefreshAllowed")) {
+    return rejectForCapability(res, state, "releaseRefreshAllowed", "Release channel refresh");
+  }
   try {
     const channels = await fetchChannels(true);
     res.json({ channels });
@@ -884,6 +1000,10 @@ app.get("/api/cincinnati/patches", async (req, res) => {
 });
 
 app.post("/api/cincinnati/patches/update", async (req, res) => {
+  const state = ensureState();
+  if (!hasCapability(state, "releaseRefreshAllowed")) {
+    return rejectForCapability(res, state, "releaseRefreshAllowed", "Release patch refresh");
+  }
   try {
     const channel = req.body.channel;
     const versions = await fetchPatchesForChannel(channel, true);
@@ -915,6 +1035,9 @@ app.post("/api/operators/confirm", (req, res) => {
 app.post("/api/operators/scan", async (req, res) => {
   // Do not log req.body; it may contain pullSecret. Do not persist pullSecret.
   const state = ensureState();
+  if (!hasCapability(state, "operatorCatalogRefreshAllowed")) {
+    return rejectForCapability(res, state, "operatorCatalogRefreshAllowed", "Operator catalog refresh");
+  }
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
@@ -973,6 +1096,9 @@ app.post("/api/operators/scan", async (req, res) => {
 
 app.post("/api/operators/prefetch", async (req, res) => {
   const state = ensureState();
+  if (!hasCapability(state, "operatorCatalogRefreshAllowed")) {
+    return rejectForCapability(res, state, "operatorCatalogRefreshAllowed", "Operator catalog prefetch");
+  }
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
@@ -1437,6 +1563,15 @@ app.post("/api/ocmirror/run", async (req, res) => {
   if (!["mirrorToDisk", "diskToMirror", "mirrorToMirror"].includes(mode)) {
     return res.status(400).json({ error: "Invalid mode." });
   }
+  if (mode === "mirrorToDisk" && !hasCapability(state, "mirrorToDiskAllowed")) {
+    return rejectForCapability(res, state, "mirrorToDiskAllowed", "Mirror-to-disk workflow");
+  }
+  if (mode === "mirrorToMirror" && !hasCapability(state, "mirrorToMirrorAllowed")) {
+    return rejectForCapability(res, state, "mirrorToMirrorAllowed", "Mirror-to-mirror workflow");
+  }
+  if (mode === "diskToMirror" && !hasCapability(state, "diskToMirrorAllowed")) {
+    return rejectForCapability(res, state, "diskToMirrorAllowed", "Disk-to-mirror workflow");
+  }
   // --dry-run is a global oc-mirror v2 flag valid for all modes
   if ((mode === "mirrorToDisk" || mode === "diskToMirror") && !archivePath) {
     return res.status(400).json({ error: "Archive path is required." });
@@ -1667,6 +1802,9 @@ app.get("/api/docs", (req, res) => {
 
 app.post("/api/docs/update", async (req, res) => {
   const state = ensureState();
+  if (!hasCapability(state, "docsRefreshAllowed")) {
+    return rejectForCapability(res, state, "docsRefreshAllowed", "Documentation refresh");
+  }
   const version = state.release?.channel ? `4.${state.release.channel.split(".")[1]}` : "4.0";
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
@@ -1684,6 +1822,10 @@ app.post("/api/docs/update", async (req, res) => {
 });
 
 app.post("/api/aws/warm-installer", (req, res) => {
+  const state = ensureState();
+  if (!hasCapability(state, "awsLiveLookupAllowed")) {
+    return rejectForCapability(res, state, "awsLiveLookupAllowed", "AWS metadata warmup");
+  }
   const version = req.body?.version || req.query.version;
   if (!version) {
     return res.status(400).json({ error: "Version is required." });
@@ -1694,6 +1836,9 @@ app.post("/api/aws/warm-installer", (req, res) => {
 
 app.get("/api/aws/regions", async (req, res) => {
   const state = ensureState();
+  if (!hasCapability(state, "awsLiveLookupAllowed")) {
+    return rejectForCapability(res, state, "awsLiveLookupAllowed", "AWS regions lookup");
+  }
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
   if (!confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
@@ -1714,6 +1859,9 @@ app.get("/api/aws/regions", async (req, res) => {
 
 app.get("/api/aws/ami", async (req, res) => {
   const state = ensureState();
+  if (!hasCapability(state, "awsLiveLookupAllowed")) {
+    return rejectForCapability(res, state, "awsLiveLookupAllowed", "AWS AMI lookup");
+  }
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
   if (!confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
@@ -1736,7 +1884,106 @@ app.get("/api/aws/ami", async (req, res) => {
   }
 });
 
-const buildPreviewFiles = (state) => {
+const sanitizeStateForArtifactGeneration = (state) => {
+  const next = JSON.parse(JSON.stringify(state || {}));
+  if (next.exportOptions?.includeCertificates === false && next.trust) {
+    next.trust.mirrorRegistryCaPem = "";
+    next.trust.proxyCaPem = "";
+    next.trust.additionalTrustBundlePolicy = "";
+  }
+  return next;
+};
+
+const detectPlaceholderUsage = (state) => {
+  const hi = state?.hostInventory || {};
+  if (state?.methodology?.placeholderValuesEnabled) return true;
+  const tokenRe = /\{\{[^}]+\}\}/;
+  const scan = (value) => {
+    if (value == null) return false;
+    if (typeof value === "string") return tokenRe.test(value);
+    if (Array.isArray(value)) return value.some(scan);
+    if (typeof value === "object") return Object.values(value).some(scan);
+    return false;
+  };
+  return scan(hi.nodes) || scan(hi);
+};
+
+const buildExportReadinessManifest = (state) => {
+  const contract = getProfileContract(state);
+  const exportOptions = state.exportOptions || {};
+  const includeCredentials = Boolean(exportOptions.includeCredentials);
+  const includeCertificates = exportOptions.includeCertificates !== false;
+  const includeClientTools = Boolean(exportOptions.includeClientTools);
+  const includeInstaller = Boolean(exportOptions.includeInstaller);
+  const profile = contract.profile;
+  const hasOperatorCache = Boolean(
+    (state.operators?.catalogs?.redhat || []).length ||
+    (state.operators?.catalogs?.certified || []).length ||
+    (state.operators?.catalogs?.community || []).length
+  );
+  const hasDocsCache = Boolean((state.docs?.links || []).length);
+  const installerTargetArch = normalizeInstallerArch(exportOptions.installerTargetArch || "x86_64");
+  const manifest = {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    app: {
+      gitSha: (process.env.APP_GIT_SHA || "unknown").trim() || "unknown",
+      buildTime: (process.env.APP_BUILD_TIME || "unknown").trim() || "unknown",
+      branch: (process.env.APP_BRANCH || "main").trim() || "main"
+    },
+    sourceProfile: profile,
+    targetProfile: "disconnected-execution",
+    capabilities: contract.capabilities,
+    includedCaches: {
+      releaseMetadata: Boolean(state.release?.channel && state.release?.patchVersion),
+      operatorMetadata: hasOperatorCache,
+      docsMetadata: hasDocsCache,
+      awsMetadata: false
+    },
+    includedTools: {
+      ocClient: includeClientTools,
+      ocMirror: includeClientTools,
+      openshiftInstall: includeInstaller,
+      installerTargetHostOsFamily: exportOptions.installerTargetHostOsFamily || "rhel9",
+      installerTargetArch,
+      installerTargetFipsRequired: Boolean(exportOptions.installerTargetFipsRequired)
+    },
+    runtimePackageIncluded: false,
+    placeholdersPresent: detectPlaceholderUsage(state),
+    secrets: {
+      pullSecret: includeCredentials ? "included" : "omitted",
+      platformCredentials: includeCredentials ? "included" : "omitted",
+      mirrorRegistryCredentials: includeCredentials ? "included" : "omitted",
+      bmcCredentials: includeCredentials ? "included" : "omitted",
+      trustBundleAndCertificates: includeCertificates ? "included" : "omitted",
+      sshPublicKey: "included",
+      proxyValues: "included"
+    },
+    staleDataWarnings: {
+      operatorsStale: Boolean(state.operators?.stale),
+      docsLinksMissing: !hasDocsCache
+    },
+    continuationReady: Boolean(state.blueprint?.confirmed && (state.version?.versionConfirmed ?? state.release?.confirmed)),
+    mirrorPayloadNotIncluded: !Boolean(state.mirrorWorkflow?.includeInExport),
+    diskToMirrorReady: Boolean(
+      state.mirrorWorkflow?.archivePath &&
+      state.mirrorWorkflow?.lastRunJobId
+    ),
+    lockedSelections: {
+      releaseMinor: state.release?.channel || null,
+      releasePatch: state.release?.patchVersion || null,
+      operatorSelectionsLocked: Boolean(state.blueprint?.confirmed && (state.version?.versionConfirmed ?? state.release?.confirmed))
+    },
+    notes: [
+      "High-side runtime package archive is not included in this transfer bundle.",
+      "oc-mirror payload transfer remains explicit and separate from app transfer artifacts."
+    ]
+  };
+  return manifest;
+};
+
+const buildPreviewFiles = (rawState) => {
+  const state = sanitizeStateForArtifactGeneration(rawState);
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
   if (!confirmed) return null;
   const version = state.release?.channel ? `4.${state.release.channel.split(".")[1]}` : "4.0";
@@ -1775,7 +2022,8 @@ app.post("/api/generate", (req, res) => {
   res.json({ files });
 });
 
-const buildBundleZip = async (state, res) => {
+const buildBundleZip = async (rawState, res) => {
+  const state = sanitizeStateForArtifactGeneration(rawState);
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
   if (!confirmed) {
     res.status(400).json({ error: "Version not confirmed." });
@@ -1793,6 +2041,7 @@ const buildBundleZip = async (state, res) => {
   const imageSetConfig = buildImageSetConfig(state);
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);
+  const readinessManifest = buildExportReadinessManifest(state);
 
   const bundleName = `airgap-${state.release?.patchVersion || "unknown"}-install-configs-bundle.zip`;
   res.setHeader("Content-Type", "application/zip");
@@ -1809,6 +2058,7 @@ const buildBundleZip = async (state, res) => {
   }
   archive.append(imageSetConfig, { name: "imageset-config.yaml" });
   archive.append(fieldManual, { name: "FIELD_MANUAL.md" });
+  archive.append(JSON.stringify(readinessManifest, null, 2), { name: "EXPORT_READINESS_MANIFEST.json" });
   Object.entries(ntpMachineConfigs).forEach(([name, content]) => {
     archive.append(content, { name });
   });
@@ -1819,39 +2069,54 @@ const buildBundleZip = async (state, res) => {
     );
   }
   if (state.exportOptions?.includeClientTools) {
-    try {
-      await resolveOcMirrorBinary(dataDir);
-      const exportArch = state.exportOptions?.exportBinaryArch || getLocalBinaryArch();
-      const { ocPath, ocMirrorPath } = await getBinariesForExportArch(exportArch, dataDir);
-      if (ocPath && fs.existsSync(ocPath)) {
-        archive.file(ocPath, { name: "tools/oc" });
-      }
-      if (ocMirrorPath && fs.existsSync(ocMirrorPath)) {
-        archive.file(ocMirrorPath, { name: "tools/oc-mirror" });
-      }
-    } catch (e) {
+    if (!hasCapability(state, "binaryDownloadAllowed")) {
       archive.append(
-        `Failed to include oc/oc-mirror: ${String(e?.message || e)}\n`,
+        `Client tool download is disabled in profile ${resolveOperationalProfile(state)}.\n`,
         { name: "tools/oc-mirror.ERROR.txt" }
       );
+    } else {
+      try {
+        await resolveOcMirrorBinary(dataDir);
+        const exportArch = state.exportOptions?.exportBinaryArch || getLocalBinaryArch();
+        const { ocPath, ocMirrorPath } = await getBinariesForExportArch(exportArch, dataDir);
+        if (ocPath && fs.existsSync(ocPath)) {
+          archive.file(ocPath, { name: "tools/oc" });
+        }
+        if (ocMirrorPath && fs.existsSync(ocMirrorPath)) {
+          archive.file(ocMirrorPath, { name: "tools/oc-mirror" });
+        }
+      } catch (e) {
+        archive.append(
+          `Failed to include oc/oc-mirror: ${String(e?.message || e)}\n`,
+          { name: "tools/oc-mirror.ERROR.txt" }
+        );
+      }
     }
   }
   if (state.exportOptions?.includeInstaller) {
-    try {
-      const version = state.release?.patchVersion;
-      if (!version) {
-        throw new Error("Version not selected.");
-      }
-      await ensureInstaller(version);
-      const installerPath = installerPathFor(version);
-      if (fs.existsSync(installerPath)) {
-        archive.file(installerPath, { name: "tools/openshift-install" });
-      }
-    } catch (error) {
+    if (!hasCapability(state, "binaryDownloadAllowed")) {
       archive.append(
-        `Failed to include openshift-install: ${String(error?.message || error)}\n`,
+        `Installer download is disabled in profile ${resolveOperationalProfile(state)}.\n`,
         { name: "tools/openshift-install.ERROR.txt" }
       );
+    } else {
+      try {
+        const version = state.release?.patchVersion;
+        if (!version) {
+          throw new Error("Version not selected.");
+        }
+        const targetArch = normalizeInstallerArch(state.exportOptions?.installerTargetArch || "x86_64");
+        await ensureInstaller(version, { arch: targetArch });
+        const installerPath = installerPathFor(version, targetArch);
+        if (fs.existsSync(installerPath)) {
+          archive.file(installerPath, { name: "tools/openshift-install" });
+        }
+      } catch (error) {
+        archive.append(
+          `Failed to include openshift-install: ${String(error?.message || error)}\n`,
+          { name: "tools/openshift-install.ERROR.txt" }
+        );
+      }
     }
   }
   const mirrorOutputPath = state.mirrorWorkflow?.archivePath || state.mirrorWorkflow?.outputPath;

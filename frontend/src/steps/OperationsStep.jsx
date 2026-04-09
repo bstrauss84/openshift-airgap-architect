@@ -26,6 +26,26 @@ function getOcMirrorMeta(job) {
   }
 }
 
+function downloadTextFile(filename, content) {
+  const blob = new Blob([String(content || "")], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadJsonFile(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const OperationsStep = () => {
   const { state, updateState } = useApp();
   const [jobs, setJobs] = useState([]);
@@ -156,6 +176,7 @@ const OperationsStep = () => {
           message: j.message,
           created_at: j.created_at,
           updated_at: j.updated_at,
+          metadata: getOcMirrorMeta(j),
           output: j.output || ""
         }))
       };
@@ -169,6 +190,38 @@ const OperationsStep = () => {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const downloadJobLog = (job) => {
+    downloadTextFile(`${job.type}-${job.id}-log.txt`, job.output || "");
+  };
+
+  const downloadJobMetadata = (job) => {
+    downloadJsonFile(`${job.type}-${job.id}-metadata.json`, {
+      id: job.id,
+      type: job.type,
+      status: job.status,
+      message: job.message,
+      created_at: job.created_at,
+      updated_at: job.updated_at,
+      metadata: getOcMirrorMeta(job)
+    });
+  };
+
+  const downloadJobSupportBundle = (job) => {
+    downloadJsonFile(`${job.type}-${job.id}-support.json`, {
+      summary: {
+        exportedAt: new Date().toISOString(),
+        id: job.id,
+        type: job.type,
+        status: job.status,
+        message: job.message,
+        created_at: job.created_at,
+        updated_at: job.updated_at
+      },
+      metadata: getOcMirrorMeta(job),
+      log: job.output || ""
+    });
   };
 
   return (
@@ -224,6 +277,15 @@ const OperationsStep = () => {
                           Stop
                         </button>
                       ) : null}
+                      <button type="button" className="ghost" onClick={() => downloadJobLog(job)}>
+                        Download log
+                      </button>
+                      <button type="button" className="ghost" onClick={() => downloadJobMetadata(job)}>
+                        Download metadata
+                      </button>
+                      <button type="button" className="ghost" onClick={() => downloadJobSupportBundle(job)}>
+                        Download support bundle
+                      </button>
                     </div>
                   </div>
                   {selectedJobId === job.id ? (

@@ -50,7 +50,7 @@ const defaultRegistryUrl = (state) => {
   return fqdn ? `docker://${fqdn}` : "";
 };
 
-export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
+export default function RunOcMirrorStep({ onNavigateToOperations, capabilities = {} } = {}) {
   const { state, updateState } = useApp();
   const mw = state?.mirrorWorkflow || {};
   const mode = mw.mode || "mirrorToDisk";
@@ -71,6 +71,9 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const strictArchive = Boolean(mw.strictArchive);
   const includeInExport = Boolean(mw.includeInExport);
   const lastRunJobId = mw.lastRunJobId || null;
+  const canMirrorToDisk = capabilities.mirrorToDiskAllowed !== false;
+  const canMirrorToMirror = capabilities.mirrorToMirrorAllowed !== false;
+  const canDiskToMirror = capabilities.diskToMirrorAllowed !== false;
 
   const [preflightResult, setPreflightResult] = React.useState(null);
   const [preflightLoading, setPreflightLoading] = React.useState(false);
@@ -194,6 +197,15 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   if (!state) return <div className="step"><div className="loading">Loading…</div></div>;
 
   const runPreflight = async () => {
+    if ((mode === "mirrorToDisk" && !canMirrorToDisk) || (mode === "mirrorToMirror" && !canMirrorToMirror) || (mode === "diskToMirror" && !canDiskToMirror)) {
+      setPreflightResult({
+        ok: false,
+        blockers: [`${mode} is disabled in the current operational profile.`],
+        warnings: [],
+        checks: {}
+      });
+      return;
+    }
     setPreflightLoading(true);
     setPreflightResult(null);
     try {
@@ -222,6 +234,10 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   };
 
   const runOcMirror = async () => {
+    if ((mode === "mirrorToDisk" && !canMirrorToDisk) || (mode === "mirrorToMirror" && !canMirrorToMirror) || (mode === "diskToMirror" && !canDiskToMirror)) {
+      setRunError(`${mode} is disabled in the current operational profile.`);
+      return;
+    }
     setRunError(null);
     const body = {
       mode,
@@ -274,6 +290,48 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     } else {
       updateState({ ui: { ...state.ui, activeStepId: "operations", highlightJobId: jobId || undefined } });
     }
+  };
+
+  const downloadTextFile = (filename, content) => {
+    const blob = new Blob([String(content || "")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadJsonFile = (filename, payload) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const buildMirrorHandoffMarkdown = (job, meta) => {
+    const lines = [];
+    lines.push("# oc-mirror handoff (mirror-to-disk)");
+    lines.push("");
+    lines.push(`- Generated: ${new Date().toISOString()}`);
+    lines.push(`- Job ID: ${job?.id || "unknown"}`);
+    lines.push(`- Status: ${job?.status || "unknown"}`);
+    if (meta?.archiveDir) lines.push(`- Archive directory: \`${meta.archiveDir}\``);
+    if (meta?.workspaceDir) lines.push(`- Workspace directory: \`${meta.workspaceDir}\``);
+    if (meta?.cacheDir) lines.push(`- Cache directory: \`${meta.cacheDir}\``);
+    lines.push("");
+    lines.push("## Transfer guidance");
+    lines.push("- Transfer the full archive directory, including `working-dir` artifacts, to the disconnected side.");
+    lines.push("- Mirror archive payload, oc-mirror workspace output, and app transfer bundles are separate artifacts.");
+    lines.push("- Use disk-to-mirror mode on the disconnected side with the transferred archive path.");
+    lines.push("");
+    lines.push("## Notes");
+    lines.push("- This handoff does not embed large mirror payloads into app run bundles.");
+    lines.push("- See OpenShift 4.20 disconnected mirroring guidance for exact workflow requirements.");
+    return lines.join("\n");
   };
 
   const hasBlockers = preflightResult && Array.isArray(preflightResult.blockers) && preflightResult.blockers.length > 0;
@@ -338,6 +396,7 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
                           id={`ocmirror-mode-${m.value}`}
                           name="ocmirror-mode"
                           checked={mode === m.value}
+                          disabled={(m.value === "mirrorToDisk" && !canMirrorToDisk) || (m.value === "mirrorToMirror" && !canMirrorToMirror) || (m.value === "diskToMirror" && !canDiskToMirror)}
                           onChange={() => updateMirrorWorkflow({ mode: m.value })}
                         />
                       </OptionRow>
@@ -348,6 +407,11 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
             })}
           </div>
         </section>
+        {(!canMirrorToDisk || !canMirrorToMirror || !canDiskToMirror) ? (
+          <div className="note warning" style={{ marginTop: 8 }}>
+            Profile capability gating is active. Disabled workflows cannot be executed in this runtime profile.
+          </div>
+        ) : null}
 
         {/* 2. Config source */}
         <section className="card">
@@ -943,6 +1007,58 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                       <strong>Next steps:</strong> Transfer the contents of <code>{meta.archiveDir}</code> (tar archives and working-dir) across the air gap along with your other deliverables. You will need these files for the disk-to-mirror step on the disconnected side.
                     </div>
                   )}
+                  {!partial && meta?.mode === "mirrorToDisk" ? (
+                    <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => downloadTextFile(`oc-mirror-handoff-${job.id}.md`, buildMirrorHandoffMarkdown(job, meta))}
+                      >
+                        Download handoff doc
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => downloadJsonFile(`oc-mirror-handoff-${job.id}.json`, {
+                          schemaVersion: 1,
+                          generatedAt: new Date().toISOString(),
+                          jobId: job.id,
+                          status: job.status,
+                          message: job.message || "",
+                          metadata: meta || {},
+                          includeInExport,
+                          transferCategories: {
+                            mirrorArchivePayload: true,
+                            ocMirrorWorkspaceSupportingContent: true,
+                            operationsLogsAndMetadata: true,
+                            appTransferBundle: false,
+                            highSideRuntimePackage: false
+                          }
+                        })}
+                      >
+                        Download handoff manifest
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => downloadTextFile(`oc-mirror-${job.id}.log.txt`, job.output || "")}
+                      >
+                        Download logs
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => downloadJsonFile(`oc-mirror-${job.id}-support.json`, {
+                          summary: {
+                            jobId: job.id,
+                            status: job.status,
+                            message: job.message || "",
+                            generatedAt: new Date().toISOString()
+                          },
+                          metadata: meta || {},
+                          log: job.output || ""
+                        })}
+                      >
+                        Download support bundle
+                      </Button>
+                    </div>
+                  ) : null}
                   {!partial && meta?.mode === "diskToMirror" && (
                     <div className="note" style={{ marginTop: 12 }}>
                       Images have been pushed to your mirror registry. Proceed to install or update your cluster.
