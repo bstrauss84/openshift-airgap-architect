@@ -160,6 +160,42 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     expect(result.errors).toContain("additionalTrustBundlePolicy is required when a trust bundle is provided.");
   });
 
+  it("validation runs for trust-proxy: reduced caution requires explicit acknowledgment", () => {
+    const state = stateForTrustProxyStep({
+      trust: {
+        mirrorRegistryCaPem: "-----BEGIN CERTIFICATE-----\nMOCK\n-----END CERTIFICATE-----",
+        additionalTrustBundlePolicy: "Always",
+        bundleSelectionMode: "reduced",
+        reducedSelection: {
+          analysisHash: "hash",
+          selectedCertFingerprints: ["abc"],
+          selectionSummary: { thresholdBand: "caution_exceeded" },
+          cautionAcknowledged: false
+        }
+      }
+    });
+    const result = validateStep(state, "trust-proxy");
+    expect(result.errors).toContain("Reduced trust selection exceeds caution thresholds and requires explicit acknowledgment in Trust & Proxy.");
+  });
+
+  it("validation runs for trust-proxy: reduced hard max blocks", () => {
+    const state = stateForTrustProxyStep({
+      trust: {
+        mirrorRegistryCaPem: "-----BEGIN CERTIFICATE-----\nMOCK\n-----END CERTIFICATE-----",
+        additionalTrustBundlePolicy: "Always",
+        bundleSelectionMode: "reduced",
+        reducedSelection: {
+          analysisHash: "hash",
+          selectedCertFingerprints: ["abc"],
+          selectionSummary: { thresholdBand: "hard_max_exceeded" },
+          cautionAcknowledged: true
+        }
+      }
+    });
+    const result = validateStep(state, "trust-proxy");
+    expect(result.errors).toContain("Reduced trust selection exceeds hard maximum thresholds. Reduce selected certificates or switch to original bundle mode.");
+  });
+
   it("renders mirrorRegistryUsesPrivateCa toggle and shows warning when checked and no PEM (Phase 5 B restore)", async () => {
     render(<App />);
     await waitFor(() => {

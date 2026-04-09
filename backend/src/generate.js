@@ -5,6 +5,7 @@
 import yaml from "js-yaml";
 import { getTrustBundlePolicies } from "./versionPolicy.js";
 import { buildFieldGuide } from "./fieldGuide/index.js";
+import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
@@ -755,7 +756,7 @@ const buildInstallConfig = (state) => {
   }
 
   const trust = state.trust || {};
-  const trustBundle = buildEffectiveTrustBundle(trust);
+  const trustBundle = resolveTrustBundleForGeneration(state);
   if (trustBundle) {
     installConfig.additionalTrustBundle = trustBundle;
     const allowedPolicies = getTrustBundlePolicies(state.release?.patchVersion || "");
@@ -906,6 +907,16 @@ const buildEffectiveTrustBundle = (trust) => {
   if (!mirrorBlocks.length && !proxyBlocks.length) return "";
   const merged = Array.from(new Set([...mirrorBlocks, ...proxyBlocks]));
   return merged.join("\n\n");
+};
+
+const resolveTrustBundleForGeneration = (state) => {
+  const trust = state.trust || {};
+  const mode = trust.bundleSelectionMode || "original";
+  if (mode !== "reduced") {
+    return buildEffectiveTrustBundle(trust);
+  }
+  const reduced = resolveReducedBundleOrThrow(state);
+  return reduced.bundle;
 };
 
 /**

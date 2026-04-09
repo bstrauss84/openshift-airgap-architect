@@ -8,12 +8,14 @@ const apiFetch = async (path, options = {}) => {
   });
   if (!res.ok) {
     const text = await res.text();
+    let parsed = null;
     try {
-      const parsed = JSON.parse(text);
-      throw new Error(parsed.error || parsed.message || text || res.statusText);
-    } catch {
-      throw new Error(text || res.statusText);
-    }
+      parsed = JSON.parse(text);
+    } catch {}
+    const error = new Error(parsed?.error || parsed?.message || text || res.statusText);
+    error.status = res.status;
+    if (parsed) error.payload = parsed;
+    throw error;
   }
   return res.json();
 };
