@@ -13,6 +13,17 @@ const MIRROR_BASE = "https://mirror.openshift.com/pub/openshift-v4";
 const BAKED_IN_OC = "/usr/local/bin/oc";
 const BAKED_IN_OC_MIRROR = "/usr/local/bin/oc-mirror";
 
+function isReadableFile(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return false;
+    fs.accessSync(filePath, fs.constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Normalize runtime arch to a canonical name for mirror paths. */
 function normalizeRuntimeArch(arch) {
   if (!arch || typeof arch !== "string") return null;
@@ -124,6 +135,7 @@ function extractOcMirror(tarballPath, outDir) {
 let _lastResolvedArch = null;
 let _lastOcPath = null;
 let _lastOcMirrorPath = null;
+const _exportBinaryFetchInflight = new Map();
 function setLastResolvedArch(arch) {
   _lastResolvedArch = arch;
 }
@@ -231,9 +243,13 @@ function getLocalBinaryArch() {
 }
 
 function getLocalBinaryPaths() {
+  const lastOc = _lastOcPath && isReadableFile(_lastOcPath) ? _lastOcPath : null;
+  const lastOcMirror = _lastOcMirrorPath && isReadableFile(_lastOcMirrorPath) ? _lastOcMirrorPath : null;
+  const bakedOc = isReadableFile(BAKED_IN_OC) ? BAKED_IN_OC : null;
+  const bakedOcMirror = isReadableFile(BAKED_IN_OC_MIRROR) ? BAKED_IN_OC_MIRROR : null;
   return {
-    ocPath: _lastOcPath ?? (fs.existsSync(BAKED_IN_OC) ? BAKED_IN_OC : null),
-    ocMirrorPath: _lastOcMirrorPath || BAKED_IN_OC_MIRROR
+    ocPath: lastOc ?? bakedOc,
+    ocMirrorPath: lastOcMirror ?? bakedOcMirror
   };
 }
 
@@ -251,27 +267,55 @@ async function getBinariesForExportArch(exportArch, dataDir) {
   }
   const toolsDir = path.join(dataDir || "/data", "tools");
   const exportDir = path.join(toolsDir, `export-${normalizedExport || localArch}`);
-  const candidates = getMirrorArchCandidates(normalizedExport || localArch);
-  for (const archDir of candidates) {
-    const urls = getMirrorUrls(archDir);
-    try {
-      fs.mkdirSync(exportDir, { recursive: true });
-      const ocTgz = path.join(exportDir, "oc-client.tar.gz");
-      const mirrorTgz = path.join(exportDir, "oc-mirror.tar.gz");
-      await downloadToFile(urls.oc, ocTgz);
-      await downloadToFile(urls.ocMirror, mirrorTgz);
-      const binDir = path.join(exportDir, "bin");
-      fs.mkdirSync(binDir, { recursive: true });
-      const ocPath = extractOc(ocTgz, binDir);
-      const ocMirrorPath = extractOcMirror(mirrorTgz, binDir);
-      fs.unlinkSync(ocTgz);
-      fs.unlinkSync(mirrorTgz);
-      return { ocPath, ocMirrorPath };
-    } catch (e) {
-      continue;
-    }
+  const binDir = path.join(exportDir, "bin");
+  const ocFinalPath = path.join(binDir, "oc");
+  const ocMirrorFinalPath = path.join(binDir, "oc-mirror");
+  if (fs.existsSync(ocFinalPath) && fs.existsSync(ocMirrorFinalPath)) {
+    return { ocPath: ocFinalPath, ocMirrorPath: ocMirrorFinalPath };
   }
-  throw new Error(`Could not fetch oc/oc-mirror for architecture ${normalizedExport || exportArch}.`);
+  const fetchKey = normalizedExport || localArch;
+  const existing = _exportBinaryFetchInflight.get(fetchKey);
+  if (existing) return existing;
+
+  const fetchPromise = (async () => {
+    const candidates = getMirrorArchCandidates(fetchKey);
+    for (const archDir of candidates) {
+      const urls = getMirrorUrls(archDir);
+      let workDir = null;
+      try {
+        fs.mkdirSync(exportDir, { recursive: true });
+        workDir = fs.mkdtempSync(path.join(exportDir, "fetch-"));
+        const ocTgz = path.join(workDir, "oc-client.tar.gz");
+        const mirrorTgz = path.join(workDir, "oc-mirror.tar.gz");
+        await downloadToFile(urls.oc, ocTgz);
+        await downloadToFile(urls.ocMirror, mirrorTgz);
+        const tempBinDir = path.join(workDir, "bin");
+        fs.mkdirSync(tempBinDir, { recursive: true });
+        const ocPath = extractOc(ocTgz, tempBinDir);
+        const ocMirrorPath = extractOcMirror(mirrorTgz, tempBinDir);
+        fs.mkdirSync(binDir, { recursive: true });
+        fs.copyFileSync(ocPath, ocFinalPath);
+        fs.copyFileSync(ocMirrorPath, ocMirrorFinalPath);
+        fs.chmodSync(ocFinalPath, 0o755);
+        fs.chmodSync(ocMirrorFinalPath, 0o755);
+        return { ocPath: ocFinalPath, ocMirrorPath: ocMirrorFinalPath };
+      } catch (e) {
+        // try next candidate
+      } finally {
+        if (workDir) {
+          try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {}
+        }
+      }
+    }
+    throw new Error(`Could not fetch oc/oc-mirror for architecture ${normalizedExport || exportArch}.`);
+  })();
+
+  _exportBinaryFetchInflight.set(fetchKey, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    _exportBinaryFetchInflight.delete(fetchKey);
+  }
 }
 
 export {
