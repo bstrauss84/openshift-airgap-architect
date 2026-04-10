@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { app, resolveOcMirrorArtifactsBaseDir } from "../src/index.js";
-import { createJob, updateJob, updateJobMetadata, getJob } from "../src/utils.js";
+import { appendJobOutput, createJob, updateJob, updateJobMetadata, getJob } from "../src/utils.js";
 
 function createTestServer() {
   return new Promise((resolve) => {
@@ -181,4 +181,38 @@ test("POST /api/start-over cancels running oc-mirror jobs", async () => {
   } finally {
     server.close();
   }
+});
+
+test("appendJobOutput redacts common secrets before persistence", () => {
+  const id = createJob("oc-mirror-run", "secret redaction test");
+  appendJobOutput(
+    id,
+    [
+      'payload={"auth":"ZXhhbXBsZTpzZWNyZXQ="}',
+      "password=hunter2",
+      "Authorization: Bearer supersecrettoken",
+      "Authorization: Basic dXNlcjpzZWNyZXQ="
+    ].join("\n")
+  );
+  const job = getJob(id);
+  assert.ok(job?.output);
+  assert.match(job.output, /"auth":"\[REDACTED\]"/);
+  assert.match(job.output, /password=\[REDACTED\]/);
+  assert.match(job.output, /Authorization:\s*Bearer\s+\[REDACTED\]/);
+  assert.match(job.output, /Authorization:\s*Basic\s+\[REDACTED\]/);
+  assert.ok(!job.output.includes("hunter2"));
+  assert.ok(!job.output.includes("supersecrettoken"));
+});
+
+test("updateJob redacts direct output writes", () => {
+  const id = createJob("operator-scan", "direct output redaction");
+  updateJob(id, {
+    output: 'error: failed login at https://admin:s3cr3t@example.com and token=abc123'
+  });
+  const job = getJob(id);
+  assert.ok(job?.output);
+  assert.match(job.output, /https:\/\/\[REDACTED\]:\[REDACTED\]@example\.com/);
+  assert.match(job.output, /token=\[REDACTED\]/);
+  assert.ok(!job.output.includes("s3cr3t"));
+  assert.ok(!job.output.includes("abc123"));
 });
