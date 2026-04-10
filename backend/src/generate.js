@@ -6,6 +6,7 @@ import yaml from "js-yaml";
 import { getTrustBundlePolicies } from "./versionPolicy.js";
 import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
+import { resolveSecretInclusion } from "./exportInclusion.js";
 
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
@@ -134,7 +135,14 @@ const buildInstallConfig = (state) => {
     ? [networkingState.machineNetworkV4, networkingState.machineNetworkV6].filter(Boolean).map((cidr) => ({ cidr }))
     : [networkingState.machineNetworkV4].filter(Boolean).map((cidr) => ({ cidr }));
 
-  const includeCredentials = Boolean(state.exportOptions?.includeCredentials);
+  const inclusion = resolveSecretInclusion(state.exportOptions || {});
+  const includePullSecret = Boolean(inclusion.pullSecret);
+  const includePlatformCredentials = Boolean(inclusion.platformCredentials);
+  const includeMirrorRegistryCredentials = Boolean(inclusion.mirrorRegistryCredentials);
+  const includeBmcCredentials = Boolean(inclusion.bmcCredentials);
+  const includeTrustBundleAndCertificates = Boolean(inclusion.trustBundleAndCertificates);
+  const includeSshPublicKey = Boolean(inclusion.sshPublicKey);
+  const includeProxyValues = Boolean(inclusion.proxyValues);
   const creds = state.credentials || {};
   const useAnonymousPullSecret = Boolean(
     creds.usingMirrorRegistry && creds.mirrorRegistryUnauthenticated
@@ -148,11 +156,11 @@ const buildInstallConfig = (state) => {
   const mirrorHasContent = (creds.mirrorRegistryPullSecret || "").trim() && (creds.mirrorRegistryPullSecret || "").trim() !== "{\"auths\":{}}";
   const redHatHasContent = (creds.pullSecretPlaceholder || "").trim() && (creds.pullSecretPlaceholder || "").trim() !== "{\"auths\":{}}";
   const useMirrorPath = creds.usingMirrorRegistry || (!redHatHasContent && mirrorHasContent);
-  const rawPullSecret = includeCredentials
+  const rawPullSecret = includePullSecret
     ? useAnonymousPullSecret
       ? anonymousPullSecretPayload
       : useMirrorPath
-        ? (creds.mirrorRegistryPullSecret || "{\"auths\":{}}")
+        ? (includeMirrorRegistryCredentials ? (creds.mirrorRegistryPullSecret || "{\"auths\":{}}") : "{\"auths\":{}}")
         : (creds.pullSecretPlaceholder || "{\"auths\":{}}")
     : "{\"auths\":{}}";
   const pullSecret = normalizePullSecretString(rawPullSecret);
@@ -200,7 +208,7 @@ const buildInstallConfig = (state) => {
       [normalizePlatformKey(state.blueprint?.platform)]: {}
     },
     pullSecret,
-    sshKey: state.credentials?.sshPublicKey || ""
+    sshKey: includeSshPublicKey ? (state.credentials?.sshPublicKey || "") : ""
   };
 
   if (state.blueprint?.platform === "Bare Metal") {
@@ -247,8 +255,8 @@ const buildInstallConfig = (state) => {
           if (bmcAddr) {
             host.bmc = {
               address: bmcAddr,
-              ...(includeCredentials && node.bmc?.username ? { username: node.bmc.username } : {}),
-              ...(includeCredentials && node.bmc?.password ? { password: node.bmc.password } : {}),
+              ...(includeBmcCredentials && node.bmc?.username ? { username: node.bmc.username } : {}),
+              ...(includeBmcCredentials && node.bmc?.password ? { password: node.bmc.password } : {}),
               ...(node.bmc?.disableCertificateVerification === true ? { disableCertificateVerification: true } : {})
             };
           }
@@ -287,8 +295,8 @@ const buildInstallConfig = (state) => {
         if (bmcAddr) {
           host.bmc = {
             address: bmcAddr,
-            ...(includeCredentials && node.bmc?.username ? { username: node.bmc.username } : {}),
-            ...(includeCredentials && node.bmc?.password ? { password: node.bmc.password } : {}),
+            ...(includeBmcCredentials && node.bmc?.username ? { username: node.bmc.username } : {}),
+            ...(includeBmcCredentials && node.bmc?.password ? { password: node.bmc.password } : {}),
             ...(node.bmc?.disableCertificateVerification === true ? { disableCertificateVerification: true } : {})
           };
         }
@@ -340,9 +348,9 @@ const buildInstallConfig = (state) => {
 
   if (state.globalStrategy?.proxyEnabled) {
     installConfig.proxy = {
-      httpProxy: state.globalStrategy?.proxies?.httpProxy,
-      httpsProxy: state.globalStrategy?.proxies?.httpsProxy,
-      noProxy: state.globalStrategy?.proxies?.noProxy
+      httpProxy: includeProxyValues ? state.globalStrategy?.proxies?.httpProxy : "",
+      httpsProxy: includeProxyValues ? state.globalStrategy?.proxies?.httpsProxy : "",
+      noProxy: includeProxyValues ? state.globalStrategy?.proxies?.noProxy : ""
     };
   }
 
@@ -466,8 +474,8 @@ const buildInstallConfig = (state) => {
         vsphere.vcenters = [
           {
             server,
-            user: includeCredentials ? vs.username || "" : "",
-            password: includeCredentials ? vs.password || "" : "",
+            user: includePlatformCredentials ? vs.username || "" : "",
+            password: includePlatformCredentials ? vs.password || "" : "",
             datacenters: [datacenter],
             port: 443
           }
@@ -519,8 +527,8 @@ const buildInstallConfig = (state) => {
         if (explicitVcenters) {
           vsphere.vcenters = vs.vcenters.map((vc) => ({
             server: vc.server || "",
-            user: includeCredentials ? (vc.user || "") : "",
-            password: includeCredentials ? (vc.password || "") : "",
+            user: includePlatformCredentials ? (vc.user || "") : "",
+            password: includePlatformCredentials ? (vc.password || "") : "",
             datacenters: Array.isArray(vc.datacenters) ? vc.datacenters : (vc.datacenter != null ? [vc.datacenter] : []),
             port: Number(vc.port) || 443
           })).filter((vc) => vc.server && vc.datacenters.length > 0);
@@ -533,8 +541,8 @@ const buildInstallConfig = (state) => {
               const datacenter = fd.topology?.datacenter;
               vcentersFromFd.push({
                 server: fd.server,
-                user: includeCredentials ? (vs.username || "") : "",
-                password: includeCredentials ? (vs.password || "") : "",
+                user: includePlatformCredentials ? (vs.username || "") : "",
+                password: includePlatformCredentials ? (vs.password || "") : "",
                 datacenters: datacenter ? [datacenter] : [],
                 port: 443
               });
@@ -546,8 +554,8 @@ const buildInstallConfig = (state) => {
         // FD mode but no failure domains: emit only explicit vcenters (e.g. user will add FDs later or validation blocks).
         vsphere.vcenters = vs.vcenters.map((vc) => ({
           server: vc.server || "",
-          user: includeCredentials ? (vc.user || "") : "",
-          password: includeCredentials ? (vc.password || "") : "",
+          user: includePlatformCredentials ? (vc.user || "") : "",
+          password: includePlatformCredentials ? (vc.password || "") : "",
           datacenters: Array.isArray(vc.datacenters) ? vc.datacenters : (vc.datacenter != null ? [vc.datacenter] : []),
           port: Number(vc.port) || 443
         })).filter((vc) => vc.server && vc.datacenters.length > 0);
@@ -635,8 +643,8 @@ const buildInstallConfig = (state) => {
           address: endpointAddr,
           port: Number.isFinite(portNum) ? portNum : 9440
         },
-        username: includeCredentials ? nx.username || "" : "",
-        password: includeCredentials ? nx.password || "" : ""
+        username: includePlatformCredentials ? nx.username || "" : "",
+        password: includePlatformCredentials ? nx.password || "" : ""
       };
     }
     // subnetUUIDs: accept comma-separated list or single value (OCP 4.20 Nutanix params: plural array field).
@@ -757,7 +765,7 @@ const buildInstallConfig = (state) => {
 
   const trust = state.trust || {};
   const trustBundle = resolveTrustBundleForGeneration(state);
-  if (trustBundle) {
+  if (trustBundle && includeTrustBundleAndCertificates) {
     installConfig.additionalTrustBundle = trustBundle;
     const allowedPolicies = getTrustBundlePolicies(state.release?.patchVersion || "");
     const requested = trust.additionalTrustBundlePolicy;
@@ -774,7 +782,7 @@ const buildInstallConfig = (state) => {
   }
 
   let out = yaml.dump(installConfig, { lineWidth: 120 });
-  if (trustBundle) {
+  if (trustBundle && includeTrustBundleAndCertificates) {
     out = rewriteAdditionalTrustBundleToLiteralBlock(out, trustBundle);
   }
   return out;

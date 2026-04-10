@@ -90,7 +90,7 @@ test("start-over on imported run preserves caches and unlocks continuation", asy
 test("state updates reject locked continuation fields", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
-    await fetch(`${baseUrl}/api/run/import`, {
+    const importRes = await fetch(`${baseUrl}/api/run/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -103,6 +103,9 @@ test("state updates reject locked continuation fields", async () => {
         }
       })
     });
+    assert.strictEqual(importRes.status, 200);
+    const imported = await importRes.json();
+    assert.strictEqual(imported.state?.continuation?.locks?.releaseMinor, true);
     const releaseChange = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -229,6 +232,56 @@ test("readiness manifest reflects installer packaging policy and mirror payload 
   assert.strictEqual(manifest.mirrorPayloadNotIncluded, true);
 });
 
+test("readiness manifest reports placeholders and review-needed status", async () => {
+  const manifest = buildExportReadinessManifest({
+    reviewFlags: { review: false },
+    hostInventory: {
+      nodes: [{ hostname: "__AIRA_PLACEHOLDER__::hostname::id::Node%20hostname" }]
+    },
+    exportOptions: {
+      inclusion: {
+        pullSecret: false,
+        platformCredentials: false,
+        mirrorRegistryCredentials: false,
+        bmcCredentials: false,
+        trustBundleAndCertificates: true,
+        sshPublicKey: true,
+        proxyValues: true
+      }
+    },
+    operators: { stale: false, catalogs: { redhat: [], certified: [], community: [] } },
+    docs: { links: [] }
+  });
+  assert.strictEqual(manifest.placeholdersPresent, true);
+  assert.ok((manifest.placeholders?.count || 0) >= 1);
+  assert.strictEqual(manifest.runStatus?.reviewNeeded, true);
+});
+
+test("run export strips credential classes by default", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        credentials: {
+          pullSecretPlaceholder: "__AIRA_PLACEHOLDER__::pullSecret::id::Pull%20secret",
+          mirrorRegistryPullSecret: "{\"auths\":{\"registry.local:5000\":{\"auth\":\"abc\"}}}",
+          sshPublicKey: "ssh-ed25519 AAAATEST test@example"
+        }
+      })
+    });
+    const res = await fetch(`${baseUrl}/api/run/export`);
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.state?.credentials?.pullSecretPlaceholder, "{\"auths\":{}}");
+    assert.strictEqual(body.state?.credentials?.mirrorRegistryPullSecret || "", "");
+    assert.strictEqual(body.state?.credentials?.sshPublicKey, "ssh-ed25519 AAAATEST test@example");
+  } finally {
+    server.close();
+  }
+});
+
 test("docs cache provenance is stamped on docs cache read", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
@@ -238,7 +291,7 @@ test("docs cache provenance is stamped on docs cache read", async () => {
     assert.strictEqual(stateRes.status, 200);
     const state = await stateRes.json();
     assert.ok(state.cacheProvenance?.docsMetadata?.timestamp);
-    assert.strictEqual(state.cacheProvenance?.docsMetadata?.source, "cached");
+    assert.ok(["cached", "imported"].includes(state.cacheProvenance?.docsMetadata?.source));
   } finally {
     server.close();
   }

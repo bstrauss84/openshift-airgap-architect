@@ -27,6 +27,7 @@ import { normalizeMAC, formatMACAsYouType } from "../formatUtils.js";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import { applyPlaceholderValuesToHostInventory } from "../placeholderValuesHelpers.js";
+import { buildPlaceholderEntry, registerPlaceholderEntry } from "../placeholderEngine.js";
 
 const PRIMARY_TYPES = [
   { id: "ethernet", label: "Single NIC ethernet" },
@@ -225,6 +226,38 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       return { ...node, ...patch };
     });
     updateInventory({ nodes: next });
+  };
+
+  const markNodeCoreFieldsForLater = (idx) => {
+    const hostnameEntry = buildPlaceholderEntry({ type: "hostname", label: `Node ${idx + 1} hostname` });
+    const rootDeviceEntry = buildPlaceholderEntry({ type: "rootDeviceHint", label: `Node ${idx + 1} root device hint` });
+    const ipv4Entry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${idx + 1} primary IPv4 CIDR` });
+    const gatewayEntry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${idx + 1} primary IPv4 gateway` });
+    const bmcEntry = buildPlaceholderEntry({ type: "bmcAddress", label: `Node ${idx + 1} BMC address` });
+    const bootMacEntry = buildPlaceholderEntry({ type: "macAddress", label: `Node ${idx + 1} boot MAC` });
+    const macEntry = buildPlaceholderEntry({ type: "macAddress", label: `Node ${idx + 1} primary MAC` });
+    let placeholders = registerPlaceholderEntry(state, hostnameEntry);
+    placeholders = registerPlaceholderEntry({ placeholders }, rootDeviceEntry);
+    placeholders = registerPlaceholderEntry({ placeholders }, ipv4Entry);
+    placeholders = registerPlaceholderEntry({ placeholders }, gatewayEntry);
+    placeholders = registerPlaceholderEntry({ placeholders }, bmcEntry);
+    placeholders = registerPlaceholderEntry({ placeholders }, bootMacEntry);
+    placeholders = registerPlaceholderEntry({ placeholders }, macEntry);
+    updateState({ placeholders });
+    updateNode(idx, (node) => ({
+      ...node,
+      hostname: hostnameEntry.token,
+      rootDevice: rootDeviceEntry.token,
+      primary: {
+        ...(node.primary || {}),
+        ipv4Cidr: ipv4Entry.token,
+        ipv4Gateway: gatewayEntry.token,
+        ethernet: { ...(node.primary?.ethernet || {}), macAddress: macEntry.token }
+      },
+      bmc: node.bmc
+        ? { ...node.bmc, address: bmcEntry.token, bootMACAddress: bootMacEntry.token }
+        : node.bmc
+    }));
   };
 
   const updatePrimary = (nodeIndex, patch) =>
@@ -756,6 +789,17 @@ wipefs -a /dev/sdX`}</pre>
                       Bulk “Apply settings to other nodes” is not available while editing an arbiter. Configure the arbiter directly; other nodes can copy from a control plane or worker.
                     </p>
                   )}
+                  {!isArbiterDrawer ? (
+                    <div className="toggle-row" style={{ marginBottom: 8 }}>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => markNodeCoreFieldsForLater(selectedIndex)}
+                      >
+                        Mark node identity/network fields for later completion
+                      </button>
+                    </div>
+                  ) : null}
                   {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
                     <details className="host-inventory-v2-validation-summary host-inventory-v2-validation-details">
                       <summary className="host-inventory-v2-validation-summary-summary">

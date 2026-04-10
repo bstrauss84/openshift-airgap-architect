@@ -12,6 +12,7 @@ import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import { buildPlaceholderEntry, isPlaceholderToken, registerPlaceholderEntry } from "../placeholderEngine.js";
 
 const INSTALL_CONFIG = "install-config.yaml";
 
@@ -51,6 +52,92 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     updateState({ platformConfig: { ...platformConfig, vsphere: { ...platformConfig.vsphere, ...patch } } });
   const updateNutanix = (patch) =>
     updateState({ platformConfig: { ...platformConfig, nutanix: { ...platformConfig.nutanix, ...patch } } });
+  const vipPlaceholderActive = [
+    hostInventory.apiVip,
+    hostInventory.ingressVip,
+    hostInventory.apiVipV6,
+    hostInventory.ingressVipV6,
+    platformConfig.nutanix?.apiVIP,
+    platformConfig.nutanix?.ingressVIP,
+    platformConfig.nutanix?.apiVIPV6,
+    platformConfig.nutanix?.ingressVIPV6,
+    ...(Array.isArray(platformConfig.vsphere?.apiVIPs) ? platformConfig.vsphere.apiVIPs : []),
+    ...(Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs : [])
+  ].some((v) => isPlaceholderToken(v || ""));
+
+  const setVipPlaceholders = (enabled) => {
+    if (!enabled) {
+      updateHostInventory({ apiVip: "", ingressVip: "", apiVipV6: "", ingressVipV6: "" });
+      updateNutanix({ apiVIP: "", ingressVIP: "", apiVIPV6: "", ingressVIPV6: "" });
+      updateVsphere({ apiVIPs: [], ingressVIPs: [] });
+      return;
+    }
+    const apiV4 = buildPlaceholderEntry({ type: "vip", label: "API VIP (IPv4)" });
+    const ingV4 = buildPlaceholderEntry({ type: "vip", label: "Ingress VIP (IPv4)" });
+    const apiV6 = buildPlaceholderEntry({ type: "vip", label: "API VIP (IPv6)" });
+    const ingV6 = buildPlaceholderEntry({ type: "vip", label: "Ingress VIP (IPv6)" });
+    let placeholders = registerPlaceholderEntry(state, apiV4);
+    placeholders = registerPlaceholderEntry({ placeholders }, ingV4);
+    placeholders = registerPlaceholderEntry({ placeholders }, apiV6);
+    placeholders = registerPlaceholderEntry({ placeholders }, ingV6);
+    updateState({ placeholders });
+    updateHostInventory({
+      apiVip: apiV4.token,
+      ingressVip: ingV4.token,
+      apiVipV6: apiV6.token,
+      ingressVipV6: ingV6.token
+    });
+    updateNutanix({
+      apiVIP: apiV4.token,
+      ingressVIP: ingV4.token,
+      apiVIPV6: apiV6.token,
+      ingressVIPV6: ingV6.token
+    });
+    updateVsphere({ apiVIPs: [apiV4.token], ingressVIPs: [ingV4.token] });
+  };
+  const subnetPlaceholderActive = [
+    networking.machineNetworkV4,
+    networking.machineNetworkV6,
+    networking.clusterNetworkCidr,
+    networking.clusterNetworkCidrV6,
+    networking.serviceNetworkCidr,
+    networking.serviceNetworkCidrV6
+  ].some((v) => isPlaceholderToken(v || ""));
+
+  const setSubnetPlaceholders = (enabled) => {
+    if (!enabled) {
+      updateNetworking({
+        machineNetworkV4: "",
+        machineNetworkV6: "",
+        clusterNetworkCidr: "",
+        clusterNetworkCidrV6: "",
+        serviceNetworkCidr: "",
+        serviceNetworkCidrV6: ""
+      });
+      return;
+    }
+    const machineV4 = buildPlaceholderEntry({ type: "subnet", label: "Machine network IPv4 CIDR" });
+    const machineV6 = buildPlaceholderEntry({ type: "subnet", label: "Machine network IPv6 CIDR" });
+    const clusterV4 = buildPlaceholderEntry({ type: "subnet", label: "Cluster network IPv4 CIDR" });
+    const clusterV6 = buildPlaceholderEntry({ type: "subnet", label: "Cluster network IPv6 CIDR" });
+    const serviceV4 = buildPlaceholderEntry({ type: "subnet", label: "Service network IPv4 CIDR" });
+    const serviceV6 = buildPlaceholderEntry({ type: "subnet", label: "Service network IPv6 CIDR" });
+    let placeholders = registerPlaceholderEntry(state, machineV4);
+    placeholders = registerPlaceholderEntry({ placeholders }, machineV6);
+    placeholders = registerPlaceholderEntry({ placeholders }, clusterV4);
+    placeholders = registerPlaceholderEntry({ placeholders }, clusterV6);
+    placeholders = registerPlaceholderEntry({ placeholders }, serviceV4);
+    placeholders = registerPlaceholderEntry({ placeholders }, serviceV6);
+    updateState({ placeholders });
+    updateNetworking({
+      machineNetworkV4: machineV4.token,
+      machineNetworkV6: machineV6.token,
+      clusterNetworkCidr: clusterV4.token,
+      clusterNetworkCidrV6: clusterV6.token,
+      serviceNetworkCidr: serviceV4.token,
+      serviceNetworkCidrV6: serviceV6.token
+    });
+  };
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
@@ -203,6 +290,17 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 ) : null}
               </>
             )}
+            <div className="toggle-row" style={{ marginTop: 8, marginBottom: 10 }}>
+              <label className="host-inventory-v2-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={subnetPlaceholderActive}
+                  onChange={(e) => setSubnetPlaceholders(e.target.checked)}
+                  aria-label="Mark subnet CIDR fields for later completion"
+                />
+                {" "}Mark subnet CIDR fields for later completion
+              </label>
+            </div>
 
             {showMachineNetwork ? (
             <div className="networking-group">
@@ -414,6 +512,17 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               ) : (
                 <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
               )}
+              <div className="toggle-row" style={{ marginBottom: 12 }}>
+                <label className="host-inventory-v2-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={vipPlaceholderActive}
+                    onChange={(e) => setVipPlaceholders(e.target.checked)}
+                    aria-label="Mark API and Ingress VIP fields for later completion"
+                  />
+                  {" "}Mark VIP fields for later completion
+                </label>
+              </div>
               <div className="field-grid">
                 {showNutanixIpiVips ? (
                   showIpv6ForPlatform ? (

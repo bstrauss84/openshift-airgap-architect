@@ -5,6 +5,7 @@ import { getFieldMeta } from "../catalogFieldMeta.js";
 import { isValidPullSecret, isValidSshPublicKey } from "../validation.js";
 import { apiFetch } from "../api.js";
 import SecretInput from "../components/SecretInput.jsx";
+import PlaceholderToggleRow from "../components/PlaceholderToggleRow.jsx";
 
 /**
  * Identity & Access replacement tab (Phase 5 segmented flow, Prompt E).
@@ -301,18 +302,28 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                     </div>
                   ) : null}
                   {!usingMirrorRegistry ? (
-                    <SecretInput
-                      value={pullSecretPlaceholder}
-                      onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
-                      label="Pull secret (Red Hat)"
-                      labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
-                      labelHint="For clusters that access Red Hat registries directly or through allowed egress. From OpenShift Cluster Manager. Used in install-config when not using a mirror registry. Not persisted."
-                      getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
-                      required={requiredPullSecret}
-                      placeholder='{"auths":{...}}'
-                      rows={5}
-                      aria-label="Red Hat pull secret JSON"
-                    />
+                    <>
+                      <SecretInput
+                        value={pullSecretPlaceholder}
+                        onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
+                        label="Pull secret (Red Hat)"
+                        labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
+                        labelHint="For clusters that access Red Hat registries directly or through allowed egress. From OpenShift Cluster Manager. Used in install-config when not using a mirror registry. Not persisted."
+                        getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
+                        required={requiredPullSecret}
+                        placeholder='{"auths":{...}}'
+                        rows={5}
+                        aria-label="Red Hat pull secret JSON"
+                      />
+                      <PlaceholderToggleRow
+                        state={state}
+                        updateState={updateState}
+                        value={pullSecretPlaceholder}
+                        onValueChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
+                        type="pullSecret"
+                        label="Red Hat pull secret"
+                      />
+                    </>
                   ) : (
                     <>
                       {mirrorRegistryUnauthenticated ? (
@@ -336,6 +347,14 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                             placeholder='{"auths":{...}}'
                             rows={5}
                             aria-label="Mirror registry pull secret JSON"
+                          />
+                          <PlaceholderToggleRow
+                            state={state}
+                            updateState={updateState}
+                            value={mirrorRegistryPullSecret}
+                            onValueChange={(v) => updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: v })}
+                            type="mirrorRegistryCredential"
+                            label="Mirror registry pull secret"
                           />
                           <div className="actions">
                             <button
@@ -370,6 +389,14 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               onChange={(e) => updateCredentials({ sshPublicKey: e.target.value })}
               rows={3}
               placeholder="ssh-rsa AAAA..."
+            />
+            <PlaceholderToggleRow
+              state={state}
+              updateState={updateState}
+              value={sshPublicKey}
+              onValueChange={(v) => updateCredentials({ sshPublicKey: v })}
+              type="sshPublicKey"
+              label="SSH public key"
             />
             {sshKeyInvalid ? <div className="note warning">SSH public key format is invalid.</div> : null}
             <div className="actions">

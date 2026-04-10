@@ -64,6 +64,28 @@ test("POST /api/ocmirror/preflight returns shape with blockers and checks", asyn
   }
 });
 
+test("POST /api/ocmirror/preflight reports placeholder blockers", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/ocmirror/preflight`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "diskToMirror",
+        archivePath: "/tmp/archive",
+        cachePath: "/tmp/cache",
+        registryUrl: "__AIRA_PLACEHOLDER__::vip::id::Registry%20URL",
+        configSourceType: "generated"
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.blockers.some((msg) => /marked for later completion/i.test(msg)));
+  } finally {
+    server.close();
+  }
+});
+
 test("POST /api/ocmirror/run without version confirmed returns 400", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
@@ -135,6 +157,36 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
     try {
       fs.rmSync(tmpDir, { recursive: true });
     } catch {}
+    server.close();
+  }
+});
+
+test("POST /api/ocmirror/run blocks execution when placeholders remain", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: true },
+        release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
+      })
+    });
+    const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "diskToMirror",
+        archivePath: "/tmp/archive",
+        cachePath: "/tmp/cache",
+        registryUrl: "__AIRA_PLACEHOLDER__::vip::id::Registry%20URL",
+        configSourceType: "generated"
+      })
+    });
+    assert.strictEqual(res.status, 422);
+    const body = await res.json();
+    assert.match(body.error || "", /Execution blocked/i);
+  } finally {
     server.close();
   }
 });

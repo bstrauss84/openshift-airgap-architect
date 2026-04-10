@@ -9,6 +9,7 @@ import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventory
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
+import { isPlaceholderToken } from "./placeholderEngine.js";
 
 /** 4.20 doc: valid platform.aws.vpc.subnets[].roles[].type. EdgeNode is Local Zone only — not exposed in app. */
 export const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
@@ -17,6 +18,7 @@ export const AWS_SUBNET_ROLES_REQUIRED_EXTERNAL = ["ClusterNode", "IngressContro
 export const AWS_SUBNET_ROLES_REQUIRED_INTERNAL = ["ClusterNode", "IngressControllerLB", "BootstrapNode", "ControlPlaneInternalLB"];
 
 const isValidIpv4 = (value) => {
+  if (isPlaceholderToken(value)) return true;
   const parts = value.split(".");
   if (parts.length !== 4) return false;
   return parts.every((part) => {
@@ -27,6 +29,7 @@ const isValidIpv4 = (value) => {
 };
 
 const isValidIpv4Cidr = (value) => {
+  if (isPlaceholderToken(value)) return true;
   if (!value || !value.includes("/")) return false;
   const [ip, prefix] = value.split("/");
   if (!isValidIpv4(ip)) return false;
@@ -36,6 +39,7 @@ const isValidIpv4Cidr = (value) => {
 
 /** Simple IPv6 address check (single address, no CIDR). */
 const isValidIpv6 = (value) => {
+  if (isPlaceholderToken(value)) return true;
   if (!value || typeof value !== "string") return false;
   const trimmed = value.trim();
   if (trimmed.includes("/")) return false;
@@ -43,6 +47,7 @@ const isValidIpv6 = (value) => {
 };
 
 const isValidIpv6Cidr = (value) => {
+  if (isPlaceholderToken(value)) return true;
   if (!value || !value.includes("/")) return false;
   const [ip, prefix] = value.split("/");
   if (!ip.includes(":")) return false;
@@ -51,11 +56,13 @@ const isValidIpv6Cidr = (value) => {
 };
 
 const isValidMac = (value) => {
+  if (isPlaceholderToken(value)) return true;
   const normalized = normalizeMAC(value || "");
   return normalized.length === 17 && /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(normalized);
 };
 
 const isValidSshPublicKey = (value) => {
+  if (isPlaceholderToken(value)) return true;
   if (!value) return false;
   const trimmed = value.trim();
   const parts = trimmed.split(/\s+/);
@@ -73,6 +80,7 @@ const isValidSshPublicKey = (value) => {
 };
 
 const isValidPullSecret = (value) => {
+  if (isPlaceholderToken(value)) return { valid: true, error: "" };
   if (!value) return { valid: false, error: "Pull secret is required for install-config." };
   try {
     const parsed = JSON.parse(value);
@@ -485,10 +493,10 @@ const validateProxy = (state) => {
   if (proxyRequired && !httpProxy && !httpsProxy) {
     errors.push("Proxy is required for jumpbox connectivity.");
   }
-  if (httpProxy && !httpProxy.startsWith("http://")) {
+  if (httpProxy && !isPlaceholderToken(httpProxy) && !httpProxy.startsWith("http://")) {
     errors.push("HTTP proxy must start with http://");
   }
-  if (httpsProxy && !httpsProxy.startsWith("http://") && !httpsProxy.startsWith("https://")) {
+  if (httpsProxy && !isPlaceholderToken(httpsProxy) && !httpsProxy.startsWith("http://") && !httpsProxy.startsWith("https://")) {
     errors.push("HTTPS proxy must start with http:// or https:// (use the scheme your proxy supports).");
   }
   return { errors, warnings: [] };

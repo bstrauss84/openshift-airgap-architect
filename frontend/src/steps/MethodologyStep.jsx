@@ -27,24 +27,6 @@ const MethodologyStep = ({ highlightErrors }) => {
   const recommended = platform === "Bare Metal" ? "Agent-Based Installer" : null;
   const needsReview = state.reviewFlags?.methodology && state.ui?.visitedSteps?.methodology;
   const allowed = supportedMethods[platform] || methods.map((m) => m.value);
-  const placeholdersEnabled = Boolean(state.ui?.placeholderValuesEnabled);
-
-  const togglePlaceholders = (enabled) => {
-    const nextUi = { ...(state.ui || {}), placeholderValuesEnabled: enabled };
-    if (!enabled) {
-      updateState({
-        ui: nextUi,
-        hostInventory: clearPlaceholderValuesFromHostInventory(state.hostInventory)
-      });
-      return;
-    }
-
-    updateState({
-      ui: nextUi,
-      hostInventory: applyPlaceholderValuesToHostInventory(state.hostInventory, { platform, method })
-    });
-  };
-
   React.useEffect(() => {
     if (method && !allowed.includes(method)) {
       updateState({ methodology: { method: allowed[0] } });

@@ -13,6 +13,7 @@ import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import PlaceholderToggleRow from "../components/PlaceholderToggleRow.jsx";
 
 const INSTALL_CONFIG = "install-config.yaml";
 
@@ -450,6 +451,14 @@ export default function TrustProxyStep({ highlightErrors }) {
                     />
                   </FieldLabelWithInfo>
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
+                  <PlaceholderToggleRow
+                    state={state}
+                    updateState={updateState}
+                    value={proxies.httpProxy || ""}
+                    onValueChange={(v) => updateProxy("httpProxy", v)}
+                    type="proxyValue"
+                    label="HTTP proxy"
+                  />
                 </div>
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
@@ -466,6 +475,14 @@ export default function TrustProxyStep({ highlightErrors }) {
                     />
                   </FieldLabelWithInfo>
                   {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
+                  <PlaceholderToggleRow
+                    state={state}
+                    updateState={updateState}
+                    value={proxies.httpsProxy || ""}
+                    onValueChange={(v) => updateProxy("httpsProxy", v)}
+                    type="proxyValue"
+                    label="HTTPS proxy"
+                  />
                 </div>
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
@@ -481,6 +498,14 @@ export default function TrustProxyStep({ highlightErrors }) {
                       spellCheck={false}
                     />
                   </FieldLabelWithInfo>
+                  <PlaceholderToggleRow
+                    state={state}
+                    updateState={updateState}
+                    value={proxies.noProxy || ""}
+                    onValueChange={(v) => updateProxy("noProxy", v)}
+                    type="proxyValue"
+                    label="No proxy"
+                  />
                 </div>
               </div>
             </div>
@@ -526,6 +551,14 @@ export default function TrustProxyStep({ highlightErrors }) {
                   error={mirrorCaError}
                   placeholder="Paste or drop .pem/.crt here"
                 />
+                <PlaceholderToggleRow
+                  state={state}
+                  updateState={updateState}
+                  value={trust.mirrorRegistryCaPem || ""}
+                  onValueChange={(v) => updateTrust({ mirrorRegistryCaPem: v })}
+                  type="trustBundle"
+                  label="Mirror registry CA bundle"
+                />
                 {trust.mirrorRegistryUsesPrivateCa && !trust.mirrorRegistryCaPem ? (
                   <Banner variant="warning">Mirror registry CA bundle is required when using a private or self-signed CA. Progress to Assets &amp; Guide is blocked until you add the certificate(s) above.</Banner>
                 ) : null}
@@ -542,6 +575,14 @@ export default function TrustProxyStep({ highlightErrors }) {
                   onFiles={handleProxyCaFiles}
                   error={proxyCaError}
                   placeholder="Paste or drop .pem/.crt here"
+                />
+                <PlaceholderToggleRow
+                  state={state}
+                  updateState={updateState}
+                  value={trust.proxyCaPem || ""}
+                  onValueChange={(v) => updateTrust({ proxyCaPem: v })}
+                  type="trustBundle"
+                  label="Proxy CA bundle"
                 />
               </div>
             </div>

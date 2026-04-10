@@ -1,6 +1,7 @@
 /** App state context; syncs to backend and localStorage. getStateForPersistence strips credentials before persist. */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api.js";
+import { isPlaceholderToken } from "./placeholderEngine.js";
 
 const AppContext = createContext(null);
 
@@ -14,8 +15,12 @@ export function getStateForPersistence(state) {
     delete next.blueprint.blueprintPullSecretEphemeral;
   }
   if (next?.credentials) {
-    delete next.credentials.pullSecretPlaceholder;
-    delete next.credentials.mirrorRegistryPullSecret;
+    if (!isPlaceholderToken(next.credentials.pullSecretPlaceholder || "")) {
+      delete next.credentials.pullSecretPlaceholder;
+    }
+    if (!isPlaceholderToken(next.credentials.mirrorRegistryPullSecret || "")) {
+      delete next.credentials.mirrorRegistryPullSecret;
+    }
   }
   if (next?.platformConfig?.vsphere) {
     const vs = next.platformConfig.vsphere;

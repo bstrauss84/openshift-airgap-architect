@@ -226,7 +226,7 @@ All actionable items found across archived phase/backlog docs are tracked here (
 
 | item_id | title | status | priority | source_docs | rationale |
 |---|---|---|---|---|---|
-| DEF-001 | Placeholder values non-destructive architecture | deferred | p2 | `docs/PLACEHOLDER_VALUES_DEFERRED.md` | Keep deferred until export-token architecture is defined and validated. |
+| DEF-001 | Placeholder values non-destructive architecture | done_pending_verification | p1 | `docs/PLACEHOLDER_VALUES_DEFERRED.md`, `backend/src/placeholderEngine.js`, `frontend/src/placeholderEngine.js` | Implemented first production slice with typed placeholder tokens, curated allowlist, review-needed/finality integration, and execution blocking for runtime-critical actions. |
 | DEF-002 | Full automation for frontend data-copy parity checks in CI | deferred | p2 | `docs/DATA_AND_FRONTEND_COPIES.md`, `.github/workflows/ci.yml` | Requires additional script and CI integration; low-risk to defer in first pass. |
 | DEF-003 | Deep per-scenario verification sweep for all status-bearing docs | deferred | p2 | `docs/*_DOC_REVIEW_AND_PLAN.md` | Requires larger implementation sweep; sequence after canonical registry rollout. |
 

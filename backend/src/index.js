@@ -55,6 +55,12 @@ import {
   TrustSelectionHardLimitError,
   analyzeTrustState
 } from "./trustAnalysis/index.js";
+import {
+  collectPlaceholderUsage,
+  isPlaceholderToken,
+  replacePlaceholderTokensInText
+} from "./placeholderEngine.js";
+import { defaultSecretInclusion, resolveSecretInclusion } from "./exportInclusion.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -171,6 +177,10 @@ const defaultContinuationState = () => ({
     operatorChannelsPackages: false,
     mirroredAssumptions: false
   }
+});
+
+const defaultPlaceholderState = () => ({
+  entries: {}
 });
 
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
@@ -381,6 +391,7 @@ const defaultState = () => ({
   exportOptions: {
     includeCredentials: false,
     includeCertificates: true,
+    inclusion: defaultSecretInclusion(),
     includeClientTools: false,
     includeInstaller: false,
     exportBinaryArch: null,
@@ -417,12 +428,14 @@ const defaultState = () => ({
     segmentedFlowV1: true
   },
   continuation: defaultContinuationState(),
+  placeholders: defaultPlaceholderState(),
   cacheProvenance: defaultCacheProvenance(),
   statusModel: {
     continuationLocked: false,
     cacheLimited: false,
     reviewNeeded: false,
-    secretsOmitted: true
+    secretsOmitted: true,
+    finalizable: true
   },
   runtime: {
     operationalProfile: null
@@ -451,6 +464,20 @@ const ensureState = () => {
     const normalizedProvenance = ensureCacheProvenanceShape(next.cacheProvenance);
     if (JSON.stringify(normalizedProvenance) !== JSON.stringify(next.cacheProvenance || {})) {
       next.cacheProvenance = normalizedProvenance;
+      changed = true;
+    }
+    const normalizedInclusion = resolveSecretInclusion(next.exportOptions || {});
+    if (JSON.stringify(normalizedInclusion) !== JSON.stringify(next.exportOptions?.inclusion || {})) {
+      next.exportOptions = { ...(next.exportOptions || {}), inclusion: normalizedInclusion };
+      changed = true;
+    }
+    const normalizedPlaceholders = {
+      ...defaultPlaceholderState(),
+      ...(next.placeholders || {}),
+      entries: { ...(next.placeholders?.entries || {}) }
+    };
+    if (JSON.stringify(normalizedPlaceholders) !== JSON.stringify(next.placeholders || {})) {
+      next.placeholders = normalizedPlaceholders;
       changed = true;
     }
     const nextStatusModel = buildStatusModel(next);
@@ -570,6 +597,15 @@ const isReleaseOutsideOperatorCacheScope = (state) => {
   return selectedChannel !== scopeChannel;
 };
 
+const detectPlaceholderUsage = (state) => {
+  return collectPlaceholderUsage(state).length > 0;
+};
+
+const getExecutionBlockingPlaceholders = (state) => {
+  const usage = collectPlaceholderUsage(state);
+  return usage.filter((entry) => entry?.metadata?.blockedForExecution === true);
+};
+
 const buildStatusModel = (state) => {
   const continuation = ensureContinuationShape(state?.continuation);
   const locks = continuation.locks || {};
@@ -580,8 +616,9 @@ const buildStatusModel = (state) => {
     locks.operatorChannelsPackages ||
     locks.mirroredAssumptions
   );
-  const reviewNeeded = Boolean(state?.reviewFlags?.review);
-  const secretsOmitted = !(state?.exportOptions?.includeCredentials);
+  const reviewNeeded = Boolean(state?.reviewFlags?.review) || detectPlaceholderUsage(state);
+  const inclusion = resolveSecretInclusion(state?.exportOptions || {});
+  const secretsOmitted = Object.values(inclusion).some((included) => included !== true);
   const cacheLimited = Boolean(
     continuation.importedRun &&
     (continuation.mode === "start-over-from-import" || isReleaseOutsideOperatorCacheScope(state))
@@ -590,7 +627,8 @@ const buildStatusModel = (state) => {
     continuationLocked,
     cacheLimited,
     reviewNeeded,
-    secretsOmitted
+    secretsOmitted,
+    finalizable: !reviewNeeded
   };
 };
 
@@ -656,28 +694,58 @@ const getContinuationLockViolation = (current, patch) => {
 };
 
 const sanitizeStateForExport = (state, options = {}) => {
-  const includeCredentials = Boolean(options.includeCredentials);
-  const includeCertificates = options.includeCertificates !== false;
+  const inclusion = resolveSecretInclusion({ ...state?.exportOptions, ...options });
   const next = JSON.parse(JSON.stringify(state));
   if (next?.blueprint && "blueprintPullSecretEphemeral" in next.blueprint) {
     delete next.blueprint.blueprintPullSecretEphemeral;
   }
-  if (!includeCredentials && next.credentials) {
+  if (!inclusion.pullSecret && next.credentials) {
     next.credentials.pullSecretPlaceholder = "{\"auths\":{}}";
     next.credentials.redHatPullSecretConfigured = false;
+  }
+  if (!inclusion.mirrorRegistryCredentials && next.credentials) {
     next.credentials.mirrorRegistryCredentialsConfigured = false;
     next.credentials.mirrorRegistryPullSecret = "";
   }
-  if (!includeCertificates && next.trust) {
+  if (!inclusion.sshPublicKey && next.credentials) {
+    next.credentials.sshPublicKey = "";
+  }
+  if (!inclusion.trustBundleAndCertificates && next.trust) {
     next.trust.mirrorRegistryCaPem = "";
     next.trust.proxyCaPem = "";
     next.trust.additionalTrustBundlePolicy = "";
     next.trust.bundleSelectionMode = "original";
     next.trust.reducedSelection = null;
   }
-  if (includeCredentials && next.credentials?.mirrorRegistryPullSecret) {
+  if (!inclusion.proxyValues && next.globalStrategy?.proxies) {
+    next.globalStrategy.proxies = { httpProxy: "", httpsProxy: "", noProxy: "" };
+  }
+  if (!inclusion.platformCredentials && next.platformConfig) {
+    if (next.platformConfig.vsphere) {
+      next.platformConfig.vsphere.username = "";
+      next.platformConfig.vsphere.password = "";
+      if (Array.isArray(next.platformConfig.vsphere.vcenters)) {
+        next.platformConfig.vsphere.vcenters = next.platformConfig.vsphere.vcenters.map((vc) => ({ ...vc, user: "", password: "" }));
+      }
+    }
+    if (next.platformConfig.nutanix) {
+      next.platformConfig.nutanix.username = "";
+      next.platformConfig.nutanix.password = "";
+    }
+  }
+  if (!inclusion.bmcCredentials && next.hostInventory?.nodes) {
+    next.hostInventory.nodes = next.hostInventory.nodes.map((node) => ({
+      ...node,
+      bmc: node?.bmc ? { ...node.bmc, username: "", password: "" } : node.bmc
+    }));
+  }
+  if (inclusion.mirrorRegistryCredentials && next.credentials?.mirrorRegistryPullSecret) {
     next.credentials.mirrorRegistryPullSecret = normalizePullSecret(next.credentials.mirrorRegistryPullSecret);
   }
+  next.exportOptions = {
+    ...(next.exportOptions || {}),
+    inclusion
+  };
   return next;
 };
 
@@ -1104,8 +1172,12 @@ app.post("/api/state", (req, res) => {
   }
   if (patch?.credentials) {
     const nextCreds = { ...patch.credentials };
-    delete nextCreds.pullSecretPlaceholder;
-    delete nextCreds.mirrorRegistryPullSecret;
+    if (!isPlaceholderToken(nextCreds.pullSecretPlaceholder || "")) {
+      delete nextCreds.pullSecretPlaceholder;
+    }
+    if (!isPlaceholderToken(nextCreds.mirrorRegistryPullSecret || "")) {
+      delete nextCreds.mirrorRegistryPullSecret;
+    }
     patch.credentials = nextCreds;
   }
   let merged = updateState(patch);
@@ -1209,7 +1281,12 @@ app.post("/api/start-over", (req, res) => {
 app.get("/api/run/export", (req, res) => {
   const state = ensureState();
   const options = state.exportOptions || {};
-  const sanitized = sanitizeStateForExport(state, { ...options, includeCredentials: false });
+  const sanitized = sanitizeStateForExport(state, {
+    ...options,
+    includeCredentials: false,
+    includeCertificates: false,
+    inclusion: defaultSecretInclusion()
+  });
   if (process.env.NODE_ENV !== "test") {
     console.log("Run exported", { runId: state.runId });
   }
@@ -1282,7 +1359,12 @@ app.post("/api/run/import", (req, res) => {
     source: "imported",
     releaseScope: importedReleaseChannel
   });
-  const sanitized = sanitizeStateForExport(migrated, { ...(migrated.exportOptions || {}), includeCredentials: false });
+  const sanitized = sanitizeStateForExport(migrated, {
+    ...(migrated.exportOptions || {}),
+    includeCredentials: false,
+    includeCertificates: false,
+    inclusion: defaultSecretInclusion()
+  });
   sanitized.statusModel = buildStatusModel(sanitized);
   setState(sanitized);
   res.json({ ok: true, state: withStatusModel(sanitized) });
@@ -1403,6 +1485,11 @@ app.post("/api/operators/scan", async (req, res) => {
   }
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
+  }
+  if (isPlaceholderToken(req.body?.pullSecret || "")) {
+    return res.status(422).json({
+      error: "Execution blocked: pull secret is marked for later completion. Provide a real pull secret before scanning operators."
+    });
   }
   if (!authAvailable() && !req.body?.pullSecret && String(process.env.MOCK_MODE).toLowerCase() !== "true") {
     return res.status(400).json({ error: "Registry auth not configured." });
@@ -1709,6 +1796,13 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
   if (!validModes.includes(mode)) {
     return res.status(400).json({ error: "Invalid mode." });
   }
+  blockers.push(...collectOcMirrorPlaceholderBlockers({
+    state,
+    mode,
+    rhPullSecret,
+    mirrorPullSecret,
+    registryUrl
+  }));
 
   const pathOverlapBlockers = checkPathOverlap(
     mode !== "mirrorToMirror" ? archivePath : null,
@@ -1927,6 +2021,28 @@ function resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath) {
   }
 }
 
+function collectOcMirrorPlaceholderBlockers({ state, mode, rhPullSecret, mirrorPullSecret, registryUrl }) {
+  const blockers = [];
+  const shouldCheckRegistry = mode === "diskToMirror" || mode === "mirrorToMirror";
+  if (shouldCheckRegistry && isPlaceholderToken(registryUrl)) {
+    blockers.push("Registry URL is marked for later completion. Provide a real registry endpoint before running oc-mirror.");
+  }
+  if ((mode === "mirrorToDisk" || mode === "mirrorToMirror") && isPlaceholderToken(rhPullSecret)) {
+    blockers.push("Red Hat pull secret is marked for later completion. Provide a real pull secret before running oc-mirror.");
+  }
+  const mirrorCredential = mirrorPullSecret || state?.credentials?.mirrorRegistryPullSecret || "";
+  if ((mode === "diskToMirror" || mode === "mirrorToMirror") && isPlaceholderToken(mirrorCredential)) {
+    blockers.push("Mirror registry credentials are marked for later completion. Provide real credentials before running oc-mirror.");
+  }
+  if (state?.globalStrategy?.proxyEnabled) {
+    const proxy = state.globalStrategy?.proxies || {};
+    if (isPlaceholderToken(proxy.httpProxy) || isPlaceholderToken(proxy.httpsProxy) || isPlaceholderToken(proxy.noProxy)) {
+      blockers.push("Proxy values are marked for later completion. Replace placeholders before running oc-mirror.");
+    }
+  }
+  return blockers;
+}
+
 app.post("/api/ocmirror/run", async (req, res) => {
   const state = ensureState();
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
@@ -1950,6 +2066,19 @@ app.post("/api/ocmirror/run", async (req, res) => {
 
   if (!["mirrorToDisk", "diskToMirror", "mirrorToMirror"].includes(mode)) {
     return res.status(400).json({ error: "Invalid mode." });
+  }
+  const placeholderBlockers = collectOcMirrorPlaceholderBlockers({
+    state,
+    mode,
+    rhPullSecret: rhPullSecretRaw,
+    mirrorPullSecret: mirrorPullSecretRaw,
+    registryUrl
+  });
+  if (placeholderBlockers.length > 0) {
+    return res.status(422).json({
+      error: "Execution blocked: replace values marked for later completion before running oc-mirror.",
+      blockers: placeholderBlockers
+    });
   }
   if (mode === "mirrorToDisk" && !hasCapability(state, "mirrorToDiskAllowed")) {
     return rejectForCapability(res, state, "mirrorToDiskAllowed", "Mirror-to-disk workflow");
@@ -2306,33 +2435,56 @@ app.get("/api/aws/ami", async (req, res) => {
 
 const sanitizeStateForArtifactGeneration = (state) => {
   const next = JSON.parse(JSON.stringify(state || {}));
-  if (next.exportOptions?.includeCertificates === false && next.trust) {
+  const inclusion = resolveSecretInclusion(next.exportOptions || {});
+  if (!inclusion.trustBundleAndCertificates && next.trust) {
     next.trust.mirrorRegistryCaPem = "";
     next.trust.proxyCaPem = "";
     next.trust.additionalTrustBundlePolicy = "";
   }
-  return next;
-};
-
-const detectPlaceholderUsage = (state) => {
-  const hi = state?.hostInventory || {};
-  if (state?.methodology?.placeholderValuesEnabled) return true;
-  const tokenRe = /\{\{[^}]+\}\}/;
-  const scan = (value) => {
-    if (value == null) return false;
-    if (typeof value === "string") return tokenRe.test(value);
-    if (Array.isArray(value)) return value.some(scan);
-    if (typeof value === "object") return Object.values(value).some(scan);
-    return false;
+  if (!inclusion.proxyValues && next.globalStrategy?.proxies) {
+    next.globalStrategy.proxies = { httpProxy: "", httpsProxy: "", noProxy: "" };
+  }
+  if (!inclusion.sshPublicKey && next.credentials) {
+    next.credentials.sshPublicKey = "";
+  }
+  if (!inclusion.pullSecret && next.credentials) {
+    next.credentials.pullSecretPlaceholder = "{\"auths\":{}}";
+    next.credentials.redHatPullSecretConfigured = false;
+  }
+  if (!inclusion.mirrorRegistryCredentials && next.credentials) {
+    next.credentials.mirrorRegistryPullSecret = "";
+    next.credentials.mirrorRegistryCredentialsConfigured = false;
+  }
+  if (!inclusion.platformCredentials && next.platformConfig) {
+    if (next.platformConfig.vsphere) {
+      next.platformConfig.vsphere.username = "";
+      next.platformConfig.vsphere.password = "";
+      if (Array.isArray(next.platformConfig.vsphere.vcenters)) {
+        next.platformConfig.vsphere.vcenters = next.platformConfig.vsphere.vcenters.map((vc) => ({ ...vc, user: "", password: "" }));
+      }
+    }
+    if (next.platformConfig.nutanix) {
+      next.platformConfig.nutanix.username = "";
+      next.platformConfig.nutanix.password = "";
+    }
+  }
+  if (!inclusion.bmcCredentials && next.hostInventory?.nodes) {
+    next.hostInventory.nodes = next.hostInventory.nodes.map((node) => ({
+      ...node,
+      bmc: node?.bmc ? { ...node.bmc, username: "", password: "" } : node.bmc
+    }));
+  }
+  next.exportOptions = {
+    ...(next.exportOptions || {}),
+    inclusion
   };
-  return scan(hi.nodes) || scan(hi);
+  return next;
 };
 
 const buildExportReadinessManifest = (state) => {
   const contract = getProfileContract(state);
   const exportOptions = state.exportOptions || {};
-  const includeCredentials = Boolean(exportOptions.includeCredentials);
-  const includeCertificates = exportOptions.includeCertificates !== false;
+  const inclusion = resolveSecretInclusion(exportOptions);
   const includeClientTools = Boolean(exportOptions.includeClientTools);
   const includeInstaller = Boolean(exportOptions.includeInstaller);
   const installerTargetHostOsFamily = normalizeInstallerTargetHostOsFamily(exportOptions.installerTargetHostOsFamily || "rhel9");
@@ -2345,6 +2497,31 @@ const buildExportReadinessManifest = (state) => {
   const hasDocsCache = Boolean((state.docs?.links || []).length);
   const installerTargetArch = normalizeInstallerArch(exportOptions.installerTargetArch || "x86_64");
   const statusModel = buildStatusModel(state);
+  const placeholders = collectPlaceholderUsage(state);
+  const placeholdersByType = placeholders.reduce((acc, entry) => {
+    const key = entry?.type || "unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const blockedExecutionPlaceholders = getExecutionBlockingPlaceholders(state);
+  const classifySecretState = (included, hasPlaceholder) => {
+    if (hasPlaceholder) return "placeholder";
+    return included ? "included" : "omitted";
+  };
+  const pullSecretPlaceholder = isPlaceholderToken(state?.credentials?.pullSecretPlaceholder || "");
+  const mirrorCredentialPlaceholder = isPlaceholderToken(state?.credentials?.mirrorRegistryPullSecret || "");
+  const trustPlaceholder = isPlaceholderToken(state?.trust?.mirrorRegistryCaPem || "") || isPlaceholderToken(state?.trust?.proxyCaPem || "");
+  const proxyPlaceholder = isPlaceholderToken(state?.globalStrategy?.proxies?.httpProxy || "")
+    || isPlaceholderToken(state?.globalStrategy?.proxies?.httpsProxy || "")
+    || isPlaceholderToken(state?.globalStrategy?.proxies?.noProxy || "");
+  const sshPlaceholder = isPlaceholderToken(state?.credentials?.sshPublicKey || "");
+  const platformPlaceholder = isPlaceholderToken(state?.platformConfig?.vsphere?.username || "")
+    || isPlaceholderToken(state?.platformConfig?.vsphere?.password || "")
+    || isPlaceholderToken(state?.platformConfig?.nutanix?.username || "")
+    || isPlaceholderToken(state?.platformConfig?.nutanix?.password || "");
+  const bmcPlaceholder = Boolean((state?.hostInventory?.nodes || []).find((node) =>
+    isPlaceholderToken(node?.bmc?.username || "") || isPlaceholderToken(node?.bmc?.password || "")
+  ));
   const manifest = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -2378,15 +2555,25 @@ const buildExportReadinessManifest = (state) => {
       }
     },
     runtimePackageIncluded: false,
-    placeholdersPresent: detectPlaceholderUsage(state),
+    placeholdersPresent: placeholders.length > 0,
+    placeholders: {
+      count: placeholders.length,
+      blockedForExecutionCount: blockedExecutionPlaceholders.length,
+      byType: placeholdersByType,
+      examples: placeholders.slice(0, 10).map((entry) => ({
+        type: entry.type,
+        displayLabel: entry?.metadata?.displayLabel || "Marked for later completion",
+        blockedForExecution: Boolean(entry?.metadata?.blockedForExecution)
+      }))
+    },
     secrets: {
-      pullSecret: includeCredentials ? "included" : "omitted",
-      platformCredentials: includeCredentials ? "included" : "omitted",
-      mirrorRegistryCredentials: includeCredentials ? "included" : "omitted",
-      bmcCredentials: includeCredentials ? "included" : "omitted",
-      trustBundleAndCertificates: includeCertificates ? "included" : "omitted",
-      sshPublicKey: "included",
-      proxyValues: "included"
+      pullSecret: classifySecretState(inclusion.pullSecret, pullSecretPlaceholder),
+      platformCredentials: classifySecretState(inclusion.platformCredentials, platformPlaceholder),
+      mirrorRegistryCredentials: classifySecretState(inclusion.mirrorRegistryCredentials, mirrorCredentialPlaceholder),
+      bmcCredentials: classifySecretState(inclusion.bmcCredentials, bmcPlaceholder),
+      trustBundleAndCertificates: classifySecretState(inclusion.trustBundleAndCertificates, trustPlaceholder),
+      sshPublicKey: classifySecretState(inclusion.sshPublicKey, sshPlaceholder),
+      proxyValues: classifySecretState(inclusion.proxyValues, proxyPlaceholder)
     },
     staleDataWarnings: {
       operatorsStale: Boolean(state.operators?.stale),
@@ -2433,13 +2620,19 @@ const buildPreviewFiles = (rawState) => {
   const imageSetConfig = buildImageSetConfig(state);
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);
-  return {
+  const files = {
     "install-config.yaml": installConfig,
     "agent-config.yaml": agentConfig,
     "imageset-config.yaml": imageSetConfig,
     "FIELD_MANUAL.md": fieldManual,
     ...ntpMachineConfigs
   };
+  Object.keys(files).forEach((name) => {
+    if (typeof files[name] === "string") {
+      files[name] = replacePlaceholderTokensInText(files[name], state);
+    }
+  });
+  return files;
 };
 
 app.post("/api/trust/analyze", (req, res) => {
@@ -2531,6 +2724,10 @@ const buildBundleZip = async (rawState, res) => {
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);
   const readinessManifest = buildExportReadinessManifest(state);
+  const renderedInstallConfig = replacePlaceholderTokensInText(installConfig, state);
+  const renderedAgentConfig = agentConfig ? replacePlaceholderTokensInText(agentConfig, state) : null;
+  const renderedImageSetConfig = replacePlaceholderTokensInText(imageSetConfig, state);
+  const renderedFieldManual = replacePlaceholderTokensInText(fieldManual, state);
 
   const bundleName = `airgap-${state.release?.patchVersion || "unknown"}-install-configs-bundle.zip`;
   res.setHeader("Content-Type", "application/zip");
@@ -2541,15 +2738,15 @@ const buildBundleZip = async (rawState, res) => {
     res.status(500).end(String(err));
   });
   archive.pipe(res);
-  archive.append(installConfig, { name: "install-config.yaml" });
-  if (agentConfig) {
-    archive.append(agentConfig, { name: "agent-config.yaml" });
+  archive.append(renderedInstallConfig, { name: "install-config.yaml" });
+  if (renderedAgentConfig) {
+    archive.append(renderedAgentConfig, { name: "agent-config.yaml" });
   }
-  archive.append(imageSetConfig, { name: "imageset-config.yaml" });
-  archive.append(fieldManual, { name: "FIELD_MANUAL.md" });
+  archive.append(renderedImageSetConfig, { name: "imageset-config.yaml" });
+  archive.append(renderedFieldManual, { name: "FIELD_MANUAL.md" });
   archive.append(JSON.stringify(readinessManifest, null, 2), { name: "EXPORT_READINESS_MANIFEST.json" });
   Object.entries(ntpMachineConfigs).forEach(([name, content]) => {
-    archive.append(content, { name });
+    archive.append(replacePlaceholderTokensInText(content, state), { name });
   });
   if (state.exportOptions?.draftMode) {
     archive.append(
