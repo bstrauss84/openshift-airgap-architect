@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import http from "node:http";
-import { app } from "../src/index.js";
+import { app, resetStateForTests } from "../src/index.js";
 
 function createTestServer() {
   return new Promise((resolve) => {
+    resetStateForTests();
     const server = http.createServer(app);
     server.listen(0, "127.0.0.1", () => {
       const port = server.address().port;

@@ -2,8 +2,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { threadId } from "node:worker_threads";
 
-const dataDir = process.env.DATA_DIR || "/data";
+const configuredDataDir = process.env.DATA_DIR || "/data";
+const dataDir = process.env.NODE_ENV === "test"
+  ? path.join(configuredDataDir, `worker-${process.pid}-${threadId}`)
+  : configuredDataDir;
 const dbPath = path.join(dataDir, "airgap-architect.db");
 
 fs.mkdirSync(dataDir, { recursive: true });

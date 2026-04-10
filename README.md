@@ -65,6 +65,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
 - **Export options** — Choose per-class inclusion for pull secret, platform credentials, mirror credentials, BMC credentials, trust/cert material, SSH key, and proxy values (credentials default to omitted); include client tools and openshift-install with validated installer target-host inputs (RHEL 8/9, x86_64, target-host FIPS requirement flag) and readiness reporting
+- **High-side runtime package export** — Optional runtime-package artifacts in the export bundle (`runtime-package/`) including image archives, localhost-first compose/launch scripts, bundled payload preload JSON, startup guide, and SHA256 checksums for disconnected execution on RHEL 8/9
 
 <a id="quick-start-container"></a>
 ## Quick start (container)
@@ -196,6 +197,12 @@ When the Landing page or **Tools → About** shows that an update is available, 
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).
 2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML, field manual, and `EXPORT_READINESS_MANIFEST.json`. Export options control per-class secret/cert inclusion and tools packaging, and readiness metadata records placeholder/review-needed/execution-blocked status.
+3. If **Include high-side runtime package artifacts** is enabled, the bundle also includes `runtime-package/` with:
+   - image archives for backend/frontend containers
+   - `compose/high-side.compose.yml` with localhost-only binds and disconnected profile defaults
+   - `payloads/imported-run.bundle.json` for single-payload first-start preload
+   - launch helpers, startup guide, and `SHA256SUMS.txt`
+4. Runtime package first-release host scope is **RHEL 8/9**. Keep localhost binds unless policy-approved firewall and remote-access controls are in place.
 3. **install-config.yaml** and **agent-config.yaml** (when applicable) are also available as inline copy/download from the same step.
 4. Use **Update Docs Links** to refresh cached documentation links used in the field manual.
 

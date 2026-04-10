@@ -61,6 +61,7 @@ import {
   replacePlaceholderTokensInText
 } from "./placeholderEngine.js";
 import { defaultSecretInclusion, resolveSecretInclusion } from "./exportInclusion.js";
+import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -181,6 +182,12 @@ const defaultContinuationState = () => ({
 
 const defaultPlaceholderState = () => ({
   entries: {}
+});
+
+const defaultBundledPayloadPreload = () => ({
+  status: "not-attempted",
+  attemptedAt: null,
+  details: null
 });
 
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
@@ -394,6 +401,7 @@ const defaultState = () => ({
     inclusion: defaultSecretInclusion(),
     includeClientTools: false,
     includeInstaller: false,
+    includeHighSideRuntimePackage: false,
     exportBinaryArch: null,
     installerTargetHostOsFamily: "rhel9",
     installerTargetArch: "x86_64",
@@ -438,7 +446,8 @@ const defaultState = () => ({
     finalizable: true
   },
   runtime: {
-    operationalProfile: null
+    operationalProfile: null,
+    bundledPayloadPreload: defaultBundledPayloadPreload()
   }
 });
 
@@ -471,6 +480,21 @@ const ensureState = () => {
       next.exportOptions = { ...(next.exportOptions || {}), inclusion: normalizedInclusion };
       changed = true;
     }
+    if (!Object.prototype.hasOwnProperty.call(next.exportOptions || {}, "includeHighSideRuntimePackage")) {
+      next.exportOptions = { ...(next.exportOptions || {}), includeHighSideRuntimePackage: false };
+      changed = true;
+    }
+    const normalizedRuntime = {
+      ...(next.runtime || {}),
+      bundledPayloadPreload: {
+        ...defaultBundledPayloadPreload(),
+        ...((next.runtime && next.runtime.bundledPayloadPreload) || {})
+      }
+    };
+    if (JSON.stringify(normalizedRuntime) !== JSON.stringify(next.runtime || {})) {
+      next.runtime = normalizedRuntime;
+      changed = true;
+    }
     const normalizedPlaceholders = {
       ...defaultPlaceholderState(),
       ...(next.placeholders || {}),
@@ -478,6 +502,11 @@ const ensureState = () => {
     };
     if (JSON.stringify(normalizedPlaceholders) !== JSON.stringify(next.placeholders || {})) {
       next.placeholders = normalizedPlaceholders;
+      changed = true;
+    }
+    const preloadAdjusted = maybeApplyBundledPayloadPreload(next);
+    if (JSON.stringify(preloadAdjusted) !== JSON.stringify(next)) {
+      Object.assign(next, preloadAdjusted);
       changed = true;
     }
     const nextStatusModel = buildStatusModel(next);
@@ -491,7 +520,7 @@ const ensureState = () => {
     }
     return existing;
   }
-  const initial = defaultState();
+  const initial = maybeApplyBundledPayloadPreload(defaultState());
   setState(initial);
   return initial;
 };
@@ -1278,8 +1307,7 @@ app.post("/api/start-over", (req, res) => {
   res.json(withStatusModel(next));
 });
 
-app.get("/api/run/export", (req, res) => {
-  const state = ensureState();
+const buildRunBundlePayload = (state) => {
   const options = state.exportOptions || {};
   const sanitized = sanitizeStateForExport(state, {
     ...options,
@@ -1287,26 +1315,22 @@ app.get("/api/run/export", (req, res) => {
     includeCertificates: false,
     inclusion: defaultSecretInclusion()
   });
-  if (process.env.NODE_ENV !== "test") {
-    console.log("Run exported", { runId: state.runId });
-  }
-  res.json({
+  return {
     schemaVersion: 2,
     exportedAt: new Date().toISOString(),
     runId: state.runId,
     sourceProfile: resolveOperationalProfile(state),
     state: sanitized
-  });
-});
+  };
+};
 
-app.post("/api/run/import", (req, res) => {
-  const payload = req.body || {};
+const importRunBundlePayload = (payload, options = {}) => {
   const schemaVersion = payload.schemaVersion || 1;
   if (!payload.state || typeof payload.state !== "object") {
-    return res.status(400).json({ error: "Invalid run bundle: missing state." });
+    return { ok: false, status: 400, error: "Invalid run bundle: missing state." };
   }
   if (schemaVersion > 2) {
-    return res.status(400).json({ error: `Unsupported run bundle schemaVersion ${schemaVersion}.` });
+    return { ok: false, status: 400, error: `Unsupported run bundle schemaVersion ${schemaVersion}.` };
   }
   let migrated = schemaVersion === 1
     ? { ...defaultState(), ...payload.state, exportOptions: payload.state.exportOptions || defaultState().exportOptions }
@@ -1324,7 +1348,7 @@ app.post("/api/run/import", (req, res) => {
   migrated.continuation = {
     importedRun: true,
     mode: "continue-imported",
-    sourceProfile: payload.sourceProfile || "connected-authoring",
+    sourceProfile: options.sourceProfileOverride || payload.sourceProfile || "connected-authoring",
     importedAt,
     operatorCacheScope: {
       channel: importedReleaseChannel,
@@ -1344,19 +1368,19 @@ app.post("/api/run/import", (req, res) => {
   };
   migrated.cacheProvenance = ensureCacheProvenanceShape(migrated.cacheProvenance);
   migrated = withCacheProvenanceUpdate(migrated, "releaseMetadata", {
-    source: "imported",
+    source: options.cacheSource || "imported",
     releaseScope: importedReleaseChannel
   });
   migrated = withCacheProvenanceUpdate(migrated, "operatorMetadata", {
-    source: "imported",
+    source: options.cacheSource || "imported",
     releaseScope: migrated.operators?.version || importedReleaseChannel
   });
   migrated = withCacheProvenanceUpdate(migrated, "docsMetadata", {
-    source: "imported",
+    source: options.cacheSource || "imported",
     releaseScope: importedReleaseChannel
   });
   migrated = withCacheProvenanceUpdate(migrated, "awsMetadata", {
-    source: "imported",
+    source: options.cacheSource || "imported",
     releaseScope: importedReleaseChannel
   });
   const sanitized = sanitizeStateForExport(migrated, {
@@ -1365,9 +1389,148 @@ app.post("/api/run/import", (req, res) => {
     includeCertificates: false,
     inclusion: defaultSecretInclusion()
   });
+  sanitized.runtime = {
+    ...(sanitized.runtime || {}),
+    bundledPayloadPreload: {
+      ...defaultBundledPayloadPreload(),
+      ...((migrated.runtime && migrated.runtime.bundledPayloadPreload) || {}),
+      ...(options.preloadMetadata || {})
+    }
+  };
   sanitized.statusModel = buildStatusModel(sanitized);
-  setState(sanitized);
-  res.json({ ok: true, state: withStatusModel(sanitized) });
+  return { ok: true, state: sanitized };
+};
+
+const hasUserConfiguredState = (state) => Boolean(
+  state?.continuation?.importedRun
+  || state?.version?.versionConfirmed
+  || state?.release?.channel
+  || state?.release?.patchVersion
+  || state?.blueprint?.confirmed
+  || (state?.operators?.selected || []).length
+  || (state?.hostInventory?.nodes || []).length
+  || (state?.docs?.links || []).length
+);
+
+const maybeApplyBundledPayloadPreload = (state) => {
+  if (resolveOperationalProfile(state) !== "disconnected-execution") return state;
+  if (String(process.env.AIRGAP_PRELOAD_ON_START || "true").trim().toLowerCase() === "false") return state;
+  const preloadState = state?.runtime?.bundledPayloadPreload || defaultBundledPayloadPreload();
+  if (preloadState.status !== "not-attempted") return state;
+  if (hasUserConfiguredState(state)) {
+    return {
+      ...state,
+      runtime: {
+        ...(state.runtime || {}),
+        bundledPayloadPreload: {
+          status: "skipped-existing-state",
+          attemptedAt: new Date().toISOString(),
+          details: "Existing runtime state detected; auto-preload skipped."
+        }
+      }
+    };
+  }
+  const payloadDir = process.env.AIRGAP_BUNDLED_PAYLOADS_DIR || "/opt/airgap/payloads";
+  if (!fs.existsSync(payloadDir)) {
+    return {
+      ...state,
+      runtime: {
+        ...(state.runtime || {}),
+        bundledPayloadPreload: {
+          status: "no-payload-directory",
+          attemptedAt: new Date().toISOString(),
+          details: `Payload directory not found: ${payloadDir}`
+        }
+      }
+    };
+  }
+  const payloadFiles = fs.readdirSync(payloadDir)
+    .filter((name) => name.endsWith(".json"))
+    .sort();
+  if (payloadFiles.length === 0) {
+    return {
+      ...state,
+      runtime: {
+        ...(state.runtime || {}),
+        bundledPayloadPreload: {
+          status: "no-payload",
+          attemptedAt: new Date().toISOString(),
+          details: "No bundled payload JSON files detected."
+        }
+      }
+    };
+  }
+  if (payloadFiles.length > 1) {
+    return {
+      ...state,
+      runtime: {
+        ...(state.runtime || {}),
+        bundledPayloadPreload: {
+          status: "multiple-payloads-deferred",
+          attemptedAt: new Date().toISOString(),
+          details: `Multiple payloads detected (${payloadFiles.join(", ")}). Auto-preload is first-release single-payload only.`
+        }
+      }
+    };
+  }
+  const payloadFile = payloadFiles[0];
+  const payloadPath = path.join(payloadDir, payloadFile);
+  try {
+    const payload = JSON.parse(fs.readFileSync(payloadPath, "utf8"));
+    const imported = importRunBundlePayload(payload, {
+      sourceProfileOverride: "bundled-high-side-package",
+      cacheSource: "bundled-preload",
+      preloadMetadata: {
+        status: "preload-applied",
+        attemptedAt: new Date().toISOString(),
+        details: `Auto-preloaded bundled payload ${payloadFile}.`
+      }
+    });
+    if (!imported.ok) {
+      return {
+        ...state,
+        runtime: {
+          ...(state.runtime || {}),
+          bundledPayloadPreload: {
+            status: "preload-error",
+            attemptedAt: new Date().toISOString(),
+            details: imported.error
+          }
+        }
+      };
+    }
+    return imported.state;
+  } catch (error) {
+    return {
+      ...state,
+      runtime: {
+        ...(state.runtime || {}),
+        bundledPayloadPreload: {
+          status: "preload-error",
+          attemptedAt: new Date().toISOString(),
+          details: String(error?.message || error)
+        }
+      }
+    };
+  }
+};
+
+app.get("/api/run/export", (req, res) => {
+  const state = ensureState();
+  const payload = buildRunBundlePayload(state);
+  if (process.env.NODE_ENV !== "test") {
+    console.log("Run exported", { runId: state.runId });
+  }
+  res.json(payload);
+});
+
+app.post("/api/run/import", (req, res) => {
+  const imported = importRunBundlePayload(req.body || {});
+  if (!imported.ok) {
+    return res.status(imported.status || 400).json({ error: imported.error || "Invalid import payload." });
+  }
+  setState(imported.state);
+  res.json({ ok: true, state: withStatusModel(imported.state) });
 });
 
 app.post("/api/run/duplicate", (req, res) => {
@@ -2487,6 +2650,7 @@ const buildExportReadinessManifest = (state) => {
   const inclusion = resolveSecretInclusion(exportOptions);
   const includeClientTools = Boolean(exportOptions.includeClientTools);
   const includeInstaller = Boolean(exportOptions.includeInstaller);
+  const includeHighSideRuntimePackage = Boolean(exportOptions.includeHighSideRuntimePackage);
   const installerTargetHostOsFamily = normalizeInstallerTargetHostOsFamily(exportOptions.installerTargetHostOsFamily || "rhel9");
   const profile = contract.profile;
   const hasOperatorCache = Boolean(
@@ -2555,7 +2719,14 @@ const buildExportReadinessManifest = (state) => {
         notes: "openshift-install artifact selection is version+architecture based in this release; host OS family and FIPS inputs are validated and recorded."
       }
     },
-    runtimePackageIncluded: false,
+    runtimePackageIncluded: includeHighSideRuntimePackage,
+    runtimePackage: {
+      deliveryFormat: "oci/container-image-archives + compose/launch files",
+      hostSupportScope: ["rhel8", "rhel9"],
+      localhostFirst: true,
+      disconnectedExecutionDefault: true,
+      bundledPayloadPreload: "auto-preload-exactly-one-payload"
+    },
     placeholdersPresent: placeholders.length > 0,
     placeholders: {
       count: placeholders.length,
@@ -2603,7 +2774,9 @@ const buildExportReadinessManifest = (state) => {
       operatorSelectionsLocked: Boolean(state.blueprint?.confirmed && (state.version?.versionConfirmed ?? state.release?.confirmed))
     },
     notes: [
-      "High-side runtime package archive is not included in this transfer bundle.",
+      includeHighSideRuntimePackage
+        ? "High-side runtime package artifacts are included under runtime-package/."
+        : "High-side runtime package archive is not included in this transfer bundle.",
       "oc-mirror payload transfer remains explicit and separate from app transfer artifacts.",
       "Legacy mirror-output bundling is deprecated for transfer bundles; use handoff doc/manifest/log/support bundle outputs.",
       executionBlockedByPlaceholders
@@ -2734,6 +2907,15 @@ const buildBundleZip = async (rawState, res) => {
   const ntpMachineConfigs = buildNtpMachineConfigs(state);
   const fieldManual = buildFieldManual(state, links);
   const readinessManifest = buildExportReadinessManifest(state);
+  const runPayload = buildRunBundlePayload(state);
+  const runtimePackage = createRuntimePackageArtifacts({
+    state,
+    exportOptions: state.exportOptions || {},
+    runPayload,
+    dataDir
+  });
+  readinessManifest.runtimePackageIncluded = runtimePackage.included;
+  readinessManifest.runtimePackageNotes = runtimePackage.notes;
   const renderedInstallConfig = replacePlaceholderTokensInText(installConfig, state);
   const renderedAgentConfig = agentConfig ? replacePlaceholderTokensInText(agentConfig, state) : null;
   const renderedImageSetConfig = replacePlaceholderTokensInText(imageSetConfig, state);
@@ -2842,6 +3024,15 @@ const buildBundleZip = async (rawState, res) => {
         `Requested mirror output path: ${String(mirrorOutputPath)}`
       ].join("\n") + "\n",
       { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
+    );
+  }
+  runtimePackage.entries.forEach((entry) => {
+    archive.file(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
+  });
+  if (!runtimePackage.included && runtimePackage.requested) {
+    archive.append(
+      (runtimePackage.notes || ["Runtime package generation failed."]).join("\n") + "\n",
+      { name: "runtime-package/RUNTIME_PACKAGE_EXPORT.ERROR.txt" }
     );
   }
   archive.finalize();
@@ -2980,4 +3171,10 @@ function clearUpdateInfoCache() {
   updateInfoCache = null;
 }
 
-export { app, buildExportReadinessManifest, clearUpdateInfoCache, resolveOcMirrorArtifactsBaseDir };
+function resetStateForTests() {
+  const baseline = defaultState();
+  setState(baseline);
+  return baseline;
+}
+
+export { app, buildExportReadinessManifest, clearUpdateInfoCache, resolveOcMirrorArtifactsBaseDir, resetStateForTests };

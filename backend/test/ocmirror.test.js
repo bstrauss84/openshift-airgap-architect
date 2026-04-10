@@ -7,11 +7,12 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { app, resolveOcMirrorArtifactsBaseDir } from "../src/index.js";
+import { app, resolveOcMirrorArtifactsBaseDir, resetStateForTests } from "../src/index.js";
 import { appendJobOutput, createJob, updateJob, updateJobMetadata, getJob } from "../src/utils.js";
 
 function createTestServer() {
   return new Promise((resolve) => {
+    resetStateForTests();
     const server = http.createServer(app);
     server.listen(0, "127.0.0.1", () => {
       const port = server.address().port;

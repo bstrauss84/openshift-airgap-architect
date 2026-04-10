@@ -111,6 +111,7 @@ Testing guardrails:
 
 - Keep `App.jsx` null-state guards (`state?.ui`, `state?.ui?.activeStepId`, and early-return effects) intact; they prevent boot/hydration/import crashes and reduce async test flakiness.
 - Keep theme readability checks in place (`frontend/tests/theme-readability.test.jsx`) to protect light/dark contrast regressions.
+- Backend test isolation uses per-process test DB paths under `DATA_DIR/worker-<pid>` so parallel `node --test` workers do not share SQLite state.
 
 **Lockfile and audit:** Do not run `npm audit fix --force` unless explicitly requested; it can cause lockfile churn and breaking dependency upgrades.
 
@@ -123,6 +124,16 @@ Testing guardrails:
 - NTP MachineConfigs when NTP is set: `99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`
 - Mirror-source install-config key is version-gated: `imageDigestSources` for OCP `4.14+`, `imageContentSources` for OCP `4.13` and earlier.
 - If this is questioned, use installer source for the target release branch as tie-breaker (for 4.20: `pkg/asset/agent/joiner/clusterinfo.go` has `ImageDigestSources` plus `DeprecatedImageContentSources`).
+
+## High-side runtime package drift checklist
+
+When touching export/generation/runtime behavior, verify package-target parity for:
+
+- `EXPORT_READINESS_MANIFEST.json` wording and flags (`runtimePackageIncluded`, placeholder/review/finality status, inclusion summaries)
+- Secret inclusion/omission defaults and placeholder marker rendering in generated YAML/manual outputs
+- Runtime-critical placeholder execution blocking behavior
+- High-side package artifacts under `runtime-package/` (compose/launch/checksum/startup guide/payload preload behavior)
+- Disconnected profile gating truth (`AIRGAP_RUNTIME_SIDE=high-side` -> connected-only actions disabled)
 
 ## Project rules
 

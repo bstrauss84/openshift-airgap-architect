@@ -4,10 +4,11 @@ import http from "node:http";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { app, buildExportReadinessManifest } from "../src/index.js";
+import { app, buildExportReadinessManifest, resetStateForTests } from "../src/index.js";
 
 function createTestServer() {
   return new Promise((resolve) => {
+    resetStateForTests();
     const server = http.createServer(app);
     server.listen(0, "127.0.0.1", () => {
       const port = server.address().port;
@@ -259,6 +260,30 @@ test("readiness manifest reports placeholders and review-needed status", async (
   assert.strictEqual(manifest.executionReadiness?.executionBlockedByPlaceholders, true);
 });
 
+test("readiness manifest reports high-side runtime package request", async () => {
+  const manifest = buildExportReadinessManifest({
+    exportOptions: {
+      includeHighSideRuntimePackage: true,
+      includeInstaller: false,
+      includeClientTools: false,
+      inclusion: {
+        pullSecret: false,
+        platformCredentials: false,
+        mirrorRegistryCredentials: false,
+        bmcCredentials: false,
+        trustBundleAndCertificates: true,
+        sshPublicKey: true,
+        proxyValues: true
+      }
+    },
+    operators: { stale: false, catalogs: { redhat: [], certified: [], community: [] } },
+    docs: { links: [] }
+  });
+  assert.strictEqual(manifest.runtimePackageIncluded, true);
+  assert.strictEqual(manifest.runtimePackage?.localhostFirst, true);
+  assert.deepStrictEqual(manifest.runtimePackage?.hostSupportScope, ["rhel8", "rhel9"]);
+});
+
 test("run export strips credential classes by default", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
@@ -313,6 +338,77 @@ test("generate output replaces internal placeholder tokens with visible marker t
     assert.doesNotMatch(install, /__AIRA_PLACEHOLDER__/);
     assert.doesNotMatch(manual, /__AIRA_PLACEHOLDER__/);
   } finally {
+    server.close();
+  }
+});
+
+test("bundle export includes high-side runtime package artifacts when requested", async () => {
+  const prevMode = process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE;
+  process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE = "fixture";
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const state = {
+      version: { versionConfirmed: true },
+      release: { channel: "stable-4.20", patchVersion: "4.20.12", confirmed: true },
+      exportOptions: {
+        includeHighSideRuntimePackage: true,
+        includeClientTools: false,
+        includeInstaller: false
+      }
+    };
+    const res = await fetch(`${baseUrl}/api/bundle.zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state })
+    });
+    assert.strictEqual(res.status, 200);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const text = bytes.toString("latin1");
+    assert.match(text, /runtime-package\/HIGH_SIDE_STARTUP_GUIDE\.md/);
+    assert.match(text, /runtime-package\/compose\/high-side\.compose\.yml/);
+    assert.match(text, /runtime-package\/payloads\/imported-run\.bundle\.json/);
+    assert.match(text, /runtime-package\/SHA256SUMS\.txt/);
+  } finally {
+    if (prevMode == null) delete process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE;
+    else process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE = prevMode;
+    server.close();
+  }
+});
+
+test("high-side runtime auto-preloads a single bundled payload", async () => {
+  const payloadDir = fs.mkdtempSync(path.join(os.tmpdir(), "airgap-preload-"));
+  const payloadFile = path.join(payloadDir, "only-payload.json");
+  const prevSide = process.env.AIRGAP_RUNTIME_SIDE;
+  const prevPayloadDir = process.env.AIRGAP_BUNDLED_PAYLOADS_DIR;
+  const prevPreload = process.env.AIRGAP_PRELOAD_ON_START;
+  process.env.AIRGAP_RUNTIME_SIDE = "high-side";
+  process.env.AIRGAP_BUNDLED_PAYLOADS_DIR = payloadDir;
+  process.env.AIRGAP_PRELOAD_ON_START = "true";
+  fs.writeFileSync(payloadFile, JSON.stringify({
+    schemaVersion: 2,
+    sourceProfile: "connected-authoring",
+    state: {
+      release: { channel: "stable-4.20", patchVersion: "4.20.12", confirmed: true },
+      version: { versionConfirmed: true },
+      operators: { selected: [] }
+    }
+  }, null, 2));
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/state`);
+    assert.strictEqual(res.status, 200);
+    const state = await res.json();
+    assert.strictEqual(state.continuation?.importedRun, true);
+    assert.strictEqual(state.continuation?.sourceProfile, "bundled-high-side-package");
+    assert.strictEqual(state.runtime?.bundledPayloadPreload?.status, "preload-applied");
+  } finally {
+    if (prevSide == null) delete process.env.AIRGAP_RUNTIME_SIDE;
+    else process.env.AIRGAP_RUNTIME_SIDE = prevSide;
+    if (prevPayloadDir == null) delete process.env.AIRGAP_BUNDLED_PAYLOADS_DIR;
+    else process.env.AIRGAP_BUNDLED_PAYLOADS_DIR = prevPayloadDir;
+    if (prevPreload == null) delete process.env.AIRGAP_PRELOAD_ON_START;
+    else process.env.AIRGAP_PRELOAD_ON_START = prevPreload;
+    fs.rmSync(payloadDir, { recursive: true, force: true });
     server.close();
   }
 });

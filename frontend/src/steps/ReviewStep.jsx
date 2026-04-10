@@ -336,6 +336,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
   const installerTargetHostOsFamily = exportOptions.installerTargetHostOsFamily || "rhel9";
   const installerTargetArch = exportOptions.installerTargetArch || "x86_64";
   const installerTargetFipsRequired = Boolean(exportOptions.installerTargetFipsRequired);
+  const includeHighSideRuntimePackage = Boolean(exportOptions.includeHighSideRuntimePackage);
   const [showPullSecretInPreview, setShowPullSecretInPreview] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState({ runtimeArch: null, localBinaryArch: null });
 
@@ -533,6 +534,19 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
             </OptionRow>
           </CollapsibleSection>
           <CollapsibleSection title="Advanced / Tools" defaultCollapsed={true}>
+            <OptionRow
+              title="Include high-side runtime package artifacts"
+              description="Export OCI/container image archives, localhost-first compose/launch files, bundled payload preload file, checksums, and startup guidance for disconnected execution."
+              note="First-release host support scope is RHEL 8/9."
+            >
+              <Switch
+                checked={includeHighSideRuntimePackage}
+                onChange={(checked) =>
+                  updateState({ exportOptions: { ...exportOptions, includeHighSideRuntimePackage: checked } })
+                }
+                aria-label="Include high-side runtime package artifacts"
+              />
+            </OptionRow>
             <OptionRow
               title="Include oc and oc-mirror binaries"
               description="Add oc and oc-mirror to the bundle under tools/."
