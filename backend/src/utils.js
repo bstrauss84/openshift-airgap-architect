@@ -6,6 +6,27 @@ import { db, dataDir } from "./db.js";
 
 const now = () => Date.now();
 
+const REDACTED = "[REDACTED]";
+
+/**
+ * Best-effort log redaction for auth-bearing output persisted to job history.
+ * Keeps non-sensitive logs readable while preventing accidental secret storage.
+ */
+const redactJobOutputForStorage = (text) => {
+  if (typeof text !== "string" || text.length === 0) return text;
+  return text
+    // Docker/OCI pull-secret auth payloads.
+    .replace(/("auth"\s*:\s*")[^"]+(")/gi, `$1${REDACTED}$2`)
+    // Common password/token fields in JSON-ish or key-value output.
+    .replace(/("?(?:password|passwd|token|access_token|refresh_token|client_secret)"?\s*[:=]\s*")[^"]*(")/gi, `$1${REDACTED}$2`)
+    .replace(/((?:password|passwd|token|access_token|refresh_token|client_secret)\s*[:=]\s*)([^\s,;]+)/gi, `$1${REDACTED}`)
+    // HTTP Authorization headers.
+    .replace(/(Authorization\s*:\s*Bearer\s+)[^\s]+/gi, `$1${REDACTED}`)
+    .replace(/(Authorization\s*:\s*Basic\s+)[^\s]+/gi, `$1${REDACTED}`)
+    // URLs with embedded credentials.
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)([^/\s:@]+):([^@\s/]+)@/gi, `$1${REDACTED}:${REDACTED}@`);
+};
+
 const getCache = (key) => {
   const row = db.prepare("SELECT value, updated_at FROM cache WHERE key = ?").get(key);
   if (!row) return null;
@@ -30,6 +51,9 @@ const createJob = (type, message = "") => {
 const updateJob = (id, patch) => {
   const current = db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
   if (!current) return null;
+  const sanitizedOutput = patch.output !== undefined
+    ? redactJobOutputForStorage(String(patch.output ?? ""))
+    : current.output;
   const metadataJson =
     patch.metadata_json !== undefined
       ? (typeof patch.metadata_json === "string" ? patch.metadata_json : JSON.stringify(patch.metadata_json))
@@ -38,7 +62,7 @@ const updateJob = (id, patch) => {
     status: patch.status ?? current.status,
     progress: patch.progress ?? current.progress,
     message: patch.message ?? current.message,
-    output: patch.output ?? current.output,
+    output: sanitizedOutput,
     updated_at: now(),
     metadata_json: metadataJson ?? ""
   };
@@ -134,7 +158,7 @@ const safeUnlink = (filePath) => {
 const appendJobOutput = (id, chunk, maxBytes = 500000) => {
   const current = getJob(id);
   if (!current) return null;
-  const next = `${current.output || ""}${chunk}`;
+  const next = redactJobOutputForStorage(`${current.output || ""}${String(chunk ?? "")}`);
   const trimmed = next.length > maxBytes ? next.slice(next.length - maxBytes) : next;
   return updateJob(id, { output: trimmed });
 };
@@ -154,6 +178,7 @@ export {
   markStaleJobs,
   getState,
   setState,
+  redactJobOutputForStorage,
   writeTempAuth,
   mergePullSecrets,
   safeUnlink,

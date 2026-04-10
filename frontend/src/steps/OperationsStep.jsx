@@ -55,7 +55,6 @@ function downloadJsonFile(filename, payload) {
     a.remove();
   }, 60000);
 }
-
 const OperationsStep = () => {
   const { state, updateState } = useApp();
   const [jobs, setJobs] = useState([]);
