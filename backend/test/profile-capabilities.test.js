@@ -74,7 +74,7 @@ test("bundle.zip includes readiness manifest and installer error artifact", asyn
   }
 });
 
-test("bundle.prepare token supports one native streamed download", async () => {
+test("bundle.prepare token supports repeated native streamed downloads during TTL", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
     const bundleState = {
@@ -101,7 +101,7 @@ test("bundle.prepare token supports one native streamed download", async () => {
     assert.match(first.headers.get("content-type") || "", /application\/zip/);
 
     const second = await fetch(`${baseUrl}/api/bundle.zip?token=${encodeURIComponent(prep.token)}`);
-    assert.strictEqual(second.status, 410);
+    assert.strictEqual(second.status, 200);
   } finally {
     server.close();
   }

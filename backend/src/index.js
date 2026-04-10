@@ -19,6 +19,7 @@ import {
   getAwsRegions,
   installerPathFor,
   normalizeInstallerArch,
+  normalizeInstallerTargetHostOsFamily,
   warmInstallerStream
 } from "./installer.js";
 import {
@@ -133,6 +134,44 @@ const purgeExpiredBundleStates = () => {
     if (!entry || now >= entry.expiresAt) pendingBundleStates.delete(token);
   }
 };
+
+const defaultCacheDomainProvenance = () => ({
+  source: "unknown",
+  timestamp: null,
+  originatingApp: {
+    gitSha: (process.env.APP_GIT_SHA || "unknown").trim() || "unknown",
+    buildTime: (process.env.APP_BUILD_TIME || "unknown").trim() || "unknown"
+  },
+  originatingProfile: defaultOperationalProfile(),
+  releaseScope: null,
+  stale: false,
+  invalidationReason: null
+});
+
+const defaultCacheProvenance = () => ({
+  releaseMetadata: defaultCacheDomainProvenance(),
+  operatorMetadata: defaultCacheDomainProvenance(),
+  docsMetadata: defaultCacheDomainProvenance(),
+  awsMetadata: defaultCacheDomainProvenance()
+});
+
+const defaultContinuationState = () => ({
+  importedRun: false,
+  mode: "none",
+  sourceProfile: null,
+  importedAt: null,
+  operatorCacheScope: {
+    channel: null,
+    patchVersion: null
+  },
+  locks: {
+    releaseMinor: false,
+    releasePatch: false,
+    operatorSelections: false,
+    operatorChannelsPackages: false,
+    mirroredAssumptions: false
+  }
+});
 
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
@@ -377,6 +416,14 @@ const defaultState = () => ({
     completedSteps: {},
     segmentedFlowV1: true
   },
+  continuation: defaultContinuationState(),
+  cacheProvenance: defaultCacheProvenance(),
+  statusModel: {
+    continuationLocked: false,
+    cacheLimited: false,
+    reviewNeeded: false,
+    secretsOmitted: true
+  },
   runtime: {
     operationalProfile: null
   }
@@ -396,6 +443,21 @@ const ensureState = () => {
       next.trust.reducedSelection = null;
       changed = true;
     }
+    const normalizedContinuation = ensureContinuationShape(next.continuation);
+    if (JSON.stringify(normalizedContinuation) !== JSON.stringify(next.continuation || {})) {
+      next.continuation = normalizedContinuation;
+      changed = true;
+    }
+    const normalizedProvenance = ensureCacheProvenanceShape(next.cacheProvenance);
+    if (JSON.stringify(normalizedProvenance) !== JSON.stringify(next.cacheProvenance || {})) {
+      next.cacheProvenance = normalizedProvenance;
+      changed = true;
+    }
+    const nextStatusModel = buildStatusModel(next);
+    if (JSON.stringify(nextStatusModel) !== JSON.stringify(next.statusModel || {})) {
+      next.statusModel = nextStatusModel;
+      changed = true;
+    }
     if (changed) {
       setState(next);
       return next;
@@ -409,7 +471,7 @@ const ensureState = () => {
 
 const updateState = (patch) => {
   const current = ensureState();
-  const merged = { ...current, ...patch };
+  const merged = withStatusModel({ ...current, ...patch });
   setState(merged);
   return merged;
 };
@@ -477,6 +539,120 @@ const rejectForCapability = (res, state, capabilityKey, actionLabel) => {
     profile: contract.profile,
     capability: capabilityKey
   });
+};
+
+const ensureContinuationShape = (value) => {
+  const base = defaultContinuationState();
+  const next = { ...(value || {}) };
+  next.operatorCacheScope = { ...base.operatorCacheScope, ...(value?.operatorCacheScope || {}) };
+  next.locks = { ...base.locks, ...(value?.locks || {}) };
+  return { ...base, ...next };
+};
+
+const ensureCacheProvenanceShape = (value) => {
+  const base = defaultCacheProvenance();
+  const input = value || {};
+  return {
+    releaseMetadata: { ...base.releaseMetadata, ...(input.releaseMetadata || {}) },
+    operatorMetadata: { ...base.operatorMetadata, ...(input.operatorMetadata || {}) },
+    docsMetadata: { ...base.docsMetadata, ...(input.docsMetadata || {}) },
+    awsMetadata: { ...base.awsMetadata, ...(input.awsMetadata || {}) }
+  };
+};
+
+const isReleaseOutsideOperatorCacheScope = (state) => {
+  const continuation = ensureContinuationShape(state?.continuation);
+  if (!continuation.importedRun) return false;
+  const scopeChannel = continuation.operatorCacheScope?.channel;
+  if (!scopeChannel) return false;
+  const selectedChannel = state?.release?.channel || null;
+  if (!selectedChannel) return false;
+  return selectedChannel !== scopeChannel;
+};
+
+const buildStatusModel = (state) => {
+  const continuation = ensureContinuationShape(state?.continuation);
+  const locks = continuation.locks || {};
+  const continuationLocked = Boolean(
+    locks.releaseMinor ||
+    locks.releasePatch ||
+    locks.operatorSelections ||
+    locks.operatorChannelsPackages ||
+    locks.mirroredAssumptions
+  );
+  const reviewNeeded = Boolean(state?.reviewFlags?.review);
+  const secretsOmitted = !(state?.exportOptions?.includeCredentials);
+  const cacheLimited = Boolean(
+    continuation.importedRun &&
+    (continuation.mode === "start-over-from-import" || isReleaseOutsideOperatorCacheScope(state))
+  );
+  return {
+    continuationLocked,
+    cacheLimited,
+    reviewNeeded,
+    secretsOmitted
+  };
+};
+
+const withStatusModel = (state) => ({
+  ...state,
+  statusModel: buildStatusModel(state)
+});
+
+const withCacheProvenanceUpdate = (state, domain, patch = {}) => {
+  const cacheProvenance = ensureCacheProvenanceShape(state?.cacheProvenance);
+  const base = cacheProvenance[domain] || defaultCacheDomainProvenance();
+  const nextDomain = {
+    ...base,
+    ...patch,
+    timestamp: patch.timestamp ?? Date.now(),
+    originatingApp: patch.originatingApp || base.originatingApp || {
+      gitSha: (process.env.APP_GIT_SHA || "unknown").trim() || "unknown",
+      buildTime: (process.env.APP_BUILD_TIME || "unknown").trim() || "unknown"
+    },
+    originatingProfile: patch.originatingProfile || resolveOperationalProfile(state)
+  };
+  return {
+    ...state,
+    cacheProvenance: {
+      ...cacheProvenance,
+      [domain]: nextDomain
+    }
+  };
+};
+
+const getContinuationLockViolation = (current, patch) => {
+  const locks = ensureContinuationShape(current?.continuation).locks;
+  if (!patch || typeof patch !== "object") return null;
+  if (locks.releaseMinor && patch.release && Object.prototype.hasOwnProperty.call(patch.release, "channel")) {
+    const nextValue = patch.release.channel;
+    const currentValue = current?.release?.channel;
+    if (nextValue !== currentValue) {
+      return "Release minor is locked for continuation mode. Use Start Over to change it.";
+    }
+  }
+  if (locks.releasePatch && patch.release && Object.prototype.hasOwnProperty.call(patch.release, "patchVersion")) {
+    const nextValue = patch.release.patchVersion;
+    const currentValue = current?.release?.patchVersion;
+    if (nextValue !== currentValue) {
+      return "Release patch is locked for continuation mode. Use Start Over to change it.";
+    }
+  }
+  if (locks.operatorSelections && patch.operators && Object.prototype.hasOwnProperty.call(patch.operators, "selected")) {
+    const nextSelected = JSON.stringify(patch.operators.selected || []);
+    const currentSelected = JSON.stringify(current?.operators?.selected || []);
+    if (nextSelected !== currentSelected) {
+      return "Operator selections are locked for continuation mode. Use Start Over to change them.";
+    }
+  }
+  if (locks.operatorChannelsPackages && patch.operators && Object.prototype.hasOwnProperty.call(patch.operators, "catalogs")) {
+    const nextCatalogs = JSON.stringify(patch.operators.catalogs || {});
+    const currentCatalogs = JSON.stringify(current?.operators?.catalogs || {});
+    if (nextCatalogs !== currentCatalogs) {
+      return "Operator channels/packages are locked for continuation mode. Use Start Over to change them.";
+    }
+  }
+  return null;
 };
 
 const sanitizeStateForExport = (state, options = {}) => {
@@ -908,11 +1084,19 @@ app.get("/api/profile/capabilities", (_req, res) => {
 });
 
 app.get("/api/state", (req, res) => {
-  res.json(ensureState());
+  res.json(withStatusModel(ensureState()));
 });
 
 app.post("/api/state", (req, res) => {
   const patch = req.body || {};
+  const current = ensureState();
+  const lockViolation = getContinuationLockViolation(current, patch);
+  if (lockViolation) {
+    return res.status(409).json({
+      error: lockViolation,
+      continuationLocked: true
+    });
+  }
   if (patch?.blueprint && "blueprintPullSecretEphemeral" in patch.blueprint) {
     const nextBlueprint = { ...patch.blueprint };
     delete nextBlueprint.blueprintPullSecretEphemeral;
@@ -924,8 +1108,18 @@ app.post("/api/state", (req, res) => {
     delete nextCreds.mirrorRegistryPullSecret;
     patch.credentials = nextCreds;
   }
-  const merged = updateState(patch);
-  res.json(merged);
+  let merged = updateState(patch);
+  const releaseScopeMismatch = isReleaseOutsideOperatorCacheScope(merged);
+  if (merged?.operators) {
+    const nextOperators = {
+      ...merged.operators,
+      cacheScopeMismatch: releaseScopeMismatch
+    };
+    if (JSON.stringify(nextOperators) !== JSON.stringify(merged.operators)) {
+      merged = updateState({ operators: nextOperators });
+    }
+  }
+  res.json(withStatusModel(merged));
 });
 
 // Mounted Red Hat pull secret endpoints
@@ -939,6 +1133,7 @@ app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
 });
 
 app.post("/api/start-over", (req, res) => {
+  const current = ensureState();
   const cancelRunningOcMirror = req.body?.cancelRunningOcMirror !== false;
   if (cancelRunningOcMirror) {
     const runningOcMirrorJobs = listJobsByType("oc-mirror-run").filter((job) => job.status === "running");
@@ -960,6 +1155,37 @@ app.post("/api/start-over", (req, res) => {
     }
   }
   const next = defaultState();
+  const continuation = ensureContinuationShape(current.continuation);
+  if (continuation.importedRun) {
+    const preservedOperators = current.operators || {};
+    const preservedDocs = current.docs || {};
+    next.operators = {
+      ...next.operators,
+      catalogs: preservedOperators.catalogs || next.operators.catalogs,
+      version: preservedOperators.version || null,
+      cachedAt: preservedOperators.cachedAt || null,
+      stale: false,
+      cacheScopeMismatch: false
+    };
+    next.docs = {
+      ...next.docs,
+      links: preservedDocs.links || [],
+      connectivity: preservedDocs.connectivity || next.docs.connectivity
+    };
+    next.cacheProvenance = ensureCacheProvenanceShape(current.cacheProvenance);
+    next.continuation = {
+      ...continuation,
+      mode: "start-over-from-import",
+      locks: {
+        releaseMinor: false,
+        releasePatch: false,
+        operatorSelections: false,
+        operatorChannelsPackages: false,
+        mirroredAssumptions: false
+      }
+    };
+    next.statusModel = buildStatusModel(next);
+  }
   next.reviewFlags = {
     methodology: false,
     global: false,
@@ -977,7 +1203,7 @@ app.post("/api/start-over", (req, res) => {
   if (fs.existsSync(tmpDir)) {
     fs.readdirSync(tmpDir).forEach((file) => safeUnlink(path.join(tmpDir, file)));
   }
-  res.json(next);
+  res.json(withStatusModel(next));
 });
 
 app.get("/api/run/export", (req, res) => {
@@ -991,6 +1217,7 @@ app.get("/api/run/export", (req, res) => {
     schemaVersion: 2,
     exportedAt: new Date().toISOString(),
     runId: state.runId,
+    sourceProfile: resolveOperationalProfile(state),
     state: sanitized
   });
 });
@@ -1004,7 +1231,7 @@ app.post("/api/run/import", (req, res) => {
   if (schemaVersion > 2) {
     return res.status(400).json({ error: `Unsupported run bundle schemaVersion ${schemaVersion}.` });
   }
-  const migrated = schemaVersion === 1
+  let migrated = schemaVersion === 1
     ? { ...defaultState(), ...payload.state, exportOptions: payload.state.exportOptions || defaultState().exportOptions }
     : payload.state;
   if (!migrated.runId) migrated.runId = nanoid();
@@ -1015,9 +1242,50 @@ app.post("/api/run/import", (req, res) => {
       migrated.operators.stale = true;
     }
   }
+  const importedAt = new Date().toISOString();
+  const importedReleaseChannel = migrated.release?.channel || migrated.operators?.version || null;
+  migrated.continuation = {
+    importedRun: true,
+    mode: "continue-imported",
+    sourceProfile: payload.sourceProfile || "connected-authoring",
+    importedAt,
+    operatorCacheScope: {
+      channel: importedReleaseChannel,
+      patchVersion: migrated.release?.patchVersion || null
+    },
+    locks: {
+      releaseMinor: true,
+      releasePatch: true,
+      operatorSelections: true,
+      operatorChannelsPackages: true,
+      mirroredAssumptions: true
+    }
+  };
+  migrated.operators = {
+    ...(migrated.operators || {}),
+    cacheScopeMismatch: false
+  };
+  migrated.cacheProvenance = ensureCacheProvenanceShape(migrated.cacheProvenance);
+  migrated = withCacheProvenanceUpdate(migrated, "releaseMetadata", {
+    source: "imported",
+    releaseScope: importedReleaseChannel
+  });
+  migrated = withCacheProvenanceUpdate(migrated, "operatorMetadata", {
+    source: "imported",
+    releaseScope: migrated.operators?.version || importedReleaseChannel
+  });
+  migrated = withCacheProvenanceUpdate(migrated, "docsMetadata", {
+    source: "imported",
+    releaseScope: importedReleaseChannel
+  });
+  migrated = withCacheProvenanceUpdate(migrated, "awsMetadata", {
+    source: "imported",
+    releaseScope: importedReleaseChannel
+  });
   const sanitized = sanitizeStateForExport(migrated, { ...(migrated.exportOptions || {}), includeCredentials: false });
+  sanitized.statusModel = buildStatusModel(sanitized);
   setState(sanitized);
-  res.json({ ok: true, state: sanitized });
+  res.json({ ok: true, state: withStatusModel(sanitized) });
 });
 
 app.post("/api/run/duplicate", (req, res) => {
@@ -1030,7 +1298,16 @@ app.post("/api/run/duplicate", (req, res) => {
 
 app.get("/api/cincinnati/channels", async (req, res) => {
   try {
+    const state = ensureState();
     const channels = await fetchChannels(false);
+    updateState({
+      cacheProvenance: withCacheProvenanceUpdate(state, "releaseMetadata", {
+        source: "cached",
+        releaseScope: "channels",
+        stale: false,
+        invalidationReason: null
+      }).cacheProvenance
+    });
     res.json({ channels });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -1044,6 +1321,14 @@ app.post("/api/cincinnati/update", async (req, res) => {
   }
   try {
     const channels = await fetchChannels(true);
+    updateState({
+      cacheProvenance: withCacheProvenanceUpdate(state, "releaseMetadata", {
+        source: "live",
+        releaseScope: "channels",
+        stale: false,
+        invalidationReason: null
+      }).cacheProvenance
+    });
     res.json({ channels });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -1052,8 +1337,17 @@ app.post("/api/cincinnati/update", async (req, res) => {
 
 app.get("/api/cincinnati/patches", async (req, res) => {
   try {
+    const state = ensureState();
     const channel = req.query.channel;
     const versions = await fetchPatchesForChannel(channel, false);
+    updateState({
+      cacheProvenance: withCacheProvenanceUpdate(state, "releaseMetadata", {
+        source: "cached",
+        releaseScope: channel || null,
+        stale: false,
+        invalidationReason: null
+      }).cacheProvenance
+    });
     res.json({ versions });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -1068,6 +1362,14 @@ app.post("/api/cincinnati/patches/update", async (req, res) => {
   try {
     const channel = req.body.channel;
     const versions = await fetchPatchesForChannel(channel, true);
+    updateState({
+      cacheProvenance: withCacheProvenanceUpdate(state, "releaseMetadata", {
+        source: "live",
+        releaseScope: channel || null,
+        stale: false,
+        invalidationReason: null
+      }).cacheProvenance
+    });
     res.json({ versions });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -1152,6 +1454,14 @@ app.post("/api/operators/scan", async (req, res) => {
     });
     jobs[catalog.id] = jobId;
   }
+  updateState({
+    cacheProvenance: withCacheProvenanceUpdate(state, "operatorMetadata", {
+      source: "live",
+      releaseScope: version || null,
+      stale: false,
+      invalidationReason: null
+    }).cacheProvenance
+  });
   res.json({ jobs });
 });
 
@@ -1193,16 +1503,33 @@ app.post("/api/operators/prefetch", async (req, res) => {
     });
     jobs[catalog.id] = jobId;
   }
+  updateState({
+    cacheProvenance: withCacheProvenanceUpdate(state, "operatorMetadata", {
+      source: "live",
+      releaseScope: version || null,
+      stale: false,
+      invalidationReason: null
+    }).cacheProvenance
+  });
   res.json({ jobs });
 });
 
 app.get("/api/operators/status", (req, res) => {
+  const state = ensureState();
   const version = req.query.version;
   const response = {};
   for (const catalog of getCatalogs()) {
     const cached = getResults(version, catalog.id);
     response[catalog.id] = cached || { results: [], updatedAt: null };
   }
+  updateState({
+    cacheProvenance: withCacheProvenanceUpdate(state, "operatorMetadata", {
+      source: "cached",
+      releaseScope: version || null,
+      stale: false,
+      invalidationReason: null
+    }).cacheProvenance
+  });
   res.json(response);
 });
 
@@ -1858,6 +2185,14 @@ app.get("/api/docs", (req, res) => {
   const version = state.release?.channel ? `4.${state.release.channel.split(".")[1]}` : "4.0";
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
+  updateState({
+    cacheProvenance: withCacheProvenanceUpdate(state, "docsMetadata", {
+      source: "cached",
+      releaseScope: state.release?.channel || null,
+      stale: !Boolean(cached?.links?.length),
+      invalidationReason: cached?.links?.length ? null : "missing_docs_cache"
+    }).cacheProvenance
+  });
   res.json({ cached });
 });
 
@@ -1879,6 +2214,14 @@ app.post("/api/docs/update", async (req, res) => {
     connectivity: state.docs?.connectivity
   });
   storeDocs(key, job.validated);
+  updateState({
+    cacheProvenance: withCacheProvenanceUpdate(state, "docsMetadata", {
+      source: "live",
+      releaseScope: state.release?.channel || null,
+      stale: false,
+      invalidationReason: null
+    }).cacheProvenance
+  });
   res.json({ jobId: job.jobId, links: job.validated });
 });
 
@@ -1912,6 +2255,14 @@ app.get("/api/aws/regions", async (req, res) => {
   }
   try {
     const regions = await getAwsRegions(version, arch, force);
+    updateState({
+      cacheProvenance: withCacheProvenanceUpdate(state, "awsMetadata", {
+        source: force ? "live" : "cached",
+        releaseScope: version,
+        stale: false,
+        invalidationReason: null
+      }).cacheProvenance
+    });
     res.json({ version, arch, regions });
   } catch (error) {
     res.status(500).json({ error: String(error?.message || error) });
@@ -1939,6 +2290,14 @@ app.get("/api/aws/ami", async (req, res) => {
     if (!ami) {
       return res.status(404).json({ error: `No AMI found for ${region} (${arch}).` });
     }
+    updateState({
+      cacheProvenance: withCacheProvenanceUpdate(state, "awsMetadata", {
+        source: force ? "live" : "cached",
+        releaseScope: version,
+        stale: false,
+        invalidationReason: null
+      }).cacheProvenance
+    });
     res.json({ version, arch, region, ami });
   } catch (error) {
     res.status(500).json({ error: String(error?.message || error) });
@@ -1976,6 +2335,7 @@ const buildExportReadinessManifest = (state) => {
   const includeCertificates = exportOptions.includeCertificates !== false;
   const includeClientTools = Boolean(exportOptions.includeClientTools);
   const includeInstaller = Boolean(exportOptions.includeInstaller);
+  const installerTargetHostOsFamily = normalizeInstallerTargetHostOsFamily(exportOptions.installerTargetHostOsFamily || "rhel9");
   const profile = contract.profile;
   const hasOperatorCache = Boolean(
     (state.operators?.catalogs?.redhat || []).length ||
@@ -1984,6 +2344,7 @@ const buildExportReadinessManifest = (state) => {
   );
   const hasDocsCache = Boolean((state.docs?.links || []).length);
   const installerTargetArch = normalizeInstallerArch(exportOptions.installerTargetArch || "x86_64");
+  const statusModel = buildStatusModel(state);
   const manifest = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -2005,9 +2366,16 @@ const buildExportReadinessManifest = (state) => {
       ocClient: includeClientTools,
       ocMirror: includeClientTools,
       openshiftInstall: includeInstaller,
-      installerTargetHostOsFamily: exportOptions.installerTargetHostOsFamily || "rhel9",
+      installerTargetHostOsFamily,
       installerTargetArch,
-      installerTargetFipsRequired: Boolean(exportOptions.installerTargetFipsRequired)
+      installerTargetFipsRequired: Boolean(exportOptions.installerTargetFipsRequired),
+      installerPackagingPolicy: {
+        validatedTargetHostOsFamilies: ["rhel8", "rhel9"],
+        validatedTargetArchitectures: ["x86_64"],
+        fipsAwareSelection: "validated-input",
+        artifactVariantByHostOsOrFips: false,
+        notes: "openshift-install artifact selection is version+architecture based in this release; host OS family and FIPS inputs are validated and recorded."
+      }
     },
     runtimePackageIncluded: false,
     placeholdersPresent: detectPlaceholderUsage(state),
@@ -2022,10 +2390,15 @@ const buildExportReadinessManifest = (state) => {
     },
     staleDataWarnings: {
       operatorsStale: Boolean(state.operators?.stale),
-      docsLinksMissing: !hasDocsCache
+      docsLinksMissing: !hasDocsCache,
+      operatorCacheScopeMismatch: Boolean(state.operators?.cacheScopeMismatch)
     },
-    continuationReady: Boolean(state.blueprint?.confirmed && (state.version?.versionConfirmed ?? state.release?.confirmed)),
-    mirrorPayloadNotIncluded: !Boolean(state.mirrorWorkflow?.includeInExport),
+    continuationReady: Boolean(
+      state.continuation?.mode === "continue-imported" ||
+      (state.blueprint?.confirmed && (state.version?.versionConfirmed ?? state.release?.confirmed))
+    ),
+    mirrorPayloadNotIncluded: true,
+    runStatus: statusModel,
     diskToMirrorReady: Boolean(
       state.mirrorWorkflow?.archivePath &&
       state.mirrorWorkflow?.lastRunJobId
@@ -2037,7 +2410,8 @@ const buildExportReadinessManifest = (state) => {
     },
     notes: [
       "High-side runtime package archive is not included in this transfer bundle.",
-      "oc-mirror payload transfer remains explicit and separate from app transfer artifacts."
+      "oc-mirror payload transfer remains explicit and separate from app transfer artifacts.",
+      "Legacy mirror-output bundling is deprecated for transfer bundles; use handoff doc/manifest/log/support bundle outputs."
     ]
   };
   return manifest;
@@ -2230,8 +2604,16 @@ const buildBundleZip = async (rawState, res) => {
         if (!version) {
           throw new Error("Version not selected.");
         }
+        const targetHostOsFamily = normalizeInstallerTargetHostOsFamily(
+          state.exportOptions?.installerTargetHostOsFamily || "rhel9"
+        );
+        const targetHostFipsRequired = Boolean(state.exportOptions?.installerTargetFipsRequired);
         const targetArch = normalizeInstallerArch(state.exportOptions?.installerTargetArch || "x86_64");
-        await ensureInstaller(version, { arch: targetArch });
+        await ensureInstaller(version, {
+          arch: targetArch,
+          osFamily: targetHostOsFamily,
+          fipsRequired: targetHostFipsRequired
+        });
         const installerPath = installerPathFor(version, targetArch);
         if (fs.existsSync(installerPath)) {
           archive.file(installerPath, { name: "tools/openshift-install" });
@@ -2246,24 +2628,14 @@ const buildBundleZip = async (rawState, res) => {
   }
   const mirrorOutputPath = state.mirrorWorkflow?.archivePath || state.mirrorWorkflow?.outputPath;
   if (state.mirrorWorkflow?.includeInExport && mirrorOutputPath) {
-    const rawPath = mirrorOutputPath;
-    try {
-      const resolved = path.resolve(rawPath);
-      const stat = fs.statSync(resolved);
-      if (stat.isDirectory()) {
-        archive.directory(resolved, "mirror-output");
-      } else {
-        archive.append(
-          `Mirror output path is not a directory: ${resolved}\n`,
-          { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
-        );
-      }
-    } catch (error) {
-      archive.append(
-        `Mirror output could not be included: ${String(error?.message || error)}. Path: ${rawPath}\n`,
-        { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
-      );
-    }
+    archive.append(
+      [
+        "Mirror payload bundling is intentionally disabled for transfer bundles in this release.",
+        "Use Run oc-mirror handoff downloads (doc/manifest/log/support bundle) and transfer archive/workspace paths explicitly.",
+        `Requested mirror output path: ${String(mirrorOutputPath)}`
+      ].join("\n") + "\n",
+      { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
+    );
   }
   archive.finalize();
 };
@@ -2401,4 +2773,4 @@ function clearUpdateInfoCache() {
   updateInfoCache = null;
 }
 
-export { app, clearUpdateInfoCache, resolveOcMirrorArtifactsBaseDir };
+export { app, buildExportReadinessManifest, clearUpdateInfoCache, resolveOcMirrorArtifactsBaseDir };

@@ -326,8 +326,9 @@ The app **must** leave behind and surface:
 
 ### 5C. Export/bundle behavior
 
-- **"Include in export"** means: when mirrorWorkflow.includeInExport is true and mirrorWorkflow.archivePath (or outputPath for backward compat) is set, add that directory to the ZIP as `mirror-output/` (existing buildBundleZip behavior). Resolve path on backend; if not a directory or not accessible, add error file to ZIP.
-- **Do not include** workspace or cache in export by default; only the archive dir. Contract: include only the user-chosen archive path (the file:// target for m2d). Large archives are user responsibility; no size cap in v1. Safe default: includeInExport defaults to false; user opts in.
+- **Current contract (implemented):** mirror payload directories are **not** bundled into the browser transfer ZIP, even if `mirrorWorkflow.includeInExport` is set.
+- Backend writes `mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt` with explicit handoff guidance and the requested path, so behavior is observable and non-silent.
+- **Do not include** workspace or cache in export ZIP by default. Use handoff doc/manifest/log/support-bundle artifacts plus explicit path transfer for large payload movement.
 
 ---
 
@@ -426,7 +427,7 @@ The implementation pass **must** add and run:
 - [ ] Dry-run for m2d; verify mapping.txt and missing.txt paths in result and metadata.
 - [ ] Stop a running job; verify status cancelled and partial artifacts remain; verify UI message.
 - [ ] Preflight with invalid path; verify Run disabled. Preflight with valid paths; verify Run enabled.
-- [ ] Export bundle with includeInExport; verify mirror-output in ZIP.
+- [ ] Export bundle with includeInExport; verify `mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt` is present and payload files are not embedded.
 - [ ] Open Operations; select oc-mirror job; verify summary and logs.
 
 ---
@@ -435,7 +436,7 @@ The implementation pass **must** add and run:
 
 1. **Operations/SSE stability:** If existing job streaming or list is flaky, the implementation pass must fix or document as prerequisite before relying on it for Run tab.
 2. **Field manual:** generate.js cluster-resources path was fixed to working-dir/cluster-resources in a prior pass; implementation pass should confirm and keep.
-3. **Large export:** No size cap on "include in export"; user responsibility. Document in UI if desired.
+3. **Large export:** Transfer ZIP intentionally excludes mirror payload directories; large payload movement is explicit via filesystem handoff paths.
 
 ---
 

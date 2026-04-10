@@ -501,7 +501,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <>
                 <OptionRow
                   title="Installer target host OS family"
-                  description="First release runtime packaging is validated for RHEL 8 and RHEL 9 hosts."
+                  description="Validated input for installer packaging checks in this release (supported: RHEL 8/9)."
                 >
                   <select
                     value={installerTargetHostOsFamily}
@@ -540,7 +540,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
                 </OptionRow>
                 <OptionRow
                   title="Target host requires FIPS mode"
-                  description="Packaging target requirement only. Cluster FIPS remains controlled in Global settings."
+                  description="Validated packaging input for readiness reporting. Artifact variant remains version+arch in this release; cluster FIPS remains controlled in Global settings."
                 >
                   <Switch
                     checked={installerTargetFipsRequired}

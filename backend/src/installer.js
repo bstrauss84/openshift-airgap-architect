@@ -6,6 +6,7 @@ const dataDir = process.env.DATA_DIR || "/data";
 const toolsDir = path.join(dataDir, "tools");
 const cacheDir = path.join(dataDir, "cache");
 const VERIFIED_INSTALLER_TARGET_ARCHES = new Set(["x86_64"]);
+const VERIFIED_INSTALLER_TARGET_OS_FAMILIES = new Set(["rhel8", "rhel9"]);
 
 const runCmd = (cmd, args, options = {}) =>
   new Promise((resolve, reject) => {
@@ -40,6 +41,13 @@ const normalizeInstallerArch = (arch) => {
   return raw;
 };
 
+const normalizeInstallerTargetHostOsFamily = (osFamily) => {
+  const raw = String(osFamily || "rhel9").trim().toLowerCase();
+  if (raw === "rhel-8" || raw === "rhel_8") return "rhel8";
+  if (raw === "rhel-9" || raw === "rhel_9") return "rhel9";
+  return raw;
+};
+
 const installerMirrorArch = (arch) => {
   if (arch === "x86_64") return "amd64";
   if (arch === "aarch64") return "arm64";
@@ -68,12 +76,23 @@ const ensureInstaller = async (version, options = {}) => {
     throw new Error("OpenShift version is required to download openshift-install.");
   }
   const arch = normalizeInstallerArch(options.arch || "x86_64");
+  const osFamily = normalizeInstallerTargetHostOsFamily(options.osFamily || "rhel9");
+  const fipsRequired = Boolean(options.fipsRequired);
   if (!VERIFIED_INSTALLER_TARGET_ARCHES.has(arch)) {
     throw new Error(
       `Installer packaging for architecture "${arch}" is not verified in this release. ` +
       `Supported installer target architectures: ${Array.from(VERIFIED_INSTALLER_TARGET_ARCHES).join(", ")}.`
     );
   }
+  if (!VERIFIED_INSTALLER_TARGET_OS_FAMILIES.has(osFamily)) {
+    throw new Error(
+      `Installer packaging for target host OS family "${osFamily}" is not verified in this release. ` +
+      `Supported target host OS families: ${Array.from(VERIFIED_INSTALLER_TARGET_OS_FAMILIES).join(", ")}.`
+    );
+  }
+  // There is no separate openshift-install payload by RHEL host family or FIPS mode;
+  // these inputs are still validated and recorded for readiness/reporting.
+  void fipsRequired;
   await fs.promises.mkdir(toolsDir, { recursive: true });
   const target = installerPathFor(version, arch);
   if (fs.existsSync(target)) {
@@ -163,5 +182,6 @@ export {
   getAwsAmi,
   installerPathFor,
   normalizeInstallerArch,
+  normalizeInstallerTargetHostOsFamily,
   warmInstallerStream
 };

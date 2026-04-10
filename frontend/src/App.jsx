@@ -324,6 +324,10 @@ const AppShell = () => {
   const foundationalLocked = Boolean(
     state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed)
   );
+  const continuation = state?.continuation || {};
+  const continuationImported = Boolean(continuation?.importedRun);
+  const continuationMode = continuation?.mode || "none";
+  const statusModel = state?.statusModel || {};
 
   const sidebarSteps = useMemo(
     () => visibleSteps.filter((s) => s.id !== "operations"),
@@ -881,7 +885,9 @@ const AppShell = () => {
             <div className="modal">
               <h3 id="start-over-title">Start Over</h3>
               <p className="subtle">
-                This will clear all selections, lock-ins, and user entries, and return you to the landing page.
+                {continuationImported
+                  ? "This will clear run-specific selections and lock-ins, preserve imported/shared caches (release/operator/docs/AWS metadata), and return you to the landing page."
+                  : "This will clear all selections, lock-ins, and user entries, and return you to the landing page."}
               </p>
               {startOverCheckingJobs ? (
                 <div className="note subtle">Checking for active oc-mirror runs…</div>
@@ -995,6 +1001,14 @@ const AppShell = () => {
             <div className="blocked-banner" role="alert">
               <span>{blockedMessage}</span>
               <button type="button" className="ghost" onClick={() => setBlockedMessage("")}>Dismiss</button>
+            </div>
+          ) : null}
+          {continuationImported ? (
+            <div className="blocked-banner" role="status">
+              <span>
+                Imported run mode: <strong>{continuationMode === "continue-imported" ? "Continue imported run" : "Start-over from imported run"}</strong>.
+                {" "}Status: continuation-locked={String(Boolean(statusModel?.continuationLocked))}, cache-limited={String(Boolean(statusModel?.cacheLimited))}, review-needed={String(Boolean(statusModel?.reviewNeeded))}, secrets-omitted={String(Boolean(statusModel?.secretsOmitted))}.
+              </span>
             </div>
           ) : null}
           <input
@@ -1230,7 +1244,9 @@ const AppShell = () => {
             <div className="modal">
               <h3 id="start-over-title">Start Over</h3>
               <p className="subtle">
-                This will clear all selections, lock-ins, and user entries, and return you to the landing page.
+                {continuationImported
+                  ? "This will clear run-specific selections and lock-ins, preserve imported/shared caches (release/operator/docs/AWS metadata), and return you to the landing page."
+                  : "This will clear all selections, lock-ins, and user entries, and return you to the landing page."}
               </p>
               {startOverCheckingJobs ? (
                 <div className="note subtle">Checking for active oc-mirror runs…</div>

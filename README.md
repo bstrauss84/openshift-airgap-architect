@@ -63,7 +63,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Operational profiles** — Backend-owned connected/disconnected capability contract gates internet-backed actions safely in disconnected execution mode
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
-- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle, with installer target-host packaging controls (RHEL 8/9, x86_64, target-host FIPS requirement flag)
+- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle, with validated installer target-host inputs (RHEL 8/9, x86_64, target-host FIPS requirement flag) and readiness reporting
 
 <a id="quick-start-container"></a>
 ## Quick start (container)

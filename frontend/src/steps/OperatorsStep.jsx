@@ -94,8 +94,21 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
   const showStaleWarning = staleResults && !scansInProgressOrComplete;
   const discoveryAlreadyRunningOrDone = hasScanJobs || hasScanJobsFromState;
   const canRefreshOperators = capabilities.operatorCatalogRefreshAllowed !== false;
-
   const version = state.release?.channel;
+  const continuation = state.continuation || {};
+  const continuationLocks = continuation.locks || {};
+  const continuationOperatorLocked = Boolean(
+    continuationLocks.operatorSelections ||
+    continuationLocks.operatorChannelsPackages
+  );
+  const operatorCacheScopeChannel = continuation?.operatorCacheScope?.channel || null;
+  const cacheScopeMismatch = Boolean(
+    continuation?.importedRun &&
+    operatorCacheScopeChannel &&
+    version &&
+    operatorCacheScopeChannel !== version
+  );
+  const operatorSelectionUiDisabled = continuationOperatorLocked || cacheScopeMismatch;
   const normalizeCatalogs = (data) => ({
     redhat: Array.isArray(data?.redhat) ? data.redhat : data?.redhat?.results || [],
     certified: Array.isArray(data?.certified) ? data.certified : data?.certified?.results || [],
@@ -189,6 +202,7 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
   };
 
   const applyScenario = (scenario) => {
+    if (operatorSelectionUiDisabled) return;
     setState((prev) => {
       const images = catalogImages(version);
       const prevSelected = prev.operators?.selected || [];
@@ -222,6 +236,7 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
   };
 
   const removeScenarioOperators = (scenarioId) => {
+    if (operatorSelectionUiDisabled) return;
     setState((prev) => {
       const prevSelected = prev.operators?.selected || [];
       const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
@@ -260,6 +275,12 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
   };
 
   const handleScenarioClick = (scenario) => {
+    if (operatorSelectionUiDisabled) {
+      setScanError(cacheScopeMismatch
+        ? "Operator selection is limited to imported cache scope. Change release back to the imported scope or use unsupported manual paths."
+        : "Operator selections are locked for continuation mode.");
+      return;
+    }
     if (!scenarioReady) {
       if (scanEnabled && !loadingCatalogs) {
         setScanError("Scanning catalogs before applying scenario...");
@@ -365,6 +386,7 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
   }, [jobs, version]);
 
   const selectOperator = (op) => {
+    if (operatorSelectionUiDisabled) return;
     setState((prev) => {
       const prevSelected = prev.operators?.selected || [];
       const existing = prevSelected.find((item) => item.id === op.id);
@@ -381,6 +403,7 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
   };
 
   const removeOperator = (id) => {
+    if (operatorSelectionUiDisabled) return;
     setState((prev) => {
       const prevSelected = prev.operators?.selected || [];
       const next = prevSelected.filter((op) => op.id !== id);
@@ -442,6 +465,16 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
         {showStaleWarning ? (
           <Banner variant="warning">
             Existing operator scan results are marked stale. Re-scan to ensure results match this version.
+          </Banner>
+        ) : null}
+        {continuationOperatorLocked ? (
+          <Banner variant="warning">
+            Imported continuation mode is locking operator selections and package/channel assumptions. Use Start Over from imported mode to unlock.
+          </Banner>
+        ) : null}
+        {cacheScopeMismatch ? (
+          <Banner variant="warning">
+            Selected release <strong>{version}</strong> is outside imported operator cache scope <strong>{operatorCacheScopeChannel}</strong>. Normal operator selection is disabled in cache-limited mode.
           </Banner>
         ) : null}
         <div className="sticky-panel">
@@ -604,7 +637,7 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
                 className={`scenario-pick ${scenarioSelections?.[scenario.id] ? "selected" : ""}`}
                 onClick={() => handleScenarioClick(scenario)}
                 title={!scenarioReady ? "Scenario picks need operator catalogs" : ""}
-                disabled={!scenarioReady}
+                disabled={!scenarioReady || operatorSelectionUiDisabled}
               >
                 <span className="scenario-pick-label">{scenario.label}</span>
                 {scenarioSelections?.[scenario.id] ? <span className="scenario-pick-check" aria-hidden>✓</span> : null}
@@ -627,7 +660,7 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
               <div className="operator-name">{op.name}</div>
               <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
               {op.displayName ? <div className="subtle">{op.displayName}</div> : null}
-              <button className="ghost" onClick={() => removeOperator(op.id)}>Remove</button>
+              <button className="ghost" onClick={() => removeOperator(op.id)} disabled={operatorSelectionUiDisabled}>Remove</button>
             </div>
           ))}
         </div>
@@ -651,7 +684,7 @@ const OperatorsStep = ({ previewControls, previewEnabled, capabilities = {} }) =
           ) : null}
           <div className="operator-grid">
             {(filteredCatalogs[activeTab] || []).map((op) => (
-              <button key={op.id} className="operator-card" onClick={() => selectOperator(op)}>
+              <button key={op.id} className="operator-card" onClick={() => selectOperator(op)} disabled={operatorSelectionUiDisabled}>
                 <div className="operator-name">{op.name}</div>
                 <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
                 {op.displayName ? <div className="subtle">{op.displayName}</div> : null}

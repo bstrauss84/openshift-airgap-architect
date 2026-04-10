@@ -36,8 +36,10 @@ const BlueprintStep = ({ capabilities = {} }) => {
   const blueprint = state.blueprint;
   const release = state.release;
   const version = state.version || {};
-  const locked = blueprint?.confirmed;
-  const releaseLocked = version?.versionConfirmed ?? release?.confirmed;
+  const continuation = state.continuation || {};
+  const continuationLocks = continuation.locks || {};
+  const locked = blueprint?.confirmed || Boolean(continuationLocks.mirroredAssumptions);
+  const releaseLocked = Boolean((version?.versionConfirmed ?? release?.confirmed) || continuationLocks.releaseMinor || continuationLocks.releasePatch);
 
   const [channels, setChannels] = useState([]);
   const [patches, setPatches] = useState([]);
@@ -251,6 +253,11 @@ const BlueprintStep = ({ capabilities = {} }) => {
         {locked ? (
           <div className="note warning" style={{ marginBottom: 16 }}>
             Foundational selections are locked. Use Start Over to change platform, architecture, or release.
+          </div>
+        ) : null}
+        {continuationLocks.releaseMinor || continuationLocks.releasePatch ? (
+          <div className="note warning" style={{ marginBottom: 16 }}>
+            Imported continuation mode has locked release minor/patch. Use Start Over from imported mode to clear locks.
           </div>
         ) : null}
         <section className="card">
