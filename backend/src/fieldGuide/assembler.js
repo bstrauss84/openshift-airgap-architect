@@ -168,6 +168,22 @@ const renderGuide = (state, ctx, docsLinks) => {
   lines.push(`- **API VIP:** ${ctx.apiVip}`);
   lines.push(`- **Ingress VIP:** ${ctx.ingressVip}`);
   lines.push(`- **Operators:** ${ctx.operatorList}`);
+  lines.push(`- **Placeholders marked for later completion:** ${ctx.placeholderCount}`);
+  lines.push(`- **Review needed:** ${ctx.reviewNeeded ? "Yes" : "No"}`);
+  lines.push(`- **Execution-ready finality:** ${ctx.finalizable ? "Ready for final execution checks" : "Not execution-ready until review actions are completed"}`);
+  lines.push("");
+  lines.push("### Inclusion policy snapshot");
+  lines.push(`- Pull secret: ${ctx.inclusionSummary.pullSecret}`);
+  lines.push(`- Platform credentials: ${ctx.inclusionSummary.platformCredentials}`);
+  lines.push(`- Mirror registry credentials: ${ctx.inclusionSummary.mirrorRegistryCredentials}`);
+  lines.push(`- BMC credentials: ${ctx.inclusionSummary.bmcCredentials}`);
+  lines.push(`- Trust bundle and certificates: ${ctx.inclusionSummary.trustBundleAndCertificates}`);
+  lines.push(`- SSH public key: ${ctx.inclusionSummary.sshPublicKey}`);
+  lines.push(`- Proxy values: ${ctx.inclusionSummary.proxyValues}`);
+  if (ctx.placeholderCount > 0) {
+    lines.push("");
+    lines.push("> Values shown as `<<MARK FOR LATER COMPLETION: ...>>` are intentional placeholders. Replace them before running oc-mirror or installation execution actions.");
+  }
   lines.push("");
   lines.push("---");
   lines.push("");

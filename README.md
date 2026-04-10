@@ -60,7 +60,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
 - **Run oc-mirror** — Built-in tab to run oc-mirror v2 directly from the app (mirror-to-disk, disk-to-mirror, mirror-to-mirror workflows; per-run credentials; preflight checks; live job streaming to Operations)
-- **Mark for later completion** — Typed placeholder tokens for curated environment-specific fields (host identity/networking, VIPs, subnets, proxy, trust/cert, selected credentials) with review-needed tracking and execution blocking where runtime values are required
+- **Mark for later completion** — Typed placeholder tokens for curated environment-specific fields (host identity/networking, VIPs, subnets, proxy, trust/cert, selected credentials) with review-needed tracking, execution blocking for runtime-critical actions, and user-facing marker rendering (`<<MARK FOR LATER COMPLETION: ...>>`) in previews and exported artifacts
 - **Operational profiles** — Backend-owned connected/disconnected capability contract gates internet-backed actions safely in disconnected execution mode
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
@@ -195,7 +195,7 @@ When the Landing page or **Tools → About** shows that an update is available, 
 ## Generating assets
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).
-2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML, field manual, and `EXPORT_READINESS_MANIFEST.json`. Export options control per-class secret/cert inclusion and tools packaging.
+2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML, field manual, and `EXPORT_READINESS_MANIFEST.json`. Export options control per-class secret/cert inclusion and tools packaging, and readiness metadata records placeholder/review-needed/execution-blocked status.
 3. **install-config.yaml** and **agent-config.yaml** (when applicable) are also available as inline copy/download from the same step.
 4. Use **Update Docs Links** to refresh cached documentation links used in the field manual.
 

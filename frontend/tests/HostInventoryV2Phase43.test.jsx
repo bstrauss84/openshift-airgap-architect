@@ -6,7 +6,7 @@
 
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, act, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor, within, cleanup } from "@testing-library/react";
 import { getScenarioId } from "../src/hostInventoryV2Helpers.js";
 import { validateStep } from "../src/validation.js";
 import { AppContext } from "../src/store.jsx";
@@ -251,5 +251,109 @@ describe("Phase 4.3: legacy inventory step unaffected when flags OFF", () => {
     expect(result).toHaveProperty("errors");
     expect(result).toHaveProperty("warnings");
     expect(Array.isArray(result.errors)).toBe(true);
+  });
+});
+
+describe("Host inventory placeholder controls hardening", () => {
+  it("shows repeated-field placeholder controls in node drawer and mark-all applies tokens to all nodes", async () => {
+    cleanup();
+    const updateState = vi.fn();
+    const ipiState = {
+      ...baseState,
+      blueprint: { platform: "Bare Metal" },
+      methodology: { method: "IPI" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: [
+          {
+            role: "master",
+            hostname: "master-0",
+            rootDevice: "/dev/disk/by-path/pci-0000:00:17.0",
+            dnsServers: "",
+            dnsSearch: "",
+            bmc: {
+              address: "redfish+http://192.168.1.10/redfish/v1/Systems/1",
+              username: "admin",
+              password: "secret",
+              bootMACAddress: "52:54:00:aa:11:01"
+            },
+            primary: {
+              type: "ethernet",
+              mode: "static",
+              ipv4Cidr: "192.168.1.20/24",
+              ipv4Gateway: "192.168.1.1",
+              ethernet: { name: "eno1", macAddress: "52:54:00:aa:11:11" },
+              bond: {},
+              vlan: {},
+              advanced: {}
+            }
+          },
+          {
+            role: "worker",
+            hostname: "worker-0",
+            rootDevice: "/dev/disk/by-path/pci-0000:00:18.0",
+            dnsServers: "",
+            dnsSearch: "",
+            bmc: {
+              address: "redfish+http://192.168.1.11/redfish/v1/Systems/1",
+              username: "admin",
+              password: "secret",
+              bootMACAddress: "52:54:00:aa:11:02"
+            },
+            primary: {
+              type: "ethernet",
+              mode: "static",
+              ipv4Cidr: "192.168.1.21/24",
+              ipv4Gateway: "192.168.1.1",
+              ethernet: { name: "eno1", macAddress: "52:54:00:aa:11:12" },
+              bond: {},
+              vlan: {},
+              advanced: {}
+            }
+          }
+        ]
+      }
+    };
+    const value = {
+      state: ipiState,
+      updateState,
+      loading: false,
+      startOver: vi.fn()
+    };
+
+    const { container } = render(
+      <AppContext.Provider value={value}>
+        <HostInventoryV2Step />
+      </AppContext.Provider>
+    );
+
+    const firstNodeTile = container.querySelector(".host-inventory-v2-tile");
+    expect(firstNodeTile).toBeTruthy();
+    fireEvent.click(firstNodeTile);
+    expect(screen.getByRole("button", { name: /Mark this node identity\/network fields for later completion/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Mark this node BMC fields for later completion/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Mark this node bond\/VLAN identifiers for later completion/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Bulk apply core identity\/network placeholders to all nodes/i })).toBeTruthy();
+    expect(screen.getAllByText(/Mark for later completion/i).length).toBeGreaterThanOrEqual(4);
+
+    fireEvent.click(screen.getByRole("button", { name: /Bulk apply core identity\/network placeholders to all nodes/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Mark this node BMC fields for later completion/i }));
+    const hostInventoryPatches = updateState.mock.calls
+      .map((call) => call[0])
+      .filter((patch) => patch?.hostInventory?.nodes?.length);
+    expect(hostInventoryPatches.length).toBeGreaterThan(0);
+    const lastPatch = hostInventoryPatches[hostInventoryPatches.length - 1];
+
+    const placeholderCount = lastPatch.hostInventory.nodes.reduce((count, node) => {
+      const candidates = [
+        node.rootDevice,
+        node.bmc?.address,
+        node.bmc?.bootMACAddress,
+        node.primary?.ipv4Cidr,
+        node.primary?.ipv4Gateway
+      ];
+      return count + candidates.filter((value) => String(value || "").includes("__AIRA_PLACEHOLDER__")).length;
+    }, 0);
+    expect(placeholderCount).toBeGreaterThan(0);
   });
 });

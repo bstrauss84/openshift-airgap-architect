@@ -77,7 +77,7 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     });
     fireEvent.click(screen.getAllByRole("button", { name: /Proceed/i }).pop());
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Identity & Access/i })).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { name: /Identity & Access/i }).length).toBeGreaterThan(0);
     });
     const trustProxyStepButton = screen.getByRole("button", { name: /Trust & Proxy/i });
     fireEvent.click(trustProxyStepButton);
@@ -207,7 +207,7 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     });
     fireEvent.click(screen.getAllByRole("button", { name: /Proceed/i }).pop());
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Identity & Access/i })).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { name: /Identity & Access/i }).length).toBeGreaterThan(0);
     });
     const trustProxyBtn = screen.getAllByRole("button").find((el) => el.getAttribute("title") === "Trust & Proxy");
     expect(trustProxyBtn).toBeTruthy();
@@ -235,5 +235,27 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     };
     expect(state.reviewFlags["trust-proxy"]).toBe(true);
     expect(state.ui.visitedSteps["trust-proxy"]).toBe(true);
+  });
+
+  it("renders placeholder utility rows for proxy and trust fields", async () => {
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Continue install/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue install/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Installation Methodology/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: /Proceed/i }).pop());
+    await waitFor(() => {
+      expect(screen.getAllByRole("heading", { name: /Identity & Access/i }).length).toBeGreaterThan(0);
+    });
+    const trustProxyBtn = screen.getAllByRole("button", { name: /Trust & Proxy/i })[0];
+    fireEvent.click(trustProxyBtn);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Trust & Proxy/i })).toBeInTheDocument();
+    });
+    const rows = screen.getAllByText(/Mark for later completion/i);
+    expect(rows.length).toBeGreaterThanOrEqual(5);
   });
 });

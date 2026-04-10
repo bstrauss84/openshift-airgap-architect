@@ -2504,6 +2504,7 @@ const buildExportReadinessManifest = (state) => {
     return acc;
   }, {});
   const blockedExecutionPlaceholders = getExecutionBlockingPlaceholders(state);
+  const executionBlockedByPlaceholders = blockedExecutionPlaceholders.length > 0;
   const classifySecretState = (included, hasPlaceholder) => {
     if (hasPlaceholder) return "placeholder";
     return included ? "included" : "omitted";
@@ -2584,6 +2585,12 @@ const buildExportReadinessManifest = (state) => {
       state.continuation?.mode === "continue-imported" ||
       (state.blueprint?.confirmed && (state.version?.versionConfirmed ?? state.release?.confirmed))
     ),
+    executionReadiness: {
+      executionBlockedByPlaceholders,
+      blockingReason: executionBlockedByPlaceholders
+        ? "Runtime-critical values are still marked for later completion."
+        : "No placeholder blockers detected for runtime-critical execution checks."
+    },
     mirrorPayloadNotIncluded: true,
     runStatus: statusModel,
     diskToMirrorReady: Boolean(
@@ -2598,7 +2605,10 @@ const buildExportReadinessManifest = (state) => {
     notes: [
       "High-side runtime package archive is not included in this transfer bundle.",
       "oc-mirror payload transfer remains explicit and separate from app transfer artifacts.",
-      "Legacy mirror-output bundling is deprecated for transfer bundles; use handoff doc/manifest/log/support bundle outputs."
+      "Legacy mirror-output bundling is deprecated for transfer bundles; use handoff doc/manifest/log/support bundle outputs.",
+      executionBlockedByPlaceholders
+        ? "Execution actions remain blocked until all runtime-critical placeholder values are replaced with real environment values."
+        : "No runtime-critical placeholder execution blockers are currently reported."
     ]
   };
   return manifest;

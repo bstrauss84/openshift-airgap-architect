@@ -28,6 +28,7 @@ import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import { applyPlaceholderValuesToHostInventory } from "../placeholderValuesHelpers.js";
 import { buildPlaceholderEntry, registerPlaceholderEntry } from "../placeholderEngine.js";
+import PlaceholderToggleRow from "../components/PlaceholderToggleRow.jsx";
 
 const PRIMARY_TYPES = [
   { id: "ethernet", label: "Single NIC ethernet" },
@@ -228,36 +229,106 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     updateInventory({ nodes: next });
   };
 
-  const markNodeCoreFieldsForLater = (idx) => {
-    const hostnameEntry = buildPlaceholderEntry({ type: "hostname", label: `Node ${idx + 1} hostname` });
-    const rootDeviceEntry = buildPlaceholderEntry({ type: "rootDeviceHint", label: `Node ${idx + 1} root device hint` });
-    const ipv4Entry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${idx + 1} primary IPv4 CIDR` });
-    const gatewayEntry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${idx + 1} primary IPv4 gateway` });
-    const bmcEntry = buildPlaceholderEntry({ type: "bmcAddress", label: `Node ${idx + 1} BMC address` });
-    const bootMacEntry = buildPlaceholderEntry({ type: "macAddress", label: `Node ${idx + 1} boot MAC` });
-    const macEntry = buildPlaceholderEntry({ type: "macAddress", label: `Node ${idx + 1} primary MAC` });
-    let placeholders = registerPlaceholderEntry(state, hostnameEntry);
-    placeholders = registerPlaceholderEntry({ placeholders }, rootDeviceEntry);
-    placeholders = registerPlaceholderEntry({ placeholders }, ipv4Entry);
-    placeholders = registerPlaceholderEntry({ placeholders }, gatewayEntry);
-    placeholders = registerPlaceholderEntry({ placeholders }, bmcEntry);
-    placeholders = registerPlaceholderEntry({ placeholders }, bootMacEntry);
-    placeholders = registerPlaceholderEntry({ placeholders }, macEntry);
+  const applyNodePlaceholderPatch = (targetIndices, patchBuilder) => {
+    let placeholders = state.placeholders || { entries: {} };
+    const nextNodes = nodes.map((node, idx) => {
+      if (!targetIndices.has(idx)) return node;
+      const result = patchBuilder(node, idx, placeholders);
+      placeholders = result.placeholders;
+      return result.node;
+    });
     updateState({ placeholders });
-    updateNode(idx, (node) => ({
-      ...node,
-      hostname: hostnameEntry.token,
-      rootDevice: rootDeviceEntry.token,
-      primary: {
-        ...(node.primary || {}),
-        ipv4Cidr: ipv4Entry.token,
-        ipv4Gateway: gatewayEntry.token,
-        ethernet: { ...(node.primary?.ethernet || {}), macAddress: macEntry.token }
-      },
-      bmc: node.bmc
-        ? { ...node.bmc, address: bmcEntry.token, bootMACAddress: bootMacEntry.token }
-        : node.bmc
-    }));
+    updateInventory({ nodes: nextNodes });
+  };
+
+  const markNodeCoreFieldsForLater = (idx, applyAll = false) => {
+    const targetIndices = applyAll ? new Set(nodes.map((_, i) => i)) : new Set([idx]);
+    applyNodePlaceholderPatch(targetIndices, (node, nodeIdx, placeholders) => {
+      const hostnameEntry = buildPlaceholderEntry({ type: "hostname", label: `Node ${nodeIdx + 1} hostname` });
+      const rootDeviceEntry = buildPlaceholderEntry({ type: "rootDeviceHint", label: `Node ${nodeIdx + 1} root device hint` });
+      const ipv4Entry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${nodeIdx + 1} primary IPv4 CIDR` });
+      const gatewayEntry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${nodeIdx + 1} primary IPv4 gateway` });
+      const ipv6Entry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${nodeIdx + 1} primary IPv6 CIDR` });
+      const ipv6GatewayEntry = buildPlaceholderEntry({ type: "ipAddress", label: `Node ${nodeIdx + 1} primary IPv6 gateway` });
+      const macEntry = buildPlaceholderEntry({ type: "macAddress", label: `Node ${nodeIdx + 1} primary MAC` });
+      let p = registerPlaceholderEntry({ placeholders }, hostnameEntry);
+      p = registerPlaceholderEntry({ placeholders: p }, rootDeviceEntry);
+      p = registerPlaceholderEntry({ placeholders: p }, ipv4Entry);
+      p = registerPlaceholderEntry({ placeholders: p }, gatewayEntry);
+      p = registerPlaceholderEntry({ placeholders: p }, ipv6Entry);
+      p = registerPlaceholderEntry({ placeholders: p }, ipv6GatewayEntry);
+      p = registerPlaceholderEntry({ placeholders: p }, macEntry);
+      return {
+        placeholders: p,
+        node: {
+          ...node,
+          hostname: hostnameEntry.token,
+          rootDevice: rootDeviceEntry.token,
+          primary: {
+            ...(node.primary || {}),
+            ipv4Cidr: ipv4Entry.token,
+            ipv4Gateway: gatewayEntry.token,
+            ipv6Cidr: ipv6Entry.token,
+            ipv6Gateway: ipv6GatewayEntry.token,
+            ethernet: { ...(node.primary?.ethernet || {}), macAddress: macEntry.token }
+          }
+        }
+      };
+    });
+  };
+
+  const markNodeBmcFieldsForLater = (idx, applyAll = false) => {
+    const targetIndices = applyAll ? new Set(nodes.map((_, i) => i)) : new Set([idx]);
+    applyNodePlaceholderPatch(targetIndices, (node, nodeIdx, placeholders) => {
+      if (!node.bmc) return { placeholders, node };
+      const bmcAddr = buildPlaceholderEntry({ type: "bmcAddress", label: `Node ${nodeIdx + 1} BMC address` });
+      const bmcUser = buildPlaceholderEntry({ type: "mirrorRegistryCredential", label: `Node ${nodeIdx + 1} BMC username` });
+      const bmcPass = buildPlaceholderEntry({ type: "mirrorRegistryCredential", label: `Node ${nodeIdx + 1} BMC password` });
+      const bmcBootMac = buildPlaceholderEntry({ type: "macAddress", label: `Node ${nodeIdx + 1} boot MAC` });
+      let p = registerPlaceholderEntry({ placeholders }, bmcAddr);
+      p = registerPlaceholderEntry({ placeholders: p }, bmcUser);
+      p = registerPlaceholderEntry({ placeholders: p }, bmcPass);
+      p = registerPlaceholderEntry({ placeholders: p }, bmcBootMac);
+      return {
+        placeholders: p,
+        node: {
+          ...node,
+          bmc: {
+            ...node.bmc,
+            address: bmcAddr.token,
+            username: bmcUser.token,
+            password: bmcPass.token,
+            bootMACAddress: bmcBootMac.token
+          }
+        }
+      };
+    });
+  };
+
+  const markNodeBondVlanFieldsForLater = (idx, applyAll = false) => {
+    const targetIndices = applyAll ? new Set(nodes.map((_, i) => i)) : new Set([idx]);
+    applyNodePlaceholderPatch(targetIndices, (node, nodeIdx, placeholders) => {
+      const bondNameEntry = buildPlaceholderEntry({ type: "bondName", label: `Node ${nodeIdx + 1} bond name` });
+      const vlanEntry = buildPlaceholderEntry({ type: "vlanId", label: `Node ${nodeIdx + 1} VLAN ID` });
+      let p = registerPlaceholderEntry({ placeholders }, bondNameEntry);
+      p = registerPlaceholderEntry({ placeholders: p }, vlanEntry);
+      const slaves = (node.primary?.bond?.slaves || []).map((slave, si) => {
+        const macEntry = buildPlaceholderEntry({ type: "macAddress", label: `Node ${nodeIdx + 1} bond member ${si + 1} MAC` });
+        p = registerPlaceholderEntry({ placeholders: p }, macEntry);
+        return { ...slave, macAddress: macEntry.token };
+      });
+      return {
+        placeholders: p,
+        node: {
+          ...node,
+          primary: {
+            ...(node.primary || {}),
+            bond: node.primary?.bond ? { ...node.primary.bond, name: bondNameEntry.token, slaves } : node.primary?.bond,
+            vlan: node.primary?.vlan ? { ...node.primary.vlan, id: vlanEntry.token } : node.primary?.vlan
+          }
+        }
+      };
+    });
   };
 
   const updatePrimary = (nodeIndex, patch) =>
@@ -791,13 +862,20 @@ wipefs -a /dev/sdX`}</pre>
                   )}
                   {!isArbiterDrawer ? (
                     <div className="toggle-row" style={{ marginBottom: 8 }}>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => markNodeCoreFieldsForLater(selectedIndex)}
-                      >
-                        Mark node identity/network fields for later completion
-                      </button>
+                      <div className="actions" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <button type="button" className="ghost" onClick={() => markNodeCoreFieldsForLater(selectedIndex)}>
+                          Mark this node identity/network fields for later completion
+                        </button>
+                        <button type="button" className="ghost" onClick={() => markNodeBmcFieldsForLater(selectedIndex)}>
+                          Mark this node BMC fields for later completion
+                        </button>
+                        <button type="button" className="ghost" onClick={() => markNodeBondVlanFieldsForLater(selectedIndex)}>
+                          Mark this node bond/VLAN identifiers for later completion
+                        </button>
+                        <button type="button" className="ghost" onClick={() => markNodeCoreFieldsForLater(selectedIndex, true)}>
+                          Bulk apply core identity/network placeholders to all nodes
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                   {mergedNodeValidation[selectedIndex] && (mergedNodeValidation[selectedIndex].errors?.length > 0 || mergedNodeValidation[selectedIndex].warnings?.length > 0) && (
@@ -852,7 +930,17 @@ wipefs -a /dev/sdX`}</pre>
                                 <div className="note warning">{mergedNodeValidation[selectedIndex].fieldErrors.role}</div>
                               ) : null}
                             </label>
-                            <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="master-0 or worker-0" /></label>
+                            <div>
+                              <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="master-0 or worker-0" /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.hostname || ""}
+                                onValueChange={(v) => updateNode(selectedIndex, { hostname: v })}
+                                type="hostname"
+                                label={`Node ${selectedIndex + 1} hostname`}
+                              />
+                            </div>
                             <label className="host-inventory-v2-checkbox-label">
                               <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                               {" "}Use FQDN (shortname.baseDomain)
@@ -869,7 +957,17 @@ wipefs -a /dev/sdX`}</pre>
                               label="Root device — deviceName (optional)"
                               hint="Stable Linux device path. Prefer /dev/disk/by-path/... over transient kernel names like /dev/sdX or /dev/vdX."
                             >
-                              <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-path/... or /dev/sda" />
+                              <>
+                                <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-path/... or /dev/sda" />
+                                <PlaceholderToggleRow
+                                  state={state}
+                                  updateState={updateState}
+                                  value={selectedNode.rootDevice || ""}
+                                  onValueChange={(v) => updateNode(selectedIndex, { rootDevice: v })}
+                                  type="rootDeviceHint"
+                                  label={`Node ${selectedIndex + 1} root device`}
+                                />
+                              </>
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — hctl (optional)"
@@ -924,10 +1022,30 @@ wipefs -a /dev/sdX`}</pre>
                           <div className="divider" />
                           <h4><FieldLabelWithInfo label="BMC (IPI)" hint="Baseboard management controller. Required for installer-provisioned deployment." /></h4>
                           <div className="field-grid">
-                            <label>BMC address <input value={selectedNode.bmc?.address || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })} placeholder="redfish+http://192.168.1.1/..." /></label>
+                            <div>
+                              <label>BMC address <input value={selectedNode.bmc?.address || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })} placeholder="redfish+http://192.168.1.1/..." /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.bmc?.address || ""}
+                                onValueChange={(v) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: v } })}
+                                type="bmcAddress"
+                                label={`Node ${selectedIndex + 1} BMC address`}
+                              />
+                            </div>
                             <label>BMC username <input autoComplete="off" value={selectedNode.bmc?.username || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, username: e.target.value } })} /></label>
                             <label>BMC password <input type="password" autoComplete="new-password" value={selectedNode.bmc?.password || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, password: e.target.value } })} /></label>
-                            <label>Boot MAC <input value={selectedNode.bmc?.bootMACAddress || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } }); }} placeholder="52:54:00:aa:bb:cc" /></label>
+                            <div>
+                              <label>Boot MAC <input value={selectedNode.bmc?.bootMACAddress || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } }); }} placeholder="52:54:00:aa:bb:cc" /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.bmc?.bootMACAddress || ""}
+                                onValueChange={(v) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } })}
+                                type="macAddress"
+                                label={`Node ${selectedIndex + 1} boot MAC`}
+                              />
+                            </div>
                             <label className="host-inventory-v2-checkbox-label">
                               <input
                                 type="checkbox"
@@ -969,7 +1087,17 @@ wipefs -a /dev/sdX`}</pre>
                             <div className="note warning">{mergedNodeValidation[selectedIndex].fieldErrors.role}</div>
                           ) : null}
                         </label>
-                        <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="e.g. master-0, arbiter-0" /></label>
+                        <div>
+                          <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="e.g. master-0, arbiter-0" /></label>
+                          <PlaceholderToggleRow
+                            state={state}
+                            updateState={updateState}
+                            value={selectedNode.hostname || ""}
+                            onValueChange={(v) => updateNode(selectedIndex, { hostname: v })}
+                            type="hostname"
+                            label={`Node ${selectedIndex + 1} hostname`}
+                          />
+                        </div>
                         <label className="host-inventory-v2-checkbox-label">
                           <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                           {" "}Use FQDN (shortname.baseDomain)
@@ -1055,12 +1183,32 @@ wipefs -a /dev/sdX`}</pre>
                         {(selectedNode.primary?.type === "ethernet" || selectedNode.primary?.type === "vlan-on-ethernet") && (
                           <>
                             <label>Ethernet interface <input value={selectedNode.primary?.ethernet?.name || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { name: e.target.value })} placeholder="eno0" /></label>
-                            <label>Ethernet MAC <input value={selectedNode.primary?.ethernet?.macAddress || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { macAddress: formatMACAsYouType(e.target.value) })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updatePrimaryEthernet(selectedIndex, { macAddress: v }); }} placeholder="52:54:00:aa:11:01" /></label>
+                            <div>
+                              <label>Ethernet MAC <input value={selectedNode.primary?.ethernet?.macAddress || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { macAddress: formatMACAsYouType(e.target.value) })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updatePrimaryEthernet(selectedIndex, { macAddress: v }); }} placeholder="52:54:00:aa:11:01" /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.primary?.ethernet?.macAddress || ""}
+                                onValueChange={(v) => updatePrimaryEthernet(selectedIndex, { macAddress: v })}
+                                type="macAddress"
+                                label={`Node ${selectedIndex + 1} ethernet MAC`}
+                              />
+                            </div>
                           </>
                         )}
                         {(selectedNode.primary?.type === "bond" || selectedNode.primary?.type === "vlan-on-bond") && (
                           <>
-                            <label>Bond name <input value={selectedNode.primary?.bond?.name || ""} onChange={(e) => updatePrimaryBond(selectedIndex, { name: e.target.value })} placeholder="bond0" /></label>
+                            <div>
+                              <label>Bond name <input value={selectedNode.primary?.bond?.name || ""} onChange={(e) => updatePrimaryBond(selectedIndex, { name: e.target.value })} placeholder="bond0" /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.primary?.bond?.name || ""}
+                                onValueChange={(v) => updatePrimaryBond(selectedIndex, { name: v })}
+                                type="bondName"
+                                label={`Node ${selectedIndex + 1} bond name`}
+                              />
+                            </div>
                             <FieldLabelWithInfo label="Bond mode" hint="Bond members: at least 2 required. Add or remove as needed.">
                               <select value={selectedNode.primary?.bond?.mode || "active-backup"} onChange={(e) => updatePrimaryBond(selectedIndex, { mode: e.target.value })}>
                                 {BOND_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
@@ -1069,7 +1217,17 @@ wipefs -a /dev/sdX`}</pre>
                             {(selectedNode.primary?.bond?.slaves || []).map((member, mi) => (
                               <React.Fragment key={mi}>
                                 <label>Member interface <input value={member.name} onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, name: e.target.value } : m) } } }))} placeholder={`eth${mi}`} /></label>
-                                <label>Member MAC <input value={member.macAddress} onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: formatMACAsYouType(e.target.value) } : m) } } }))} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: v } : m) } } })); }} placeholder="52:54:00:aa:11:02" /></label>
+                                <div>
+                                  <label>Member MAC <input value={member.macAddress} onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: formatMACAsYouType(e.target.value) } : m) } } }))} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: v } : m) } } })); }} placeholder="52:54:00:aa:11:02" /></label>
+                                  <PlaceholderToggleRow
+                                    state={state}
+                                    updateState={updateState}
+                                    value={member.macAddress || ""}
+                                    onValueChange={(v) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: v } : m) } } }))}
+                                    type="macAddress"
+                                    label={`Node ${selectedIndex + 1} bond member ${mi + 1} MAC`}
+                                  />
+                                </div>
                                 {(selectedNode.primary?.bond?.slaves?.length || 0) > 2 && mi >= 2 ? (
                                   <label>
                                     Remove member
@@ -1085,18 +1243,68 @@ wipefs -a /dev/sdX`}</pre>
                         )}
                         {(selectedNode.primary?.type === "vlan-on-ethernet" || selectedNode.primary?.type === "vlan-on-bond") && (
                           <>
-                            <label>VLAN ID <input value={selectedNode.primary?.vlan?.id || ""} onChange={(e) => updatePrimaryVlan(selectedIndex, { id: e.target.value })} placeholder="100" /></label>
+                            <div>
+                              <label>VLAN ID <input value={selectedNode.primary?.vlan?.id || ""} onChange={(e) => updatePrimaryVlan(selectedIndex, { id: e.target.value })} placeholder="100" /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.primary?.vlan?.id || ""}
+                                onValueChange={(v) => updatePrimaryVlan(selectedIndex, { id: v })}
+                                type="vlanId"
+                                label={`Node ${selectedIndex + 1} VLAN ID`}
+                              />
+                            </div>
                             <label>VLAN name <input value={selectedNode.primary?.vlan?.name || suggestedVlanName(primaryBaseIface(selectedNode), selectedNode.primary?.vlan?.id)} onChange={(e) => updatePrimaryVlan(selectedIndex, { name: e.target.value })} /></label>
                           </>
                         )}
                         {selectedNode.primary?.mode === "static" && (
                           <>
-                            <label>IPv4 CIDR <input value={selectedNode.primary?.ipv4Cidr || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Cidr: e.target.value.trim() })} placeholder="192.168.1.20/24" /></label>
-                            <label>IPv4 gateway <input value={selectedNode.primary?.ipv4Gateway || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Gateway: e.target.value.trim() })} /></label>
+                            <div>
+                              <label>IPv4 CIDR <input value={selectedNode.primary?.ipv4Cidr || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Cidr: e.target.value.trim() })} placeholder="192.168.1.20/24" /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.primary?.ipv4Cidr || ""}
+                                onValueChange={(v) => updatePrimary(selectedIndex, { ipv4Cidr: v })}
+                                type="ipAddress"
+                                label={`Node ${selectedIndex + 1} primary IPv4 CIDR`}
+                              />
+                            </div>
+                            <div>
+                              <label>IPv4 gateway <input value={selectedNode.primary?.ipv4Gateway || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Gateway: e.target.value.trim() })} /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.primary?.ipv4Gateway || ""}
+                                onValueChange={(v) => updatePrimary(selectedIndex, { ipv4Gateway: v })}
+                                type="ipAddress"
+                                label={`Node ${selectedIndex + 1} primary IPv4 gateway`}
+                              />
+                            </div>
                             {enableIpv6 && (
                               <>
-                                <label>IPv6 CIDR <input value={selectedNode.primary?.ipv6Cidr || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv6Cidr: e.target.value })} /></label>
-                                <label>IPv6 gateway <input value={selectedNode.primary?.ipv6Gateway || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv6Gateway: e.target.value })} /></label>
+                                <div>
+                                  <label>IPv6 CIDR <input value={selectedNode.primary?.ipv6Cidr || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv6Cidr: e.target.value })} /></label>
+                                  <PlaceholderToggleRow
+                                    state={state}
+                                    updateState={updateState}
+                                    value={selectedNode.primary?.ipv6Cidr || ""}
+                                    onValueChange={(v) => updatePrimary(selectedIndex, { ipv6Cidr: v })}
+                                    type="ipAddress"
+                                    label={`Node ${selectedIndex + 1} primary IPv6 CIDR`}
+                                  />
+                                </div>
+                                <div>
+                                  <label>IPv6 gateway <input value={selectedNode.primary?.ipv6Gateway || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv6Gateway: e.target.value })} /></label>
+                                  <PlaceholderToggleRow
+                                    state={state}
+                                    updateState={updateState}
+                                    value={selectedNode.primary?.ipv6Gateway || ""}
+                                    onValueChange={(v) => updatePrimary(selectedIndex, { ipv6Gateway: v })}
+                                    type="ipAddress"
+                                    label={`Node ${selectedIndex + 1} primary IPv6 gateway`}
+                                  />
+                                </div>
                               </>
                             )}
                           </>
@@ -1309,10 +1517,30 @@ wipefs -a /dev/sdX`}</pre>
                         <>
                           <h4>BMC (IPI)</h4>
                           <div className="field-grid">
-                            <label>BMC address <input value={selectedNode.bmc?.address || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })} /></label>
+                            <div>
+                              <label>BMC address <input value={selectedNode.bmc?.address || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })} /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.bmc?.address || ""}
+                                onValueChange={(v) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: v } })}
+                                type="bmcAddress"
+                                label={`Node ${selectedIndex + 1} BMC address`}
+                              />
+                            </div>
                             <label>BMC username <input autoComplete="off" value={selectedNode.bmc?.username || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, username: e.target.value } })} /></label>
                             <label>BMC password <input type="password" autoComplete="new-password" value={selectedNode.bmc?.password || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, password: e.target.value } })} /></label>
-                            <label>Boot MAC <input value={selectedNode.bmc?.bootMACAddress || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } }); }} /></label>
+                            <div>
+                              <label>Boot MAC <input value={selectedNode.bmc?.bootMACAddress || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } }); }} /></label>
+                              <PlaceholderToggleRow
+                                state={state}
+                                updateState={updateState}
+                                value={selectedNode.bmc?.bootMACAddress || ""}
+                                onValueChange={(v) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } })}
+                                type="macAddress"
+                                label={`Node ${selectedIndex + 1} boot MAC`}
+                              />
+                            </div>
                             <label className="host-inventory-v2-checkbox-label">
                               <input
                                 type="checkbox"

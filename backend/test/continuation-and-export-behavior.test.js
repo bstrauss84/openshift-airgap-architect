@@ -255,6 +255,8 @@ test("readiness manifest reports placeholders and review-needed status", async (
   assert.strictEqual(manifest.placeholdersPresent, true);
   assert.ok((manifest.placeholders?.count || 0) >= 1);
   assert.strictEqual(manifest.runStatus?.reviewNeeded, true);
+  assert.strictEqual(manifest.runStatus?.finalizable, false);
+  assert.strictEqual(manifest.executionReadiness?.executionBlockedByPlaceholders, true);
 });
 
 test("run export strips credential classes by default", async () => {
@@ -277,6 +279,39 @@ test("run export strips credential classes by default", async () => {
     assert.strictEqual(body.state?.credentials?.pullSecretPlaceholder, "{\"auths\":{}}");
     assert.strictEqual(body.state?.credentials?.mirrorRegistryPullSecret || "", "");
     assert.strictEqual(body.state?.credentials?.sshPublicKey, "ssh-ed25519 AAAATEST test@example");
+  } finally {
+    server.close();
+  }
+});
+
+test("generate output replaces internal placeholder tokens with visible marker text", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: true },
+        release: { channel: "stable-4.20", patchVersion: "4.20.12", confirmed: true },
+        globalStrategy: {
+          proxyEnabled: true,
+          proxies: {
+            httpProxy: "__AIRA_PLACEHOLDER__::proxyValue::id::HTTP%20proxy",
+            httpsProxy: "",
+            noProxy: ""
+          }
+        }
+      })
+    });
+    const res = await fetch(`${baseUrl}/api/generate`);
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    const install = String(body.files?.["install-config.yaml"] || "");
+    const manual = String(body.files?.["FIELD_MANUAL.md"] || "");
+    assert.match(install, /MARK FOR LATER COMPLETION/);
+    assert.match(manual, /MARK FOR LATER COMPLETION/);
+    assert.doesNotMatch(install, /__AIRA_PLACEHOLDER__/);
+    assert.doesNotMatch(manual, /__AIRA_PLACEHOLDER__/);
   } finally {
     server.close();
   }

@@ -23,6 +23,8 @@ const buildContext = (state) => {
   const credentials = state.credentials || {};
   const platformConfig = state.platformConfig || {};
   const docs = state.docs || {};
+  const statusModel = state.statusModel || {};
+  const inclusion = state.exportOptions?.inclusion || {};
 
   const version = release.patchVersion || "4.20.0";
   const versionParts = version.split(".");
@@ -63,6 +65,9 @@ const buildContext = (state) => {
   const fips = Boolean(globalStrategy.fips);
 
   const trustBundle = Boolean(trust.mirrorRegistryCaPem || trust.proxyCaPem);
+  const placeholderCount = Object.keys(state.placeholders?.entries || {}).length;
+  const reviewNeeded = Boolean(statusModel.reviewNeeded) || placeholderCount > 0;
+  const finalizable = statusModel.finalizable !== false && !reviewNeeded;
 
   const ntpServersList = normalizeNtpServers(globalStrategy.ntpServers);
   const ntpServers = ntpServersList.join(", ");
@@ -98,6 +103,15 @@ const buildContext = (state) => {
 
   const installDir = "./install-assets";
   const imageSetConfig = "imageset-config.yaml";
+  const inclusionSummary = {
+    pullSecret: inclusion.pullSecret === true ? "included" : "omitted",
+    platformCredentials: inclusion.platformCredentials === true ? "included" : "omitted",
+    mirrorRegistryCredentials: inclusion.mirrorRegistryCredentials === true ? "included" : "omitted",
+    bmcCredentials: inclusion.bmcCredentials === true ? "included" : "omitted",
+    trustBundleAndCertificates: inclusion.trustBundleAndCertificates !== false ? "included" : "omitted",
+    sshPublicKey: inclusion.sshPublicKey !== false ? "included" : "omitted",
+    proxyValues: inclusion.proxyValues !== false ? "included" : "omitted"
+  };
 
   // Derive a simple scenario ID
   const platformSlug = {
@@ -158,6 +172,10 @@ const buildContext = (state) => {
     operatorList,
     installDir,
     draftMode: Boolean(state.exportOptions?.draftMode),
+    placeholderCount,
+    reviewNeeded,
+    finalizable,
+    inclusionSummary
   };
 };
 

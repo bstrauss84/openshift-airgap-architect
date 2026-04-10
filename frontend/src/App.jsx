@@ -39,6 +39,32 @@ export function shouldShowUpdateBanner(updateInfo) {
   if (!cur || cur === "unknown" || !lat || lat === "unknown") return false;
   return true;
 }
+
+export function buildImportedRunGuidance({ continuation, statusModel, placeholdersPresent }) {
+  const mode = continuation?.mode === "start-over-from-import"
+    ? "Start-over from imported run"
+    : "Continue imported run";
+  const modeDetail = continuation?.mode === "start-over-from-import"
+    ? "Run-specific selections are reset while imported caches stay available for disconnected planning."
+    : "Imported selections are preserved where mirrored cache continuity requires lock protection.";
+  const guidance = [];
+  if (statusModel?.continuationLocked) {
+    guidance.push("Some release or operator selections are locked to keep this imported run consistent.");
+  }
+  if (statusModel?.cacheLimited) {
+    guidance.push("Editing is partially limited by imported cache scope until you restart from fresh connected data.");
+  }
+  if (statusModel?.reviewNeeded || placeholdersPresent) {
+    guidance.push("Review is still required before execution because one or more fields need later completion or re-checking.");
+  }
+  if (statusModel?.secretsOmitted) {
+    guidance.push("One or more secret classes are omitted from export by current inclusion policy.");
+  }
+  if (guidance.length === 0) {
+    guidance.push("Imported context is coherent and ready for final review.");
+  }
+  return { mode, modeDetail, guidance };
+}
 import { logAction } from "./logger.js";
 import { getExportRunFilename } from "./exportRunFilename.js";
 
@@ -326,8 +352,9 @@ const AppShell = () => {
   );
   const continuation = state?.continuation || {};
   const continuationImported = Boolean(continuation?.importedRun);
-  const continuationMode = continuation?.mode || "none";
   const statusModel = state?.statusModel || {};
+  const placeholdersPresent = Boolean(state?.placeholders?.entries && Object.keys(state.placeholders.entries).length > 0);
+  const importedRunGuidance = buildImportedRunGuidance({ continuation, statusModel, placeholdersPresent });
 
   const sidebarSteps = useMemo(
     () => visibleSteps.filter((s) => s.id !== "operations"),
@@ -1005,10 +1032,17 @@ const AppShell = () => {
           ) : null}
           {continuationImported ? (
             <div className="blocked-banner" role="status">
-              <span>
-                Imported run mode: <strong>{continuationMode === "continue-imported" ? "Continue imported run" : "Start-over from imported run"}</strong>.
-                {" "}Status: continuation-locked={String(Boolean(statusModel?.continuationLocked))}, cache-limited={String(Boolean(statusModel?.cacheLimited))}, review-needed={String(Boolean(statusModel?.reviewNeeded))}, secrets-omitted={String(Boolean(statusModel?.secretsOmitted))}.
-              </span>
+              <div>
+                <div>
+                  Imported run mode: <strong>{importedRunGuidance.mode}</strong>.{" "}
+                  {importedRunGuidance.modeDetail}
+                </div>
+                <ul style={{ marginTop: 6, marginBottom: 0, paddingLeft: 18 }}>
+                  {importedRunGuidance.guidance.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
           ) : null}
           <input

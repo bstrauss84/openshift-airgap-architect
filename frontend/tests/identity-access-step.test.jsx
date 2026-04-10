@@ -50,7 +50,7 @@ describe("Identity & Access step (Phase 5 Prompt C)", () => {
     const proceedButtons = screen.getAllByRole("button", { name: /Proceed/i });
     fireEvent.click(proceedButtons[proceedButtons.length - 1]);
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Identity & Access/i })).toBeInTheDocument();
+      expect(screen.getAllByRole("heading", { name: /Identity & Access/i }).length).toBeGreaterThan(0);
     });
     expect(screen.getByRole("heading", { name: /Cluster Identity/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Access Credentials/i })).toBeInTheDocument();
@@ -85,5 +85,22 @@ describe("Identity & Access step (Phase 5 Prompt C)", () => {
     const result = validateStep(state, "identity-access");
     expect(result.errors).toHaveLength(0);
     expect(result.warnings.length >= 0).toBe(true);
+  });
+
+  it("renders placeholder utility rows beneath identity and access inputs", async () => {
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Continue install/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Continue install/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Installation Methodology/i })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: /Proceed/i }).pop());
+    await waitFor(() => {
+      expect(screen.getAllByRole("heading", { name: /Identity & Access/i }).length).toBeGreaterThan(0);
+    });
+    const rows = screen.getAllByText(/Mark for later completion/i);
+    expect(rows.length).toBeGreaterThanOrEqual(2);
   });
 });
