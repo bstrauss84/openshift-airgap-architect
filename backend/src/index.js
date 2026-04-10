@@ -1829,13 +1829,23 @@ const buildBundleZip = async (state, res) => {
   }
   if (state.exportOptions?.includeClientTools) {
     try {
-      await resolveOcMirrorBinary(dataDir);
       const exportArch = state.exportOptions?.exportBinaryArch || getLocalBinaryArch();
       const { ocPath, ocMirrorPath } = await getBinariesForExportArch(exportArch, dataDir);
+      const assertReadableFile = (filePath, label) => {
+        if (!filePath || !fs.existsSync(filePath)) return false;
+        fs.accessSync(filePath, fs.constants.R_OK);
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) {
+          throw new Error(`${label} path is not a regular file: ${filePath}`);
+        }
+        return true;
+      };
       if (ocPath && fs.existsSync(ocPath)) {
+        assertReadableFile(ocPath, "oc");
         archive.file(ocPath, { name: "tools/oc" });
       }
       if (ocMirrorPath && fs.existsSync(ocMirrorPath)) {
+        assertReadableFile(ocMirrorPath, "oc-mirror");
         archive.file(ocMirrorPath, { name: "tools/oc-mirror" });
       }
     } catch (e) {
@@ -1970,7 +1980,6 @@ app.get("/api/bundle.zip", async (req, res) => {
   let state = null;
   if (token) {
     const pending = pendingBundleStates.get(token);
-    pendingBundleStates.delete(token);
     if (!pending || Date.now() >= pending.expiresAt) {
       return res.status(410).json({ error: "Bundle token expired. Regenerate and retry download." });
     }
