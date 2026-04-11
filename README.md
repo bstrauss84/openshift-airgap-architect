@@ -64,7 +64,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Operational profiles** — Backend-owned connected/disconnected capability contract gates internet-backed actions safely in disconnected execution mode
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
-- **Export options** — Choose per-class inclusion for pull secret, platform credentials, mirror credentials, BMC credentials, trust/cert material, SSH key, and proxy values (credentials default to omitted); include client tools and openshift-install with validated installer target-host inputs (RHEL 8/9, x86_64, target-host FIPS requirement flag) and readiness reporting
+- **Export options** — Per-class inclusion controls are the single source of truth for pull secret, platform credentials, mirror credentials, BMC credentials, trust/cert material, SSH key, and proxy values (credentials default to omitted); include client tools and openshift-install with validated installer target-host inputs (RHEL 8/9, x86_64, target-host FIPS requirement flag) and readiness reporting. Enabling pull-secret inclusion shows an amber sensitive-data warning on that control.
 - **High-side runtime package export** — Optional runtime-package artifacts in the export bundle (`runtime-package/`) including image archives, localhost-first compose/launch scripts, bundled payload preload JSON, startup guide, and SHA256 checksums for disconnected execution on RHEL 8/9
 
 <a id="quick-start-container"></a>
@@ -196,7 +196,7 @@ When the Landing page or **Tools → About** shows that an update is available, 
 ## Generating assets
 
 1. Complete the wizard (Blueprint → Methodology → scenario steps → Operators if desired → Assets & Guide).
-2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML, field manual, and `EXPORT_READINESS_MANIFEST.json`. Export options control per-class secret/cert inclusion and tools packaging, and readiness metadata records placeholder/review-needed/execution-blocked status.
+2. On the **Assets & Guide** step, use **Export** to download a run bundle (ZIP) containing generated YAML, field manual, and `EXPORT_READINESS_MANIFEST.json`. Export options are driven by per-class inclusion controls (single source of truth), and readiness metadata records placeholder/review-needed/execution-blocked status plus runtime-package request/completeness status.
 3. If **Include high-side runtime package artifacts** is enabled, the bundle also includes `runtime-package/` with:
    - image archives for backend/frontend containers
    - `compose/high-side.compose.yml` with localhost-only binds and disconnected profile defaults
@@ -560,7 +560,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 <a id="screenshots"></a>
 ## Screenshots
 
-The wizard walks through Blueprint → Methodology → scenario-specific steps → Operators (optional) → Assets & Guide. Below are key screens in order.
+The wizard walks through Blueprint → Methodology → segmented scenario-specific steps → Operators (optional) → Assets & Guide. Legacy combined-step ids are normalized into the segmented flow for compatibility with imported/persisted runs.
 
 **Landing — Choose workflow.** Install (net-new disconnected), Upgrade (coming soon), or Operator mirroring (coming soon).
 

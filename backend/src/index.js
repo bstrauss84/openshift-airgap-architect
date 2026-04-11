@@ -60,7 +60,7 @@ import {
   isPlaceholderToken,
   replacePlaceholderTokensInText
 } from "./placeholderEngine.js";
-import { defaultSecretInclusion, resolveSecretInclusion } from "./exportInclusion.js";
+import { canonicalizeExportOptions, defaultSecretInclusion, resolveSecretInclusion } from "./exportInclusion.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 
 const app = express();
@@ -395,10 +395,7 @@ const defaultState = () => ({
     additionalImages: "",
     archiveSize: ""
   },
-  exportOptions: {
-    includeCredentials: false,
-    includeCertificates: true,
-    inclusion: defaultSecretInclusion(),
+  exportOptions: canonicalizeExportOptions({
     includeClientTools: false,
     includeInstaller: false,
     includeHighSideRuntimePackage: false,
@@ -407,7 +404,7 @@ const defaultState = () => ({
     installerTargetArch: "x86_64",
     installerTargetFipsRequired: false,
     draftMode: false
-  },
+  }),
   mirrorWorkflow: {
     outputPath: path.join(dataDir, "oc-mirror-output"),
     archivePath: path.join(dataDir, "oc-mirror", "archives"),
@@ -451,6 +448,25 @@ const defaultState = () => ({
   }
 });
 
+const LEGACY_SEGMENTED_STEP_ID_MAP = {
+  "cluster-identity": "identity-access",
+  global: "identity-access",
+  networking: "identity-access",
+  "disconnected-proxy": "trust-proxy",
+  inventory: "hosts-inventory",
+  "inventory-v2": "hosts-inventory",
+  "review-generate": "review"
+};
+
+const normalizeUiState = (ui = {}) => {
+  const activeStepId = ui.activeStepId || "blueprint";
+  return {
+    ...ui,
+    activeStepId: LEGACY_SEGMENTED_STEP_ID_MAP[activeStepId] || activeStepId,
+    segmentedFlowV1: true
+  };
+};
+
 const ensureState = () => {
   const existing = getState();
   if (existing) {
@@ -475,13 +491,18 @@ const ensureState = () => {
       next.cacheProvenance = normalizedProvenance;
       changed = true;
     }
-    const normalizedInclusion = resolveSecretInclusion(next.exportOptions || {});
-    if (JSON.stringify(normalizedInclusion) !== JSON.stringify(next.exportOptions?.inclusion || {})) {
-      next.exportOptions = { ...(next.exportOptions || {}), inclusion: normalizedInclusion };
+    const normalizedExportOptions = canonicalizeExportOptions(next.exportOptions || {});
+    if (JSON.stringify(normalizedExportOptions) !== JSON.stringify(next.exportOptions || {})) {
+      next.exportOptions = normalizedExportOptions;
       changed = true;
     }
-    if (!Object.prototype.hasOwnProperty.call(next.exportOptions || {}, "includeHighSideRuntimePackage")) {
-      next.exportOptions = { ...(next.exportOptions || {}), includeHighSideRuntimePackage: false };
+    if (!Object.prototype.hasOwnProperty.call(next.exportOptions, "includeHighSideRuntimePackage")) {
+      next.exportOptions = { ...next.exportOptions, includeHighSideRuntimePackage: false };
+      changed = true;
+    }
+    const normalizedUi = normalizeUiState(next.ui || {});
+    if (JSON.stringify(normalizedUi) !== JSON.stringify(next.ui || {})) {
+      next.ui = normalizedUi;
       changed = true;
     }
     const normalizedRuntime = {
@@ -527,7 +548,14 @@ const ensureState = () => {
 
 const updateState = (patch) => {
   const current = ensureState();
-  const merged = withStatusModel({ ...current, ...patch });
+  const mergedBase = { ...current, ...patch };
+  if (mergedBase.exportOptions) {
+    mergedBase.exportOptions = canonicalizeExportOptions(mergedBase.exportOptions);
+  }
+  if (mergedBase.ui) {
+    mergedBase.ui = normalizeUiState(mergedBase.ui);
+  }
+  const merged = withStatusModel(mergedBase);
   setState(merged);
   return merged;
 };
@@ -2734,7 +2762,9 @@ const buildExportReadinessManifest = (state) => {
         notes: "openshift-install artifact selection is version+architecture based in this release; host OS family and FIPS inputs are validated and recorded."
       }
     },
+    runtimePackageRequested: includeHighSideRuntimePackage,
     runtimePackageIncluded: includeHighSideRuntimePackage,
+    runtimePackageArtifactStatus: includeHighSideRuntimePackage ? "requested" : "not-requested",
     runtimePackage: {
       deliveryFormat: "oci/container-image-archives + compose/launch files",
       hostSupportScope: ["rhel8", "rhel9"],
@@ -2790,7 +2820,7 @@ const buildExportReadinessManifest = (state) => {
     },
     notes: [
       includeHighSideRuntimePackage
-        ? "High-side runtime package artifacts are included under runtime-package/."
+        ? "High-side runtime package export was requested; see runtimePackageArtifactStatus/runtimePackageNotes for final artifact completeness."
         : "High-side runtime package archive is not included in this transfer bundle.",
       "oc-mirror payload transfer remains explicit and separate from app transfer artifacts.",
       "Legacy mirror-output bundling is deprecated for transfer bundles; use handoff doc/manifest/log/support bundle outputs.",
@@ -2929,7 +2959,11 @@ const buildBundleZip = async (rawState, res) => {
     runPayload,
     dataDir
   });
-  readinessManifest.runtimePackageIncluded = runtimePackage.included;
+  readinessManifest.runtimePackageRequested = runtimePackage.requested;
+  readinessManifest.runtimePackageIncluded = runtimePackage.requested && runtimePackage.entries.length > 0;
+  readinessManifest.runtimePackageArtifactStatus = runtimePackage.included
+    ? "complete"
+    : (runtimePackage.requested ? "partial-with-errors" : "not-requested");
   readinessManifest.runtimePackageNotes = runtimePackage.notes;
   const renderedInstallConfig = replacePlaceholderTokensInText(installConfig, state);
   const renderedAgentConfig = agentConfig ? replacePlaceholderTokensInText(agentConfig, state) : null;

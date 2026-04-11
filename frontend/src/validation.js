@@ -10,6 +10,7 @@ import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
 import { isPlaceholderToken } from "./placeholderEngine.js";
+import { resolveSecretInclusion } from "./exportInclusion.js";
 
 /** 4.20 doc: valid platform.aws.vpc.subnets[].roles[].type. EdgeNode is Local Zone only — not exposed in app. */
 export const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
@@ -170,10 +171,11 @@ const ipInCidr = (ipCidr, cidr) => {
 };
 
 /** Validates a single host-inventory node: hostname, BMC (bare-metal IPI), primary interface (ethernet/bond/vlan), static IP/MAC. */
-const validateNode = ({ node, enableIpv6, machineCidr, platform, method, includeCredentials }) => {
+const validateNode = ({ node, enableIpv6, machineCidr, platform, method, includeCredentials, includeCredentialClasses }) => {
   const errors = [];
   const warnings = [];
   const fieldErrors = {};
+  const includeBmcCredentials = includeCredentialClasses?.bmcCredentials ?? Boolean(includeCredentials);
 
   const addError = (field, message) => {
     errors.push(message);
@@ -192,14 +194,14 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
   if (!node.rootDevice && !isArbiterNodeInBareMetalAgent) {
     addWarning("rootDevice", "Root device hint is missing (by-path recommended when available).");
   }
-  // Bare-metal IPI: BMC address, credentials (error if includeCredentials; else warning), boot MAC required.
+  // Bare-metal IPI: BMC address, credentials (error when BMC credential inclusion is enabled; else warning), boot MAC required.
   if (platform === "Bare Metal" && method === "IPI") {
     if (!node.bmc?.address) addError("bmc.address", "BMC address is required for bare metal IPI.");
     if (!node.bmc?.username) {
-      (includeCredentials ? addError : addWarning)("bmc.username", "BMC username is required for bare metal IPI.");
+      (includeBmcCredentials ? addError : addWarning)("bmc.username", "BMC username is required for bare metal IPI.");
     }
     if (!node.bmc?.password) {
-      (includeCredentials ? addError : addWarning)("bmc.password", "BMC password is required for bare metal IPI.");
+      (includeBmcCredentials ? addError : addWarning)("bmc.password", "BMC password is required for bare metal IPI.");
     }
     if (!node.bmc?.bootMACAddress) addError("bmc.bootMACAddress", "Boot MAC address is required for bare metal IPI.");
   }
@@ -318,7 +320,7 @@ const validateHostInventory = (state) => {
 
   // API/Ingress VIPs are validated on the Networking step (or Global Strategy); not on Hosts page.
 
-  const includeCredentials = Boolean(state.exportOptions?.includeCredentials);
+  const inclusion = resolveSecretInclusion(state.exportOptions || {});
   (inventory.nodes || []).forEach((node, idx) => {
     const result = validateNode({
       node,
@@ -326,7 +328,7 @@ const validateHostInventory = (state) => {
       machineCidr,
       platform: state.blueprint?.platform,
       method: state.methodology?.method,
-      includeCredentials
+      includeCredentialClasses: inclusion
     });
     perNode[idx] = result;
     errors.push(...result.errors.map((msg) => `Node ${idx + 1}: ${msg}`));
@@ -395,7 +397,8 @@ const validatePlatformConfig = (state) => {
   if ((method === "IPI" || method === "UPI") && platform === "AWS GovCloud") {
     if (!cfg.aws?.region) errors.push("AWS region is required for GovCloud installs.");
   }
-  const includeCredentials = Boolean(state.exportOptions?.includeCredentials);
+  const inclusion = resolveSecretInclusion(state.exportOptions || {});
+  const includePlatformCredentials = Boolean(inclusion.platformCredentials);
   if (method === "IPI" && platform === "VMware vSphere") {
     const useLegacyPlacement = cfg.vsphere?.placementMode === "legacy";
     if (useLegacyPlacement) {
@@ -406,10 +409,10 @@ const validatePlatformConfig = (state) => {
       if (!cfg.vsphere?.network) errors.push("VM network is required for vSphere IPI when using legacy placement.");
     }
     if (!cfg.vsphere?.username) {
-      (includeCredentials ? errors : warnings).push("vCenter username is required for vSphere IPI.");
+      (includePlatformCredentials ? errors : warnings).push("vCenter username is required for vSphere IPI.");
     }
     if (!cfg.vsphere?.password) {
-      (includeCredentials ? errors : warnings).push("vCenter password is required for vSphere IPI.");
+      (includePlatformCredentials ? errors : warnings).push("vCenter password is required for vSphere IPI.");
     }
     if (cfg.publish === "Internal") {
       errors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
@@ -423,10 +426,10 @@ const validatePlatformConfig = (state) => {
   if (method === "IPI" && platform === "Nutanix") {
     if (!cfg.nutanix?.endpoint?.trim()) errors.push("Prism Central endpoint is required for Nutanix IPI.");
     if (!cfg.nutanix?.username) {
-      (includeCredentials ? errors : warnings).push("Prism Central username is required for Nutanix IPI.");
+      (includePlatformCredentials ? errors : warnings).push("Prism Central username is required for Nutanix IPI.");
     }
     if (!cfg.nutanix?.password) {
-      (includeCredentials ? errors : warnings).push("Prism Central password is required for Nutanix IPI.");
+      (includePlatformCredentials ? errors : warnings).push("Prism Central password is required for Nutanix IPI.");
     }
     if (!cfg.nutanix?.subnet?.trim()) errors.push("Subnet UUID is required for Nutanix IPI.");
     if (!(cfg.nutanix?.apiVIP || "").trim()) errors.push("API VIP is required for Nutanix IPI (platform.nutanix.apiVIP).");

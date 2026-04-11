@@ -28,4 +28,23 @@ const resolveSecretInclusion = (exportOptions = {}) => {
   };
 };
 
-export { defaultSecretInclusion, resolveSecretInclusion };
+const deriveLegacyFlagsFromInclusion = (inclusion) => ({
+  includeCredentials: Boolean(
+    inclusion.pullSecret
+    || inclusion.platformCredentials
+    || inclusion.mirrorRegistryCredentials
+    || inclusion.bmcCredentials
+  ),
+  includeCertificates: Boolean(inclusion.trustBundleAndCertificates)
+});
+
+const canonicalizeExportOptions = (exportOptions = {}) => {
+  const inclusion = resolveSecretInclusion(exportOptions);
+  return {
+    ...exportOptions,
+    inclusion,
+    ...deriveLegacyFlagsFromInclusion(inclusion)
+  };
+};
+
+export { defaultSecretInclusion, resolveSecretInclusion, deriveLegacyFlagsFromInclusion, canonicalizeExportOptions };

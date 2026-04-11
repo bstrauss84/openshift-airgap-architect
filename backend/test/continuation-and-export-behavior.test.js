@@ -279,7 +279,9 @@ test("readiness manifest reports high-side runtime package request", async () =>
     operators: { stale: false, catalogs: { redhat: [], certified: [], community: [] } },
     docs: { links: [] }
   });
+  assert.strictEqual(manifest.runtimePackageRequested, true);
   assert.strictEqual(manifest.runtimePackageIncluded, true);
+  assert.strictEqual(manifest.runtimePackageArtifactStatus, "requested");
   assert.strictEqual(manifest.runtimePackage?.localhostFirst, true);
   assert.deepStrictEqual(manifest.runtimePackage?.hostSupportScope, ["rhel8", "rhel9"]);
 });
@@ -438,6 +440,63 @@ test("high-side preload unreadable payload directory is reported without crashin
     else process.env.AIRGAP_PRELOAD_ON_START = prevPreload;
     fs.chmodSync(payloadDir, 0o700);
     fs.rmSync(payloadDir, { recursive: true, force: true });
+    server.close();
+  }
+});
+
+test("state updates canonicalize export inclusion and legacy flags", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exportOptions: {
+          includeCredentials: true,
+          includeCertificates: false,
+          inclusion: {
+            pullSecret: false,
+            platformCredentials: false,
+            mirrorRegistryCredentials: false,
+            bmcCredentials: false,
+            trustBundleAndCertificates: true,
+            sshPublicKey: true,
+            proxyValues: true
+          }
+        }
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.exportOptions?.inclusion?.pullSecret, false);
+    assert.strictEqual(body.exportOptions?.includeCredentials, false);
+    assert.strictEqual(body.exportOptions?.inclusion?.trustBundleAndCertificates, true);
+    assert.strictEqual(body.exportOptions?.includeCertificates, true);
+  } finally {
+    server.close();
+  }
+});
+
+test("state updates force segmented flow and normalize legacy active step ids", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ui: {
+          segmentedFlowV1: false,
+          activeStepId: "global",
+          visitedSteps: {},
+          completedSteps: {}
+        }
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.ui?.segmentedFlowV1, true);
+    assert.strictEqual(body.ui?.activeStepId, "identity-access");
+  } finally {
     server.close();
   }
 });

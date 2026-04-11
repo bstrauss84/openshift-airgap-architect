@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { cleanup, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import App from "../src/App.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
@@ -14,7 +14,7 @@ function stateWithSegmentedFlow(segmentedFlowV1) {
   };
 }
 
-describe("Segmented flow feature flag (Phase 5.1)", () => {
+describe("Segmented flow stabilization", () => {
   beforeEach(() => {
     vi.mocked(apiFetch).mockImplementation((path, opts) => {
       if (path === "/api/state") {
@@ -24,8 +24,11 @@ describe("Segmented flow feature flag (Phase 5.1)", () => {
       return Promise.resolve({});
     });
   });
+  afterEach(() => {
+    cleanup();
+  });
 
-  it("when flag OFF shows legacy steps (Global Strategy, Host Inventory)", async () => {
+  it("when flag OFF from persisted state, flow is coerced to segmented replacements", async () => {
     vi.mocked(apiFetch).mockImplementation((path, opts) => {
       if (path === "/api/state") {
         return Promise.resolve(opts?.body ? JSON.parse(opts.body) : stateWithSegmentedFlow(false));
@@ -43,10 +46,10 @@ describe("Segmented flow feature flag (Phase 5.1)", () => {
     const proceedButtons = screen.getAllByRole("button", { name: /Proceed/i });
     fireEvent.click(proceedButtons[proceedButtons.length - 1]);
     await waitFor(() => {
-      expect(screen.getAllByText(/Global Strategy/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/Identity & Access/i).length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.getAllByText(/Host Inventory/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByRole("region", { name: /Scenario summary/i })).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Trust & Proxy/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("region", { name: /Scenario summary/i }).length).toBeGreaterThan(0);
   });
 
   it("when flag ON shows six replacement steps and scenario header", async () => {
@@ -100,10 +103,12 @@ describe("Segmented flow feature flag (Phase 5.1)", () => {
     expect(screen.getAllByRole("button", { name: /Assets & Guide/i }).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("legacy flow (segmentedFlowV1 false): path through Global Strategy and Host Inventory to generate/download is available", async () => {
+  it("normalizes legacy active step ids to segmented replacement ids", async () => {
     vi.mocked(apiFetch).mockImplementation((path, opts) => {
       if (path === "/api/state") {
-        return Promise.resolve(opts?.body ? JSON.parse(opts.body) : stateWithSegmentedFlow(false));
+        const legacy = stateWithSegmentedFlow(false);
+        legacy.ui.activeStepId = "global";
+        return Promise.resolve(opts?.body ? JSON.parse(opts.body) : legacy);
       }
       return Promise.resolve({});
     });
@@ -118,9 +123,8 @@ describe("Segmented flow feature flag (Phase 5.1)", () => {
     const proceedButtons = screen.getAllByRole("button", { name: /Proceed/i });
     fireEvent.click(proceedButtons[proceedButtons.length - 1]);
     await waitFor(() => {
-      expect(screen.getAllByRole("heading", { name: /Global Strategy/i }).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/Identity & Access/i).length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.getAllByRole("button", { name: /Assets & Guide/i }).length).toBeGreaterThanOrEqual(1);
   });
 });
 

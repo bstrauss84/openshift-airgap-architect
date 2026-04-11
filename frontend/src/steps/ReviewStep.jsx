@@ -9,7 +9,7 @@ import OptionRow from "../components/OptionRow.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
-import { resolveSecretInclusion } from "../exportInclusion.js";
+import { canonicalizeExportOptions, resolveSecretInclusion } from "../exportInclusion.js";
 
 const DEFAULT_PREVIEW_HEIGHT = 320;
 const MIN_PREVIEW_HEIGHT = 120;
@@ -169,7 +169,7 @@ const downloadZip = async (stateForBundle) => {
 const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilities = {}, profileContract = {} }) => {
   const { state, updateState, setState } = useApp();
   const importRef = useRef(null);
-  const exportOptions = state.exportOptions || {};
+  const exportOptions = canonicalizeExportOptions(state.exportOptions || {});
   const inclusion = resolveSecretInclusion(exportOptions);
   const [files, setFiles] = useState({});
   const [loading, setLoading] = useState(false);
@@ -177,8 +177,6 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
   const [blockReason, setBlockReason] = useState("");
   const [generateError, setGenerateError] = useState("");
   const [downloading, setDownloading] = useState(false);
-  const [showCredentialsConfirm, setShowCredentialsConfirm] = useState(false);
-  const [credentialsConfirmedThisSession, setCredentialsConfirmedThisSession] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const actionsMenuRef = useRef(null);
   const needsReview = state.reviewFlags?.review && state.ui?.visitedSteps?.review;
@@ -194,11 +192,14 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
   const validation = validateStep(state, "review");
   const blocked = validation.errors?.length > 0;
   const hasWarnings = (validation.warnings || []).length > 0;
+  const updateExportOptions = (nextExportOptions) => {
+    updateState({ exportOptions: canonicalizeExportOptions(nextExportOptions || {}) });
+  };
 
   useEffect(() => {
     const nextDraft = !blocked && hasWarnings;
     if (exportOptions.draftMode !== nextDraft) {
-      updateState({ exportOptions: { ...exportOptions, draftMode: nextDraft } });
+      updateExportOptions({ ...exportOptions, draftMode: nextDraft });
     }
   }, [blocked, hasWarnings]);
 
@@ -297,40 +298,6 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
     setState(data.state);
   };
 
-  const handleCredentialsToggle = (checked) => {
-    if (checked && !credentialsConfirmedThisSession) {
-      setShowCredentialsConfirm(true);
-    } else {
-      const nextInclusion = {
-        ...inclusion,
-        pullSecret: checked,
-        platformCredentials: checked,
-        mirrorRegistryCredentials: checked,
-        bmcCredentials: checked
-      };
-      updateState({ exportOptions: { ...exportOptions, includeCredentials: checked, inclusion: nextInclusion } });
-    }
-  };
-
-  const confirmCredentialsInclude = () => {
-    setCredentialsConfirmedThisSession(true);
-    setShowCredentialsConfirm(false);
-    const nextInclusion = {
-      ...inclusion,
-      pullSecret: true,
-      platformCredentials: true,
-      mirrorRegistryCredentials: true,
-      bmcCredentials: true
-    };
-    updateState({ exportOptions: { ...exportOptions, includeCredentials: true, inclusion: nextInclusion } });
-  };
-
-  const cancelCredentialsInclude = () => {
-    setShowCredentialsConfirm(false);
-  };
-
-  const includeCredentials = inclusion.pullSecret || inclusion.mirrorRegistryCredentials || inclusion.platformCredentials || inclusion.bmcCredentials;
-  const includeCertificates = inclusion.trustBundleAndCertificates;
   const canRefreshDocs = capabilities.docsRefreshAllowed !== false;
   const canDownloadBinaries = capabilities.binaryDownloadAllowed !== false;
   const installerTargetHostOsFamily = exportOptions.installerTargetHostOsFamily || "rhel9";
@@ -414,66 +381,21 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
         onChange={(e) => importRun(e.target.files?.[0])}
       />
 
-      {showCredentialsConfirm ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="credentials-confirm-title">
-          <div className="modal">
-            <h3 id="credentials-confirm-title">Include credentials in export?</h3>
-            <p className="subtle">
-              This will embed pull secrets in generated files. Treat the bundle as sensitive and protect it like a credential.
-            </p>
-            <div className="actions">
-              <Button type="button" variant="secondary" onClick={cancelCredentialsInclude}>
-                Cancel
-              </Button>
-              <Button type="button" variant="primary" onClick={confirmCredentialsInclude}>
-                Yes, include credentials
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <div className="step-body">
         <div className="card">
           <h3>Export Options</h3>
-          <OptionRow
-            title="Include credentials in export"
-            description="Embed pull secrets in generated files. Off by default."
-            warning={includeCredentials ? (
-              <span>This will embed pull secrets in generated files. Treat the bundle as sensitive.</span>
-            ) : null}
-          >
-            <Switch
-              checked={includeCredentials}
-              onChange={handleCredentialsToggle}
-              aria-label="Include credentials in export"
-            />
-          </OptionRow>
-          <OptionRow
-            title="Include certificates in export"
-            description="Add trust bundles and PEMs to the bundle."
-            note="Certificates can expose internal hostnames; treat exports as sensitive."
-          >
-            <Switch
-              checked={includeCertificates}
-              onChange={(checked) =>
-                updateState({
-                  exportOptions: {
-                    ...exportOptions,
-                    includeCertificates: checked,
-                    inclusion: { ...inclusion, trustBundleAndCertificates: checked }
-                  }
-                })
-              }
-              aria-label="Include certificates in export"
-            />
-          </OptionRow>
           <CollapsibleSection title="Per-class inclusion controls" defaultCollapsed={false}>
-            <OptionRow title="Pull secret" description="Include install-config pullSecret.">
+            <OptionRow
+              title="Pull secret"
+              description="Include install-config pullSecret."
+              warning={inclusion.pullSecret ? (
+                <span>This will embed pull secrets in generated files. Treat the bundle as sensitive.</span>
+              ) : null}
+            >
               <Switch
                 checked={inclusion.pullSecret}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, inclusion: { ...inclusion, pullSecret: checked } } })
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, pullSecret: checked } })
                 }
                 aria-label="Include pull secret"
               />
@@ -482,7 +404,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={inclusion.platformCredentials}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, inclusion: { ...inclusion, platformCredentials: checked } } })
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, platformCredentials: checked } })
                 }
                 aria-label="Include platform credentials"
               />
@@ -491,7 +413,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={inclusion.mirrorRegistryCredentials}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, inclusion: { ...inclusion, mirrorRegistryCredentials: checked } } })
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, mirrorRegistryCredentials: checked } })
                 }
                 aria-label="Include mirror registry credentials"
               />
@@ -500,7 +422,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={inclusion.bmcCredentials}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, inclusion: { ...inclusion, bmcCredentials: checked } } })
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, bmcCredentials: checked } })
                 }
                 aria-label="Include BMC credentials"
               />
@@ -509,7 +431,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={inclusion.trustBundleAndCertificates}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, inclusion: { ...inclusion, trustBundleAndCertificates: checked }, includeCertificates: checked } })
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, trustBundleAndCertificates: checked } })
                 }
                 aria-label="Include trust bundle and certificates"
               />
@@ -518,7 +440,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={inclusion.sshPublicKey}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, inclusion: { ...inclusion, sshPublicKey: checked } } })
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, sshPublicKey: checked } })
                 }
                 aria-label="Include SSH public key"
               />
@@ -527,7 +449,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={inclusion.proxyValues}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, inclusion: { ...inclusion, proxyValues: checked } } })
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, proxyValues: checked } })
                 }
                 aria-label="Include proxy values"
               />
@@ -542,7 +464,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={includeHighSideRuntimePackage}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, includeHighSideRuntimePackage: checked } })
+                  updateExportOptions({ ...exportOptions, includeHighSideRuntimePackage: checked })
                 }
                 aria-label="Include high-side runtime package artifacts"
               />
@@ -554,7 +476,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={exportOptions.includeClientTools || false}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, includeClientTools: checked } })
+                  updateExportOptions({ ...exportOptions, includeClientTools: checked })
                 }
                 disabled={!canDownloadBinaries}
                 aria-label="Include oc and oc-mirror binaries"
@@ -568,11 +490,9 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
                 <select
                   value={exportOptions.exportBinaryArch ?? ""}
                   onChange={(e) =>
-                    updateState({
-                      exportOptions: {
-                        ...exportOptions,
-                        exportBinaryArch: e.target.value === "" ? null : e.target.value
-                      }
+                    updateExportOptions({
+                      ...exportOptions,
+                      exportBinaryArch: e.target.value === "" ? null : e.target.value
                     })
                   }
                   aria-label="Target architecture for oc/oc-mirror"
@@ -592,7 +512,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
               <Switch
                 checked={exportOptions.includeInstaller || false}
                 onChange={(checked) =>
-                  updateState({ exportOptions: { ...exportOptions, includeInstaller: checked } })
+                  updateExportOptions({ ...exportOptions, includeInstaller: checked })
                 }
                 disabled={!canDownloadBinaries}
                 aria-label="Include version-specific openshift-install"
@@ -607,11 +527,9 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
                   <select
                     value={installerTargetHostOsFamily}
                     onChange={(e) =>
-                      updateState({
-                        exportOptions: {
-                          ...exportOptions,
-                          installerTargetHostOsFamily: e.target.value
-                        }
+                      updateExportOptions({
+                        ...exportOptions,
+                        installerTargetHostOsFamily: e.target.value
                       })
                     }
                     aria-label="Installer target host OS family"
@@ -627,11 +545,9 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
                   <select
                     value={installerTargetArch}
                     onChange={(e) =>
-                      updateState({
-                        exportOptions: {
-                          ...exportOptions,
-                          installerTargetArch: e.target.value
-                        }
+                      updateExportOptions({
+                        ...exportOptions,
+                        installerTargetArch: e.target.value
                       })
                     }
                     aria-label="Installer target host architecture"
@@ -646,11 +562,9 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver, capabilitie
                   <Switch
                     checked={installerTargetFipsRequired}
                     onChange={(checked) =>
-                      updateState({
-                        exportOptions: {
-                          ...exportOptions,
-                          installerTargetFipsRequired: checked
-                        }
+                      updateExportOptions({
+                        ...exportOptions,
+                        installerTargetFipsRequired: checked
                       })
                     }
                     aria-label="Target host requires FIPS mode"

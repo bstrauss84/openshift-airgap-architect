@@ -1,6 +1,7 @@
 /**
- * Main app: landing, Blueprint, Methodology, then either legacy (Global Strategy, Host Inventory) or segmented flow
- * (Identity & Access, Networking, Connectivity & Mirroring, Trust & Proxy, Platform Specifics, Hosts/Inventory). Step list from visibleSteps; COMPONENT_MAP maps stepId to component.
+ * Main app: landing, Blueprint, Methodology, then segmented flow
+ * (Identity & Access, Networking, Connectivity & Mirroring, Trust & Proxy, Platform Specifics, Hosts/Inventory).
+ * Legacy combined-step ids are normalized into segmented replacements for imported/persisted compatibility.
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./store.jsx";
@@ -136,6 +137,26 @@ const LEGACY_STEP_ID_MAP = {
   "platform-specifics": "platform-specifics",
   "hosts-inventory": "hosts-inventory"
 };
+
+const SEGMENTED_FLOW_STEP_ID_MAP = {
+  "cluster-identity": "identity-access",
+  global: "identity-access",
+  networking: "identity-access",
+  "disconnected-proxy": "trust-proxy",
+  inventory: "hosts-inventory",
+  "inventory-v2": "hosts-inventory"
+};
+
+export function normalizeActiveStepIdForFlow({ activeStepId, segmentedFlowV1, hasHostsInventoryStep }) {
+  if (!activeStepId) return "blueprint";
+  const mapped = LEGACY_STEP_ID_MAP[activeStepId] || activeStepId;
+  if (!segmentedFlowV1) return mapped;
+  const segmentedMapped = SEGMENTED_FLOW_STEP_ID_MAP[mapped] || mapped;
+  if (segmentedMapped === "hosts-inventory" && !hasHostsInventoryStep) {
+    return "operators";
+  }
+  return segmentedMapped;
+}
 
 function getOcMirrorJobMetadata(job) {
   if (!job?.metadata_json) return null;
@@ -295,7 +316,13 @@ const AppShell = () => {
     return Boolean(sid && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(sid));
   }, [state]);
   const hostInventoryV2Enabled = state?.ui?.hostInventoryV2 === true;
-  const segmentedFlowV1 = state?.ui?.segmentedFlowV1 === true;
+  const segmentedFlowV1 = state?.ui?.segmentedFlowV1 !== false;
+  useEffect(() => {
+    if (!state?.ui) return;
+    if (state.ui.segmentedFlowV1 === false) {
+      updateState({ ui: { ...state.ui, segmentedFlowV1: true } });
+    }
+  }, [state?.ui, updateState]);
   const visibleSteps = useMemo(() => {
     if (segmentedFlowV1) {
       const base = buildWizardSteps(stepMap);
@@ -360,6 +387,11 @@ const AppShell = () => {
     () => visibleSteps.filter((s) => s.id !== "operations"),
     [visibleSteps]
   );
+  const normalizedActiveStepId = useMemo(() => normalizeActiveStepIdForFlow({
+    activeStepId: state?.ui?.activeStepId,
+    segmentedFlowV1,
+    hasHostsInventoryStep: visibleSteps.some((s) => s.id === "hosts-inventory")
+  }), [state?.ui?.activeStepId, segmentedFlowV1, visibleSteps]);
   const Current = visibleSteps[active]?.component || visibleSteps[0]?.component;
   const activeStepId = visibleSteps[active]?.id;
   const activeStepValidation = useMemo(
@@ -525,18 +557,27 @@ const AppShell = () => {
   const lastSyncedActiveStepId = useRef(null);
   useEffect(() => {
     if (!state?.ui?.activeStepId || !visibleSteps.length) return;
-    if (state.ui.activeStepId === lastSyncedActiveStepId.current) return;
-    const currentStepId = visibleSteps[active]?.id;
-    if (state.ui.activeStepId === currentStepId) {
-      lastSyncedActiveStepId.current = state.ui.activeStepId;
+    if (state.ui.activeStepId !== normalizedActiveStepId) {
+      updateState({ ui: { ...state.ui, activeStepId: normalizedActiveStepId } });
       return;
     }
-    const idx = visibleSteps.findIndex((s) => s.id === state.ui.activeStepId);
+  }, [state?.ui, state?.ui?.activeStepId, normalizedActiveStepId, visibleSteps.length, updateState]);
+
+  useEffect(() => {
+    if (!normalizedActiveStepId || !visibleSteps.length) return;
+    if (!state?.ui) return;
+    if (state.ui.activeStepId === lastSyncedActiveStepId.current) return;
+    const currentStepId = visibleSteps[active]?.id;
+    if (normalizedActiveStepId === currentStepId) {
+      lastSyncedActiveStepId.current = normalizedActiveStepId;
+      return;
+    }
+    const idx = visibleSteps.findIndex((s) => s.id === normalizedActiveStepId);
     if (idx >= 0) {
       setActive(idx);
-      lastSyncedActiveStepId.current = state.ui.activeStepId;
+      lastSyncedActiveStepId.current = normalizedActiveStepId;
     }
-  }, [state?.ui?.activeStepId, visibleSteps, active]);
+  }, [normalizedActiveStepId, visibleSteps, active, state?.ui?.activeStepId]);
 
   useEffect(() => {
     if (!state?.ui) return;
@@ -865,7 +906,14 @@ const AppShell = () => {
       setActive(blueprintIdx >= 0 ? blueprintIdx : 0);
       return;
     }
-    const stepId = LEGACY_STEP_ID_MAP[imported.activeStepId] || imported.activeStepId || "blueprint";
+    const stepId = normalizeActiveStepIdForFlow({
+      activeStepId: imported.activeStepId || "blueprint",
+      segmentedFlowV1: imported.segmentedFlowV1 === true,
+      hasHostsInventoryStep: Boolean(
+        imported.segmentedFlowV1 === true &&
+        SCENARIO_IDS_WITH_HOST_INVENTORY.includes(getScenarioId(data.state?.blueprint?.platform, data.state?.methodology?.method))
+      )
+    });
     const idx = visibleSteps.findIndex((s) => s.id === stepId);
     setActive(idx >= 0 ? idx : 0);
   };

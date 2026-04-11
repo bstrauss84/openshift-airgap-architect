@@ -127,3 +127,47 @@ describe("A1: validateStep platformConfig respects catalog-required fields", () 
     expect(result.errors.some((e) => e.includes("vCenter server is required") || e.includes("Datacenter is required"))).toBe(false);
   });
 });
+
+describe("A1: validation inclusion policy uses resolved per-class controls", () => {
+  it("treats missing vSphere platform credentials as errors when platformCredentials inclusion is enabled", () => {
+    const state = {
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      exportOptions: {
+        includeCredentials: false,
+        inclusion: {
+          platformCredentials: true,
+          pullSecret: false,
+          mirrorRegistryCredentials: false,
+          bmcCredentials: false
+        }
+      },
+      platformConfig: { vsphere: { placementMode: "failureDomains" } },
+      credentials: { pullSecretPlaceholder: "{\"auths\":{}}" }
+    };
+    const result = validateStep(state, "networking");
+    expect(result.errors.some((e) => e.includes("vCenter username is required"))).toBe(true);
+    expect(result.errors.some((e) => e.includes("vCenter password is required"))).toBe(true);
+  });
+
+  it("treats missing vSphere platform credentials as warnings when platformCredentials inclusion is disabled", () => {
+    const state = {
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      exportOptions: {
+        includeCredentials: true,
+        inclusion: {
+          platformCredentials: false,
+          pullSecret: true,
+          mirrorRegistryCredentials: true,
+          bmcCredentials: true
+        }
+      },
+      platformConfig: { vsphere: { placementMode: "failureDomains" } },
+      credentials: { pullSecretPlaceholder: "{\"auths\":{}}" }
+    };
+    const result = validateStep(state, "networking");
+    expect(result.errors.some((e) => e.includes("vCenter username is required"))).toBe(false);
+    expect(result.warnings.some((e) => e.includes("vCenter username is required"))).toBe(true);
+  });
+});

@@ -129,8 +129,10 @@ Testing guardrails:
 
 When touching export/generation/runtime behavior, verify package-target parity for:
 
-- `EXPORT_READINESS_MANIFEST.json` wording and flags (`runtimePackageIncluded`, placeholder/review/finality status, inclusion summaries)
+- `EXPORT_READINESS_MANIFEST.json` wording and flags (`runtimePackageRequested`, `runtimePackageIncluded`, `runtimePackageArtifactStatus`, placeholder/review/finality status, inclusion summaries)
 - Secret inclusion/omission defaults and placeholder marker rendering in generated YAML/manual outputs
+- Export-control drift guard: no duplicate top-level credentials/certificates toggles; per-class inclusion controls remain authoritative; segmented flow must normalize legacy combined-step ids instead of falling back to legacy path
+- Review-step toggle stability: repeated Advanced/Tools switch changes must not trigger error-boundary fallback or viewport/main-height collapse behavior
 - Runtime-critical placeholder execution blocking behavior
 - High-side package artifacts under `runtime-package/` (compose/launch/checksum/startup guide/payload preload behavior)
 - Compose/launch parity details (`RUNTIME_PACKAGE_PAYLOAD_DIR` payload bind, SELinux-safe `:ro,Z`, Docker fallback stripping `,Z`, and printed localhost UI/API ports)
