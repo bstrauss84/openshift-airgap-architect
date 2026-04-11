@@ -413,6 +413,35 @@ test("high-side runtime auto-preloads a single bundled payload", async () => {
   }
 });
 
+test("high-side preload unreadable payload directory is reported without crashing", async () => {
+  const payloadDir = fs.mkdtempSync(path.join(os.tmpdir(), "airgap-preload-unreadable-"));
+  const prevSide = process.env.AIRGAP_RUNTIME_SIDE;
+  const prevPayloadDir = process.env.AIRGAP_BUNDLED_PAYLOADS_DIR;
+  const prevPreload = process.env.AIRGAP_PRELOAD_ON_START;
+  process.env.AIRGAP_RUNTIME_SIDE = "high-side";
+  process.env.AIRGAP_BUNDLED_PAYLOADS_DIR = payloadDir;
+  process.env.AIRGAP_PRELOAD_ON_START = "true";
+  fs.chmodSync(payloadDir, 0o000);
+  const { server, baseUrl } = await createTestServer();
+  try {
+    const res = await fetch(`${baseUrl}/api/state`);
+    assert.strictEqual(res.status, 200);
+    const state = await res.json();
+    assert.strictEqual(state.runtime?.bundledPayloadPreload?.status, "preload-error");
+    assert.match(String(state.runtime?.bundledPayloadPreload?.details || ""), /Unable to read payload directory/i);
+  } finally {
+    if (prevSide == null) delete process.env.AIRGAP_RUNTIME_SIDE;
+    else process.env.AIRGAP_RUNTIME_SIDE = prevSide;
+    if (prevPayloadDir == null) delete process.env.AIRGAP_BUNDLED_PAYLOADS_DIR;
+    else process.env.AIRGAP_BUNDLED_PAYLOADS_DIR = prevPayloadDir;
+    if (prevPreload == null) delete process.env.AIRGAP_PRELOAD_ON_START;
+    else process.env.AIRGAP_PRELOAD_ON_START = prevPreload;
+    fs.chmodSync(payloadDir, 0o700);
+    fs.rmSync(payloadDir, { recursive: true, force: true });
+    server.close();
+  }
+});
+
 test("docs cache provenance is stamped on docs cache read", async () => {
   const { server, baseUrl } = await createTestServer();
   try {

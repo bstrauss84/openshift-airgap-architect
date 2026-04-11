@@ -133,6 +133,7 @@ When touching export/generation/runtime behavior, verify package-target parity f
 - Secret inclusion/omission defaults and placeholder marker rendering in generated YAML/manual outputs
 - Runtime-critical placeholder execution blocking behavior
 - High-side package artifacts under `runtime-package/` (compose/launch/checksum/startup guide/payload preload behavior)
+- Compose/launch parity details (`RUNTIME_PACKAGE_PAYLOAD_DIR` payload bind, SELinux-safe `:ro,Z`, Docker fallback stripping `,Z`, and printed localhost UI/API ports)
 - Disconnected profile gating truth (`AIRGAP_RUNTIME_SIDE=high-side` -> connected-only actions disabled)
 
 ## Project rules

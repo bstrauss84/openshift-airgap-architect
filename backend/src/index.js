@@ -1444,9 +1444,24 @@ const maybeApplyBundledPayloadPreload = (state) => {
       }
     };
   }
-  const payloadFiles = fs.readdirSync(payloadDir)
-    .filter((name) => name.endsWith(".json"))
-    .sort();
+  let payloadFiles = [];
+  try {
+    payloadFiles = fs.readdirSync(payloadDir)
+      .filter((name) => name.endsWith(".json"))
+      .sort();
+  } catch (error) {
+    return {
+      ...state,
+      runtime: {
+        ...(state.runtime || {}),
+        bundledPayloadPreload: {
+          status: "preload-error",
+          attemptedAt: new Date().toISOString(),
+          details: `Unable to read payload directory ${payloadDir}: ${String(error?.message || error)}`
+        }
+      }
+    };
+  }
   if (payloadFiles.length === 0) {
     return {
       ...state,

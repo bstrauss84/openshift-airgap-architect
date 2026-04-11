@@ -49,7 +49,7 @@ services:
       - AIRGAP_BUNDLED_PAYLOADS_DIR=/opt/airgap/payloads
     volumes:
       - backend-data:/data
-      - ./payloads:/opt/airgap/payloads:ro
+      - \${RUNTIME_PACKAGE_PAYLOAD_DIR:-../payloads}:/opt/airgap/payloads:ro,Z
     ports:
       - "127.0.0.1:${backendPort}:4000"
     restart: unless-stopped
@@ -89,7 +89,7 @@ ${imageFiles.map((file) => `"${"${ENGINE}"}" load -i "$IMAGES_DIR/${file}"`).joi
 echo "Image import complete."
 `;
 
-const buildStartScript = () => `#!/usr/bin/env bash
+const buildStartScript = ({ frontendPort }) => `#!/usr/bin/env bash
 set -euo pipefail
 
 ENGINE="\${1:-podman}"
@@ -106,15 +106,19 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/../compose/high-side.compose.yml"
+export RUNTIME_PACKAGE_PAYLOAD_DIR="$SCRIPT_DIR/../payloads"
 
 if [[ "$ENGINE" == "podman" ]]; then
   podman compose -f "$COMPOSE_FILE" up -d
 else
-  docker compose -f "$COMPOSE_FILE" up -d
+  TMP_COMPOSE="$(mktemp)"
+  sed 's/:ro,Z/:ro/g' "$COMPOSE_FILE" > "$TMP_COMPOSE"
+  docker compose -f "$TMP_COMPOSE" up -d
+  rm -f "$TMP_COMPOSE"
 fi
 
 echo "High-side runtime started."
-echo "UI: http://localhost:5173"
+echo "UI: http://localhost:${frontendPort}"
 `;
 
 const buildStartupGuide = ({
@@ -172,6 +176,7 @@ Then browse \`http://localhost:${frontendPort}\` on the remote workstation.
 
 - Keep default localhost-only binds unless formally approved by your high-side policy.
 - Do **not** expose \`0.0.0.0\` without explicit firewall and network-approval controls.
+- Compose payload mount uses \`:ro,Z\` for SELinux-safe Podman defaults on RHEL/Fedora; the launch script strips \`,Z\` automatically when using Docker.
 
 ## Runtime profile and gating truth
 
@@ -302,7 +307,7 @@ const createRuntimePackageArtifacts = ({
   makeExecutable(loadScriptPath);
 
   const startScriptPath = path.join(launchDir, "start-high-side.sh");
-  fs.writeFileSync(startScriptPath, buildStartScript());
+  fs.writeFileSync(startScriptPath, buildStartScript({ frontendPort }));
   makeExecutable(startScriptPath);
 
   const guidePath = path.join(packageRoot, "HIGH_SIDE_STARTUP_GUIDE.md");
