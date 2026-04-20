@@ -5,6 +5,10 @@
  */
 
 import { getTrustBundlePolicies } from "./shared/versionPolicy.js";
+import {
+  getTrustPolicyOptionsForScenario,
+  inferDefaultAdditionalTrustBundlePolicy
+} from "./shared/trustBundlePolicy.js";
 import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
@@ -347,15 +351,22 @@ const validateTrust = (state) => {
   const mirrorBlocks = extractPemBlocks(trust.mirrorRegistryCaPem);
   const proxyBlocks = extractPemBlocks(trust.proxyCaPem);
   const effective = [...mirrorBlocks, ...proxyBlocks];
-  const policies = getTrustBundlePolicies(state.version?.selectedVersion || state.release?.patchVersion || "");
+  const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || "";
+  const policies = getTrustBundlePolicies(selectedVersion);
+  const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+  const policyOptions = getTrustPolicyOptionsForScenario(scenarioId, selectedVersion);
+  const inferredPolicy = effective.length ? inferDefaultAdditionalTrustBundlePolicy(trust, state.globalStrategy) : "";
+  const explicitPolicy = (trust.additionalTrustBundlePolicy || "").trim();
+  const resolvedPolicy = explicitPolicy || inferredPolicy;
+  const allowList = policyOptions.length ? policyOptions : policies;
 
   if (trust.mirrorRegistryUsesPrivateCa && !mirrorBlocks.length) {
     errors.push("Mirror registry CA bundle is required when the mirror registry uses a private or self-signed CA. Add the CA certificate(s) in Trust and Certificates.");
   }
-  if (effective.length && !trust.additionalTrustBundlePolicy) {
+  if (effective.length && !resolvedPolicy) {
     errors.push("additionalTrustBundlePolicy is required when a trust bundle is provided.");
   }
-  if (effective.length && trust.additionalTrustBundlePolicy && !policies.includes(trust.additionalTrustBundlePolicy)) {
+  if (effective.length && resolvedPolicy && allowList.length && !allowList.includes(resolvedPolicy)) {
     errors.push("additionalTrustBundlePolicy is not allowed for the selected version.");
   }
   if (effective.length && !policies.length) {
