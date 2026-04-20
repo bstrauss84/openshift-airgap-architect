@@ -7,6 +7,7 @@ import {
   hasEffectiveTrustBundle,
   trustBundleInferTier
 } from "../src/shared/trustBundlePolicy.js";
+import { getTrustBundlePolicySupport } from "../src/shared/versionPolicy.js";
 import { validateStep } from "../src/validation.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
 
@@ -20,6 +21,17 @@ describe("trustBundlePolicy helpers", () => {
 
   it("hasEffectiveTrustBundle is false without valid blocks", () => {
     expect(hasEffectiveTrustBundle({ mirrorRegistryCaPem: "garbage", proxyCaPem: "" })).toBe(false);
+  });
+
+  it("getTrustBundlePolicySupport: 4.20 explicit, 4.21 forward, unsupported outside OCP4 range", () => {
+    expect(getTrustBundlePolicySupport("4.20.5").source).toBe("explicit");
+    expect(getTrustBundlePolicySupport("4.21.9")).toEqual({
+      policies: ["Proxyonly", "Always"],
+      source: "forward",
+      minorVersion: "4.21"
+    });
+    expect(getTrustBundlePolicySupport("4.16.1").source).toBe("unsupported");
+    expect(getTrustBundlePolicySupport("3.11.1").source).toBe("unsupported");
   });
 
   it("getTrustPolicyOptionsForScenario prefers catalog over empty version policy", () => {
@@ -87,5 +99,22 @@ describe("validateStep review + trust bundle (regression)", () => {
     const result = validateStep(state, "review");
     const trustPolicyErrors = result.errors.filter((e) => e.includes("additionalTrustBundlePolicy"));
     expect(trustPolicyErrors).toHaveLength(0);
+  });
+
+  it("validateStep trust-proxy: OpenShift 4.21 + PEM adds forward underscrubbed warning", () => {
+    const base = stateWithBlueprintCompleteMethodologyIncomplete();
+    const state = {
+      ...base,
+      release: { channel: "stable-4.21", patchVersion: "4.21.9", confirmed: true },
+      trust: {
+        mirrorRegistryCaPem: MOCK_PEM,
+        additionalTrustBundlePolicy: "Always"
+      },
+      globalStrategy: { ...base.globalStrategy, proxyEnabled: false }
+    };
+    const result = validateStep(state, "trust-proxy");
+    expect(result.warnings.some((w) => w.includes("not yet fully reflected"))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("4.21.9"))).toBe(true);
+    expect(result.errors.filter((e) => e.includes("additionalTrustBundlePolicy"))).toHaveLength(0);
   });
 });
