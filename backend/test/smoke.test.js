@@ -1625,6 +1625,7 @@ MIIDdzCCAI+gAwIBAgIUFakeProxyCA
   assert.ok(out.additionalTrustBundle.includes("-----BEGIN CERTIFICATE-----"));
   assert.ok(out.additionalTrustBundle.includes("FakeMirrorRegistryCA"));
   assert.ok(out.additionalTrustBundle.includes("FakeProxyCA"));
+  assert.strictEqual(out.additionalTrustBundlePolicy, "Always", "policy must emit even without release.patchVersion in state");
 });
 
 // --- buildFieldManual / buildFieldGuide tests ---
