@@ -1628,6 +1628,25 @@ MIIDdzCCAI+gAwIBAgIUFakeProxyCA
   assert.strictEqual(out.additionalTrustBundlePolicy, "Always", "policy must emit even without release.patchVersion in state");
 });
 
+test("buildInstallConfig defaults additionalTrustBundlePolicy to Proxyonly when only proxy PEMs are present", () => {
+  const pem = `-----BEGIN CERTIFICATE-----
+MIIDdzCCAl+gAwIBAgIUFakeProxyOnlyCA
+-----END CERTIFICATE-----`;
+  const state = {
+    blueprint: { baseDomain: "example.com", clusterName: "test-cluster" },
+    globalStrategy: { networking: {}, proxyEnabled: false },
+    credentials: {},
+    release: { patchVersion: "4.20.1", channel: "4.20" },
+    trust: {
+      mirrorRegistryCaPem: "",
+      proxyCaPem: pem,
+      additionalTrustBundlePolicy: ""
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.strictEqual(out.additionalTrustBundlePolicy, "Proxyonly");
+});
+
 // --- buildFieldManual / buildFieldGuide tests ---
 
 test("buildFieldManual (vsphere-ipi+mirror) includes expected sections in correct order", () => {
