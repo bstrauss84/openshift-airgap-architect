@@ -7,7 +7,7 @@ import {
   hasEffectiveTrustBundle,
   trustBundleInferTier
 } from "../src/shared/trustBundlePolicy.js";
-import { getTrustBundlePolicySupport } from "../src/shared/versionPolicy.js";
+import { getTrustBundlePolicySupport, getForwardOpenShiftMinorDocNotice } from "../src/shared/versionPolicy.js";
 import { validateStep } from "../src/validation.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
 
@@ -32,6 +32,13 @@ describe("trustBundlePolicy helpers", () => {
     });
     expect(getTrustBundlePolicySupport("4.16.1").source).toBe("unsupported");
     expect(getTrustBundlePolicySupport("3.11.1").source).toBe("unsupported");
+  });
+
+  it("getForwardOpenShiftMinorDocNotice uses minor only and generic wording", () => {
+    const n = getForwardOpenShiftMinorDocNotice("4.21.9");
+    expect(n).toContain("OpenShift 4.21");
+    expect(n).not.toContain("4.21.9");
+    expect(getForwardOpenShiftMinorDocNotice("4.20.1")).toBeNull();
   });
 
   it("getTrustPolicyOptionsForScenario prefers catalog over empty version policy", () => {
@@ -114,7 +121,8 @@ describe("validateStep review + trust bundle (regression)", () => {
     };
     const result = validateStep(state, "trust-proxy");
     expect(result.warnings.some((w) => w.includes("not yet fully reflected"))).toBe(true);
-    expect(result.warnings.some((w) => w.includes("4.21.9"))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("OpenShift 4.21"))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("4.21.9"))).toBe(false);
     expect(result.errors.filter((e) => e.includes("additionalTrustBundlePolicy"))).toHaveLength(0);
   });
 });
