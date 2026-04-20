@@ -41,6 +41,7 @@ import {
   verifyChallengeToken
 } from "./feedback.js";
 import { createInMemoryRateLimiter } from "./feedbackRateLimit.js";
+import { parseOptionalClientState } from "./clientStateGuard.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -1777,9 +1778,9 @@ app.get("/api/generate", (req, res) => {
 });
 
 app.post("/api/generate", (req, res) => {
-  const bodyState = req.body?.state;
-  const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
-  const files = buildPreviewFiles(state);
+  const parsed = parseOptionalClientState(req.body?.state, ensureState);
+  if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+  const files = buildPreviewFiles(parsed.state);
   if (!files) return res.status(400).json({ error: "Version not confirmed." });
   res.json({ files });
 });
@@ -1960,8 +1961,9 @@ const handleBundleZipError = (res, error) => {
 };
 
 app.post("/api/bundle.prepare", (req, res) => {
-  const bodyState = req.body?.state;
-  const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
+  const parsed = parseOptionalClientState(req.body?.state, ensureState);
+  if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+  const state = parsed.state;
   purgeExpiredBundleStates();
   const token = nanoid();
   pendingBundleStates.set(token, {
@@ -1977,15 +1979,16 @@ app.post("/api/bundle.prepare", (req, res) => {
 app.get("/api/bundle.zip", async (req, res) => {
   purgeExpiredBundleStates();
   const token = typeof req.query.token === "string" ? req.query.token.trim() : "";
-  let state = null;
-  if (token) {
-    const pending = pendingBundleStates.get(token);
-    if (!pending || Date.now() >= pending.expiresAt) {
-      return res.status(410).json({ error: "Bundle token expired. Regenerate and retry download." });
-    }
-    state = pending.state;
+  if (!token) {
+    return res
+      .status(400)
+      .json({ error: "Missing bundle download token. Prepare a bundle with POST /api/bundle.prepare first." });
   }
-  if (!state) state = ensureState();
+  const pending = pendingBundleStates.get(token);
+  if (!pending || Date.now() >= pending.expiresAt) {
+    return res.status(410).json({ error: "Bundle token expired or invalid. Regenerate and retry download." });
+  }
+  const state = pending.state;
   try {
     await buildBundleZip(state, res);
   } catch (error) {
@@ -1994,10 +1997,10 @@ app.get("/api/bundle.zip", async (req, res) => {
 });
 
 app.post("/api/bundle.zip", async (req, res) => {
-  const bodyState = req.body?.state;
-  const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
+  const parsed = parseOptionalClientState(req.body?.state, ensureState);
+  if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   try {
-    await buildBundleZip(state, res);
+    await buildBundleZip(parsed.state, res);
   } catch (error) {
     return handleBundleZipError(res, error);
   }
