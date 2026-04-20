@@ -1,6 +1,7 @@
 import React from "react";
 import { useApp } from "../store.jsx";
-import { getTrustBundlePolicies } from "../shared/versionPolicy.js";
+import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy } from "../shared/trustBundlePolicy.js";
+import { getScenarioId } from "../catalogResolver.js";
 import { apiFetch } from "../api.js";
 import { isValidPullSecret, isValidSshPublicKey, ipv6CidrOverlaps } from "../validation.js";
 import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
@@ -288,7 +289,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
     setShowAwsHelp(false);
   };
 
-  const trustPolicyOptions = getTrustBundlePolicies(selectedVersion);
+  const trustPolicyOptions = getTrustPolicyOptionsForScenario(getScenarioId(state), selectedVersion);
   const trustBundleBlocks = (pem) =>
     (pem || "")
       .match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)
@@ -359,12 +360,9 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
   };
 
   const handlePemText = (text, target) => {
-    updateState({
-      trust: {
-        ...trust,
-        [target === "mirror" ? "mirrorRegistryCaPem" : "proxyCaPem"]: text
-      }
-    });
+    const field = target === "mirror" ? "mirrorRegistryCaPem" : "proxyCaPem";
+    const nextTrust = withAutoTrustBundlePolicy({ ...trust, [field]: text }, strategy, getScenarioId(state), selectedVersion);
+    updateState({ trust: nextTrust });
     validatePemInput(text, target);
   };
 
@@ -375,17 +373,21 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
   };
 
   React.useEffect(() => {
-    if (!effectiveBundle) {
-      if (trust.additionalTrustBundlePolicy) {
-        updateState({ trust: { ...trust, additionalTrustBundlePolicy: "" } });
-      }
-      return;
+    const scenarioId = getScenarioId(state);
+    const nextTrust = withAutoTrustBundlePolicy(trust, strategy, scenarioId, selectedVersion);
+    const prevPolicy = trust.additionalTrustBundlePolicy || "";
+    const nextPolicy = nextTrust.additionalTrustBundlePolicy || "";
+    if (nextPolicy !== prevPolicy) {
+      updateState({ trust: nextTrust });
     }
-    if (!trust.additionalTrustBundlePolicy && trustPolicyOptions.length) {
-      const defaultPolicy = trust.mirrorRegistryCaPem ? "Always" : strategy.proxyEnabled ? "Proxyonly" : "Always";
-      updateState({ trust: { ...trust, additionalTrustBundlePolicy: defaultPolicy } });
-    }
-  }, [effectiveBundle, selectedVersion, strategy.proxyEnabled]);
+  }, [
+    effectiveBundle,
+    selectedVersion,
+    strategy.proxyEnabled,
+    state.blueprint?.platform,
+    state.methodology?.method,
+    trust.additionalTrustBundlePolicy
+  ]);
 
   return (
     <div className="step">
