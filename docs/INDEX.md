@@ -24,6 +24,7 @@ These files define current expected behavior and process.
   - `docs/DATA_AND_FRONTEND_COPIES.md`
   - `docs/DOC_INDEX_RULES.md`
   - `docs/PARAMS_CATALOG_RULES.md`
+  - `docs/PARAM_AUTHORITY.md`
   - `docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`
 - UI consistency contract: `docs/DESIGN_SYSTEM.md`
 - Scenario navigation hub: `docs/SCENARIOS_GUIDE.md`
@@ -77,7 +78,7 @@ If a temporary capture is needed for research, keep it local/archive-only and in
 ## Canonical ownership by topic
 
 - Docs index and doc URL policy: `docs/DOC_INDEX_RULES.md`
-- Parameter catalog policy: `docs/PARAMS_CATALOG_RULES.md`
+- Parameter catalog policy: `docs/PARAMS_CATALOG_RULES.md`; enforcement workflow: `docs/PARAM_AUTHORITY.md`
 - Data copy and sync policy: `docs/DATA_AND_FRONTEND_COPIES.md`
 - Scenario-specific navigation and grouping: `docs/SCENARIOS_GUIDE.md`
 - Scenario family consolidation hubs:

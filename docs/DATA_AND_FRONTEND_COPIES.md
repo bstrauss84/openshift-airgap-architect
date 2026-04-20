@@ -24,7 +24,7 @@
 
 - **Do not** add new ad-hoc locations (e.g. a second “catalogs” folder under `public/` or elsewhere). Use one of these two subdirs.
 - Code that needs param catalogs: import from `./data/catalogs/` (or `../data/catalogs/` from components). Code that needs the docs index: import from `./data/docs-index/` (or `../data/docs-index/` from components).
-- Syncing is manual: copy from canonical into `frontend/src/data/` and run validators on the canonical files; the frontend copies are not validated by scripts (they are assumed to match after sync).
+- Syncing is manual: copy from canonical into `frontend/src/data/` and run validators on the canonical files. **CI enforces parity:** `node scripts/validate-param-authority.js` (see `docs/PARAM_AUTHORITY.md`) requires each `frontend/src/data/catalogs/<scenario>.json` to match `data/params/4.20/<scenario>.json` after stable sort of `parameters`.
 
 ---
 

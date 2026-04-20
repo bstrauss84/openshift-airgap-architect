@@ -497,7 +497,23 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         ) : null}
         {!blocked && hasWarnings ? (
           <Banner variant="warning">
-            Draft / Not validated: warnings were present at export time. Review before use.
+            <strong>Draft / not fully validated.</strong>
+            {" "}
+            {"Assets & Guide re-checks the whole wizard (version, networking, credentials, inventory, trust, and operators). "}
+            The items below are current warnings from that combined check; fix them on the listed steps before treating
+            exports as final.
+            <ul style={{ margin: "10px 0 0 18px", padding: 0 }}>
+              {(validation.warnings || []).slice(0, 20).map((w, i) => (
+                <li key={i} style={{ marginBottom: 4 }}>
+                  {w}
+                </li>
+              ))}
+            </ul>
+            {(validation.warnings || []).length > 20 ? (
+              <div className="note subtle" style={{ marginTop: 6 }}>
+                {(validation.warnings || []).length - 20} more warning(s) not shown.
+              </div>
+            ) : null}
           </Banner>
         ) : null}
         {loading ? <div className="loading">Generating assets…</div> : null}
