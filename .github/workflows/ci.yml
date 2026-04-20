@@ -37,8 +37,8 @@ jobs:
       - name: Validate docs index
         run: node scripts/validate-docs-index.js
 
-      - name: Validate params catalog
-        run: node scripts/validate-catalog.js data/params
+      - name: Validate param catalog authority (catalogs, parity, NMState guards)
+        run: node scripts/validate-param-authority.js
 
   secrets:
     runs-on: ubuntu-latest

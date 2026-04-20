@@ -117,14 +117,14 @@ export default function TrustProxyStep({ highlightErrors }) {
     updateStrategy({ proxies: { ...proxies, [field]: value } });
   const updateTrust = (patch) => {
     let nextTrust = { ...trust, ...patch };
-    const touchesAnalysisInputs = Object.prototype.hasOwnProperty.call(patch, "mirrorRegistryCaPem")
+    const touchesPem = Object.prototype.hasOwnProperty.call(patch, "mirrorRegistryCaPem")
       || Object.prototype.hasOwnProperty.call(patch, "proxyCaPem");
-    if (touchesAnalysisInputs && nextTrust.bundleSelectionMode === "reduced") {
+    if (touchesPem && nextTrust.bundleSelectionMode === "reduced") {
       nextTrust.bundleSelectionMode = "original";
       nextTrust.reducedSelection = null;
       setSelectionInvalidated(true);
     }
-    if (touchesAnalysisInputs) {
+    if (touchesPem) {
       nextTrust = withAutoTrustBundlePolicy(nextTrust, strategy, scenarioId, selectedVersion);
     }
     updateState({ trust: nextTrust });
