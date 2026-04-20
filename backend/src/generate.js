@@ -762,11 +762,16 @@ const buildInstallConfig = (state) => {
     const versionPolicies = getTrustBundlePolicies(versionForPolicy);
     const allowedPolicies = versionPolicies.length ? versionPolicies : FALLBACK_TRUST_BUNDLE_POLICIES;
     const requested = normalizeAdditionalTrustBundlePolicy(trust.additionalTrustBundlePolicy);
-    const defaultPolicy = trust.mirrorRegistryCaPem
-      ? "Always"
-      : state.globalStrategy?.proxyEnabled
-        ? "Proxyonly"
-        : "Always";
+    const mirrorPemBlocks = extractPemBlocks(trust.mirrorRegistryCaPem);
+    const proxyPemBlocks = extractPemBlocks(trust.proxyCaPem);
+    const defaultPolicy =
+      mirrorPemBlocks.length > 0
+        ? "Always"
+        : proxyPemBlocks.length > 0
+          ? "Proxyonly"
+          : state.globalStrategy?.proxyEnabled
+            ? "Proxyonly"
+            : "Always";
     const chosen =
       requested && allowedPolicies.includes(requested)
         ? requested
