@@ -3,8 +3,8 @@
 
 /**
  * Single entrypoint for param catalog authority checks (CI + local).
- * Runs: validate-catalog, catalog↔frontend parity, agent networkConfig path kebab guard,
- * buildNmState generator guard.
+ * Runs: docs-index schema, validate-catalog, docs-index↔frontend parity, catalog↔frontend parity,
+ * agent networkConfig path kebab guard, buildNmState generator guard.
  */
 
 const { spawnSync } = require("child_process");
@@ -21,7 +21,9 @@ function run(scriptRelative, args = []) {
 
 function main() {
   const version = process.argv[2] || "4.20";
+  run("scripts/validate-docs-index.js");
   run("scripts/validate-catalog.js", ["data/params"]);
+  run("scripts/validate-docs-index-frontend-parity.js", [version]);
   run("scripts/validate-catalog-frontend-parity.js", [version]);
   run("scripts/validate-catalog-agent-networkconfig-paths.js", ["data/params"]);
   run("scripts/validate-catalog-agent-networkconfig-paths.js", [
