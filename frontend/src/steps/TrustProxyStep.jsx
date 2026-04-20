@@ -6,7 +6,7 @@
 import React from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
-import { getTrustBundlePolicies } from "../shared/versionPolicy.js";
+import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy } from "../shared/trustBundlePolicy.js";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
@@ -63,7 +63,19 @@ export default function TrustProxyStep({ highlightErrors }) {
   const updateStrategy = (patch) => updateState({ globalStrategy: { ...strategy, ...patch } });
   const updateProxy = (field, value) =>
     updateStrategy({ proxies: { ...proxies, [field]: value } });
-  const updateTrust = (patch) => updateState({ trust: { ...trust, ...patch } });
+  const updateTrust = (patch) => {
+    let nextTrust = { ...trust, ...patch };
+    const touchesPem = Object.prototype.hasOwnProperty.call(patch, "mirrorRegistryCaPem")
+      || Object.prototype.hasOwnProperty.call(patch, "proxyCaPem");
+    if (touchesPem && nextTrust.bundleSelectionMode === "reduced") {
+      nextTrust.bundleSelectionMode = "original";
+      nextTrust.reducedSelection = null;
+    }
+    if (touchesPem) {
+      nextTrust = withAutoTrustBundlePolicy(nextTrust, strategy, scenarioId, selectedVersion);
+    }
+    updateState({ trust: nextTrust });
+  };
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
@@ -73,14 +85,7 @@ export default function TrustProxyStep({ highlightErrors }) {
   const metaNoProxy = getParamMeta(scenarioId, "proxy.noProxy", INSTALL_CONFIG);
   const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG);
 
-  const policyAllowed = Array.isArray(metaPolicy?.allowed)
-    ? metaPolicy.allowed
-    : metaPolicy?.allowed
-      ? [metaPolicy.allowed]
-      : [];
-  const trustPolicyOptions = policyAllowed.length
-    ? policyAllowed
-    : getTrustBundlePolicies(selectedVersion);
+  const trustPolicyOptions = getTrustPolicyOptionsForScenario(scenarioId, selectedVersion);
   const policyDefault = metaPolicy?.default || "Proxyonly";
 
   const mirrorBlocks = trustBundleBlocks(trust.mirrorRegistryCaPem);
@@ -125,15 +130,13 @@ export default function TrustProxyStep({ highlightErrors }) {
   };
 
   React.useEffect(() => {
-    if (!effectiveBundle && trust.additionalTrustBundlePolicy) {
-      updateTrust({ additionalTrustBundlePolicy: "" });
-      return;
+    const nextTrust = withAutoTrustBundlePolicy(trust, strategy, scenarioId, selectedVersion);
+    const prevPolicy = trust.additionalTrustBundlePolicy || "";
+    const nextPolicy = nextTrust.additionalTrustBundlePolicy || "";
+    if (nextPolicy !== prevPolicy) {
+      updateState({ trust: nextTrust });
     }
-    if (effectiveBundle && !trust.additionalTrustBundlePolicy && trustPolicyOptions.length) {
-      const defaultPolicy = trust.mirrorRegistryCaPem ? "Always" : strategy.proxyEnabled ? "Proxyonly" : "Always";
-      updateTrust({ additionalTrustBundlePolicy: defaultPolicy });
-    }
-  }, [effectiveBundle, selectedVersion, strategy.proxyEnabled]);
+  }, [effectiveBundle, selectedVersion, strategy.proxyEnabled, scenarioId, trust.additionalTrustBundlePolicy]);
 
   const proxyErrors = {};
   if (strategy.proxyEnabled) {
