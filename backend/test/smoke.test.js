@@ -354,6 +354,47 @@ test("buildInstallConfig and buildAgentConfig for 2 CP + 1 arbiter (bare-metal-a
   assert.strictEqual(agentOut.rendezvousIP, "192.168.1.10");
 });
 
+test("buildAgentConfig nmstate uses NMState kebab-case (prefix-length, base-iface, link-aggregation)", () => {
+  const state = {
+    blueprint: { platform: "Bare Metal", baseDomain: "lab.example.com", clusterName: "agent-nm" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: {},
+    credentials: {},
+    hostInventory: {
+      apiVip: "10.0.0.201",
+      ingressVip: "10.0.0.202",
+      nodes: [
+        {
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "vlan-on-bond",
+            mode: "static",
+            ipv4Cidr: "10.0.0.50/24",
+            ipv4Gateway: "10.0.0.1",
+            bond: {
+              name: "bond0",
+              mode: "802.3ad",
+              slaves: [{ name: "eno1" }, { name: "eno2" }]
+            },
+            vlan: { id: 100, name: "bond0.100" }
+          }
+        }
+      ]
+    }
+  };
+  const agentOut = yaml.load(buildAgentConfig(state));
+  const nc = agentOut.hosts[0].networkConfig;
+  const vlanIface = nc.interfaces.find((i) => i.type === "vlan");
+  assert.ok(vlanIface, "expected vlan interface in networkConfig");
+  assert.strictEqual(vlanIface.vlan["base-iface"], "bond0");
+  assert.strictEqual(vlanIface.ipv4.address[0]["prefix-length"], 24);
+  const bondIface = nc.interfaces.find((i) => i.type === "bond");
+  assert.ok(bondIface?.["link-aggregation"], "expected link-aggregation on bond");
+  assert.ok(Array.isArray(bondIface["link-aggregation"].port));
+  assert.strictEqual(bondIface["link-aggregation"].mode, "802.3ad");
+});
+
 test("buildAgentConfig emits rootDeviceHints hctl and minSizeGigabytes", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },

@@ -1,0 +1,2615 @@
+{
+  "version": "4.20",
+  "scenarioId": "vsphere-agent",
+  "parameters": [
+    {
+      "path": "apiVersion",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "v1 (current)",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "API version for install-config.yaml content. Current version is v1.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "baseDomain",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "fully-qualified domain or subdomain",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Base domain for cluster; used with metadata.name for routes. Full DNS name is <metadata.name>.<baseDomain>.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "metadata",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Kubernetes ObjectMeta; only name is consumed.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "metadata.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "lowercase letters, hyphens, periods",
+      "default": "agent-cluster when not provided",
+      "required": false,
+      "description": "Cluster name. DNS records are subdomains of {{.metadata.name}}.{{.baseDomain}}. Ignored in agent-config if set in install-config.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "platform",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "baremetal, external, none, vsphere, nutanix",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Configuration for the platform for installation.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "pullSecret",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "JSON auths object",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Pull secret from Red Hat OpenShift Cluster Manager to authenticate image pulls from Quay.io etc.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for the cluster network. Cannot be changed after installation.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.networkType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "OVNKubernetes",
+      "default": "OVNKubernetes",
+      "required": false,
+      "description": "Red Hat OpenShift Networking network plugin. Default is OVNKubernetes.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.clusterNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.128.0.0/14 hostPrefix 23",
+      "required": false,
+      "description": "IP address blocks for pods. Multiple blocks must not overlap.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.clusterNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IP address block for pods. IPv4 prefix 0-32, IPv6 0-128.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.clusterNetwork[].hostPrefix",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "subnet prefix",
+      "default": "23 IPv4, 64 IPv6",
+      "required": false,
+      "description": "Subnet prefix length per node. hostPrefix 23 gives 510 pod IPs per node.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.serviceNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "CIDR array",
+      "default": "172.30.0.0/16",
+      "required": false,
+      "description": "IP address block for services. OVNKubernetes supports single block or dual-stack.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.machineNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.0.0.0/16 (varies by platform)",
+      "required": false,
+      "description": "IP address blocks for machines. Must match CIDR of preferred NIC.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.machineNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "10.0.0.0/16 (platform-dependent)",
+      "required": false,
+      "description": "IP network block for machines in CIDR notation.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "networking.ovnKubernetesConfig.ipv4.internalJoinSubnet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "100.64.0.0/16",
+      "required": false,
+      "description": "IPv4 join subnet used internally by ovn-kubernetes. Must not overlap node network. Cannot change after install.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "additionalTrustBundle",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "PEM-encoded X.509 bundle",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "PEM-encoded X.509 certificate bundle added to nodes' trust store; used when proxy is configured.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "additionalTrustBundlePolicy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Proxyonly",
+        "Always"
+      ],
+      "default": "Proxyonly",
+      "required": false,
+      "description": "Policy for when to reference user-ca-bundle in Proxy trustedCA: Proxyonly when proxy configured, or Always. Optional.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "proxy.httpProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "http URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTP connections outside the cluster. URL scheme must be http.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "proxy.httpsProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "https URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTPS connections outside the cluster.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "proxy.noProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "comma-separated domains, IPs, CIDRs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Comma-separated list of destinations to exclude from proxying. Prefix domain with . for subdomains only; use * to bypass proxy for all.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "capabilities",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Controls installation of optional core cluster components.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "capabilities.baselineCapabilitySet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "v4.11",
+        "v4.12",
+        "vCurrent"
+      ],
+      "default": "vCurrent",
+      "required": false,
+      "description": "Initial set of optional capabilities to enable.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "capabilities.additionalEnabledCapabilities",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "string array",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Additional capabilities beyond baselineCapabilitySet.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "cpuPartitioningMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "AllNodes"
+      ],
+      "default": "None",
+      "required": false,
+      "description": "Enables workload partitioning to isolate cluster services to reserved CPUs. Only at install.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "compute",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for compute (worker) machines.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "compute[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for the machine pool. All pools must match.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "compute[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on compute machines.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "compute[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "worker",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if compute is used.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "compute[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "baremetal",
+        "vsphere",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for worker machines. Must match controlPlane.platform.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "compute[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer >= 2",
+      "default": 3,
+      "required": false,
+      "description": "Number of compute (worker) machines to provision.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "featureSet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "e.g. TechPreviewNoUpgrade",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Feature set to enable (features not enabled by default).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for control plane machines.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for control plane pool.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on control plane machines.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "master",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if controlPlane is used.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "baremetal",
+        "vsphere",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for control plane. Must match compute.platform.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Number of control plane machines. 1 for single-node only; 2 with one arbiter; or 3, 4, or 5 (OpenShift 4.20 Agent-based install-config).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "arbiter.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "e.g. arbiter",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name for arbiter nodes.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "arbiter.replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": 1,
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Number of arbiter nodes. Cannot be greater than 1.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "credentialsMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Mint",
+        "Passthrough",
+        "Manual",
+        ""
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud Credential Operator (CCO) mode.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "fips",
+      "outputFile": "install-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": false,
+      "required": false,
+      "description": "Enable or disable FIPS mode. RHCOS uses FIPS-validated crypto when true.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "imageContentSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "objects with source and mirrors",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Sources and repositories for release-image content (disconnected mirroring).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "imageContentSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Repository users refer to (e.g. in image pull specs). Required if imageContentSources used.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "imageContentSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "One or more repositories that may contain the same images.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "imageDigestSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "objects with source and mirrors",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Replacement for soon-to-be-deprecated imageContentSources; same sub-field structure (mirrors, source). Specifies the sources or repositories for the release-image content.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "image-based-installation-sno",
+          "docTitle": "Image-based installation for single-node OpenShift",
+          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+        }
+      ]
+    },
+    {
+      "path": "imageDigestSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].mirrors. One or more mirror registry URLs that may contain the same images (e.g. registry.example.com:5000/ocp4/openshift4).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "image-based-installation-sno",
+          "docTitle": "Image-based installation for single-node OpenShift",
+          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+        }
+      ]
+    },
+    {
+      "path": "imageDigestSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].source. Source repository for release-image content (e.g. quay.io/openshift-release-dev/ocp-release). Required if imageDigestSources used.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "image-based-installation-sno",
+          "docTitle": "Image-based installation for single-node OpenShift",
+          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+        }
+      ]
+    },
+    {
+      "path": "publish",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Internal",
+        "External"
+      ],
+      "default": "External",
+      "required": false,
+      "description": "How to publish cluster endpoints (Kubernetes API, routes). Internal not supported on non-cloud.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "sshKey",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "SSH public key",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "SSH key to authenticate access to cluster machines. Recommend for production.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "apiVersion",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "v1beta1 (current)",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "API version for agent-config.yaml content. Current version is v1beta1.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "metadata",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Kubernetes ObjectMeta; only name is consumed.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "metadata.name",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "lowercase letters, hyphens",
+      "default": "agent-cluster when not provided",
+      "required": false,
+      "description": "Cluster name. Value in agent-config is ignored; install-config value is used.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "rendezvousIP",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IP of node that performs bootstrapping and runs assisted-service. Required if no host IP in networkConfig.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "bootArtifactsBaseURL",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "For minimal ISO: URL to retrieve rootfs during install. For iPXE: URL of server for PXE assets.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "additionalNTPSources",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "hostnames or IP addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "NTP sources added to all cluster hosts.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "hosts",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "host configuration objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional list of hosts. Count must not exceed compute.replicas + controlPlane.replicas.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].hostname",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Overrides hostname from DHCP or reverse DNS. Each host must have unique hostname.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].interfaces",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "name and MAC mappings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name and MAC address mappings for host interfaces. Required to match NetworkConfig if provided.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].interfaces[].name",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of an interface on the host.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].interfaces[].macAddress",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "MAC address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "MAC address of an interface on the host.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].role",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": [
+        "master",
+        "worker",
+        "arbiter"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Whether host is master, worker, or arbiter. For 2 control plane + 1 arbiter topology use two masters and one arbiter. If not set, roles assigned at random.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "key-value pairs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Provision RHCOS to a particular device. First discovered device that matches all provided hints is used.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.deviceName",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "Linux device name (for example, /dev/disk/by-path/...)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact-match device path for installation target.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.hctl",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "SCSI address (for example, 0:0:0:0)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact-match SCSI bus address for installation target.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.model",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "substring match",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Device model hint (substring match).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.vendor",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "substring match",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Device vendor hint (substring match).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.serialNumber",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "exact device serial number",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact serial number hint for installation target.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.minSizeGigabytes",
+      "outputFile": "agent-config.yaml",
+      "type": "int",
+      "allowed": "integer >= 0",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Minimum device size in gigabytes.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.wwn",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "exact world wide name",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact WWN hint for installation target.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].rootDeviceHints.rotational",
+      "outputFile": "agent-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Require rotating media (true) or non-rotating media (false).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.5.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "nmstate Host Network Management API",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Host network definition. Configuration must match the Host Network Management API defined in the nmstate documentation. Value: a dictionary of host network configuration objects. Supports interfaces (ethernet, bond, vlan), static IPs, DNS, and routes. See https://nmstate.io/examples.html for structure and examples.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        },
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "NMState state examples",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "interface objects (ethernet, bond, vlan)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "List of interfaces. Each entry: name, type (ethernet, bond, vlan), state (up, down, absent), optional mac-address, ipv4/ipv6, and for bond/vlan the relevant sub-fields. OpenShift 4.20 supports ethernet, bond, and vlan.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        },
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].name",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Interface name (e.g. eno1, eth0). Must match the actual NIC name on the host.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].type",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": [
+        "ethernet",
+        "bond",
+        "vlan"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Interface type. OpenShift 4.20 agent-config supports ethernet, bond, and vlan (VLANs and NIC bonds per Red Hat docs).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        },
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].state",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": [
+        "up",
+        "down",
+        "absent"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Interface state: up, down, or absent (removes virtual interfaces).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: Generic state manipulation",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].mac-address",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "MAC address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional MAC address for interface matching (e.g. 00:ef:44:21:e6:a5).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv4",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "enabled, dhcp, address (ip, prefix-length)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IPv4 configuration: enabled (bool), dhcp (bool), and optionally address array with ip and prefix-length for static IPs.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv4.enabled",
+      "outputFile": "agent-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable IPv4 on the interface.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv4.dhcp",
+      "outputFile": "agent-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Use DHCP for IPv4 when true; use static address when false.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv4.address",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "objects with ip and prefix-length",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Static IPv4 addresses. Each element: ip (string), prefix-length (integer). Used when dhcp is false.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv4.address[].ip",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Static IPv4 address (e.g. 192.168.111.80).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv4.address[].prefix-length",
+      "outputFile": "agent-config.yaml",
+      "type": "int",
+      "allowed": "0-32",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Subnet prefix length for the static IPv4 address (e.g. 23 or 24).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv6",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "enabled, dhcp, autoconf, address (ip, prefix-length)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IPv6 configuration: enabled, dhcp, autoconf, and optionally address array with ip and prefix-length for static IPv6.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv6.enabled",
+      "outputFile": "agent-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable IPv6 on the interface.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].ipv6.address",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "objects with ip and prefix-length",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Static IPv6 addresses. Each element: ip (string), prefix-length (integer).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: ethernet",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].link-aggregation",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "mode, port, options",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Bond (link-aggregation) configuration. Required when type is bond. Includes mode (e.g. balance-rr, active-backup), port (array of interface names), and optional options (e.g. miimon).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: bond",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].link-aggregation.port",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "interface name strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Slave interfaces for the bond (e.g. [eth2, eth3]).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: bond",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].link-aggregation.mode",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "e.g. balance-rr, active-backup",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Bond mode (e.g. balance-rr, active-backup).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: bond",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].vlan",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "base-iface, id",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "VLAN configuration. Required when type is vlan. base-iface: parent interface name; id: VLAN ID (integer).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: VLAN",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].vlan.base-iface",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Parent interface for the VLAN (e.g. eth1).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: VLAN",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.interfaces[].vlan.id",
+      "outputFile": "agent-config.yaml",
+      "type": "int",
+      "allowed": "1-4094",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "VLAN ID (e.g. 101).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Interfaces: VLAN",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.dns-resolver",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "config with server, search",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "DNS resolver configuration. config.server: array of DNS server IPs or hostnames; config.search: optional array of search domains.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "DNS",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.dns-resolver.config",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "server, search",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "DNS config: server (array of DNS servers), search (array of search domains).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "DNS",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.dns-resolver.config.server",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "IP addresses or hostnames",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "List of DNS servers (e.g. [192.168.111.1]).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "DNS",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.dns-resolver.config.search",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "search domain strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "DNS search domains (e.g. [example.com]).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "DNS",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.routes",
+      "outputFile": "agent-config.yaml",
+      "type": "object",
+      "allowed": "config array of route objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Static routes. config: array of route entries with destination, next-hop-address, next-hop-interface, optional metric, table-id.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Route",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.routes.config",
+      "outputFile": "agent-config.yaml",
+      "type": "array",
+      "allowed": "route objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "List of static routes. Each entry: destination (CIDR), next-hop-address, next-hop-interface, optional metric, table-id (e.g. 254 for main table).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Route",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.routes.config[].destination",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "CIDR (e.g. 0.0.0.0/0)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Route destination in CIDR notation (e.g. 0.0.0.0/0 for default route).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Route",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.routes.config[].next-hop-address",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Next-hop gateway address. Must be in same subnet as the interface IP.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Route",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.routes.config[].next-hop-interface",
+      "outputFile": "agent-config.yaml",
+      "type": "string",
+      "allowed": "interface name",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Interface for the next hop (e.g. eno1).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Route",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.routes.config[].metric",
+      "outputFile": "agent-config.yaml",
+      "type": "int",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional route metric.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Route",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "hosts[].networkConfig.routes.config[].table-id",
+      "outputFile": "agent-config.yaml",
+      "type": "int",
+      "allowed": "e.g. 254 for main table",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Routing table ID. Use 254 for the main table (e.g. default route).",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "nmstate-examples",
+          "docTitle": "NMState state examples",
+          "sectionHeading": "Route",
+          "url": "https://nmstate.io/examples.html"
+        }
+      ]
+    },
+    {
+      "path": "minimalISO",
+      "outputFile": "agent-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": false,
+      "required": false,
+      "description": "If true, generate minimal ISO (no rootfs; pull from bootArtifactsBaseURL). Default false.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.2.2. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "failure domain objects with name, region, zone, server, topology",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Establishes relationships between region and zone. Defines vCenter location for cluster nodes. Array allows multiple failure domains.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "The name of the failure domain.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].region",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "For multiple failure domains use openshift-region tag; for single DC use an alphanumeric value e.g. datacenter.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].server",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "FQDN or IP of the vCenter server for this failure domain.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].zone",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "For multiple failure domains use openshift-zone tag; for single DC use an alphanumeric value e.g. cluster.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.computeCluster",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "The path to the vSphere compute cluster.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.datacenter",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Datacenter where cluster VMs operate. Must match vcenters datacenters.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.datastore",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Path to the vSphere datastore for this failure domain.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.folder",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional absolute path of folder for VMs e.g. /datacenter/vm/folder.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.networks",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of network name strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Networks in vCenter that contain the virtual IP addresses and DNS records.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.resourcePool",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional absolute path of resource pool for VMs e.g. /datacenter/host/cluster/Resources/pool.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.vcenters",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "vCenter connection objects with server, user, password, port, datacenters",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Connection details for vCenter server(s). Datacenters must match failureDomains.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.vcenters[].server",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "FQDN or IP address of the vCenter server.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.vcenters[].user",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vCenter username. Emitted when including credentials.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.vcenters[].password",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vCenter password. Emitted when including credentials.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.vcenters[].port",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "not specified in docs",
+      "default": 443,
+      "required": false,
+      "description": "Port for vCenter server. Default 443.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.vcenters[].datacenters",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of datacenter name strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Datacenters where cluster VMs operate. Must match failureDomains topology.datacenter.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installation-config-parameters-vsphere.html"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.datacenter",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "vSphere datacenter name.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-vsphere-ipi",
+          "sectionHeading": "vSphere install-config parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installing-vsphere-ipi.html",
+          "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.defaultDatastore",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Default datastore for cluster VMs.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-vsphere-ipi",
+          "sectionHeading": "vSphere install-config parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installing-vsphere-ipi.html",
+          "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.vcenter",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "vCenter server FQDN or IP.",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-vsphere-ipi",
+          "sectionHeading": "vSphere install-config parameters",
+          "url": "https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/installing-vsphere-ipi.html",
+          "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.apiVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-agent-based-on-prem",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.11. Validation checks before agent ISO creation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer/index#validation-checks-before-agent-iso-creation_installing-with-agent-based-installer"
+        },
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.5. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "required": true,
+      "description": "API virtual IP(s). Required for vSphere Agent-based multi-node (validation before ISO creation). Single-stack: one element; dual-stack: two (order per machine network). Not used when platform is none (single-node)."
+    },
+    {
+      "path": "platform.vsphere.ingressVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "applies_to": [
+        "vsphere-agent"
+      ],
+      "citations": [
+        {
+          "docId": "installing-agent-based-on-prem",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.11. Validation checks before agent ISO creation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer/index#validation-checks-before-agent-iso-creation_installing-with-agent-based-installer"
+        },
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.5. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "required": true,
+      "description": "Ingress virtual IP(s). Required for vSphere Agent-based multi-node. Single-stack: one element; dual-stack: two. Not used when platform is none (single-node)."
+    }
+  ]
+}

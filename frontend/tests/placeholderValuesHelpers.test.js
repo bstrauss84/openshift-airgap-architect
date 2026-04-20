@@ -42,7 +42,7 @@ describe("placeholderValuesHelpers", () => {
 
     expect(out.nodes).toHaveLength(1);
     expect(out.nodes[0].hostname).toMatch(/^placeholder-/);
-    expect(out.nodes[0].rootDevice).toMatch(/^\/dev\/disk\/by-id\/placeholder-disk-/);
+    expect(out.nodes[0].rootDevice).toMatch(/^\/dev\/disk\/by-path\/pci-/);
     expect(out.nodes[0].primary.ethernet.name).toBe("eno0");
     expect(out.nodes[0].primary.ethernet.macAddress).toMatch(/^52:54:00:/);
     expect(out.nodes[0].bmc.address).toMatch(/^redfish\+http:\/\//);
@@ -61,7 +61,7 @@ describe("placeholderValuesHelpers", () => {
           role: "master",
           hostname: "placeholder-x",
           hostnameUseFqdn: false,
-          rootDevice: "/dev/disk/by-id/placeholder-disk-0",
+          rootDevice: "/dev/disk/by-path/pci-0000:00:16.0-ata-1",
           dnsServers: "192.0.2.53",
           dnsSearch: "example.local",
           additionalInterfaces: [],

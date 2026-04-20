@@ -25,7 +25,12 @@ import HostsInventorySegmentStep from "./steps/HostsInventorySegmentStep.jsx";
 import ScenarioHeaderPanel from "./components/ScenarioHeaderPanel.jsx";
 import ToolsDrawer from "./components/ToolsDrawer.jsx";
 import FeedbackDrawer from "./components/FeedbackDrawer.jsx";
-import { validateStep, validateBlueprintPullSecretOptional } from "./validation.js";
+import {
+  validateStep,
+  validateBlueprintPullSecretOptional,
+  reconcileReviewFlagsForImportedState
+} from "./validation.js";
+import { computeVisibleWizardRows, findFirstAttentionStepIndex } from "./wizardVisibleSteps.js";
 import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { apiFetch } from "./api.js";
@@ -75,16 +80,6 @@ const FALLBACK_WIZARD_STEPS = [
   { stepNumber: 6, id: "review", label: "Assets & Guide", subSteps: [], component: ReviewStep },
   { stepNumber: 7, id: "run-oc-mirror", label: "Run oc-mirror", subSteps: [], component: RunOcMirrorStep },
   { stepNumber: 8, id: "operations", label: "Operations", subSteps: [], component: OperationsStep }
-];
-
-/** Six replacement steps for segmented flow (hallway). Step numbers assigned when building visibleSteps. */
-const SEGMENTED_REPLACEMENT_STEP_DEFS = [
-  { id: "identity-access", label: "Identity & Access", component: IdentityAccessStep },
-  { id: "networking-v2", label: "Networking", component: NetworkingV2Step },
-  { id: "connectivity-mirroring", label: "Connectivity & Mirroring", component: ConnectivityMirroringStep },
-  { id: "trust-proxy", label: "Trust & Proxy", component: TrustProxyStep },
-  { id: "platform-specifics", label: "Platform Specifics", component: PlatformSpecificsStep },
-  { id: "hosts-inventory", label: "Hosts / Inventory", component: HostsInventorySegmentStep }
 ];
 
 /** Maps OLD step ids (from pre–stepMap flow) to NEW step ids. "start" is Step 0 and is never legacy. */
@@ -260,58 +255,14 @@ const AppShell = () => {
     const sid = getScenarioId(state);
     return Boolean(sid && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(sid));
   }, [state]);
-  const hostInventoryV2Enabled = state?.ui?.hostInventoryV2 === true;
   const segmentedFlowV1 = state?.ui?.segmentedFlowV1 === true;
   const visibleSteps = useMemo(() => {
-    if (segmentedFlowV1) {
-      const base = buildWizardSteps(stepMap);
-      const blueprintStep = base.find((s) => s.id === "blueprint");
-      const methodologyStep = base.find((s) => s.id === "methodology");
-      const operatorsStep = base.find((s) => s.id === "operators");
-      const reviewStep = base.find((s) => s.id === "review");
-      const runOcMirrorStep = base.find((s) => s.id === "run-oc-mirror");
-      const operationsStep = base.find((s) => s.id === "operations");
-      const scenarioId = getScenarioId(state);
-      const showHostsStep =
-        scenarioId && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(scenarioId);
-      const replacementDefs = SEGMENTED_REPLACEMENT_STEP_DEFS.filter(
-        (def) => def.id !== "hosts-inventory" || showHostsStep
-      );
-      const replacementSteps = replacementDefs.map((def, i) => ({
-        stepNumber: 3 + i,
-        id: def.id,
-        label: def.label,
-        subSteps: [],
-        component: COMPONENT_MAP[def.id]
-      }));
-      const steps = [
-        blueprintStep || FALLBACK_WIZARD_STEPS[0],
-        methodologyStep || FALLBACK_WIZARD_STEPS[1],
-        ...replacementSteps,
-        operatorsStep || FALLBACK_WIZARD_STEPS[4],
-        reviewStep || FALLBACK_WIZARD_STEPS[5],
-        runOcMirrorStep || FALLBACK_WIZARD_STEPS[6],
-        operationsStep || FALLBACK_WIZARD_STEPS[7]
-      ];
-      return steps.map((s, i) => ({ ...s, stepNumber: i + 1 }));
-    }
-    const steps = buildWizardSteps(stepMap);
-    let visible = showHostInventory ? steps : steps.filter((s) => s.id !== "inventory");
-    if (showHostInventory && hostInventoryV2Enabled) {
-      const invIdx = visible.findIndex((s) => s.id === "inventory");
-      const v2Step = {
-        stepNumber: (invIdx >= 0 ? invIdx + 2 : visible.length + 1),
-        id: "inventory-v2",
-        label: "Hosts (New)",
-        subSteps: [],
-        component: COMPONENT_MAP["inventory-v2"]
-      };
-      visible = invIdx >= 0
-        ? [...visible.slice(0, invIdx + 1), v2Step, ...visible.slice(invIdx + 1)]
-        : [...visible, v2Step];
-    }
-    return visible.map((s, i) => ({ ...s, stepNumber: i + 1 }));
-  }, [state, stepMap, showHostInventory, hostInventoryV2Enabled, segmentedFlowV1]);
+    const rows = computeVisibleWizardRows(state, stepMap || {});
+    return rows.map((s) => ({
+      ...s,
+      component: COMPONENT_MAP[s.id] || (() => <PlaceholderCard title={s.label} />)
+    }));
+  }, [state, stepMap]);
 
   const foundationalLocked = Boolean(
     state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed)
@@ -599,8 +550,12 @@ const AppShell = () => {
         const validation = validateStep(state, prevStepId);
         if (validation.errors?.length) {
           nextReviewFlags[prevStepId] = true;
-        } else if (nextReviewFlags[prevStepId]) {
-          nextReviewFlags[prevStepId] = false;
+        } else {
+          if (nextReviewFlags[prevStepId]) nextReviewFlags[prevStepId] = false;
+          const autoCompleteOnValidLeave = new Set(["hosts-inventory", "inventory-v2", "inventory"]);
+          if (autoCompleteOnValidLeave.has(prevStepId)) {
+            completedSteps[prevStepId] = true;
+          }
         }
       }
     }
@@ -824,25 +779,54 @@ const AppShell = () => {
     const text = await file.text();
     const payload = JSON.parse(text);
     const data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
-    setState(data.state);
     setIsToolsOpen(false);
-    const imported = data.state?.ui || {};
+
+    const baseState = data.state || {};
+    const rows = computeVisibleWizardRows(baseState, stepMap || {});
+    const stepIds = rows.map((r) => r.id);
+    const reviewFlags = reconcileReviewFlagsForImportedState(baseState, stepIds);
+    const merged = { ...baseState, reviewFlags };
+
+    const importedUi = merged.ui || {};
     const importedLocked = Boolean(
-      data.state?.blueprint?.confirmed &&
-      (data.state?.version?.versionConfirmed ?? data.state?.release?.confirmed)
+      merged.blueprint?.confirmed &&
+      (merged.version?.versionConfirmed ?? merged.release?.confirmed)
     );
-    if (imported.showLanding === true) {
+
+    if (importedUi.showLanding === true) {
+      setState(merged);
       setActive(0);
       return;
     }
+
+    let targetIdx = 0;
+    let targetStepId = rows[0]?.id || "blueprint";
+
     if (!importedLocked) {
-      const blueprintIdx = visibleSteps.findIndex((s) => s.id === "blueprint");
-      setActive(blueprintIdx >= 0 ? blueprintIdx : 0);
-      return;
+      const blueprintIdx = rows.findIndex((s) => s.id === "blueprint");
+      targetIdx = blueprintIdx >= 0 ? blueprintIdx : 0;
+      targetStepId = rows[targetIdx]?.id || "blueprint";
+    } else {
+      const attnIdx = findFirstAttentionStepIndex(rows, merged);
+      if (attnIdx >= 0) {
+        targetIdx = attnIdx;
+        targetStepId = rows[targetIdx].id;
+      } else {
+        const stepId = LEGACY_STEP_ID_MAP[importedUi.activeStepId] || importedUi.activeStepId || "blueprint";
+        const idx = rows.findIndex((s) => s.id === stepId);
+        targetIdx = idx >= 0 ? idx : 0;
+        targetStepId = rows[targetIdx]?.id || stepId;
+      }
     }
-    const stepId = LEGACY_STEP_ID_MAP[imported.activeStepId] || imported.activeStepId || "blueprint";
-    const idx = visibleSteps.findIndex((s) => s.id === stepId);
-    setActive(idx >= 0 ? idx : 0);
+
+    const nextUi = {
+      ...importedUi,
+      activeStepId: targetStepId,
+      visitedSteps: { ...(importedUi.visitedSteps || {}), [targetStepId]: true }
+    };
+
+    setState({ ...merged, ui: nextUi });
+    setActive(targetIdx);
   };
 
   if (loading || !state) {

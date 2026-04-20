@@ -24,6 +24,7 @@ These files define current expected behavior and process.
   - `docs/DATA_AND_FRONTEND_COPIES.md`
   - `docs/DOC_INDEX_RULES.md`
   - `docs/PARAMS_CATALOG_RULES.md`
+  - `docs/PARAM_AUTHORITY.md`
   - `docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`
 - UI consistency contract: `docs/DESIGN_SYSTEM.md`
 - Scenario navigation hub: `docs/SCENARIOS_GUIDE.md`
@@ -45,13 +46,19 @@ These files are valuable but may include historical context, implementation note
   - `docs/*_AUDIT*.md`
   - `docs/*_FINDINGS*.md`
   - `docs/*_VERIFICATION*.md`
-- Comparative and exploratory docs:
-  - `docs/ABA_COMPARISON_REVISED_PLAN_2026-03-24.md`
-  - `docs/CLUSTERFILE_*`
-  - `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
-  - `docs/DISCOVERY_ISO_COMPARISON_REVISED_PLAN_2026-03-24.md`
-  - `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`
-  - `docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md`
+- Comparative docs (role-scoped):
+  - Umbrella/master comparative strategy (not canonical status authority):
+    - `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
+  - Tool-specific deep-dive comparative dossiers (implementation-grade planning; not canonical status authority):
+    - `docs/ABA_COMPARISON_REVISED_PLAN_2026-03-24.md`
+    - `docs/DISCOVERY_ISO_COMPARISON_REVISED_PLAN_2026-03-24.md`
+    - `docs/CLUSTERFILE_COMPARISON_REVISED_PLAN_2026-03-17.md`
+    - `docs/AUTOSHIFTV2_COMPARISON_REVISED_PLAN_2026-03-23.md`
+  - Historical/background comparative docs (non-primary for current implementation guidance):
+    - `docs/CLUSTERFILE_FEATURE_ANALYSIS_AND_PLAN.md`
+  - Related comparative/context planning docs:
+    - `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`
+    - `docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md`
 
 ### Tier 3: Historical or superseded
 
@@ -71,7 +78,7 @@ If a temporary capture is needed for research, keep it local/archive-only and in
 ## Canonical ownership by topic
 
 - Docs index and doc URL policy: `docs/DOC_INDEX_RULES.md`
-- Parameter catalog policy: `docs/PARAMS_CATALOG_RULES.md`
+- Parameter catalog policy: `docs/PARAMS_CATALOG_RULES.md`; enforcement workflow: `docs/PARAM_AUTHORITY.md`
 - Data copy and sync policy: `docs/DATA_AND_FRONTEND_COPIES.md`
 - Scenario-specific navigation and grouping: `docs/SCENARIOS_GUIDE.md`
 - Scenario family consolidation hubs:

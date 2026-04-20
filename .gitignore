@@ -9,9 +9,10 @@ backend/.tmp/
 **/*.log
 .DS_Store
 **/.DS_Store
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 .cursorrules
-AGENTS.md
 
 # Secrets and credentials (do not commit)
 pull-secret
@@ -45,10 +46,12 @@ config.json
 # Backend-downloaded installers and stream cache (do not commit)
 data/tools/
 data/cache/
-/data/
-# Allow docs-index for CI and canonical source (see docs/DATA_AND_FRONTEND_COPIES.md)
+# Ignore unknown paths under data/ but keep tracked canonical trees (git cannot re-include children if /data/ is ignored).
+/data/*
 !/data/docs-index/
 !/data/docs-index/**
+!/data/params/
+!/data/params/**
 **/openshift-install-*
 **/openshift-install-*.tar.gz
 # When DATA_DIR is backend/ (e.g. local dev)
@@ -82,10 +85,8 @@ thread-export-bundle/
 frontend/dist/
 frontend/src/*.NULL_GUARD_EDITS.md
 
-# Cursor local config
-.cursor/
+# Cursor local config (track shared rules under .cursor/rules/ only)
 .cursorrules
-AGENTS.md
 
 # Local databases
 data/**/*.db
