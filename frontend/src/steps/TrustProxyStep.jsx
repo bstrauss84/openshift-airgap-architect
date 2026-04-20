@@ -7,6 +7,7 @@ import React from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
 import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
+import { getTrustBundlePolicySupport } from "../shared/versionPolicy.js";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
@@ -86,6 +87,8 @@ export default function TrustProxyStep({ highlightErrors }) {
   const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG);
 
   const trustPolicyOptions = getTrustPolicyOptionsForScenario(scenarioId, selectedVersion);
+  const trustPolicyVersionSupport = getTrustBundlePolicySupport(selectedVersion);
+  const forwardPolicyReleaseLabel = (selectedVersion || "").trim() || trustPolicyVersionSupport.minorVersion || "this release";
   const policyDefault = metaPolicy?.default || "Proxyonly";
 
   const mirrorBlocks = trustBundleBlocks(trust.mirrorRegistryCaPem);
@@ -310,42 +313,52 @@ export default function TrustProxyStep({ highlightErrors }) {
             </div>
 
             {showTrustBundlePolicyUi ? (
-              <div className="trust-policy-row">
-                <label className="trust-policy-label-row">
-                  <span className="trust-policy-label-block">
-                    <span className="trust-policy-label">Trust bundle policy</span>
-                    {isRequired("additionalTrustBundlePolicy") ? <span className="required-badge">required</span> : null}
-                  </span>
-                  <select
-                    value={trust.additionalTrustBundlePolicy || (trustPolicyOptions.length ? policyDefault : "")}
-                    onChange={(e) => updateTrust({ additionalTrustBundlePolicy: e.target.value })}
-                    disabled={!trustPolicyOptions.length}
-                    className="trust-policy-select"
-                  >
-                    <optgroup label="Policy">
-                      {trustPolicyOptions.length
-                        ? trustPolicyOptions.map((option) => (
-                            <option key={option} value={option}>{option}</option>
-                          ))
-                        : <option value="" disabled>Not available</option>}
-                    </optgroup>
-                  </select>
-                </label>
-                {!trustPolicyOptions.length ? (
-                  <Banner variant="warning">Selected version is not supported for trust bundle policy.</Banner>
-                ) : (
-                  <dl className="trust-policy-explanations">
-                    <dt>Proxyonly</dt>
-                    <dd>
-                      Maps to install-config <code>additionalTrustBundlePolicy: Proxyonly</code>. OpenShift applies the bundle in the proxy trust path when an HTTP/HTTPS proxy is configured—typical default when only a Proxy CA is present.
-                    </dd>
-                    <dt>Always</dt>
-                    <dd>
-                      Maps to <code>additionalTrustBundlePolicy: Always</code>. The installer distributes the bundle for broad node trust—recommended when a Mirror registry CA is included so pulls and registry TLS succeed everywhere.
-                    </dd>
-                  </dl>
-                )}
-              </div>
+              <>
+                <div className="trust-policy-row">
+                  <label className="trust-policy-label-row">
+                    <span className="trust-policy-label-block">
+                      <span className="trust-policy-label">Trust bundle policy</span>
+                      {isRequired("additionalTrustBundlePolicy") ? <span className="required-badge">required</span> : null}
+                    </span>
+                    <select
+                      value={trust.additionalTrustBundlePolicy || (trustPolicyOptions.length ? policyDefault : "")}
+                      onChange={(e) => updateTrust({ additionalTrustBundlePolicy: e.target.value })}
+                      disabled={!trustPolicyOptions.length}
+                      className="trust-policy-select"
+                    >
+                      <optgroup label="Policy">
+                        {trustPolicyOptions.length
+                          ? trustPolicyOptions.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))
+                          : <option value="" disabled>Not available</option>}
+                      </optgroup>
+                    </select>
+                  </label>
+                  {!trustPolicyOptions.length ? (
+                    <Banner variant="warning">
+                      Could not resolve trust bundle policy options for this OpenShift version (release is unknown or not supported here).
+                    </Banner>
+                  ) : (
+                    <dl className="trust-policy-explanations">
+                      <dt>Proxyonly</dt>
+                      <dd>
+                        Maps to install-config <code>additionalTrustBundlePolicy: Proxyonly</code>. OpenShift applies the bundle in the proxy trust path when an HTTP/HTTPS proxy is configured—typical default when only a Proxy CA is present.
+                      </dd>
+                      <dt>Always</dt>
+                      <dd>
+                        Maps to <code>additionalTrustBundlePolicy: Always</code>. The installer distributes the bundle for broad node trust—recommended when a Mirror registry CA is included so pulls and registry TLS succeed everywhere.
+                      </dd>
+                    </dl>
+                  )}
+                </div>
+                {trustPolicyOptions.length > 0 && trustPolicyVersionSupport.source === "forward" ? (
+                  <Banner variant="warning" className="trust-policy-forward-notice">
+                    OpenShift <strong>{forwardPolicyReleaseLabel}</strong> is not yet fully reflected in this tool&apos;s version-scrubbed docs index and catalogs for that minor.{" "}
+                    <strong>Proxyonly</strong> and <strong>Always</strong> are still the usual install-config values; confirm against official Red Hat documentation for your exact z-stream before production.
+                  </Banner>
+                ) : null}
+              </>
             ) : (
               <p className="note subtle">
                 <code>additionalTrustBundlePolicy</code> is only used together with <code>additionalTrustBundle</code> (OpenShift 4.20). Add at least one valid certificate above to choose{" "}

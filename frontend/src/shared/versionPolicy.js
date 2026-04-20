@@ -16,10 +16,43 @@ const getMinorVersion = (version) => {
 
 const isSupportedMinor = (minor) => SUPPORTED_MINORS.includes(minor);
 
+/**
+ * True for OpenShift 4.17+ minors where install-config still documents additionalTrustBundlePolicy
+ * but this repo has not added an explicit per-minor row yet (e.g. 4.21 before catalog scrub).
+ */
+const isOpenShiftFourTrustPolicyForwardMinor = (minor) => {
+  if (!minor || typeof minor !== "string") return false;
+  const parts = minor.split(".");
+  if (parts.length < 2) return false;
+  const maj = Number(parts[0]);
+  const min = Number(parts[1]);
+  if (!Number.isFinite(maj) || !Number.isFinite(min)) return false;
+  return maj === 4 && min >= 17;
+};
+
 const getTrustBundlePolicies = (version) => {
   const minor = getMinorVersion(version);
   if (!minor) return [];
-  return TRUST_BUNDLE_POLICY_ALLOWLIST[minor] || [];
+  const explicit = TRUST_BUNDLE_POLICY_ALLOWLIST[minor];
+  if (explicit) return explicit;
+  if (isOpenShiftFourTrustPolicyForwardMinor(minor)) return ["Proxyonly", "Always"];
+  return [];
 };
 
-export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies };
+/**
+ * @typedef {"explicit"|"forward"|"unsupported"|"none"} TrustBundlePolicySource
+ * @returns {{ policies: string[], source: TrustBundlePolicySource, minorVersion: string|null }}
+ */
+const getTrustBundlePolicySupport = (version) => {
+  const minor = getMinorVersion(version);
+  if (!minor) return { policies: [], source: "none", minorVersion: null };
+  if (TRUST_BUNDLE_POLICY_ALLOWLIST[minor]) {
+    return { policies: TRUST_BUNDLE_POLICY_ALLOWLIST[minor], source: "explicit", minorVersion: minor };
+  }
+  if (isOpenShiftFourTrustPolicyForwardMinor(minor)) {
+    return { policies: ["Proxyonly", "Always"], source: "forward", minorVersion: minor };
+  }
+  return { policies: [], source: "unsupported", minorVersion: minor };
+};
+
+export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies, getTrustBundlePolicySupport };
