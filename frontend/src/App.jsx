@@ -704,7 +704,18 @@ const AppShell = () => {
   };
   const handleInstallClick = () => {
     setShowLanding(false);
-    setActive(hasProgress ? firstIncompleteStepIndex : 0);
+    const nextIndex = hasProgress ? firstIncompleteStepIndex : 0;
+    setActive(nextIndex);
+    const stepId = visibleSteps[nextIndex]?.id;
+    if (stepId && state?.ui) {
+      updateState({
+        ui: {
+          ...state.ui,
+          activeStepId: stepId,
+          visitedSteps: { ...(state.ui.visitedSteps || {}), [stepId]: true }
+        }
+      });
+    }
   };
 
   const handleStartOverClick = async () => {

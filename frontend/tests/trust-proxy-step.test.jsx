@@ -149,7 +149,7 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it("validation runs for trust-proxy: policy required when trust bundle present", () => {
+  it("validation runs for trust-proxy: inferred policy when PEM present and policy unset (no race with useEffect)", () => {
     const state = stateForTrustProxyStep({
       trust: {
         proxyCaPem: "-----BEGIN CERTIFICATE-----\nMOCK\n-----END CERTIFICATE-----",
@@ -157,7 +157,19 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
       }
     });
     const result = validateStep(state, "trust-proxy");
-    expect(result.errors).toContain("additionalTrustBundlePolicy is required when a trust bundle is provided.");
+    expect(result.errors.filter((e) => e.includes("additionalTrustBundlePolicy"))).toHaveLength(0);
+  });
+
+  it("validation runs for trust-proxy: rejects explicit policy not in allow list", () => {
+    const state = stateForTrustProxyStep({
+      release: { channel: "stable-4.20", patchVersion: "4.20.1", confirmed: true },
+      trust: {
+        proxyCaPem: "-----BEGIN CERTIFICATE-----\nMOCK\n-----END CERTIFICATE-----",
+        additionalTrustBundlePolicy: "Never"
+      }
+    });
+    const result = validateStep(state, "trust-proxy");
+    expect(result.errors.some((e) => e.includes("additionalTrustBundlePolicy is not allowed"))).toBe(true);
   });
 
   it("validation runs for trust-proxy: reduced caution requires explicit acknowledgment", () => {

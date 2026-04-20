@@ -33,6 +33,7 @@ export function stateWithBlueprintCompleteMethodologyIncomplete() {
     docs: { connectivity: "fully-disconnected" },
     ui: {
       activeStepId: "blueprint",
+      segmentedFlowV1: false,
       visitedSteps: { blueprint: true },
       completedSteps: { blueprint: true }
     }
