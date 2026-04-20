@@ -1,0 +1,12 @@
+---
+description: Core project rules (OpenShift Airgap Architect)
+alwaysApply: true
+---
+# Core Project Rules
+
+- Align all behavior to official OpenShift docs for the selected version (4.17–4.20); call out version differences explicitly.
+- Do not add unsupported features; when unclear, warn and default conservative.
+- Never store or export credentials by default. Generators must be user-initiated and avoid persistence/logging.
+- Long-running or local execution actions must be observable (logs/progress/history) and safe (path validation, disk checks).
+- YAML outputs: `install-config.yaml`, `agent-config.yaml` (bare metal + agent), `imageset-config.yaml`, plus NTP MachineConfigs when set.
+- Keep UI consistent with current styles (cards, notes, button press animation, sticky step headers).

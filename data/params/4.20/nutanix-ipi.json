@@ -1,0 +1,1188 @@
+{
+  "version": "4.20",
+  "scenarioId": "nutanix-ipi",
+  "parameters": [
+    {
+      "path": "additionalTrustBundle",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "PEM-encoded X.509 bundle",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "PEM-encoded X.509 certificate bundle added to nodes' trust store; used when proxy is configured.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "additionalTrustBundlePolicy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Proxyonly",
+        "Always"
+      ],
+      "default": "Proxyonly",
+      "required": false,
+      "description": "Policy for when to reference user-ca-bundle in Proxy trustedCA: Proxyonly when proxy configured, or Always. Optional.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "apiVersion",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "v1 (current)",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "API version for install-config.yaml content. Current version is v1.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "baseDomain",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "fully-qualified domain or subdomain",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Base domain for cluster; used with metadata.name for routes. Full DNS name is <metadata.name>.<baseDomain>.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "capabilities",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Controls installation of optional core cluster components.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "capabilities.additionalEnabledCapabilities",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "string array",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Additional capabilities beyond baselineCapabilitySet.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "capabilities.baselineCapabilitySet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "v4.11",
+        "v4.12",
+        "vCurrent"
+      ],
+      "default": "vCurrent",
+      "required": false,
+      "description": "Initial set of optional capabilities to enable.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "compute",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for compute (worker) machines.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "compute[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for the machine pool. All pools must match.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "compute[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on compute machines.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "compute[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "worker",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if compute is used.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "compute[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "nutanix",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for worker machines on Nutanix IPI. Use nutanix (must match control plane platform).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "compute[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "non-negative integer; 0 for three-node compact when control plane replicas is 3",
+      "default": 3,
+      "required": false,
+      "description": "Worker machine count. Standard clusters use at least 3 workers; set 0 with control plane replicas 3 for a compact three-node cluster (OpenShift 4.20 Nutanix doc).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for control plane machines.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for control plane pool.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on control plane machines.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "master",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if controlPlane is used.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "nutanix",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for control plane on Nutanix IPI. Use nutanix (must match compute platform).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": [
+        3,
+        1
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Number of control plane machines for Nutanix IPI: 3 for standard or compact three-node (with compute.replicas 0), or 1 for single-node OpenShift (OpenShift 4.20 Nutanix install-config).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "cpuPartitioningMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "AllNodes"
+      ],
+      "default": "None",
+      "required": false,
+      "description": "Enables workload partitioning to isolate cluster services to reserved CPUs. Only at install.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "credentialsMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Manual"
+      ],
+      "default": "Manual",
+      "required": false,
+      "description": "Cloud Credential Operator (CCO) mode. Installing on Nutanix §1.4 requires manual mode; this app always emits credentialsMode: Manual in install-config (no Mint/Passthrough for this platform).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "preparing-to-install-on-nutanix",
+          "docTitle": "Chapter 1. Installation methods (Installing on Nutanix)",
+          "sectionHeading": "1.4. Configuring the Cloud Credential Operator utility",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/preparing-to-install-on-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "featureSet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "e.g. TechPreviewNoUpgrade",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Feature set to enable (features not enabled by default).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "fips",
+      "outputFile": "install-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": false,
+      "required": false,
+      "description": "Enable or disable FIPS mode. RHCOS uses FIPS-validated crypto when true.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "imageContentSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "objects with source and mirrors",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Sources and repositories for release-image content (disconnected mirroring).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "imageContentSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "One or more repositories that may contain the same images.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "imageContentSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Repository users refer to (e.g. in image pull specs). Required if imageContentSources used.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "imageDigestSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "objects with source and mirrors",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Replacement for soon-to-be-deprecated imageContentSources; same sub-field structure (mirrors, source). Specifies the sources or repositories for the release-image content.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-disconnected",
+          "docTitle": "Installing a cluster on disconnected infrastructure",
+          "sectionHeading": "Mirroring and image sources (shared)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
+        }
+      ]
+    },
+    {
+      "path": "imageDigestSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].mirrors. One or more mirror registry URLs that may contain the same images (e.g. registry.example.com:5000/ocp4/openshift4).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-disconnected",
+          "docTitle": "Installing a cluster on disconnected infrastructure",
+          "sectionHeading": "Mirroring and image sources (shared)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
+        }
+      ]
+    },
+    {
+      "path": "imageDigestSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].source. Source repository for release-image content (e.g. quay.io/openshift-release-dev/ocp-release). Required if imageDigestSources used.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-disconnected",
+          "docTitle": "Installing a cluster on disconnected infrastructure",
+          "sectionHeading": "Mirroring and image sources (shared)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
+        }
+      ]
+    },
+    {
+      "path": "metadata",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Kubernetes ObjectMeta; only name is consumed.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "metadata.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "lowercase letters, hyphens, periods",
+      "default": "cluster name from Cluster Identity when not overridden",
+      "required": false,
+      "description": "Cluster name (metadata.name). DNS records use <name>.<baseDomain>. Must match Cluster Identity in this app.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for the cluster network. Cannot be changed after installation.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.clusterNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.128.0.0/14 hostPrefix 23",
+      "required": false,
+      "description": "IP address blocks for pods. Multiple blocks must not overlap.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.clusterNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IP address block for pods. IPv4 prefix 0-32, IPv6 0-128.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.clusterNetwork[].hostPrefix",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "subnet prefix",
+      "default": "23 IPv4, 64 IPv6",
+      "required": false,
+      "description": "Subnet prefix length per node. hostPrefix 23 gives 510 pod IPs per node.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.machineNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.0.0.0/16 (varies by platform)",
+      "required": false,
+      "description": "IP address blocks for machines. Must match CIDR of preferred NIC.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.machineNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "10.0.0.0/16 (platform-dependent)",
+      "required": false,
+      "description": "IP network block for machines in CIDR notation.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.networkType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "OVNKubernetes",
+      "default": "OVNKubernetes",
+      "required": false,
+      "description": "Red Hat OpenShift Networking network plugin. Default is OVNKubernetes.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.ovnKubernetesConfig.ipv4.internalJoinSubnet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "100.64.0.0/16",
+      "required": false,
+      "description": "IPv4 join subnet used internally by ovn-kubernetes. Must not overlap node network. Cannot change after install.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.serviceNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "CIDR array",
+      "default": "172.30.0.0/16",
+      "required": false,
+      "description": "IP address block for services. OVNKubernetes supports single block or dual-stack.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "platform",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "baremetal, external, none, vsphere, nutanix",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Configuration for the platform for installation.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.prismCentral",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Nutanix Prism Central endpoint (endpoint, port) and credentials.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.prismCentral.endpoint.address",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Prism Central FQDN or IP address (install-config platform.nutanix.prismCentral.endpoint.address).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        },
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.prismCentral.endpoint.port",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "not specified in docs",
+      "default": 9440,
+      "required": false,
+      "description": "Prism Central API port under prismCentral.endpoint (default 9440).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.apiVIP",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 per machine network",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Virtual IP for the Kubernetes API; must be on the machine network (OpenShift 4.20 Nutanix IPI install-config).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        },
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.ingressVIP",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 per machine network",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Virtual IP for the default Ingress controller; must be on the machine network.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Nutanix configuration parameters",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+        },
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.prismCentral.username",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Prism Central username. Emitted in install-config only when including credentials.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.prismCentral.password",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Prism Central password. Emitted in install-config only when including credentials.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.clusterName",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional Nutanix cluster (Prism Element) name for VM placement.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.subnet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Nutanix subnet UUID or name for the cluster.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "publish",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Internal",
+        "External"
+      ],
+      "default": "External",
+      "required": false,
+      "description": "How to publish cluster endpoints. Internal is not supported on Nutanix IPI (validation error); the generator coerces Internal to External in install-config. Prefer External.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "proxy.httpProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "http URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTP connections outside the cluster. URL scheme must be http.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "proxy.httpsProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "https URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTPS connections outside the cluster.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "proxy.noProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "comma-separated domains, IPs, CIDRs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Comma-separated list of destinations to exclude from proxying. Prefix domain with . for subdomains only; use * to bypass proxy for all.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "pullSecret",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "JSON auths object",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Pull secret from Red Hat OpenShift Cluster Manager to authenticate image pulls from Quay.io etc.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Required install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "sshKey",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "SSH public key",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "SSH key to authenticate access to cluster machines. Recommend for production.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    }
+  ]
+}

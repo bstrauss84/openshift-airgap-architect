@@ -965,12 +965,12 @@ const buildNmState = (node) => {
     if (mode === "dhcp") {
       iface.ipv4 = { enabled: true, dhcp: true };
     } else if (addrV4) {
-      iface.ipv4 = { enabled: true, dhcp: false, address: [{ ip: addrV4, prefixLength: prefixV4 }] };
+      iface.ipv4 = { enabled: true, dhcp: false, address: [{ ip: addrV4, "prefix-length": prefixV4 }] };
     } else {
       iface.ipv4 = { enabled: false };
     }
     if (enableIpv6 && addrV6) {
-      iface.ipv6 = { enabled: true, dhcp: false, address: [{ ip: addrV6, prefixLength: prefixV6 }] };
+      iface.ipv6 = { enabled: true, dhcp: false, address: [{ ip: addrV6, "prefix-length": prefixV6 }] };
     } else {
       iface.ipv6 = { enabled: false };
     }
@@ -1024,7 +1024,7 @@ const buildNmState = (node) => {
       name: bond.name || "bond0",
       type: "bond",
       state: "up",
-      linkAggregation: {
+      "link-aggregation": {
         mode: bond.mode || "active-backup",
         options: { miimon: "100" },
         port: (bond.slaves || []).map((slave) => slave.name).filter(Boolean)
@@ -1045,7 +1045,7 @@ const buildNmState = (node) => {
       name,
       type: "vlan",
       state: "up",
-      vlan: { baseIface, id }
+      vlan: { "base-iface": baseIface, id }
     };
     if (mtu) entry.mtu = mtu;
     config.interfaces.push(entry);
