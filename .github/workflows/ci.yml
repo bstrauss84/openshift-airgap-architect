@@ -34,10 +34,7 @@ jobs:
         run: |
           cd frontend && npm ci && npm run build && npm run test
 
-      - name: Validate docs index
-        run: node scripts/validate-docs-index.js
-
-      - name: Validate param catalog authority (catalogs, parity, NMState guards)
+      - name: Validate param catalog authority (docs index, catalogs, parity, NMState guards)
         run: node scripts/validate-param-authority.js
 
   secrets:
