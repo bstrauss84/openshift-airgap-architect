@@ -6,7 +6,7 @@
 import React from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
-import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy } from "../shared/trustBundlePolicy.js";
+import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
@@ -125,7 +125,7 @@ export default function TrustProxyStep({ highlightErrors }) {
       setSelectionInvalidated(true);
     }
     if (touchesPem) {
-      nextTrust = withAutoTrustBundlePolicy(nextTrust, strategy, scenarioId, selectedVersion);
+      nextTrust = withAutoTrustBundlePolicy(nextTrust, strategy, scenarioId, selectedVersion, trust);
     }
     updateState({ trust: nextTrust });
   };
@@ -145,6 +145,7 @@ export default function TrustProxyStep({ highlightErrors }) {
   const proxyBlocks = trustBundleBlocks(trust.proxyCaPem);
   const effectiveBundle = Array.from(new Set([...mirrorBlocks, ...proxyBlocks])).join("\n");
   const totalCerts = mirrorBlocks.length + proxyBlocks.length;
+  const showTrustBundlePolicyUi = hasEffectiveTrustBundle(trust);
   const bundleBytes = new TextEncoder().encode(effectiveBundle || "").length;
   const needsExplicitAnalyze = bundleBytes >= (triggerDefaults.explicitAnalyzeBytesThreshold || DEFAULT_ANALYSIS_TRIGGER.explicitAnalyzeBytesThreshold)
     || totalCerts >= (triggerDefaults.explicitAnalyzeCertsThreshold || DEFAULT_ANALYSIS_TRIGGER.explicitAnalyzeCertsThreshold);
@@ -225,13 +226,16 @@ export default function TrustProxyStep({ highlightErrors }) {
     handleMirrorCaText(texts.join("\n"));
   };
 
+  const trustPolicySyncRef = React.useRef(null);
   React.useEffect(() => {
-    const nextTrust = withAutoTrustBundlePolicy(trust, strategy, scenarioId, selectedVersion);
+    const prev = trustPolicySyncRef.current;
+    const nextTrust = withAutoTrustBundlePolicy(trust, strategy, scenarioId, selectedVersion, prev ?? undefined);
     const prevPolicy = trust.additionalTrustBundlePolicy || "";
     const nextPolicy = nextTrust.additionalTrustBundlePolicy || "";
     if (nextPolicy !== prevPolicy) {
       updateState({ trust: nextTrust });
     }
+    trustPolicySyncRef.current = nextTrust;
   }, [effectiveBundle, selectedVersion, strategy.proxyEnabled, scenarioId, trust.additionalTrustBundlePolicy]);
 
   React.useEffect(() => {
@@ -515,7 +519,8 @@ export default function TrustProxyStep({ highlightErrors }) {
           </div>
           <div className="card-body">
             <p className="note">
-              Paste or upload PEM-encoded CA certificates (one or more <code>-----BEGIN CERTIFICATE-----</code> blocks) for <code>additionalTrustBundle</code> and policy.
+              Paste or upload PEM-encoded CA certificates (one or more <code>-----BEGIN CERTIFICATE-----</code> blocks). Valid certificates are merged into install-config{" "}
+              <code>additionalTrustBundle</code> when you export or preview YAML.
             </p>
 
             <OptionRow
@@ -581,38 +586,49 @@ export default function TrustProxyStep({ highlightErrors }) {
               </div>
             </div>
 
-            <div className="trust-policy-row">
-              <label className="trust-policy-label-row">
-                <span className="trust-policy-label-block">
-                  <span className="trust-policy-label">Trust bundle policy</span>
-                  {isRequired("additionalTrustBundlePolicy") ? <span className="required-badge">required</span> : null}
-                </span>
-                <select
-                  value={trust.additionalTrustBundlePolicy || (trustPolicyOptions.length ? policyDefault : "")}
-                  onChange={(e) => updateTrust({ additionalTrustBundlePolicy: e.target.value })}
-                  disabled={!trustPolicyOptions.length}
-                  className="trust-policy-select"
-                >
-                  <optgroup label="Policy">
-                    {trustPolicyOptions.length
-                      ? trustPolicyOptions.map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))
-                      : <option value="" disabled>Not available</option>}
-                  </optgroup>
-                </select>
-              </label>
-              {!trustPolicyOptions.length ? (
-                <Banner variant="warning">Selected version is not supported for trust bundle policy.</Banner>
-              ) : (
-                <dl className="trust-policy-explanations">
-                  <dt>Proxyonly</dt>
-                  <dd>Use the CA bundle only when the cluster is using an HTTP/HTTPS proxy. Nodes will trust the bundle only for connections that go through the proxy. Choose this if you added a CA mainly for your corporate proxy.</dd>
-                  <dt>Always</dt>
-                  <dd>Apply the CA bundle to all nodes for all TLS connections. Use this when your mirror registry or other services use a custom or self-signed CA that every node must trust, whether or not you use a proxy.</dd>
-                </dl>
-              )}
-            </div>
+            {showTrustBundlePolicyUi ? (
+              <div className="trust-policy-row">
+                <label className="trust-policy-label-row">
+                  <span className="trust-policy-label-block">
+                    <span className="trust-policy-label">Trust bundle policy</span>
+                    {isRequired("additionalTrustBundlePolicy") ? <span className="required-badge">required</span> : null}
+                  </span>
+                  <select
+                    value={trust.additionalTrustBundlePolicy || (trustPolicyOptions.length ? policyDefault : "")}
+                    onChange={(e) => updateTrust({ additionalTrustBundlePolicy: e.target.value })}
+                    disabled={!trustPolicyOptions.length}
+                    className="trust-policy-select"
+                  >
+                    <optgroup label="Policy">
+                      {trustPolicyOptions.length
+                        ? trustPolicyOptions.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))
+                        : <option value="" disabled>Not available</option>}
+                    </optgroup>
+                  </select>
+                </label>
+                {!trustPolicyOptions.length ? (
+                  <Banner variant="warning">Selected version is not supported for trust bundle policy.</Banner>
+                ) : (
+                  <dl className="trust-policy-explanations">
+                    <dt>Proxyonly</dt>
+                    <dd>
+                      Maps to install-config <code>additionalTrustBundlePolicy: Proxyonly</code>. OpenShift applies the bundle in the proxy trust path when an HTTP/HTTPS proxy is configured—typical default when only a Proxy CA is present.
+                    </dd>
+                    <dt>Always</dt>
+                    <dd>
+                      Maps to <code>additionalTrustBundlePolicy: Always</code>. The installer distributes the bundle for broad node trust—recommended when a Mirror registry CA is included so pulls and registry TLS succeed everywhere.
+                    </dd>
+                  </dl>
+                )}
+              </div>
+            ) : (
+              <p className="note subtle">
+                <code>additionalTrustBundlePolicy</code> is only used together with <code>additionalTrustBundle</code> (OpenShift 4.20). Add at least one valid certificate above to choose{" "}
+                <strong>Proxyonly</strong> or <strong>Always</strong>; defaults favor <strong>Always</strong> when a mirror registry CA is present and <strong>Proxyonly</strong> when only a proxy CA is present.
+              </p>
+            )}
 
             {selectionInvalidated ? (
               <Banner variant="warning">

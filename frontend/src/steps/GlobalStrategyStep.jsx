@@ -1,6 +1,6 @@
 import React from "react";
 import { useApp } from "../store.jsx";
-import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy } from "../shared/trustBundlePolicy.js";
+import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
 import { getScenarioId } from "../catalogResolver.js";
 import { apiFetch } from "../api.js";
 import { isValidPullSecret, isValidSshPublicKey, ipv6CidrOverlaps } from "../validation.js";
@@ -366,7 +366,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
 
   const handlePemText = (text, target) => {
     const field = target === "mirror" ? "mirrorRegistryCaPem" : "proxyCaPem";
-    const nextTrust = withAutoTrustBundlePolicy({ ...trust, [field]: text }, strategy, getScenarioId(state), selectedVersion);
+    const nextTrust = withAutoTrustBundlePolicy({ ...trust, [field]: text }, strategy, getScenarioId(state), selectedVersion, trust);
     updateState({ trust: nextTrust });
     validatePemInput(text, target);
   };
@@ -377,14 +377,17 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
     handlePemText(combined, target);
   };
 
+  const trustPolicySyncRef = React.useRef(null);
   React.useEffect(() => {
     const scenarioId = getScenarioId(state);
-    const nextTrust = withAutoTrustBundlePolicy(trust, strategy, scenarioId, selectedVersion);
+    const prev = trustPolicySyncRef.current;
+    const nextTrust = withAutoTrustBundlePolicy(trust, strategy, scenarioId, selectedVersion, prev ?? undefined);
     const prevPolicy = trust.additionalTrustBundlePolicy || "";
     const nextPolicy = nextTrust.additionalTrustBundlePolicy || "";
     if (nextPolicy !== prevPolicy) {
       updateState({ trust: nextTrust });
     }
+    trustPolicySyncRef.current = nextTrust;
   }, [
     effectiveBundle,
     selectedVersion,
@@ -1195,25 +1198,33 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               />
             </label>
           </div>
-          <label>
-            additionalTrustBundlePolicy
-            <select
-              value={trust.additionalTrustBundlePolicy || ""}
-              onChange={(e) => updateState({ trust: { ...trust, additionalTrustBundlePolicy: e.target.value } })}
-              disabled={!trustPolicyOptions.length}
-            >
-              <option value="" disabled>Select policy</option>
-              {trustPolicyOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-            {!trustPolicyOptions.length ? (
-              <div className="note warning">Selected version is not supported for trust bundle policy.</div>
-            ) : null}
-          </label>
-          <div className="note">
-            Proxyonly limits trust bundle use to proxy scenarios. Always applies trust bundle to all nodes.
-          </div>
+          {hasEffectiveTrustBundle(trust) ? (
+            <>
+              <label>
+                additionalTrustBundlePolicy
+                <select
+                  value={trust.additionalTrustBundlePolicy || ""}
+                  onChange={(e) => updateState({ trust: { ...trust, additionalTrustBundlePolicy: e.target.value } })}
+                  disabled={!trustPolicyOptions.length}
+                >
+                  <option value="" disabled>Select policy</option>
+                  {trustPolicyOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+                {!trustPolicyOptions.length ? (
+                  <div className="note warning">Selected version is not supported for trust bundle policy.</div>
+                ) : null}
+              </label>
+              <div className="note">
+                <strong>Proxyonly</strong> applies the bundle in the proxy trust path when a cluster proxy is set (OpenShift 4.20 default for many proxy-only CA cases). <strong>Always</strong> distributes the bundle for cluster-wide trust—typical when a mirror registry CA is included.
+              </div>
+            </>
+          ) : (
+            <p className="note subtle">
+              <code>additionalTrustBundlePolicy</code> is only meaningful with <code>additionalTrustBundle</code>. Add a valid mirror and/or proxy CA above to enable it; the app defaults to <strong>Always</strong> when mirror PEMs exist and <strong>Proxyonly</strong> when only proxy PEMs exist.
+            </p>
+          )}
           <div className="card">
             <h4>Effective Trust Bundle (PEM)</h4>
             <pre className="preview">{effectiveBundle || "No trust bundle configured."}</pre>

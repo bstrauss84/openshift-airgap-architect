@@ -4,7 +4,8 @@ import {
   getTrustPolicyOptionsForScenario,
   inferDefaultAdditionalTrustBundlePolicy,
   withAutoTrustBundlePolicy,
-  hasEffectiveTrustBundle
+  hasEffectiveTrustBundle,
+  trustBundleInferTier
 } from "../src/shared/trustBundlePolicy.js";
 import { validateStep } from "../src/validation.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
@@ -27,10 +28,17 @@ describe("trustBundlePolicy helpers", () => {
     expect(opts).toContain("Always");
   });
 
-  it("inferDefaultAdditionalTrustBundlePolicy matches mirror vs proxy toggle", () => {
-    expect(inferDefaultAdditionalTrustBundlePolicy({ mirrorRegistryCaPem: "x" }, { proxyEnabled: false })).toBe("Always");
-    expect(inferDefaultAdditionalTrustBundlePolicy({ mirrorRegistryCaPem: "" }, { proxyEnabled: true })).toBe("Proxyonly");
-    expect(inferDefaultAdditionalTrustBundlePolicy({ mirrorRegistryCaPem: "" }, { proxyEnabled: false })).toBe("Always");
+  it("trustBundleInferTier classifies mirror vs proxy-only", () => {
+    expect(trustBundleInferTier({ mirrorRegistryCaPem: MOCK_PEM, proxyCaPem: "" })).toBe("mirror");
+    expect(trustBundleInferTier({ mirrorRegistryCaPem: "", proxyCaPem: MOCK_PEM })).toBe("proxy-only");
+    expect(trustBundleInferTier({ mirrorRegistryCaPem: "", proxyCaPem: "" })).toBe("none");
+  });
+
+  it("inferDefault: mirror PEM blocks → Always; proxy-only → Proxyonly", () => {
+    expect(inferDefaultAdditionalTrustBundlePolicy({ mirrorRegistryCaPem: MOCK_PEM }, { proxyEnabled: false })).toBe("Always");
+    expect(inferDefaultAdditionalTrustBundlePolicy({ proxyCaPem: MOCK_PEM }, { proxyEnabled: false })).toBe("Proxyonly");
+    expect(inferDefaultAdditionalTrustBundlePolicy({ proxyCaPem: MOCK_PEM }, { proxyEnabled: true })).toBe("Proxyonly");
+    expect(inferDefaultAdditionalTrustBundlePolicy({ mirrorRegistryCaPem: MOCK_PEM, proxyCaPem: MOCK_PEM }, { proxyEnabled: false })).toBe("Always");
   });
 
   it("withAutoTrustBundlePolicy sets policy synchronously when PEM blocks exist", () => {
@@ -51,6 +59,13 @@ describe("trustBundlePolicy helpers", () => {
       "4.20.1"
     );
     expect(out.additionalTrustBundlePolicy).toBe("");
+  });
+
+  it("withAutoTrustBundlePolicy resets policy when tier changes from mirror to proxy-only", () => {
+    const prev = { mirrorRegistryCaPem: MOCK_PEM, proxyCaPem: "", additionalTrustBundlePolicy: "Always" };
+    const next = { mirrorRegistryCaPem: "", proxyCaPem: MOCK_PEM, additionalTrustBundlePolicy: "Always" };
+    const out = withAutoTrustBundlePolicy(next, { proxyEnabled: false }, "bare-metal-agent", "4.20.0", prev);
+    expect(out.additionalTrustBundlePolicy).toBe("Proxyonly");
   });
 });
 
