@@ -1,5 +1,7 @@
 # Params catalog rules (data/params)
 
+CI and local workflow for canonical vs frontend copies and generator guards: **`docs/PARAM_AUTHORITY.md`** (`node scripts/validate-param-authority.js`).
+
 ## Schema
 
 - One JSON file per scenario per version: `data/params/<version>/<scenario-id>.json`.

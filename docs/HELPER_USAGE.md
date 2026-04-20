@@ -88,15 +88,27 @@ Use when:
 
 Primary references:
 
-- `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
-- `docs/BACKLOG_STATUS.md`
-- `AI_GOVERNANCE.md`
+- Umbrella/master strategy: `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
+- Canonical status (only): `docs/BACKLOG_STATUS.md`
+- Tool-specific deep-dive dossiers:
+  - `docs/ABA_COMPARISON_REVISED_PLAN_2026-03-24.md`
+  - `docs/DISCOVERY_ISO_COMPARISON_REVISED_PLAN_2026-03-24.md`
+  - `docs/CLUSTERFILE_COMPARISON_REVISED_PLAN_2026-03-17.md`
+  - `docs/AUTOSHIFTV2_COMPARISON_REVISED_PLAN_2026-03-23.md`
+- Governance policy baseline: `AI_GOVERNANCE.md`
 
 Execution expectations for deep comparative work:
 
 - require evidence levels `E1-E4` on major recommendations (repo path, execution surface, OpenShift alignment, residual risk)
 - use stable capability IDs (`CAP-*`) when comparing cross-tool behaviors
 - run bounded decision gates (source-of-truth, secrets/security, governance, productization) before proposing implementation work
+
+Routing rule (explicit):
+
+- Open `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md` first for cross-tool program intent.
+- Open `docs/BACKLOG_STATUS.md` to answer any status/sequencing/precedence question.
+- Open only the relevant per-tool dossier for execution-level detail on that external tool.
+- Treat overlapping historical comparative docs as background only unless `docs/INDEX.md` marks them current.
 
 ## How to choose a helper quickly
 

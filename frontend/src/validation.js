@@ -1156,6 +1156,26 @@ const validateStep = (state, stepId) => {
   return { errors: [], warnings: [] };
 };
 
+/**
+ * Clears reviewFlags for steps that currently pass validateStep (fixes stale flags after run JSON import).
+ * @param {object} state
+ * @param {string[]} visibleStepIds - ordered ids from computeVisibleWizardRows
+ * @returns {object} next reviewFlags object
+ */
+export function reconcileReviewFlagsForImportedState(state, visibleStepIds) {
+  const next = { ...(state?.reviewFlags || {}) };
+  const ids = Array.isArray(visibleStepIds) ? visibleStepIds : [];
+  for (const id of ids) {
+    const res = validateStep(state, id);
+    if (!(res.errors || []).length && next[id]) next[id] = false;
+  }
+  if (ids.includes("hosts-inventory")) {
+    const res = validateStep(state, "hosts-inventory");
+    if (!(res.errors || []).length && next.inventory) next.inventory = false;
+  }
+  return next;
+}
+
 export {
   validateHostInventory,
   validateNode,

@@ -1,0 +1,14 @@
+---
+description: Parameter catalogs are canonical under data/params; never drift YAML keys from them.
+globs: backend/src/generate.js,frontend/src/validation.js,frontend/src/hostInventoryV2Validation.js,frontend/src/data/catalogs/*.json,data/params/**/*.json
+alwaysApply: false
+---
+
+# Param catalog authority
+
+- **Canonical source:** `data/params/<version>/<scenario-id>.json`. Validate with `node scripts/validate-catalog.js data/params`.
+- **Frontend copies:** `frontend/src/data/catalogs/*.json` must match canonical for the same scenario (CI: `node scripts/validate-param-authority.js`).
+- **Before changing install-config / agent-config / NMState emission:** find the catalog path in `data/params` for that scenario and output file; emitted YAML keys must match catalog path segments (kebab-case for NMState).
+- **After edits:** run `node scripts/validate-param-authority.js` plus backend and frontend tests. Do not merge catalog or `generate.js` changes without that gate.
+
+See `docs/PARAM_AUTHORITY.md` and `docs/DATA_AND_FRONTEND_COPIES.md`.
