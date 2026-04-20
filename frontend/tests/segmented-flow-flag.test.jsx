@@ -28,7 +28,7 @@ describe("Segmented flow stabilization", () => {
     cleanup();
   });
 
-  it("when flag OFF from persisted state, flow is coerced to segmented replacements", async () => {
+  it("when flag OFF from persisted state, legacy wizard (Global Strategy) follows Methodology", async () => {
     vi.mocked(apiFetch).mockImplementation((path, opts) => {
       if (path === "/api/state") {
         return Promise.resolve(opts?.body ? JSON.parse(opts.body) : stateWithSegmentedFlow(false));
@@ -46,10 +46,9 @@ describe("Segmented flow stabilization", () => {
     const proceedButtons = screen.getAllByRole("button", { name: /Proceed/i });
     fireEvent.click(proceedButtons[proceedButtons.length - 1]);
     await waitFor(() => {
-      expect(screen.getAllByText(/Identity & Access/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByRole("heading", { name: /Global Strategy/i })).toBeInTheDocument();
     });
-    expect(screen.getAllByText(/Trust & Proxy/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByRole("region", { name: /Scenario summary/i }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: /Cluster Identity/i })).toBeInTheDocument();
   });
 
   it("when flag ON shows six replacement steps and scenario header", async () => {
@@ -103,7 +102,7 @@ describe("Segmented flow stabilization", () => {
     expect(screen.getAllByRole("button", { name: /Assets & Guide/i }).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("normalizes legacy active step ids to segmented replacement ids", async () => {
+  it("legacy persisted activeStepId global resumes into legacy flow after Methodology", async () => {
     vi.mocked(apiFetch).mockImplementation((path, opts) => {
       if (path === "/api/state") {
         const legacy = stateWithSegmentedFlow(false);
@@ -123,7 +122,7 @@ describe("Segmented flow stabilization", () => {
     const proceedButtons = screen.getAllByRole("button", { name: /Proceed/i });
     fireEvent.click(proceedButtons[proceedButtons.length - 1]);
     await waitFor(() => {
-      expect(screen.getAllByText(/Identity & Access/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByRole("heading", { name: /Global Strategy/i })).toBeInTheDocument();
     });
   });
 });

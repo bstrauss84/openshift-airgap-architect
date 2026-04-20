@@ -317,9 +317,10 @@ const AppShell = () => {
   }, [state]);
   const hostInventoryV2Enabled = state?.ui?.hostInventoryV2 === true;
   const segmentedFlowV1 = state?.ui?.segmentedFlowV1 !== false;
+  // Default segmented flow when ui.segmentedFlowV1 is unset (new sessions). Respect explicit false for legacy/tests.
   useEffect(() => {
     if (!state?.ui) return;
-    if (state.ui.segmentedFlowV1 === false) {
+    if (state.ui.segmentedFlowV1 == null) {
       updateState({ ui: { ...state.ui, segmentedFlowV1: true } });
     }
   }, [state?.ui, updateState]);
@@ -785,7 +786,18 @@ const AppShell = () => {
   };
   const handleInstallClick = () => {
     setShowLanding(false);
-    setActive(hasProgress ? firstIncompleteStepIndex : 0);
+    const nextIndex = hasProgress ? firstIncompleteStepIndex : 0;
+    setActive(nextIndex);
+    const stepId = visibleSteps[nextIndex]?.id;
+    if (stepId && state?.ui) {
+      updateState({
+        ui: {
+          ...state.ui,
+          activeStepId: stepId,
+          visitedSteps: { ...(state.ui.visitedSteps || {}), [stepId]: true }
+        }
+      });
+    }
   };
 
   const handleStartOverClick = async () => {
