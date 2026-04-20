@@ -4,7 +4,7 @@
  * validateStep(state, stepId) is the main entry; stepId matches App.jsx (e.g. identity-access, networking-v2, platform-specifics).
  */
 
-import { getTrustBundlePolicies, getTrustBundlePolicySupport } from "./shared/versionPolicy.js";
+import { getTrustBundlePolicies, getTrustBundlePolicySupport, getForwardOpenShiftMinorDocNotice } from "./shared/versionPolicy.js";
 import {
   getTrustPolicyOptionsForScenario,
   inferDefaultAdditionalTrustBundlePolicy
@@ -370,12 +370,9 @@ const validateTrust = (state) => {
     errors.push("additionalTrustBundlePolicy is not allowed for the selected version.");
   }
   const policySupport = getTrustBundlePolicySupport(selectedVersion);
-  if (effective.length && policySupport.source === "forward") {
-    const label = (selectedVersion || "").trim() || policySupport.minorVersion || "this version";
-    warnings.push(
-      `OpenShift ${label} is not yet fully reflected in this tool's version-scrubbed docs index and catalogs for this minor. Trust bundle policy uses the same Proxyonly and Always choices as recent documented releases; confirm against official Red Hat documentation before production.`
-    );
-  } else if (effective.length && policySupport.source === "unsupported") {
+  const forwardDocNotice = getForwardOpenShiftMinorDocNotice(selectedVersion);
+  if (forwardDocNotice) warnings.push(forwardDocNotice);
+  if (effective.length && policySupport.source === "unsupported") {
     warnings.push("Selected version is not supported for trust bundle policy; default behavior may be conservative.");
   }
   return { errors, warnings };

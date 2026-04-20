@@ -1,7 +1,7 @@
 import React from "react";
 import { useApp } from "../store.jsx";
 import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
-import { getTrustBundlePolicySupport } from "../shared/versionPolicy.js";
+import { getForwardOpenShiftMinorDocNotice } from "../shared/versionPolicy.js";
 import { getScenarioId } from "../catalogResolver.js";
 import { apiFetch } from "../api.js";
 import { isValidPullSecret, isValidSshPublicKey, ipv6CidrOverlaps } from "../validation.js";
@@ -291,8 +291,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
   };
 
   const trustPolicyOptions = getTrustPolicyOptionsForScenario(getScenarioId(state), selectedVersion);
-  const trustPolicyVersionSupport = getTrustBundlePolicySupport(selectedVersion);
-  const forwardPolicyReleaseLabel = (selectedVersion || "").trim() || trustPolicyVersionSupport.minorVersion || "this release";
+  const forwardDocNotice = getForwardOpenShiftMinorDocNotice(selectedVersion);
   const trustBundleBlocks = (pem) =>
     (pem || "")
       .match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)
@@ -1135,6 +1134,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
             </div>
           </div>
           <div className="card-body">
+            {forwardDocNotice ? <div className="note warning">{forwardDocNotice}</div> : null}
             <div className="note">
               Provide PEM-encoded CA certificates (one or more BEGIN CERTIFICATE blocks). Do not paste private keys.
             </div>
@@ -1214,11 +1214,6 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                   <div className="note warning">Could not resolve trust bundle policy options for this OpenShift version.</div>
                 ) : null}
               </label>
-              {trustPolicyOptions.length > 0 && trustPolicyVersionSupport.source === "forward" ? (
-                <div className="note warning">
-                  OpenShift <strong>{forwardPolicyReleaseLabel}</strong> is not yet fully reflected in this tool&apos;s version-scrubbed docs index and catalogs for that minor. Confirm <strong>Proxyonly</strong> and <strong>Always</strong> against official Red Hat documentation before production.
-                </div>
-              ) : null}
               <div className="note">
                 <strong>Proxyonly</strong> applies the bundle in the proxy trust path when a cluster proxy is set (OpenShift 4.20 default for many proxy-only CA cases). <strong>Always</strong> distributes the bundle for cluster-wide trust—typical when a mirror registry CA is included.
               </div>
