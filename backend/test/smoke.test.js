@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import yaml from "js-yaml";
 import { buildInstallConfig, buildAgentConfig, buildFieldManual } from "../src/generate.js";
+import { getTrustBundlePolicies } from "../src/versionPolicy.js";
 
 test("buildInstallConfig returns install config shape", () => {
   const state = {
@@ -1626,6 +1627,12 @@ MIIDdzCCAI+gAwIBAgIUFakeProxyCA
   assert.ok(out.additionalTrustBundle.includes("FakeMirrorRegistryCA"));
   assert.ok(out.additionalTrustBundle.includes("FakeProxyCA"));
   assert.strictEqual(out.additionalTrustBundlePolicy, "Always", "policy must emit even without release.patchVersion in state");
+});
+
+test("getTrustBundlePolicies forward-compat: OpenShift 4.21.x yields Proxyonly and Always", () => {
+  assert.deepStrictEqual(getTrustBundlePolicies("4.21.9"), ["Proxyonly", "Always"]);
+  assert.deepStrictEqual(getTrustBundlePolicies("4.16.0"), []);
+  assert.deepStrictEqual(getTrustBundlePolicies("5.0.0"), []);
 });
 
 test("buildInstallConfig defaults additionalTrustBundlePolicy to Proxyonly when only proxy PEMs are present", () => {
