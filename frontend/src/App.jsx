@@ -782,10 +782,15 @@ const AppShell = () => {
     setIsToolsOpen(false);
 
     const baseState = data.state || {};
-    const rows = computeVisibleWizardRows(baseState, stepMap || {});
+    const ui = baseState.ui || {};
+    const rowState =
+      ui.segmentedFlowV1 == null
+        ? { ...baseState, ui: { ...ui, segmentedFlowV1: true } }
+        : baseState;
+    const rows = computeVisibleWizardRows(rowState, stepMap || {});
     const stepIds = rows.map((r) => r.id);
-    const reviewFlags = reconcileReviewFlagsForImportedState(baseState, stepIds);
-    const merged = { ...baseState, reviewFlags };
+    const reviewFlags = reconcileReviewFlagsForImportedState(rowState, stepIds);
+    const merged = { ...rowState, reviewFlags };
 
     const importedUi = merged.ui || {};
     const importedLocked = Boolean(
