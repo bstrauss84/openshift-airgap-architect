@@ -1,0 +1,766 @@
+{
+  "version": "4.20",
+  "baseUrl": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/",
+  "generatedAt": "2025-02-20T00:00:00.000Z",
+  "scenarios": {
+    "aws-govcloud-ipi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9.1 shared install-config; platform from AWS GovCloud doc."
+        },
+        {
+          "id": "installing-aws-govcloud-ipi",
+          "title": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installer-provisioned-infrastructure",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "gov-region",
+            "restricted-network",
+            "existing-vpc",
+            "private-cluster",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "AWS GovCloud IPI; install-config. Government-region specifics are included in the AWS install family."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        }
+      ]
+    },
+    "aws-govcloud-upi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9.1 shared install-config; platform from AWS GovCloud UPI doc."
+        },
+        {
+          "id": "installing-aws-govcloud-upi",
+          "title": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/user-provisioned-infrastructure",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "gov-region",
+            "restricted-network",
+            "existing-vpc",
+            "private-cluster",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "AWS GovCloud UPI; install-config. Government-region specifics are included in the AWS install family."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        }
+      ]
+    },
+    "azure-government-ipi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9.1 shared install-config; platform from Azure Government doc."
+        },
+        {
+          "id": "installing-azure-government-ipi",
+          "title": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installer-provisioned-infrastructure",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "gov-region",
+            "restricted-network",
+            "existing-vnet",
+            "private-cluster",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Azure Government IPI; install-config. Government-region specifics are included in the Azure install family."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        }
+      ]
+    },
+    "ibm-cloud-ipi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-ibm-cloud",
+          "title": "Installation configuration parameters for IBM Cloud",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "install-config-table",
+            "restricted-network",
+            "existing-vpc",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "IBM Cloud Chapter 9 includes required, network, optional, and IBM-specific install-config parameters."
+        },
+        {
+          "id": "installing-ibm-cloud-restricted",
+          "title": "Installing a cluster on IBM Cloud in a disconnected environment",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "existing-vpc",
+            "private-cluster",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "IBM disconnected flow is installer-provisioned only and uses an existing VPC with mirrored content."
+        },
+        {
+          "id": "installing-ibm-cloud",
+          "title": "Installing on IBM Cloud",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "platform-install-family",
+            "restricted-network"
+          ],
+          "notes": "IBM Cloud install family states installer-provisioned is supported and user-provisioned is not supported."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install methods; IBM section links to the IBM restricted-network procedure."
+        }
+      ]
+    },
+    "bare-metal-agent": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9: full tables of install-config.yaml and agent-config.yaml parameters."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install; applies to all scenarios."
+        },
+        {
+          "id": "installing-bare-metal-agent",
+          "title": "Installing an on-premise cluster with the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Core agent-based installer guide; install-config and agent-config."
+        }
+      ]
+    },
+    "bare-metal-ipi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9.1 shared install-config and 9.1.4 bare metal params apply to IPI."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        },
+        {
+          "id": "installing-bare-metal-ipi",
+          "title": "Installing on bare metal with installer-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Bare metal IPI; install-config."
+        }
+      ]
+    },
+    "bare-metal-upi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9.1 shared install-config and 9.1.4 bare metal params apply to UPI."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        },
+        {
+          "id": "installing-bare-metal-upi",
+          "title": "Installing on bare metal with user-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Bare metal UPI; install-config."
+        }
+      ]
+    },
+    "nutanix-ipi": {
+      "docs": [
+        {
+          "id": "installing-nutanix-ipi",
+          "title": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Nutanix IPI; primary platform install-config and procedures."
+        },
+        {
+          "id": "agent-based-installer-on-nutanix-ref",
+          "title": "Agent-based Installer on Nutanix (reference — not a wizard scenario)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer/#preparing-to-install-with-agent-based-installer",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "agent-based",
+            "not-in-wizard"
+          ],
+          "notes": "Linked from Installing on Nutanix Ch.1 §1.2. This app has no nutanix-agent scenario; only nutanix-ipi is implemented."
+        },
+        {
+          "id": "installation-config-parameters-nutanix",
+          "title": "Installation configuration parameters for Nutanix",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "install-config-table"
+          ],
+          "notes": "Nutanix book: install-config parameter tables (platform.nutanix, machine pools, networking, optional globals)."
+        },
+        {
+          "id": "installing-platform-agnostic",
+          "title": "Installing a cluster (platform-agnostic)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared install-config topics (e.g. cluster-wide proxy, trust) referenced from Nutanix procedures."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        }
+      ]
+    },
+    "vsphere-ipi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9.1 shared install-config and 9.1.5 vSphere params."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        },
+        {
+          "id": "installing-vsphere-ipi",
+          "title": "Installing a cluster on vSphere with installer-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "private-cluster",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 2 IPI; sub-flows: standard (#installing-vsphere-installer-provisioned), customizations (#installing-vsphere-installer-provisioned-customizations), restricted (#installing-restricted-networks-installer-provisioned-vsphere). install-config."
+        },
+        {
+          "id": "installing-vsphere-ipi-standard",
+          "title": "Installing a cluster on vSphere",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure#installing-vsphere-installer-provisioned",
+          "configTypes": ["install-config"],
+          "tags": ["vsphere", "ipi"],
+          "notes": "IPI with no customization (section 2.3)."
+        },
+        {
+          "id": "installing-vsphere-ipi-customizations",
+          "title": "Installing a cluster on vSphere with customizations",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure#installing-vsphere-installer-provisioned-customizations",
+          "configTypes": ["install-config"],
+          "tags": ["vsphere", "ipi", "failure-domains", "regions-zones"],
+          "notes": "IPI with customizations (section 2.4); install-config edit before create cluster."
+        },
+        {
+          "id": "installing-vsphere-ipi-restricted",
+          "title": "Installing a cluster on vSphere in a restricted network",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure#installing-restricted-networks-installer-provisioned-vsphere",
+          "configTypes": ["install-config"],
+          "tags": ["vsphere", "ipi", "restricted-network", "mirroring"],
+          "notes": "IPI disconnected/restricted (section 2.5); clusterOSImage or topology.template, imageContentSources, mirror."
+        },
+        {
+          "id": "installation-config-parameters-vsphere",
+          "title": "Installation configuration parameters for vSphere",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "vsphere",
+            "failure-domains",
+            "vcenters",
+            "apiVIPs",
+            "ingressVIPs",
+            "diskType",
+            "machine-pool"
+          ],
+          "notes": "Chapter 9: 9.1.4 Additional vSphere params (vcenters, failureDomains, apiVIPs, ingressVIPs, diskType, topology.template IPI-only); 9.1.5 Deprecated flat params; 9.1.6 Optional machine pool (clusterOSImage, osDisk, cpus, memoryMB, dataDisks). Authoritative for platform.vsphere.*."
+        }
+      ]
+    },
+    "vsphere-upi": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Chapter 9.1 shared install-config and 9.1.5 vSphere params."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        },
+        {
+          "id": "installing-vsphere-upi",
+          "title": "Installing a cluster on vSphere with user-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure#installing-vsphere",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "private-cluster",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "vSphere UPI; install-config."
+        },
+        {
+          "id": "installation-config-parameters-vsphere",
+          "title": "Installation configuration parameters for vSphere",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "vsphere",
+            "failure-domains",
+            "vcenters"
+          ],
+          "notes": "vSphere failureDomains, vcenters, and topology (computeCluster, datastore, networks, folder, resourcePool)."
+        }
+      ]
+    },
+    "vsphere-agent": {
+      "docs": [
+        {
+          "id": "installation-config-parameters-agent",
+          "title": "Installation configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "mirroring",
+            "proxy",
+            "trust-bundle",
+            "vsphere"
+          ],
+          "notes": "Chapter 9: install-config and agent-config tables; §9.1.5 VMware vSphere platform parameters; §1.11 validation (apiVIPs/ingressVIPs required for bare metal and vSphere when platform is not none; SNO uses platform none)."
+        },
+        {
+          "id": "installing-disconnected",
+          "title": "Installing a cluster on disconnected infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "Shared disconnected install."
+        },
+        {
+          "id": "installing-agent-based-on-prem",
+          "title": "Installing an on-premise cluster with the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/",
+          "configTypes": [
+            "install-config",
+            "agent-config"
+          ],
+          "tags": [
+            "restricted-network",
+            "fully-disconnected",
+            "mirroring",
+            "proxy",
+            "trust-bundle",
+            "vsphere"
+          ],
+          "notes": "Agent-based installer guide: platform none for single-node; vSphere/bare metal multi-node; dual-stack VIP examples; ISO/PXE; §1.11 install-config/agent-config validation before ISO creation."
+        },
+        {
+          "id": "installation-config-parameters-vsphere",
+          "title": "Installation configuration parameters for vSphere",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "vsphere",
+            "failure-domains",
+            "vcenters",
+            "apiVIPs",
+            "ingressVIPs"
+          ],
+          "notes": "vSphere install-config reference; topology.template and optional machine-pool items are IPI-oriented. Agent-based uses user-provisioned VMs—follow Agent book §9.1.5 and §1.11 for authoritative Agent + vSphere behavior."
+        },
+        {
+          "id": "installing-vsphere-upi",
+          "title": "Installing a cluster on vSphere with user-provisioned infrastructure",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure#installing-vsphere",
+          "configTypes": [
+            "install-config"
+          ],
+          "tags": [
+            "vsphere",
+            "restricted-network",
+            "private-cluster",
+            "mirroring",
+            "proxy",
+            "trust-bundle"
+          ],
+          "notes": "vSphere UPI environment and networking context (DNS, load balancing); useful alongside Agent-based when you provide VMs and load balancers."
+        }
+      ]
+    }
+  },
+  "sharedDocs": [
+    {
+      "id": "about-oc-mirror-v2",
+      "title": "About oc-mirror (v2)",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index",
+      "configTypes": [
+        "imageset-config"
+      ],
+      "tags": [
+        "mirroring",
+        "disconnected",
+        "proxy",
+        "trust-bundle"
+      ],
+      "notes": "Mirroring and disconnected install; imageset-config. Disconnected environments book covers mirroring and restricted-network install."
+    },
+    {
+      "id": "configuring-custom-pki",
+      "title": "Configuring custom PKI",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/configuring-certificates",
+      "configTypes": [
+        "install-config"
+      ],
+      "tags": [
+        "proxy",
+        "trust-bundle"
+      ],
+      "notes": "Custom PKI and trust bundles for install."
+    },
+    {
+      "id": "installing-platform-agnostic",
+      "title": "Installing a cluster (platform-agnostic)",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic",
+      "configTypes": [
+        "install-config"
+      ],
+      "tags": [
+        "mirroring",
+        "proxy",
+        "trust-bundle",
+        "restricted-network"
+      ],
+      "notes": "Platform-agnostic install-config (cluster identity, sample install-config). Includes section 1.11.2 Configuring the cluster-wide proxy during installation (proxy.httpProxy, proxy.httpsProxy, proxy.noProxy, additionalTrustBundlePolicy, additionalTrustBundle)."
+    },
+    {
+      "id": "image-based-installation-sno",
+      "title": "Image-based installation for single-node OpenShift",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift",
+      "configTypes": ["install-config"],
+      "tags": ["edge", "ibi", "mirroring"],
+      "notes": "Edge computing IBI; imageDigestSources in image-based-installation-config and ImageClusterInstall."
+    },
+    {
+      "id": "nmstate-examples",
+      "title": "NMState state examples",
+      "url": "https://nmstate.io/examples.html",
+      "configTypes": ["agent-config"],
+      "tags": ["networking", "nmstate"],
+      "notes": "Host Network Management API; agent-config hosts[].networkConfig structure."
+    }
+  ]
+}
