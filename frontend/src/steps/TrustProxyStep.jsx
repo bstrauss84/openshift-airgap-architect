@@ -7,7 +7,7 @@ import React from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
 import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
-import { getTrustBundlePolicySupport } from "../shared/versionPolicy.js";
+import { getForwardOpenShiftMinorDocNotice } from "../shared/versionPolicy.js";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
@@ -87,8 +87,7 @@ export default function TrustProxyStep({ highlightErrors }) {
   const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG);
 
   const trustPolicyOptions = getTrustPolicyOptionsForScenario(scenarioId, selectedVersion);
-  const trustPolicyVersionSupport = getTrustBundlePolicySupport(selectedVersion);
-  const forwardPolicyReleaseLabel = (selectedVersion || "").trim() || trustPolicyVersionSupport.minorVersion || "this release";
+  const forwardDocNotice = getForwardOpenShiftMinorDocNotice(selectedVersion);
   const policyDefault = metaPolicy?.default || "Proxyonly";
 
   const mirrorBlocks = trustBundleBlocks(trust.mirrorRegistryCaPem);
@@ -260,6 +259,9 @@ export default function TrustProxyStep({ highlightErrors }) {
             </div>
           </div>
           <div className="card-body">
+            {forwardDocNotice ? (
+              <Banner variant="warning" className="trust-version-doc-notice">{forwardDocNotice}</Banner>
+            ) : null}
             <p className="note">
               Paste or upload PEM-encoded CA certificates (one or more <code>-----BEGIN CERTIFICATE-----</code> blocks). Valid certificates are merged into install-config{" "}
               <code>additionalTrustBundle</code> when you export or preview YAML.
@@ -352,12 +354,6 @@ export default function TrustProxyStep({ highlightErrors }) {
                     </dl>
                   )}
                 </div>
-                {trustPolicyOptions.length > 0 && trustPolicyVersionSupport.source === "forward" ? (
-                  <Banner variant="warning" className="trust-policy-forward-notice">
-                    OpenShift <strong>{forwardPolicyReleaseLabel}</strong> is not yet fully reflected in this tool&apos;s version-scrubbed docs index and catalogs for that minor.{" "}
-                    <strong>Proxyonly</strong> and <strong>Always</strong> are still the usual install-config values; confirm against official Red Hat documentation for your exact z-stream before production.
-                  </Banner>
-                ) : null}
               </>
             ) : (
               <p className="note subtle">
