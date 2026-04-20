@@ -55,4 +55,24 @@ const getTrustBundlePolicySupport = (version) => {
   return { policies: [], source: "unsupported", minorVersion: minor };
 };
 
-export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies, getTrustBundlePolicySupport };
+/**
+ * When the selected patch maps to a minor newer than explicit scrubbed catalogs (e.g. 4.21 before docs-index exists),
+ * return one generic notice for UI + combined validation. Uses minor only (e.g. 4.21), not z-stream.
+ * @param {string} version patch or selected version string
+ * @returns {string|null}
+ */
+const getForwardOpenShiftMinorDocNotice = (version) => {
+  const support = getTrustBundlePolicySupport(version);
+  if (support.source !== "forward") return null;
+  const minor = support.minorVersion || "this minor";
+  return `OpenShift ${minor} is not yet fully reflected in this tool's version-scrubbed docs index and catalogs. Confirm generated assets against the official Red Hat OpenShift Container Platform ${minor} documentation before using them in production.`;
+};
+
+export {
+  SUPPORTED_MINORS,
+  getMinorVersion,
+  isSupportedMinor,
+  getTrustBundlePolicies,
+  getTrustBundlePolicySupport,
+  getForwardOpenShiftMinorDocNotice
+};
