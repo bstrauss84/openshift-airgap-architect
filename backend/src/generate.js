@@ -767,18 +767,22 @@ const buildInstallConfig = (state) => {
   const trustBundle = resolveTrustBundleForGeneration(state);
   if (trustBundle && includeTrustBundleAndCertificates) {
     installConfig.additionalTrustBundle = trustBundle;
-    const allowedPolicies = getTrustBundlePolicies(state.release?.patchVersion || "");
-    const requested = trust.additionalTrustBundlePolicy;
-    if (requested && allowedPolicies.includes(requested)) {
-      installConfig.additionalTrustBundlePolicy = requested;
-    } else if (allowedPolicies.length) {
-      const defaultPolicy = trust.mirrorRegistryCaPem
-        ? "Always"
-        : state.globalStrategy?.proxyEnabled
-          ? "Proxyonly"
-          : "Always";
-      installConfig.additionalTrustBundlePolicy = defaultPolicy;
-    }
+    const versionForPolicy = (state.release?.patchVersion || state.version?.selectedVersion || "").trim();
+    const versionPolicies = getTrustBundlePolicies(versionForPolicy);
+    const allowedPolicies = versionPolicies.length ? versionPolicies : FALLBACK_TRUST_BUNDLE_POLICIES;
+    const requested = normalizeAdditionalTrustBundlePolicy(trust.additionalTrustBundlePolicy);
+    const defaultPolicy = trust.mirrorRegistryCaPem
+      ? "Always"
+      : state.globalStrategy?.proxyEnabled
+        ? "Proxyonly"
+        : "Always";
+    const chosen =
+      requested && allowedPolicies.includes(requested)
+        ? requested
+        : allowedPolicies.includes(defaultPolicy)
+          ? defaultPolicy
+          : allowedPolicies[0];
+    if (chosen) installConfig.additionalTrustBundlePolicy = chosen;
   }
 
   let out = yaml.dump(installConfig, { lineWidth: 120 });
@@ -925,6 +929,18 @@ const resolveTrustBundleForGeneration = (state) => {
   }
   const reduced = resolveReducedBundleOrThrow(state);
   return reduced.bundle;
+};
+
+/** OpenShift install-config enum; normalize common casing mistakes before allow-list checks. */
+const FALLBACK_TRUST_BUNDLE_POLICIES = ["Proxyonly", "Always"];
+
+const normalizeAdditionalTrustBundlePolicy = (raw) => {
+  const v = (typeof raw === "string" ? raw : "").trim();
+  if (!v) return "";
+  const lower = v.toLowerCase();
+  if (lower === "proxyonly") return "Proxyonly";
+  if (lower === "always") return "Always";
+  return v;
 };
 
 /**
