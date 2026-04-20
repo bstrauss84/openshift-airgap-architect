@@ -42,6 +42,9 @@ test("bundle token remains valid for repeated GETs during TTL", async () => {
     const secondBytes = Buffer.from(await second.arrayBuffer());
     assert.strictEqual(secondBytes[0], 0x50);
     assert.strictEqual(secondBytes[1], 0x4b);
+
+    const noToken = await fetch(`${baseUrl}/api/bundle.zip`);
+    assert.strictEqual(noToken.status, 400);
   } finally {
     server.close();
   }

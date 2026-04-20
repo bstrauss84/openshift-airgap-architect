@@ -30,6 +30,7 @@ import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
+import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
 
 /** Used for Landing banner and tests; true only when update is available and no error/unknown. */
 export function shouldShowUpdateBanner(updateInfo) {
@@ -339,7 +340,10 @@ const AppShell = () => {
   }, [state, visibleSteps]);
 
   const versionConfirmed = state?.version?.versionConfirmed ?? state?.release?.confirmed;
-  const versionDependentSteps = useMemo(() => new Set(["blueprint", "global", "review"]), []);
+  const versionDependentSteps = useMemo(
+    () => getVersionDependentStepIdSet(segmentedFlowV1, visibleSteps),
+    [segmentedFlowV1, visibleSteps]
+  );
   const blueprintReady = Boolean(state?.blueprint?.arch && state?.blueprint?.platform);
   const releaseReady = Boolean(state?.release?.channel && state?.release?.patchVersion);
 
