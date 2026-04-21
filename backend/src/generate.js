@@ -229,7 +229,8 @@ const buildInstallConfig = (state) => {
       if (ingressVips.length) baremetal.ingressVIPs = ingressVips;
       const includeDay2 = Boolean(hi.includeBareMetalDay2InInstallConfig);
       if (includeDay2) {
-        if (hi.provisioningNetwork && ["Managed", "Unmanaged", "Disabled"].includes(hi.provisioningNetwork)) {
+        // Agent §9.1.4 documents Managed | Disabled only (not IPI's Unmanaged).
+        if (hi.provisioningNetwork && ["Managed", "Disabled"].includes(hi.provisioningNetwork)) {
           baremetal.provisioningNetwork = hi.provisioningNetwork;
         }
         if (hi.provisioningNetworkCIDR) baremetal.provisioningNetworkCIDR = hi.provisioningNetworkCIDR;
@@ -239,9 +240,9 @@ const buildInstallConfig = (state) => {
         if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
         const baremetalBaseDomain = state.blueprint?.baseDomain;
         const hosts = (hi.nodes || []).map((node) => {
+          // §9.1.4 install-config hosts: name, bootMACAddress, bmc only (role/rootDeviceHints → agent-config).
           const host = {
-            name: effectiveHostname(node, baremetalBaseDomain),
-            role: node.role
+            name: effectiveHostname(node, baremetalBaseDomain)
           };
           const bmcAddr = (node.bmc?.address || "").trim();
           if (bmcAddr) {
@@ -253,8 +254,6 @@ const buildInstallConfig = (state) => {
             };
           }
           if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
-          const rdh217 = buildRootDeviceHints(node);
-          if (rdh217) host.rootDeviceHints = rdh217;
           return host;
         });
         baremetal.hosts = hosts;
