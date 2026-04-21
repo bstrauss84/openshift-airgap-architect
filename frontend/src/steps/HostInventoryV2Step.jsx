@@ -107,6 +107,12 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const showIpiDrawer = platform === "Bare Metal" && method === "IPI";
   const isIpiScenario = scenarioId === "bare-metal-ipi";
   const isAgentInventoryScenario = scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent";
+  const masterCountForDay2 = nodes.filter((n) => (n.role || "").trim() === "master").length;
+  const workerCountForDay2 = nodes.filter((n) => (n.role || "").trim() === "worker").length;
+  const isBareMetalAgentSnoTopology =
+    scenarioId === "bare-metal-agent" && masterCountForDay2 === 1 && workerCountForDay2 === 0;
+  const showAgentDay2InstallConfigBmc =
+    scenarioId === "bare-metal-agent" && !isBareMetalAgentSnoTopology && !!inventory.includeBareMetalDay2InInstallConfig;
   const supported = isScenarioSupported(platform, method);
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
   const enableIpv6 = !!inventory.enableIpv6;
@@ -1059,6 +1065,29 @@ wipefs -a /dev/sdX`}</pre>
                         )}
                         <label>DNS servers <input value={selectedNode.dnsServers || ""} onChange={(e) => updateNode(selectedIndex, { dnsServers: e.target.value })} placeholder="192.168.1.10,192.168.1.11" /></label>
                         <label>DNS search <input value={selectedNode.dnsSearch || ""} onChange={(e) => updateNode(selectedIndex, { dnsSearch: e.target.value })} /></label>
+                        {showAgentDay2InstallConfigBmc ? (
+                          <>
+                            <div className="divider" />
+                            <p className="note subtle" style={{ gridColumn: "1 / -1", margin: "4px 0 0" }}>
+                              Optional Day-2 seed (OpenShift 4.20 §9.1.4): these map to <code>install-config.yaml</code>{" "}
+                              <code>platform.baremetal.hosts[]</code> as <code>name</code>, <code>bootMACAddress</code>, and{" "}
+                              <code>bmc</code>. They are not used during initial agent provisioning; they can reduce post-install steps.
+                            </p>
+                            <h4>BMC and boot MAC (install-config Day-2)</h4>
+                            <label>BMC address <input value={selectedNode.bmc?.address || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })} placeholder="redfish+http://192.168.1.1/..." /></label>
+                            <label>BMC username <input autoComplete="off" value={selectedNode.bmc?.username || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, username: e.target.value } })} /></label>
+                            <label>BMC password <input type="password" autoComplete="new-password" value={selectedNode.bmc?.password || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, password: e.target.value } })} /></label>
+                            <label>Boot MAC <input value={selectedNode.bmc?.bootMACAddress || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } }); }} placeholder="52:54:00:aa:bb:cc" /></label>
+                            <label className="host-inventory-v2-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.bmc?.disableCertificateVerification === true}
+                                onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, disableCertificateVerification: e.target.checked } })}
+                              />
+                              {" "}Disable BMC certificate verification (e.g. self-signed)
+                            </label>
+                          </>
+                        ) : null}
                         {isArbiterDrawer ? (
                           <p className="note subtle" style={{ gridColumn: "1 / -1" }}>
                             Arbiter: primary interface, DNS, and root device hint are what this app emits to agent-config. Extra interfaces and primary advanced MTU/routes are hidden for this role to match the simplified arbiter workflow.
@@ -1261,26 +1290,6 @@ wipefs -a /dev/sdX`}</pre>
                       </>
                       ) : null}
 
-                      {showBmc && (
-                        <>
-                          <h4>BMC (IPI)</h4>
-                          <div className="field-grid">
-                            <label>BMC address <input value={selectedNode.bmc?.address || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })} /></label>
-                            <label>BMC username <input autoComplete="off" value={selectedNode.bmc?.username || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, username: e.target.value } })} /></label>
-                            <label>BMC password <input type="password" autoComplete="new-password" value={selectedNode.bmc?.password || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, password: e.target.value } })} /></label>
-                            <label>Boot MAC <input value={selectedNode.bmc?.bootMACAddress || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } }); }} /></label>
-                            <label className="host-inventory-v2-checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={selectedNode.bmc?.disableCertificateVerification === true}
-                                onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, disableCertificateVerification: e.target.checked } })}
-                              />
-                              {" "}Disable BMC certificate verification (e.g. self-signed)
-                            </label>
-                          </div>
-                        </>
-                      )}
-
                       {showAdvancedDrawer && !isArbiterDrawer && (
                         <>
                           <div className="card-header host-inventory-v2-section-heading host-inventory-v2-advanced-header">
@@ -1365,7 +1374,7 @@ wipefs -a /dev/sdX`}</pre>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
                 <h4>Settings to copy</h4>
-                {REPLICATE_OPTIONS.filter((opt) => (opt.key === "bmc" ? showBmc : true)).map((opt) => (
+                {REPLICATE_OPTIONS.filter((opt) => (opt.key === "bmc" ? showBmc || showAgentDay2InstallConfigBmc : true)).map((opt) => (
                   <label key={opt.key} className="toggle-row">
                     <input
                       type="checkbox"
