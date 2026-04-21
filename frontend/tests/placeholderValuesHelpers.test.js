@@ -27,7 +27,7 @@ describe("placeholderValuesHelpers", () => {
             ipv6Gateway: "",
             vlan: {},
             bond: null,
-            advanced: { mtu: "", vlanMtu: "", routes: [] }
+            advanced: { mtu: "", routes: [] }
           },
           bmc: { address: "", username: "", password: "", bootMACAddress: "", disableCertificateVerification: false }
         }
@@ -75,7 +75,7 @@ describe("placeholderValuesHelpers", () => {
             ipv6Gateway: "fd00::1",
             vlan: {},
             bond: null,
-            advanced: { mtu: "1500", vlanMtu: "1500", routes: [] }
+            advanced: { mtu: "1500", routes: [] }
           },
           bmc: {
             address: "redfish+http://192.0.2.201/redfish/v1",

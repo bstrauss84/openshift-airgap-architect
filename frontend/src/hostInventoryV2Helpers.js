@@ -146,8 +146,7 @@ export const createInterfaceConfig = (overrides = {}) => ({
   },
   vlan: { id: "", baseIface: "", name: "" },
   advanced: {
-    mtu: "",
-    vlanMtu: "",
+    mtu: "1500",
     sriov: { enabled: false, totalVfs: "" },
     vrf: { enabled: false, name: "vrf0", tableId: "100", ports: "" },
     routes: []
@@ -282,7 +281,6 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
       destPrimary.advanced = {
         ...destPrimary.advanced,
         mtu: srcPrimary.advanced?.mtu ?? "",
-        vlanMtu: srcPrimary.advanced?.vlanMtu ?? "",
         routes: Array.isArray(srcPrimary.advanced?.routes) ? srcPrimary.advanced.routes.map((r) => ({ ...r })) : []
       };
     }
