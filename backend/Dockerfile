@@ -36,7 +36,7 @@ RUN set -e && \
 
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install --production
+RUN npm install --omit=dev
 ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY src ./src
