@@ -158,14 +158,14 @@ describe("applyReplicateSettings", () => {
         ipv4Gateway: "192.0.2.1",
         ipv6Cidr: "fd00::10/64",
         ipv6Gateway: "fd00::1",
-        advanced: { mtu: "1500", vlanMtu: "1500", routes: [{ destination: "0.0.0.0/0", nextHopAddress: "192.0.2.254" }] }
+        advanced: { mtu: "1500", routes: [{ destination: "0.0.0.0/0", nextHopAddress: "192.0.2.254" }] }
       }
     };
 
     const arbiterTarget = emptyNode("arbiter", 0);
     arbiterTarget.primary = { ...arbiterTarget.primary, ethernet: { ...arbiterTarget.primary.ethernet, name: "eth1", macAddress: "52:54:00:bb:bb:bb" } };
     arbiterTarget.rootDevice = "";
-    arbiterTarget.primary.advanced = { mtu: "", vlanMtu: "", routes: [] };
+    arbiterTarget.primary.advanced = { mtu: "", routes: [] };
 
     const result = applyReplicateSettings(
       source,
