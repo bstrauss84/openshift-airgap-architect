@@ -30,8 +30,7 @@ const createInterfaceConfig = (overrides = {}) => ({
   },
   vlan: { id: "", baseIface: "", name: "" },
   advanced: {
-    mtu: "",
-    vlanMtu: "",
+    mtu: "1500",
     sriov: { enabled: false, totalVfs: "" },
     vrf: { enabled: false, name: "vrf0", tableId: "100", ports: "" },
     routes: []
@@ -281,8 +280,7 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
       };
       primary.advanced = {
         ...primary.advanced,
-        mtu: node.mtu || "",
-        vlanMtu: node.vlanMtu || "",
+        mtu: node.mtu || node.vlanMtu || "",
         sriov: node.sriov || primary.advanced.sriov,
         vrf: node.vrf || primary.advanced.vrf,
         routes: (node.staticRoutes || []).map((route) => ({
@@ -345,8 +343,7 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
           },
           advanced: {
             ...node.primary.advanced,
-            mtu: source.primary.advanced.mtu,
-            vlanMtu: source.primary.advanced.vlanMtu
+            mtu: source.primary.advanced.mtu
           }
         }
       };
@@ -924,25 +921,14 @@ wipefs -a /dev/sdX</pre>
                 <>
                   <div className="field-grid">
                     <label>
-                      Base MTU (optional)
+                      MTU (optional)
                       <input
                         value={node.primary.advanced.mtu || ""}
                         onChange={(e) => updatePrimaryAdvanced(index, { mtu: e.target.value })}
                         placeholder="1500"
                       />
-                      <div className="note">Set only if non-default MTU is required.</div>
+                      <div className="note">Applies to physical and VLAN interfaces for this host. Default 1500.</div>
                     </label>
-                    {(node.primary.type === "vlan-on-ethernet" || node.primary.type === "vlan-on-bond") ? (
-                      <label>
-                        VLAN MTU (optional)
-                        <input
-                          value={node.primary.advanced.vlanMtu || ""}
-                          onChange={(e) => updatePrimaryAdvanced(index, { vlanMtu: e.target.value })}
-                          placeholder="1500"
-                        />
-                        <div className="note">Override VLAN MTU only when required. VLAN MTU cannot exceed the base interface MTU.</div>
-                      </label>
-                    ) : null}
                     <label>
                       SR-IOV
                       <input
@@ -1212,7 +1198,7 @@ wipefs -a /dev/sdX</pre>
                     {advancedOpen[`${index}-${ifaceIndex}`] ? (
                       <div className="field-grid">
                         <label>
-                          Base MTU (optional)
+                          MTU (optional)
                           <input
                             value={iface.advanced?.mtu || ""}
                             onChange={(e) =>
@@ -1223,20 +1209,6 @@ wipefs -a /dev/sdX</pre>
                             placeholder="1500"
                           />
                         </label>
-                        {(iface.type === "vlan-on-ethernet" || iface.type === "vlan-on-bond") ? (
-                          <label>
-                            VLAN MTU (optional)
-                            <input
-                              value={iface.advanced?.vlanMtu || ""}
-                              onChange={(e) =>
-                                updateAdditionalInterface(index, ifaceIndex, {
-                                  advanced: { ...iface.advanced, vlanMtu: e.target.value }
-                                })
-                              }
-                              placeholder="1500"
-                            />
-                          </label>
-                        ) : null}
                         <label>
                           SR-IOV
                           <input

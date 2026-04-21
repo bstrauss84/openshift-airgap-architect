@@ -1092,7 +1092,6 @@ const buildNmState = (node) => {
   };
 
   const baseMtu = toNumber(primary.advanced?.mtu);
-  const vlanMtu = toNumber(primary.advanced?.vlanMtu);
   const sriovEnabled = primary.advanced?.sriov?.enabled && toNumber(primary.advanced?.sriov?.totalVfs);
   const sriovConfig = sriovEnabled ? { "total-vfs": toNumber(primary.advanced?.sriov?.totalVfs) } : null;
 
@@ -1113,7 +1112,7 @@ const buildNmState = (node) => {
     const eth = addEthernet(primary.ethernet?.name || "eth0", baseMtu, sriovConfig);
     const vlan = addVlan(
       { ...primary.vlan, baseIface: primary.vlan.baseIface || eth.name },
-      vlanMtu
+      baseMtu
     );
     addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
   }
@@ -1125,7 +1124,7 @@ const buildNmState = (node) => {
     const bond = addBond(primary.bond || {}, baseMtu);
     const vlan = addVlan(
       { ...primary.vlan, baseIface: primary.vlan.baseIface || bond.name },
-      vlanMtu
+      baseMtu
     );
     addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
   }
@@ -1156,7 +1155,6 @@ const buildNmState = (node) => {
     const ipv6Addr = iface.ipv6Cidr?.split("/")?.[0];
     const ipv6Prefix = Number(iface.ipv6Cidr?.split("/")?.[1] || 64);
     const baseMtu = toNumber(iface.advanced?.mtu);
-    const vlanMtu = toNumber(iface.advanced?.vlanMtu);
     const sriovEnabled = iface.advanced?.sriov?.enabled && toNumber(iface.advanced?.sriov?.totalVfs);
     const sriovConfig = sriovEnabled ? { "total-vfs": toNumber(iface.advanced?.sriov?.totalVfs) } : null;
 
@@ -1173,7 +1171,7 @@ const buildNmState = (node) => {
       const eth = addEthernet(iface.ethernet?.name, baseMtu, sriovConfig);
       const vlan = addVlan(
         { ...iface.vlan, baseIface: iface.vlan.baseIface || eth.name },
-        vlanMtu
+        baseMtu
       );
       addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
     }
@@ -1182,7 +1180,7 @@ const buildNmState = (node) => {
       const bond = addBond(iface.bond || {}, baseMtu);
       const vlan = addVlan(
         { ...iface.vlan, baseIface: iface.vlan.baseIface || bond.name },
-        vlanMtu
+        baseMtu
       );
       addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
     }

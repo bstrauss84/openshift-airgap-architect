@@ -1494,23 +1494,13 @@ wipefs -a /dev/sdX`}</pre>
                             {additionalAdvancedOpen[ifaceIndex] ? (
                               <div className="field-grid">
                                 <label>
-                                  Base MTU (optional)
+                                  MTU (optional)
                                   <input
                                     value={iface.advanced?.mtu || ""}
                                     onChange={(e) => updateAdditionalInterface(selectedIndex, ifaceIndex, { advanced: { ...iface.advanced, mtu: e.target.value } })}
                                     placeholder="1500"
                                   />
                                 </label>
-                                {(iface.type === "vlan-on-ethernet" || iface.type === "vlan-on-bond") && (
-                                  <label>
-                                    VLAN MTU (optional)
-                                    <input
-                                      value={iface.advanced?.vlanMtu || ""}
-                                      onChange={(e) => updateAdditionalInterface(selectedIndex, ifaceIndex, { advanced: { ...iface.advanced, vlanMtu: e.target.value } })}
-                                      placeholder="1500"
-                                    />
-                                  </label>
-                                )}
                                 <label>
                                   SR-IOV
                                   <input
@@ -1575,12 +1565,9 @@ wipefs -a /dev/sdX`}</pre>
                             <>
                               <div className="field-grid">
                                 <label>MTU <input value={selectedNode.primary?.advanced?.mtu || ""} onChange={(e) => updatePrimaryAdvanced(selectedIndex, { mtu: e.target.value })} placeholder="1500" /></label>
-                                {(selectedNode.primary?.type === "vlan-on-ethernet" || selectedNode.primary?.type === "vlan-on-bond") && (
-                                  <label>VLAN MTU <input value={selectedNode.primary?.advanced?.vlanMtu || ""} onChange={(e) => updatePrimaryAdvanced(selectedIndex, { vlanMtu: e.target.value })} placeholder="1500" /></label>
-                                )}
                               </div>
                               <p className="note subtle host-inventory-v2-advanced-mtu-note" style={{ marginTop: 6, marginBottom: 0 }}>
-                                MTU applies to the base interface; VLAN MTU applies to the VLAN subinterface (if present). VLAN MTU cannot exceed the base MTU. Each additional interface has its own Advanced section with per-interface MTU.
+                                One MTU value applies to the primary physical interface and any VLAN on that path (same value in generated nmstate). Default 1500. Each additional interface has its own Advanced section with its own MTU.
                               </p>
                               <div className="list">
                                 <h4><FieldLabelWithInfo label="Additional Routes" hint="Optional static routes beyond the default gateway." /></h4>
