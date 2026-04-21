@@ -88,6 +88,21 @@ describe("Phase 4.3: getCatalogValidationForInventoryV2", () => {
     expect(result.errors.some((e) => /arbiter/i.test(e))).toBe(true);
   });
 
+  it("bare-metal-agent with Day-2 install-config warns when BMC address missing", () => {
+    const state = {
+      hostInventory: {
+        nodes: [{ role: "master", hostname: "m-0", primary: {}, bmc: {} }],
+        apiVip: "10.0.0.1",
+        ingressVip: "10.0.0.2",
+        includeBareMetalDay2InInstallConfig: true
+      },
+      blueprint: { platform: "Bare Metal" },
+      methodology: { method: "Agent-Based Installer" }
+    };
+    const result = getCatalogValidationForInventoryV2(state, "bare-metal-agent");
+    expect(result.perNode[0].warnings.some((w) => /Day-2 install-config/i.test(w))).toBe(true);
+  });
+
   it("bare-metal-ipi adds per-node warning when BMC address missing", () => {
     const state = {
       hostInventory: {

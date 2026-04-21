@@ -267,17 +267,17 @@ test("buildInstallConfig for bare-metal-agent multi-node with Day-2 toggle inclu
       apiVip: "192.168.1.100",
       ingressVip: "192.168.1.101",
       includeBareMetalDay2InInstallConfig: true,
-      provisioningNetwork: "Unmanaged"
+      provisioningNetwork: "Managed"
     }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.ok(Array.isArray(out.platform?.baremetal?.hosts), "with Day-2 toggle hosts must be present");
   assert.strictEqual(out.platform.baremetal.hosts.length, 2);
-  assert.strictEqual(out.platform.baremetal.provisioningNetwork, "Unmanaged");
+  assert.strictEqual(out.platform.baremetal.provisioningNetwork, "Managed");
 });
 
-test("buildInstallConfig for bare-metal-agent Day-2 hosts emits rootDeviceHints hctl and minSizeGigabytes", () => {
+test("buildInstallConfig for bare-metal-agent Day-2 omits role and rootDeviceHints from install-config hosts; agent-config keeps rootDeviceHints", () => {
   const state = {
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
     methodology: { method: "Agent-Based Installer" },
@@ -310,8 +310,13 @@ test("buildInstallConfig for bare-metal-agent Day-2 hosts emits rootDeviceHints 
       ]
     }
   };
-  const out = yaml.load(buildInstallConfig(state));
-  assert.deepStrictEqual(out.platform?.baremetal?.hosts?.[0]?.rootDeviceHints, {
+  const install = yaml.load(buildInstallConfig(state));
+  assert.strictEqual(install.platform?.baremetal?.hosts?.[0]?.role, undefined);
+  assert.strictEqual(install.platform?.baremetal?.hosts?.[0]?.rootDeviceHints, undefined);
+  assert.strictEqual(install.platform?.baremetal?.hosts?.[0]?.name, "master-0");
+  assert.strictEqual(install.platform?.baremetal?.hosts?.[0]?.bmc?.address, "redfish+http://x");
+  const agent = yaml.load(buildAgentConfig(state));
+  assert.deepStrictEqual(agent.hosts?.[0]?.rootDeviceHints, {
     deviceName: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1",
     hctl: "0:0:0:0",
     model: "INTEL SSDPE",
