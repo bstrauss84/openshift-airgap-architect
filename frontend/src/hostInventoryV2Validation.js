@@ -45,6 +45,17 @@ export function getCatalogValidationForInventoryV2(state, scenarioId) {
     errors.push(...getAgentBasedTopologyErrors(nodes));
   }
 
+  if (scenarioId === "bare-metal-agent" && inventory.includeBareMetalDay2InInstallConfig) {
+    nodes.forEach((node, idx) => {
+      const bmcAddr = (node.bmc?.address || "").trim();
+      if (!bmcAddr) {
+        perNode[idx].warnings.push(
+          "Day-2 install-config is enabled: without a BMC address this host omits platform.baremetal.hosts[].bmc in exports."
+        );
+      }
+    });
+  }
+
   // API/Ingress VIPs are validated on the Networking step; not on Hosts page.
 
   // Enum validation: role must be in catalog allowed list when catalog provides it

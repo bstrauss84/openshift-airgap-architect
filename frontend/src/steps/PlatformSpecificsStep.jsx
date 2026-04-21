@@ -612,7 +612,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             <div className="card-body">
               <OptionRow
                 title="Include optional Day-2 bare metal fields in install-config"
-                description="When enabled, install-config includes optional host and provisioning network fields that can simplify later Day-2 operations. When disabled, install-config stays minimal and agent-config is used for install-time needs."
+                description="When enabled, install-config can include §9.1.4 optional platform.baremetal provisioning* (when set) and hosts[] with name, bootMACAddress, and bmc only (per 4.20 doc; not used during initial provisioning). role and rootDeviceHints stay in agent-config only. When disabled, install-config stays minimal (apiVIPs/ingressVIPs) and agent-config carries install-time host fields."
               >
                 <Switch
                   checked={!!inventory.includeBareMetalDay2InInstallConfig}
@@ -621,7 +621,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 />
               </OptionRow>
               <p className="note subtle" style={{ marginTop: 8, marginBottom: 0 }}>
-                Enabled: emit optional <code>platform.baremetal</code> hosts and provisioning* (per 4.20 doc; not used during initial provisioning). Disabled: minimal install-config with apiVIPs/ingressVIPs only; rely on agent-config for install-time host and provisioning needs.
+                Enabled: optional <code>platform.baremetal.provisioningNetwork</code> (Managed or Disabled), related provisioning* keys when set, and <code>hosts[]</code> with <code>name</code>, <code>bootMACAddress</code>, <code>bmc.*</code> only (§9.1.4; not used during initial provisioning). <code>role</code> and <code>rootDeviceHints</code> are not in install-config—use Host Inventory for agent-config. Disabled: <code>apiVIPs</code>/<code>ingressVIPs</code> only on <code>platform.baremetal</code>.
               </p>
             </div>
           </section>
