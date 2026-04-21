@@ -13,6 +13,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   - [Local development](#local-development)
   - [Running without Compose](#running-without-compose)
   - [Container run](#container-run)
+  - [Corporate HTTP proxy and backend egress](#corporate-proxy-backend-egress)
   - [Updating the app](#updating-the-app)
 - **Core Workflows**
   - [Generating assets](#generating-assets)
@@ -156,6 +157,64 @@ So the backend does **not** run the application as root; root is used only brief
 
 - **Same-host:** Using the app on the same machine where Compose runs: leave `VITE_API_BASE` as `http://localhost:4000`. The frontend is built with this URL, so the browser (on the same host) can reach the backend at localhost:4000.
 - **Remote access:** To use the UI from another machine (e.g. laptop to dev server), (1) expose ports on the host by changing port mappings to `0.0.0.0:5173:5173` and `0.0.0.0:4000:4000`, and (2) set `VITE_API_BASE` to the URL where the backend is reachable from the **client** browser (e.g. `http://<host-ip-or-name>:4000`). The frontend container reads this at startup; if you keep `VITE_API_BASE=http://localhost:4000`, API calls from a remote browser will go to the client's localhost and fail. Override the env when starting the stack (e.g. `VITE_API_BASE=http://192.168.1.10:4000 docker compose up`) or in a compose override file.
+
+<a id="corporate-proxy-backend-egress"></a>
+### Corporate HTTP proxy and backend egress
+
+The browser talks only to the **backend API** (see `VITE_API_BASE`). Outbound calls to the internet (GitHub for Cincinnati release data, Red Hat mirrors for tools, registries for `oc-mirror`, and so on) are made **from the backend container** (Node `fetch`, `curl`, or spawned `oc` / `oc-mirror`). They are **not** configured by the wizard’s **Trust / proxy** fields, which apply to the **OpenShift cluster** `install-config` proxy and trust bundle, not to how this application reaches GitHub or `registry.redhat.io`.
+
+**Configure corporate proxy on the backend service:** Set standard variables on the **backend** container (Compose, Kubernetes, or `docker run`), for example:
+
+```yaml
+# Example fragment for compose.override.yml — backend only
+services:
+  backend:
+    environment:
+      - HTTP_PROXY=http://proxy.corp.example:8080
+      - HTTPS_PROXY=http://proxy.corp.example:8080
+      - NO_PROXY=localhost,127.0.0.1,.svc.cluster.local
+```
+
+Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common stacks. **`curl`** (used to download `openshift-install` from `mirror.openshift.com`) and **Go-based tools** (`oc-mirror`, `oc`) inherit the same environment when the backend spawns them, so operator scan and Run oc-mirror benefit from these variables once they are set for the backend process.
+
+**Container image build (pre-baked `oc` / `oc-mirror`):** In [`backend/Containerfile`](backend/Containerfile), a **`RUN`** layer uses **`curl`** to download `openshift-client-linux.tar.gz` and **`oc-mirror.tar.gz`** from **`mirror.openshift.com`** and bakes them into the image. That happens during **`docker compose build` / `podman compose build`**, not when the container starts—so **runtime** `HTTP_PROXY` on the backend service does **not** apply to those downloads. On the **build host**, export `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` (Docker BuildKit and Podman usually forward them into build steps), or configure proxy for the build daemon. For fully disconnected **builds**, use build-args **`OCP_CLIENT_URL`** and **`OCP_MIRROR_URL`** to point `curl` at internal mirrors of the same tarballs (see [Platform and architecture](#platform-and-architecture-multi-arch--apple-silicon)). The same stage runs **`npm install`** for backend dependencies; restricted networks may need access to **`registry.npmjs.org`** (or an internal npm mirror via `.npmrc` during the image build—advanced).
+
+**Feedback (Tools → Feedback):** With **`FEEDBACK_MODE=github`** (default), the backend **does not** submit issues to the GitHub API. It validates input and returns a pre-filled **`githubIssueUrl`**. Opening that link runs in the **user’s browser**, which must reach **`github.com`** (and related GitHub hosts) via the **workstation** proxy or allowlist—or use the drawer’s copy / JSON export instead of opening the link. **`FEEDBACK_MODE=offline`** avoids GitHub-oriented behavior entirely (see [Build info and update checks](#build-info-and-update-checks)). Feedback API calls stay between the browser and your backend only.
+
+**TLS interception:** For the **running** backend container, if HTTPS is decrypted at a corporate proxy, add your corporate CA to trust (for example mount a PEM and set **`NODE_EXTRA_CA_CERTS=/path/to/corp-ca-bundle.pem`**) and ensure the same CA is trusted for `curl` and registry TLS. For **image build**, the **build host** (or build root filesystem in CI) must trust the proxy or target CAs so **`curl`** and **`npm`** during `Containerfile` can complete.
+
+**Quick troubleshooting:**
+
+| Symptom | Likely cause |
+|---------|----------------|
+| Blueprint release channels or patches never load | Backend cannot reach **GitHub** (`api.github.com`, `raw.githubusercontent.com`) or TLS to those hosts fails. |
+| Tools → About update check errors | Optional **GitHub** API access; set `CHECK_UPDATES=false` to disable (see [Build info and update checks](#build-info-and-update-checks)). |
+| Operator scan or Run oc-mirror fails with registry timeouts | **Proxy** or **firewall** to `registry.redhat.io` / `quay.io` (and other image hosts in your `imageset-config.yaml`); confirm **`REGISTRY_AUTH_FILE`** is set for auth (separate from HTTP proxy). |
+| AWS GovCloud region list empty or errors | Backend needs **`mirror.openshift.com`** for the `openshift-install` tarball used to read stream metadata. |
+| **`docker compose build` / `podman build` fails** downloading oc or oc-mirror | **Build-time** egress: set proxy on the **build host** or pass build proxy settings; or use **`OCP_CLIENT_URL`** / **`OCP_MIRROR_URL`** to internal tarball URLs. |
+| **`npm install` fails inside backend image build** | Allow **`registry.npmjs.org`** (or npm mirror) from the build environment through the proxy. |
+| Feedback “open GitHub” does nothing or errors in the browser | **Browser** cannot reach **`github.com`**; fix workstation proxy/allowlist or use **`FEEDBACK_MODE=offline`** / copy-export workflow. |
+
+**Optional firewall / proxy allow list:** Some teams allow direct egress to specific hosts instead of (or in addition to) forwarding through a proxy. The table below lists **fixed** targets the app code hits; **oc-mirror runs are not fully covered** by any static list because they pull arbitrary image references from your `imageset-config.yaml` (release payload, operators, `additionalImages`, your mirror host, and transitive registries). For full mirror requirements, use Red Hat’s disconnected installation and oc-mirror v2 documentation.
+
+| Tier | Hosts | Used for |
+|------|-------|----------|
+| **1 — App-defined HTTPS** | `api.github.com`, `raw.githubusercontent.com` | Cincinnati channel/patch lists (`openshift/cincinnati-graph-data`). |
+| | `mirror.openshift.com` | **Image build** (`Containerfile` `curl`) and **runtime** client downloads (`openshift-install`, optional `oc-mirror` resolution / export). |
+| | `docs.redhat.com` | **Update Docs Links** (field manual doc cache). |
+| | `registry.npmjs.org` | **Image build** only: `npm install` for backend (and frontend) dependencies in Containerfiles. |
+| **Browser (Feedback, github mode)** | `github.com` (and related GitHub hosts) | User opens pre-filled issue link from Tools → Feedback; not a backend `fetch`. |
+| **2 — Representative registries** (not exhaustive) | `registry.redhat.io`, `quay.io`, `registry.access.redhat.com`, `registry.connect.redhat.com`, `cloud.openshift.com` | Operator catalog scan (`oc-mirror list operators`), typical connected **Run oc-mirror** pulls; align with your pull secret and official mirror docs. |
+
+**Fallbacks when GitHub or the network is unavailable:**
+
+- **`MOCK_MODE=true`** — Bundled Cincinnati data; no GitHub (see [Mock mode (offline demo)](#mock-mode-offline-demo)).
+- **`CHECK_UPDATES=false`** — Disables the optional GitHub “new version” check on About.
+- **`FEEDBACK_MODE=offline`** — Avoids GitHub-oriented feedback behavior where applicable (see env table under [Build info and update checks](#build-info-and-update-checks)).
+
+If **GitHub is blocked** and you cannot use **`MOCK_MODE`**, live Cincinnati channel/patch lists cannot be loaded in the app; that is a policy constraint, not a missing UI setting. If **all** Red Hat registries are blocked with no proxy path, connected operator scan and connected **Run oc-mirror** cannot succeed in that environment; use a connected jump host and transfer artifacts per [Run oc-mirror](#run-oc-mirror).
+
+**`AIRGAP_FETCH_USE_ENV_PROXY`:** The backend enables undici **`EnvHttpProxyAgent`** by default so Node **`fetch`** honors `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`. Set to **`false`** or **`0`** only if you must disable that behavior (see [Build info and update checks](#build-info-and-update-checks) env table).
 
 ### Running behind a reverse proxy or OpenShift Route
 
@@ -430,6 +489,8 @@ With no registry access, run with bundled Cincinnati and operator data:
 MOCK_MODE=true docker compose up --build
 ```
 
+If you have registry access but only need to avoid **GitHub** (for example Cincinnati graph data) while staying otherwise connected, prefer **`HTTP_PROXY` / `HTTPS_PROXY` on the backend** or the allow-list guidance in [Corporate HTTP proxy and backend egress](#corporate-proxy-backend-egress) before relying on mock data.
+
 <a id="platform-and-architecture-multi-arch--apple-silicon"></a>
 ## Platform and architecture (multi-arch / Apple Silicon)
 
@@ -491,6 +552,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 | `APP_REPO` | GitHub repo for update check (e.g. `owner/repo`). | `bstrauss84/openshift-airgap-architect` |
 | `APP_BRANCH` | Branch to compare against (e.g. `main`). | `main` |
 | `CHECK_UPDATES` | Set to `false` or `0` to disable update checks. | enabled |
+| `AIRGAP_FETCH_USE_ENV_PROXY` | Set to `false` or `0` to disable undici `EnvHttpProxyAgent` for Node `fetch` (not usually needed). | enabled (proxy agent on) |
 | `FEEDBACK_MODE` | Feedback mode: `disabled`, `github`, or `offline`. | `github` |
 | `FEEDBACK_GITHUB_REPO` | Optional GitHub issue target override (`owner/repo`). | `APP_REPO` |
 

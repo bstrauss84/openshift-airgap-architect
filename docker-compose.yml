@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: backend/Containerfile
+    # Runtime corporate egress: HTTP_PROXY, HTTPS_PROXY, NO_PROXY on this service (README
+    # "Corporate HTTP proxy and backend egress"). Image build curl/npm use the build host proxy.
+    # Wizard proxy fields in the UI are for the OpenShift cluster only, not this app.
     environment:
       - PORT=4000
       - DATA_DIR=/data

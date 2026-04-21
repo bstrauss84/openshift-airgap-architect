@@ -2,6 +2,7 @@
  * Backend API: state, Cincinnati, operator scan jobs, YAML generation, export ZIP.
  * Express app; state in SQLite via utils; pull secrets never persisted.
  */
+import "./configureFetchProxy.js";
 import express from "express";
 import cors from "cors";
 import fs from "node:fs";
