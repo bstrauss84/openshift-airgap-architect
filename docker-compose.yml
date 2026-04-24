@@ -30,6 +30,9 @@ services:
     environment:
       # For remote access, set to URL reachable from the client (e.g. http://<host>:4000). See README "Same-host vs remote access".
       - VITE_API_BASE=http://localhost:4000
+      # Optional: comma-separated hostnames when the UI is opened by DNS name (no spaces). See README "Running behind a reverse proxy".
+      # Set on the host, e.g. VITE_ALLOWED_HOSTS=app.example.com podman compose up --build, or add to compose.override.yml.
+      - VITE_ALLOWED_HOSTS=${VITE_ALLOWED_HOSTS:-}
     ports:
       - "127.0.0.1:5173:5173"
     depends_on:
