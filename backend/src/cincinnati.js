@@ -7,6 +7,14 @@ import { getCache, setCache } from "./utils.js";
 const CHANNELS_CACHE_KEY = "cincinnati_channels_v1";
 const PATCH_CACHE_PREFIX = "cincinnati_patches_v1:";
 
+/** Fetch timeout (ms) for GitHub upstream; avoids indefinite hang behind misconfigured proxies. */
+const CINCINNATI_FETCH_TIMEOUT_MS = Math.min(
+  Math.max(Number(process.env.CINCINNATI_FETCH_TIMEOUT_MS) || 45000, 5000),
+  120000
+);
+
+const fetchSignal = () => AbortSignal.timeout(CINCINNATI_FETCH_TIMEOUT_MS);
+
 const isMock = () => String(process.env.MOCK_MODE).toLowerCase() === "true";
 
 const mockPath = (file) => path.join(process.cwd(), "mock-data", file);
@@ -24,7 +32,8 @@ const sortVersionsDesc = (versions) =>
 
 const fetchChannelsFromGithub = async () => {
   const res = await fetch("https://api.github.com/repos/openshift/cincinnati-graph-data/contents/channels", {
-    headers: { "User-Agent": "airgap-architect" }
+    headers: { "User-Agent": "airgap-architect" },
+    signal: fetchSignal()
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch channels directory: ${res.status}`);
@@ -63,7 +72,7 @@ const fetchStableFile = async (channel) => {
     return mock.versions;
   }
   const url = `https://raw.githubusercontent.com/openshift/cincinnati-graph-data/master/channels/stable-${channel}.yaml`;
-  const res = await fetch(url, { headers: { "User-Agent": "airgap-architect" } });
+  const res = await fetch(url, { headers: { "User-Agent": "airgap-architect" }, signal: fetchSignal() });
   if (!res.ok) {
     throw new Error(`Failed to fetch stable-${channel}.yaml: ${res.status}`);
   }

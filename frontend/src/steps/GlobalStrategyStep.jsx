@@ -27,6 +27,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
   const trust = state.trust || {};
   const [trustErrors, setTrustErrors] = React.useState({ mirror: "", proxy: "" });
   const [awsRegions, setAwsRegions] = React.useState([]);
+  const [awsRegionsError, setAwsRegionsError] = React.useState("");
   const [amiLookup, setAmiLookup] = React.useState({ loading: false, error: "", key: "" });
   const [showKeygen, setShowKeygen] = React.useState(false);
   const [keygenLoading, setKeygenLoading] = React.useState(false);
@@ -135,11 +136,18 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
   React.useEffect(() => {
     if (!shouldLookupAmi) {
       setAwsRegions([]);
+      setAwsRegionsError("");
       return;
     }
+    setAwsRegionsError("");
     apiFetch(`/api/aws/regions?version=${encodeURIComponent(selectedVersion)}&arch=${encodeURIComponent(arch)}`)
-      .then((data) => setAwsRegions(data.regions || []))
-      .catch(() => setAwsRegions([]));
+      .then((data) => {
+        setAwsRegions(data.regions || []);
+      })
+      .catch((err) => {
+        setAwsRegions([]);
+        setAwsRegionsError(String(err?.message || err) || "Could not load AWS regions from installer metadata.");
+      });
   }, [shouldLookupAmi, selectedVersion, arch]);
 
   const fetchAmiFromInstaller = async (region, force = false) => {
@@ -932,7 +940,12 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 {!versionConfirmed ? (
                   <div className="note warning">Confirm the release version to unlock installer metadata and region lookups.</div>
                 ) : null}
-                {shouldLookupAmi && !awsRegions.length ? (
+                {shouldLookupAmi && awsRegionsError ? (
+                  <div className="note warning" role="alert">
+                    {awsRegionsError} Check backend egress, TLS trust, or HTTP proxy settings; see README “Corporate HTTP proxy and backend egress”. Use the Operations tab to review recent jobs.
+                  </div>
+                ) : null}
+                {shouldLookupAmi && !awsRegionsError && !awsRegions.length ? (
                   <div className="note warning">No AWS regions found for this architecture and release.</div>
                 ) : null}
               </label>

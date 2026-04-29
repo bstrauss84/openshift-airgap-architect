@@ -1167,6 +1167,21 @@ export function reconcileReviewFlagsForImportedState(state, visibleStepIds) {
   return next;
 }
 
+/** Validate manual OpenShift minor (4.xx) and patch (4.xx.yy) for Blueprint advanced entry. */
+const validateManualOpenShiftRelease = (minorRaw, patchRaw) => {
+  const minor = String(minorRaw ?? "").trim();
+  const patch = String(patchRaw ?? "").trim();
+  const errors = [];
+  if (!minor) errors.push("Minor channel is required (e.g. 4.17).");
+  else if (!/^4\.\d+$/.test(minor)) errors.push("Minor channel must look like 4.17.");
+  if (!patch) errors.push("Patch version is required (e.g. 4.17.12).");
+  else if (!/^4\.\d+\.\d+$/.test(patch)) errors.push("Patch version must look like 4.17.12.");
+  if (minor && patch && !patch.startsWith(`${minor}.`)) {
+    errors.push(`Patch ${patch} must belong to minor ${minor}.`);
+  }
+  return { ok: errors.length === 0, errors };
+};
+
 export {
   validateHostInventory,
   validateNode,
@@ -1177,5 +1192,6 @@ export {
   validateBlueprintPullSecretOptional,
   validateMirrorRegistrySecret,
   validateBlueprint,
+  validateManualOpenShiftRelease,
   ipv6CidrOverlaps
 };
