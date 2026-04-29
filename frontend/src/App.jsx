@@ -268,10 +268,8 @@ const AppShell = () => {
     state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed)
   );
 
-  const sidebarSteps = useMemo(
-    () => visibleSteps.filter((s) => s.id !== "operations"),
-    [visibleSteps]
-  );
+  /** Include Operations in the sidebar so users can open job logs (e.g. Cincinnati refresh) before foundational lock-in. */
+  const sidebarSteps = useMemo(() => visibleSteps, [visibleSteps]);
   const Current = visibleSteps[active]?.component || visibleSteps[0]?.component;
   const activeStepId = visibleSteps[active]?.id;
   const activeStepValidation = useMemo(
@@ -411,13 +409,15 @@ const AppShell = () => {
     }
   }, [visibleSteps.length, active]);
 
-  // Route guard: before lock, only Blueprint is allowed. Redirect any other route to Blueprint.
+  // Route guard: before lock, only Blueprint and Operations are allowed (Operations for job logs / hung refresh).
   useEffect(() => {
     if (showLanding || !state?.ui) return;
     if (foundationalLocked) return;
     const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
     if (blueprintIndex < 0) return;
-    if (active !== blueprintIndex) {
+    const currentId = visibleSteps[active]?.id;
+    const allowedPreLock = currentId === "blueprint" || currentId === "operations";
+    if (!allowedPreLock) {
       setActive(blueprintIndex);
       updateState({ ui: { ...state.ui, activeStepId: "blueprint" } });
       setLockToast("Lock your foundational selections to continue.");
@@ -593,7 +593,7 @@ const AppShell = () => {
     const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
 
     if (!foundationalLocked) {
-      if (targetStepId !== "blueprint") {
+      if (targetStepId !== "blueprint" && targetStepId !== "operations") {
         setLockToast("Lock your foundational selections to continue.");
         setTimeout(() => setLockToast(""), 4000);
         if (active !== blueprintIndex) setActive(blueprintIndex);
@@ -607,7 +607,7 @@ const AppShell = () => {
       return;
     }
     const currentStep = visibleSteps[active]?.id;
-    if (currentStep === "blueprint" && !foundationalLocked) {
+    if (currentStep === "blueprint" && !foundationalLocked && targetStepId !== "operations") {
       setPendingNavIndex(index);
       setShowCoreLockWarning(true);
       return;
@@ -942,7 +942,7 @@ const AppShell = () => {
             type="button"
             className="ghost icon-button"
             onClick={() => setIsToolsOpen((open) => !open)}
-            title="Tools: theme, export/import, start over, operations"
+            title="Tools: theme, export/import run, start over"
             aria-label="Open Tools"
           >
             ⚙ Tools
@@ -1052,7 +1052,15 @@ const AppShell = () => {
             ) : null}
           </div>
           <footer className="footer">
-            {visibleSteps[active]?.id !== "operations" ? (
+            {visibleSteps[active]?.id === "operations" && !foundationalLocked ? (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => attemptNavigate(visibleSteps.findIndex((s) => s.id === "blueprint"))}
+              >
+                Back to Blueprint
+              </button>
+            ) : visibleSteps[active]?.id !== "operations" ? (
               <button type="button" className="ghost" onClick={back}>
                 {active === 0 ? "Return to Landing Page" : "Back"}
               </button>
@@ -1087,7 +1095,8 @@ const AppShell = () => {
                 }}
                 disabled={
                   !canProceed ||
-                  (visibleSteps[active]?.id === "blueprint" && (!blueprintReady || !releaseReady))
+                  (visibleSteps[active]?.id === "blueprint" && (!blueprintReady || !releaseReady)) ||
+                  (!foundationalLocked && visibleSteps[active]?.id === "operations")
                 }
               >
                 {active === visibleSteps.length - 1
@@ -1270,9 +1279,6 @@ const AppShell = () => {
           onExportRun={exportRun}
           onImportClick={() => importRef.current?.click()}
           onStartOver={handleStartOverClick}
-          jobsCount={jobsCount}
-          onNavigateToOperations={() => attemptNavigate(visibleSteps.findIndex((s) => s.id === "operations"))}
-          isLocked={foundationalLocked}
           logAction={logAction}
           buildInfo={buildInfo}
           updateInfo={updateInfo}

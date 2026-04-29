@@ -250,4 +250,59 @@ describe("BlueprintStep Cincinnati", () => {
     const patchSelect = screen.getByLabelText(/Patch version/i);
     expect(patchSelect.querySelectorAll("option").length).toBeGreaterThanOrEqual(2);
   });
+
+  it("changing minor channel from dropdown clears stale patch list for the prior channel", async () => {
+    const channelList = { channels: ["4.17", "4.21"] };
+    vi.mocked(apiFetch).mockImplementation((path, requestOpts) => {
+      if (path === "/api/cincinnati/channels") {
+        return Promise.resolve({ channels: [...channelList.channels] });
+      }
+      if (path === "/api/cincinnati/update" && requestOpts?.method === "POST") {
+        return Promise.resolve({ channels: [...channelList.channels] });
+      }
+      if (path === "/api/cincinnati/refresh-job" && requestOpts?.method === "POST") {
+        return Promise.resolve({ jobId: "job-cin-1" });
+      }
+      if (String(path) === "/api/jobs/job-cin-1") {
+        return Promise.resolve({
+          id: "job-cin-1",
+          type: "cincinnati-refresh",
+          status: "completed",
+          message: "",
+          output: "",
+          progress: 100
+        });
+      }
+      if (String(path).startsWith("/api/cincinnati/patches?")) {
+        const ch = patchChannelFromPath(path);
+        if (ch === "4.21") return Promise.resolve({ versions: ["4.21.3", "4.21.2"] });
+        return Promise.resolve({ versions: [`${ch}.5`, `${ch}.4`] });
+      }
+      if (path === "/api/cincinnati/patches/update") {
+        const body = requestOpts?.body ? JSON.parse(requestOpts.body) : {};
+        const ch = body.channel || "4.17";
+        return Promise.resolve({ versions: [`${ch}.9`, `${ch}.8`] });
+      }
+      return Promise.resolve({});
+    });
+
+    const initial = {
+      blueprint: { platform: "Bare Metal", arch: "x86_64", confirmed: false },
+      release: { channel: "4.17", patchVersion: "4.17.5", confirmed: false, followLatestMinor: false },
+      version: {},
+      operators: { stale: false, selected: [], catalogs: {} }
+    };
+    renderBlueprint(initial);
+
+    await waitFor(() => expect(screen.getByLabelText(/Minor channel/i).value).toBe("4.17"));
+
+    fireEvent.change(screen.getByLabelText(/Minor channel/i), { target: { value: "4.21" } });
+
+    const patchSelect = screen.getByLabelText(/Patch version/i);
+    await waitFor(() => {
+      const opts = [...patchSelect.querySelectorAll("option")].map((o) => o.value).filter(Boolean);
+      expect(opts.some((v) => v.startsWith("4.21"))).toBe(true);
+      expect(opts.includes("4.17.5")).toBe(false);
+    });
+  });
 });

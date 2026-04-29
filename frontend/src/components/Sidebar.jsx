@@ -15,7 +15,9 @@ const Sidebar = ({
   lockToast,
   setLockToast
 }) => {
-  const isDisabled = (step) => !foundationalLocked && step.id !== "blueprint";
+  /** Before foundational lock-in, only Blueprint and Operations are reachable (Operations for job logs). */
+  const isDisabled = (step) =>
+    !foundationalLocked && step.id !== "blueprint" && step.id !== "operations";
 
   return (
     <aside className={`sidebar ${sidebarOpen ? "open" : "collapsed"}`} aria-label="Wizard steps">
