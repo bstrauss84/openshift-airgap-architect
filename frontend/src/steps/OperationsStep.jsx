@@ -11,7 +11,8 @@ const formatJobTime = (createdAt) => {
 const JOB_TYPE_LABELS = {
   "operator-scan": "Operator scan",
   "docs-update": "Docs update",
-  "oc-mirror-run": "oc-mirror run"
+  "oc-mirror-run": "oc-mirror run",
+  "cincinnati-refresh": "Cincinnati refresh"
 };
 
 const TERMINAL_STATUSES = ["completed", "failed", "cancelled"];

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
-import { validateBlueprintPullSecretOptional } from "../validation.js";
+import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
 import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
 
@@ -31,6 +31,18 @@ const platformOptions = [
   { value: "IBM Cloud", label: "IBM Cloud", rec: "Rec: IPI" }
 ];
 
+const JOB_TERMINAL = new Set(["completed", "failed", "cancelled"]);
+
+async function pollJobUntilTerminal(jobId, { timeoutMs = 120000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const job = await apiFetch(`/api/jobs/${jobId}`);
+    if (JOB_TERMINAL.has(job.status)) return job;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  throw new Error("Timed out waiting for Cincinnati refresh job.");
+}
+
 const BlueprintStep = () => {
   const { state, updateState } = useApp();
   const blueprint = state.blueprint;
@@ -47,8 +59,15 @@ const BlueprintStep = () => {
   const [refreshNote, setRefreshNote] = useState("");
   const [updatedMessage, setUpdatedMessage] = useState(false);
   const [mountedSecretBadge, setMountedSecretBadge] = useState(false);
-  /** After a forced patch refresh, skip the release.channel effect once so it does not overwrite POST results with a stale GET. */
-  const skipChannelPatchFetchRef = useRef(false);
+  const [refreshError, setRefreshError] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [manualMinor, setManualMinor] = useState("");
+  const [manualPatch, setManualPatch] = useState("");
+  const [manualApplyError, setManualApplyError] = useState("");
+  /** Suppress automatic patch fetch for N `release.channel` effect runs (forced refresh + StrictMode). */
+  const channelPatchAutoFetchSuppressRef = useRef(0);
+  const prevAdvancedOpenRef = useRef(false);
+  const patchFetchGenerationRef = useRef(0);
   const blueprintPullSecretRaw = state.blueprint?.blueprintPullSecretEphemeral ?? "";
   const blueprintPullSecretTrimmed = blueprintPullSecretRaw.trim();
   const blueprintPullSecretError = useMemo(() => {
@@ -143,46 +162,60 @@ const BlueprintStep = () => {
   const fetchPatches = async (channel, force = false) => {
     if (!channel) return;
     if (force && channel !== release?.channel) {
-      skipChannelPatchFetchRef.current = true;
+      channelPatchAutoFetchSuppressRef.current = 1;
     }
+    const gen = ++patchFetchGenerationRef.current;
     setPatchesLoading(true);
     setPatches([]);
     const endpoint = force ? "/api/cincinnati/patches/update" : "/api/cincinnati/patches";
-    const data = force
-      ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }) })
-      : await apiFetch(`${endpoint}?channel=${channel}`);
-    setPatches(data.versions || []);
-    if (releaseLocked) {
+    try {
+      const data = force
+        ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }) })
+        : await apiFetch(`${endpoint}?channel=${encodeURIComponent(channel)}`);
+      if (gen !== patchFetchGenerationRef.current) return;
+      setPatches(data.versions || []);
+      if (releaseLocked) {
+        return;
+      }
+      if (data.versions?.length) {
+        const patchVersion = data.versions[0];
+        updateState({ release: { ...release, channel, patchVersion, confirmed: false } });
+        updateVersionSelection({
+          selectedChannel: `stable-${channel}`,
+          selectedVersion: patchVersion,
+          selectionTimestamp: Date.now()
+        });
+      } else {
+        updateState({ release: { ...release, channel, patchVersion: null, confirmed: false } });
+        updateVersionSelection({
+          selectedChannel: `stable-${channel}`,
+          selectedVersion: null,
+          selectionTimestamp: Date.now()
+        });
+      }
+    } finally {
       setPatchesLoading(false);
-      return;
     }
-    if (data.versions?.length) {
-      const patchVersion = data.versions[0];
-      updateState({ release: { ...release, channel, patchVersion, confirmed: false } });
-      updateVersionSelection({
-        selectedChannel: `stable-${channel}`,
-        selectedVersion: patchVersion,
-        selectionTimestamp: Date.now()
-      });
-    } else {
-      updateState({ release: { ...release, channel, patchVersion: null, confirmed: false } });
-      updateVersionSelection({
-        selectedChannel: `stable-${channel}`,
-        selectedVersion: null,
-        selectionTimestamp: Date.now()
-      });
-    }
-    setPatchesLoading(false);
   };
 
   useEffect(() => {
     if (!release?.channel) return;
-    if (skipChannelPatchFetchRef.current) {
-      skipChannelPatchFetchRef.current = false;
+    if (channelPatchAutoFetchSuppressRef.current > 0) {
+      channelPatchAutoFetchSuppressRef.current -= 1;
       return;
     }
     fetchPatches(release.channel).catch(() => setPatchesLoading(false));
   }, [release?.channel]);
+
+  useEffect(() => {
+    const wasOpen = prevAdvancedOpenRef.current;
+    if (advancedOpen && !wasOpen) {
+      setManualMinor(String(release?.channel ?? ""));
+      setManualPatch(String(release?.patchVersion ?? ""));
+    }
+    prevAdvancedOpenRef.current = advancedOpen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-seed when the panel opens; release is read from the render that opened it.
+  }, [advancedOpen]);
 
   const updateChannel = (channel) => {
     if (releaseLocked) return;
@@ -200,14 +233,31 @@ const BlueprintStep = () => {
 
   const refresh = async () => {
     setRefreshing(true);
-    setRefreshNote("Refreshing channels from upstream…");
+    setRefreshError("");
+    setRefreshNote("Queuing Cincinnati refresh…");
     try {
-      const data = await apiFetch("/api/cincinnati/update", { method: "POST" });
-      const newChannels = sortChannelsBySemverDescending(data.channels || []);
+      const { jobId } = await apiFetch("/api/cincinnati/refresh-job", {
+        method: "POST",
+        body: JSON.stringify({ preferredChannel: release?.channel || null })
+      });
+      setRefreshNote("Refresh running—Operations shows live progress…");
+      const job = await pollJobUntilTerminal(jobId);
+      if (job.status !== "completed") {
+        const outLines = job.output ? String(job.output).trim().split("\n").filter(Boolean) : [];
+        const msg =
+          (job.message && String(job.message).trim()) ||
+          outLines[outLines.length - 1] ||
+          "Cincinnati refresh failed.";
+        setRefreshError(String(msg));
+        updateState({ ui: { ...(state.ui || {}), highlightJobId: jobId } });
+        return;
+      }
+      const chRes = await apiFetch("/api/cincinnati/channels");
+      const newChannels = sortChannelsBySemverDescending(chRes.channels || []);
       setChannels(newChannels);
       if (newChannels.length === 0) {
-        setRefreshNote("");
-        setRefreshing(false);
+        setUpdatedMessage(true);
+        setTimeout(() => setUpdatedMessage(false), 5000);
         return;
       }
       const newestChannel = getNewestChannel(newChannels);
@@ -221,14 +271,42 @@ const BlueprintStep = () => {
         const cur = release?.channel;
         channelToLoad = cur && newChannels.includes(cur) ? cur : newestChannel;
       }
-      await fetchPatches(channelToLoad, true);
-      setRefreshNote("");
+      await fetchPatches(channelToLoad, false);
       setUpdatedMessage(true);
       setTimeout(() => setUpdatedMessage(false), 5000);
-    } catch {
+    } catch (e) {
+      setPatchesLoading(false);
+      setRefreshError(e?.message || String(e));
+    } finally {
       setRefreshNote("");
+      setRefreshing(false);
     }
-    setRefreshing(false);
+  };
+
+  const applyManualRelease = () => {
+    setManualApplyError("");
+    const r = validateManualOpenShiftRelease(manualMinor, manualPatch);
+    if (!r.ok) {
+      setManualApplyError(r.errors[0]);
+      return;
+    }
+    const minor = manualMinor.trim();
+    const patch = manualPatch.trim();
+    if (minor !== (release?.channel || "")) {
+      channelPatchAutoFetchSuppressRef.current = 2;
+      patchFetchGenerationRef.current += 1;
+    }
+    updateState({
+      release: { ...release, channel: minor, patchVersion: patch, confirmed: false, followLatestMinor: false },
+      operators: { ...state.operators, stale: true }
+    });
+    updateVersionSelection({
+      selectedChannel: `stable-${minor}`,
+      selectedVersion: patch,
+      selectionTimestamp: Date.now()
+    });
+    setPatches([patch]);
+    setRefreshError("");
   };
 
   return (
@@ -291,7 +369,7 @@ const BlueprintStep = () => {
           <div className="card-header" style={{ marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>OpenShift release</h3>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked}>
+              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
                 Update
               </button>
               <span
@@ -308,6 +386,11 @@ const BlueprintStep = () => {
               </span>
             </div>
           </div>
+          {refreshError ? (
+            <div className="note" style={{ marginBottom: 12, color: "var(--danger, #c62828)" }} role="alert">
+              {refreshError}
+            </div>
+          ) : null}
           <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem" }}>
             <label className="label-emphasis" style={{ minWidth: "10rem" }}>
               Minor channel
@@ -317,6 +400,11 @@ const BlueprintStep = () => {
                 onChange={(e) => updateChannel(e.target.value || null)}
               >
                 <option value="" disabled>Select channel</option>
+                {release?.channel && !channels.includes(release.channel) ? (
+                  <option key={`manual-ch-${release.channel}`} value={release.channel}>
+                    stable-{release.channel} (manual)
+                  </option>
+                ) : null}
                 {channels.map((ch) => (
                   <option key={ch} value={ch}>stable-{ch}</option>
                 ))}
@@ -330,6 +418,11 @@ const BlueprintStep = () => {
                 onChange={(e) => updatePatch(e.target.value || null)}
               >
                 <option value="" disabled>Select patch</option>
+                {release?.patchVersion && !patches.includes(release.patchVersion) ? (
+                  <option key={`manual-pv-${release.patchVersion}`} value={release.patchVersion}>
+                    {release.patchVersion} (manual)
+                  </option>
+                ) : null}
                 {patches.map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
@@ -338,6 +431,58 @@ const BlueprintStep = () => {
           </div>
           {loading ? <div className="loading">Loading channels…</div> : null}
           {patchesLoading && release?.channel ? <div className="loading">Loading patches…</div> : null}
+          <details
+            className="subtle"
+            style={{ marginTop: 12, marginBottom: 8 }}
+            onToggle={(e) => setAdvancedOpen(e.target.open)}
+          >
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>Advanced: set release manually</summary>
+            <p className="note" style={{ marginTop: 10, marginBottom: 8 }}>
+              Use only when Cincinnati lists are empty or wrong for your environment. Verify versions against the{" "}
+              <a
+                href="https://github.com/openshift/cincinnati-graph-data/tree/master/channels"
+                target="_blank"
+                rel="noreferrer"
+              >
+                openshift/cincinnati-graph-data channels
+              </a>{" "}
+              tree for your disconnected reality before locking the blueprint.
+            </p>
+            <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem", maxWidth: "32rem" }}>
+              <label className="label-emphasis">
+                Minor (e.g. 4.17)
+                <input
+                  type="text"
+                  data-testid="blueprint-manual-minor"
+                  value={manualMinor}
+                  disabled={releaseLocked}
+                  onChange={(e) => setManualMinor(e.target.value)}
+                  placeholder="4.17"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="label-emphasis">
+                Patch (e.g. 4.17.12)
+                <input
+                  type="text"
+                  data-testid="blueprint-manual-patch"
+                  value={manualPatch}
+                  disabled={releaseLocked}
+                  onChange={(e) => setManualPatch(e.target.value)}
+                  placeholder="4.17.12"
+                  autoComplete="off"
+                />
+              </label>
+              <button type="button" className="primary" data-testid="blueprint-manual-apply" onClick={applyManualRelease} disabled={releaseLocked}>
+                Apply
+              </button>
+            </div>
+            {manualApplyError ? (
+              <div className="note" style={{ marginTop: 8, color: "var(--danger, #c62828)" }} role="alert">
+                {manualApplyError}
+              </div>
+            ) : null}
+          </details>
           <p className="note note-prominent">
             Operator scans are blocked until you lock these selections.
             {releaseLocked ? " Release is locked; use Start Over to change it." : ""}

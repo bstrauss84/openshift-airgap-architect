@@ -11,6 +11,7 @@ import archiver from "archiver";
 import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
 import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
+import { runCincinnatiBackgroundJob } from "./cincinnatiJob.js";
 import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
 import { resolveOcMirrorBinary, getRuntimeArch, getLocalBinaryArch, getBinariesForExportArch } from "./ocMirrorRuntime.js";
 import { db, dataDir } from "./db.js";
@@ -902,6 +903,26 @@ app.post("/api/cincinnati/patches/update", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
+});
+
+/** Async Cincinnati refresh for Operations visibility; Blueprint Update uses this + poll. */
+app.post("/api/cincinnati/refresh-job", (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const preferredChannel =
+    typeof body.preferredChannel === "string" && body.preferredChannel.trim()
+      ? body.preferredChannel.trim()
+      : typeof body.channel === "string" && body.channel.trim()
+        ? body.channel.trim()
+        : null;
+  const jobId = createJob("cincinnati-refresh", "Refreshing Cincinnati channels and patch list…");
+  updateJob(jobId, { status: "running", progress: 5 });
+  res.status(202).json({ jobId });
+  setImmediate(() => {
+    runCincinnatiBackgroundJob(jobId, { preferredChannel }).catch((err) => {
+      appendJobOutput(jobId, `\nUnhandled: ${String(err?.message || err)}\n`);
+      updateJob(jobId, { status: "failed", progress: 100, message: String(err?.message || err) });
+    });
+  });
 });
 
 app.get("/api/operators/credentials", (req, res) => {
