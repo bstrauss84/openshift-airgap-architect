@@ -43,6 +43,8 @@ Status conflicts are always resolved here, not in umbrella or per-tool comparati
 
 ## Active reconciliation items
 
+**Note:** Production readiness items (PROD-001 through PROD-023) are tracked in a separate section below. See "Production readiness items (PROD-*)" for operational maturity, observability, deployment, and hardening work required for production deployment.
+
 | item_id | title | status | priority | source_docs | code_evidence | next_action |
 |---|---|---|---|---|---|---|
 | DOC-001 | Normalize docs host to docs.redhat.com in docs-index and frontend copy | active | p1 | `docs/DOC_INDEX_RULES.md`, `docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`, `data/docs-index/4.20.json`, `frontend/src/data/docs-index/4.20.json` | `scripts/refresh-doc-index.js`, `scripts/validate-docs-index.js` | Replace remaining docs.openshift.com links or explicitly document exceptions in one canonical place. |
@@ -94,6 +96,58 @@ Status conflicts are always resolved here, not in umbrella or per-tool comparati
 | DOC-047 | Deep comparative enrichment P6 low-drift future-agent execution packets | done_pending_verification | p1 | `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md` | FP-01 through FP-04 packets include scope, non-goals, evidence, acceptance criteria | Validate packet readiness with next implementation planning session; then mark `verified_done`. |
 | DOC-048 | Add AutoShiftv2 deep comparative stream and integrate Day-2 handoff findings into master comparative strategy | done_pending_verification | p1 | `docs/AUTOSHIFTV2_COMPARISON_REVISED_PLAN_2026-03-23.md`, `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md` | capability dossier (`CAP-AS2-*`), packetized recommendations (`AS2-P1`..`AS2-P4`), master comparative section `3.4` + extension scoring | Verify cross-tool parity against granularity standard (capabilities, packets, scenario matrix, trust boundaries, acceptance checks) before moving to `verified_done`; preserve canonical status authority in this file. |
 
+## Production readiness items (PROD-*)
+
+Production readiness assessment completed 2026-04-24. These items are sequenced in phases for controlled production deployment.
+
+| item_id | title | status | priority | source_docs | code_evidence | next_action |
+|---|---|---|---|---|---|---|
+| PROD-001 | Fix failing frontend test (run-oc-mirror-step.test.jsx) | active | p0 | production readiness assessment 2026-04-24 | `frontend/tests/run-oc-mirror-step.test.jsx` (1 test failing: timeout waiting for "Run oc-mirror" heading) | Investigate and fix test failure; may indicate regression in critical oc-mirror workflow. Block production deploy until resolved. |
+| PROD-002 | Add structured logging framework (replace console.log/error) | active | p1 | production readiness assessment 2026-04-24 | `backend/src/*.js` (only 7 console.log/error statements found) | Implement structured logging (Winston, Pino, or similar) with log levels, request correlation IDs, and proper error context. |
+| PROD-003 | Add Kubernetes/OpenShift deployment manifests | active | p1 | production readiness assessment 2026-04-24 | `docker-compose.yml` (Compose only; no K8s manifests) | Create Deployment, Service, PVC, ConfigMap, Secret manifests; document deployment procedure for K8s/OpenShift. |
+| PROD-004 | Define and test resource limits (CPU/memory) | active | p1 | production readiness assessment 2026-04-24 | `docker-compose.yml` (no resource limits defined) | Load test with realistic workloads (10+ users, 200GB archives); define requests/limits; document capacity planning. |
+| PROD-005 | Document SQLite backup/restore and disaster recovery procedures | active | p1 | production readiness assessment 2026-04-24 | `backend/src/db.js`, `README.md` (no backup procedures documented) | Document backup strategy for SQLite (WAL mode), volume snapshot procedures, and disaster recovery steps. |
+| PROD-006 | Add separate readiness and liveness probe endpoints | active | p1 | production readiness assessment 2026-04-24 | `backend/src/index.js` (only `/api/health` exists) | Implement `/health/ready` (checks DB, critical dependencies) and `/health/live` (process alive) endpoints. |
+| PROD-007 | Add backend request schema validation | active | p1 | production readiness assessment 2026-04-24 | `backend/src/index.js` (validation relies primarily on frontend) | Add explicit backend validation (Joi, Zod, or similar) for all API endpoints; validate file uploads; document API contract. |
+| PROD-008 | Add Prometheus metrics and instrumentation | active | p2 | production readiness assessment 2026-04-24 | no metrics/instrumentation found | Add metrics for job counts, duration, errors, HTTP request duration/status, SQLite query performance, oc-mirror operation size/duration. |
+| PROD-009 | Implement formal database migration system | active | p2 | production readiness assessment 2026-04-24 | `backend/src/db.js` (`ensureJobsMetadataColumn()` pattern only) | Replace inline schema checks with formal migration system (better-sqlite3 + custom runner); version migrations; add rollback capability. |
+| PROD-010 | Add end-to-end tests for critical user workflows | active | p2 | production readiness assessment 2026-04-24 | `frontend/tests/`, `backend/test/` (unit tests only; no e2e tests) | Add e2e tests (Playwright or similar) for: wizard completion, export bundle, oc-mirror job execution, import/export run. |
+| PROD-011 | Load test with realistic workloads and document results | active | p2 | production readiness assessment 2026-04-24 | no load testing documented | Test with 10+ concurrent users, multiple oc-mirror jobs, 50-200GB archives; document max concurrent jobs, memory footprint, SQLite performance. |
+| PROD-012 | Add automated job cleanup/retention policy | active | p2 | production readiness assessment 2026-04-24 | `backend/src/utils.js` (`deleteCompletedJobs()` exists but no automation/policy) | Implement configurable retention policy (e.g., keep jobs for 7 days, max 100 jobs); add automatic cleanup scheduled task; document VACUUM strategy. |
+| PROD-013 | Document capacity planning and scaling guidance | active | p2 | production readiness assessment 2026-04-24 | no capacity planning documented | Document expected resource usage, maximum concurrent operations, storage requirements for archives, scaling considerations. |
+| PROD-014 | Create CHANGELOG.md and establish versioning | active | p2 | production readiness assessment 2026-04-24 | `backend/package.json` (version 0.1.0; no CHANGELOG) | Create CHANGELOG.md (Keep a Changelog format); establish semantic versioning; document release process; version 1.0.0 for first production release. |
+| PROD-015 | Add distributed tracing (OpenTelemetry or similar) | active | p3 | production readiness assessment 2026-04-24 | no tracing found | Add distributed tracing for request flows, background jobs, external API calls; integrate with observability stack. |
+| PROD-016 | Implement circuit breakers for external service calls | active | p3 | production readiness assessment 2026-04-24 | `backend/src/cincinnati.js`, `backend/src/docs.js`, `backend/src/installer.js` (no circuit breakers; many empty catch blocks) | Add circuit breakers for GitHub, mirror.openshift.com, docs.redhat.com; implement retry with exponential backoff; add error logging in catch blocks. |
+| PROD-017 | Add performance monitoring and alerting | active | p3 | production readiness assessment 2026-04-24 | no performance monitoring documented | Add performance monitoring for archive operations, job execution time, API response time; document alerting thresholds. |
+| PROD-018 | Add security headers (CSP, Helmet.js) | active | p3 | production readiness assessment 2026-04-24 | `backend/src/index.js` (CORS configured; no security headers) | Add Content Security Policy, X-Frame-Options, X-Content-Type-Options, HSTS, and other security headers (Helmet.js). |
+| PROD-019 | Add API documentation (OpenAPI/Swagger) | active | p3 | production readiness assessment 2026-04-24 | no API documentation found | Document API contract with OpenAPI 3.0; add Swagger UI for interactive exploration; keep in sync with implementation. |
+| PROD-020 | Add dependency scanning automation (Snyk, Dependabot) | active | p3 | production readiness assessment 2026-04-24 | `.github/workflows/ci.yml` (no dependency scanning) | Add automated dependency vulnerability scanning; configure alerts; document patching cadence. |
+| PROD-021 | Document multi-instance deployment and high availability | active | p3 | production readiness assessment 2026-04-24 | README (single-instance only documented) | Document multi-instance considerations, SQLite limitations for HA, session affinity requirements, shared storage for archives. |
+| PROD-022 | Add test coverage reporting and enforce minimums | active | p3 | production readiness assessment 2026-04-24 | test suites exist but no coverage reporting | Add Istanbul/nyc for coverage reporting; set minimum coverage thresholds (e.g., 80%); integrate into CI. |
+| PROD-023 | Add SBOM generation for container images | active | p3 | production readiness assessment 2026-04-24 | `backend/Containerfile`, `frontend/Containerfile` (UBI 9 base images; no SBOM) | Generate Software Bill of Materials for container images; integrate into build process; document SBOM location. |
+
+## Production readiness phase sequencing
+
+Production deployment should follow this phased approach to minimize risk:
+
+| phase | name | items | rationale |
+|---|---|---|---|
+| Phase 1 (Critical) | Before first production deploy | PROD-001, PROD-002, PROD-003, PROD-004, PROD-005, PROD-006, PROD-007 | Critical correctness, observability, and operational requirements; block production deploy until complete. |
+| Phase 2 (Important) | First 30 days in production | PROD-008, PROD-009, PROD-010, PROD-011, PROD-012, PROD-013, PROD-014 | Important operational maturity; address during initial production stabilization period. |
+| Phase 3 (Enhancement) | First 90 days in production | PROD-015, PROD-016, PROD-017, PROD-018, PROD-019, PROD-020, PROD-021, PROD-022, PROD-023 | Operational excellence and hardening; enhance monitoring, security, documentation. |
+
+## Production readiness dependency map
+
+| item_id | depends_on | unblock_condition |
+|---|---|---|
+| PROD-003 | PROD-004 | Resource limits must be defined before K8s manifests are complete |
+| PROD-004 | PROD-011 | Load testing provides data for resource limit decisions |
+| PROD-009 | PROD-005 | Migration system should consider backup/restore procedures |
+| PROD-012 | PROD-009 | Cleanup policy should integrate with migration system |
+| PROD-013 | PROD-004, PROD-011 | Capacity planning requires resource limits and load test results |
+| PROD-015 | PROD-002 | Distributed tracing benefits from structured logging foundation |
+| PROD-017 | PROD-008 | Performance monitoring builds on metrics instrumentation |
+
 ## Execution sequencing (DOC-030 to DOC-041)
 
 This sequence is intended to maximize risk reduction and unblock dependent work.
@@ -126,10 +180,17 @@ This sequence is intended to maximize risk reduction and unblock dependent work.
 
 ## Suggested sprint buckets
 
+### Feature/documentation sprints
 - **Sprint A (correctness + scope truth):** DOC-031, DOC-035, DOC-033, DOC-036  
 - **Sprint B (operations + mode controls):** DOC-030, DOC-037, DOC-038  
 - **Sprint C (UX/system expansion):** DOC-039, DOC-040, DOC-032, DOC-034  
 - **Sprint D (feedback channel):** DOC-041
+
+### Production readiness sprints
+- **Sprint PROD-1 (critical blockers):** PROD-001, PROD-002, PROD-003, PROD-006, PROD-007 — Must complete before production deploy
+- **Sprint PROD-2 (operational foundation):** PROD-004, PROD-005, PROD-011 — Load testing and capacity planning
+- **Sprint PROD-3 (operational maturity):** PROD-008, PROD-009, PROD-010, PROD-012, PROD-013, PROD-014 — First 30 days in production
+- **Sprint PROD-4 (hardening):** PROD-015, PROD-016, PROD-017, PROD-018, PROD-019, PROD-020, PROD-021, PROD-022, PROD-023 — First 90 days in production
 
 ## Archived phase progression (fully reconciled)
 

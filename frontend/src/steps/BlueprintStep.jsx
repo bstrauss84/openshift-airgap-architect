@@ -219,6 +219,11 @@ const BlueprintStep = () => {
 
   const updateChannel = (channel) => {
     if (releaseLocked) return;
+    // User explicitly changed minor: drop stale patch list / in-flight fetches from manual entry or prior channel.
+    channelPatchAutoFetchSuppressRef.current = 0;
+    patchFetchGenerationRef.current += 1;
+    setPatches([]);
+    setPatchesLoading(true);
     updateState({
       release: { ...release, channel, patchVersion: null, confirmed: false, followLatestMinor: false }
     });
