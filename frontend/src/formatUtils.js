@@ -1,4 +1,15 @@
 /**
+ * OpenShift Airgap Architect - Input Formatting Utilities
+ *
+ * Formatting and normalization functions for IP addresses, MAC addresses, and CIDRs.
+ * Ensures consistent input formatting across wizard steps.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
+/**
  * Format IPv4 CIDR input (trim only).
  * @param {string} value - Raw input
  * @returns {string}

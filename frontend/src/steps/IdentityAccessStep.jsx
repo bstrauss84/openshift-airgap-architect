@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Identity & Access Configuration Step
+ *
+ * Cluster identity (name, domain), SSH public key, pull secrets, and mirror
+ * registry credentials configuration for segmented flow.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
 import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId } from "../hostInventoryV2Helpers.js";
@@ -201,6 +212,8 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                 onChange={(e) => updateBlueprint({ clusterName: e.target.value })}
                 placeholder={defaultClusterName}
                 className={fieldErrors.clusterName ? "input-error" : ""}
+                aria-required="true"
+                aria-invalid={fieldErrors.clusterName ? "true" : "false"}
               />
             </label>
             <label className={fieldErrors.baseDomain ? "input-error" : ""}>
@@ -210,6 +223,8 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                 onChange={(e) => updateBlueprint({ baseDomain: e.target.value })}
                 placeholder="example.com"
                 className={fieldErrors.baseDomain ? "input-error" : ""}
+                aria-required={requiredBaseDomain ? "true" : "false"}
+                aria-invalid={fieldErrors.baseDomain ? "true" : "false"}
               />
             </label>
           </div>
@@ -370,8 +385,11 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               onChange={(e) => updateCredentials({ sshPublicKey: e.target.value })}
               rows={3}
               placeholder="ssh-rsa AAAA..."
+              aria-required="true"
+              aria-invalid={sshKeyInvalid ? "true" : "false"}
+              aria-describedby={sshKeyInvalid ? "ssh-key-error" : undefined}
             />
-            {sshKeyInvalid ? <div className="note warning">SSH public key format is invalid.</div> : null}
+            {sshKeyInvalid ? <div id="ssh-key-error" className="note warning" role="alert">SSH public key format is invalid.</div> : null}
             <div className="actions">
               <button type="button" className="ghost" onClick={openKeygen}>
                 Generate keypair

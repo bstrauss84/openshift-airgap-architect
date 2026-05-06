@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Secret Input Component
+ *
+ * Shared pull-secret / credential input with masking, show/hide toggle,
+ * paste, drag-and-drop, and file upload support. Consistent helper/error placement.
+ * Used for pull secrets across Blueprint, Identity & Access, Operators, Global Strategy.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useRef, useState } from "react";
 
 import FieldLabelWithInfo from "./FieldLabelWithInfo.jsx";
@@ -135,6 +146,9 @@ function SecretInput({
           className={`pull-secret-field ${hasError ? "input-error" : ""}`}
           role="textbox"
           aria-label={ariaLabel || label}
+          aria-required={required ? "true" : "false"}
+          aria-invalid={hasError ? "true" : "false"}
+          aria-describedby={hasError ? `${id}-error` : undefined}
           value={displayValue}
           onChange={(e) => showSecret && onChange(e.target.value)}
           onPaste={handlePaste}
@@ -164,7 +178,7 @@ function SecretInput({
         </button>
       </div>
       {errorMessage ? (
-        <div className="note warning" style={{ marginTop: 8 }}>{errorMessage}</div>
+        <div id={`${id}-error`} className="note warning" role="alert" style={{ marginTop: 8 }}>{errorMessage}</div>
       ) : null}
       {helperText ? (
         <p className="note note-prominent pull-secret-helper">{helperText}</p>

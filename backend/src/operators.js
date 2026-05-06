@@ -1,4 +1,14 @@
-/** Operator catalog scan via oc-mirror list operators; results stored in DB, not credentials. */
+/**
+ * OpenShift Airgap Architect - Operator Catalog Scanning
+ *
+ * Scans RedHat, certified, and community operator catalogs using oc-mirror.
+ * Parses operator metadata (name, display name, default channel) and stores
+ * results in SQLite. Does not persist pull secrets or credentials.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import { spawn } from "node:child_process";
 import { db } from "./db.js";
 import { appendJobOutput, createJob, updateJob, safeUnlink } from "./utils.js";

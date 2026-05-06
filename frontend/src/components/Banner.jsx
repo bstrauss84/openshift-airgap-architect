@@ -1,3 +1,13 @@
+/**
+ * OpenShift Airgap Architect - Banner Component
+ *
+ * Section-level banner component with variant support (info, warning, error).
+ * Provides accessible, visually distinct notifications within wizard steps.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 
 /**

@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Field Label with Info Icon Component
+ *
+ * Field label with inline info icon that shows contextual help.
+ * Short hints (<180 chars): hover tooltip; Long hints: click-triggered scrollable popover.
+ * Supports accessibility with ARIA attributes and keyboard navigation.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 

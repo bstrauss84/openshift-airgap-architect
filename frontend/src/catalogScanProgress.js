@@ -1,6 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Catalog Scan Progress Calculator
+ *
  * Deterministic "fake" progress for operator catalog scans.
  * 19 steps of 5% from 0 to 95 over 6 minutes; completion sets 100% via caller.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const DURATION_MS = 360_000; // 6 minutes

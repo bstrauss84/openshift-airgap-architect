@@ -1,6 +1,12 @@
 /**
- * Networking replacement step (segmented flow). Network type, machine/cluster/service CIDRs, optional API/Ingress VIPs and OVN internal join subnet.
- * Grouped: cluster-level, machine network, service network, advanced (OVN). IPv6 toggle; red only on cards with actual errors.
+ * OpenShift Airgap Architect - Networking Configuration Step
+ *
+ * Network configuration for segmented flow: IPv4/IPv6/dual-stack support,
+ * machine/cluster/service network CIDRs, API/Ingress VIPs, OVN advanced options.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useState } from "react";
 import { useApp } from "../store.jsx";
@@ -219,6 +225,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                     value={networking.machineNetworkV4 || ""}
                     onChange={(e) => updateNetworking({ machineNetworkV4: formatIpv4Cidr(e.target.value) })}
                     placeholder="10.90.0.0/24"
+                    aria-required="true"
+                    aria-invalid={fieldErrors.machineNetworkV4 ? "true" : "false"}
                   />
                 </FieldLabelWithInfo>
                 {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
@@ -262,6 +270,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                     value={networking.clusterNetworkCidr || ""}
                     onChange={(e) => updateNetworking({ clusterNetworkCidr: formatIpv4Cidr(e.target.value) })}
                     placeholder="10.128.0.0/14"
+                    aria-required={isRequired("networking.clusterNetwork[].cidr") ? "true" : "false"}
+                    aria-invalid={fieldErrors.clusterNetworkCidr ? "true" : "false"}
                   />
                 </FieldLabelWithInfo>
                 {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
@@ -299,6 +309,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                           updateNetworking({ clusterNetworkCidrV6: formatIpv6Cidr(e.target.value) || undefined })
                         }
                         placeholder="fd01::/48"
+                        aria-required="false"
+                        aria-invalid={fieldErrors.clusterNetworkCidrV6 ? "true" : "false"}
                       />
                     </FieldLabelWithInfo>
                     <FieldLabelWithInfo label="Cluster Network IPv6 Host Prefix (optional)">
@@ -336,6 +348,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                     value={networking.serviceNetworkCidr || ""}
                     onChange={(e) => updateNetworking({ serviceNetworkCidr: formatIpv4Cidr(e.target.value) })}
                     placeholder="172.30.0.0/16"
+                    aria-required={isRequired("networking.serviceNetwork") ? "true" : "false"}
+                    aria-invalid={fieldErrors.serviceNetworkCidr ? "true" : "false"}
                   />
                 </FieldLabelWithInfo>
                 {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
@@ -357,6 +371,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                         updateNetworking({ serviceNetworkCidrV6: formatIpv6Cidr(e.target.value) || undefined })
                       }
                       placeholder="fd02::/112"
+                      aria-required="false"
+                      aria-invalid={fieldErrors.serviceNetworkCidrV6 ? "true" : "false"}
                     />
                   </FieldLabelWithInfo>
                 ) : null}

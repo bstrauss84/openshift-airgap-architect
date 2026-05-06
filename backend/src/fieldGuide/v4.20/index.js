@@ -1,5 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Field Guide v4.20 Compartments
+ *
  * All v4.20 compartments, re-exported as a single flat array.
+ * Aggregates compartments from all platform-specific and global modules.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import {
   globalPrereqs,

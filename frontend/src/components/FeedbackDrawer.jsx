@@ -1,3 +1,13 @@
+/**
+ * OpenShift Airgap Architect - Feedback Drawer Component
+ *
+ * User feedback drawer with focus trap, challenge-response anti-spam, and form validation.
+ * Supports GitHub issue creation, offline collection, or disabled modes.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Button from "./Button.jsx";

@@ -1,3 +1,11 @@
+/**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
 import { test } from "node:test";
 import assert from "node:assert";
 import { parseOptionalClientState } from "../src/clientStateGuard.js";

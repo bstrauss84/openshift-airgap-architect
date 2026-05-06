@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Sidebar Navigation Component
+ *
+ * Collapsible sidebar navigation for wizard steps.
+ * Displays step progress, completion status, errors, and review warnings.
+ * Enforces foundational lock-in before other steps are accessible.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 
 const Sidebar = ({

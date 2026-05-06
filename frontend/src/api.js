@@ -1,4 +1,13 @@
-/** Thin fetch wrapper for backend API; VITE_API_BASE for container/proxy. */
+/**
+ * OpenShift Airgap Architect - Frontend API Client
+ *
+ * Thin fetch wrapper for backend API communication.
+ * VITE_API_BASE environment variable configures API endpoint for containerized deployments.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 const apiFetch = async (path, options = {}) => {

@@ -1,4 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
+/**
  * Workstream D — Wizard flow & progress: skip rules, checkmarks, required-field highlighting, deliverable gating.
  * Regression: checkmark only after Proceed with no errors; never on enter/skip; proceed-anyway → needs review.
  */

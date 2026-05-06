@@ -1,6 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Client State Validation
+ *
  * Validates client-supplied wizard state on POST bodies (generate, bundle.prepare, bundle.zip).
  * Rejects arrays, non-objects, and exotic prototypes to reduce prototype-pollution and mistaken payloads.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 /** @param {() => object} getFallback - called only when body omits state (e.g. ensureState). */

@@ -1,4 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
+/**
  * Phase 4.3: Catalog-driven controls and validation (inventory-v2 only).
  * (a) Enum field renders as select when allowed list present
  * (d) Legacy inventory step validation unaffected when flags OFF

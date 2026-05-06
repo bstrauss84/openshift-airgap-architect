@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Scenario Header Panel Component
+ *
+ * Collapsible scenario header for segmented flow: scenario name, OCP version,
+ * "This will generate" list, and documentation links from the docs index.
+ * Uses frontend copy from frontend/src/data/docs-index/.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useState } from "react";
 import { getScenarioId } from "../hostInventoryV2Helpers.js";
 

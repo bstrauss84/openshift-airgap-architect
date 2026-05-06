@@ -1,6 +1,13 @@
 /**
- * additionalTrustBundlePolicy defaults and allow-list resolution (Trust & Proxy, Global Strategy, validation).
+ * OpenShift Airgap Architect - Trust Bundle Policy Management
+ *
+ * additionalTrustBundlePolicy defaults and allow-list resolution.
+ * Used in Trust & Proxy step, Global Strategy, and validation.
  * Mirrors TrustProxyStep semantics: catalog allowed values when present, else version-based list.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import { getParamMeta } from "../catalogResolver.js";
 import { getTrustBundlePolicies } from "./versionPolicy.js";

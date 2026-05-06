@@ -1,5 +1,12 @@
 /**
- * v4.20 IBM Cloud compartments.
+ * OpenShift Airgap Architect - Field Guide v4.20 IBM Cloud Compartments
+ *
+ * Platform-specific installation procedures for IBM Cloud VPC.
+ * Covers IPI installation method for OCP 4.20 on IBM Cloud.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const ibmCloudIpiPrereqs = {

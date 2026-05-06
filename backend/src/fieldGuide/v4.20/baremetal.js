@@ -1,5 +1,12 @@
 /**
- * v4.20 bare-metal compartments.
+ * OpenShift Airgap Architect - Field Guide v4.20 Bare Metal Compartments
+ *
+ * Platform-specific installation procedures for bare metal hardware.
+ * Covers Agent-based, IPI, and UPI installation methods for OCP 4.20.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const bmAgentPrereqs = {

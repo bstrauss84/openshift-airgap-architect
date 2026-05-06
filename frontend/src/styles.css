@@ -852,11 +852,13 @@ body[data-theme="dark"] .sticky-panel {
   gap: 16px;
   margin-top: 12px;
   align-items: start;
+  max-width: 1200px;
 }
 
 .field-grid label {
   align-items: flex-start;
   min-width: 0;
+  max-width: 500px;
 }
 
 /* Normalize label height in field-grid so inputs align even when labels wrap differently. */
@@ -880,6 +882,12 @@ body[data-theme="dark"] .sticky-panel {
 }
 
 @media (max-width: 900px) {
+  .proxy-fields-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
   .proxy-fields-grid {
     grid-template-columns: 1fr;
   }
@@ -921,6 +929,12 @@ body[data-theme="dark"] .sticky-panel {
   min-width: 0;
 }
 
+@media (max-width: 720px) {
+  .cluster-identity-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 label {
   display: flex;
   flex-direction: column;
@@ -956,14 +970,98 @@ textarea {
   background: #F0F3F7;
 }
 
+/* ===================================================================
+   FIELD SIZING STRATEGY
+   Prevent inputs from stretching unnecessarily in flex/grid layouts.
+   Use align-self: flex-start to prevent stretching in flex containers.
+   =================================================================== */
+
+/* Small numeric inputs (ports, MTU, counts) */
+input[type="number"],
+input[placeholder*="port" i],
+input[placeholder*="Port"],
+input[placeholder*="MTU"],
+input[placeholder*="mtu"],
+input[placeholder*="9440"],
+input[placeholder*="1500"] {
+  max-width: 150px;
+  align-self: flex-start;
+}
+
+/* Even smaller for 1-2 digit inputs */
+input[type="number"].input-small,
+input[placeholder*="VLAN" i],
+input[placeholder*="prefix" i] {
+  max-width: 100px;
+  align-self: flex-start;
+}
+
+/* Compact inputs: IP addresses, CIDRs, MACs, VIPs */
+input[placeholder*="CIDR" i],
+input[placeholder*="/16"],
+input[placeholder*="/24"],
+input[placeholder*="/64"],
+input[placeholder*="IP" i],
+input[placeholder*="VIP" i],
+input[placeholder*="MAC" i],
+input[placeholder*="10."],
+input[placeholder*="172."],
+input[placeholder*="192."],
+input[placeholder*="fd"],
+input[id*="cidr" i],
+input[id*="ip" i],
+input[id*="vip" i],
+input[id*="mac" i] {
+  max-width: 240px;
+  align-self: flex-start;
+}
+
+/* Medium inputs: cluster names, base domains, short registries */
+input[placeholder*="example.com"],
+input[placeholder*="cluster"],
+input[placeholder*="registry" i]:not([placeholder*="Paste"]):not([placeholder*="JSON"]),
+input[placeholder*="ami-"],
+input[placeholder*="subnet-"],
+input[placeholder*="vpc-"],
+input[placeholder*="Z123"] {
+  max-width: 320px;
+  align-self: flex-start;
+}
+
+/* Large inputs: paths, URLs, longer identifiers */
+input[placeholder*="/dev/"],
+input[placeholder*="path" i],
+input[placeholder*="folder" i],
+input[placeholder*="proxy" i],
+input[placeholder*="http://" i],
+input[placeholder*="https://" i],
+input[placeholder*="datacenter" i],
+input[placeholder*="datastore" i],
+input[placeholder*="pool" i] {
+  max-width: 450px;
+  align-self: flex-start;
+}
+
 .input-error {
   border-color: #f87171;
   background: #fef2f2;
+  /* Add visual error indicator beyond color for WCAG 2.1 compliance */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23f87171'%3E%3Cpath d='M8 0a8 8 0 100 16A8 8 0 008 0zm1 12H7v-2h2v2zm0-4H7V4h2v4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px 16px;
+  padding-right: 32px;
 }
 
 body[data-theme="dark"] .input-error {
   border-color: #f87171;
   background: rgba(248, 113, 113, 0.12);
+  /* Add visual error indicator beyond color for WCAG 2.1 compliance */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23f87171'%3E%3Cpath d='M8 0a8 8 0 100 16A8 8 0 008 0zm1 12H7v-2h2v2zm0-4H7V4h2v4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px 16px;
+  padding-right: 32px;
 }
 
 body[data-theme="dark"] label.input-error {
@@ -1351,7 +1449,7 @@ body[data-theme="dark"] .review-preview-resize-handle:hover {
   align-items: start;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   .trust-sections {
     grid-template-columns: 1fr;
   }
@@ -3355,6 +3453,12 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   min-width: 0;
   margin-top: 0;
   padding-top: 0;
+}
+
+@media (max-width: 640px) {
+  .platform-specifics .field-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Platform Specifics field sizing refinements: prevent unnecessary full-width stretching. */

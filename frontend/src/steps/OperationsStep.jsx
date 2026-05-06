@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Operations & Background Jobs Step
+ *
+ * Monitors and manages background jobs (operator scans, oc-mirror runs, Cincinnati
+ * refreshes, documentation updates). Displays job status, progress, output logs,
+ * and provides job cancellation capabilities.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useEffect, useState, useRef } from "react";
 import { useApp } from "../store.jsx";
 import { apiFetch, API_BASE } from "../api.js";

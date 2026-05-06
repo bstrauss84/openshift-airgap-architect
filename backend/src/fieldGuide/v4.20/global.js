@@ -1,5 +1,12 @@
 /**
- * v4.20 global compartments — always-included and common-condition sections.
+ * OpenShift Airgap Architect - Field Guide v4.20 Global Compartments
+ *
+ * Always-included and common-condition sections for OCP 4.20.
+ * Covers prerequisites, proxy setup, FIPS, NTP, trust bundles, and Day-2 basics.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const globalPrereqs = {

@@ -1,7 +1,13 @@
 /**
- * Connectivity & Mirroring replacement step (segmented flow). Image digest sources (mirror mapping), registry FQDN,
- * and optional NTP (additionalNTPSources for agent-config). State: globalStrategy.mirroring, globalStrategy.ntpServers.
- * Registry FQDN is auto-hydrated from Identity & Access mirror-registry pull secret when empty (one-way, no overwrite).
+ * OpenShift Airgap Architect - Connectivity & Mirroring Configuration Step
+ *
+ * Image digest sources (mirror registry mapping), registry FQDN configuration,
+ * and optional NTP servers. Auto-derives registry FQDN from mirror pull secret.
+ * Supports both install-config and agent-config mirroring strategies.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useEffect } from "react";
 import { useApp } from "../store.jsx";

@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Catalog Scan Progress Hook
+ *
+ * React hook for deterministic operator catalog scan progress tracking.
+ * Manages progress from 0→95 over 6 minutes, 100 on completion.
+ * Supports multiple catalogs with independent progress tracking.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getDeterministicProgress } from "./catalogScanProgress.js";
 

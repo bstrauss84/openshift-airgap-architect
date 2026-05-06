@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - User Feedback System
+ *
+ * Manages feedback submission with configurable modes (GitHub issues, offline collection,
+ * disabled). Implements challenge-response proof-of-work system to prevent automated spam.
+ * Validates and sanitizes user input before storage or GitHub issue creation.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import crypto from "node:crypto";
 import { nanoid } from "nanoid";
 

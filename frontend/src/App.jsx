@@ -1,6 +1,14 @@
 /**
- * Main app: landing, Blueprint, Methodology, then either legacy (Global Strategy, Host Inventory) or segmented flow
- * (Identity & Access, Networking, Connectivity & Mirroring, Trust & Proxy, Platform Specifics, Hosts/Inventory). Step list from visibleSteps; COMPONENT_MAP maps stepId to component.
+ * OpenShift Airgap Architect - Main Application
+ *
+ * Wizard-based UI for generating OpenShift disconnected installation configurations.
+ * Supports both legacy flow (Global Strategy, Host Inventory) and segmented flow
+ * (Identity & Access, Networking, Connectivity & Mirroring, Trust & Proxy,
+ * Platform Specifics, Hosts/Inventory).
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./store.jsx";
@@ -225,6 +233,21 @@ const AppShell = () => {
   useEffect(() => {
     apiFetch("/api/build-info").then(setBuildInfo).catch(() => setBuildInfo({ gitSha: "unknown", buildTime: "unknown", repo: "", branch: "" }));
   }, []);
+
+  // Developer attribution console message
+  useEffect(() => {
+    const styles = {
+      title: "color: #0066cc; font-size: 20px; font-weight: bold; padding: 10px 0 5px 0;",
+      subtitle: "color: #666; font-size: 14px;",
+      info: "color: #333; font-size: 13px;",
+      link: "color: #0066cc; font-size: 13px;",
+    };
+    console.log("%c🚀 OpenShift Airgap Architect", styles.title);
+    console.log("%cDeveloped by Bill Strauss", styles.subtitle);
+    console.log("%cWith AI assistance from Claude (Anthropic) and Cursor AI", styles.info);
+    console.log("%cMIT License • https://github.com/billstrauss/openshift-airgap-architect", styles.link);
+  }, []);
+
   useEffect(() => {
     getFeedbackConfig()
       .then(setFeedbackConfig)

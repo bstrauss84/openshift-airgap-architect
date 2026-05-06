@@ -1,7 +1,13 @@
 /**
- * Trust & Proxy replacement step (segmented flow). Proxy (http/https/noProxy), additional trust bundle policy,
- * mirror registry CA and proxy CA PEMs. State: globalStrategy.proxies, globalStrategy.proxyEnabled, trust.*.
- * Enable proxy = blue toggle; trust grouped with clear labels; red only on cards with actual errors.
+ * OpenShift Airgap Architect - Trust & Proxy Configuration Step
+ *
+ * Corporate proxy configuration (HTTP/HTTPS/NO_PROXY) and additional trust bundle
+ * management (mirror registry CA, proxy CA certificates). Supports PEM upload/paste
+ * with automatic trust bundle policy selection.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React from "react";
 import { useApp } from "../store.jsx";

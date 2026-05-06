@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Host Inventory Configuration Step (Legacy)
+ *
+ * Legacy host inventory step for bare metal deployments.
+ * Manages host nodes, network interfaces (ethernet, bond, VLAN), BMC configuration,
+ * and root device hints. Replaced by HostInventoryV2Step in newer flows.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 import { useApp } from "../store.jsx";
 import { validateNode } from "../validation.js";

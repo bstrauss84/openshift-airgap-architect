@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Host Inventory Segment Step
+ *
+ * Sixth step in the segmented flow: Hosts / Inventory.
+ * Renders Hosts v2 when the scenario has host inventory (e.g. bare-metal-agent, bare-metal-ipi);
+ * otherwise shows placeholder that host inventory is not applicable.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 import { useApp } from "../store.jsx";
 import HostInventoryV2Step from "./HostInventoryV2Step.jsx";

@@ -1,3 +1,11 @@
+/**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
 import { describe, it, expect } from "vitest";
 import { validateStep } from "../src/validation.js";
 

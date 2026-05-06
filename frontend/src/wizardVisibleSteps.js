@@ -1,6 +1,12 @@
 /**
- * Pure wizard step ordering (no React components). Used by App.jsx and import navigation
- * so run imports use the same visible step list as the live wizard.
+ * OpenShift Airgap Architect - Wizard Step Ordering
+ *
+ * Pure wizard step ordering logic (no React components).
+ * Used by App.jsx and import navigation so run imports use the same visible step list as the live wizard.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 import { getScenarioId } from "./catalogResolver.js";

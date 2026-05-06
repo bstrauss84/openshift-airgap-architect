@@ -1,6 +1,12 @@
 /**
- * Minimal state fixture for tests. Matches shape expected by App/store.
- * Use for Continue-resume and step visibility tests.
+ * OpenShift Airgap Architect - Test Fixtures
+ *
+ * Minimal state fixtures for tests. Matches shape expected by App/store.
+ * Used for Continue-resume and step visibility tests.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 export function stateWithBlueprintCompleteMethodologyIncomplete() {
   return {

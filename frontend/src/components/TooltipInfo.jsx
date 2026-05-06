@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Tooltip Info Component
+ *
+ * Small blue "i" icon that shows tooltip on hover/focus.
+ * Tooltip stays open when hovering over it so long content can be read/scrolled.
+ * Used for optional dense guidance throughout the wizard.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useState, useRef, useEffect } from "react";
 
 const TOOLTIP_LEAVE_DELAY_MS = 120;

@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Blueprint Configuration Step
+ *
+ * Initial deployment blueprint: platform selection, architecture, OpenShift version/channel,
+ * FIPS mode, and optional Red Hat pull secret. Integrates with Cincinnati API for version
+ * discovery and supports manual version entry for airgapped environments.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";

@@ -1,3 +1,13 @@
+/**
+ * OpenShift Airgap Architect - Switch Toggle Component
+ *
+ * Shared toggle switch for on/off options that affect generated output.
+ * Styled as a sliding switch; uses checkbox for accessibility.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 
 /**

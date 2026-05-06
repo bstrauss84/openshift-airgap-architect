@@ -1,3 +1,13 @@
+/**
+ * OpenShift Airgap Architect - Card Header Component
+ *
+ * Card header with optional subtitle and optional collapse icon (top-right).
+ * Supports collapsible sections with accessibility attributes.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 
 /**

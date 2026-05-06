@@ -1,4 +1,14 @@
-/** SQLite DB for app state cache, jobs, and operator scan results. Path from DATA_DIR. */
+/**
+ * OpenShift Airgap Architect - SQLite Database Connection
+ *
+ * Initializes and exports SQLite database connection for application state caching,
+ * background job tracking, operator scan results, and Cincinnati data caching.
+ * Database location configurable via DATA_DIR environment variable.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";

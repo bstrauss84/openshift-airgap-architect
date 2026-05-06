@@ -1,6 +1,13 @@
 /**
- * Host Inventory v2 helpers. Used only when hostInventoryV2 flag is on.
- * Node shape matches what backend generation expects (state.hostInventory.nodes).
+ * OpenShift Airgap Architect - Host Inventory V2 Helpers
+ *
+ * Helper functions for Host Inventory v2 feature.
+ * Node shape matches backend generation expectations (state.hostInventory.nodes).
+ * Includes scenario-aware layout and section management.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 /** Section IDs for scenario-aware layout (Phase 4.2). API/Ingress VIPs are on the Networking tab only. */

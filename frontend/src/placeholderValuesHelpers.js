@@ -1,12 +1,17 @@
 /**
- * Placeholder-values mode for sensitive disconnected-environment inputs.
+ * OpenShift Airgap Architect - Placeholder Values Generator
  *
- * This pass intentionally focuses on the host-inventory-driven bare metal flows:
+ * Placeholder-values mode for sensitive disconnected-environment inputs.
+ * Focuses on host-inventory-driven bare metal flows:
  * - hostInventory.nodes[] (hostname, MACs, rootDevice hints, static IPs/gateways, BMC for IPI)
  * - hostInventory VIPs (apiVip/ingressVip and v6 variants)
  *
- * The placeholder patterns are deterministic and valid enough to satisfy the app-side
- * validation required for "connected-side" workflows to continue.
+ * Placeholder patterns are deterministic and valid enough to satisfy app-side
+ * validation required for connected-side workflows.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 const pad2 = (n) => String(n).padStart(2, "0");

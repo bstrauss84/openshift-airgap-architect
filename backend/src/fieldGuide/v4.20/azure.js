@@ -1,5 +1,12 @@
 /**
- * v4.20 Azure Government compartments.
+ * OpenShift Airgap Architect - Field Guide v4.20 Azure Government Compartments
+ *
+ * Platform-specific installation procedures for Azure Government.
+ * Covers IPI and UPI installation methods for OCP 4.20 on Azure Government.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const azureGovPrereqs = {

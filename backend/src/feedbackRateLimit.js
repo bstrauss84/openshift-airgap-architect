@@ -1,6 +1,12 @@
 /**
- * In-memory rate limiter middleware for feedback endpoints.
- * Suitable for single-process deployments used by this app.
+ * OpenShift Airgap Architect - In-Memory Rate Limiter
+ *
+ * Rate limiting middleware for feedback endpoints with sliding window and burst protection.
+ * In-memory implementation suitable for single-process deployments.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 function nowMs() {

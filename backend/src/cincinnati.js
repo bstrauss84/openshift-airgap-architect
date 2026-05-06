@@ -1,4 +1,14 @@
-/** Cincinnati release channels and patch versions; cached in SQLite. MOCK_MODE uses bundled YAML. */
+/**
+ * OpenShift Airgap Architect - Cincinnati Release Channel Integration
+ *
+ * Fetches OpenShift release channels and patch versions from Red Hat Cincinnati API
+ * (https://github.com/openshift/cincinnati-graph-data). Implements caching in SQLite
+ * to minimize upstream requests. Supports MOCK_MODE with bundled YAML fixtures.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
@@ -45,8 +55,13 @@ const fetchChannelsFromGithub = async () => {
 
 const fetchChannels = async (force = false) => {
   if (isMock()) {
-    const mock = JSON.parse(fs.readFileSync(mockPath("channels.json"), "utf8"));
-    return mock.channels || [];
+    try {
+      const mock = JSON.parse(fs.readFileSync(mockPath("channels.json"), "utf8"));
+      return mock.channels || [];
+    } catch (err) {
+      console.error("Failed to parse mock channels.json:", err);
+      throw new Error(`Mock data error: ${err.message}`);
+    }
   }
   if (!force) {
     const cached = getCache(CHANNELS_CACHE_KEY);
@@ -59,8 +74,13 @@ const fetchChannels = async (force = false) => {
 
 const fetchStableFile = async (channel) => {
   if (isMock()) {
-    const mock = JSON.parse(fs.readFileSync(mockPath(`stable-${channel}.json`), "utf8"));
-    return mock.versions;
+    try {
+      const mock = JSON.parse(fs.readFileSync(mockPath(`stable-${channel}.json`), "utf8"));
+      return mock.versions;
+    } catch (err) {
+      console.error(`Failed to parse mock stable-${channel}.json:`, err);
+      throw new Error(`Mock data error for channel ${channel}: ${err.message}`);
+    }
   }
   const url = `https://raw.githubusercontent.com/openshift/cincinnati-graph-data/master/channels/stable-${channel}.yaml`;
   const res = await fetch(url, { headers: { "User-Agent": "airgap-architect" } });
@@ -77,8 +97,13 @@ const fetchStableFile = async (channel) => {
 const fetchPatchesForChannel = async (channel, force = false) => {
   const cacheKey = `${PATCH_CACHE_PREFIX}${channel}`;
   if (isMock()) {
-    const mock = JSON.parse(fs.readFileSync(mockPath(`stable-${channel}.json`), "utf8"));
-    return mock.versions;
+    try {
+      const mock = JSON.parse(fs.readFileSync(mockPath(`stable-${channel}.json`), "utf8"));
+      return mock.versions;
+    } catch (err) {
+      console.error(`Failed to parse mock stable-${channel}.json:`, err);
+      throw new Error(`Mock data error for channel ${channel}: ${err.message}`);
+    }
   }
   if (!force) {
     const cached = getCache(cacheKey);

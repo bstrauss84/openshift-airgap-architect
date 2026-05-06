@@ -1,5 +1,15 @@
 /**
- * Run oc-mirror step (v1). Implementation contract: docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md §1–§9.
+ * OpenShift Airgap Architect - oc-mirror Execution Step
+ *
+ * Manages oc-mirror workflow execution for mirroring OpenShift releases and operators.
+ * Supports three modes: mirror-to-disk, disk-to-mirror, and direct mirror-to-mirror.
+ * Provides job progress tracking, output streaming, and archive management.
+ *
+ * Implementation contract: docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md §1–§9.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useEffect, useCallback } from "react";
 import { useApp } from "../store.jsx";

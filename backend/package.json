@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "main": "src/index.js",
+  "author": "Bill Strauss",
+  "contributors": [
+    "Bill Strauss (primary developer)",
+    "Claude AI (Anthropic) - development assistance",
+    "Cursor AI - development assistance"
+  ],
   "scripts": {
     "start": "node src/index.js",
     "dev": "node src/index.js",
@@ -15,6 +21,8 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "js-yaml": "^4.1.0",
-    "nanoid": "^5.0.7"
+    "nanoid": "^5.0.7",
+    "undici": "^7.25.0",
+    "zod": "^3.24.1"
   }
 }

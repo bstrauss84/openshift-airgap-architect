@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Review & Export Step
+ *
+ * Final review of generated OpenShift configurations (install-config.yaml,
+ * agent-config.yaml) with preview, redaction controls, and export options.
+ * Supports exporting individual files, run files, and complete deployment bundles.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, API_BASE } from "../api.js";
 import { useApp, getStateForPersistence } from "../store.jsx";

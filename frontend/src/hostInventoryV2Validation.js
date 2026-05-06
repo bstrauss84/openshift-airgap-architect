@@ -1,6 +1,13 @@
 /**
- * Catalog-driven validation for Host Inventory v2 only (Phase 4.3).
- * Uses getFieldMeta for required and allowed; does not guess. Conditional requiredness only when provable from UI.
+ * OpenShift Airgap Architect - Host Inventory V2 Catalog Validation
+ *
+ * Catalog-driven validation for Host Inventory v2 feature.
+ * Uses getFieldMeta for required and allowed constraints; does not guess.
+ * Conditional requiredness only when provable from UI context.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 import { getFieldMeta } from "./catalogFieldMeta.js";

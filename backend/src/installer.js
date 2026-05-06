@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - OpenShift Installer Management
+ *
+ * Handles download, caching, and verification of openshift-install binaries
+ * for multiple versions and architectures. Provides installer metadata (AMI IDs,
+ * AWS regions) and installer binary stream for bundle exports.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -45,7 +56,7 @@ const ensureInstaller = async (version) => {
   const tarPath = path.join(toolsDir, `openshift-install-${version}.tar.gz`);
   const url = `https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${version}/openshift-install-linux.tar.gz`;
   await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
-  await runCmd("tar", ["-xzf", tarPath, "-C", toolsDir]);
+  await runCmd("tar", ["-xzf", tarPath, "-C", toolsDir, "--no-absolute-filenames"]);
   const extracted = path.join(toolsDir, "openshift-install");
   if (!fs.existsSync(extracted)) {
     throw new Error("openshift-install binary not found after extraction.");

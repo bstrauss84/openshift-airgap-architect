@@ -1,6 +1,12 @@
 /**
- * Cincinnati channel ordering for Blueprint step. Backend may return channels in any order;
- * we sort by semantic version (X.Y) so newest is deterministic.
+ * OpenShift Airgap Architect - Cincinnati Channel Ordering
+ *
+ * Cincinnati channel ordering helpers for Blueprint step.
+ * Backend may return channels in any order; we sort by semantic version (X.Y) for deterministic ordering.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 /** Sort channel strings (e.g. "4.17", "4.21") ascending by semantic version so newest is last. */

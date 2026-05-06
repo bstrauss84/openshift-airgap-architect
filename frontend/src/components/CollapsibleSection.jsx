@@ -1,3 +1,13 @@
+/**
+ * OpenShift Airgap Architect - Collapsible Section Component
+ *
+ * Unified collapsible section with consistent header styling, chevron, and hover states.
+ * Used for all collapsible sections app-wide.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useState } from "react";
 
 /**

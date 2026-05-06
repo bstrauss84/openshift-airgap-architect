@@ -1,3 +1,13 @@
+/**
+ * OpenShift Airgap Architect - Landing Page
+ *
+ * Landing page with path selection cards: Install (primary), Upgrade, Operator mirroring.
+ * Install CTA shows "Start new install" or "Continue install" based on progress state.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 
 /**

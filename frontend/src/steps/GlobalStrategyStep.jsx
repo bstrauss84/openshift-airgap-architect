@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Global Strategy Configuration Step
+ *
+ * Global deployment strategy settings including proxy configuration, trust bundles,
+ * NTP servers, credentials, and platform-specific configurations.
+ * Supports both fully-disconnected and jumpbox connectivity modes.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 import { useApp } from "../store.jsx";
 import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";

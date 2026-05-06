@@ -1,5 +1,12 @@
 /**
- * v4.20 AWS GovCloud compartments.
+ * OpenShift Airgap Architect - Field Guide v4.20 AWS GovCloud Compartments
+ *
+ * Platform-specific installation procedures for AWS GovCloud.
+ * Covers IPI and UPI installation methods for OCP 4.20 on AWS GovCloud.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const awsGovCloudPrereqs = {

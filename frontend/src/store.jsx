@@ -1,4 +1,13 @@
-/** App state context; syncs to backend and localStorage. getStateForPersistence strips credentials before persist. */
+/**
+ * OpenShift Airgap Architect - Application State Management
+ *
+ * App state context; syncs to backend and localStorage.
+ * getStateForPersistence strips credentials before persist for security.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api.js";
 

@@ -1,8 +1,12 @@
 /**
- * Build a human-readable, filesystem-safe export filename for Export Run (#39).
+ * OpenShift Airgap Architect - Export Run Filename Generator
+ *
+ * Builds human-readable, filesystem-safe export filename for Export Run feature.
  * Uses timestamp and sanitized run metadata; omits unset values. No secrets.
- * @param {object} state - Current app state at export time
- * @returns {string} Filename e.g. airgap-run_2026-03-04_1415_bare-metal-agent_amd64_ocp-4.20_fips_3cp_6w.json
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import { getScenarioId } from "./hostInventoryV2Helpers.js";
 

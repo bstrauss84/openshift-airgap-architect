@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Installation Methodology Step
+ *
+ * Deployment methodology selection: IPI (Installer Provisioned Infrastructure),
+ * UPI (User Provisioned Infrastructure), or Agent-Based Installer. Filters available
+ * methods based on selected platform compatibility.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 import { useApp } from "../store.jsx";
 

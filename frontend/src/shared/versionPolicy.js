@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Version Policy Management
+ *
+ * Manages OpenShift version-specific policies and feature compatibility.
+ * Defines supported OpenShift minor versions, trust bundle policies, and
+ * version-dependent feature availability.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 const SUPPORTED_MINORS = ["4.17", "4.18", "4.19", "4.20"];
 
 const TRUST_BUNDLE_POLICY_ALLOWLIST = {

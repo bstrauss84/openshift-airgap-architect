@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "author": "Bill Strauss",
+  "contributors": [
+    "Bill Strauss (primary developer)",
+    "Claude AI (Anthropic) - development assistance",
+    "Cursor AI - development assistance"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",

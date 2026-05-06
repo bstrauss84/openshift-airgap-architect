@@ -1,8 +1,14 @@
 /**
- * Field meta resolver for catalog-driven controls (Phase 4.3).
- * Read-only: scenarioId + outputFile + path → { type, allowed, required, default } when specified in catalog;
- * otherwise returns nulls. Only uses values that are NOT "not specified in docs".
+ * OpenShift Airgap Architect - Catalog Field Metadata Resolver
+ *
+ * Field meta resolver for catalog-driven controls.
+ * Maps scenarioId + outputFile + path → { type, allowed, required, default } from parameter catalogs.
+ * Only uses values that are NOT "not specified in docs".
  * Catalogs live in frontend/src/data/catalogs/ (see docs/DATA_AND_FRONTEND_COPIES.md).
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 import bareMetalAgentCatalog from "./data/catalogs/bare-metal-agent.json";

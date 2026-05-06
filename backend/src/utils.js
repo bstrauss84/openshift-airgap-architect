@@ -1,4 +1,13 @@
-/** State and job helpers: cache get/set, job CRUD, temp auth file for oc-mirror, run state in SQLite. */
+/**
+ * OpenShift Airgap Architect - Utilities
+ *
+ * State management, job tracking, and temporary auth file helpers.
+ * All state and job data persisted to SQLite. Pull secrets never persisted to disk.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { nanoid } from "nanoid";
@@ -87,7 +96,9 @@ const updateJobMetadata = (id, patch) => {
   let meta = {};
   try {
     if (row.metadata_json) meta = JSON.parse(row.metadata_json);
-  } catch {}
+  } catch (err) {
+    if (process.env.DEBUG) console.error(`Job metadata JSON parse failed:`, err);
+  }
   const merged = { ...meta, ...patch };
   const str = JSON.stringify(merged);
   db.prepare("UPDATE jobs SET metadata_json = ?, updated_at = ? WHERE id = ?").run(str, now(), id);
@@ -137,7 +148,7 @@ const ensureTempDir = () => {
 const writeTempAuth = (contents) => {
   const dir = ensureTempDir();
   const filePath = path.join(dir, `registry-auth-${nanoid()}.json`);
-  fs.writeFileSync(filePath, contents, "utf8");
+  fs.writeFileSync(filePath, contents, { mode: 0o600, encoding: "utf8" });
   return filePath;
 };
 

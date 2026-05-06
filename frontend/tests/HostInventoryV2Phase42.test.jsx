@@ -1,4 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
+/**
  * Phase 4.2: Scenario-aware section ordering and compare mode (inventory-v2 only).
  * - Section ordering changes by scenarioId when scenarioAwareLayout is ON.
  * - Compare mode toggling does not modify wizard state.

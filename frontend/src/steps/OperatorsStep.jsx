@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Operators Selection Step
+ *
+ * RedHat and certified operator catalog scanning and selection. Scenario-based
+ * quick-pick templates (virtualization, storage, AI, networking) and manual
+ * operator search. Integrates with backend catalog scanning API.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React, { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";

@@ -1,4 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
+/**
  * A1: Format helpers for IP and MAC (normalize on blur).
  */
 

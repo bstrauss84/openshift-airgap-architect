@@ -1,4 +1,14 @@
-/** Doc link cache for field manual; version-specific OpenShift docs URLs, refresh via update job. */
+/**
+ * OpenShift Airgap Architect - Documentation Link Management
+ *
+ * Manages version-specific Red Hat OpenShift documentation links for Field Manual
+ * generation. Validates URL accessibility and caches results in SQLite. Supports
+ * background refresh jobs to update documentation links.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import { db } from "./db.js";
 import { createJob, updateJob } from "./utils.js";
 

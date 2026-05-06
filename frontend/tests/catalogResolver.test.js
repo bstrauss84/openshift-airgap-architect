@@ -1,4 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
+/**
  * Phase 5: Catalog Meta + Validation — catalogResolver API for replacement tabs.
  */
 

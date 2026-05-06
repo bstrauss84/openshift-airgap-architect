@@ -1,8 +1,14 @@
 /**
+ * OpenShift Airgap Architect - Catalog Resolver for Replacement Tabs
+ *
  * Shared catalog resolver for Phase 5 replacement tabs.
- * Read-only: resolve scenario from state, load catalog, get param meta.
- * Validation rules only when catalog explicitly specifies required or allowed.
+ * Resolves scenario from state, loads catalog, retrieves parameter metadata.
+ * Validation rules only apply when catalog explicitly specifies required or allowed values.
  * See docs/INDEX.md (authority map) and docs/PARAMS_CATALOG_RULES.md.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 import { getScenarioId as getScenarioIdFromPlatformMethod } from "./hostInventoryV2Helpers.js";

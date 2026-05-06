@@ -1,7 +1,13 @@
 /**
- * Architecture-aware oc-mirror binary resolution for Operators scan.
- * Selection is based on BACKEND CONTAINER RUNTIME ARCHITECTURE only, not Blueprint/target arch.
- * Priority: OC_MIRROR_BIN → baked-in (if passes preflight) → runtime-arch mirror → OC_MIRROR_URL/OC_CLIENT_URL → fail.
+ * OpenShift Airgap Architect - oc-mirror Runtime
+ *
+ * Architecture-aware oc-mirror binary resolution and download.
+ * Selection based on backend container runtime architecture (not target Blueprint arch).
+ * Priority: OC_MIRROR_BIN env → baked-in binary → runtime-arch download → fail.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import { execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -119,14 +125,14 @@ async function downloadToFile(url, destPath) {
 }
 
 function extractOc(tarballPath, outDir) {
-  execSync(`tar -xzf "${tarballPath}" -C "${outDir}" oc`, { stdio: "pipe" });
+  execSync(`tar -xzf "${tarballPath}" -C "${outDir}" --no-absolute-filenames oc`, { stdio: "pipe" });
   const ocPath = path.join(outDir, "oc");
   fs.chmodSync(ocPath, 0o755);
   return ocPath;
 }
 
 function extractOcMirror(tarballPath, outDir) {
-  execSync(`tar -xzf "${tarballPath}" -C "${outDir}" oc-mirror`, { stdio: "pipe" });
+  execSync(`tar -xzf "${tarballPath}" -C "${outDir}" --no-absolute-filenames oc-mirror`, { stdio: "pipe" });
   const mirrorPath = path.join(outDir, "oc-mirror");
   fs.chmodSync(mirrorPath, 0o755);
   return mirrorPath;

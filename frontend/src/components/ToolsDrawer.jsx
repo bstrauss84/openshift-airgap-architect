@@ -1,12 +1,26 @@
 /**
- * Tools drawer: right-side overlay (not a route). Dark mode, Operations, Export/Import Run, Start Over.
+ * OpenShift Airgap Architect - Tools Drawer Component
+ *
+ * Right-side overlay drawer for global tools: dark mode toggle, export/import run,
+ * start over, and about information. Portaled to document.body with backdrop,
+ * Escape key close, and focus trap.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
+/**
+ * Tools drawer: right-side overlay (not a route). Dark mode, export/import run, start over, about.
+ * Job logs live on the Operations wizard step (sidebar), not duplicated here.
  * Portaled to document.body; backdrop + Escape close; focus trap.
  */
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Switch from "./Switch.jsx";
 import OptionRow from "./OptionRow.jsx";
 import Button from "./Button.jsx";
+import AboutModal from "./AboutModal.jsx";
 
 const DRAWER_Z = 10060;
 
@@ -63,6 +77,8 @@ export default function ToolsDrawer({
   buildInfo = null,
   updateInfo = null
 }) {
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
+
   const handleThemeToggle = (checked) => {
     const next = checked ? "dark" : "light";
     if (typeof logAction === "function") logAction("theme_toggle", { theme: next });
@@ -194,7 +210,7 @@ export default function ToolsDrawer({
                 </p>
               )}
               {updateInfo && (
-                <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
+                <p className="note" style={{ marginTop: 0, marginBottom: 12 }}>
                   {updateInfo.enabled === false
                     ? "Update checks disabled."
                     : updateInfo.error
@@ -204,17 +220,14 @@ export default function ToolsDrawer({
                         : `Up to date${updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`}
                 </p>
               )}
-              <p className="card-subtitle" style={{ marginTop: 0, marginBottom: 8 }}>
-                Designed and maintained by Bill Strauss.
-              </p>
-              <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
-                Reach out via{" "}
-                <a href="https://github.com/bstrauss84/openshift-airgap-architect" target="_blank" rel="noopener noreferrer">
-                  GitHub
-                </a>{" "}
-                (Issues or Discussions). Contributions welcome.
-              </p>
-              <p className="note subtle" style={{ marginBottom: 0 }}>
+              <Button
+                variant="secondary"
+                onClick={() => setAboutModalOpen(true)}
+                style={{ width: "100%", marginBottom: 12 }}
+              >
+                About OpenShift Airgap Architect
+              </Button>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 0 }}>
                 For Red Hatters feeling generous 🙂 I can be found on RewardZone: Bill Strauss
               </p>
             </section>
@@ -225,5 +238,18 @@ export default function ToolsDrawer({
     </>
   );
 
-  return createPortal(content, document.body);
+  return (
+    <>
+      {createPortal(content, document.body)}
+      {aboutModalOpen && (
+        <AboutModal
+          isOpen={true}
+          onClose={() => setAboutModalOpen(false)}
+          appVersion={buildInfo?.version}
+          gitSha={buildInfo?.gitSha}
+          buildTime={buildInfo?.buildTime}
+        />
+      )}
+    </>
+  );
 }

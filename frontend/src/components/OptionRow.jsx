@@ -1,3 +1,14 @@
+/**
+ * OpenShift Airgap Architect - Option Row Component
+ *
+ * Consistent option row layout: left = title + description, right = control (e.g. Switch).
+ * Supports optional notes and warnings below the description.
+ * Can be made clickable via htmlFor to activate associated inputs.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 
 /**

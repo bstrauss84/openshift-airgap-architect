@@ -1,6 +1,13 @@
 /**
- * Platform-specifics replacement step (segmented flow). Renders sections by scenario: AWS GovCloud (region, AMI, instance types),
- * vSphere (vcenter, failure domains), Azure Government, Nutanix, bare-metal agent options (boot artifacts). Catalog-driven visibility.
+ * OpenShift Airgap Architect - Platform-Specific Configuration Step
+ *
+ * Platform-specific settings by scenario: AWS GovCloud (region, AMI, instance types),
+ * vSphere (vCenter, failure domains), Azure Government, Nutanix (Prism credentials),
+ * Bare Metal Agent (boot artifacts). Catalog-driven field visibility and validation.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../store.jsx";
@@ -13,13 +20,15 @@ import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
-import { AWS_SUBNET_ROLES_ALLOWED } from "../validation.js";
 
 const AGENT_CONFIG = "agent-config.yaml";
 const INSTALL_CONFIG = "install-config.yaml";
 
 /** Archived AWS GovCloud regions when installer metadata is not yet available. */
 const AWS_GOVCLOUD_ARCHIVED_REGIONS = ["us-gov-east-1", "us-gov-west-1"];
+
+/** Allowed subnet roles for AWS GovCloud platform configurations. */
+const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
 
 const hasParam = (catalogParams, path, outputFile) =>
   catalogParams.some((p) => p.path === path && p.outputFile === outputFile);

@@ -1,6 +1,13 @@
 /**
- * Host Inventory v2: node counts, node grid, BMC/interface/network config for bare-metal-agent, vsphere-agent, and bare-metal-ipi.
- * Section order is scenario-aware (hostInventoryV2Helpers). Validates nodes via validateNode and catalog-driven required paths.
+ * OpenShift Airgap Architect - Host Inventory Configuration Step
+ *
+ * Node configuration for bare metal and vSphere: node counts, hardware inventory,
+ * BMC settings, network interfaces (ethernet/bond/VLAN), static IP configuration.
+ * Scenario-aware validation and field requirements.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useApp } from "../store.jsx";
@@ -159,7 +166,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   }, []);
 
   const MIN_PANEL_PX = 280;
-  const MAX_PANEL_PX = 600;
+  const MAX_PANEL_PX = Math.min(600, typeof window !== "undefined" ? window.innerWidth * 0.4 : 600);
 
   const handleResizeMove = useCallback(
     (e) => {
@@ -751,9 +758,9 @@ wipefs -a /dev/sdX`}</pre>
                     <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
                   </div>
                   <div className="host-inventory-v2-drawer-nav">
-                    <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1}>← Previous</button>
-                    <span className="subtle">{selectedIndex + 1} / {nodes.length}</span>
-                    <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1}>Next →</button>
+                    <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1} aria-label={`Previous node (${selectedIndex + 1} of ${nodes.length})`}>← Previous</button>
+                    <span className="subtle" aria-live="polite" aria-atomic="true">{selectedIndex + 1} / {nodes.length}</span>
+                    <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1} aria-label={`Next node (${selectedIndex + 1} of ${nodes.length})`}>Next →</button>
                   </div>
                   {!isArbiterDrawer ? (
                     <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
@@ -814,7 +821,7 @@ wipefs -a /dev/sdX`}</pre>
                                 <div className="note warning">{mergedNodeValidation[selectedIndex].fieldErrors.role}</div>
                               ) : null}
                             </label>
-                            <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="master-0 or worker-0" /></label>
+                            <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="master-0 or worker-0" aria-required="true" /></label>
                             <label className="host-inventory-v2-checkbox-label">
                               <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                               {" "}Use FQDN (shortname.baseDomain)
@@ -931,7 +938,7 @@ wipefs -a /dev/sdX`}</pre>
                             <div className="note warning">{mergedNodeValidation[selectedIndex].fieldErrors.role}</div>
                           ) : null}
                         </label>
-                        <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="e.g. master-0, arbiter-0" /></label>
+                        <label>Hostname <input value={selectedNode.hostname || ""} onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })} placeholder="e.g. master-0, arbiter-0" aria-required="true" /></label>
                         <label className="host-inventory-v2-checkbox-label">
                           <input type="checkbox" checked={!!selectedNode.hostnameUseFqdn} onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })} aria-label="Use FQDN for hostname" />
                           {" "}Use FQDN (shortname.baseDomain)
@@ -1017,7 +1024,7 @@ wipefs -a /dev/sdX`}</pre>
                         {(selectedNode.primary?.type === "ethernet" || selectedNode.primary?.type === "vlan-on-ethernet") && (
                           <>
                             <label>Ethernet interface <input value={selectedNode.primary?.ethernet?.name || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { name: e.target.value })} placeholder="eno0" /></label>
-                            <label>Ethernet MAC <input value={selectedNode.primary?.ethernet?.macAddress || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { macAddress: formatMACAsYouType(e.target.value) })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updatePrimaryEthernet(selectedIndex, { macAddress: v }); }} placeholder="52:54:00:aa:11:01" /></label>
+                            <label>Ethernet MAC <input value={selectedNode.primary?.ethernet?.macAddress || ""} onChange={(e) => updatePrimaryEthernet(selectedIndex, { macAddress: formatMACAsYouType(e.target.value) })} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updatePrimaryEthernet(selectedIndex, { macAddress: v }); }} placeholder="52:54:00:aa:11:01" aria-required="true" /></label>
                           </>
                         )}
                         {(selectedNode.primary?.type === "bond" || selectedNode.primary?.type === "vlan-on-bond") && (
@@ -1053,8 +1060,8 @@ wipefs -a /dev/sdX`}</pre>
                         )}
                         {selectedNode.primary?.mode === "static" && (
                           <>
-                            <label>IPv4 CIDR <input value={selectedNode.primary?.ipv4Cidr || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Cidr: e.target.value.trim() })} placeholder="192.168.1.20/24" /></label>
-                            <label>IPv4 gateway <input value={selectedNode.primary?.ipv4Gateway || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Gateway: e.target.value.trim() })} /></label>
+                            <label>IPv4 CIDR <input value={selectedNode.primary?.ipv4Cidr || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Cidr: e.target.value.trim() })} placeholder="192.168.1.20/24" aria-required="true" /></label>
+                            <label>IPv4 gateway <input value={selectedNode.primary?.ipv4Gateway || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv4Gateway: e.target.value.trim() })} aria-required="true" /></label>
                             {enableIpv6 && (
                               <>
                                 <label>IPv6 CIDR <input value={selectedNode.primary?.ipv6Cidr || ""} onChange={(e) => updatePrimary(selectedIndex, { ipv6Cidr: e.target.value })} /></label>

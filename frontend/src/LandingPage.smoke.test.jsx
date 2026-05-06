@@ -1,3 +1,11 @@
+/**
+ * OpenShift Airgap Architect - Test Suite
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import LandingPage from "./LandingPage.jsx";

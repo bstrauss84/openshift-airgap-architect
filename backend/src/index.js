@@ -1,6 +1,13 @@
 /**
- * Backend API: state, Cincinnati, operator scan jobs, YAML generation, export ZIP.
- * Express app; state in SQLite via utils; pull secrets never persisted.
+ * OpenShift Airgap Architect - Backend API Server
+ *
+ * Main Express application handling state management, Cincinnati integration,
+ * operator scanning, YAML generation, and export bundle creation.
+ * State stored in SQLite; pull secrets never persisted to disk.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import express from "express";
 import cors from "cors";
@@ -34,6 +41,20 @@ import {
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import {
+  validateBody,
+  stateUpdateSchema,
+  sshKeypairSchema,
+  operatorScanSchema,
+  ocMirrorPreflightSchema,
+  ocMirrorRunSchema,
+  pathCheckSchema,
+  feedbackSubmitSchema,
+  generateSchema,
+  cincinnatiPatchesUpdateSchema,
+  operatorConfirmSchema,
+  bundlePrepareSchema,
+} from "./schemas.js";
+import {
   buildFeedbackIssueDraft,
   createChallengeToken,
   resolveFeedbackConfig,
@@ -57,10 +78,16 @@ app.use(express.json({ limit: "10mb" }));
 
 markStaleJobs();
 
+// Only trust X-Forwarded-For header from known proxy IPs to prevent spoofing
+const TRUSTED_PROXIES = (process.env.TRUSTED_PROXIES || "").split(",").filter(Boolean);
+
 const getClientAddress = (req) => {
   const fwd = req.headers["x-forwarded-for"];
   if (typeof fwd === "string" && fwd.trim()) {
-    return fwd.split(",")[0].trim();
+    // Only trust X-Forwarded-For if request comes from a trusted proxy
+    if (TRUSTED_PROXIES.length > 0 && TRUSTED_PROXIES.includes(req.ip)) {
+      return fwd.split(",")[0].trim();
+    }
   }
   return req.ip || "unknown";
 };
@@ -107,7 +134,8 @@ function currentChallengeLimiter() {
 const warmCincinnatiCache = async () => {
   try {
     await fetchChannels(false);
-  } catch {
+  } catch (err) {
+    if (process.env.DEBUG) console.error("Cincinnati cache warm failed:", err);
     // ignore warm cache errors
   }
 };
@@ -145,7 +173,10 @@ function detectMountedPullSecret() {
         console.log(`[startup] Mounted Red Hat pull secret detected at: ${p}`);
         return;
       }
-    } catch { /* continue */ }
+    } catch (err) {
+      if (process.env.DEBUG) console.error(`Pull secret check failed for ${p}:`, err);
+      /* continue */
+    }
   }
 }
 detectMountedPullSecret();
@@ -462,15 +493,40 @@ const runDf = (targetPath) => new Promise((resolve, reject) => {
   const child = spawn("df", ["-Pk", targetPath]);
   let stdout = "";
   let stderr = "";
+  let resolved = false;
+
+  // Set timeout for df command (10 seconds should be plenty)
+  const timeout = setTimeout(() => {
+    if (!resolved) {
+      resolved = true;
+      child.kill("SIGTERM");
+      reject(new Error("df command timed out after 10 seconds"));
+    }
+  }, 10000);
+
   child.stdout.on("data", (data) => { stdout += data.toString(); });
   child.stderr.on("data", (data) => { stderr += data.toString(); });
+
   child.on("error", (error) => {
-    if (error?.code === "ENOENT") {
-      return reject(new Error("ssh-keygen is not available in the backend image. Rebuild the backend after installing openssh-client."));
+    if (!resolved) {
+      resolved = true;
+      clearTimeout(timeout);
+      if (error?.code === "ENOENT") {
+        return reject(new Error("df command is not available in the backend image."));
+      }
+      return reject(error);
     }
-    return reject(error);
   });
-  child.on("close", (code) => {
+
+  child.on("close", (code, signal) => {
+    if (resolved) return; // Already handled
+    resolved = true;
+    clearTimeout(timeout);
+
+    if (signal) {
+      return reject(new Error(`df killed by signal ${signal}`));
+    }
+
     if (code !== 0) return reject(new Error(stderr || stdout || "df failed"));
     resolve(stdout);
   });
@@ -485,7 +541,8 @@ const checkPath = async (targetPath) => {
   try {
     fs.accessSync(parent, fs.constants.W_OK);
     writable = true;
-  } catch {
+  } catch (err) {
+    if (process.env.DEBUG) console.error(`Write access check failed for ${parent}:`, err);
     writable = false;
   }
   const output = await runDf(parent);
@@ -504,10 +561,14 @@ const checkPath = async (targetPath) => {
 };
 
 const generateSshKeypair = (algorithm = "ed25519") => new Promise((resolve, reject) => {
+  const validAlgorithms = ['ed25519', 'rsa', 'ecdsa'];
+  const alg = String(algorithm || "ed25519").toLowerCase();
+  if (!validAlgorithms.includes(alg)) {
+    return reject(new Error(`Invalid algorithm: ${alg}. Supported: ${validAlgorithms.join(', ')}`));
+  }
   const tmpDir = path.join(dataDir, "tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const keyPath = path.join(tmpDir, `airgap-key-${nanoid()}`);
-  const alg = String(algorithm || "ed25519").toLowerCase();
   const args = ["-N", "", "-f", keyPath];
   if (alg === "rsa") {
     args.unshift("-b", "4096", "-t", "rsa");
@@ -516,16 +577,51 @@ const generateSshKeypair = (algorithm = "ed25519") => new Promise((resolve, reje
   } else {
     args.unshift("-t", "ed25519");
   }
+
   const child = spawn("ssh-keygen", args);
   let stderr = "";
+  let resolved = false;
+
+  // Set timeout for ssh-keygen (30 seconds)
+  const timeout = setTimeout(() => {
+    if (!resolved) {
+      resolved = true;
+      child.kill("SIGTERM");
+      safeUnlink(keyPath);
+      safeUnlink(`${keyPath}.pub`);
+      reject(new Error("ssh-keygen timed out after 30 seconds"));
+    }
+  }, 30000);
+
   child.stderr.on("data", (data) => { stderr += data.toString(); });
-  child.on("error", reject);
-  child.on("close", (code) => {
+
+  child.on("error", (err) => {
+    if (!resolved) {
+      resolved = true;
+      clearTimeout(timeout);
+      safeUnlink(keyPath);
+      safeUnlink(`${keyPath}.pub`);
+      reject(err);
+    }
+  });
+
+  child.on("close", (code, signal) => {
+    if (resolved) return; // Already handled by timeout or error
+    resolved = true;
+    clearTimeout(timeout);
+
+    if (signal) {
+      safeUnlink(keyPath);
+      safeUnlink(`${keyPath}.pub`);
+      return reject(new Error(`ssh-keygen killed by signal ${signal}`));
+    }
+
     if (code !== 0) {
       safeUnlink(keyPath);
       safeUnlink(`${keyPath}.pub`);
       return reject(new Error(stderr || "ssh-keygen failed"));
     }
+
     try {
       const privateKey = fs.readFileSync(keyPath, "utf8");
       const publicKey = fs.readFileSync(`${keyPath}.pub`, "utf8").trim();
@@ -800,8 +896,9 @@ app.get("/api/state", (req, res) => {
   res.json(ensureState());
 });
 
-app.post("/api/state", (req, res) => {
+app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
   const patch = req.body || {};
+  // Remove ephemeral fields that should never be persisted
   if (patch?.blueprint && "blueprintPullSecretEphemeral" in patch.blueprint) {
     const nextBlueprint = { ...patch.blueprint };
     delete nextBlueprint.blueprintPullSecretEphemeral;
@@ -836,7 +933,8 @@ app.post("/api/start-over", (req, res) => {
       if (proc) {
         try {
           proc.kill("SIGTERM");
-        } catch {
+        } catch (err) {
+          if (process.env.DEBUG) console.error(`Failed to kill process ${job.id}:`, err);
           // Best-effort cancellation; mark cancelled either way.
         }
       }
@@ -864,7 +962,19 @@ app.post("/api/start-over", (req, res) => {
   setState(next);
   const tmpDir = path.join(process.env.DATA_DIR || "/data", "tmp");
   if (fs.existsSync(tmpDir)) {
-    fs.readdirSync(tmpDir).forEach((file) => safeUnlink(path.join(tmpDir, file)));
+    fs.readdirSync(tmpDir).forEach((file) => {
+      const fullPath = path.join(tmpDir, file);
+      try {
+        const realPath = fs.realpathSync(fullPath); // Resolve symlinks
+        if (realPath.startsWith(tmpDir)) { // Ensure within tmpDir
+          safeUnlink(realPath);
+        } else if (process.env.DEBUG) {
+          console.error(`Skipping file outside tmpDir: ${realPath}`);
+        }
+      } catch (err) {
+        if (process.env.DEBUG) console.error(`Failed to clean temp file ${fullPath}:`, err);
+      }
+    });
   }
   res.json(next);
 });
@@ -945,7 +1055,7 @@ app.get("/api/cincinnati/patches", async (req, res) => {
   }
 });
 
-app.post("/api/cincinnati/patches/update", async (req, res) => {
+app.post("/api/cincinnati/patches/update", validateBody(cincinnatiPatchesUpdateSchema), async (req, res) => {
   try {
     const channel = req.body.channel;
     const versions = await fetchPatchesForChannel(channel, true);
@@ -974,7 +1084,7 @@ app.post("/api/operators/confirm", (req, res) => {
   res.json({ ok: true, release, version });
 });
 
-app.post("/api/operators/scan", async (req, res) => {
+app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, res) => {
   // Do not log req.body; it may contain pullSecret. Do not persist pullSecret.
   const state = ensureState();
   if (!state.release?.confirmed) {
@@ -1085,6 +1195,7 @@ app.get("/api/runtime-info", async (req, res) => {
   try {
     await resolveOcMirrorBinary(dataDir);
   } catch (e) {
+    if (process.env.DEBUG) console.error("oc-mirror binary resolution failed:", e);
     // ignore; we still return arch info
   }
   res.json({
@@ -1157,10 +1268,9 @@ app.post("/api/jobs/:id/stop", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/system/path-check", async (req, res) => {
-  const target = req.body?.path;
+app.post("/api/system/path-check", validateBody(pathCheckSchema), async (req, res) => {
+  const target = req.body.path;
   const minBytes = Number(req.body?.minBytes || 0);
-  if (!target) return res.status(400).json({ error: "Path is required." });
   try {
     const info = await checkPath(target);
     res.json({
@@ -1172,9 +1282,10 @@ app.post("/api/system/path-check", async (req, res) => {
   }
 });
 
-app.post("/api/ssh/keypair", async (req, res) => {
+app.post("/api/ssh/keypair", validateBody(sshKeypairSchema), async (req, res) => {
   try {
-    const algorithm = req.body?.algorithm || "ed25519";
+    // Zod schema handles validation and default value
+    const { algorithm } = req.body;
     const keypair = await generateSshKeypair(algorithm);
     res.json(keypair);
   } catch (error) {
@@ -1196,7 +1307,8 @@ function checkD2mArchiveStructure(archivePath) {
     }
     if (entries.some((e) => e.endsWith(".tar"))) return "ok";
     return "invalid";
-  } catch {
+  } catch (err) {
+    if (process.env.DEBUG) console.error(`Archive structure check failed:`, err);
     return "invalid";
   }
 }
@@ -1226,7 +1338,7 @@ function checkPathOverlap(archivePath, workspacePath, cachePath, mode) {
   return blockers;
 }
 
-app.post("/api/ocmirror/preflight", async (req, res) => {
+app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async (req, res) => {
   const state = ensureState();
   const body = req.body || {};
   const mode = body.mode || "mirrorToDisk";
@@ -1320,7 +1432,9 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
         writable = parentInfo.writable;
         freeBytes = parentInfo.freeBytes;
         creatable = parentInfo.writable;
-      } catch {}
+      } catch (err) {
+        if (process.env.DEBUG) console.error(`Path check failed for ${parent}:`, err);
+      }
       if (!info.exists && !creatable) blockers.push("Workspace path is not creatable or writable.");
       if (info.exists && !info.writable) blockers.push("Workspace path is not writable.");
       const meetsMin = !minBytes || freeBytes >= minBytes;
@@ -1358,7 +1472,9 @@ app.post("/api/ocmirror/preflight", async (req, res) => {
         const parentInfo = await checkPath(parent);
         writable = parentInfo.writable;
         creatable = parentInfo.writable;
-      } catch {}
+      } catch (err) {
+        if (process.env.DEBUG) console.error("Parent path check failed:", err);
+      }
       if (!info.exists && !creatable) blockers.push("Cache path is not creatable or writable.");
       if (info.exists && !info.writable) blockers.push("Cache path is not writable.");
       checks.cachePath = {
@@ -1475,7 +1591,7 @@ function resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath) {
   }
 }
 
-app.post("/api/ocmirror/run", async (req, res) => {
+app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) => {
   const state = ensureState();
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
   if (!confirmed) {
@@ -2004,8 +2120,22 @@ const buildBundleZip = async (state, res) => {
   archive.finalize();
 };
 
+// Path traversal protection: whitelist allowed base directories for filesystem operations
+const ALLOWED_BASE_PATHS = [
+  path.resolve(process.env.DATA_DIR || "/data"),
+  "/tmp"
+];
+
+function isPathAllowed(requestedPath) {
+  const resolved = path.resolve(requestedPath);
+  return ALLOWED_BASE_PATHS.some(base => resolved.startsWith(base));
+}
+
 app.get("/api/fs/ls", (req, res) => {
   const reqPath = (req.query.path || "/").toString();
+  if (!isPathAllowed(reqPath)) {
+    return res.status(403).json({ error: "Access denied to requested path" });
+  }
   // Walk up to nearest existing ancestor if the requested path doesn't exist
   let resolved = reqPath;
   let requestedMissing = false;
@@ -2027,7 +2157,8 @@ app.get("/api/fs/ls", (req, res) => {
         const entry = { name: item.name, type };
         if (type === "file") entry.size = stat.size;
         entries.push(entry);
-      } catch {
+      } catch (err) {
+        if (process.env.DEBUG) console.error(`Stat failed for ${item.name}:`, err);
         // skip entries with permission errors
       }
     }
@@ -2115,13 +2246,40 @@ app.post("/api/bundle.zip", async (req, res) => {
 let server;
 if (process.env.NODE_ENV !== "test") {
   server = app.listen(port, () => {
-    console.log(`Backend listening on ${port}`);
+    console.log("");
+    console.log("╔═══════════════════════════════════════════════════════════════════╗");
+    console.log("║                                                                   ║");
+    console.log("║          OpenShift Airgap Architect - Backend Server             ║");
+    console.log("║                                                                   ║");
+    console.log("╚═══════════════════════════════════════════════════════════════════╝");
+    console.log("");
+    console.log(`  Server:        http://localhost:${port}`);
+    console.log(`  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`);
+    console.log(`  Data Dir:      ${process.env.DATA_DIR || "/data"}`);
+    // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
+    const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
+    const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
+    if (bannerSha || bannerTime) {
+      console.log(`  Build:         ${bannerSha ? String(bannerSha).slice(0, 7) : "dev"} • ${bannerTime || "unknown"}`);
+    }
+    console.log("");
+    console.log("  Developed by:  Bill Strauss");
+    console.log("  AI Assistance: Claude (Anthropic) • Cursor AI");
+    console.log("  License:       MIT");
+    console.log("  Repository:    https://github.com/billstrauss/openshift-airgap-architect");
+    console.log("");
+    console.log("───────────────────────────────────────────────────────────────────");
+    console.log("");
   });
   const shutdown = (signal) => {
     console.log(`Received ${signal}, shutting down...`);
     // Kill any active child processes (oc-mirror runs, scan jobs).
     for (const [, child] of activeProcesses.entries()) {
-      try { child.kill("SIGTERM"); } catch {}
+      try {
+        child.kill("SIGTERM");
+      } catch (err) {
+        if (process.env.DEBUG) console.error("Kill child process failed:", err);
+      }
     }
     activeProcesses.clear();
     // Exit immediately. Waiting on server.close() hangs because Node's built-in

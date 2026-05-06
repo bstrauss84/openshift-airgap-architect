@@ -1,6 +1,13 @@
 /**
+ * OpenShift Airgap Architect - Field Guide Context Builder
+ *
  * buildContext(state) → flat template variable map
  * Extracts and normalizes all values needed for compartment rendering.
+ * Transforms wizard state into template variables for Field Guide generation.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 const normalizeNtpServers = (raw) => {

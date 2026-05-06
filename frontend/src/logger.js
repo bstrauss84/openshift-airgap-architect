@@ -1,6 +1,12 @@
 /**
+ * OpenShift Airgap Architect - Structured Application Logger
+ *
  * Structured logging for key app actions. Never logs credentials, pull secrets, or PII.
  * Used for observability and debugging; safe for production.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 const PREFIX = "[AirgapArchitect]";

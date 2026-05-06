@@ -1,5 +1,12 @@
 /**
- * v4.20 vSphere compartments.
+ * OpenShift Airgap Architect - Field Guide v4.20 vSphere Compartments
+ *
+ * Platform-specific installation procedures for VMware vSphere.
+ * Covers IPI, UPI, and Agent-based installer methods for OCP 4.20.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const vsphereIpiPrereqs = {

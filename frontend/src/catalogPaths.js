@@ -1,7 +1,13 @@
 /**
+ * OpenShift Airgap Architect - Catalog Path Lookup
+ *
  * Read-only catalog path lookup for Host Inventory v2 compare-mode annotations.
  * Uses frontend copies from frontend/src/data/catalogs/ (synced from data/params/<version>/).
  * See docs/DATA_AND_FRONTEND_COPIES.md.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 import bareMetalAgentCatalog from "./data/catalogs/bare-metal-agent.json";

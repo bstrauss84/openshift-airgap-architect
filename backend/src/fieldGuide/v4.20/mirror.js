@@ -1,5 +1,12 @@
 /**
- * v4.20 mirror compartments — mirror registry setup and oc-mirror workflows.
+ * OpenShift Airgap Architect - Field Guide v4.20 Mirror Compartments
+ *
+ * Mirror registry setup and oc-mirror workflows for OCP 4.20.
+ * Covers registry installation, image mirroring, and air-gap transfer procedures.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
 export const mirrorRegistrySetup = {

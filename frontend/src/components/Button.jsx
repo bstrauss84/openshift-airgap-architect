@@ -1,3 +1,13 @@
+/**
+ * OpenShift Airgap Architect - Button Component
+ *
+ * Premium button with 3D hover/pressed animation.
+ * Variants: primary (Install blue), secondary (neutral), destructive.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
 import React from "react";
 
 /**
