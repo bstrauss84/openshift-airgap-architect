@@ -467,7 +467,9 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               <h3 className="card-title">Security Compliance</h3>
               <div className="card-subtitle">Enable hardened crypto settings when required.</div>
             </div>
-            <label className="toggle-row">
+          </div>
+          <div className="card-body">
+            <label className="checkbox-row-left" style={{ marginBottom: strategy.fips ? "1rem" : 0 }}>
               <input
                 type="checkbox"
                 checked={strategy.fips}
@@ -475,7 +477,6 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               />
               <span>FIPS mode</span>
             </label>
-          </div>
           {strategy.fips ? (
             <div className="note">
               The installer host must run RHEL 9 with FIPS enabled.{" "}
@@ -488,6 +489,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               </a>
             </div>
           ) : null}
+          </div>
         </section>
 
         <section className={`card ${fieldErrors.proxy ? "highlight-errors" : ""}`}>

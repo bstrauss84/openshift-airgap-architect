@@ -430,7 +430,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               ) : (
                 <p className="note">If using an external load balancer, leave API VIP and Ingress VIP blank.</p>
               )}
-              <div className="field-grid">
+              <div className="vip-field-grid">
                 {showNutanixIpiVips ? (
                   showIpv6ForPlatform ? (
                     <>

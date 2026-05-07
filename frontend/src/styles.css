@@ -529,8 +529,12 @@ body[data-theme="dark"] .footer {
   margin-bottom: 16px;
 }
 
-.card-header > *:last-child {
-  margin-left: auto;  /* Push last item to right with reasonable gap, not excessive */
+/* Only push controls (toggle, checkbox, button) to right, not header text */
+.card-header > .toggle-row,
+.card-header > label.toggle-row,
+.card-header > button,
+.card-header > input[type="checkbox"] {
+  margin-left: auto;
 }
 
 .card-header h3,
@@ -672,6 +676,20 @@ body[data-theme="dark"] .run-oc-mirror-badge {
 
 .toggle-row input {
   margin: 0;
+}
+
+/* Checkbox row left-aligned (not pushed right) - for FIPS and similar */
+.checkbox-row-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.checkbox-row-left input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
 }
 
 .field-header {
@@ -3948,7 +3966,7 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
 /* Platform Specifics: row alignment and reflow so label+icon never squeeze */
 .platform-specifics .field-grid {
   display: grid;
-  align-items: stretch;  /* Force equal heights */
+  align-items: end;  /* Align inputs to bottom - handles multi-line labels */
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));  /* Responsive pattern */
   gap: 1rem;
   width: 100%;
@@ -4810,6 +4828,21 @@ body[data-theme="dark"] .networking-group-title {
 }
 
 /* VIP grouping for dual-stack (API/Ingress separation) */
+/* VIP field grid - API VIP on left ~35%, Ingress VIP midway ~50% */
+.vip-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 3rem;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .vip-field-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
 .vip-group {
   display: flex;
   flex-direction: column;
