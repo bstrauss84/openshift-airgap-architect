@@ -701,9 +701,13 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               <Switch checked={strictArchive} onChange={(v) => updateMirrorWorkflow({ strictArchive: v })} />
             </OptionRow>
           )}
-          {/* Compact 3-column grid for short-value fields */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 16px", alignItems: "end" }}>
-            <FieldLabelWithInfo label="Log level" hint="Verbosity level for oc-mirror command output. 'info' (default) shows progress and important messages - good for normal operation. 'debug' shows detailed diagnostic information including HTTP requests, registry operations, and internal state - useful when troubleshooting mirror failures or investigating unexpected behavior. Debug logs can be very verbose (100s of MB for large mirrors), so use it only when diagnosing issues. Logs are saved to the Operations tab regardless of level.">
+          {/* Advanced options grid with responsive layout */}
+          <div className="advanced-options-grid">
+            <FieldLabelWithInfo
+              label="Log level"
+              hint="Verbosity level for oc-mirror command output. 'info' (default) shows progress and important messages - good for normal operation. 'debug' shows detailed diagnostic information including HTTP requests, registry operations, and internal state - useful when troubleshooting mirror failures or investigating unexpected behavior. Debug logs can be very verbose (100s of MB for large mirrors), so use it only when diagnosing issues. Logs are saved to the Operations tab regardless of level."
+              className="field-short"
+            >
               <select
                 value={logLevel}
                 onChange={(e) => updateMirrorWorkflow({ logLevel: e.target.value })}
@@ -712,7 +716,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <option value="debug">debug</option>
               </select>
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Parallel images" hint="Maximum number of container images to download/mirror simultaneously (1-32). Default is 4. Higher values speed up mirroring but consume more network bandwidth, memory, and registry connections. For fast networks (10Gbps+) with powerful systems, you can increase to 8-16. For slow/unstable connections or limited bandwidth, reduce to 2-4. Each concurrent image can use 100-500MB of RAM, so monitor memory usage on large mirrors. If you see out-of-memory errors or registry throttling, reduce this value.">
+            <FieldLabelWithInfo
+              label="Parallel images"
+              hint="Maximum number of container images to download/mirror simultaneously (1-32). Default is 4. Higher values speed up mirroring but consume more network bandwidth, memory, and registry connections. For fast networks (10Gbps+) with powerful systems, you can increase to 8-16. For slow/unstable connections or limited bandwidth, reduce to 2-4. Each concurrent image can use 100-500MB of RAM, so monitor memory usage on large mirrors. If you see out-of-memory errors or registry throttling, reduce this value."
+              className="field-short"
+            >
               <input
                 type="number"
                 min={1}
@@ -721,7 +729,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 onChange={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
               />
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Parallel layers" hint="Max concurrent layer pulls (1–32).">
+            <FieldLabelWithInfo
+              label="Parallel layers"
+              hint="Max concurrent layer pulls (1–32)."
+              className="field-short"
+            >
               <input
                 type="number"
                 min={1}
@@ -730,7 +742,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 onChange={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
               />
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Image timeout" hint="Timeout per image (e.g. 10m).">
+            <FieldLabelWithInfo
+              label="Image timeout"
+              hint="Timeout per image (e.g. 10m)."
+              className="field-medium"
+            >
               <input
                 type="text"
                 value={imageTimeout}
@@ -738,7 +754,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 placeholder="10m"
               />
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Retry times" hint="Number of automatic retry attempts when an image pull/push fails (0-10). Default is 2. Mirroring often encounters transient network errors, registry throttling, or temporary connection issues - retries help complete the mirror successfully without manual intervention. For unstable networks or busy registries, increase to 4-5. For reliable high-speed connections, 2 is usually sufficient. Set to 0 to fail immediately on any error (not recommended for production mirroring). Each retry waits according to the 'Retry delay' setting below.">
+            <FieldLabelWithInfo
+              label="Retry times"
+              hint="Number of automatic retry attempts when an image pull/push fails (0-10). Default is 2. Mirroring often encounters transient network errors, registry throttling, or temporary connection issues - retries help complete the mirror successfully without manual intervention. For unstable networks or busy registries, increase to 4-5. For reliable high-speed connections, 2 is usually sufficient. Set to 0 to fail immediately on any error (not recommended for production mirroring). Each retry waits according to the 'Retry delay' setting below."
+              className="field-short"
+            >
               <input
                 type="number"
                 min={0}
@@ -747,7 +767,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 onChange={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
               />
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Retry delay" hint="Time to wait between retry attempts (Go duration format: 1s, 5s, 30s, 1m). Default is 1s (1 second). This delay gives transient errors time to resolve - for example, waiting for a registry rate limit to reset or a network connection to stabilize. For high-volume mirroring or registries with strict rate limits, increase to 5s-10s to avoid hammering the registry with repeated requests. For fast, reliable networks, 1s is sufficient. Too short (less than 1s) might trigger rate limiting; too long (minutes) wastes time on permanent failures.">
+            <FieldLabelWithInfo
+              label="Retry delay"
+              hint="Time to wait between retry attempts (Go duration format: 1s, 5s, 30s, 1m). Default is 1s (1 second). This delay gives transient errors time to resolve - for example, waiting for a registry rate limit to reset or a network connection to stabilize. For high-volume mirroring or registries with strict rate limits, increase to 5s-10s to avoid hammering the registry with repeated requests. For fast, reliable networks, 1s is sufficient. Too short (less than 1s) might trigger rate limiting; too long (minutes) wastes time on permanent failures."
+              className="field-medium"
+            >
               <input
                 type="text"
                 value={retryDelay}
@@ -756,7 +780,11 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               />
             </FieldLabelWithInfo>
             {mode === "mirrorToDisk" && (
-              <FieldLabelWithInfo label="Since (incremental)" hint="Only mirror images newer than this (ISO or digest). Optional.">
+              <FieldLabelWithInfo
+                label="Since (incremental)"
+                hint="Only mirror images newer than this (ISO or digest). Optional."
+                className="field-medium"
+              >
                 <input
                   type="text"
                   value={since}
@@ -768,59 +796,22 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
           </div>
         </CollapsibleSection>
 
-        {/* 7. Preflight */}
-        <section className="card">
+        {/* 7. Preflight and Run - Consolidated Actions */}
+        <section className="card ocmirror-actions-section">
           <div className="card-header">
-            <h3 className="card-title">Preflight</h3>
-            <div className="card-subtitle">Check paths and config before running. Run must pass with no blockers.</div>
-          </div>
-          <div className="card-body">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <Button variant="secondary" onClick={runPreflight} disabled={preflightLoading} data-testid="run-preflight-btn">
-                {preflightLoading ? "Running preflight…" : "Run preflight"}
-              </Button>
-            </div>
-            {preflightResult ? (
-              <>
-                {preflightResult.blockers?.length > 0 ? (
-                  <div className="note warning" style={{ marginTop: 12 }}>
-                    <strong>Blockers:</strong>
-                    <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
-                      {preflightResult.blockers.map((b, i) => (
-                        <li key={i}>{b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {preflightResult.warnings?.length > 0 ? (
-                  <div className="note" style={{ marginTop: 8 }}>
-                    <strong>Warnings:</strong>
-                    <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
-                      {preflightResult.warnings.map((w, i) => (
-                        <li key={i}>{w}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {preflightResult.ok ? (
-                  <p className="note subtle" style={{ marginTop: 8 }}>Preflight passed. You can run oc-mirror.</p>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </section>
-
-        {/* 8. Run status / last run */}
-        <section className="card">
-          <div className="card-header">
-            <h3 className="card-title">Run oc-mirror</h3>
-            <div className="card-subtitle">Start the run or stop a running job. View full logs in Operations.</div>
+            <h3 className="card-title">Preflight & Run</h3>
+            <div className="card-subtitle">Check configuration and paths, then start mirroring. View full logs in Operations tab.</div>
           </div>
           <div className="card-body">
             {runError ? (
               <div className="note warning" style={{ marginBottom: 12 }}>{runError}</div>
             ) : null}
-            <div className="actions" style={{ flexWrap: "wrap", gap: 8 }}>
+
+            {/* Unified action buttons */}
+            <div className="ocmirror-actions-row">
+              <Button variant="secondary" onClick={runPreflight} disabled={preflightLoading} data-testid="run-preflight-btn">
+                {preflightLoading ? "Running preflight…" : "Run preflight"}
+              </Button>
               <Button
                 variant="primary"
                 onClick={runOcMirror}
@@ -832,6 +823,37 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <Button variant="danger" onClick={stopRun}>Stop</Button>
               ) : null}
             </div>
+
+            {/* Preflight results */}
+            {preflightResult ? (
+              <>
+                {preflightResult.blockers?.length > 0 ? (
+                  <div className="note warning" style={{ marginTop: 12 }}>
+                    <strong>Preflight blockers:</strong>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+                      {preflightResult.blockers.map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {preflightResult.warnings?.length > 0 ? (
+                  <div className="note" style={{ marginTop: 8 }}>
+                    <strong>Preflight warnings:</strong>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+                      {preflightResult.warnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {preflightResult.ok ? (
+                  <p className="note subtle" style={{ marginTop: 8 }}>✓ Preflight passed. Ready to run oc-mirror.</p>
+                ) : null}
+              </>
+            ) : null}
+
+            {/* Last run summary */}
             {lastRunJob ? (
               <div className="run-oc-mirror-summary" style={{ marginTop: 16 }}>
                 <h4 className="card-subtitle">Last run</h4>

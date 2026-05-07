@@ -599,6 +599,44 @@ body[data-theme="dark"] .run-oc-mirror-badge {
   white-space: nowrap;
 }
 
+/* Advanced options grid for oc-mirror configuration */
+.advanced-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  max-width: 900px;
+  align-items: end;
+}
+
+/* Short fields for numeric inputs like parallel images, retry times */
+.field-short input,
+.field-short select {
+  max-width: 140px;
+}
+
+/* Medium fields for text inputs like timeouts, delays */
+.field-medium input,
+.field-medium select {
+  max-width: 200px;
+}
+
+/* oc-mirror actions section for consolidated preflight/run buttons */
+.ocmirror-actions-section {
+  margin-top: 0;
+}
+
+.ocmirror-actions-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.ocmirror-actions-row button {
+  min-width: 140px;
+}
+
 .summary-dl {
   display: grid;
   grid-template-columns: auto 1fr;
