@@ -479,15 +479,14 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   ? "Destination directory for oc-mirror tar archives and working-dir. Container-internal path under /data. Typically 50–200+ GB for a full OCP + operator mirror. Should be empty (or contain only prior run archives) before the first mirror-to-disk run. Keep archives after a successful run — they are the input for disk-to-mirror."
                   : "Source directory containing tar archives from a previous mirror-to-disk run. Must contain the working-dir structure written by oc-mirror. Container-internal path under /data."}
               >
-                <div style={{ display: "flex", gap: 6 }}>
+                <div className="path-input-row">
                   <input
                     type="text"
                     value={archivePath}
                     onChange={(e) => updateMirrorWorkflow({ archivePath: e.target.value })}
                     placeholder={DEFAULT_ARCHIVE_PATH}
-                    style={{ flex: 1 }}
                   />
-                  <Button variant="secondary" onClick={() => openBrowse("archive", archivePath || DEFAULT_ARCHIVE_PATH)} style={{ whiteSpace: "nowrap" }}>
+                  <Button variant="secondary" onClick={() => openBrowse("archive", archivePath || DEFAULT_ARCHIVE_PATH)}>
                     Browse…
                   </Button>
                 </div>
@@ -498,15 +497,14 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 label="Workspace directory"
                 hint="Required. Directory for oc-mirror metadata and cluster-resources output (creates a working-dir/ subdirectory here). Container-internal path under /data. Typically 1–5 GB."
               >
-                <div style={{ display: "flex", gap: 6 }}>
+                <div className="path-input-row">
                   <input
                     type="text"
                     value={workspacePath}
                     onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
                     placeholder={DEFAULT_WORKSPACE_PATH}
-                    style={{ flex: 1 }}
                   />
-                  <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)} style={{ whiteSpace: "nowrap" }}>
+                  <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)}>
                     Browse…
                   </Button>
                 </div>
@@ -517,15 +515,14 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 label="Cache directory"
                 hint="Persistent image layer cache. Significantly speeds up subsequent runs. Container-internal path under /data. Safe to delete — oc-mirror rebuilds it automatically. Typically 5–50+ GB. Not used in mirror-to-mirror mode."
               >
-                <div style={{ display: "flex", gap: 6 }}>
+                <div className="path-input-row">
                   <input
                     type="text"
                     value={cachePath}
                     onChange={(e) => updateMirrorWorkflow({ cachePath: e.target.value })}
                     placeholder={DEFAULT_CACHE_PATH}
-                    style={{ flex: 1 }}
                   />
-                  <Button variant="secondary" onClick={() => openBrowse("cache", cachePath || DEFAULT_CACHE_PATH)} style={{ whiteSpace: "nowrap" }}>
+                  <Button variant="secondary" onClick={() => openBrowse("cache", cachePath || DEFAULT_CACHE_PATH)}>
                     Browse…
                   </Button>
                 </div>

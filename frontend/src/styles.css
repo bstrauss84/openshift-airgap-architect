@@ -581,6 +581,24 @@ body[data-theme="dark"] .run-oc-mirror-badge {
   color: #e0e7ff;
 }
 
+/* Path input rows with Browse button - used in RunOcMirrorStep */
+.path-input-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  max-width: 600px;
+}
+
+.path-input-row input {
+  flex: 1;
+  min-width: 0; /* Allow flex item to shrink below content size */
+}
+
+.path-input-row button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .summary-dl {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1094,7 +1112,19 @@ input[placeholder*="ami-"],
 input[placeholder*="subnet-"],
 input[placeholder*="vpc-"],
 input[placeholder*="Z123"] {
-  max-width: 320px;
+  min-width: 280px;
+  max-width: 400px;
+  align-self: flex-start;
+}
+
+/* FQDN fields need extra width for long domain names */
+input[placeholder*="example.com"],
+input[placeholder*=".io"],
+input[placeholder*=".local"],
+input[placeholder*="registry.corp"],
+input[placeholder*="FQDN"] {
+  min-width: 320px;
+  max-width: 500px;
   align-self: flex-start;
 }
 
