@@ -15,6 +15,7 @@ import yaml from "js-yaml";
 import { getTrustBundlePolicies } from "./versionPolicy.js";
 import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
+import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
@@ -948,7 +949,7 @@ const buildEffectiveTrustBundle = (trust) => {
   const proxyBlocks = extractPemBlocks(trust.proxyCaPem);
   if (!mirrorBlocks.length && !proxyBlocks.length) return "";
   const merged = Array.from(new Set([...mirrorBlocks, ...proxyBlocks]));
-  return merged.join("\n\n");
+  return merged.join("\n");
 };
 
 const resolveTrustBundleForGeneration = (state) => {
@@ -1271,6 +1272,7 @@ const sortNodes = (nodes) => {
 
 const buildImageSetConfig = (state) => {
   const version = state.release?.patchVersion;
+  const catalogMinor = getOpenShiftMinorFromState(state) || "4.20";
   const operators = state.operators?.selected || [];
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
@@ -1285,7 +1287,7 @@ const buildImageSetConfig = (state) => {
       platform: {
         channels: [
           {
-            name: `stable-${state.release?.channel}`,
+            name: `stable-${catalogMinor}`,
             minVersion: version,
             maxVersion: version
           }

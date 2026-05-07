@@ -52,114 +52,16 @@ const macAddressSchema = z.string().regex(
 // ===================================================================
 
 /**
- * Comprehensive state schema for /api/state endpoint.
- * Validates the entire application state structure to prevent corruption.
+ * POST /api/state — permissive schema on purpose.
+ *
+ * The wizard persists the full client state object. A strict nested Zod shape
+ * strips unknown keys inside known objects (Zod default), which removed fields
+ * like blueprint.arch / blueprint.confirmed and large parts of globalStrategy,
+ * breaking operator scans ("waiting to scan"), bundle download, and generation.
+ * Main branch did not validate this body with Zod. Structural checks belong in
+ * the route handler (see index.js) and in frontend validation — not here.
  */
-export const stateUpdateSchema = z.object({
-  blueprint: z.object({
-    platform: z.enum([
-      "Bare Metal",
-      "VMware vSphere",
-      "AWS GovCloud",
-      "Azure Government",
-      "Nutanix",
-      "IBM Cloud"
-    ]).optional(),
-    baseDomain: z.string().min(1).max(253).optional(),
-    clusterName: z.string().min(1).max(63).regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/).optional(),
-    version: z.string().regex(/^\d+\.\d+\.\d+$/).optional(),
-    channel: z.string().optional(),
-    fipsMode: z.boolean().optional(),
-    pullSecretPlaceholder: pullSecretSchema.optional(),
-  }).optional(),
-
-  methodology: z.object({
-    method: z.enum(["IPI", "UPI", "Agent-Based Installer"]).optional(),
-  }).optional(),
-
-  credentials: z.object({
-    sshPublicKey: z.string().optional(),
-    pullSecretPlaceholder: pullSecretSchema.optional(),
-    mirrorRegistryPullSecret: pullSecretSchema.optional(),
-    usingMirrorRegistry: z.boolean().optional(),
-    mirrorRegistryUnauthenticated: z.boolean().optional(),
-  }).optional(),
-
-  globalStrategy: z.object({
-    networking: z.object({
-      machineNetworkV4: cidrV4Schema.optional(),
-      machineNetworkV6: ipv6Schema.optional(),
-      clusterNetworkCidr: cidrV4Schema.optional(),
-      clusterNetworkHostPrefix: z.number().int().min(1).max(32).optional(),
-      serviceNetworkCidr: cidrV4Schema.optional(),
-      apiVip: ipv4Schema.optional(),
-      ingressVip: ipv4Schema.optional(),
-    }).optional(),
-    mirroring: z.object({
-      registryFqdn: z.string().max(255).optional(),
-      sources: z.array(z.object({
-        source: z.string(),
-        mirrors: z.array(z.string()),
-      })).optional(),
-    }).optional(),
-  }).optional(),
-
-  hostInventory: z.object({
-    nodes: z.array(z.object({
-      hostname: z.string().min(1).max(63).optional(),
-      role: z.enum(["master", "worker", "arbiter"]).optional(),
-      primary: z.object({
-        type: z.enum(["ethernet", "bond", "vlan"]).optional(),
-        mode: z.enum(["dhcp", "static"]).optional(),
-        ethernet: z.object({
-          name: z.string().optional(),
-          macAddress: macAddressSchema.optional(),
-        }).optional(),
-        ipv4Cidr: cidrV4Schema.optional(),
-        ipv4Gateway: ipv4Schema.optional(),
-      }).optional(),
-      bmc: z.object({
-        address: z.string().optional(),
-        bootMACAddress: macAddressSchema.optional(),
-        username: z.string().optional(),
-        password: z.string().optional(),
-        disableCertificateVerification: z.boolean().optional(),
-      }).optional(),
-    })).optional(),
-    apiVip: ipv4Schema.optional(),
-    ingressVip: ipv4Schema.optional(),
-    enableIpv6: z.boolean().optional(),
-  }).optional(),
-
-  platformConfig: z.object({
-    aws: z.object({
-      region: z.string().optional(),
-      amiId: z.string().optional(),
-      hostedZone: z.string().optional(),
-    }).optional(),
-    azure: z.object({
-      region: z.string().optional(),
-      resourceGroup: z.string().optional(),
-    }).optional(),
-    nutanix: z.object({
-      prismCentralAddress: z.string().optional(),
-      port: z.string().regex(/^\d+$/).optional(),
-      username: z.string().optional(),
-      password: z.string().optional(),
-    }).optional(),
-  }).optional(),
-
-  trustProxy: z.object({
-    httpProxy: z.string().url().optional(),
-    httpsProxy: z.string().url().optional(),
-    noProxy: z.string().optional(),
-    additionalTrustBundle: z.string().optional(),
-    additionalTrustBundlePolicy: z.enum(["Proxyonly", "Always"]).optional(),
-  }).optional(),
-
-  visitedSteps: z.record(z.boolean()).optional(),
-  completedSteps: z.record(z.boolean()).optional(),
-}).passthrough(); // Allow additional properties for forward compatibility
+export const stateUpdateSchema = z.object({}).catchall(z.unknown());
 
 // ===================================================================
 // /api/ssh/keypair - SSH Key Generation Schema
@@ -239,10 +141,7 @@ export const feedbackSubmitSchema = z.object({
 // /api/generate - YAML Generation Schema
 // ===================================================================
 
-export const generateSchema = z.object({
-  // Generation endpoint accepts full state, so reuse stateUpdateSchema
-  // but require certain fields
-}).merge(stateUpdateSchema);
+export const generateSchema = z.object({}).catchall(z.unknown());
 
 // ===================================================================
 // /api/cincinnati/patches/update - Cincinnati Patches Update Schema

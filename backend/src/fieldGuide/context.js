@@ -10,6 +10,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
+import { getOpenShiftMinorFromSources } from "../openShiftMinor.js";
 const normalizeNtpServers = (raw) => {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
@@ -34,7 +35,8 @@ const buildContext = (state) => {
   const version = release.patchVersion || "4.20.0";
   const versionParts = version.split(".");
   const versionMajorMinor = versionParts.length >= 2 ? `${versionParts[0]}.${versionParts[1]}` : "4.20";
-  const channel = release.channel ? `stable-${release.channel}` : `stable-${versionMajorMinor}`;
+  const minor = getOpenShiftMinorFromSources(release, state.version || {}) || versionMajorMinor;
+  const channel = minor ? `stable-${minor}` : `stable-${versionMajorMinor}`;
 
   const clusterName = blueprint.clusterName || "airgap-cluster";
   const baseDomain = blueprint.baseDomain || "example.com";

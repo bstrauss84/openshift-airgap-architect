@@ -707,9 +707,14 @@ const analyzeTrustState = (state) => {
       findings: fipsFindings
     },
     certs: certDetails,
+    rawCertificates: dedupedValid.map((cert) => ({
+      fingerprintSha256: cert.fingerprintSha256,
+      rawPem: cert.rawPem
+    })),
     explainability: {
       reasonsByFingerprint: proposal.reasonsByFingerprint
-    }
+    },
+    graph
   };
 };
 
@@ -740,7 +745,7 @@ const buildReducedBundlePem = (analysis, selectedFingerprints) => {
   if (!pemBlocks.length) {
     throw new TrustAnalysisHashMismatchError("Reduced trust bundle reconstruction produced no PEM blocks.");
   }
-  return pemBlocks.join("\n\n");
+  return pemBlocks.join("\n");
 };
 
 const enrichAnalysisWithRawPemMap = (analysis, state) => {

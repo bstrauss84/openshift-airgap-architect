@@ -10,6 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert";
+import { z } from "zod";
 import {
   stateUpdateSchema,
   sshKeypairSchema,
@@ -56,27 +57,47 @@ test("stateUpdateSchema: accepts valid full state object", () => {
   assert.strictEqual(result.success, true);
 });
 
-test("stateUpdateSchema: rejects invalid platform value", () => {
+test("stateUpdateSchema: preserves nested blueprint fields (no Zod strip)", () => {
+  const state = {
+    blueprint: {
+      platform: "Bare Metal",
+      arch: "x86_64",
+      confirmed: true,
+      confirmationTimestamp: 123,
+      clusterName: "c",
+      baseDomain: "d.e"
+    },
+    globalStrategy: {
+      fips: true,
+      proxyEnabled: false,
+      networking: { machineNetworkV4: "10.0.0.0/24" }
+    }
+  };
+  const result = stateUpdateSchema.safeParse(state);
+  assert.strictEqual(result.success, true);
+  assert.strictEqual(result.data.blueprint.arch, "x86_64");
+  assert.strictEqual(result.data.blueprint.confirmed, true);
+  assert.strictEqual(result.data.globalStrategy.fips, true);
+});
+
+test("stateUpdateSchema: accepts arbitrary platform string (validation is elsewhere)", () => {
   const invalidState = {
     blueprint: {
       platform: "Invalid Platform Name"
     }
   };
-
   const result = stateUpdateSchema.safeParse(invalidState);
-  assert.strictEqual(result.success, false);
-  assert.ok(result.error.errors.some(e => e.path.includes("platform")));
+  assert.strictEqual(result.success, true);
 });
 
-test("stateUpdateSchema: rejects invalid cluster name format", () => {
+test("stateUpdateSchema: accepts cluster names that UI validation would refine", () => {
   const invalidState = {
     blueprint: {
-      clusterName: "InvalidName!" // Contains invalid character
+      clusterName: "InvalidName!"
     }
   };
-
   const result = stateUpdateSchema.safeParse(invalidState);
-  assert.strictEqual(result.success, false);
+  assert.strictEqual(result.success, true);
 });
 
 test("stateUpdateSchema: accepts empty object (passthrough)", () => {
@@ -402,15 +423,16 @@ test("validateBody middleware: returns 400 on invalid data", () => {
 });
 
 test("validateBody middleware: formats multiple validation errors", () => {
-  const testSchema = stateUpdateSchema;
+  const multiSchema = z.object({
+    a: z.string().min(1, "a required"),
+    b: z.number()
+  });
   let jsonData = null;
-  const middleware = validateBody(testSchema);
+  const middleware = validateBody(multiSchema);
   const req = {
     body: {
-      blueprint: {
-        platform: "Invalid",
-        clusterName: "Invalid-Name!"
-      }
+      a: "",
+      b: "not-a-number"
     }
   };
   const res = {

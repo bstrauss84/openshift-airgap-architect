@@ -40,6 +40,7 @@ import {
 } from "./utils.js";
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
+import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -49,10 +50,7 @@ import {
   ocMirrorRunSchema,
   pathCheckSchema,
   feedbackSubmitSchema,
-  generateSchema,
   cincinnatiPatchesUpdateSchema,
-  operatorConfirmSchema,
-  bundlePrepareSchema,
 } from "./schemas.js";
 import {
   buildFeedbackIssueDraft,
@@ -425,10 +423,58 @@ const ensureState = () => {
 
 const updateState = (patch) => {
   const current = ensureState();
-  const merged = { ...current, ...patch };
+  // Deep merge patch into current state to preserve nested fields
+  const merged = deepMerge(current, patch);
   setState(merged);
   return merged;
 };
+
+/** Merge-aware: fills canonical minor in release.channel when null/empty or legacy stable-* (avoids vnull operator catalogs). */
+function applyReleaseChannelNormalization(patch) {
+  if (!patch?.release || typeof patch.release !== "object") return;
+  const current = getState();
+  if (!current) return;
+  const curRel = current.release || {};
+  const curVer = current.version || {};
+  const effective = { ...curRel, ...patch.release };
+  const effVer = patch.version && typeof patch.version === "object" ? { ...curVer, ...patch.version } : curVer;
+  const minor = getOpenShiftMinorFromSources(effective, effVer);
+  if (!minor) return;
+  const ch = effective.channel;
+  const needs =
+    ch === null ||
+    ch === undefined ||
+    ch === "" ||
+    (typeof ch === "string" && /^stable-/i.test(String(ch).trim()));
+  if (needs) {
+    patch.release = { ...patch.release, channel: minor };
+  }
+}
+
+// Deep merge helper for state updates - preserves nested object fields
+function deepMerge(target, source) {
+  const output = { ...target };
+
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      if (isObject(source[key])) {
+        if (!(key in target)) {
+          output[key] = source[key];
+        } else {
+          output[key] = deepMerge(target[key], source[key]);
+        }
+      } else {
+        output[key] = source[key];
+      }
+    });
+  }
+
+  return output;
+}
+
+function isObject(item) {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
 
 const sanitizeStateForExport = (state, options = {}) => {
   const includeCredentials = Boolean(options.includeCredentials);
@@ -898,6 +944,36 @@ app.get("/api/state", (req, res) => {
 
 app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
   const patch = req.body || {};
+  applyReleaseChannelNormalization(patch);
+
+  // CRITICAL VALIDATION: Prevent state corruption where release is confirmed without channel
+  // Only validate if BOTH confirmed=true AND channel is explicitly null in the patch
+  if (patch?.release?.confirmed === true && "channel" in patch.release) {
+    if (patch.release.channel === null || patch.release.channel === undefined || patch.release.channel === "") {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: [{
+          path: "release.channel",
+          message: "Release cannot be confirmed without a channel. Select a version first."
+        }]
+      });
+    }
+  }
+
+  // CRITICAL VALIDATION: Prevent version confirmation without selectedVersion
+  // Only validate if confirmed AND selectedVersion is explicitly null in the patch
+  if ((patch?.version?.versionConfirmed === true || patch?.version?.confirmedByUser === true) && "selectedVersion" in patch.version) {
+    if (patch.version.selectedVersion === null || patch.version.selectedVersion === undefined || patch.version.selectedVersion === "") {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: [{
+          path: "version.selectedVersion",
+          message: "Version cannot be confirmed without selecting a version. Select a version first."
+        }]
+      });
+    }
+  }
+
   // Remove ephemeral fields that should never be persisted
   if (patch?.blueprint && "blueprintPullSecretEphemeral" in patch.blueprint) {
     const nextBlueprint = { ...patch.blueprint };
@@ -1009,7 +1085,7 @@ app.post("/api/run/import", (req, res) => {
   if (!migrated.runId) migrated.runId = nanoid();
   if (!migrated.exportOptions) migrated.exportOptions = defaultState().exportOptions;
   if (migrated.operators) {
-    const expectedVersion = migrated.release?.channel || null;
+    const expectedVersion = getOpenShiftMinorFromState(migrated) || migrated.release?.channel || null;
     if (migrated.operators.version && migrated.operators.version !== expectedVersion) {
       migrated.operators.stale = true;
     }
@@ -1094,14 +1170,14 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
     return res.status(400).json({ error: "Registry auth not configured." });
   }
   if (String(process.env.MOCK_MODE).toLowerCase() === "true") {
-    const version = state.release?.channel;
+    const catalogMinor = getOpenShiftMinorFromState(state);
     const jobs = {};
     for (const catalog of getCatalogs()) {
       const jobId = createJob("operator-scan", `Mock scan ${catalog.id}`);
-      const file = path.join(process.cwd(), "mock-data", `operators-${catalog.id}-${version}.json`);
+      const file = path.join(process.cwd(), "mock-data", `operators-${catalog.id}-${catalogMinor || "unknown"}.json`);
       if (fs.existsSync(file)) {
         const data = JSON.parse(fs.readFileSync(file, "utf8"));
-        dbPrepareMockStore(version, catalog.id, data.results);
+        dbPrepareMockStore(catalogMinor || "unknown", catalog.id, data.results);
       }
       updateJob(jobId, { status: "completed", progress: 100, message: "Mock data loaded." });
       jobs[catalog.id] = jobId;
@@ -1113,7 +1189,13 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
     const normalized = normalizePullSecret(req.body.pullSecret);
     tempAuthFile = writeTempAuth(normalized);
   }
-  const version = state.release?.channel;
+  const catalogMinor = getOpenShiftMinorFromState(state);
+  if (!catalogMinor) {
+    if (tempAuthFile) safeUnlink(tempAuthFile);
+    return res.status(400).json({
+      error: "OpenShift release minor is not set. Select minor channel and patch in Blueprint (or ensure patchVersion is set)."
+    });
+  }
   const resolved = await resolveOcMirrorBinary(dataDir);
   const jobs = {};
   if (resolved.error) {
@@ -1131,9 +1213,9 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
   }
   for (const catalog of getCatalogs()) {
     const jobId = runScanJob({
-      version,
+      version: catalogMinor,
       catalogId: catalog.id,
-      catalogImage: catalog.image(version),
+      catalogImage: catalog.image(catalogMinor),
       authFile: tempAuthFile,
       jobType: "operator-scan",
       ocMirrorPath: resolved.path
@@ -1151,7 +1233,12 @@ app.post("/api/operators/prefetch", async (req, res) => {
   if (!authAvailable()) {
     return res.status(400).json({ error: "Registry auth not configured." });
   }
-  const version = state.release?.channel;
+  const catalogMinor = getOpenShiftMinorFromState(state);
+  if (!catalogMinor) {
+    return res.status(400).json({
+      error: "OpenShift release minor is not set. Select minor channel and patch in Blueprint (or ensure patchVersion is set)."
+    });
+  }
   const resolved = await resolveOcMirrorBinary(dataDir);
   const jobs = {};
   if (resolved.error) {
@@ -1169,9 +1256,9 @@ app.post("/api/operators/prefetch", async (req, res) => {
   }
   for (const catalog of getCatalogs()) {
     const jobId = runScanJob({
-      version,
+      version: catalogMinor,
       catalogId: catalog.id,
-      catalogImage: catalog.image(version),
+      catalogImage: catalog.image(catalogMinor),
       jobType: "operator-prefetch",
       message: `Prefetching ${catalog.id} operators...`,
       ocMirrorPath: resolved.path
@@ -1837,7 +1924,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
 
 app.get("/api/docs", (req, res) => {
   const state = ensureState();
-  const version = state.release?.channel ? `4.${state.release.channel.split(".")[1]}` : "4.0";
+  const version = getOpenShiftMinorFromState(state) || "4.0";
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   res.json({ cached });
@@ -1845,7 +1932,7 @@ app.get("/api/docs", (req, res) => {
 
 app.post("/api/docs/update", async (req, res) => {
   const state = ensureState();
-  const version = state.release?.channel ? `4.${state.release.channel.split(".")[1]}` : "4.0";
+  const version = getOpenShiftMinorFromState(state) || "4.0";
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   if (cached && Date.now() - cached.updatedAt < 5 * 60 * 1000) {
@@ -1917,7 +2004,7 @@ app.get("/api/aws/ami", async (req, res) => {
 const buildPreviewFiles = (state) => {
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
   if (!confirmed) return null;
-  const version = state.release?.channel ? `4.${state.release.channel.split(".")[1]}` : "4.0";
+  const version = getOpenShiftMinorFromState(state) || "4.0";
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
@@ -2013,7 +2100,7 @@ const buildBundleZip = async (state, res) => {
     res.status(400).json({ error: "Version not confirmed." });
     return;
   }
-  const version = state.release?.channel ? `4.${state.release.channel.split(".")[1]}` : "4.0";
+  const version = getOpenShiftMinorFromState(state) || "4.0";
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
