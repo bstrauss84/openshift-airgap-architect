@@ -382,6 +382,59 @@ export default function TrustProxyStep({ highlightErrors }) {
     });
   };
 
+  const toggleCategorySelection = (categoryId, checked) => {
+    const categoryCerts = certs.filter(c => c.classification === categoryId);
+    const next = new Set(selectedFingerprints || []);
+    categoryCerts.forEach(cert => {
+      if (checked) next.add(cert.fingerprintSha256);
+      else next.delete(cert.fingerprintSha256);
+    });
+    pushReducedSelection(Array.from(next), {
+      userModified: true,
+      cautionAcknowledged: false
+    });
+  };
+
+  const keepOnlyRequired = () => {
+    const requiredCerts = certs.filter(c => c.classification === "likely_required");
+    pushReducedSelection(requiredCerts.map(c => c.fingerprintSha256), {
+      userModified: true,
+      cautionAcknowledged: false
+    });
+  };
+
+  const removeAllOptional = () => {
+    const next = new Set(selectedFingerprints || []);
+    const optionalCerts = certs.filter(c => c.classification === "likely_optional");
+    optionalCerts.forEach(cert => next.delete(cert.fingerprintSha256));
+    pushReducedSelection(Array.from(next), {
+      userModified: true,
+      cautionAcknowledged: false
+    });
+  };
+
+  const smartTrim = () => {
+    // Start with required, then add ambiguous until we hit 256KB caution threshold
+    const requiredCerts = certs.filter(c => c.classification === "likely_required");
+    const ambiguousCerts = certs.filter(c => c.classification === "kept_due_to_ambiguity");
+    const selected = new Set(requiredCerts.map(c => c.fingerprintSha256));
+
+    // Estimate size: each cert ~2KB average
+    let estimatedSize = requiredCerts.length * 2048;
+    const targetSize = 256 * 1024; // 256KB caution threshold
+
+    for (const cert of ambiguousCerts) {
+      if (estimatedSize >= targetSize) break;
+      selected.add(cert.fingerprintSha256);
+      estimatedSize += 2048;
+    }
+
+    pushReducedSelection(Array.from(selected), {
+      userModified: true,
+      cautionAcknowledged: false
+    });
+  };
+
   const resetToProposal = () => {
     if (!analysis?.proposal?.available) return;
     pushReducedSelection(analysis.proposal.selectedCertFingerprints || [], {
@@ -643,21 +696,77 @@ export default function TrustProxyStep({ highlightErrors }) {
                 ) : null}
                 {analysis ? (
                   <div className="trust-analysis-results">
-                    <p className="note">
-                      Risk band: <strong>{analysis.risk?.band || "unknown"}</strong> (score {analysis.risk?.score ?? "n/a"}) | Confidence: <strong>{reducedConfidence}</strong>
-                    </p>
-                    <p className="note">
-                      Valid certs: {analysis.inventory?.validCertificates ?? 0}, malformed: {analysis.inventory?.malformedBlocks ?? 0}, duplicate noise: {analysis.inventory?.duplicateNoiseCount ?? 0}
-                    </p>
-                    <p className="note">Analysis hash: <code>{analysisHash || "n/a"}</code></p>
-                    <p className="note">
-                      FIPS findings: {(analysis.fips?.findings || []).length} total (
-                      cryptographic weakness: {(analysis.fips?.findings || []).filter((f) => f.category === "cryptographic_weakness").length},
-                      hygiene/validity: {(analysis.fips?.findings || []).filter((f) => f.category === "certificate_hygiene_validity").length},
-                      chain/issuer misuse: {(analysis.fips?.findings || []).filter((f) => f.category === "chain_or_issuer_misuse").length},
-                      unknown/ambiguous: {(analysis.fips?.findings || []).filter((f) => f.category === "unknown_or_ambiguous").length}
-                      )
-                    </p>
+                    {/* Compact status bar showing ConfigMap limit compliance */}
+                    <div className="trust-limit-status">
+                      <div className="status-row">
+                        <span className="status-label">Bundle Size:</span>
+                        <span className="status-value">
+                          {selectedSummary?.selectedBytes ? `${Math.round(selectedSummary.selectedBytes / 1024)}KB` : "—"}
+                          {" / "}
+                          <span className="status-max">650KB safe max</span>
+                        </span>
+                        <span className={`status-badge ${
+                          selectedSummary?.thresholdBand === "hard_max_exceeded" ? "error" :
+                          selectedSummary?.thresholdBand === "caution_exceeded" ? "warning" : "success"
+                        }`}>
+                          {selectedSummary?.thresholdBand === "hard_max_exceeded" ? "⚠️ Over limit" :
+                           selectedSummary?.thresholdBand === "caution_exceeded" ? "⚠️ Close to limit" : "✓ Within limits"}
+                        </span>
+                      </div>
+                      {selectedSummary?.selectedBytes && (
+                        <div className="size-bar">
+                          <div
+                            className={`size-fill ${
+                              selectedSummary.thresholdBand === "hard_max_exceeded" ? "error" :
+                              selectedSummary.thresholdBand === "caution_exceeded" ? "warning" : "success"
+                            }`}
+                            style={{
+                              width: `${Math.min(100, (selectedSummary.selectedBytes / (650 * 1024)) * 100)}%`
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Simplified key metrics */}
+                    <div className="trust-status-grid">
+                      <div className="trust-metric">
+                        <span className="metric-value">{analysis.inventory?.validCertificates ?? 0}</span>
+                        <span className="metric-label">Valid Certificates</span>
+                      </div>
+                      <div className="trust-metric">
+                        <span className="metric-value">{selectedSummary?.selectedBytes ? `${Math.round(selectedSummary.selectedBytes / 1024)}KB` : "—"}</span>
+                        <span className="metric-label">Bundle Size</span>
+                      </div>
+                      <div className="trust-metric">
+                        <span className={`metric-value ${analysis.risk?.band === "dangerous" ? "warning" : ""}`}>
+                          {analysis.risk?.band || "unknown"}
+                        </span>
+                        <span className="metric-label">Risk Level</span>
+                      </div>
+                    </div>
+
+                    {/* Technical details collapsed by default */}
+                    <details className="trust-technical-details">
+                      <summary>Technical Details</summary>
+                      <div className="technical-details-content">
+                        <p className="note">
+                          Risk score: {analysis.risk?.score ?? "n/a"} | Confidence: <strong>{reducedConfidence}</strong>
+                        </p>
+                        <p className="note">
+                          Malformed blocks: {analysis.inventory?.malformedBlocks ?? 0}, Duplicate noise: {analysis.inventory?.duplicateNoiseCount ?? 0}
+                        </p>
+                        <p className="note">Analysis hash: <code>{analysisHash || "n/a"}</code></p>
+                        <p className="note">
+                          FIPS findings: {(analysis.fips?.findings || []).length} total (
+                          cryptographic weakness: {(analysis.fips?.findings || []).filter((f) => f.category === "cryptographic_weakness").length},
+                          hygiene/validity: {(analysis.fips?.findings || []).filter((f) => f.category === "certificate_hygiene_validity").length},
+                          chain/issuer misuse: {(analysis.fips?.findings || []).filter((f) => f.category === "chain_or_issuer_misuse").length},
+                          unknown/ambiguous: {(analysis.fips?.findings || []).filter((f) => f.category === "unknown_or_ambiguous").length}
+                          )
+                        </p>
+                      </div>
+                    </details>
                     {reducedAvailable ? (
                       <div className="actions" style={{ gap: 8, flexWrap: "wrap" }}>
                         <Button
@@ -721,6 +830,20 @@ export default function TrustProxyStep({ highlightErrors }) {
                     {trust.bundleSelectionMode === "reduced" && certs.length ? (
                       <div style={{ marginTop: 12 }}>
                         <h4 style={{ marginBottom: 8 }}>Reduced bundle manual cert review</h4>
+
+                        {/* Quick Actions */}
+                        <div className="trust-quick-actions">
+                          <Button variant="secondary" onClick={keepOnlyRequired}>
+                            Keep Only Required
+                          </Button>
+                          <Button variant="secondary" onClick={removeAllOptional}>
+                            Remove All Optional
+                          </Button>
+                          <Button variant="secondary" onClick={smartTrim}>
+                            Smart Trim to 256KB
+                          </Button>
+                        </div>
+
                         <div className="trust-cert-toolbar">
                           <input
                             className="proxy-field-input"
@@ -741,41 +864,144 @@ export default function TrustProxyStep({ highlightErrors }) {
                             Showing {filteredCerts.length} of {certs.length}
                           </span>
                         </div>
-                        <div className="trust-cert-list">
-                          {filteredCerts.map((cert) => {
-                            const selected = selectedSet.has(cert.fingerprintSha256);
-                            return (
-                              <details key={cert.fingerprintSha256} className="trust-cert-row">
-                                <summary>
-                                  <label className="trust-cert-summary">
-                                    <input
-                                      type="checkbox"
-                                      checked={selected}
-                                      onChange={(e) => {
-                                        e.stopPropagation();
-                                        toggleCertSelection(cert.fingerprintSha256, e.target.checked);
-                                      }}
-                                    />
-                                    <span className="trust-cert-primary">
-                                      {cert.subject || cert.fingerprintSha256}
-                                    </span>
-                                    <span className="trust-cert-pill">{cert.classification}</span>
-                                  </label>
-                                </summary>
-                                <div className="note" style={{ marginTop: 8 }}>
-                                  Issuer: {cert.issuer || "n/a"}
-                                  <br />
-                                  Fingerprint: <code>{cert.fingerprintSha256}</code>
-                                  <br />
-                                  Type: {cert.isCa ? "CA" : "Leaf/unknown"}; key: {cert.keyType}{cert.keySize ? `/${cert.keySize}` : ""}
-                                  <br />
-                                  Reasons: {(cert.reasonCodes || []).length ? cert.reasonCodes.map((r) => summarizeReason(r)).join(", ") : "None"}
-                                </div>
-                              </details>
-                            );
-                          })}
-                          {!filteredCerts.length ? (
-                            <div className="note">No certificates match this filter/search.</div>
+
+                        {/* Categorized cert list */}
+                        <div className="trust-cert-categories">
+                          {(() => {
+                            const categories = [
+                              {
+                                id: "likely_optional",
+                                label: "Safe to Remove",
+                                help: "Leaf/endpoint certs typically not needed for trust chains",
+                                className: "safe-to-remove"
+                              },
+                              {
+                                id: "likely_required",
+                                label: "Likely Required",
+                                help: "Root and intermediate CAs for your mirror/proxy",
+                                className: "keep-recommended"
+                              },
+                              {
+                                id: "kept_due_to_ambiguity",
+                                label: "Unclear (Manual Review)",
+                                help: "Classification ambiguous - review recommended",
+                                className: "ambiguous"
+                              },
+                              {
+                                id: "flagged_risky_or_problematic",
+                                label: "Risky / Problematic",
+                                help: "Flagged for potential issues",
+                                className: "risky"
+                              }
+                            ];
+
+                            return categories.map(category => {
+                              const categoryCerts = filteredCerts.filter(c => c.classification === category.id);
+                              if (!categoryCerts.length && certFilter !== "all") return null;
+
+                              const categorySelected = categoryCerts.filter(c => selectedSet.has(c.fingerprintSha256));
+                              const allSelected = categoryCerts.length > 0 && categorySelected.length === categoryCerts.length;
+                              const someSelected = categorySelected.length > 0 && categorySelected.length < categoryCerts.length;
+
+                              // Estimate size: avg ~2KB per cert
+                              const categorySize = Math.round((categoryCerts.length * 2048) / 1024);
+
+                              return (
+                                <section key={category.id} className={`cert-category ${category.className}`}>
+                                  <h4 className="category-header">
+                                    <label className="category-checkbox-label">
+                                      <input
+                                        type="checkbox"
+                                        checked={allSelected}
+                                        ref={el => el && (el.indeterminate = someSelected)}
+                                        onChange={(e) => toggleCategorySelection(category.id, e.target.checked)}
+                                      />
+                                      <span className="category-title">
+                                        {category.label} ({categoryCerts.length} certs, ~{categorySize}KB)
+                                      </span>
+                                    </label>
+                                    <span className="category-help">{category.help}</span>
+                                  </h4>
+                                  {categoryCerts.length > 0 ? (
+                                    <div className="category-cert-list">
+                                      {categoryCerts.map((cert) => {
+                                        const selected = selectedSet.has(cert.fingerprintSha256);
+                                        return (
+                                          <details key={cert.fingerprintSha256} className="trust-cert-row">
+                                            <summary>
+                                              <label className="trust-cert-summary">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={selected}
+                                                  onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleCertSelection(cert.fingerprintSha256, e.target.checked);
+                                                  }}
+                                                />
+                                                <span className="trust-cert-primary">
+                                                  {cert.subject || cert.fingerprintSha256}
+                                                </span>
+                                              </label>
+                                            </summary>
+                                            <div className="note" style={{ marginTop: 8 }}>
+                                              Issuer: {cert.issuer || "n/a"}
+                                              <br />
+                                              Fingerprint: <code>{cert.fingerprintSha256}</code>
+                                              <br />
+                                              Type: {cert.isCa ? "CA" : "Leaf/unknown"}; key: {cert.keyType}{cert.keySize ? `/${cert.keySize}` : ""}
+                                              <br />
+                                              Reasons: {(cert.reasonCodes || []).length ? cert.reasonCodes.map((r) => summarizeReason(r)).join(", ") : "None"}
+                                            </div>
+                                          </details>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <div className="note">No certificates in this category match your search.</div>
+                                  )}
+                                </section>
+                              );
+                            });
+                          })()}
+                        </div>
+
+                        {/* Live selection preview with progress bar */}
+                        <div className="trust-selection-preview">
+                          <div className="preview-stats-row">
+                            <div className="preview-stat">
+                              <span className="stat-label">Selected:</span>
+                              <span className="stat-value">{selectedFingerprints.length} certs</span>
+                            </div>
+                            <div className="preview-stat">
+                              <span className="stat-label">Size:</span>
+                              <span className="stat-value">
+                                {selectedSummary?.selectedBytes ? `${Math.round(selectedSummary.selectedBytes / 1024)}KB` : "—"}
+                                {" / "}
+                                {Math.round((650 * 1024) / 1024)}KB
+                              </span>
+                            </div>
+                          </div>
+                          <div className="size-bar">
+                            <div
+                              className={`size-fill ${
+                                hardMaxExceeded ? "error" :
+                                cautionExceeded ? "warning" : "success"
+                              }`}
+                              style={{
+                                width: selectedSummary?.selectedBytes
+                                  ? `${Math.min(100, (selectedSummary.selectedBytes / (650 * 1024)) * 100)}%`
+                                  : "0%"
+                              }}
+                            />
+                          </div>
+                          {hardMaxExceeded && selectedSummary?.selectedBytes ? (
+                            <div className="preview-warning error">
+                              ⚠️ Over limit! Remove {Math.ceil((selectedSummary.selectedBytes - (650 * 1024)) / 1024)}KB more to proceed.
+                            </div>
+                          ) : cautionExceeded ? (
+                            <div className="preview-warning warning">
+                              ⚠️ Approaching limit. Consider removing additional certificates.
+                            </div>
                           ) : null}
                         </div>
                       </div>

@@ -4260,3 +4260,420 @@ body[data-theme="dark"] .field-hint-text {
   display: block;
   margin-top: 4px;
 }
+
+/* ============================================================================
+   Trust Analysis UI Improvements
+   ============================================================================ */
+
+/* Compact ConfigMap limit status bar */
+.trust-limit-status {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+body[data-theme="dark"] .trust-limit-status {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.trust-limit-status .status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.trust-limit-status .status-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+}
+
+body[data-theme="dark"] .trust-limit-status .status-label {
+  color: #e5e7eb;
+}
+
+.trust-limit-status .status-value {
+  font-size: 14px;
+  color: #1f2937;
+}
+
+body[data-theme="dark"] .trust-limit-status .status-value {
+  color: #f3f4f6;
+}
+
+.trust-limit-status .status-max {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+body[data-theme="dark"] .trust-limit-status .status-max {
+  color: #9ca3af;
+}
+
+.trust-limit-status .status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.trust-limit-status .status-badge.success {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+body[data-theme="dark"] .trust-limit-status .status-badge.success {
+  background: rgba(6, 95, 70, 0.3);
+  color: #6ee7b7;
+}
+
+.trust-limit-status .status-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+body[data-theme="dark"] .trust-limit-status .status-badge.warning {
+  background: rgba(146, 64, 14, 0.3);
+  color: #fbbf24;
+}
+
+.trust-limit-status .status-badge.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+body[data-theme="dark"] .trust-limit-status .status-badge.error {
+  background: rgba(153, 27, 27, 0.3);
+  color: #fca5a5;
+}
+
+/* Size progress bar */
+.size-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+body[data-theme="dark"] .size-bar {
+  background: #374151;
+}
+
+.size-fill {
+  height: 100%;
+  transition: width 0.3s ease, background 0.3s ease;
+  border-radius: 4px;
+}
+
+.size-fill.success {
+  background: #10b981;
+}
+
+.size-fill.warning {
+  background: #f59e0b;
+}
+
+.size-fill.error {
+  background: #ef4444;
+}
+
+/* Simplified metrics grid */
+.trust-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.trust-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+body[data-theme="dark"] .trust-metric {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #0066cc;
+  line-height: 1.2;
+}
+
+body[data-theme="dark"] .metric-value {
+  color: #60a5fa;
+}
+
+.metric-value.warning {
+  color: #f59e0b;
+}
+
+body[data-theme="dark"] .metric-value.warning {
+  color: #fbbf24;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+  text-align: center;
+}
+
+body[data-theme="dark"] .metric-label {
+  color: #9ca3af;
+}
+
+/* Technical details expandable section */
+.trust-technical-details {
+  margin-top: 12px;
+  padding: 8px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+body[data-theme="dark"] .trust-technical-details {
+  border-top-color: #374151;
+}
+
+.trust-technical-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 4px 0;
+  user-select: none;
+}
+
+body[data-theme="dark"] .trust-technical-details summary {
+  color: #9ca3af;
+}
+
+.trust-technical-details summary:hover {
+  color: #374151;
+}
+
+body[data-theme="dark"] .trust-technical-details summary:hover {
+  color: #e5e7eb;
+}
+
+.technical-details-content {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.technical-details-content .note {
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+/* Live selection preview (sticky footer in cert review) */
+.trust-selection-preview {
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 16px;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+
+body[data-theme="dark"] .trust-selection-preview {
+  background: #111827;
+  border-color: #374151;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.preview-stats-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-stat {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.preview-stat .stat-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+body[data-theme="dark"] .preview-stat .stat-label {
+  color: #9ca3af;
+}
+
+.preview-stat .stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+body[data-theme="dark"] .preview-stat .stat-value {
+  color: #f3f4f6;
+}
+
+.preview-warning {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.preview-warning.warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fbbf24;
+}
+
+body[data-theme="dark"] .preview-warning.warning {
+  background: rgba(146, 64, 14, 0.2);
+  color: #fbbf24;
+  border-color: #92400e;
+}
+
+.preview-warning.error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #f87171;
+}
+
+body[data-theme="dark"] .preview-warning.error {
+  background: rgba(153, 27, 27, 0.2);
+  color: #fca5a5;
+  border-color: #991b1b;
+}
+
+/* Quick actions toolbar */
+.trust-quick-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* Categorized certificate list */
+.trust-cert-categories {
+  margin-top: 16px;
+}
+
+.cert-category {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #6b7280;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+body[data-theme="dark"] .cert-category {
+  background: #111827;
+  border-color: #374151;
+  border-left-color: #6b7280;
+}
+
+.cert-category.safe-to-remove {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+
+body[data-theme="dark"] .cert-category.safe-to-remove {
+  background: rgba(16, 185, 129, 0.1);
+  border-left-color: #10b981;
+}
+
+.cert-category.keep-recommended {
+  border-left-color: #0066cc;
+  background: #eff6ff;
+}
+
+body[data-theme="dark"] .cert-category.keep-recommended {
+  background: rgba(0, 102, 204, 0.1);
+  border-left-color: #60a5fa;
+}
+
+.cert-category.ambiguous {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+body[data-theme="dark"] .cert-category.ambiguous {
+  background: rgba(245, 158, 11, 0.1);
+  border-left-color: #f59e0b;
+}
+
+.cert-category.risky {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+body[data-theme="dark"] .cert-category.risky {
+  background: rgba(239, 68, 68, 0.1);
+  border-left-color: #ef4444;
+}
+
+.category-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin: 0 0 12px 0;
+  gap: 12px;
+}
+
+.category-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.category-checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.category-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+body[data-theme="dark"] .category-title {
+  color: #f3f4f6;
+}
+
+.category-help {
+  font-size: 12px;
+  font-weight: normal;
+  color: #6b7280;
+  font-style: italic;
+  text-align: right;
+  flex: 1;
+}
+
+body[data-theme="dark"] .category-help {
+  color: #9ca3af;
+}
+
+.category-cert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
