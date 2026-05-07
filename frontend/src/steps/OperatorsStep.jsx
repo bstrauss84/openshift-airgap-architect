@@ -12,6 +12,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { useCatalogScanProgress } from "../useCatalogScanProgress.js";
 import SecretInput from "../components/SecretInput.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
@@ -105,7 +106,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const showStaleWarning = staleResults && !scansInProgressOrComplete;
   const discoveryAlreadyRunningOrDone = hasScanJobs || hasScanJobsFromState;
 
-  const version = state.release?.channel;
+  const version = getOpenShiftMinorFromState(state) || "";
   const normalizeCatalogs = (data) => ({
     redhat: Array.isArray(data?.redhat) ? data.redhat : data?.redhat?.results || [],
     certified: Array.isArray(data?.certified) ? data.certified : data?.certified?.results || [],

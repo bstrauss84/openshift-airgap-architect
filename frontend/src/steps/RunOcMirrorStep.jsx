@@ -706,7 +706,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
           )}
           {/* Compact 3-column grid for short-value fields */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px 16px", alignItems: "end" }}>
-            <FieldLabelWithInfo label="Log level" hint="Log level: info or debug.">
+            <FieldLabelWithInfo label="Log level" hint="Verbosity level for oc-mirror command output. 'info' (default) shows progress and important messages - good for normal operation. 'debug' shows detailed diagnostic information including HTTP requests, registry operations, and internal state - useful when troubleshooting mirror failures or investigating unexpected behavior. Debug logs can be very verbose (100s of MB for large mirrors), so use it only when diagnosing issues. Logs are saved to the Operations tab regardless of level.">
               <select
                 value={logLevel}
                 onChange={(e) => updateMirrorWorkflow({ logLevel: e.target.value })}
@@ -715,7 +715,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <option value="debug">debug</option>
               </select>
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Parallel images" hint="Max concurrent image pulls (1–32).">
+            <FieldLabelWithInfo label="Parallel images" hint="Maximum number of container images to download/mirror simultaneously (1-32). Default is 4. Higher values speed up mirroring but consume more network bandwidth, memory, and registry connections. For fast networks (10Gbps+) with powerful systems, you can increase to 8-16. For slow/unstable connections or limited bandwidth, reduce to 2-4. Each concurrent image can use 100-500MB of RAM, so monitor memory usage on large mirrors. If you see out-of-memory errors or registry throttling, reduce this value.">
               <input
                 type="number"
                 min={1}
@@ -741,7 +741,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 placeholder="10m"
               />
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Retry times" hint="Number of retries on failure (0–10).">
+            <FieldLabelWithInfo label="Retry times" hint="Number of automatic retry attempts when an image pull/push fails (0-10). Default is 2. Mirroring often encounters transient network errors, registry throttling, or temporary connection issues - retries help complete the mirror successfully without manual intervention. For unstable networks or busy registries, increase to 4-5. For reliable high-speed connections, 2 is usually sufficient. Set to 0 to fail immediately on any error (not recommended for production mirroring). Each retry waits according to the 'Retry delay' setting below.">
               <input
                 type="number"
                 min={0}
@@ -750,7 +750,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 onChange={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
               />
             </FieldLabelWithInfo>
-            <FieldLabelWithInfo label="Retry delay" hint="Delay between retries (e.g. 1s).">
+            <FieldLabelWithInfo label="Retry delay" hint="Time to wait between retry attempts (Go duration format: 1s, 5s, 30s, 1m). Default is 1s (1 second). This delay gives transient errors time to resolve - for example, waiting for a registry rate limit to reset or a network connection to stabilize. For high-volume mirroring or registries with strict rate limits, increase to 5s-10s to avoid hammering the registry with repeated requests. For fast, reliable networks, 1s is sufficient. Too short (less than 1s) might trigger rate limiting; too long (minutes) wastes time on permanent failures.">
               <input
                 type="text"
                 value={retryDelay}

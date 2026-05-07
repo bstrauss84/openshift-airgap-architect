@@ -216,7 +216,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Machine Network (IPv4 CIDR)"
-                  hint="Node IPs; most installs only customize this."
+                  hint="CIDR block containing IP addresses for cluster nodes (control plane and worker VMs/bare metal hosts). This is the physical network where your infrastructure lives. Example: 192.168.1.0/24 or 10.0.0.0/16. The machine network must be routable and have sufficient IPs for all nodes (typically 6+ for a minimal cluster: 3 control plane + 3 workers). This is often the main network segment you need to customize for your environment - other networks (cluster/service) usually keep defaults unless you have conflicts."
                   required={isRequired("networking.machineNetwork[].cidr")}
                   className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
                 >
@@ -261,7 +261,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Cluster Network CIDR"
-                  hint="Pod network; usually keep default."
+                  hint="CIDR block for pod IP addresses (software-defined network for containers running in the cluster). Each node is allocated a subnet from this range based on the Host Prefix setting below. Default is 10.128.0.0/14 which provides ~16,000 pod IPs. You typically only need to change this if it conflicts with existing infrastructure networks. The cluster network is completely isolated from external networks - pods communicate with the outside world through NAT or load balancers. Example: if you're already using 10.x.x.x networks in your datacenter, you might change this to 172.30.0.0/16."
                   required={isRequired("networking.clusterNetwork[].cidr")}
                   className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
                 >
@@ -282,7 +282,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 ) : null}
                 <FieldLabelWithInfo
                   label="Cluster Network Host Prefix"
-                  hint="Per-node pod CIDR size."
+                  hint="Subnet prefix length allocated to each node from the cluster network for pod IP addresses. Default is /23 which gives each node 512 pod IPs (2^(32-23) = 512). Lower numbers = more IPs per node but fewer total nodes supported. Example: /23 supports ~16,000 nodes with 512 pods each from a /14 cluster network. Only change if you need more pods per node (use /22 for 1024 pods) or have a very large cluster. Must be between /16 (huge: 65k pods/node) and /28 (tiny: 16 pods/node)."
                   required={isRequired("networking.clusterNetwork[].hostPrefix")}
                 >
                   <input
@@ -339,7 +339,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
               <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Service Network CIDR"
-                  hint="ClusterIP range; usually keep default."
+                  hint="CIDR block for Kubernetes Service (ClusterIP) virtual IP addresses. Services are stable endpoints for accessing pods - when you create a Service, Kubernetes assigns it an IP from this range. Default is 172.30.0.0/16 which provides 65,536 service IPs (far more than most clusters need). Unlike the cluster network, this is purely internal - service IPs never leave the cluster and are only used for internal load balancing between pods. You typically only change this if it conflicts with existing infrastructure networks. Example: if your datacenter already uses 172.x.x.x, you might change to 10.96.0.0/12."
                   required={isRequired("networking.serviceNetwork")}
                   className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
                 >
@@ -434,46 +434,52 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 {showNutanixIpiVips ? (
                   showIpv6ForPlatform ? (
                     <>
-                      <FieldLabelWithInfo
-                        label="API VIP (IPv4)"
-                        hint={metaNutanixApiVIP?.description || "Primary API VIP; required with IPv4 machine network."}
-                        required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
-                      >
-                        <input
-                          className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
-                          value={platformConfig.nutanix?.apiVIP || ""}
-                          onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
-                          placeholder="e.g. 10.0.0.5"
-                        />
-                      </FieldLabelWithInfo>
-                      <FieldLabelWithInfo label="API VIP (IPv6)" hint="Second API VIP for dual-stack; generator emits apiVIPs when set.">
-                        <input
-                          className={fieldErrors.nutanixApiVIPV6 ? "input-error" : ""}
-                          value={platformConfig.nutanix?.apiVIPV6 || ""}
-                          onChange={(e) => updateNutanix({ apiVIPV6: e.target.value })}
-                          placeholder="e.g. fd00::5"
-                        />
-                      </FieldLabelWithInfo>
-                      <FieldLabelWithInfo
-                        label="Ingress VIP (IPv4)"
-                        hint={metaNutanixIngressVIP?.description || "Primary Ingress VIP."}
-                        required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
-                      >
-                        <input
-                          className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
-                          value={platformConfig.nutanix?.ingressVIP || ""}
-                          onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
-                          placeholder="e.g. 10.0.0.6"
-                        />
-                      </FieldLabelWithInfo>
-                      <FieldLabelWithInfo label="Ingress VIP (IPv6)" hint="Second Ingress VIP for dual-stack; generator emits ingressVIPs when set.">
-                        <input
-                          className={fieldErrors.nutanixIngressVIPV6 ? "input-error" : ""}
-                          value={platformConfig.nutanix?.ingressVIPV6 || ""}
-                          onChange={(e) => updateNutanix({ ingressVIPV6: e.target.value })}
-                          placeholder="e.g. fd00::6"
-                        />
-                      </FieldLabelWithInfo>
+                      <div className="vip-group">
+                        <h5 className="vip-group-header">API Virtual IP</h5>
+                        <FieldLabelWithInfo
+                          label="IPv4"
+                          hint={metaNutanixApiVIP?.description || "Virtual IP address for the Kubernetes API server load balancer. This is the IP address that clients use to communicate with the cluster API (kubectl, oc commands, CI/CD pipelines). Must be an unused IP on the same network as your cluster nodes. Requires corresponding DNS record: api.<cluster-name>.<base-domain> → this VIP. For IPI, the installer creates the load balancer automatically. For UPI, you must configure external load balancing. Example: if your machine network is 192.168.1.0/24, you might use 192.168.1.10 for the API VIP (make sure it's reserved and not in DHCP range)."}
+                          required={metaNutanixApiVIP?.required || isRequired("platform.nutanix.apiVIP")}
+                        >
+                          <input
+                            className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
+                            value={platformConfig.nutanix?.apiVIP || ""}
+                            onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                            placeholder="e.g. 10.0.0.5"
+                          />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="IPv6" hint="Second API VIP for dual-stack; generator emits apiVIPs when set.">
+                          <input
+                            className={fieldErrors.nutanixApiVIPV6 ? "input-error" : ""}
+                            value={platformConfig.nutanix?.apiVIPV6 || ""}
+                            onChange={(e) => updateNutanix({ apiVIPV6: e.target.value })}
+                            placeholder="e.g. fd00::5"
+                          />
+                        </FieldLabelWithInfo>
+                      </div>
+                      <div className="vip-group">
+                        <h5 className="vip-group-header">Ingress Virtual IP</h5>
+                        <FieldLabelWithInfo
+                          label="IPv4"
+                          hint={metaNutanixIngressVIP?.description || "Virtual IP address for the default ingress router load balancer (HAProxy). This is the IP address where external HTTP/HTTPS traffic enters the cluster to reach your applications. Must be an unused IP on the same network as cluster nodes. Requires wildcard DNS record: *.apps.<cluster-name>.<base-domain> → this VIP. For IPI, the installer creates the ingress load balancer automatically. For UPI, you must configure external load balancing. Example: if your machine network is 192.168.1.0/24, you might use 192.168.1.11 for Ingress VIP (different from API VIP, but on same network)."}
+                          required={metaNutanixIngressVIP?.required || isRequired("platform.nutanix.ingressVIP")}
+                        >
+                          <input
+                            className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
+                            value={platformConfig.nutanix?.ingressVIP || ""}
+                            onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                            placeholder="e.g. 10.0.0.6"
+                          />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="IPv6" hint="Second Ingress VIP for dual-stack; generator emits ingressVIPs when set.">
+                          <input
+                            className={fieldErrors.nutanixIngressVIPV6 ? "input-error" : ""}
+                            value={platformConfig.nutanix?.ingressVIPV6 || ""}
+                            onChange={(e) => updateNutanix({ ingressVIPV6: e.target.value })}
+                            placeholder="e.g. fd00::6"
+                          />
+                        </FieldLabelWithInfo>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -529,46 +535,52 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 ) : showVsphereAgentVips ? (
                   showIpv6ForPlatform ? (
                     <>
-                      <FieldLabelWithInfo
-                        label="API VIP (IPv4)"
-                        hint="Primary API VIP for vSphere Agent-based. With dual-stack, set IPv6 below; generator orders VIPs to match machine networks."
-                        required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
-                      >
-                        <input
-                          className={fieldErrors.apiVip ? "input-error" : ""}
-                          value={hostInventory.apiVip || ""}
-                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
-                          placeholder="e.g. 10.90.0.1"
-                        />
-                      </FieldLabelWithInfo>
-                      <FieldLabelWithInfo label="API VIP (IPv6)" hint="Secondary API VIP for dual-stack. Leave blank for IPv4-only.">
-                        <input
-                          className={fieldErrors.apiVipV6 ? "input-error" : ""}
-                          value={hostInventory.apiVipV6 ?? ""}
-                          onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
-                          placeholder="e.g. fd00::1"
-                        />
-                      </FieldLabelWithInfo>
-                      <FieldLabelWithInfo
-                        label="Ingress VIP (IPv4)"
-                        hint="Primary Ingress VIP."
-                        required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
-                      >
-                        <input
-                          className={fieldErrors.ingressVip ? "input-error" : ""}
-                          value={hostInventory.ingressVip || ""}
-                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
-                          placeholder="e.g. 10.90.0.2"
-                        />
-                      </FieldLabelWithInfo>
-                      <FieldLabelWithInfo label="Ingress VIP (IPv6)" hint="Secondary Ingress VIP for dual-stack. Leave blank for IPv4-only.">
-                        <input
-                          className={fieldErrors.ingressVipV6 ? "input-error" : ""}
-                          value={hostInventory.ingressVipV6 ?? ""}
-                          onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
-                          placeholder="e.g. fd00::2"
-                        />
-                      </FieldLabelWithInfo>
+                      <div className="vip-group">
+                        <h5 className="vip-group-header">API Virtual IP</h5>
+                        <FieldLabelWithInfo
+                          label="IPv4"
+                          hint="Primary API VIP for vSphere Agent-based. With dual-stack, set IPv6 below; generator orders VIPs to match machine networks."
+                          required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
+                        >
+                          <input
+                            className={fieldErrors.apiVip ? "input-error" : ""}
+                            value={hostInventory.apiVip || ""}
+                            onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                            placeholder="e.g. 10.90.0.1"
+                          />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="IPv6" hint="Secondary API VIP for dual-stack. Leave blank for IPv4-only.">
+                          <input
+                            className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                            value={hostInventory.apiVipV6 ?? ""}
+                            onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
+                            placeholder="e.g. fd00::1"
+                          />
+                        </FieldLabelWithInfo>
+                      </div>
+                      <div className="vip-group">
+                        <h5 className="vip-group-header">Ingress Virtual IP</h5>
+                        <FieldLabelWithInfo
+                          label="IPv4"
+                          hint="Primary Ingress VIP."
+                          required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
+                        >
+                          <input
+                            className={fieldErrors.ingressVip ? "input-error" : ""}
+                            value={hostInventory.ingressVip || ""}
+                            onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                            placeholder="e.g. 10.90.0.2"
+                          />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="IPv6" hint="Secondary Ingress VIP for dual-stack. Leave blank for IPv4-only.">
+                          <input
+                            className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                            value={hostInventory.ingressVipV6 ?? ""}
+                            onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
+                            placeholder="e.g. fd00::2"
+                          />
+                        </FieldLabelWithInfo>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -601,11 +613,13 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 ) : showBareMetalVips ? (
                   showIpv6ForPlatform ? (
                     <>
-                      <FieldLabelWithInfo
-                        label="API VIP (IPv4)"
-                        hint="API VIP for IPv4. When dual-stack is enabled, add API VIP (IPv6) in the next field; emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)."
-                        required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
-                      >
+                      <div className="vip-group">
+                        <h5 className="vip-group-header">API Virtual IP</h5>
+                        <FieldLabelWithInfo
+                          label="IPv4"
+                          hint="API VIP for IPv4. When dual-stack is enabled, add API VIP (IPv6) in the next field; emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)."
+                          required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
+                        >
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
                           value={hostInventory.apiVip || ""}
@@ -614,7 +628,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
-                        label="API VIP (IPv6)"
+                        label="IPv6"
                         hint="Second API VIP for dual-stack (IPv4 + IPv6). Leave blank for IPv4-only single-stack. IPv6-only bare metal is not verified in the reviewed 4.20 agent parameter excerpt—use dual-stack or IPv4-only unless your own doc review says otherwise."
                       >
                         <input
@@ -624,8 +638,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                           placeholder="e.g. fd00::1"
                         />
                       </FieldLabelWithInfo>
+                    </div>
+                    <div className="vip-group">
+                      <h5 className="vip-group-header">Ingress Virtual IP</h5>
                       <FieldLabelWithInfo
-                        label="Ingress VIP (IPv4)"
+                        label="IPv4"
                         hint="Ingress VIP for IPv4. When dual-stack is enabled, set Ingress VIP (IPv6) below; emitted ingressVIPs order is IPv4 then IPv6."
                         required={vipsRequiredForBareMetalAgent && (metaIngressVips?.required || metaIngressVip?.required)}
                       >
@@ -637,7 +654,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
-                        label="Ingress VIP (IPv6)"
+                        label="IPv6"
                         hint="Second Ingress VIP for dual-stack. Leave blank for IPv4-only single-stack."
                       >
                         <input
@@ -647,6 +664,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                           placeholder="e.g. fd00::2"
                         />
                       </FieldLabelWithInfo>
+                    </div>
                     </>
                   ) : (
                     <>

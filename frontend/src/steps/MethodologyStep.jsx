@@ -88,7 +88,7 @@ const MethodologyStep = ({ highlightErrors }) => {
           <div className="note">
             Available methods depend on platform support. Unsupported methods are disabled.
           </div>
-          <div className="grid">
+          <div className="methodology-grid">
             {methods.map((option) => (
               <button
                 key={option.value}

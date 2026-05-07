@@ -1148,7 +1148,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
                 <FieldLabelWithInfo
                   label="vCenter username (optional)"
-                  hint="Included in install-config only when you choose to include credentials in export."
+                  hint="Username for authenticating to vCenter Server. This account must have Administrator privileges or at minimum these permissions: Datastore (Allocate space, Browse), Folder (Create, Delete), Host.Local operations (Create VM), Network (Assign network), Resource (Assign VM to pool), and Virtual machine.Configuration (all). Typically formatted as administrator@vsphere.local or DOMAIN\username. Required for IPI installations to automate infrastructure provisioning (VM creation, storage allocation, networking). For UPI, credentials are optional but help with validation. Included in install-config only when you choose to include credentials in export."
                 >
                   <input
                     value={platformConfig.vsphere?.username || ""}
@@ -1164,7 +1164,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <div style={{ flex: "1 1 auto", minWidth: 0 }}>
                       <FieldLabelWithInfo
                         label="vCenter password (optional)"
-                        hint="Included in install-config only when you choose to include credentials in export. Do not save in browser."
+                        hint="Password for the vCenter username specified above. This credential is used during installation to provision infrastructure resources (VMs, networks, storage) for IPI, or for validation in UPI workflows. The password is included in the generated install-config.yaml only when you choose to include credentials in the export. IMPORTANT: Do not allow your browser to save this password - it will be embedded in plain text in the install-config. After installation, you can remove credentials from the file if needed."
                       />
                     </div>
                     <button
@@ -1228,7 +1228,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                   <FieldLabelWithInfo
                     label="vCenter server"
-                    hint={metaVsphereVcenter?.description}
+                    hint={metaVsphereVcenter?.description || "Fully qualified domain name (FQDN) or IP address of your vCenter Server. This is the management endpoint for your vSphere environment. Example: vcenter.example.com or 192.168.1.10. Port defaults to 443 (HTTPS). The installer uses this address with the credentials provided above to provision VMs, configure networking, and manage cluster infrastructure. Required for both IPI (automated provisioning) and UPI (validation and placement guidance) workflows."}
                     required={true}
                   >
                     <input
@@ -1239,7 +1239,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Datacenter"
-                    hint={metaVsphereDatacenter?.description}
+                    hint={metaVsphereDatacenter?.description || "vSphere datacenter name where the cluster will be deployed. A datacenter in vSphere is a logical container that organizes compute resources, networks, and storage. Example: DC1 or Datacenter-Production. This must match the exact name as shown in vCenter (case-sensitive). The datacenter contains the clusters, datastores, and networks you'll specify in the fields below. You can find your datacenter names in vCenter by navigating to Inventory → Datacenters."}
                     required={true}
                   >
                     <input
@@ -1250,7 +1250,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Default datastore"
-                    hint={metaVsphereDefaultDatastore?.description}
+                    hint={metaVsphereDefaultDatastore?.description || "vSphere datastore name for cluster VM disks and volumes. A datastore is a storage container (VMFS, NFS, vSAN, vVols) where VM disk files are stored. Example: datastore1 or Production-SAN-01. This must match the exact name in vCenter (case-sensitive). The datastore must have sufficient free space for all cluster VMs - typically 800GB minimum for a basic cluster (3 control plane + 3 workers with 120GB disks each). For production, ensure the datastore has good performance (SSD recommended) and adequate IOPS to support etcd and workload requirements."}
                     required={metaVsphereDefaultDatastore?.required || isRequiredInstall("platform.vsphere.defaultDatastore")}
                   >
                     <input
@@ -1261,7 +1261,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Compute cluster (required for legacy path)"
-                    hint="vSphere compute cluster name for single placement."
+                    hint="vSphere cluster where worker (compute) nodes will be provisioned. This cluster must have sufficient CPU, memory, and storage resources for your worker node count and sizing. The cluster should have DRS (Distributed Resource Scheduler) enabled for automatic VM placement and load balancing. Example: Cluster-Production-01. You can use the same cluster for both control plane and compute nodes, or separate them for workload isolation. For legacy single placement only; failure domains specify cluster per domain."
                   >
                     <input
                       value={platformConfig.vsphere?.cluster || ""}
@@ -1364,7 +1364,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               {/* vSphere IPI API/Ingress VIPs are on the Networking step (shared section with scenario gating). */}
 
               <h4 className="platform-specifics-subsection">Storage</h4>
-              <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
+              <div className="field-grid field-grid-single" style={{ marginTop: 8, marginBottom: 20 }}>
                 <FieldLabelWithInfo
                   label="Disk type (optional)"
                   hint="How vSphere provisions VM disks. thin: allocates on demand (faster, good for most installs). thick: allocates full size at create (more predictable I/O). eagerZeroedThick: same as thick but zeroes blocks first (slowest create, required for some storage). Leave Not set to use the datastore default."
@@ -1422,7 +1422,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
                     <FieldLabelWithInfo
                       label="clusterOSImage (optional)"
-                      hint="URL for RHCOS image. A value here disables Topology: RHCOS template in each failure domain; use one strategy only."
+                      hint="HTTP/HTTPS URL to a custom RHCOS (Red Hat Core OS) OVA image to use for cluster nodes. Leave blank to use the default RHCOS image for your selected OpenShift version. Only specify this if you have pre-hosted a custom RHCOS template accessible via URL (e.g., for airgap scenarios or specific OS customizations). Example: https://mirror.example.com/rhcos-4.14.0-x86_64-vmware.ova. IMPORTANT: Settinga value here disables the 'Topology: RHCOS template' field in each failure domain - use one image strategy only, not both. The image must match your selected OpenShift release version."
                     >
                       <input
                         value={platformConfig.vsphere?.clusterOSImage || ""}

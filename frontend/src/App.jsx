@@ -41,6 +41,7 @@ import {
 import { computeVisibleWizardRows, findFirstAttentionStepIndex } from "./wizardVisibleSteps.js";
 import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
+import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
 import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
@@ -292,7 +293,10 @@ const AppShell = () => {
   );
 
   const sidebarSteps = useMemo(
-    () => visibleSteps.filter((s) => s.id !== "operations"),
+    () => {
+      // Show Operations in sidebar if unlocked (for Cincinnati job visibility) or if locked
+      return visibleSteps;
+    },
     [visibleSteps]
   );
   const Current = visibleSteps[active]?.component || visibleSteps[0]?.component;
@@ -319,7 +323,7 @@ const AppShell = () => {
     [segmentedFlowV1, visibleSteps]
   );
   const blueprintReady = Boolean(state?.blueprint?.arch && state?.blueprint?.platform);
-  const releaseReady = Boolean(state?.release?.channel && state?.release?.patchVersion);
+  const releaseReady = Boolean(getOpenShiftMinorFromState(state) && state?.release?.patchVersion);
 
   const errorFlags = useMemo(() => {
     if (!state) return {};
@@ -684,7 +688,12 @@ const AppShell = () => {
       setConfirmingRelease(false);
     }
   };
-  const handleInstallClick = () => {
+  const handleInstallClick = async () => {
+    // If no progress (fresh start), clear state like Start Over does
+    if (!hasProgress) {
+      const nextState = await startOver({ cancelRunningOcMirror: false });
+      if (nextState) setState(nextState);
+    }
     setShowLanding(false);
     const nextIndex = hasProgress ? firstIncompleteStepIndex : 0;
     setActive(nextIndex);
@@ -1141,8 +1150,8 @@ const AppShell = () => {
                 <dd>{state.blueprint?.arch ?? "—"}</dd>
                 <dt>OpenShift release</dt>
                 <dd>
-                  {state.release?.channel && state.release?.patchVersion
-                    ? `stable-${state.release.channel} / ${state.release.patchVersion}`
+                  {releaseReady
+                    ? `stable-${getOpenShiftMinorFromState(state)} / ${state.release?.patchVersion}`
                     : "—"}
                 </dd>
               </dl>

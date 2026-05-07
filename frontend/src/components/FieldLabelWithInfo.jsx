@@ -157,6 +157,7 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
       ref={iconRef}
       type="button"
       className="field-info-icon"
+      tabIndex="-1"
       aria-label={isLongHint ? "Open help (click to read)" : "More information"}
       aria-describedby={visible ? id : undefined}
       aria-expanded={isLongHint ? visible : undefined}
@@ -182,7 +183,6 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
               <label htmlFor={childId} className="field-label-inline">
                 {labelContent}
               </label>
-              {" \u00A0"}
               {iconButton}
             </span>
           </span>
@@ -200,7 +200,6 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
           {labelContent}
           {hint ? (
             <span className="field-label-icon-wrap" style={{ whiteSpace: "nowrap" }}>
-              {"\u00A0"}
               {iconButton}
             </span>
           ) : null}

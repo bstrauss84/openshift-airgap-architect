@@ -317,6 +317,56 @@ export default function TrustProxyStep({ highlightErrors }) {
   const cautionAcknowledged = Boolean(reducedSelection?.cautionAcknowledged);
   const userModified = Boolean(reducedSelection?.userModified);
 
+  // Build fingerprint-to-rawPem lookup from analysis.rawCertificates
+  const rawPemByFingerprint = React.useMemo(() => {
+    const map = new Map();
+    const rawCerts = analysis?.rawCertificates || [];
+    for (const cert of rawCerts) {
+      if (cert.fingerprintSha256 && cert.rawPem) {
+        map.set(cert.fingerprintSha256, cert.rawPem);
+      }
+    }
+    return map;
+  }, [analysis?.rawCertificates]);
+
+  // Chain integrity validation: detect missing issuers in selected set
+  const chainIntegrityIssues = React.useMemo(() => {
+    if (trust.bundleSelectionMode !== "reduced" || !analysis?.graph) return [];
+    const issues = [];
+    const parentMap = analysis.graph.parentsByChild || {};
+    const certMap = new Map(certs.map(c => [c.fingerprintSha256, c]));
+
+    for (const fp of selectedFingerprints) {
+      const cert = certMap.get(fp);
+      if (!cert || cert.isSelfSigned) continue;
+
+      const parents = parentMap[fp] || [];
+      const selectedParents = parents.filter(pFp => selectedSet.has(pFp));
+
+      if (parents.length > 0 && selectedParents.length === 0) {
+        const parentCerts = parents.map(pFp => certMap.get(pFp)).filter(Boolean);
+        issues.push({
+          certFingerprint: fp,
+          certSubject: cert.subject,
+          missingIssuers: parentCerts.map(p => ({ fingerprint: p.fingerprintSha256, subject: p.subject }))
+        });
+      }
+    }
+    return issues;
+  }, [trust.bundleSelectionMode, selectedFingerprints, analysis?.graph, certs, selectedSet]);
+
+  // Filter for categorized view: always show all certs, only apply search filter
+  const certsForCategories = certs.filter((cert) => {
+    const haystack = [
+      cert.subject || "",
+      cert.issuer || "",
+      cert.fingerprintSha256 || "",
+      ...(cert.sanDns || [])
+    ].join(" ").toLowerCase();
+    return !certSearch.trim() || haystack.includes(certSearch.trim().toLowerCase());
+  });
+
+  // Legacy filter for non-categorized views (if needed)
   const filteredCerts = certs.filter((cert) => {
     const haystack = [
       cert.subject || "",
@@ -827,6 +877,38 @@ export default function TrustProxyStep({ highlightErrors }) {
                         Selected reduced bundle exceeds hard maximum thresholds and cannot be exported in reduced mode. Deselect certificates or switch back to original bundle mode.
                       </Banner>
                     ) : null}
+                    {chainIntegrityIssues.length > 0 && trust.bundleSelectionMode === "reduced" ? (
+                      <Banner variant="warning">
+                        <div style={{ marginBottom: 8 }}>
+                          <strong>⚠️ Chain integrity issues detected:</strong> {chainIntegrityIssues.length} certificate{chainIntegrityIssues.length !== 1 ? "s" : ""} missing required issuer CA{chainIntegrityIssues.length !== 1 ? "s" : ""}.
+                        </div>
+                        <details className="chain-integrity-details">
+                          <summary style={{ cursor: "pointer", marginBottom: 8 }}>View missing issuers</summary>
+                          <ul style={{ margin: "8px 0 0 0", padding: "0 0 0 20px" }}>
+                            {chainIntegrityIssues.map((issue, idx) => (
+                              <li key={idx} style={{ marginBottom: 8 }}>
+                                <div style={{ fontWeight: 600, fontSize: "13px" }}>{issue.certSubject}</div>
+                                <div style={{ fontSize: "12px", color: "#6b7280", marginTop: 4 }}>
+                                  Missing issuer{issue.missingIssuers.length !== 1 ? "s" : ""}: {issue.missingIssuers.map(issuer => issuer.subject).join(", ")}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="button-link"
+                                  style={{ fontSize: "12px", marginTop: 4 }}
+                                  onClick={() => {
+                                    const next = new Set(selectedFingerprints);
+                                    issue.missingIssuers.forEach(issuer => next.add(issuer.fingerprint));
+                                    pushReducedSelection(Array.from(next), { userModified: true, cautionAcknowledged: false });
+                                  }}
+                                >
+                                  Add missing issuer{issue.missingIssuers.length !== 1 ? "s" : ""}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      </Banner>
+                    ) : null}
                     {trust.bundleSelectionMode === "reduced" && certs.length ? (
                       <div style={{ marginTop: 12 }}>
                         <h4 style={{ marginBottom: 8 }}>Reduced bundle manual cert review</h4>
@@ -851,17 +933,8 @@ export default function TrustProxyStep({ highlightErrors }) {
                             onChange={(e) => setCertSearch(e.target.value)}
                             placeholder="Search subject, issuer, SAN, fingerprint"
                           />
-                          <select
-                            className="trust-policy-select"
-                            value={certFilter}
-                            onChange={(e) => setCertFilter(e.target.value)}
-                          >
-                            {CERT_FILTERS.map((f) => (
-                              <option key={f.id} value={f.id}>{f.label}</option>
-                            ))}
-                          </select>
                           <span className={`badge ${classifyStatusTone(selectedSummary?.thresholdBand) || ""}`}>
-                            Showing {filteredCerts.length} of {certs.length}
+                            Showing {certsForCategories.length} of {certs.length} certificates
                           </span>
                         </div>
 
@@ -896,8 +969,8 @@ export default function TrustProxyStep({ highlightErrors }) {
                             ];
 
                             return categories.map(category => {
-                              const categoryCerts = filteredCerts.filter(c => c.classification === category.id);
-                              if (!categoryCerts.length && certFilter !== "all") return null;
+                              const categoryCerts = certsForCategories.filter(c => c.classification === category.id);
+                              if (!categoryCerts.length) return null;
 
                               const categorySelected = categoryCerts.filter(c => selectedSet.has(c.fingerprintSha256));
                               const allSelected = categoryCerts.length > 0 && categorySelected.length === categoryCerts.length;
@@ -908,51 +981,92 @@ export default function TrustProxyStep({ highlightErrors }) {
 
                               return (
                                 <section key={category.id} className={`cert-category ${category.className}`}>
-                                  <h4 className="category-header">
+                                  <div className="category-header">
                                     <label className="category-checkbox-label">
                                       <input
                                         type="checkbox"
                                         checked={allSelected}
                                         ref={el => el && (el.indeterminate = someSelected)}
                                         onChange={(e) => toggleCategorySelection(category.id, e.target.checked)}
+                                        title="Select/deselect all certificates in this category"
                                       />
-                                      <span className="category-title">
-                                        {category.label} ({categoryCerts.length} certs, ~{categorySize}KB)
+                                      <span className="category-title-line">
+                                        <span className="category-title">{category.label}</span>
+                                        <span className="category-count">({categoryCerts.length} certs, ~{categorySize}KB)</span>
                                       </span>
                                     </label>
                                     <span className="category-help">{category.help}</span>
-                                  </h4>
+                                  </div>
                                   {categoryCerts.length > 0 ? (
                                     <div className="category-cert-list">
                                       {categoryCerts.map((cert) => {
                                         const selected = selectedSet.has(cert.fingerprintSha256);
                                         return (
-                                          <details key={cert.fingerprintSha256} className="trust-cert-row">
-                                            <summary>
-                                              <label className="trust-cert-summary">
+                                          <div key={cert.fingerprintSha256} className="cert-card">
+                                            <div className="cert-card-header">
+                                              <label className="cert-checkbox-label">
                                                 <input
                                                   type="checkbox"
                                                   checked={selected}
-                                                  onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleCertSelection(cert.fingerprintSha256, e.target.checked);
-                                                  }}
+                                                  onChange={(e) => toggleCertSelection(cert.fingerprintSha256, e.target.checked)}
                                                 />
-                                                <span className="trust-cert-primary">
-                                                  {cert.subject || cert.fingerprintSha256}
-                                                </span>
+                                                <div className="cert-main-info">
+                                                  <div className="cert-subject">{cert.subject || cert.fingerprintSha256}</div>
+                                                  <div className="cert-meta">
+                                                    <span className={`cert-type-badge ${cert.isCa ? "ca-badge" : "leaf-badge"}`}>
+                                                      {cert.isCa ? "CA Certificate" : "Leaf/Endpoint"}
+                                                    </span>
+                                                    <span className="cert-key-info">
+                                                      {cert.keyType}{cert.keySize ? ` ${cert.keySize}-bit` : ""}
+                                                    </span>
+                                                    {cert.mirrorRelated && <span className="cert-context-badge mirror">Mirror</span>}
+                                                    {cert.proxyRelated && <span className="cert-context-badge proxy">Proxy</span>}
+                                                  </div>
+                                                </div>
                                               </label>
-                                            </summary>
-                                            <div className="note" style={{ marginTop: 8 }}>
-                                              Issuer: {cert.issuer || "n/a"}
-                                              <br />
-                                              Fingerprint: <code>{cert.fingerprintSha256}</code>
-                                              <br />
-                                              Type: {cert.isCa ? "CA" : "Leaf/unknown"}; key: {cert.keyType}{cert.keySize ? `/${cert.keySize}` : ""}
-                                              <br />
-                                              Reasons: {(cert.reasonCodes || []).length ? cert.reasonCodes.map((r) => summarizeReason(r)).join(", ") : "None"}
                                             </div>
-                                          </details>
+                                            <details className="cert-details">
+                                              <summary className="cert-details-toggle">Technical details</summary>
+                                              <div className="cert-details-content">
+                                                <dl className="cert-properties">
+                                                  <dt>Issuer</dt>
+                                                  <dd>{cert.issuer || "Self-signed or unknown"}</dd>
+
+                                                  <dt>Fingerprint (SHA-256)</dt>
+                                                  <dd><code className="cert-fingerprint">{cert.fingerprintSha256}</code></dd>
+
+                                                  {(cert.sanDns || []).length > 0 && (
+                                                    <>
+                                                      <dt>Subject Alternative Names</dt>
+                                                      <dd>
+                                                        <ul className="cert-san-list">
+                                                          {cert.sanDns.slice(0, 5).map((san, i) => (
+                                                            <li key={i}><code>{san}</code></li>
+                                                          ))}
+                                                          {cert.sanDns.length > 5 && (
+                                                            <li className="cert-san-more">+ {cert.sanDns.length - 5} more</li>
+                                                          )}
+                                                        </ul>
+                                                      </dd>
+                                                    </>
+                                                  )}
+
+                                                  {(cert.reasonCodes || []).length > 0 && (
+                                                    <>
+                                                      <dt>Classification Reasons</dt>
+                                                      <dd>
+                                                        <ul className="cert-reasons-list">
+                                                          {cert.reasonCodes.map((r, i) => (
+                                                            <li key={i}>{summarizeReason(r)}</li>
+                                                          ))}
+                                                        </ul>
+                                                      </dd>
+                                                    </>
+                                                  )}
+                                                </dl>
+                                              </div>
+                                            </details>
+                                          </div>
                                         );
                                       })}
                                     </div>
@@ -1013,11 +1127,19 @@ export default function TrustProxyStep({ highlightErrors }) {
 
             <div className="trust-bundle-preview">
               <div className="trust-bundle-preview-header">
-                <span className="trust-bundle-preview-title">Combined trust bundle input (preview)</span>
-                <span className="note" style={{ marginLeft: 8 }}>
-                  This preview shows raw mirror/proxy input PEMs. Reduced/manual output is enforced during generation/export.
+                <span className="trust-bundle-preview-title">
+                  {trust.bundleSelectionMode === "reduced" ? "Selected certificates (live preview)" : "Combined trust bundle input (preview)"}
                 </span>
-                {totalCerts > 0 ? (
+                <span className="note" style={{ marginLeft: 8 }}>
+                  {trust.bundleSelectionMode === "reduced"
+                    ? "Live preview of selected certificates that will be exported."
+                    : "This preview shows raw mirror/proxy input PEMs. Reduced/manual output is enforced during generation/export."}
+                </span>
+                {trust.bundleSelectionMode === "reduced" ? (
+                  <span className="trust-bundle-preview-badge">
+                    {selectedFingerprints.length} certificate{selectedFingerprints.length !== 1 ? "s" : ""} selected
+                  </span>
+                ) : totalCerts > 0 ? (
                   <span className="trust-bundle-preview-badge">
                     {totalCerts} certificate{totalCerts !== 1 ? "s" : ""}
                     {mirrorBlocks.length > 0 && proxyBlocks.length > 0
@@ -1028,11 +1150,22 @@ export default function TrustProxyStep({ highlightErrors }) {
                   </span>
                 ) : null}
               </div>
-              {effectiveBundle ? (
-                <pre className="preview trust-bundle-preview-content">{effectiveBundle}</pre>
-              ) : (
-                <div className="trust-bundle-preview-empty">No CA bundles added yet. Add mirror and/or proxy CA above.</div>
-              )}
+              {(() => {
+                if (trust.bundleSelectionMode === "reduced" && selectedFingerprints.length > 0) {
+                  const selectedPemBlocks = selectedFingerprints
+                    .map(fp => rawPemByFingerprint.get(fp))
+                    .filter(Boolean);
+                  if (selectedPemBlocks.length === 0) {
+                    return <div className="trust-bundle-preview-empty">No certificates selected. Select at least one certificate above.</div>;
+                  }
+                  const selectedBundle = selectedPemBlocks.join("\n");
+                  return <pre className="preview trust-bundle-preview-content">{selectedBundle}</pre>;
+                }
+                if (effectiveBundle) {
+                  return <pre className="preview trust-bundle-preview-content">{effectiveBundle}</pre>;
+                }
+                return <div className="trust-bundle-preview-empty">No CA bundles added yet. Add mirror and/or proxy CA above.</div>;
+              })()}
             </div>
           </div>
         </section>

@@ -16,6 +16,7 @@ import { getFieldMeta } from "../catalogFieldMeta.js";
 import { isValidPullSecret, isValidSshPublicKey } from "../validation.js";
 import { apiFetch } from "../api.js";
 import SecretInput from "../components/SecretInput.jsx";
+import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
 /**
  * Identity & Access replacement tab (Phase 5 segmented flow, Prompt E).
@@ -205,8 +206,12 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
             </div>
           </div>
           <div className="cluster-identity-fields">
-            <label className={fieldErrors.clusterName ? "input-error" : ""}>
-              Cluster Name <span className="required-indicator">(required)</span>
+            <FieldLabelWithInfo
+              label="Cluster Name"
+              hint="Short identifier for this cluster (lowercase alphanumeric and hyphens only, no underscores or special chars). This becomes part of your cluster's URLs and DNS records. Example: 'prod-cluster' or 'dev-ocp'. The full cluster domain will be <cluster-name>.<base-domain> - e.g., prod-cluster.example.com. API endpoint becomes api.prod-cluster.example.com and applications are *.apps.prod-cluster.example.com. Keep it short (under 15 characters recommended) and descriptive. This cannot be changed after installation."
+              required
+              className={fieldErrors.clusterName ? "input-error" : ""}
+            >
               <input
                 value={clusterName}
                 onChange={(e) => updateBlueprint({ clusterName: e.target.value })}
@@ -215,9 +220,13 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                 aria-required="true"
                 aria-invalid={fieldErrors.clusterName ? "true" : "false"}
               />
-            </label>
-            <label className={fieldErrors.baseDomain ? "input-error" : ""}>
-              Base Domain {requiredBaseDomain ? <span className="required-indicator">(required)</span> : null}
+            </FieldLabelWithInfo>
+            <FieldLabelWithInfo
+              label="Base Domain"
+              hint="DNS domain suffix for your cluster. This is the parent domain under which all cluster DNS records are created. Example: example.com or ocp.company.com. Your cluster's full domain becomes <cluster-name>.<base-domain>. You must own/control this domain and be able to create DNS records in it (api, *.apps, etc.). For on-premises installations, this is often a subdomain of your corporate domain. For cloud, it's typically a Route 53 zone (AWS) or Azure DNS zone. Cannot be changed after installation. Some platforms (like AWS with pre-existing VPC) require you to provide DNS zones, so check your platform's requirements."
+              required={requiredBaseDomain}
+              className={fieldErrors.baseDomain ? "input-error" : ""}
+            >
               <input
                 value={baseDomain}
                 onChange={(e) => updateBlueprint({ baseDomain: e.target.value })}
@@ -226,7 +235,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
                 aria-required={requiredBaseDomain ? "true" : "false"}
                 aria-invalid={fieldErrors.baseDomain ? "true" : "false"}
               />
-            </label>
+            </FieldLabelWithInfo>
           </div>
         </section>
 
