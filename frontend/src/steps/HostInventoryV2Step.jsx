@@ -165,8 +165,8 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     });
   }, []);
 
-  const MIN_PANEL_PX = 280;
-  const MAX_PANEL_PX = Math.min(600, typeof window !== "undefined" ? window.innerWidth * 0.4 : 600);
+  const MIN_PANEL_PX = 400;
+  const MAX_PANEL_PX = Math.min(800, typeof window !== "undefined" ? window.innerWidth * 0.5 : 800);
 
   const handleResizeMove = useCallback(
     (e) => {

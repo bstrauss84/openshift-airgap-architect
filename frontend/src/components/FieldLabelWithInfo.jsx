@@ -179,7 +179,7 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
       <>
         <div className={["field-with-info-row", wrapperClassName].filter(Boolean).join(" ")}>
           <span className="field-title-line">
-            <span className="field-title-and-icon-keep-together" style={{ whiteSpace: "nowrap" }}>
+            <span className="field-title-and-icon-keep-together">
               <label htmlFor={childId} className="field-label-inline">
                 {labelContent}
               </label>

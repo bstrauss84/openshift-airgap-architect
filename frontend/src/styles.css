@@ -525,9 +525,12 @@ body[data-theme="dark"] .footer {
 .card-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 2rem;
   margin-bottom: 16px;
+}
+
+.card-header > *:last-child {
+  margin-left: auto;  /* Push last item to right with reasonable gap, not excessive */
 }
 
 .card-header h3,
@@ -604,8 +607,8 @@ body[data-theme="dark"] .run-oc-mirror-badge {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
-  max-width: 900px;
   align-items: end;
+  width: 100%;
 }
 
 /* Short fields for numeric inputs like parallel images, retry times */
@@ -792,16 +795,16 @@ body[data-theme="dark"] .sticky-panel {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
   gap: 1rem;
   margin-top: 1rem;
-  max-width: 900px;
+  width: 100%;
 }
 
-/* Methodology buttons: wider for better readability */
+/* Methodology buttons: span full width, wrap intelligently */
 .methodology-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 1rem;
   margin-top: 1rem;
-  max-width: 900px;
+  width: 100%;
 }
 
 .select-card {
@@ -958,11 +961,11 @@ body[data-theme="dark"] .sticky-panel {
 
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
   gap: 1.25rem;
   margin-top: 0.75rem;
   align-items: start;
-  max-width: 100%;
+  width: 100%;
 }
 
 .field-grid label {
@@ -2484,7 +2487,7 @@ body[data-theme="dark"] .operator-card .operator-add {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: 12px;
-  max-width: 900px;
+  width: 100%;
 }
 
 .selected-card {
@@ -3946,9 +3949,9 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
 .platform-specifics .field-grid {
   display: grid;
   align-items: stretch;  /* Force equal heights */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));  /* Responsive pattern */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));  /* Responsive pattern */
   gap: 1rem;
-  max-width: 900px;  /* Prevent ultra-wide stretching */
+  width: 100%;
 }
 
 /* Constrain single-field grids to prevent excessive whitespace */
@@ -4607,7 +4610,11 @@ body[data-theme="dark"] .tooltip-info-content::after {
 }
 
 .field-title-and-icon-keep-together {
-  display: inline;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .field-title-and-icon-keep-together .field-label-inline {
@@ -4634,7 +4641,7 @@ body[data-theme="dark"] .tooltip-info-content::after {
   width: 18px;  /* Fixed width for consistent sizing */
   height: 18px;  /* Fixed height for consistent sizing */
   padding: 0;
-  margin-left: 4px;  /* 4px gap from label text */
+  margin: 0;  /* No margin - gap handled by parent */
   vertical-align: middle;  /* Center-align with label text */
   color: #2563eb;
   background: transparent;
