@@ -153,6 +153,7 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     if (browseTarget === "archive") updateMirrorWorkflow({ archivePath: browsePath });
     else if (browseTarget === "workspace") updateMirrorWorkflow({ workspacePath: browsePath });
     else if (browseTarget === "cache") updateMirrorWorkflow({ cachePath: browsePath });
+    else if (browseTarget === "imageset-config") updateMirrorWorkflow({ configPath: browsePath });
     setBrowseOpen(false);
   };
 
@@ -393,13 +394,18 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
               />
             </OptionRow>
             {configSourceType === "external" ? (
-              <FieldLabelWithInfo label="Config file path" hint="Absolute or relative path to imageset-config YAML.">
-                <input
-                  type="text"
-                  value={configPath}
-                  onChange={(e) => updateMirrorWorkflow({ configPath: e.target.value })}
-                  placeholder="/path/to/imageset-config.yaml"
-                />
+              <FieldLabelWithInfo label="Config file path" hint="Container-internal path to your ImageSetConfiguration YAML file. Must be accessible from within the backend container (typically under /data).">
+                <div className="path-input-row">
+                  <input
+                    type="text"
+                    value={configPath}
+                    onChange={(e) => updateMirrorWorkflow({ configPath: e.target.value })}
+                    placeholder="/data/my-imageset-config.yaml"
+                  />
+                  <Button variant="secondary" onClick={() => openBrowse("imageset-config", configPath || "/data/")}>
+                    Browse…
+                  </Button>
+                </div>
               </FieldLabelWithInfo>
             ) : null}
           </div>
@@ -570,50 +576,63 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: 8 }}>
                   Red Hat pull secret authenticates to registry.redhat.io and quay.io.
                 </div>
-                {mountedRhAvailable && (
-                  <OptionRow
-                    title="Use mounted Red Hat pull secret"
-                    description="Use the pull secret file detected in the container."
-                    htmlFor="ocmirror-rh-auth-mounted"
-                  >
-                    <input
-                      type="radio"
-                      id="ocmirror-rh-auth-mounted"
-                      name="ocmirror-rh-auth"
-                      checked={rhAuthSource === "mounted"}
-                      onChange={() => setRhAuthSource("mounted")}
-                    />
-                  </OptionRow>
-                )}
-                {hasRetainedRhSecret && (
-                  <OptionRow
-                    title="Use retained Red Hat pull secret from Blueprint"
-                    description="The pull secret retained in the Blueprint step will be used."
-                    htmlFor="ocmirror-rh-auth-retained"
-                  >
-                    <input
-                      type="radio"
-                      id="ocmirror-rh-auth-retained"
-                      name="ocmirror-rh-auth"
-                      checked={rhAuthSource === "retained"}
-                      onChange={() => setRhAuthSource("retained")}
-                    />
-                  </OptionRow>
-                )}
-                <OptionRow
-                  title="Paste Red Hat pull secret for this run"
-                  description="Supply a Red Hat pull secret only for this run. Not saved."
-                  htmlFor="ocmirror-rh-auth-pasted"
-                >
-                  <input
-                    type="radio"
-                    id="ocmirror-rh-auth-pasted"
-                    name="ocmirror-rh-auth"
-                    checked={rhAuthSource === "pasted"}
-                    onChange={() => setRhAuthSource("pasted")}
-                  />
-                </OptionRow>
-                {rhAuthSource === "pasted" && (
+                {(mountedRhAvailable || hasRetainedRhSecret) ? (
+                  <>
+                    {mountedRhAvailable && (
+                      <OptionRow
+                        title="Use mounted Red Hat pull secret"
+                        description="Use the pull secret file detected in the container."
+                        htmlFor="ocmirror-rh-auth-mounted"
+                      >
+                        <input
+                          type="radio"
+                          id="ocmirror-rh-auth-mounted"
+                          name="ocmirror-rh-auth"
+                          checked={rhAuthSource === "mounted"}
+                          onChange={() => setRhAuthSource("mounted")}
+                        />
+                      </OptionRow>
+                    )}
+                    {hasRetainedRhSecret && (
+                      <OptionRow
+                        title="Use retained Red Hat pull secret from Blueprint"
+                        description="The pull secret retained in the Blueprint step will be used."
+                        htmlFor="ocmirror-rh-auth-retained"
+                      >
+                        <input
+                          type="radio"
+                          id="ocmirror-rh-auth-retained"
+                          name="ocmirror-rh-auth"
+                          checked={rhAuthSource === "retained"}
+                          onChange={() => setRhAuthSource("retained")}
+                        />
+                      </OptionRow>
+                    )}
+                    <OptionRow
+                      title="Paste Red Hat pull secret for this run"
+                      description="Supply a Red Hat pull secret only for this run. Not saved."
+                      htmlFor="ocmirror-rh-auth-pasted"
+                    >
+                      <input
+                        type="radio"
+                        id="ocmirror-rh-auth-pasted"
+                        name="ocmirror-rh-auth"
+                        checked={rhAuthSource === "pasted"}
+                        onChange={() => setRhAuthSource("pasted")}
+                      />
+                    </OptionRow>
+                    {rhAuthSource === "pasted" && (
+                      <SecretInput
+                        label="Red Hat pull secret"
+                        labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
+                        value={rhPullSecretPaste}
+                        onChange={setRhPullSecretPaste}
+                        placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
+                        rows={4}
+                      />
+                    )}
+                  </>
+                ) : (
                   <SecretInput
                     label="Red Hat pull secret"
                     labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
@@ -636,43 +655,54 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 6 }}>Mirror registry destination credentials</div>
                 )}
                 <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: 8 }}>
-                  Mirror registry credentials authenticate pushes to your registry.
+                  Mirror registry pull secret (same format as Red Hat pull secret) for authenticating to your local/disconnected registry.
                 </div>
-                {hasMirrorSecret && (
-                  <OptionRow
-                    title="Use mirror registry credentials from Identity & Access"
-                    description="Use the pull secret already configured in the Identity & Access step."
-                    htmlFor="ocmirror-mirror-auth-reuse"
-                  >
-                    <input
-                      type="radio"
-                      id="ocmirror-mirror-auth-reuse"
-                      name="ocmirror-mirror-auth"
-                      checked={mirrorAuthSource === "reuse"}
-                      onChange={() => setMirrorAuthSource("reuse")}
-                    />
-                  </OptionRow>
-                )}
-                <OptionRow
-                  title="Paste mirror registry credentials for this run"
-                  description="Supply credentials only for this run. Not saved."
-                  htmlFor="ocmirror-mirror-auth-pasted"
-                >
-                  <input
-                    type="radio"
-                    id="ocmirror-mirror-auth-pasted"
-                    name="ocmirror-mirror-auth"
-                    checked={mirrorAuthSource === "pasted"}
-                    onChange={() => setMirrorAuthSource("pasted")}
-                  />
-                </OptionRow>
-                {mirrorAuthSource === "pasted" && (
+                {hasMirrorSecret ? (
+                  <>
+                    <OptionRow
+                      title="Use mirror registry credentials from Identity & Access"
+                      description="Use the pull secret already configured in the Identity & Access step."
+                      htmlFor="ocmirror-mirror-auth-reuse"
+                    >
+                      <input
+                        type="radio"
+                        id="ocmirror-mirror-auth-reuse"
+                        name="ocmirror-mirror-auth"
+                        checked={mirrorAuthSource === "reuse"}
+                        onChange={() => setMirrorAuthSource("reuse")}
+                      />
+                    </OptionRow>
+                    <OptionRow
+                      title="Paste mirror registry credentials for this run"
+                      description="Supply credentials only for this run. Not saved."
+                      htmlFor="ocmirror-mirror-auth-pasted"
+                    >
+                      <input
+                        type="radio"
+                        id="ocmirror-mirror-auth-pasted"
+                        name="ocmirror-mirror-auth"
+                        checked={mirrorAuthSource === "pasted"}
+                        onChange={() => setMirrorAuthSource("pasted")}
+                      />
+                    </OptionRow>
+                    {mirrorAuthSource === "pasted" && (
+                      <SecretInput
+                        label="Mirror registry credentials"
+                        labelHint="Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored."
+                        value={mirrorPullSecretPaste}
+                        onChange={setMirrorPullSecretPaste}
+                        placeholder="Paste, drag and drop, or upload mirror registry credentials JSON"
+                        rows={4}
+                      />
+                    )}
+                  </>
+                ) : (
                   <SecretInput
                     label="Mirror registry credentials"
-                    labelHint="Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored."
+                    labelHint='Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored. Example: {"auths":{"mirror.example.com":{"auth":"base64string"}}}'
                     value={mirrorPullSecretPaste}
                     onChange={setMirrorPullSecretPaste}
-                    placeholder="Paste, drag and drop, or upload mirror registry credentials JSON"
+                    placeholder='{"auths":{"mirror.example.com":{"auth":"..."}}}'
                     rows={4}
                   />
                 )}

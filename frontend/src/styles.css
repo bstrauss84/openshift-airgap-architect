@@ -4216,7 +4216,6 @@ body[data-theme="dark"] .switch-input:checked + .switch-slider {
 .option-row-main {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 16px;
 }
 
@@ -4249,6 +4248,7 @@ body[data-theme="dark"] .option-row-desc {
 }
 
 .option-row-control {
+  margin-left: auto;  /* Push to right, but not excessively */
   flex-shrink: 0;
 }
 
