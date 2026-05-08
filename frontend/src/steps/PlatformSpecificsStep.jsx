@@ -370,8 +370,10 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   Choose whether the installer creates a new VPC and subnets (default) or you provide existing subnet IDs. Subnet IDs here are for AWS VPC only; they are not derived from the Networking tab (machine/cluster/service CIDRs).
                 </p>
                 <div className="field-grid">
-                  <label>
-                    <span className="field-label-with-info">VPC mode</span>
+                  <FieldLabelWithInfo
+                    label="VPC mode"
+                    hint="Choose whether the installer creates a new VPC and subnets (default) or you provide existing subnet IDs."
+                  >
                     <select
                       value={awsVpcMode}
                       onChange={(e) => updateAws({ vpcMode: e.target.value })}
@@ -379,10 +381,10 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                       <option value="installer-managed">Installer-managed VPC (default)</option>
                       <option value="existing">Existing VPC/subnets</option>
                     </select>
-                  </label>
+                  </FieldLabelWithInfo>
                 </div>
                 {awsVpcMode === "existing" && (
-                  <div className="field-grid" style={{ marginTop: 8 }}>
+                  <div className="field-grid field-grid--no-paired-layout">
                     <div style={{ gridColumn: "1 / -1" }}>
                       <FieldLabelWithInfo
                         label="Subnet IDs (required for existing VPC)"
@@ -926,7 +928,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               </div>
 
               <h4 className="platform-specifics-subsection">Publishing and credentials</h4>
-              <div className="field-grid" style={{ marginTop: 8 }}>
+              <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Publish (optional)"
                   hint={`${metaPublish?.description ? `${metaPublish.description} ` : ""}External exposes API/apps via public endpoints. Internal keeps endpoints private to your network/VPC path and is typical for private-cluster designs.`}
@@ -1159,47 +1161,44 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     data-lpignore="true"
                   />
                 </FieldLabelWithInfo>
-                <div className="pull-secret-section-inline" style={{ minWidth: 0 }}>
-                  <div className="pull-secret-label-row">
-                    <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                      <FieldLabelWithInfo
-                        label="vCenter password (optional)"
-                        hint="Password for the vCenter username specified above. This credential is used during installation to provision infrastructure resources (VMs, networks, storage) for IPI, or for validation in UPI workflows. The password is included in the generated install-config.yaml only when you choose to include credentials in the export. IMPORTANT: Do not allow your browser to save this password - it will be embedded in plain text in the install-config. After installation, you can remove credentials from the file if needed."
-                      />
-                    </div>
+                <FieldLabelWithInfo
+                  label="vCenter password (optional)"
+                  hint="Password for the vCenter username specified above. This credential is used during installation to provision infrastructure resources (VMs, networks, storage) for IPI, or for validation in UPI workflows. The password is included in the generated install-config.yaml only when you choose to include credentials in the export. IMPORTANT: Do not allow your browser to save this password - it will be embedded in plain text in the install-config. After installation, you can remove credentials from the file if needed."
+                >
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <input
+                      type={showVspherePassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      data-form-type="other"
+                      data-lpignore="true"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      value={platformConfig.vsphere?.password || ""}
+                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: e.target.value } })}
+                      placeholder="••••••••"
+                      aria-label="vCenter password (optional)"
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
                     <button
                       type="button"
-                      className="ghost pull-secret-toggle"
-                      style={{ padding: "2px 8px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}
+                      className="ghost"
                       onClick={() => setShowVspherePassword((s) => !s)}
                       aria-label={showVspherePassword ? "Hide password" : "Show password"}
+                      style={{ flexShrink: 0, padding: "0.5rem 0.75rem", fontSize: "0.8125rem" }}
                     >
-                      <span aria-hidden>{showVspherePassword ? "\u2007" : "\u{1F441}"}</span>
+                      <span aria-hidden>{showVspherePassword ? " " : "\u{1F441}"}</span>
                       {showVspherePassword ? "Hide" : "Show"}
                     </button>
                   </div>
-                  <input
-                    type={showVspherePassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    data-form-type="other"
-                    data-lpignore="true"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    value={platformConfig.vsphere?.password || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: e.target.value } })}
-                    placeholder="••••••••"
-                    aria-label="vCenter password (optional)"
-                    style={{ width: "100%", minWidth: 0 }}
-                  />
-                </div>
+                </FieldLabelWithInfo>
               </div>
 
               <h4 className="platform-specifics-subsection">Placement</h4>
               <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
                 Choose failure domains (recommended for 4.20) or legacy single placement. Only the selected path is used in the generated install-config.
               </p>
-              <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
+              <div className="field-grid field-grid--no-paired-layout" style={{ marginTop: 8, marginBottom: 12 }}>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label className="platform-specifics-radio-label">
                     <input
@@ -1295,66 +1294,69 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         <strong>Failure domain {index + 1}</strong>
                         <button type="button" className="ghost" onClick={() => removeFailureDomain(index)} aria-label={`Remove failure domain ${index + 1}`}>Remove</button>
                       </div>
-                      <div className="field-grid" style={{ marginTop: 8 }}>
-                        <label>
-                          <FieldLabelWithInfo label="Name" hint="Failure domain name (e.g. fd-0)." />
-                          <input value={fd.name || ""} onChange={(e) => updateFailureDomain(index, { name: e.target.value })} placeholder="e.g. fd-0" />
-                        </label>
-                        <label>
-                          <FieldLabelWithInfo label="Region" hint="Logical region for this failure domain. For a single datacenter use a short name (e.g. datacenter). For multiple failure domains, use the openshift-region tag value so the installer can group nodes." />
-                          <input value={fd.region || ""} onChange={(e) => updateFailureDomain(index, { region: e.target.value })} placeholder="e.g. datacenter or openshift-region tag" />
-                        </label>
-                        <label>
-                          <FieldLabelWithInfo label="Zone" hint="Logical zone within the region (e.g. compute cluster name). For a single cluster use its name. For multiple zones use the openshift-zone tag value so the installer can spread nodes." />
-                          <input value={fd.zone || ""} onChange={(e) => updateFailureDomain(index, { zone: e.target.value })} placeholder="e.g. cluster or openshift-zone tag" />
-                        </label>
-                        <label>
-                          <FieldLabelWithInfo label="Server (vCenter FQDN or IP)" hint="vCenter server for this failure domain." />
+                      <div className="field-grid">
+                        <FieldLabelWithInfo label="Name" hint="Failure domain name (e.g. fd-0).">
+                          <input value={fd.name || ""} onChange={(e) => updateFailureDomain(index, { name: e.target.value })} placeholder="fd-0" />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="Region" hint="Logical region for this failure domain. For a single datacenter use a short name (e.g. datacenter). For multiple failure domains, use the openshift-region tag value so the installer can group nodes.">
+                          <input value={fd.region || ""} onChange={(e) => updateFailureDomain(index, { region: e.target.value })} placeholder="datacenter" />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="Zone" hint="Logical zone within the region (e.g. compute cluster name). For a single cluster use its name. For multiple zones use the openshift-zone tag value so the installer can spread nodes.">
+                          <input value={fd.zone || ""} onChange={(e) => updateFailureDomain(index, { zone: e.target.value })} placeholder="cluster-01" />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="Server (vCenter FQDN or IP)" hint="vCenter server for this failure domain.">
                           <input value={fd.server || ""} onChange={(e) => updateFailureDomain(index, { server: e.target.value })} placeholder="vcenter.example.com" />
-                        </label>
-                        <label>
-                          <FieldLabelWithInfo label="Topology: Datacenter" hint="Datacenter name in failure domain topology." />
-                          <input value={fd.topology?.datacenter || ""} onChange={(e) => updateFailureDomainTopology(index, { datacenter: e.target.value })} placeholder="Datacenter name" />
-                        </label>
-                        <label>
-                          <FieldLabelWithInfo label="Topology: Compute cluster" hint="Compute cluster name in failure domain topology." />
-                          <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} placeholder="e.g. Cluster1" />
-                        </label>
-                        <label>
-                          <FieldLabelWithInfo label="Topology: Datastore" hint="Datastore path in failure domain topology." />
-                          <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="Datastore path" />
-                        </label>
-                        <label>
-                          <FieldLabelWithInfo label="Topology: Networks (comma delimited)" hint="One or more vCenter port group or Distributed Port Group (DPG) names that the installer connects OpenShift VM NICs to. These are vSphere network object names (e.g. 'VM Network', 'DPG-OCP'), not IP ranges — IP address ranges are configured as Machine/Cluster/Service network CIDRs in the Networking step. Comma-separate multiple names." />
-                          <input value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")} onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()) })} placeholder="e.g. VM Network or VM Network, DPG-1" />
-                        </label>
-                        <div style={{ gridColumn: "1 / -1" }}>
-                          <CollapsibleSection title="Advanced (template, folder, resource pool)" defaultCollapsed={true}>
-                            {scenarioId === "vsphere-ipi" && (
-                            <label>
-                              <FieldLabelWithInfo label="Topology: RHCOS template (optional, IPI only)" hint="Absolute path to a pre-existing RHCOS image template or VM in vSphere. A value here disables the clusterOSImage field in Machine pool (advanced); use one strategy only. Doc: download OVA → Deploy OVF Template in vSphere Client → do not customize → set this path." />
-                              <input
-                                value={fd.topology?.template || ""}
-                                onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
-                                placeholder="/datacenter/vm/rhcos-template"
-                                disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
-                                aria-describedby={platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined}
-                              />
-                              {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
-                                <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
-                              )}
-                            </label>
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="Topology: Datacenter" hint="Datacenter name in failure domain topology.">
+                          <input value={fd.topology?.datacenter || ""} onChange={(e) => updateFailureDomainTopology(index, { datacenter: e.target.value })} placeholder="Datacenter1" />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="Topology: Compute cluster" hint="Compute cluster name in failure domain topology.">
+                          <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} placeholder="Cluster1" />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo label="Topology: Datastore" hint="Datastore path in failure domain topology.">
+                          <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="/datacenter/datastore/ds1" />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo
+                          label="Topology: Networks (comma delimited)"
+                          hint="One or more vCenter port group or Distributed Port Group (DPG) names that the installer connects OpenShift VM NICs to. These are vSphere network object names (e.g. 'VM Network', 'DPG-OCP'), not IP ranges — IP address ranges are configured as Machine/Cluster/Service network CIDRs in the Networking step. Comma-separate multiple names."
+                        >
+                          <input
+                            value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")}
+                            onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()) })}
+                            placeholder="e.g. VM Network or VM Network, DPG-1"
+                          />
+                        </FieldLabelWithInfo>
+                      </div>
+                      <div style={{ marginTop: 12 }}>
+                        <CollapsibleSection title="Advanced (template, folder, resource pool)" defaultCollapsed={true}>
+                          <div className="field-grid" style={{ marginTop: 4 }}>
+                          {scenarioId === "vsphere-ipi" && (
+                            <FieldLabelWithInfo
+                              label="Topology: RHCOS template (optional, IPI only)"
+                              hint="Absolute path to a pre-existing RHCOS image template or VM in vSphere. A value here disables the clusterOSImage field in Machine pool (advanced); use one strategy only. Doc: download OVA → Deploy OVF Template in vSphere Client → do not customize → set this path."
+                            >
+                              <div>
+                                <input
+                                  value={fd.topology?.template || ""}
+                                  onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
+                                  placeholder="/datacenter/vm/rhcos-template"
+                                  disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
+                                  aria-describedby={platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined}
+                                />
+                                {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
+                                  <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
+                                )}
+                              </div>
+                            </FieldLabelWithInfo>
                           )}
-                          <label>
-                            <FieldLabelWithInfo label="Topology: Folder (optional)" hint="VM folder path in failure domain topology." />
+                          <FieldLabelWithInfo label="Topology: Folder (optional)" hint="VM folder path in failure domain topology.">
                             <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} placeholder="/datacenter/vm/folder" />
-                          </label>
-                          <label>
-                            <FieldLabelWithInfo label="Topology: Resource pool (optional)" hint="Resource pool path in failure domain topology." />
+                          </FieldLabelWithInfo>
+                          <FieldLabelWithInfo label="Topology: Resource pool (optional)" hint="Resource pool path in failure domain topology.">
                             <input value={fd.topology?.resourcePool || ""} onChange={(e) => updateFailureDomainTopology(index, { resourcePool: e.target.value })} placeholder="/datacenter/host/cluster/Resources/pool" />
-                          </label>
-                          </CollapsibleSection>
+                          </FieldLabelWithInfo>
                         </div>
+                      </CollapsibleSection>
                       </div>
                     </div>
                   ))}
@@ -1436,7 +1438,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   {failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
                     <p className="note subtle" style={{ marginBottom: 8 }} id="cluster-os-image-disabled-note">Disabled: a failure domain has Topology: RHCOS template set (choose one strategy only).</p>
                   )}
-                  <div className="field-grid" style={{ marginTop: 8 }}>
+                  <div className="field-grid">
                     <FieldLabelWithInfo label="osDisk.diskSizeGB (optional)" hint="Root disk size in GB for platform.vsphere.">
                       <input
                         type="number"
@@ -1493,12 +1495,12 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               <div className="card-body">
                 <p className="note subtle">Configure how the provisioning network is used during installation. Hosts (BMC, boot MAC) are configured on the Hosts / Inventory step.</p>
                 <div className="field-grid" style={{ marginTop: 12 }}>
-                  <label style={{ gridColumn: "1 / -1" }}>
-                    <FieldLabelWithInfo
-                      label="Provisioning network"
-                      hint="Managed (default): The installer runs DHCP and TFTP on the provisioning network; no other DHCP on that network. Choose when you have a dedicated provisioning NIC and can give the installer full control. Unmanaged: Provisioning network exists but you run DHCP yourself; virtual media is recommended, PXE still possible. Choose when you must use existing DHCP or share the network. Disabled: No provisioning network; use virtual media or Assisted Installer only. BMCs must be reachable on the bare-metal network; reserve two IPs on that network for provisioning services. Choose for fully static or disconnected flows."
-                      required={metaProvisioningNetwork?.required}
-                    />
+                  <FieldLabelWithInfo
+                    className="field-grid-span-full"
+                    label="Provisioning network"
+                    hint="Managed (default): The installer runs DHCP and TFTP on the provisioning network; no other DHCP on that network. Choose when you have a dedicated provisioning NIC and can give the installer full control. Unmanaged: Provisioning network exists but you run DHCP yourself; virtual media is recommended, PXE still possible. Choose when you must use existing DHCP or share the network. Disabled: No provisioning network; use virtual media or Assisted Installer only. BMCs must be reachable on the bare-metal network; reserve two IPs on that network for provisioning services. Choose for fully static or disconnected flows."
+                    required={metaProvisioningNetwork?.required}
+                  >
                     <select
                       value={provisioningMode}
                       onChange={(e) => updateInventory({ provisioningNetwork: e.target.value })}
@@ -1508,64 +1510,59 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                       <option value="Unmanaged">Unmanaged — you provide DHCP</option>
                       <option value="Disabled">Disabled — virtual media / no provisioning net</option>
                     </select>
-                  </label>
-                  <label>
-                    <FieldLabelWithInfo
-                      label="Provisioning network CIDR (optional)"
-                      hint={provisioningMode === "Disabled" ? "When Disabled, provisioning services use the bare-metal network; omit or use bare-metal CIDR if needed." : metaProvisioningCIDR?.description}
-                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Provisioning network CIDR (optional)"
+                    hint={provisioningMode === "Disabled" ? "When Disabled, provisioning services use the bare-metal network; omit or use bare-metal CIDR if needed." : metaProvisioningCIDR?.description}
+                  >
                     <input
                       value={inventory.provisioningNetworkCIDR || ""}
                       onChange={(e) => updateInventory({ provisioningNetworkCIDR: e.target.value.trim() })}
                       placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : "e.g. 172.22.0.0/24"}
                     />
-                  </label>
-                  <label>
-                    <FieldLabelWithInfo
-                      label="Provisioning network interface (optional)"
-                      hint={provisioningMode === "Disabled" ? "When Disabled, there is no provisioning network; omit unless your setup requires it." : metaProvisioningInterface?.description}
-                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Provisioning network interface (optional)"
+                    hint={provisioningMode === "Disabled" ? "When Disabled, there is no provisioning network; omit unless your setup requires it." : metaProvisioningInterface?.description}
+                  >
                     <input
                       value={inventory.provisioningNetworkInterface || ""}
                       onChange={(e) => updateInventory({ provisioningNetworkInterface: e.target.value })}
                       placeholder={provisioningMode === "Disabled" ? "omit" : "e.g. eth1"}
                     />
-                  </label>
+                  </FieldLabelWithInfo>
                   {showDhcpRange ? (
-                    <label>
-                      <FieldLabelWithInfo
-                        label="Provisioning DHCP range (optional)"
-                        hint={metaProvisioningDHCPRange?.description}
-                      />
+                    <FieldLabelWithInfo
+                      label="Provisioning DHCP range (optional)"
+                      hint={metaProvisioningDHCPRange?.description}
+                    >
                       <input
                         value={inventory.provisioningDHCPRange || ""}
                         onChange={(e) => updateInventory({ provisioningDHCPRange: e.target.value })}
                         placeholder="e.g. 172.22.0.10,172.22.0.254"
                       />
-                    </label>
+                    </FieldLabelWithInfo>
                   ) : null}
-                  <label>
-                    <FieldLabelWithInfo
-                      label="Cluster provisioning IP (optional)"
-                      hint={provisioningMode === "Disabled" ? "When Disabled, one of two IPs on the bare-metal network for provisioning services." : metaClusterProvisioningIP?.description}
-                    />
+                  <FieldLabelWithInfo
+                    label="Cluster provisioning IP (optional)"
+                    hint={provisioningMode === "Disabled" ? "When Disabled, one of two IPs on the bare-metal network for provisioning services." : metaClusterProvisioningIP?.description}
+                  >
                     <input
                       value={inventory.clusterProvisioningIP || ""}
                       onChange={(e) => updateInventory({ clusterProvisioningIP: e.target.value.trim() })}
                       placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : "IP within provisioning subnet"}
                     />
-                  </label>
-                  <label>
-                    <FieldLabelWithInfo
-                      label="Provisioning MAC address (optional)"
-                      hint={metaProvisioningMAC?.description}
-                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="Provisioning MAC address (optional)"
+                    hint={metaProvisioningMAC?.description}
+                  >
                     <input
                       value={inventory.provisioningMACAddress || ""}
                       onChange={(e) => updateInventory({ provisioningMACAddress: formatMACAsYouType(e.target.value) })}
                       placeholder="MAC where provisioning services run"
                     />
-                  </label>
+                  </FieldLabelWithInfo>
                 </div>
                 {provisioningMode === "Disabled" && (
                   <p className="note subtle" style={{ marginTop: 12, marginBottom: 0 }}>
@@ -1603,25 +1600,23 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     </>
                   )}
                   {showAgentOptionsSection && (
-                    <label>
-                      <FieldLabelWithInfo
-                        label="Boot artifacts base URL"
-                        hint={metaBootArtifacts?.description}
-                        required={metaBootArtifacts?.required || isRequiredAgent("bootArtifactsBaseURL")}
-                      />
+                    <FieldLabelWithInfo
+                      label="Boot artifacts base URL"
+                      hint={metaBootArtifacts?.description}
+                      required={metaBootArtifacts?.required || isRequiredAgent("bootArtifactsBaseURL")}
+                    >
                       <input
                         value={inventory.bootArtifactsBaseURL || ""}
                         onChange={(e) => updateInventory({ bootArtifactsBaseURL: e.target.value })}
                         placeholder="https://example.com/agent-artifacts or leave empty"
                       />
-                    </label>
+                    </FieldLabelWithInfo>
                   )}
                   {showComputeHyperthreading && (
-                    <label>
-                      <FieldLabelWithInfo
-                        label="Compute hyperthreading (optional)"
-                        hint={metaComputeHyperthreading?.description}
-                      />
+                    <FieldLabelWithInfo
+                      label="Compute hyperthreading (optional)"
+                      hint={metaComputeHyperthreading?.description}
+                    >
                       <select
                         value={platformConfig.computeHyperthreading || ""}
                         onChange={(e) => updatePlatformConfig({ computeHyperthreading: e.target.value || undefined })}
@@ -1631,14 +1626,13 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
-                    </label>
+                    </FieldLabelWithInfo>
                   )}
                   {showControlPlaneHyperthreading && (
-                    <label>
-                      <FieldLabelWithInfo
-                        label="Control plane hyperthreading (optional)"
-                        hint={metaControlPlaneHyperthreading?.description}
-                      />
+                    <FieldLabelWithInfo
+                      label="Control plane hyperthreading (optional)"
+                      hint={metaControlPlaneHyperthreading?.description}
+                    >
                       <select
                         value={platformConfig.controlPlaneHyperthreading || ""}
                         onChange={(e) => updatePlatformConfig({ controlPlaneHyperthreading: e.target.value || undefined })}
@@ -1648,15 +1642,14 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
-                    </label>
+                    </FieldLabelWithInfo>
                   )}
                   {showCapabilities && (
                     <>
-                      <label>
-                        <FieldLabelWithInfo
-                          label="Baseline capability set (optional)"
-                          hint={metaBaselineCapability?.description}
-                        />
+                      <FieldLabelWithInfo
+                        label="Baseline capability set (optional)"
+                        hint={metaBaselineCapability?.description}
+                      >
                         <select
                           value={platformConfig.baselineCapabilitySet || (metaBaselineCapability?.default ?? "")}
                           onChange={(e) => updatePlatformConfig({ baselineCapabilitySet: e.target.value || undefined })}
@@ -1666,12 +1659,11 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
                         </select>
-                      </label>
-                      <label>
-                        <FieldLabelWithInfo
-                          label="Additional enabled capabilities (optional, comma-separated)"
-                          hint={metaAdditionalCapabilities?.description}
-                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Additional enabled capabilities (optional, comma-separated)"
+                        hint={metaAdditionalCapabilities?.description}
+                      >
                         <input
                           value={Array.isArray(platformConfig.additionalEnabledCapabilities) ? platformConfig.additionalEnabledCapabilities.join(", ") : (typeof platformConfig.additionalEnabledCapabilities === "string" ? platformConfig.additionalEnabledCapabilities : "")}
                           onChange={(e) => {
@@ -1681,15 +1673,14 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           }}
                           placeholder="e.g. baremetal, marketplace"
                         />
-                      </label>
+                      </FieldLabelWithInfo>
                     </>
                   )}
                   {showCpuPartitioningMode && (
-                    <label>
-                      <FieldLabelWithInfo
-                        label="CPU partitioning mode (optional)"
-                        hint={metaCpuPartitioningMode?.description}
-                      />
+                    <FieldLabelWithInfo
+                      label="CPU partitioning mode (optional)"
+                      hint={metaCpuPartitioningMode?.description}
+                    >
                       <select
                         value={platformConfig.cpuPartitioningMode || (metaCpuPartitioningMode?.default ?? "None")}
                         onChange={(e) => updatePlatformConfig({ cpuPartitioningMode: e.target.value || undefined })}
@@ -1699,9 +1690,11 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
-                    </label>
+                    </FieldLabelWithInfo>
                   )}
-                  {showMinimalISO && (
+                </div>
+                {showMinimalISO && (
+                  <div className="platform-specifics-advanced-option-row">
                     <OptionRow
                       title="Use minimal ISO"
                       description="No rootfs; pull from boot artifacts URL. Optional for agent-based install."
@@ -1713,8 +1706,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         aria-label="Use minimal ISO"
                       />
                     </OptionRow>
-                  )}
-                </div>
+                  </div>
+                )}
           </CollapsibleSection>
         )}
 
