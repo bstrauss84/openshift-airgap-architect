@@ -1443,6 +1443,7 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
 
   const blockers = [];
   const warnings = [];
+  const fieldErrors = {}; // Maps field names to { severity: "blocker" | "warning", message: string }
   const checks = {
     archivePath: null,
     workspacePath: null,
@@ -1467,7 +1468,9 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
 
   const checkArchive = async () => {
     if (!archivePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
-      blockers.push("Archive path is required.");
+      const msg = "Archive path is required.";
+      blockers.push(msg);
+      fieldErrors.archivePath = { severity: "blocker", message: msg };
       return;
     }
     if (!archivePath) return;
@@ -1475,8 +1478,16 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
       const info = await checkPath(archivePath);
       const meetsMin = !minBytes || info.freeBytes >= minBytes;
       if (mode === "mirrorToDisk") {
-        if (!info.writable) blockers.push("Archive path is not writable.");
-        if (!meetsMin) blockers.push("Insufficient disk space at archive path.");
+        if (!info.writable) {
+          const msg = "Archive path is not writable.";
+          blockers.push(msg);
+          fieldErrors.archivePath = { severity: "blocker", message: msg };
+        }
+        if (!meetsMin) {
+          const msg = "Insufficient disk space at archive path.";
+          blockers.push(msg);
+          fieldErrors.archivePath = { severity: "blocker", message: msg };
+        }
         checks.archivePath = {
           exists: info.exists,
           writable: info.writable,
@@ -1485,10 +1496,16 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
           structure: "ok"
         };
       } else if (mode === "diskToMirror") {
-        if (!info.exists) blockers.push("Source archive path does not exist.");
+        if (!info.exists) {
+          const msg = "Source archive path does not exist.";
+          blockers.push(msg);
+          fieldErrors.archivePath = { severity: "blocker", message: msg };
+        }
         const structure = checkD2mArchiveStructure(archivePath);
         if (structure === "invalid") {
-          blockers.push("Source archive path must contain oc-mirror output (working-dir or tar files).");
+          const msg = "Source archive path must contain oc-mirror output (working-dir or tar files).";
+          blockers.push(msg);
+          fieldErrors.archivePath = { severity: "blocker", message: msg };
         }
         checks.archivePath = {
           exists: info.exists,
@@ -1499,13 +1516,19 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
         };
       }
     } catch (err) {
-      blockers.push(`Archive path check failed: ${String(err?.message || err)}.`);
+      const msg = `Archive path check failed: ${String(err?.message || err)}.`;
+      blockers.push(msg);
+      fieldErrors.archivePath = { severity: "blocker", message: msg };
     }
   };
 
   const checkWorkspace = async () => {
     if (!workspacePath) {
-      if (mode === "mirrorToMirror") blockers.push("Workspace path is required.");
+      if (mode === "mirrorToMirror") {
+        const msg = "Workspace path is required.";
+        blockers.push(msg);
+        fieldErrors.workspacePath = { severity: "blocker", message: msg };
+      }
       return;
     }
     try {
@@ -1522,12 +1545,28 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
       } catch (err) {
         if (process.env.DEBUG) console.error(`Path check failed for ${parent}:`, err);
       }
-      if (!info.exists && !creatable) blockers.push("Workspace path is not creatable or writable.");
-      if (info.exists && !info.writable) blockers.push("Workspace path is not writable.");
+      if (!info.exists && !creatable) {
+        const msg = "Workspace path is not creatable or writable.";
+        blockers.push(msg);
+        fieldErrors.workspacePath = { severity: "blocker", message: msg };
+      }
+      if (info.exists && !info.writable) {
+        const msg = "Workspace path is not writable.";
+        blockers.push(msg);
+        fieldErrors.workspacePath = { severity: "blocker", message: msg };
+      }
       const meetsMin = !minBytes || freeBytes >= minBytes;
-      if (minBytes && !meetsMin) warnings.push("Low disk space at workspace path.");
+      if (minBytes && !meetsMin) {
+        const msg = "Low disk space at workspace path.";
+        warnings.push(msg);
+        fieldErrors.workspacePath = { severity: "warning", message: msg };
+      }
       if (info.exists && fs.existsSync(path.join(path.resolve(workspacePath), "working-dir"))) {
-        warnings.push("Workspace already contains oc-mirror data.");
+        const msg = "Workspace already contains oc-mirror data.";
+        warnings.push(msg);
+        if (!fieldErrors.workspacePath) {
+          fieldErrors.workspacePath = { severity: "warning", message: msg };
+        }
       }
       checks.workspacePath = {
         exists: info.exists,
@@ -1536,7 +1575,9 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
         freeBytes: freeBytes || info.freeBytes
       };
     } catch (err) {
-      blockers.push(`Workspace path check failed: ${String(err?.message || err)}.`);
+      const msg = `Workspace path check failed: ${String(err?.message || err)}.`;
+      blockers.push(msg);
+      fieldErrors.workspacePath = { severity: "blocker", message: msg };
     }
   };
 
@@ -1546,7 +1587,9 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
       return;
     }
     if (!cachePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
-      blockers.push("Cache path is required.");
+      const msg = "Cache path is required.";
+      blockers.push(msg);
+      fieldErrors.cachePath = { severity: "blocker", message: msg };
       return;
     }
     if (!cachePath) return;
@@ -1562,15 +1605,25 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
       } catch (err) {
         if (process.env.DEBUG) console.error("Parent path check failed:", err);
       }
-      if (!info.exists && !creatable) blockers.push("Cache path is not creatable or writable.");
-      if (info.exists && !info.writable) blockers.push("Cache path is not writable.");
+      if (!info.exists && !creatable) {
+        const msg = "Cache path is not creatable or writable.";
+        blockers.push(msg);
+        fieldErrors.cachePath = { severity: "blocker", message: msg };
+      }
+      if (info.exists && !info.writable) {
+        const msg = "Cache path is not writable.";
+        blockers.push(msg);
+        fieldErrors.cachePath = { severity: "blocker", message: msg };
+      }
       checks.cachePath = {
         exists: info.exists,
         creatable: creatable || info.writable,
         writable: info.exists ? info.writable : writable
       };
     } catch (err) {
-      blockers.push(`Cache path check failed: ${String(err?.message || err)}.`);
+      const msg = `Cache path check failed: ${String(err?.message || err)}.`;
+      blockers.push(msg);
+      fieldErrors.cachePath = { severity: "blocker", message: msg };
     }
   };
 
@@ -1587,14 +1640,20 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
         checks.config = "present";
       } else {
         checks.config = "missing";
-        blockers.push("Config file not found.");
+        const msg = "Config file not found.";
+        blockers.push(msg);
+        fieldErrors.configPath = { severity: "blocker", message: msg };
       }
     } catch {
       checks.config = "missing";
-      blockers.push("Config file not found.");
+      const msg = "Config file not found.";
+      blockers.push(msg);
+      fieldErrors.configPath = { severity: "blocker", message: msg };
     }
   } else {
-    blockers.push("Config path is required when using external config.");
+    const msg = "Config path is required when using external config.";
+    blockers.push(msg);
+    fieldErrors.configPath = { severity: "blocker", message: msg };
   }
 
   // Auth checks per mode
@@ -1603,7 +1662,9 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
       checks.auth = "present";
     } else {
       checks.auth = "missing";
-      warnings.push("Red Hat pull secret is required to pull from registry.redhat.io / quay.io.");
+      const msg = "Red Hat pull secret is required to pull from registry.redhat.io / quay.io.";
+      warnings.push(msg);
+      fieldErrors.rhPullSecret = { severity: "warning", message: msg };
     }
   }
   if (mode === "diskToMirror" || mode === "mirrorToMirror") {
@@ -1615,15 +1676,21 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
           JSON.parse(secret);
           mirrorSecretPresent = true;
         } catch {
-          warnings.push("Mirror registry credentials in Identity & Access do not appear to be valid JSON.");
+          const msg = "Mirror registry credentials in Identity & Access do not appear to be valid JSON.";
+          warnings.push(msg);
+          fieldErrors.mirrorPullSecret = { severity: "warning", message: msg };
         }
       } else {
-        warnings.push("Mirror registry credentials not found in Identity & Access.");
+        const msg = "Mirror registry credentials not found in Identity & Access.";
+        warnings.push(msg);
+        fieldErrors.mirrorPullSecret = { severity: "warning", message: msg };
       }
     } else if (mirrorPullSecret && typeof mirrorPullSecret === "string" && mirrorPullSecret.trim().length > 0) {
       mirrorSecretPresent = true;
     } else {
-      warnings.push("Mirror registry credentials will be required at run time.");
+      const msg = "Mirror registry credentials will be required at run time.";
+      warnings.push(msg);
+      fieldErrors.mirrorPullSecret = { severity: "warning", message: msg };
     }
     if (mode === "diskToMirror") checks.auth = mirrorSecretPresent ? "present" : "missing";
     else if (!mirrorSecretPresent) checks.auth = "missing";
@@ -1631,11 +1698,15 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
 
   if (mode === "diskToMirror" || mode === "mirrorToMirror") {
     checks.registryUrl = registryUrl ? "non-empty" : "empty";
-    if (!registryUrl) blockers.push("Registry URL is required for this mode.");
+    if (!registryUrl) {
+      const msg = "Registry URL is required for this mode.";
+      blockers.push(msg);
+      fieldErrors.registryUrl = { severity: "blocker", message: msg };
+    }
   }
 
   const ok = blockers.length === 0;
-  res.json({ ok, blockers, warnings, checks });
+  res.json({ ok, blockers, warnings, checks, fieldErrors });
 });
 
 /** Build oc-mirror CLI args for v1 modes (contract §2B). */

@@ -17,6 +17,7 @@ import { isValidPullSecret, isValidSshPublicKey } from "../validation.js";
 import { apiFetch } from "../api.js";
 import SecretInput from "../components/SecretInput.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import Switch from "../components/Switch.jsx";
 
 /**
  * Identity & Access replacement tab (Phase 5 segmented flow, Prompt E).
@@ -258,21 +259,16 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               }}
             >
               <div className="credentials-mirror-cell" style={{ minWidth: 0 }}>
-                <label className="credentials-mirror-title-row" style={{ display: "inline", marginBottom: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: usingMirrorRegistry ? 8 : 0 }}>
                   <span className="credentials-mirror-label">Using a mirror registry?</span>
-                  {" "}
-                  <input
-                    type="checkbox"
+                  <Switch
                     checked={usingMirrorRegistry}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      updateCredentials({ usingMirrorRegistry: on });
-                    }}
+                    onChange={(checked) => updateCredentials({ usingMirrorRegistry: checked })}
                     aria-describedby="credentials-mirror-helper"
                   />
-                </label>
+                </div>
                 {usingMirrorRegistry ? (
-                  <p id="credentials-mirror-helper" className="note credentials-mirror-helper" style={{ marginTop: 8, marginBottom: 0, textAlign: "left" }}>
+                  <p id="credentials-mirror-helper" className="note credentials-mirror-helper" style={{ marginTop: 0, marginBottom: 0, textAlign: "left" }}>
                     For disconnected/mirrored installs the cluster pulls images from your mirror registry. Choose how the mirror registry is accessed. Not persisted.
                   </p>
                 ) : null}
@@ -413,20 +409,21 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               <h3 className="card-title">Security Compliance</h3>
               <div className="card-subtitle">Enable hardened crypto settings when required.</div>
             </div>
-            <label className="toggle-row">
-              <input
-                type="checkbox"
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.75rem 0" }}>
+              <span style={{ fontWeight: 500 }}>FIPS mode</span>
+              <Switch
                 checked={fips}
-                onChange={(e) => updateStrategy({ fips: e.target.checked })}
+                onChange={(checked) => updateStrategy({ fips: checked })}
               />
-              <span>FIPS mode</span>
-            </label>
-          </div>
-          {fips ? (
-            <div className="note">
-              The installer host must run RHEL 9 with FIPS enabled.
             </div>
-          ) : null}
+          </div>
+          <div
+            className="note"
+            style={{ visibility: fips ? "visible" : "hidden" }}
+            aria-hidden={fips ? undefined : "true"}
+          >
+            The installer host must run RHEL 9 with FIPS enabled.
+          </div>
         </section>
       </div>
 

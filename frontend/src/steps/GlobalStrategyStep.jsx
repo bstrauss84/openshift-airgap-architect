@@ -19,6 +19,7 @@ import { isValidPullSecret, isValidSshPublicKey, ipv6CidrOverlaps } from "../val
 import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
 import SecretInput from "../components/SecretInput.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import Switch from "../components/Switch.jsx";
 
 const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, fieldErrors = {} }) => {
   const { state, updateState } = useApp();
@@ -469,26 +470,30 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
             </div>
           </div>
           <div className="card-body">
-            <label className="checkbox-row-left" style={{ marginBottom: strategy.fips ? "1rem" : 0 }}>
-              <input
-                type="checkbox"
-                checked={strategy.fips}
-                onChange={(e) => updateStrategy({ fips: e.target.checked })}
-              />
-              <span>FIPS mode</span>
-            </label>
-          {strategy.fips ? (
-            <div className="note">
-              The installer host must run RHEL 9 with FIPS enabled.{" "}
-              <a
-                href={`https://docs.redhat.com/en/documentation/openshift_container_platform/${(selectedVersion || "4.0").split(".").slice(0, 2).join(".")}/html/installing/installation-configuration#installation-special-config-fips_installing-customizations`}
-                target="_blank"
-                rel="noreferrer"
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.75rem 0" }}>
+                <span style={{ fontWeight: 500 }}>FIPS mode</span>
+                <Switch
+                  checked={strategy.fips}
+                  onChange={(checked) => updateStrategy({ fips: checked })}
+                />
+              </div>
+              <div
+                className="note"
+                style={{ visibility: strategy.fips ? "visible" : "hidden" }}
+                aria-hidden={strategy.fips ? undefined : "true"}
               >
-                Official FIPS guidance (version-specific)
-              </a>
+                The installer host must run RHEL 9 with FIPS enabled.{" "}
+                <a
+                  href={`https://docs.redhat.com/en/documentation/openshift_container_platform/${(selectedVersion || "4.0").split(".").slice(0, 2).join(".")}/html/installing/installation-configuration#installation-special-config-fips_installing-customizations`}
+                  target="_blank"
+                  rel="noreferrer"
+                  tabIndex={strategy.fips ? 0 : -1}
+                >
+                  Official FIPS guidance (version-specific)
+                </a>
+              </div>
             </div>
-          ) : null}
           </div>
         </section>
 

@@ -546,8 +546,9 @@ export default function TrustProxyStep({ highlightErrors }) {
               <div className="field-grid proxy-fields-grid">
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
-                    label={<>HTTP Proxy {metaHttpProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
+                    label={`HTTP Proxy ${metaHttpProxy?.required ? "" : "(optional)"}`}
                     hint="URL for HTTP traffic. Scheme must be http://."
+                    required={metaHttpProxy?.required}
                   >
                     <textarea
                       className={`proxy-field-input proxy-field-textarea${proxyErrors.httpProxy ? " input-error" : ""}`}
@@ -562,8 +563,9 @@ export default function TrustProxyStep({ highlightErrors }) {
                 </div>
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
-                    label={<>HTTPS Proxy {metaHttpsProxy?.required ? <span className="required-badge">required</span> : "(optional)"}</>}
+                    label={`HTTPS Proxy ${metaHttpsProxy?.required ? "" : "(optional)"}`}
                     hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                    required={metaHttpsProxy?.required}
                   >
                     <textarea
                       className={`proxy-field-input proxy-field-textarea${proxyErrors.httpsProxy ? " input-error" : ""}`}
@@ -578,8 +580,9 @@ export default function TrustProxyStep({ highlightErrors }) {
                 </div>
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
-                    label={<>No Proxy {isRequired("proxy.noProxy") ? <span className="required-badge">required</span> : "(optional)"}</>}
+                    label={`No Proxy ${isRequired("proxy.noProxy") ? "" : "(optional)"}`}
                     hint="Comma-separated destinations to exclude from proxying. Use . for subdomains; * to bypass for all."
+                    required={isRequired("proxy.noProxy")}
                   >
                     <textarea
                       className="proxy-field-input proxy-field-textarea"

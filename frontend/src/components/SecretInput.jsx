@@ -104,7 +104,7 @@ function SecretInput({
     <div className="pull-secret-section-inline">
       <div className="pull-secret-label-row">
         {labelHint ? (
-          <FieldLabelWithInfo label={labelWithRequired} hint={labelHint} />
+          <FieldLabelWithInfo label={labelContent} hint={labelHint} required={required} />
         ) : (
           <span className="label-emphasis">{labelWithRequired}</span>
         )}

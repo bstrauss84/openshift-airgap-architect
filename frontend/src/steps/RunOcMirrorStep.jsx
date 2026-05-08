@@ -301,6 +301,30 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     }
   }
 
+  const renderFieldError = (fieldName) => {
+    if (!preflightResult || !preflightResult.fieldErrors) return null;
+    const error = preflightResult.fieldErrors[fieldName];
+    if (!error) return null;
+
+    const isBlocker = error.severity === "blocker";
+    return (
+      <div
+        style={{
+          marginTop: 4,
+          padding: "4px 8px",
+          borderRadius: 4,
+          fontSize: "0.8125rem",
+          lineHeight: 1.4,
+          background: isBlocker ? "var(--color-danger-bg, rgba(220, 38, 38, 0.1))" : "var(--color-warning-bg, rgba(245, 158, 11, 0.1))",
+          color: isBlocker ? "var(--color-danger, #dc2626)" : "var(--color-warning, #b87800)",
+          border: `1px solid ${isBlocker ? "var(--color-danger, #dc2626)" : "var(--color-warning, #b87800)"}`
+        }}
+      >
+        {isBlocker ? "⚠️ " : "⚠ "}{error.message}
+      </div>
+    );
+  };
+
   return (
     <div className="step">
       <div className="step-header">
@@ -390,19 +414,22 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
               />
             </OptionRow>
             {configSourceType === "external" ? (
-              <FieldLabelWithInfo label="Config file path" hint="Container-internal path to your ImageSetConfiguration YAML file. Must be accessible from within the backend container (typically under /data).">
-                <div className="path-input-row">
-                  <input
-                    type="text"
-                    value={configPath}
-                    onChange={(e) => updateMirrorWorkflow({ configPath: e.target.value })}
-                    placeholder="/data/my-imageset-config.yaml"
-                  />
-                  <Button variant="secondary" onClick={() => openBrowse("imageset-config", configPath || "/data/")}>
-                    Browse…
-                  </Button>
-                </div>
-              </FieldLabelWithInfo>
+              <div>
+                <FieldLabelWithInfo label="Config file path" hint="Container-internal path to your ImageSetConfiguration YAML file. Must be accessible from within the backend container (typically under /data).">
+                  <div className="path-input-row">
+                    <input
+                      type="text"
+                      value={configPath}
+                      onChange={(e) => updateMirrorWorkflow({ configPath: e.target.value })}
+                      placeholder="/data/my-imageset-config.yaml"
+                    />
+                    <Button variant="secondary" onClick={() => openBrowse("imageset-config", configPath || "/data/")}>
+                      Browse…
+                    </Button>
+                  </div>
+                </FieldLabelWithInfo>
+                {renderFieldError("configPath")}
+              </div>
             ) : null}
           </div>
         </section>
@@ -475,60 +502,69 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             </CollapsibleSection>
 
             {(mode === "mirrorToDisk" || mode === "diskToMirror") && (
-              <FieldLabelWithInfo
-                label={mode === "mirrorToDisk" ? "Archive directory (destination)" : "Archive directory (source)"}
-                hint={mode === "mirrorToDisk"
-                  ? "Destination directory for oc-mirror tar archives and working-dir. Container-internal path under /data. Typically 50–200+ GB for a full OCP + operator mirror. Should be empty (or contain only prior run archives) before the first mirror-to-disk run. Keep archives after a successful run — they are the input for disk-to-mirror."
-                  : "Source directory containing tar archives from a previous mirror-to-disk run. Must contain the working-dir structure written by oc-mirror. Container-internal path under /data."}
-              >
-                <div className="path-input-row">
-                  <input
-                    type="text"
-                    value={archivePath}
-                    onChange={(e) => updateMirrorWorkflow({ archivePath: e.target.value })}
-                    placeholder={DEFAULT_ARCHIVE_PATH}
-                  />
-                  <Button variant="secondary" onClick={() => openBrowse("archive", archivePath || DEFAULT_ARCHIVE_PATH)}>
-                    Browse…
-                  </Button>
-                </div>
-              </FieldLabelWithInfo>
+              <div>
+                <FieldLabelWithInfo
+                  label={mode === "mirrorToDisk" ? "Archive directory (destination)" : "Archive directory (source)"}
+                  hint={mode === "mirrorToDisk"
+                    ? "Destination directory for oc-mirror tar archives and working-dir. Container-internal path under /data. Typically 50–200+ GB for a full OCP + operator mirror. Should be empty (or contain only prior run archives) before the first mirror-to-disk run. Keep archives after a successful run — they are the input for disk-to-mirror."
+                    : "Source directory containing tar archives from a previous mirror-to-disk run. Must contain the working-dir structure written by oc-mirror. Container-internal path under /data."}
+                >
+                  <div className="path-input-row">
+                    <input
+                      type="text"
+                      value={archivePath}
+                      onChange={(e) => updateMirrorWorkflow({ archivePath: e.target.value })}
+                      placeholder={DEFAULT_ARCHIVE_PATH}
+                    />
+                    <Button variant="secondary" onClick={() => openBrowse("archive", archivePath || DEFAULT_ARCHIVE_PATH)}>
+                      Browse…
+                    </Button>
+                  </div>
+                </FieldLabelWithInfo>
+                {renderFieldError("archivePath")}
+              </div>
             )}
             {mode === "mirrorToMirror" && (
-              <FieldLabelWithInfo
-                label="Workspace directory"
-                hint="Required. Directory for oc-mirror metadata and cluster-resources output (creates a working-dir/ subdirectory here). Container-internal path under /data. Typically 1–5 GB."
-              >
-                <div className="path-input-row">
-                  <input
-                    type="text"
-                    value={workspacePath}
-                    onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
-                    placeholder={DEFAULT_WORKSPACE_PATH}
-                  />
-                  <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)}>
-                    Browse…
-                  </Button>
-                </div>
-              </FieldLabelWithInfo>
+              <div>
+                <FieldLabelWithInfo
+                  label="Workspace directory"
+                  hint="Required. Directory for oc-mirror metadata and cluster-resources output (creates a working-dir/ subdirectory here). Container-internal path under /data. Typically 1–5 GB."
+                >
+                  <div className="path-input-row">
+                    <input
+                      type="text"
+                      value={workspacePath}
+                      onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
+                      placeholder={DEFAULT_WORKSPACE_PATH}
+                    />
+                    <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)}>
+                      Browse…
+                    </Button>
+                  </div>
+                </FieldLabelWithInfo>
+                {renderFieldError("workspacePath")}
+              </div>
             )}
             {mode !== "mirrorToMirror" && (
-              <FieldLabelWithInfo
-                label="Cache directory"
-                hint="Persistent image layer cache. Significantly speeds up subsequent runs. Container-internal path under /data. Safe to delete — oc-mirror rebuilds it automatically. Typically 5–50+ GB. Not used in mirror-to-mirror mode."
-              >
-                <div className="path-input-row">
-                  <input
-                    type="text"
-                    value={cachePath}
-                    onChange={(e) => updateMirrorWorkflow({ cachePath: e.target.value })}
-                    placeholder={DEFAULT_CACHE_PATH}
-                  />
-                  <Button variant="secondary" onClick={() => openBrowse("cache", cachePath || DEFAULT_CACHE_PATH)}>
-                    Browse…
-                  </Button>
-                </div>
-              </FieldLabelWithInfo>
+              <div>
+                <FieldLabelWithInfo
+                  label="Cache directory"
+                  hint="Persistent image layer cache. Significantly speeds up subsequent runs. Container-internal path under /data. Safe to delete — oc-mirror rebuilds it automatically. Typically 5–50+ GB. Not used in mirror-to-mirror mode."
+                >
+                  <div className="path-input-row">
+                    <input
+                      type="text"
+                      value={cachePath}
+                      onChange={(e) => updateMirrorWorkflow({ cachePath: e.target.value })}
+                      placeholder={DEFAULT_CACHE_PATH}
+                    />
+                    <Button variant="secondary" onClick={() => openBrowse("cache", cachePath || DEFAULT_CACHE_PATH)}>
+                      Browse…
+                    </Button>
+                  </div>
+                </FieldLabelWithInfo>
+                {renderFieldError("cachePath")}
+              </div>
             )}
           </div>
         </section>
@@ -541,17 +577,20 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               <div className="card-subtitle">Destination registry (e.g. docker://registry.local:5000).</div>
             </div>
             <div className="card-body">
-              <FieldLabelWithInfo
-                label="Registry URL"
-                hint="Use docker:// prefix. Must be reachable from the machine running the backend."
-              >
-                <input
-                  type="text"
-                  value={registryUrl}
-                  onChange={(e) => updateMirrorWorkflow({ registryUrl: e.target.value })}
-                  placeholder="docker://registry.local:5000"
-                />
-              </FieldLabelWithInfo>
+              <div>
+                <FieldLabelWithInfo
+                  label="Registry URL"
+                  hint="Use docker:// prefix. Must be reachable from the machine running the backend."
+                >
+                  <input
+                    type="text"
+                    value={registryUrl}
+                    onChange={(e) => updateMirrorWorkflow({ registryUrl: e.target.value })}
+                    placeholder="docker://registry.local:5000"
+                  />
+                </FieldLabelWithInfo>
+                {renderFieldError("registryUrl")}
+              </div>
             </div>
           </section>
         ) : null}
@@ -618,25 +657,31 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                       />
                     </OptionRow>
                     {rhAuthSource === "pasted" && (
-                      <SecretInput
-                        label="Red Hat pull secret"
-                        labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
-                        value={rhPullSecretPaste}
-                        onChange={setRhPullSecretPaste}
-                        placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
-                        rows={4}
-                      />
+                      <div>
+                        <SecretInput
+                          label="Red Hat pull secret"
+                          labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
+                          value={rhPullSecretPaste}
+                          onChange={setRhPullSecretPaste}
+                          placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
+                          rows={4}
+                        />
+                        {renderFieldError("rhPullSecret")}
+                      </div>
                     )}
                   </>
                 ) : (
-                  <SecretInput
-                    label="Red Hat pull secret"
-                    labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
-                    value={rhPullSecretPaste}
-                    onChange={setRhPullSecretPaste}
-                    placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
-                    rows={4}
-                  />
+                  <div>
+                    <SecretInput
+                      label="Red Hat pull secret"
+                      labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
+                      value={rhPullSecretPaste}
+                      onChange={setRhPullSecretPaste}
+                      placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
+                      rows={4}
+                    />
+                    {renderFieldError("rhPullSecret")}
+                  </div>
                 )}
               </div>
             )}
@@ -682,25 +727,31 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                       />
                     </OptionRow>
                     {mirrorAuthSource === "pasted" && (
-                      <SecretInput
-                        label="Mirror registry credentials"
-                        labelHint="Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored."
-                        value={mirrorPullSecretPaste}
-                        onChange={setMirrorPullSecretPaste}
-                        placeholder="Paste, drag and drop, or upload mirror registry credentials JSON"
-                        rows={4}
-                      />
+                      <div>
+                        <SecretInput
+                          label="Mirror registry credentials"
+                          labelHint="Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored."
+                          value={mirrorPullSecretPaste}
+                          onChange={setMirrorPullSecretPaste}
+                          placeholder="Paste, drag and drop, or upload mirror registry credentials JSON"
+                          rows={4}
+                        />
+                        {renderFieldError("mirrorPullSecret")}
+                      </div>
                     )}
                   </>
                 ) : (
-                  <SecretInput
-                    label="Mirror registry credentials"
-                    labelHint='Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored. Example: {"auths":{"mirror.example.com":{"auth":"base64string"}}}'
-                    value={mirrorPullSecretPaste}
-                    onChange={setMirrorPullSecretPaste}
-                    placeholder='{"auths":{"mirror.example.com":{"auth":"..."}}}'
-                    rows={4}
-                  />
+                  <div>
+                    <SecretInput
+                      label="Mirror registry credentials"
+                      labelHint='Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored. Example: {"auths":{"mirror.example.com":{"auth":"base64string"}}}'
+                      value={mirrorPullSecretPaste}
+                      onChange={setMirrorPullSecretPaste}
+                      placeholder='{"auths":{"mirror.example.com":{"auth":"..."}}}'
+                      rows={4}
+                    />
+                    {renderFieldError("mirrorPullSecret")}
+                  </div>
                 )}
               </div>
             )}

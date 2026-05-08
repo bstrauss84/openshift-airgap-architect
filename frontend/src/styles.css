@@ -507,6 +507,8 @@ body[data-theme="dark"] .app-header {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Avoid large scroll jumps when conditional blocks (e.g. FIPS note) change height */
+  overflow-anchor: none;
 }
 
 .main-layout {
@@ -535,8 +537,9 @@ body[data-theme="dark"] .app-header {
   gap: 12px;
   border-top: 1px solid #e5e7eb;
   background: #fff;
-  position: sticky;
-  bottom: 0;
+  /* Keep in normal flow: .content is a flex column (.main-layout flex:1; footer last).
+     Sticky bottom here sat outside the scrolling <main> and could confuse layout when
+     in-step content height changed (e.g. FIPS conditional note). */
   z-index: 5;
   flex: 0 0 auto;
 }
@@ -851,22 +854,28 @@ body[data-theme="dark"] .sticky-panel {
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   margin-top: 1rem;
-  max-width: 900px;
-  width: 100%;
+}
+
+.grid .select-card {
+  flex: 0 0 auto;
+  width: 200px;
 }
 
 /* Methodology buttons: span full width, wrap intelligently */
 .methodology-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   margin-top: 1rem;
-  max-width: 900px;
-  width: 100%;
+}
+
+.methodology-grid .select-card {
+  flex: 0 0 auto;
+  width: 380px;
 }
 
 .select-card {
@@ -1053,6 +1062,10 @@ body[data-theme="dark"] .sticky-panel {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.proxy-field-cell .field-with-info-row {
   gap: 4px;
 }
 
@@ -2359,7 +2372,8 @@ body[data-theme="dark"] .note-prominent {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding-top: 1.75rem;
+  align-self: start;
+  padding-top: 2.375rem;
 }
 
 .pull-secret-helper {
@@ -2408,6 +2422,7 @@ body[data-theme="dark"] .pull-secret-placeholder {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  min-height: 76px;
 }
 
 .blueprint-retain-content {
@@ -2425,6 +2440,30 @@ body[data-theme="dark"] .pull-secret-placeholder {
 .blueprint-retain-description {
   font-size: 0.875rem;
   color: var(--text-subtle);
+}
+
+.release-update-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.release-update-btn {
+  width: 80px;
+}
+
+.release-update-status {
+  font-size: 0.8125rem;
+  min-height: 1.25rem;
+  line-height: 1.25;
+  color: var(--text-subtle);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 200px;
 }
 
 .pull-secret-upload-wrap {
@@ -2509,6 +2548,11 @@ body[data-theme="dark"] .divider {
   color: #6b7280;
   margin: 8px 0;
 }
+
+.mirror-header span:nth-child(2) {
+  padding-left: 0;
+  text-align: left;
+}
 body[data-theme="dark"] .mirror-header {
   color: #94a3b8;
 }
@@ -2580,11 +2624,14 @@ body[data-theme="dark"] .operator-card .operator-add {
 }
 
 .selected-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-  max-width: 900px;
-  width: 100%;
+}
+
+.selected-grid .selected-card {
+  flex: 0 0 auto;
+  width: 280px;
 }
 
 .selected-card {
@@ -2596,7 +2643,6 @@ body[data-theme="dark"] .operator-card .operator-add {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 320px;
 }
 
 body[data-theme="dark"] .selected-card {
@@ -2607,6 +2653,53 @@ body[data-theme="dark"] .selected-card {
 
 body[data-theme="dark"] .selected-card .subtle {
   color: #9ca3af;
+}
+
+.selected-operators-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.selected-operators-header h3 {
+  margin: 0;
+}
+
+.operator-count {
+  font-size: 0.875rem;
+  color: var(--text-subtle);
+  font-weight: normal;
+}
+
+.selected-grid-wrapper {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.selected-grid-resize-handle {
+  height: 24px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  margin-top: 0.5rem;
+}
+
+.resize-handle-bar {
+  width: 40px;
+  height: 4px;
+  background: var(--text-subtle);
+  border-radius: 2px;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.selected-grid-resize-handle:hover .resize-handle-bar {
+  opacity: 0.8;
 }
 
 /* Operators: Scan Status — card style (not input-like) */
@@ -4328,22 +4421,23 @@ body[data-theme="dark"] .platform-specifics-ami-loading {
 
 /* ========== Shared: Switch, OptionRow, WarningCallout, CollapsibleSection ========== */
 
-.switch-wrap {
+/* Native button — avoids checkbox-in-scroll-container focus/scroll-into-view bugs */
+.switch-control {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  vertical-align: middle;
 }
 
-.switch-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.switch-control:disabled {
+  cursor: not-allowed;
 }
 
 .switch-slider {
@@ -4371,21 +4465,21 @@ body[data-theme="dark"] .platform-specifics-ami-loading {
 }
 
 /* Blue toggle when on (user preference; no green) */
-.switch-input:checked + .switch-slider {
+.switch-control[aria-checked="true"] .switch-slider {
   background: #2563eb;
   border-color: #1d4ed8;
 }
 
-.switch-input:checked + .switch-slider::after {
+.switch-control[aria-checked="true"] .switch-slider::after {
   transform: translateX(18px);
 }
 
-.switch-input:focus-visible + .switch-slider {
+.switch-control:focus-visible .switch-slider {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
 
-.switch-input:disabled + .switch-slider {
+.switch-control:disabled .switch-slider {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -4395,7 +4489,7 @@ body[data-theme="dark"] .switch-slider {
   border-color: #4b5563;
 }
 
-body[data-theme="dark"] .switch-input:checked + .switch-slider {
+body[data-theme="dark"] .switch-control[aria-checked="true"] .switch-slider {
   background: #2563eb;
   border-color: #1d4ed8;
 }
@@ -5004,7 +5098,7 @@ body[data-theme="dark"] h4 {
 }
 
 .networking-group-title {
-  margin: 0 0 1rem;
+  margin: 0 0 0.75rem;
   font-size: 1rem;
   font-weight: 600;
   color: #374151;

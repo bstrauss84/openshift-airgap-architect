@@ -1,8 +1,10 @@
 /**
  * OpenShift Airgap Architect - Switch Toggle Component
  *
- * Shared toggle switch for on/off options that affect generated output.
- * Styled as a sliding switch; uses checkbox for accessibility.
+ * Shared toggle for on/off options. Implemented as a native `button` (not a
+ * checkbox) so clicks do not move focus into a clipped checkbox inside a
+ * scrollable `#main-content` — that pattern triggers browser scroll-into-view
+ * and layout jumps on long wizard steps.
  *
  * @author Bill Strauss
  *
@@ -11,24 +13,25 @@
 import React from "react";
 
 /**
- * Shared toggle switch for on/off options that affect generated output.
- * Styled as a sliding switch; uses checkbox for accessibility.
+ * Accessible switch: `role="switch"` + `aria-checked` on a focusable button.
  */
 function Switch({ checked, onChange, disabled = false, "aria-label": ariaLabel, id }) {
+  const isOn = Boolean(checked);
   return (
-    <label className="switch-wrap" style={{ cursor: disabled ? "not-allowed" : "pointer" }}>
-      <input
-        type="checkbox"
-        role="switch"
-        checked={Boolean(checked)}
-        onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        id={id}
-        className="switch-input"
-      />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isOn}
+      aria-label={ariaLabel}
+      id={id}
+      disabled={disabled}
+      className="switch-control"
+      onClick={() => {
+        if (!disabled) onChange(!isOn);
+      }}
+    >
       <span className="switch-slider" aria-hidden />
-    </label>
+    </button>
   );
 }
 

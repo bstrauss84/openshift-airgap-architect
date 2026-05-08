@@ -9,7 +9,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
@@ -90,17 +90,23 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const [scanError, setScanError] = useState("");
   const [prefetching, setPrefetching] = useState(false);
   const [discoveryEnabled, setDiscoveryEnabled] = useState(true);
+  const [selectedGridRows, setSelectedGridRows] = useState(2);
+  const selectedGridRef = useRef(null);
   const hasVisited = state.ui?.visitedSteps?.operators;
   const needsReview = state.reviewFlags?.operators && hasVisited;
   const staleResults = state.operators?.stale && hasVisited;
   const hasScanJobs = Object.keys(jobs).length > 0;
   const hasScanJobsFromState = Object.keys(state.operators?.scanJobs || {}).length > 0;
+  const hasBlueprintRetainedSecret = Boolean(
+    state.blueprint?.blueprintRetainPullSecret &&
+    state.blueprint?.blueprintPullSecretEphemeral?.trim()
+  );
   const hasRetainedPullSecret = Boolean(
     state.credentials?.pullSecretPlaceholder &&
     state.credentials.pullSecretPlaceholder.trim() &&
     state.credentials.pullSecretPlaceholder !== "{\"auths\":{}}"
   );
-  const hasCredentialSource = authAvailable || pullSecretInput || hasRetainedPullSecret;
+  const hasCredentialSource = authAvailable || pullSecretInput || hasRetainedPullSecret || hasBlueprintRetainedSecret;
   const anyScanFailed = ["redhat", "certified", "community"].some((id) => jobStatuses[id]?.status === "failed");
   const scansInProgressOrComplete = hasScanJobs && !anyScanFailed;
   const showStaleWarning = staleResults && !scansInProgressOrComplete;
@@ -125,6 +131,41 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     redhat: catalogs.redhat.filter((op) => !selectedIds.has(op.id)),
     certified: catalogs.certified.filter((op) => !selectedIds.has(op.id)),
     community: catalogs.community.filter((op) => !selectedIds.has(op.id))
+  };
+
+  // Calculate actual row count for selected operators grid
+  const actualRowCount = useMemo(() => {
+    if (!selectedGridRef.current || selected.length === 0) return 0;
+    const gridWidth = selectedGridRef.current.offsetWidth;
+    const cardMinWidth = 220; // From grid minmax(min(100%, 220px), 1fr)
+    const gap = 12;
+    const columnsPerRow = Math.floor((gridWidth + gap) / (cardMinWidth + gap)) || 1;
+    return Math.ceil(selected.length / columnsPerRow);
+  }, [selected.length]);
+
+  const maxExpandableRows = Math.max(2, actualRowCount);
+  const showScrollbar = actualRowCount > selectedGridRows;
+
+  // Resize handle drag handler
+  const startResize = (e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startRows = selectedGridRows;
+
+    const onMouseMove = (moveEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const rowHeight = 140; // Estimated height per row
+      const newRows = Math.max(2, Math.min(maxExpandableRows, startRows + Math.round(deltaY / rowHeight)));
+      setSelectedGridRows(newRows);
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   };
 
   useEffect(() => {
@@ -290,7 +331,9 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     setLoadingCatalogs(true);
     setScanError("");
     updateState({ operators: { ...state.operators, stale: false } });
-    const secretToUse = pullSecretInput || (hasRetainedPullSecret ? state.credentials?.pullSecretPlaceholder : "");
+    const secretToUse = pullSecretInput ||
+      (hasBlueprintRetainedSecret ? state.blueprint?.blueprintPullSecretEphemeral : "") ||
+      (hasRetainedPullSecret ? state.credentials?.pullSecretPlaceholder : "");
     const payload = secretToUse ? { pullSecret: secretToUse } : {};
     try {
       const data = await apiFetch("/api/operators/scan", { method: "POST", body: JSON.stringify(payload) });
@@ -616,18 +659,36 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         </section>
 
         <section className="card">
-        <h3>Selected Operators</h3>
-        <div className="selected-grid">
-          {selected.length === 0 ? <div className="subtle">No operators selected.</div> : null}
-          {selected.map((op) => (
-            <div key={op.id} className="selected-card">
-              <div className="operator-name">{op.name}</div>
-              <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
-              {op.displayName ? <div className="subtle">{op.displayName}</div> : null}
-              <button className="ghost" onClick={() => removeOperator(op.id)}>Remove</button>
-            </div>
-          ))}
+        <div className="selected-operators-header">
+          <h3>Selected Operators</h3>
+          {selected.length > 0 && <span className="operator-count">({selected.length})</span>}
         </div>
+        <div
+          className="selected-grid-wrapper"
+          style={{
+            maxHeight: `${Math.min(selectedGridRows, actualRowCount) * 140}px`
+          }}
+        >
+          <div ref={selectedGridRef} className="selected-grid">
+            {selected.length === 0 ? <div className="subtle">No operators selected.</div> : null}
+            {selected.map((op) => (
+              <div key={op.id} className="selected-card">
+                <div className="operator-name">{op.name}</div>
+                <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
+                {op.displayName ? <div className="subtle">{op.displayName}</div> : null}
+                <button className="ghost" onClick={() => removeOperator(op.id)}>Remove</button>
+              </div>
+            ))}
+          </div>
+        </div>
+        {actualRowCount > 2 && (
+          <div
+            className="selected-grid-resize-handle"
+            onMouseDown={startResize}
+          >
+            <div className="resize-handle-bar"></div>
+          </div>
+        )}
         </section>
 
         <section className="card">
