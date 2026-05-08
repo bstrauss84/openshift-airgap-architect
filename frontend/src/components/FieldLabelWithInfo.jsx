@@ -25,9 +25,26 @@ const LONG_HINT_CHARS = 180;
  * - Short hints (<= LONG_HINT_CHARS): hover tooltip (with leave delay so user can move into it to scroll).
  * - Long hints: click-triggered persistent popover; stays open until Escape or click outside; content is scrollable.
  * Tooltip/popover is portaled to document.body. Icon is inline after the title.
- * When children (a form control) is passed, the label uses htmlFor so clicking the title focuses the control.
+ * When a hint is present, the title is split so the help icon stays in a non‑breaking
+ * group with the last word (see splitLabelPrefixAndLastWord). The icon is not nested
+ * inside a label that uses htmlFor, so the control does not get duplicate accessible names.
  */
 const TOOLTIP_LEAVE_DELAY_MS = 120;
+
+/**
+ * Split title into a wrapping prefix and a final "word" so the help icon can sit in a
+ * nowrap group with that word — the icon must never sit alone on its own line.
+ */
+export function splitLabelPrefixAndLastWord(label) {
+  const t = String(label ?? "").trim();
+  if (!t) return { prefix: "", last: "" };
+  const words = t.split(/\s+/u);
+  if (words.length < 2) return { prefix: "", last: t };
+  return {
+    prefix: words.slice(0, -1).join(" "),
+    last: words[words.length - 1]
+  };
+}
 
 function FieldLabelWithInfo({ label, hint, required, id: idProp, children, className: wrapperClassName }) {
   const [visible, setVisible] = useState(false);
@@ -152,6 +169,8 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
     </>
   );
 
+  const { prefix: titlePrefix, last: titleLast } = hint ? splitLabelPrefixAndLastWord(label) : { prefix: "", last: "" };
+
   const iconButton = hint ? (
     <button
       ref={iconRef}
@@ -180,10 +199,26 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
         <div className={["field-with-info-row", wrapperClassName].filter(Boolean).join(" ")}>
           <span className="field-title-line">
             <span className="field-title-and-icon-keep-together">
-              <label htmlFor={childId} className="field-label-inline">
-                {labelContent}
-              </label>
-              {iconButton}
+              {hint ? (
+                <>
+                  {titlePrefix ? (
+                    <label htmlFor={childId} className="field-label-inline field-label-prefix">
+                      {titlePrefix}{" "}
+                    </label>
+                  ) : null}
+                  <span className="field-label-last-with-icon">
+                    <label htmlFor={childId} className="field-label-inline">
+                      <span className="field-label-text">{titleLast}</span>
+                      {required ? <span className="required-marker" aria-label="required">*</span> : null}
+                    </label>
+                    {iconButton}
+                  </span>
+                </>
+              ) : (
+                <label htmlFor={childId} className="field-label-inline">
+                  {labelContent}
+                </label>
+              )}
             </span>
           </span>
           {clonedChild}
@@ -197,12 +232,18 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
     <>
       <div className="field-label-with-info">
         <span className="field-label-line">
-          {labelContent}
           {hint ? (
-            <span className="field-label-icon-wrap" style={{ whiteSpace: "nowrap" }}>
-              {iconButton}
-            </span>
-          ) : null}
+            <>
+              {titlePrefix ? <span className="field-label-prefix">{titlePrefix} </span> : null}
+              <span className="field-label-last-with-icon">
+                <span className="field-label-text">{titleLast}</span>
+                {required ? <span className="required-marker" aria-label="required">*</span> : null}
+                {iconButton}
+              </span>
+            </>
+          ) : (
+            labelContent
+          )}
         </span>
       </div>
       {tooltipEl}

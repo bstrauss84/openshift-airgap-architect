@@ -14,6 +14,7 @@ import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
 import { validateBlueprintPullSecretOptional } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
+import Switch from "../components/Switch.jsx";
 import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
 
 const archOptions = [
@@ -395,20 +396,19 @@ const BlueprintStep = () => {
                 Optional. Only required if you plan to include Operators in your mirror. Used only to fetch the latest Operator catalog metadata from Red Hat. Not stored or transmitted anywhere except to authenticate those requests.
               </p>
               {blueprintPullSecretTrimmed ? (
-                <div className="blueprint-retain-row" style={{ marginTop: 16, width: "max-content", maxWidth: "100%" }}>
-                  <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>
-                    Retain pull secret for use on subsequent pages (kept in memory only; never saved or exported).
-                  </span>
-                  <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(blueprint?.blueprintRetainPullSecret)}
-                      onChange={(e) => updateBlueprint({ blueprintRetainPullSecret: e.target.checked })}
-                      disabled={locked}
-                      aria-describedby="retain-pull-secret-desc"
-                    />
-                    <span id="retain-pull-secret-desc" aria-hidden="true" />
-                  </label>
+                <div className="blueprint-retain-section">
+                  <div className="blueprint-retain-content">
+                    <span className="blueprint-retain-label">Retain for oc-mirror runs</span>
+                    <span className="blueprint-retain-description">
+                      Store pull secret for use in Run oc-mirror step (kept in memory only; never saved or exported).
+                    </span>
+                  </div>
+                  <Switch
+                    checked={Boolean(blueprint?.blueprintRetainPullSecret)}
+                    onChange={(checked) => updateBlueprint({ blueprintRetainPullSecret: checked })}
+                    disabled={locked}
+                    aria-label="Retain pull secret for oc-mirror runs"
+                  />
                 </div>
               ) : null}
             </div>

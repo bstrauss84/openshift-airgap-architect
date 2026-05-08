@@ -202,15 +202,28 @@ export default function ToolsDrawer({
               </Button>
             </section>
 
-            <section className="card" style={{ marginBottom: 0 }}>
-              <h3 className="card-title" style={{ marginTop: 0 }}>About</h3>
+            <section className="card tools-about-section">
+              <div className="about-header">
+                <h3 className="card-title">About</h3>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setAboutModalOpen(true)}
+                >
+                  View Details
+                </button>
+              </div>
               {buildInfo && (
-                <p className="card-subtitle" style={{ marginTop: 0, marginBottom: 8 }}>
-                  Build {(buildInfo.gitSha || "unknown").slice(0, 7)} • {buildInfo.buildTime || "unknown"} • {buildInfo.branch || "main"}
-                </p>
+                <div className="about-build-info">
+                  <span className="about-version">Build {(buildInfo.gitSha || "unknown").slice(0, 7)}</span>
+                  <span className="about-separator">•</span>
+                  <span className="about-time">{buildInfo.buildTime || "unknown"}</span>
+                  <span className="about-separator">•</span>
+                  <span className="about-branch">{buildInfo.branch || "main"}</span>
+                </div>
               )}
               {updateInfo && (
-                <p className="note" style={{ marginTop: 0, marginBottom: 12 }}>
+                <div className="about-update-info">
                   {updateInfo.enabled === false
                     ? "Update checks disabled."
                     : updateInfo.error
@@ -218,18 +231,11 @@ export default function ToolsDrawer({
                       : updateInfo.isOutdated
                         ? <a href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`} target="_blank" rel="noopener noreferrer">Update available</a>
                         : `Up to date${updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`}
-                </p>
+                </div>
               )}
-              <Button
-                variant="secondary"
-                onClick={() => setAboutModalOpen(true)}
-                style={{ width: "100%", marginBottom: 12 }}
-              >
-                About OpenShift Airgap Architect
-              </Button>
-              <p className="note subtle" style={{ marginTop: 0, marginBottom: 0 }}>
+              <div className="about-reward-note">
                 For Red Hatters feeling generous 🙂 I can be found on RewardZone: Bill Strauss
-              </p>
+              </div>
             </section>
             </div>
           </div>

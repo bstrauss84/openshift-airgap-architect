@@ -280,6 +280,48 @@ body[data-theme="dark"] .tools-drawer-panel .card {
   border-color: #374151;
 }
 
+.tools-about-section {
+  margin-bottom: 0 !important;
+}
+
+.about-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px 0;
+}
+
+.about-header .card-title {
+  margin: 0 !important;
+}
+
+.about-build-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--text-subtle);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.about-separator {
+  opacity: 0.5;
+}
+
+.about-update-info {
+  font-size: 0.875rem;
+  color: var(--text-subtle);
+  margin-bottom: 12px;
+}
+
+.about-reward-note {
+  font-size: 0.875rem;
+  color: var(--text-subtle);
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
 .step-expand {
   margin-left: 4px;
   font-size: 0.75em;
@@ -810,18 +852,20 @@ body[data-theme="dark"] .sticky-panel {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 1rem;
   margin-top: 1rem;
+  max-width: 900px;
   width: 100%;
 }
 
 /* Methodology buttons: span full width, wrap intelligently */
 .methodology-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
   gap: 1rem;
   margin-top: 1rem;
+  max-width: 900px;
   width: 100%;
 }
 
@@ -979,8 +1023,8 @@ body[data-theme="dark"] .sticky-panel {
 
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
   margin-top: 0.75rem;
   align-items: start;
   width: 100%;
@@ -1058,6 +1102,11 @@ body[data-theme="dark"] .sticky-panel {
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+}
+
+/* Base Domain field: constrain width to slightly larger than Cluster Name */
+.cluster-identity-fields > :nth-child(2) input {
+  max-width: 320px;
 }
 
 @media (max-width: 720px) {
@@ -2349,6 +2398,35 @@ body[data-theme="dark"] .pull-secret-placeholder {
   color: #9ca3af;
 }
 
+.blueprint-retain-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--card-bg-subtle);
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.blueprint-retain-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.blueprint-retain-label {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.blueprint-retain-description {
+  font-size: 0.875rem;
+  color: var(--text-subtle);
+}
+
 .pull-secret-upload-wrap {
   display: flex;
   justify-content: flex-start;
@@ -2503,8 +2581,9 @@ body[data-theme="dark"] .operator-card .operator-add {
 
 .selected-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 12px;
+  max-width: 900px;
   width: 100%;
 }
 
@@ -2848,8 +2927,9 @@ body[data-theme="light"] .landing-subtitle {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
-  flex: 1;
-  min-height: 320px;
+  flex: 0 1 auto; /* Don't stretch to fill vertical space */
+  min-height: 480px;
+  max-height: 660px; /* Prevent cards from stretching excessively on tall viewports */
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
@@ -2863,7 +2943,9 @@ body[data-theme="light"] .landing-subtitle {
   text-align: left;
   display: flex;
   flex-direction: column;
-  min-height: 280px;
+  min-height: 480px; /* 1.5x taller for better presence */
+  max-height: 630px; /* Lock maximum height to prevent excessive stretching */
+  height: auto; /* Let content determine height within min/max bounds */
   cursor: default;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -3488,6 +3570,7 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+  padding-bottom: 1rem; /* Ensure validation messages don't overlap bottom edge */
 }
 
 .host-inventory-v2-drawer-nav {
@@ -3963,13 +4046,15 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   text-decoration: underline;
 }
 
-/* Platform Specifics: row alignment and reflow so label+icon never squeeze */
+/* Platform specifics: uniform column gutter; row-gap separates each label-band / control-band pair */
 .platform-specifics .field-grid {
   display: grid;
-  align-items: end;  /* Align inputs to bottom - handles multi-line labels */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));  /* Responsive pattern */
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  column-gap: 1.25rem;
+  row-gap: 1.5rem;
   width: 100%;
+  align-items: stretch;
+  margin-top: 0.75rem;
 }
 
 /* Constrain single-field grids to prevent excessive whitespace */
@@ -3977,13 +4062,15 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   max-width: 400px;
 }
 
-/* Wider inputs for URL/FQDN fields to prevent truncation */
+/* URL/FQDN fields: fill the grid cell without forcing a min-width that overlaps neighbors */
 .platform-specifics input[placeholder*="http"],
 .platform-specifics input[placeholder*="example.com"],
 .platform-specifics input[placeholder*="FQDN"],
 .platform-specifics input[placeholder*="mirror"] {
-  min-width: 320px;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 .platform-specifics .field-grid label {
@@ -3996,13 +4083,95 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
 .platform-specifics .field-with-info-row {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 100%;  /* Ensure fills grid cell */
+  gap: 0.35rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.platform-specifics .field-with-info-row > :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Ensure label doesn't break stretch behavior */
 .platform-specifics .field-with-info-row > * {
   flex-shrink: 0;
+}
+
+/*
+ * All platform-specifics field grids (except single-column helpers and explicit opt-outs)
+ * share label-row + control-row subgrid so controls align across columns.
+ */
+@supports (grid-template-rows: subgrid) {
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) {
+    grid-template-rows: auto auto;
+  }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) > .field-with-info-row {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    gap: 0;
+  }
+
+  /* Outer <label> wrappers: expose inner .field-with-info-row as the grid participant */
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) > label:has(> .field-with-info-row) {
+    display: contents;
+  }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) > label > .field-with-info-row {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    gap: 0;
+  }
+
+  /*
+   * Bottom-align each cell's title inside the shared label row: when one column's title wraps,
+   * shorter titles stay next to their own control instead of sticking to the top of the tall row.
+   */
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) .field-with-info-row > span.field-title-line {
+    min-height: 0;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    box-sizing: border-box;
+  }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) .field-title-and-icon-keep-together {
+    max-width: 100%;
+  }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) .field-title-and-icon-keep-together .field-label-inline {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) .field-with-info-row > div:not(.field-title-line) {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+@supports not (grid-template-rows: subgrid) {
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) .field-with-info-row > .field-title-line {
+    min-height: 3.25rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+}
+
+/* Full-width field cell inside a responsive field-grid (e.g. bare metal provisioning mode). */
+.platform-specifics .field-grid .field-with-info-row.field-grid-span-full {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 640px) {
@@ -4036,7 +4205,12 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   align-self: stretch;
 }
 
-/* Platform Specifics: AWS AMI auto-discovery row */
+/* Full-width row below Advanced field grid (e.g. minimal ISO switch). */
+.platform-specifics-advanced-option-row {
+  margin-top: 1rem;
+  width: 100%;
+}
+
 .platform-specifics-radio-label {
   display: block;
   margin-bottom: 6px;
@@ -4628,19 +4802,34 @@ body[data-theme="dark"] .tooltip-info-content::after {
 }
 
 .field-title-and-icon-keep-together {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  display: inline-block;
+  max-width: 100%;
   vertical-align: middle;
-  white-space: nowrap;
 }
 
 .field-title-and-icon-keep-together .field-label-inline {
   display: inline;
   font-weight: inherit;
+  max-width: 100%;
 }
 
-.field-title-and-icon-keep-together .field-info-icon {
+.field-label-prefix {
+  font-weight: inherit;
+}
+
+label.field-label-prefix {
+  cursor: inherit;
+}
+
+/* Last title token + required marker + help icon stay on one line so the icon is never orphaned. */
+.field-label-last-with-icon {
+  display: inline;
+  white-space: nowrap;
+}
+
+.field-label-last-with-icon .field-info-icon {
+  display: inline-flex;
+  margin-inline-start: 4px;
   vertical-align: middle;
 }
 
@@ -5336,3 +5525,201 @@ body[data-theme="dark"] .category-help {
   flex-direction: column;
   gap: 6px;
 }
+
+/* Workflow group boxes - Run oc-mirror workflow selection */
+.workflow-group {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  background: var(--card-bg-subtle, #f9fafb);
+}
+
+.workflow-group-active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.03);
+}
+
+.workflow-group-header {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.workflow-group-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
+.workflow-group-description {
+  font-size: 0.8rem;
+  color: var(--text-subtle, #6b7280);
+  font-style: italic;
+}
+
+.workflow-group-modes {
+  padding-top: 0.5rem;
+}
+
+body[data-theme="dark"] .workflow-group {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+body[data-theme="dark"] .workflow-group-active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+body[data-theme="dark"] .workflow-group-header {
+  border-bottom-color: #374151;
+}
+
+body[data-theme="dark"] .workflow-group-title {
+  color: #e5e7eb;
+}
+
+/* Host inventory panel - bond member section */
+.bond-members-section {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bond-member-item {
+  padding: 0.75rem;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+body[data-theme="dark"] .bond-member-item {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.bond-member-header {
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #3b82f6;
+  margin-bottom: 0.25rem;
+}
+
+body[data-theme="dark"] .bond-member-header {
+  color: #60a5fa;
+}
+
+.bond-member-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bond-member-remove-btn {
+  align-self: flex-start;
+  font-size: 0.8125rem;
+}
+
+/* Constrain bond mode select field width */
+.bond-mode-select {
+  max-width: 180px;
+}
+
+/* Phase 3: Field Width Improvements - FQDN fields should be wider for long domain names */
+input[placeholder*="example.com"],
+input[placeholder*=".io"],
+input[placeholder*="FQDN"],
+input[placeholder*="registry."],
+input[placeholder*=":5000"],
+input[placeholder*="corp.local"] {
+  min-width: 280px;
+  max-width: 100%;
+  flex: 1; /* Allow expansion in flex containers */
+}
+
+/* Ensure parent containers don't restrict width */
+.field-with-info-row input[placeholder*="example.com"],
+.field-with-info-row input[placeholder*=".io"],
+.field-with-info-row input[placeholder*="registry."] {
+  width: 100%;
+}
+
+/* FIX: Ensure vSphere credentials fields have consistent styling */
+.platform-specifics .field-grid > * {
+  min-width: 0; /* Prevent grid items from overflowing */
+}
+
+/* Fix pull-secret-section-inline when used in field-grid to match direct FieldLabelWithInfo styling */
+.field-grid .pull-secret-section-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px; /* Match field-with-info-row gap */
+  min-width: 0;
+}
+
+.field-grid .pull-secret-label-row {
+  display: flex;
+  align-items: flex-start; /* Align to top like field labels */
+  gap: 4px;
+  margin-bottom: 0; /* Remove margin since parent has gap */
+}
+
+/* Ensure FieldLabelWithInfo inside pull-secret structure matches standalone styling */
+.field-grid .pull-secret-label-row .field-label-with-info,
+.field-grid .pull-secret-label-row .field-with-info-row {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Make show/hide button align properly */
+.field-grid .pull-secret-toggle {
+  align-self: flex-start;
+  margin-top: 0;
+  margin-left: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* Constrain credential inputs to same width for visual balance */
+.platform-specifics .field-grid input[placeholder*="administrator"],
+.platform-specifics .field-grid input[placeholder*="password"],
+.platform-specifics .field-grid input[type="password"] {
+  max-width: 400px;
+}
+
+/* Ensure all labels in platform-specifics have consistent font-size */
+.platform-specifics .field-grid label,
+.platform-specifics .field-grid .field-label-with-info,
+.platform-specifics .field-grid .field-with-info-row,
+.platform-specifics .field-grid .field-label-text,
+.platform-specifics .field-grid .field-label-inline {
+  font-size: 13px; /* Force consistent font-size */
+}
+
+/* Password input with toggle button structure */
+.password-input-with-toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.password-input-with-toggle input {
+  flex: 1;
+  min-width: 0;
+}
+
+.password-toggle-btn {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+}
+

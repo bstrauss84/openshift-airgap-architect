@@ -339,11 +339,6 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   }, []);
 
   const installConfigContent = files["install-config.yaml"];
-  const trustSelectionSummary = state.trust?.reducedSelection?.selectionSummary || null;
-  const trustMode = state.trust?.bundleSelectionMode === "reduced" ? "Reduced" : "Original";
-  const trustModeDetail = state.trust?.bundleSelectionMode === "reduced"
-    ? (state.trust?.reducedSelection?.userModified ? "Reduced + manual overrides" : "Reduced proposal only")
-    : "Original input bundle";
   const installConfigDisplay = (() => {
     if (!installConfigContent) return installConfigContent;
     if (!includeCredentials) {
@@ -553,9 +548,6 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <h3 style={{ margin: 0 }}>install-config.yaml</h3>
-            <span className="note">
-              Trust source: {trustModeDetail}
-            </span>
             {includeCredentials && installConfigContent ? (
               <button
                 type="button"
@@ -573,22 +565,6 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
             placeholder="Not generated yet."
           />
         </div>
-        <div className="card">
-          <h3>Trust selection summary</h3>
-          <p className="note">
-            Mode: <strong>{trustMode}</strong>.
-            {trustSelectionSummary ? (
-              <>
-                {" "}Selected certs: <strong>{trustSelectionSummary.selectedCertCount}</strong>, excluded: <strong>{trustSelectionSummary.excludedCertCount}</strong>, bytes: <strong>{trustSelectionSummary.selectedBytes}</strong>, status: <strong>{trustSelectionSummary.thresholdBand}</strong>.
-                <br />
-                Sufficiency: mirror <strong>{trustSelectionSummary.sufficiency?.mirrorPath?.status || "unknown"}</strong>, proxy <strong>{trustSelectionSummary.sufficiency?.proxyPath?.status || "unknown"}</strong>, overall <strong>{trustSelectionSummary.sufficiency?.overallStatus || "unknown"}</strong>.
-              </>
-            ) : (
-              " Reduced-mode selection summary appears after running trust analysis."
-            )}
-          </p>
-        </div>
-
         {files["agent-config.yaml"] ? (
           <div className="card">
             <h3>agent-config.yaml</h3>

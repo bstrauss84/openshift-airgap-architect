@@ -1128,16 +1128,11 @@ export default function TrustProxyStep({ highlightErrors }) {
             <div className="trust-bundle-preview">
               <div className="trust-bundle-preview-header">
                 <span className="trust-bundle-preview-title">
-                  {trust.bundleSelectionMode === "reduced" ? "Selected certificates (live preview)" : "Combined trust bundle input (preview)"}
-                </span>
-                <span className="note" style={{ marginLeft: 8 }}>
-                  {trust.bundleSelectionMode === "reduced"
-                    ? "Live preview of selected certificates that will be exported."
-                    : "This preview shows raw mirror/proxy input PEMs. Reduced/manual output is enforced during generation/export."}
+                  {trust.bundleSelectionMode === "reduced" ? "Bundle Preview" : "Bundle Input (preview)"}
                 </span>
                 {trust.bundleSelectionMode === "reduced" ? (
                   <span className="trust-bundle-preview-badge">
-                    {selectedFingerprints.length} certificate{selectedFingerprints.length !== 1 ? "s" : ""} selected
+                    {selectedFingerprints.length} certificate{selectedFingerprints.length !== 1 ? "s" : ""}
                   </span>
                 ) : totalCerts > 0 ? (
                   <span className="trust-bundle-preview-badge">
