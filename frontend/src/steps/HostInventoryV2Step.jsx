@@ -1031,22 +1031,41 @@ wipefs -a /dev/sdX`}</pre>
                           <>
                             <label>Bond name <input value={selectedNode.primary?.bond?.name || ""} onChange={(e) => updatePrimaryBond(selectedIndex, { name: e.target.value })} placeholder="bond0" /></label>
                             <FieldLabelWithInfo label="Bond mode" hint="Bond members: at least 2 required. Add or remove as needed.">
-                              <select value={selectedNode.primary?.bond?.mode || "active-backup"} onChange={(e) => updatePrimaryBond(selectedIndex, { mode: e.target.value })}>
+                              <select className="bond-mode-select" value={selectedNode.primary?.bond?.mode || "active-backup"} onChange={(e) => updatePrimaryBond(selectedIndex, { mode: e.target.value })}>
                                 {BOND_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
                               </select>
                             </FieldLabelWithInfo>
-                            {(selectedNode.primary?.bond?.slaves || []).map((member, mi) => (
-                              <React.Fragment key={mi}>
-                                <label>Member interface <input value={member.name} onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, name: e.target.value } : m) } } }))} placeholder={`eth${mi}`} /></label>
-                                <label>Member MAC <input value={member.macAddress} onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: formatMACAsYouType(e.target.value) } : m) } } }))} onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: v } : m) } } })); }} placeholder="52:54:00:aa:11:02" /></label>
-                                {(selectedNode.primary?.bond?.slaves?.length || 0) > 2 && mi >= 2 ? (
-                                  <label>
-                                    Remove member
-                                    <button type="button" className="ghost" onClick={() => removeBondMember(selectedIndex, mi)}>Remove</button>
-                                  </label>
-                                ) : null}
-                              </React.Fragment>
-                            ))}
+                            <div className="bond-members-section">
+                              {(selectedNode.primary?.bond?.slaves || []).map((member, mi) => (
+                                <div key={mi} className="bond-member-item">
+                                  <div className="bond-member-header">Bond member {mi + 1}</div>
+                                  <div className="bond-member-fields">
+                                    <label>
+                                      Interface
+                                      <input
+                                        value={member.name}
+                                        onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, name: e.target.value } : m) } } }))}
+                                        placeholder={`eth${mi}`}
+                                      />
+                                    </label>
+                                    <label>
+                                      MAC address
+                                      <input
+                                        value={member.macAddress}
+                                        onChange={(e) => updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: formatMACAsYouType(e.target.value) } : m) } } }))}
+                                        onBlur={(e) => { const v = normalizeMAC(e.target.value); if (v && v !== e.target.value) updateNode(selectedIndex, (n) => ({ ...n, primary: { ...n.primary, bond: { ...n.primary.bond, slaves: (n.primary.bond?.slaves || []).map((m, i) => i === mi ? { ...m, macAddress: v } : m) } } })); }}
+                                        placeholder="52:54:00:aa:11:02"
+                                      />
+                                    </label>
+                                  </div>
+                                  {(selectedNode.primary?.bond?.slaves?.length || 0) > 2 && mi >= 2 && (
+                                    <button type="button" className="ghost bond-member-remove-btn" onClick={() => removeBondMember(selectedIndex, mi)}>
+                                      Remove member {mi + 1}
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                             <div className="actions">
                               <button type="button" className="ghost" onClick={() => addBondMember(selectedIndex)}>Add bond member</button>
                             </div>

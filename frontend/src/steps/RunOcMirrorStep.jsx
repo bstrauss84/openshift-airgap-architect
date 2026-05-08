@@ -327,16 +327,12 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
             {WORKFLOW_GROUPS.map((group) => {
               const groupActive = group.modes.some((m) => m.value === mode);
               return (
-                <div key={group.label} style={{ marginBottom: 8 }}>
-                  <div style={{
-                    borderLeft: groupActive ? "3px solid #3b82f6" : "3px solid transparent",
-                    paddingLeft: 10,
-                    marginBottom: 6
-                  }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{group.label}</div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", fontStyle: "italic" }}>{group.description}</div>
+                <div key={group.label} className={`workflow-group ${groupActive ? "workflow-group-active" : ""}`}>
+                  <div className="workflow-group-header">
+                    <div className="workflow-group-title">{group.label}</div>
+                    <div className="workflow-group-description">{group.description}</div>
                   </div>
-                  <div style={{ paddingLeft: 12 }}>
+                  <div className="workflow-group-modes">
                     {group.modes.map((m) => (
                       <OptionRow
                         key={m.value}
