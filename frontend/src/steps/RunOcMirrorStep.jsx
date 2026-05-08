@@ -20,6 +20,7 @@ import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import SecretInput from "../components/SecretInput.jsx";
+import RunConfirmationModal from "../components/RunConfirmationModal.jsx";
 
 const DEFAULT_ARCHIVE_PATH = "/data/oc-mirror/archives";
 const DEFAULT_WORKSPACE_PATH = "/data/oc-mirror/workspace";
@@ -93,6 +94,7 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const [lastRunJob, setLastRunJob] = React.useState(null);
   const [ocMirrorCompleteModal, setOcMirrorCompleteModal] = React.useState(null);
   const [runError, setRunError] = React.useState(null);
+  const [showRunConfirmation, setShowRunConfirmation] = React.useState(false);
   const [browseOpen, setBrowseOpen] = React.useState(false);
   const [browseTarget, setBrowseTarget] = React.useState(null);
   const [browsePath, setBrowsePath] = React.useState("/");
@@ -267,6 +269,11 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     } catch (err) {
       setRunError(err.message || "Run failed.");
     }
+  };
+
+  const confirmAndRun = () => {
+    setShowRunConfirmation(false);
+    runOcMirror();
   };
 
   const stopRun = async () => {
@@ -606,9 +613,9 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             {(mode === "mirrorToDisk" || mode === "mirrorToMirror") && (
               <div>
                 {mode === "mirrorToMirror" && (
-                  <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 6 }}>Red Hat source credentials</div>
+                  <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.5rem" }}>Red Hat source credentials</div>
                 )}
-                <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: 8 }}>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: "0.75rem" }}>
                   Red Hat pull secret authenticates to registry.redhat.io and quay.io.
                 </div>
                 {(mountedRhAvailable || hasRetainedRhSecret) ? (
@@ -693,9 +700,9 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             {(mode === "diskToMirror" || mode === "mirrorToMirror") && (
               <div>
                 {mode === "mirrorToMirror" && (
-                  <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: 6 }}>Mirror registry destination credentials</div>
+                  <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.5rem" }}>Mirror registry destination credentials</div>
                 )}
-                <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: 8 }}>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-subtle)", marginBottom: "0.75rem" }}>
                   Mirror registry pull secret (same format as Red Hat pull secret) for authenticating to your local/disconnected registry.
                 </div>
                 {hasMirrorSecret ? (
@@ -774,7 +781,10 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             <Switch checked={dryRun} onChange={(v) => updateMirrorWorkflow({ dryRun: v })} />
           </OptionRow>
           {mode === "diskToMirror" && (
-            <OptionRow title="Strict archive" description="Strict archive validation.">
+            <OptionRow
+              title="Strict archive"
+              description="Verify that all image layers referenced in the working-dir metadata are present in the archive before mirroring. Recommended when using archives created on different systems or transferred via unreliable methods (USB, network). Prevents partial mirrors by failing early if the archive is incomplete or corrupted. Adds validation overhead (~1-2 minutes for large archives), but ensures mirror integrity."
+            >
               <Switch checked={strictArchive} onChange={(v) => updateMirrorWorkflow({ strictArchive: v })} />
             </OptionRow>
           )}
@@ -881,7 +891,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
           </div>
           <div className="card-body">
             {runError ? (
-              <div className="note warning" style={{ marginBottom: 12 }}>{runError}</div>
+              <div className="note warning" style={{ marginBottom: "1rem" }}>{runError}</div>
             ) : null}
 
             {/* Unified action buttons */}
@@ -891,7 +901,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               </Button>
               <Button
                 variant="primary"
-                onClick={runOcMirror}
+                onClick={() => setShowRunConfirmation(true)}
                 disabled={!canRun || isRunning}
               >
                 {isRunning ? "Running…" : "Run oc-mirror"}
@@ -905,9 +915,9 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             {preflightResult ? (
               <>
                 {preflightResult.blockers?.length > 0 ? (
-                  <div className="note warning" style={{ marginTop: 12 }}>
+                  <div className="note warning" style={{ marginTop: "1rem" }}>
                     <strong>Preflight blockers:</strong>
-                    <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+                    <ul style={{ margin: "0.5rem 0 0", paddingLeft: 20 }}>
                       {preflightResult.blockers.map((b, i) => (
                         <li key={i}>{b}</li>
                       ))}
@@ -915,9 +925,9 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   </div>
                 ) : null}
                 {preflightResult.warnings?.length > 0 ? (
-                  <div className="note" style={{ marginTop: 8 }}>
+                  <div className="note" style={{ marginTop: "0.75rem" }}>
                     <strong>Preflight warnings:</strong>
-                    <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+                    <ul style={{ margin: "0.5rem 0 0", paddingLeft: 20 }}>
                       {preflightResult.warnings.map((w, i) => (
                         <li key={i}>{w}</li>
                       ))}
@@ -925,14 +935,14 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                   </div>
                 ) : null}
                 {preflightResult.ok ? (
-                  <p className="note subtle" style={{ marginTop: 8 }}>✓ Preflight passed. Ready to run oc-mirror.</p>
+                  <p className="note subtle" style={{ marginTop: "0.75rem" }}>✓ Preflight passed. Ready to run oc-mirror.</p>
                 ) : null}
               </>
             ) : null}
 
             {/* Last run summary */}
             {lastRunJob ? (
-              <div className="run-oc-mirror-summary" style={{ marginTop: 16 }}>
+              <div className="run-oc-mirror-summary" style={{ marginTop: "1.5rem" }}>
                 <h4 className="card-subtitle">Last run</h4>
                 <p>
                   <strong>Status:</strong>{" "}
@@ -971,23 +981,23 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                       <p><strong>Elapsed:</strong> {Math.round((meta.finishedAt - meta.startedAt) / 1000)}s</p>
                     ) : null}
                     {meta.fullCommand ? (
-                      <div style={{ marginTop: 8 }}>
+                      <div style={{ marginTop: "0.75rem" }}>
                         <strong>Command:</strong>
-                        <pre style={{ marginTop: 4, padding: "6px 10px", background: "var(--code-bg)", color: "var(--code-color)", borderRadius: 4, fontSize: "0.78rem", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{meta.fullCommand}</pre>
+                        <pre style={{ marginTop: "0.5rem", padding: "6px 10px", background: "var(--code-bg)", color: "var(--code-color)", borderRadius: 4, fontSize: "0.78rem", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{meta.fullCommand}</pre>
                       </div>
                     ) : null}
                   </>
                 ) : null}
-                <p className="note subtle" style={{ marginTop: 8 }}>
+                <p className="note subtle" style={{ marginTop: "0.75rem" }}>
                   To continue manually, use the paths above. Run oc-mirror from the command line with the same
                   workspace and cache for incremental runs.
                 </p>
-                <Button variant="ghost" onClick={() => goToOperations(lastRunJob?.id)} style={{ marginTop: 8 }}>
+                <Button variant="ghost" onClick={() => goToOperations(lastRunJob?.id)} style={{ marginTop: "0.75rem" }}>
                   View full logs in Operations
                 </Button>
               </div>
             ) : lastRunJobId && !lastRunJob ? (
-              <p className="subtle" style={{ marginTop: 16 }}>Loading last run…</p>
+              <p className="subtle" style={{ marginTop: "1.5rem" }}>Loading last run…</p>
             ) : null}
           </div>
         </section>
@@ -1178,6 +1188,32 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
           </div>
         </div>
       ) : null}
+
+      {/* Run confirmation modal */}
+      <RunConfirmationModal
+        isOpen={showRunConfirmation}
+        onClose={() => setShowRunConfirmation(false)}
+        onConfirm={confirmAndRun}
+        config={{
+          mode,
+          dryRun,
+          archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
+          workspacePath: mode === "mirrorToMirror" ? workspacePath : undefined,
+          cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
+          registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
+          configSourceType,
+          advanced: {
+            logLevel,
+            parallelImages,
+            parallelLayers,
+            imageTimeout,
+            retryTimes,
+            retryDelay,
+            since,
+            strictArchive
+          }
+        }}
+      />
     </div>
   );
 }
