@@ -1,8 +1,8 @@
 # Tooltip Expansion Master Plan
 
-**Last Updated:** 2026-05-09 (Batch 18 complete - 40% MILESTONE!)
-**Current Status:** 35/87 tooltips at gold standard (~40%), 35 need reformatting (~40%)
-**Current Batch:** Batch 19 (Nutanix section reformatting)
+**Last Updated:** 2026-05-09 (Batch 19 complete - 46% MILESTONE!)
+**Current Status:** 40/87 tooltips at gold standard (~46%), 30 need reformatting (~34%)
+**Current Batch:** Batch 20 (vSphere section reformatting)
 
 **IMPORTANT:** After comprehensive audit, actual numbers are:
 - 174 total FieldLabelWithInfo components (some don't need tooltips)
@@ -63,8 +63,8 @@ Concrete example values
 | **Total FieldLabelWithInfo components** | 174 | 100% |
 | **Components with tooltips (hint=)** | 87 | 50% |
 | **Components without tooltips** | 87 | 50% |
-| **Gold standard (ready)** | 35 | 40.2% of 87 |
-| **Need reformatting** | 35 | 40.2% of 87 |
+| **Gold standard (ready)** | 40 | 46.0% of 87 |
+| **Need reformatting** | 30 | 34.5% of 87 |
 | **Acceptable as-is** | 17 | 19.5% of 87 |
 
 **Key Insight:** The "174 tooltips" number was actually total components. Only 87 have hint tooltips. 
@@ -192,6 +192,21 @@ The other 87 components use simple labels without help text (which is correct - 
 **Technical:** Added structured numbered/bulleted lists throughout
 **Validation:** All build/test passing
 **Progress:** Gold standard 22 → 35/87 (40.2%) 🎉 MILESTONE
+
+### ✅ Batch 19: Nutanix Section Reformatting (Commit: 9979454) 🎉 46% MILESTONE
+**Count:** 5 tooltips (101/87 total)
+**Fields:**
+- ✅ platform.nutanix.endpoint
+- ✅ platform.nutanix.port
+- ✅ platform.nutanix.username
+- ✅ platform.nutanix.password
+- ✅ platform.nutanix.clusterName
+
+**Pattern:** Converted UPPERCASE: headers to **bold:** markdown
+**Critical:** Fixed broken meta?.description || pattern (Pattern 1 Pure used)
+**Technical:** Added numbered lists for permissions, requirements, security notes
+**Validation:** All build/test passing
+**Progress:** Gold standard 35 → 40/87 (46.0%) 🎉 MILESTONE
 
 ### ✅ Comprehensive Audit Complete (2026-05-09)
 **What:** Audited ALL 87 hint= tooltips against quality metrics
@@ -467,9 +482,9 @@ For each of the 87 tooltips, we tracked:
 
 ### Current State
 - **Branch:** develop
-- **Last Batch:** 18 (IBM Cloud section reformatting - LARGEST BATCH, 40% MILESTONE)
-- **Next Batch:** 19 (Nutanix section reformatting)
-- **Progress:** 35/87 gold standard (40.2%) 🎉, 35/87 need reformatting (40.2%)
+- **Last Batch:** 19 (Nutanix section reformatting - 46% MILESTONE)
+- **Next Batch:** 20 (vSphere section reformatting)
+- **Progress:** 40/87 gold standard (46.0%) 🎉, 30/87 need reformatting (34.5%)
 
 ### Key Commands
 ```bash
