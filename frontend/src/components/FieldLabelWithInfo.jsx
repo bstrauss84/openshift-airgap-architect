@@ -90,7 +90,11 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
   useEffect(() => {
     if (!visible || !hint) return;
     updatePosition();
-    const onScroll = () => setVisible(false);
+    const onScroll = (e) => {
+      // Don't close if scrolling inside the popover itself (for long hints)
+      if (isLongHint && popoverRef.current?.contains(e.target)) return;
+      setVisible(false);
+    };
     const onResize = () => updatePosition();
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onResize);
@@ -98,7 +102,7 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
     };
-  }, [visible, hint]);
+  }, [visible, hint, isLongHint]);
 
   useEffect(() => {
     if (!visible) return;
