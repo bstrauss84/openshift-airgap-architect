@@ -1711,7 +1711,37 @@ Affects memory access patterns on large VMs (32+ vCPUs). Misaligned NUMA topolog
                   {showDhcpRange ? (
                     <FieldLabelWithInfo
                       label="Provisioning DHCP range (optional)"
-                      hint={metaProvisioningDHCPRange?.description}
+                      hint="IP address range for DHCP assignments on the provisioning network during bare metal node bootstrapping. Specifies the pool of IP addresses the installer's DHCP server uses when provisioning nodes.
+
+**What this controls:**
+When provisioning network mode is Managed, the OpenShift installer runs a DHCP server on the provisioning network that assigns temporary IP addresses to bare metal nodes during the imaging/bootstrap process.
+
+**Format:**
+Start IP, end IP (comma-separated, no spaces after comma)
+
+**Requirements:**
+• Both IPs must be within the provisioningNetworkCIDR subnet
+• Range must have enough addresses for all nodes simultaneously booting (typically: control plane + workers + 1 bootstrap = 7+ addresses minimum for small cluster)
+• Must not overlap with clusterProvisioningIP or any static IP assignments
+• Must not conflict with other DHCP servers on the network
+
+**When needed:**
+• Required when provisioningNetwork = 'Managed' (installer runs DHCP)
+• Not used when provisioningNetwork = 'Unmanaged' (you run DHCP) or 'Disabled' (no provisioning network)
+
+**Provisioning network modes:**
+• **Managed:** Installer runs DHCP/TFTP, requires this range
+• **Unmanaged:** You provide DHCP, omit this field
+• **Disabled:** No provisioning network, omit this field
+
+**Recommendations:**
+• Leave 10-20 address buffer above your expected node count (allows for retries, failed boots)
+• Avoid using the very first IP in subnet (.1) or broadcast address - mid-range IPs are safer
+• For a typical 3-control + 3-worker cluster: 10-address range is sufficient
+
+**Example:**
+172.22.0.10,172.22.0.254 (245 addresses for large deployments)
+172.22.0.50,172.22.0.80 (31 addresses for smaller clusters)"
                     >
                       <input
                         value={inventory.provisioningDHCPRange || ""}
@@ -1732,7 +1762,38 @@ Affects memory access patterns on large VMs (32+ vCPUs). Misaligned NUMA topolog
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Provisioning MAC address (optional)"
-                    hint={metaProvisioningMAC?.description}
+                    hint="MAC (hardware) address of the network interface on the bootstrap/provisioning host where the OpenShift installer runs provisioning services (DHCP, TFTP, HTTP) during bare metal installation.
+
+**What is this:**
+During bare metal IPI installation, the installer needs to serve boot images and configuration files to the nodes being provisioned. It binds these services to a specific network interface on the host where openshift-install runs. This field identifies that interface by its MAC address.
+
+**Format:**
+Six colon-separated or hyphen-separated hex octets
+• Colon format: AA:BB:CC:DD:EE:FF
+• Hyphen format: AA-BB-CC-DD-EE-FF
+
+**When to set:**
+• When you have multiple network interfaces and need to specify which one faces the provisioning network
+• When provisioningNetwork = 'Managed' or 'Unmanaged' (ignored for 'Disabled')
+• Leave blank to let the installer auto-detect based on provisioningNetworkInterface name
+
+**How to find MAC address:**
+On the host where you'll run openshift-install:
+• Linux: `ip link show <interface>` or `ip addr show <interface>` (look for \"link/ether\")
+• Example output: `link/ether 52:54:00:12:34:56`
+
+**Relationship to other fields:**
+• **provisioningNetworkInterface:** The interface name (e.g., 'eth1') - this field is its MAC address
+• **clusterProvisioningIP:** The IP assigned to this interface on the provisioning network
+
+**When to leave blank:**
+• Single network interface system - installer auto-detects
+• Using provisioningNetworkInterface to specify interface by name instead
+• provisioningNetwork = 'Disabled'
+
+**Example:**
+52:54:00:ab:cd:ef (typical virtual machine MAC)
+00:1a:2b:3c:4d:5e (physical NIC MAC)"
                   >
                     <input
                       value={inventory.provisioningMACAddress || ""}
@@ -1839,7 +1900,50 @@ Affects memory access patterns on large VMs (32+ vCPUs). Misaligned NUMA topolog
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
                         label="Additional enabled capabilities (optional, comma-separated)"
-                        hint={metaAdditionalCapabilities?.description}
+                        hint="List of specific OpenShift capabilities to enable beyond the baseline capability set, allowing fine-grained control over which optional cluster features are installed.
+
+**What are capabilities:**
+OpenShift 4.11+ uses a modular capability system where optional components (console, monitoring, marketplace, etc.) can be individually enabled or disabled to reduce cluster footprint and complexity.
+
+**How this works with baseline:**
+• **Baseline capability set** defines the starting point (e.g., 'vCurrent' = all capabilities, 'None' = minimal)
+• **Additional enabled capabilities** (this field) adds specific capabilities ON TOP of the baseline
+
+**Use cases:**
+
+**Minimal cluster with selective features:**
+Set baselineCapabilitySet = 'None', then add only what you need:
+• additionalEnabledCapabilities: 'Console, Ingress' (minimal cluster with web UI and ingress routing, but no monitoring/marketplace/etc.)
+
+**Standard cluster minus one feature:**
+Set baselineCapabilitySet = 'vCurrent', then use `capabilities.baselineCapabilitySet: vCurrent` would enable everything, so this field is typically used WITH minimal baselines.
+
+**Common capability names:**
+• **Console** - Web UI dashboard
+• **Insights** - Red Hat telemetry and health recommendations
+• **Marketplace** - OperatorHub marketplace UI
+• **NodeTuning** - Node tuning operator
+• **Ingress** - Ingress controller
+• **CSISnapshot** - CSI volume snapshotting
+• **Storage** - Storage operator
+• **Build** - Build controller
+• **DeploymentConfig** - DeploymentConfig resources
+
+**Format:**
+Comma-separated capability names (case-sensitive): `Console, Marketplace, Insights`
+
+**When to use:**
+• Edge deployments starting from minimal baseline + specific needs
+• Airgap where you want to mirror only specific operator images
+• Security-hardened clusters where each capability must be explicitly justified
+
+**When to leave blank:**
+• When baselineCapabilitySet = 'vCurrent' (already enables all capabilities)
+• When you want exactly the baseline with no additions
+
+**Example:**
+Console, Ingress (minimal cluster with UI and routing)
+Console, Marketplace, Insights (minimal + marketplace)"
                       >
                         <input
                           value={Array.isArray(platformConfig.additionalEnabledCapabilities) ? platformConfig.additionalEnabledCapabilities.join(", ") : (typeof platformConfig.additionalEnabledCapabilities === "string" ? platformConfig.additionalEnabledCapabilities : "")}
