@@ -1,8 +1,8 @@
 # Tooltip Expansion Master Plan
 
-**Last Updated:** 2026-05-09 (Batch 17 complete)
-**Current Status:** 22/87 tooltips at gold standard (~25%), 48 need reformatting (~55%)
-**Current Batch:** Batch 18 (IBM Cloud section reformatting)
+**Last Updated:** 2026-05-09 (Batch 18 complete - 40% MILESTONE!)
+**Current Status:** 35/87 tooltips at gold standard (~40%), 35 need reformatting (~40%)
+**Current Batch:** Batch 19 (Nutanix section reformatting)
 
 **IMPORTANT:** After comprehensive audit, actual numbers are:
 - 174 total FieldLabelWithInfo components (some don't need tooltips)
@@ -63,8 +63,8 @@ Concrete example values
 | **Total FieldLabelWithInfo components** | 174 | 100% |
 | **Components with tooltips (hint=)** | 87 | 50% |
 | **Components without tooltips** | 87 | 50% |
-| **Gold standard (ready)** | 22 | 25.3% of 87 |
-| **Need reformatting** | 48 | 55.2% of 87 |
+| **Gold standard (ready)** | 35 | 40.2% of 87 |
+| **Need reformatting** | 35 | 40.2% of 87 |
 | **Acceptable as-is** | 17 | 19.5% of 87 |
 
 **Key Insight:** The "174 tooltips" number was actually total components. Only 87 have hint tooltips. 
@@ -170,6 +170,28 @@ The other 87 components use simple labels without help text (which is correct - 
 **Technical:** Fixed catalog fallback syntax (double-quotes → backticks)
 **Validation:** All build/test passing
 **Progress:** Gold standard 18 → 22/87 (25.3%)
+
+### ✅ Batch 18: IBM Cloud Section Reformatting (Commit: e7f3cc1) 🎉 40% MILESTONE
+**Count:** 13 tooltips (96/87 total) - LARGEST BATCH
+**Fields:**
+- ✅ platform.ibmcloud.region
+- ✅ platform.ibmcloud.resourceGroupName
+- ✅ platform.ibmcloud.type (instance type)
+- ✅ platform.ibmcloud.networkResourceGroupName
+- ✅ platform.ibmcloud.vpcName
+- ✅ platform.ibmcloud.controlPlaneSubnets
+- ✅ platform.ibmcloud.computeSubnets
+- ✅ platform.ibmcloud.dedicatedHostsProfile
+- ✅ platform.ibmcloud.dedicatedHostsName
+- ✅ platform.ibmcloud.serviceEndpoints
+- ✅ platform.ibmcloud.defaultMachineBootVolumeKey
+- ✅ platform.ibmcloud.controlPlaneBootVolumeKey
+- ✅ platform.ibmcloud.computeBootVolumeKey
+
+**Pattern:** Converted UPPERCASE: headers to **bold:** markdown
+**Technical:** Added structured numbered/bulleted lists throughout
+**Validation:** All build/test passing
+**Progress:** Gold standard 22 → 35/87 (40.2%) 🎉 MILESTONE
 
 ### ✅ Comprehensive Audit Complete (2026-05-09)
 **What:** Audited ALL 87 hint= tooltips against quality metrics
@@ -445,9 +467,9 @@ For each of the 87 tooltips, we tracked:
 
 ### Current State
 - **Branch:** develop
-- **Last Batch:** 17 (Azure Government section reformatting)
-- **Next Batch:** 18 (IBM Cloud section reformatting)
-- **Progress:** 22/87 gold standard (25.3%), 48/87 need reformatting (55.2%)
+- **Last Batch:** 18 (IBM Cloud section reformatting - LARGEST BATCH, 40% MILESTONE)
+- **Next Batch:** 19 (Nutanix section reformatting)
+- **Progress:** 35/87 gold standard (40.2%) 🎉, 35/87 need reformatting (40.2%)
 
 ### Key Commands
 ```bash
