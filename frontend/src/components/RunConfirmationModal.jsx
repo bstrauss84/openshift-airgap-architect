@@ -8,51 +8,28 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
 import Button from "./Button.jsx";
+import { useFocusTrap } from "../hooks/useFocusTrap.js";
 
 const MODAL_Z = 10080;
 
-function FocusTrap({ children, onClose }) {
-  const ref = useRef(null);
+function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
+  const trapRef = useFocusTrap(isOpen);
 
+  // Handle Escape key
   useEffect(() => {
-    if (!ref.current) return;
-    const root = ref.current;
-    const focusable = root.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (first) first.focus();
-
-    const onKeyDown = (e) => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         onClose();
-        return;
-      }
-      if (e.key !== "Tab") return;
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last?.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first?.focus();
       }
     };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
-  return (
-    <div ref={ref} className="run-confirmation-modal-focus-trap">
-      {children}
-    </div>
-  );
-}
-
-function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
   if (!isOpen) return null;
 
   const { mode, dryRun, archivePath, workspacePath, cachePath, registryUrl, configSourceType, advanced } = config;
@@ -90,12 +67,12 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <FocusTrap onClose={onClose}>
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="run-confirmation-modal-title"
-          className="run-confirmation-modal"
+      <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="run-confirmation-modal-title"
+        className="run-confirmation-modal"
           style={{
             position: "fixed",
             top: "50%",
@@ -248,7 +225,6 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
             </Button>
           </div>
         </div>
-      </FocusTrap>
     </>,
     document.body
   );

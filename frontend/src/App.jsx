@@ -13,6 +13,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./store.jsx";
 import Sidebar from "./components/Sidebar.jsx";
+import Modal from "./components/Modal.jsx";
 import LandingPage from "./LandingPage.jsx";
 import BlueprintStep from "./steps/BlueprintStep.jsx";
 import PlaceholderCard from "./components/PlaceholderCard.jsx";
@@ -903,50 +904,50 @@ const AppShell = () => {
             <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} />
           </div>
         </div>
-        {showStartOverModal ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="start-over-title">
-            <div className="modal">
-              <h3 id="start-over-title">Start Over</h3>
-              <p className="subtle">
-                This will clear all selections, lock-ins, and user entries, and return you to the landing page.
-              </p>
-              {startOverCheckingJobs ? (
-                <div className="note subtle">Checking for active oc-mirror runs…</div>
-              ) : null}
-              {startOverCheckError ? (
-                <div className="note warning">
-                  Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
-                </div>
-              ) : null}
-              {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
-                <>
-                  <div className="note subtle">
-                    Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
-                  </div>
-                  <div className="note warning">
-                    An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
-                  </div>
-                  <div className="note subtle">
-                    Review and validate these paths before restarting a mirror run:
-                    <ul style={{ marginTop: 6, marginBottom: 0 }}>
-                      {startOverArtifactPaths.map((p) => (
-                        <li key={p}><code>{p}</code></li>
-                      ))}
-                    </ul>
-                  </div>
-                </>
-              ) : null}
-              <div className="actions">
-                <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
-                  Cancel
-                </button>
-                <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
-                  {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
-                </button>
-              </div>
+        <Modal
+          isOpen={showStartOverModal}
+          onClose={() => setShowStartOverModal(false)}
+          ariaLabelledBy="start-over-title"
+        >
+          <h3 id="start-over-title">Start Over</h3>
+          <p className="subtle">
+            This will clear all selections, lock-ins, and user entries, and return you to the landing page.
+          </p>
+          {startOverCheckingJobs ? (
+            <div className="note subtle">Checking for active oc-mirror runs…</div>
+          ) : null}
+          {startOverCheckError ? (
+            <div className="note warning">
+              Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
             </div>
+          ) : null}
+          {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
+            <>
+              <div className="note subtle">
+                Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
+              </div>
+              <div className="note warning">
+                An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
+              </div>
+              <div className="note subtle">
+                Review and validate these paths before restarting a mirror run:
+                <ul style={{ marginTop: 6, marginBottom: 0 }}>
+                  {startOverArtifactPaths.map((p) => (
+                    <li key={p}><code>{p}</code></li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          ) : null}
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
+              Cancel
+            </button>
+            <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
+              {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
+            </button>
           </div>
-        ) : null}
+        </Modal>
       </div>
     );
   }
@@ -1136,164 +1137,168 @@ const AppShell = () => {
         </div>
       </div>
       )}
-        {showCoreLockWarning ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal">
-              <h3>Lock foundational selections?</h3>
-              <p className="modal-copy subtle">
-                The following will be locked. You will need to use Start Over to change them later.
-              </p>
-              <dl className="modal-summary">
-                <dt>Target Platform</dt>
-                <dd>{state.blueprint?.platform ?? "—"}</dd>
-                <dt>CPU Architecture</dt>
-                <dd>{state.blueprint?.arch ?? "—"}</dd>
-                <dt>OpenShift release</dt>
-                <dd>
-                  {releaseReady
-                    ? `stable-${getOpenShiftMinorFromState(state)} / ${state.release?.patchVersion}`
-                    : "—"}
-                </dd>
-              </dl>
-              <div className="actions">
-                <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); }}>
-                  No, go back
-                </button>
-                <button type="button" className="primary" onClick={lockAndProceed} disabled={!blueprintReady || !releaseReady || lockAndProceedLoading || blueprintPullSecretBlocking}>
-                  {lockAndProceedLoading ? "Locking…" : "Yes, lock selections"}
-                </button>
-              </div>
-            </div>
+        <Modal
+          isOpen={showCoreLockWarning}
+          onClose={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); }}
+          ariaLabelledBy="core-lock-title"
+        >
+          <h3 id="core-lock-title">Lock foundational selections?</h3>
+          <p className="modal-copy subtle">
+            The following will be locked. You will need to use Start Over to change them later.
+          </p>
+          <dl className="modal-summary">
+            <dt>Target Platform</dt>
+            <dd>{state.blueprint?.platform ?? "—"}</dd>
+            <dt>CPU Architecture</dt>
+            <dd>{state.blueprint?.arch ?? "—"}</dd>
+            <dt>OpenShift release</dt>
+            <dd>
+              {releaseReady
+                ? `stable-${getOpenShiftMinorFromState(state)} / ${state.release?.patchVersion}`
+                : "—"}
+            </dd>
+          </dl>
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); }}>
+              No, go back
+            </button>
+            <button type="button" className="primary" onClick={lockAndProceed} disabled={!blueprintReady || !releaseReady || lockAndProceedLoading || blueprintPullSecretBlocking}>
+              {lockAndProceedLoading ? "Locking…" : "Yes, lock selections"}
+            </button>
           </div>
-        ) : null}
-        {showReleaseWarning ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal">
-              <h3>Release selection</h3>
-              <p className="subtle">
-                This release selection will be locked from this point, and you&apos;ll need to click Start Over to change it later. Continue?
-              </p>
-              <div className="actions">
-                <button type="button" className="ghost" onClick={() => setShowReleaseWarning(false)}>No</button>
-                <button type="button" className="primary" onClick={confirmReleaseAndProceed} disabled={!releaseReady || confirmingRelease}>
-                  {confirmingRelease ? "…" : "Yes"}
-                </button>
-              </div>
-            </div>
+        </Modal>
+        <Modal
+          isOpen={showReleaseWarning}
+          onClose={() => setShowReleaseWarning(false)}
+          ariaLabelledBy="release-warning-title"
+        >
+          <h3 id="release-warning-title">Release selection</h3>
+          <p className="subtle">
+            This release selection will be locked from this point, and you&apos;ll need to click Start Over to change it later. Continue?
+          </p>
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => setShowReleaseWarning(false)}>No</button>
+            <button type="button" className="primary" onClick={confirmReleaseAndProceed} disabled={!releaseReady || confirmingRelease}>
+              {confirmingRelease ? "…" : "Yes"}
+            </button>
           </div>
-        ) : null}
-        {showBlueprintWarning ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal">
-              <h3>Blueprint selection</h3>
-              <p className="subtle">
-                These selections will be locked from this point, and you&apos;ll need to click Start Over to change them later. Continue?
-              </p>
-              <div className="actions">
-                <button type="button" className="ghost" onClick={() => setShowBlueprintWarning(false)}>No</button>
-                <button type="button" className="primary" onClick={confirmBlueprintAndProceed} disabled={!blueprintReady}>
-                  Yes
-                </button>
-              </div>
-            </div>
+        </Modal>
+        <Modal
+          isOpen={showBlueprintWarning}
+          onClose={() => setShowBlueprintWarning(false)}
+          ariaLabelledBy="blueprint-warning-title"
+        >
+          <h3 id="blueprint-warning-title">Blueprint selection</h3>
+          <p className="subtle">
+            These selections will be locked from this point, and you&apos;ll need to click Start Over to change them later. Continue?
+          </p>
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => setShowBlueprintWarning(false)}>No</button>
+            <button type="button" className="primary" onClick={confirmBlueprintAndProceed} disabled={!blueprintReady}>
+              Yes
+            </button>
           </div>
-        ) : null}
-        {validationModal ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true">
-            <div className="modal">
-              <h3>{validationModal.title}</h3>
-              {validationModal.errors?.length ? (
-                <div className="list">
-                  {validationModal.errors.map((item, idx) => (
-                    <div key={`error-${idx}`} className="note warning">{item}</div>
+        </Modal>
+        <Modal
+          isOpen={!!validationModal}
+          onClose={() => {
+            setValidationModal(null);
+            setPendingNavIndex(null);
+            setHighlightErrors(true);
+          }}
+          ariaLabelledBy="validation-modal-title"
+        >
+          <h3 id="validation-modal-title">{validationModal?.title}</h3>
+          {validationModal?.errors?.length ? (
+            <div className="list">
+              {validationModal.errors.map((item, idx) => (
+                <div key={`error-${idx}`} className="note warning">{item}</div>
+              ))}
+            </div>
+          ) : null}
+          {validationModal?.warnings?.length ? (
+            <div className="list">
+              {validationModal.warnings.map((item, idx) => (
+                <div key={`warn-${idx}`} className="note">{item}</div>
+              ))}
+            </div>
+          ) : null}
+          {validationModal?.warningNote ? (
+            <div className="note warning">{validationModal.warningNote}</div>
+          ) : null}
+          <div className="actions">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setValidationModal(null);
+                setPendingNavIndex(null);
+                setHighlightErrors(true);
+              }}
+            >
+              Cancel
+            </button>
+            {validationModal?.allowProceed ? (
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  const target = pendingNavIndex ?? active + 1;
+                  setValidationModal(null);
+                  setPendingNavIndex(null);
+                  setHighlightErrors(false);
+                  setActiveStep(target, {});
+                }}
+              >
+                I understand, proceed anyway
+              </button>
+            ) : null}
+          </div>
+        </Modal>
+        <Modal
+          isOpen={showStartOverModal}
+          onClose={() => setShowStartOverModal(false)}
+          ariaLabelledBy="start-over-title"
+        >
+          <h3 id="start-over-title">Start Over</h3>
+          <p className="subtle">
+            This will clear all selections, lock-ins, and user entries, and return you to the landing page.
+          </p>
+          {startOverCheckingJobs ? (
+            <div className="note subtle">Checking for active oc-mirror runs…</div>
+          ) : null}
+          {startOverCheckError ? (
+            <div className="note warning">
+              Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
+            </div>
+          ) : null}
+          {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
+            <>
+              <div className="note subtle">
+                Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
+              </div>
+              <div className="note warning">
+                An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
+              </div>
+              <div className="note subtle">
+                Review and validate these paths before restarting a mirror run:
+                <ul style={{ marginTop: 6, marginBottom: 0 }}>
+                  {startOverArtifactPaths.map((p) => (
+                    <li key={p}><code>{p}</code></li>
                   ))}
-                </div>
-              ) : null}
-              {validationModal.warnings?.length ? (
-                <div className="list">
-                  {validationModal.warnings.map((item, idx) => (
-                    <div key={`warn-${idx}`} className="note">{item}</div>
-                  ))}
-                </div>
-              ) : null}
-              {validationModal.warningNote ? (
-                <div className="note warning">{validationModal.warningNote}</div>
-              ) : null}
-              <div className="actions">
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => {
-                    setValidationModal(null);
-                    setPendingNavIndex(null);
-                    setHighlightErrors(true);
-                  }}
-                >
-                  Cancel
-                </button>
-                {validationModal.allowProceed ? (
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={() => {
-                      const target = pendingNavIndex ?? active + 1;
-                      setValidationModal(null);
-                      setPendingNavIndex(null);
-                      setHighlightErrors(false);
-                      setActiveStep(target, {});
-                    }}
-                  >
-                    I understand, proceed anyway
-                  </button>
-                ) : null}
+                </ul>
               </div>
-            </div>
+            </>
+          ) : null}
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
+              Cancel
+            </button>
+            <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
+              {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
+            </button>
           </div>
-        ) : null}
-        {showStartOverModal ? (
-          <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="start-over-title">
-            <div className="modal">
-              <h3 id="start-over-title">Start Over</h3>
-              <p className="subtle">
-                This will clear all selections, lock-ins, and user entries, and return you to the landing page.
-              </p>
-              {startOverCheckingJobs ? (
-                <div className="note subtle">Checking for active oc-mirror runs…</div>
-              ) : null}
-              {startOverCheckError ? (
-                <div className="note warning">
-                  Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
-                </div>
-              ) : null}
-              {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
-                <>
-                  <div className="note subtle">
-                    Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
-                  </div>
-                  <div className="note warning">
-                    An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
-                  </div>
-                  <div className="note subtle">
-                    Review and validate these paths before restarting a mirror run:
-                    <ul style={{ marginTop: 6, marginBottom: 0 }}>
-                      {startOverArtifactPaths.map((p) => (
-                        <li key={p}><code>{p}</code></li>
-                      ))}
-                    </ul>
-                  </div>
-                </>
-              ) : null}
-              <div className="actions">
-                <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
-                  Cancel
-                </button>
-                <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
-                  {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        </Modal>
         <ToolsDrawer
           isOpen={isToolsOpen}
           onClose={() => setIsToolsOpen(false)}
