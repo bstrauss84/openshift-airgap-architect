@@ -1,8 +1,8 @@
 # Tooltip Expansion Master Plan
 
-**Last Updated:** 2026-05-09 (Comprehensive audit complete)
-**Current Status:** 12/87 tooltips at gold standard (~14%), 62 need reformatting (~71%)
-**Current Batch:** Batch 16 (reformatting UPPERCASE headers)
+**Last Updated:** 2026-05-09 (Batch 16 complete)
+**Current Status:** 18/87 tooltips at gold standard (~21%), 52 need reformatting (~60%)
+**Current Batch:** Batch 17 (Azure Government section reformatting)
 
 **IMPORTANT:** After comprehensive audit, actual numbers are:
 - 174 total FieldLabelWithInfo components (some don't need tooltips)
@@ -63,9 +63,9 @@ Concrete example values
 | **Total FieldLabelWithInfo components** | 174 | 100% |
 | **Components with tooltips (hint=)** | 87 | 50% |
 | **Components without tooltips** | 87 | 50% |
-| **Gold standard (ready)** | 12 | 13.8% of 87 |
-| **Need reformatting** | 62 | 71.3% of 87 |
-| **Acceptable as-is** | 13 | 14.9% of 87 |
+| **Gold standard (ready)** | 18 | 20.7% of 87 |
+| **Need reformatting** | 52 | 59.8% of 87 |
+| **Acceptable as-is** | 17 | 19.5% of 87 |
 
 **Key Insight:** The "174 tooltips" number was actually total components. Only 87 have hint tooltips. 
 The other 87 components use simple labels without help text (which is correct - not all fields need tooltips).
@@ -138,6 +138,25 @@ The other 87 components use simple labels without help text (which is correct - 
 - ✅ platform.vsphere.failureDomains[].topology.networks
 
 **Validation:** vSphere networks consistent with catalog; IBM VPC mode is UI control field (N/A)
+
+### ✅ Batch 16: AWS GovCloud Section Reformatting (Commit: a73e104)
+**Count:** 10 tooltips (79/87 total)
+**Fields:**
+- ✅ platform.aws.region (AWS GovCloud region)
+- ✅ AWS VPC mode
+- ✅ AWS subnet roles
+- ✅ AWS hosted zone ID
+- ✅ AWS hosted zone role ARN
+- ✅ AWS load balancer type
+- ✅ Control plane instance type
+- ✅ Worker instance type
+- ✅ Root volume size
+- ✅ Root volume type
+
+**Pattern:** Converted UPPERCASE: headers to **bold:** markdown
+**Technical:** Fixed catalog fallback syntax (double-quotes → backticks)
+**Validation:** All build/test passing
+**Progress:** Gold standard 12 → 18/87 (20.7%)
 
 ### ✅ Comprehensive Audit Complete (2026-05-09)
 **What:** Audited ALL 87 hint= tooltips against quality metrics
@@ -413,9 +432,9 @@ For each of the 87 tooltips, we tracked:
 
 ### Current State
 - **Branch:** develop
-- **Last Batch:** 15 (IBM Cloud VPC & vSphere networks)
-- **Next Batch:** 16 (Reformat UPPERCASE → **bold** headers, AWS GovCloud section)
-- **Progress:** 12/87 gold standard (13.8%), 62/87 need reformatting (71.3%)
+- **Last Batch:** 16 (AWS GovCloud section reformatting)
+- **Next Batch:** 17 (Azure Government section reformatting)
+- **Progress:** 18/87 gold standard (20.7%), 52/87 need reformatting (59.8%)
 
 ### Key Commands
 ```bash
