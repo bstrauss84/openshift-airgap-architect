@@ -1663,8 +1663,8 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
     } else {
       checks.auth = "missing";
       const msg = "Red Hat pull secret is required to pull from registry.redhat.io / quay.io.";
-      warnings.push(msg);
-      fieldErrors.rhPullSecret = { severity: "warning", message: msg };
+      blockers.push(msg);
+      fieldErrors.rhPullSecret = { severity: "blocker", message: msg };
     }
   }
   if (mode === "diskToMirror" || mode === "mirrorToMirror") {
@@ -1677,20 +1677,20 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
           mirrorSecretPresent = true;
         } catch {
           const msg = "Mirror registry credentials in Identity & Access do not appear to be valid JSON.";
-          warnings.push(msg);
-          fieldErrors.mirrorPullSecret = { severity: "warning", message: msg };
+          blockers.push(msg);
+          fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
         }
       } else {
         const msg = "Mirror registry credentials not found in Identity & Access.";
-        warnings.push(msg);
-        fieldErrors.mirrorPullSecret = { severity: "warning", message: msg };
+        blockers.push(msg);
+        fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
       }
     } else if (mirrorPullSecret && typeof mirrorPullSecret === "string" && mirrorPullSecret.trim().length > 0) {
       mirrorSecretPresent = true;
     } else {
-      const msg = "Mirror registry credentials will be required at run time.";
-      warnings.push(msg);
-      fieldErrors.mirrorPullSecret = { severity: "warning", message: msg };
+      const msg = "Mirror registry credentials are required for this mode.";
+      blockers.push(msg);
+      fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
     }
     if (mode === "diskToMirror") checks.auth = mirrorSecretPresent ? "present" : "missing";
     else if (!mirrorSecretPresent) checks.auth = "missing";
@@ -1702,6 +1702,93 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
       const msg = "Registry URL is required for this mode.";
       blockers.push(msg);
       fieldErrors.registryUrl = { severity: "blocker", message: msg };
+    }
+  }
+
+  // Advanced options validation
+  const advanced = body.advanced || {};
+  const validLogLevels = ["error", "warn", "info", "debug", "trace"];
+  if (advanced.logLevel && !validLogLevels.includes(advanced.logLevel)) {
+    const msg = `Log level must be one of: ${validLogLevels.join(", ")}`;
+    blockers.push(msg);
+    fieldErrors.logLevel = { severity: "blocker", message: msg };
+  }
+  if (advanced.parallelImages != null) {
+    const val = Number(advanced.parallelImages);
+    if (!Number.isInteger(val) || val < 1 || val > 32) {
+      const msg = "Parallel images must be an integer between 1 and 32.";
+      blockers.push(msg);
+      fieldErrors.parallelImages = { severity: "blocker", message: msg };
+    }
+  }
+  if (advanced.parallelLayers != null) {
+    const val = Number(advanced.parallelLayers);
+    if (!Number.isInteger(val) || val < 1 || val > 32) {
+      const msg = "Parallel layers must be an integer between 1 and 32.";
+      blockers.push(msg);
+      fieldErrors.parallelLayers = { severity: "blocker", message: msg };
+    }
+  }
+  if (advanced.imageTimeout) {
+    // Validate Go duration format (e.g., "10m", "1h", "30s")
+    const durationRegex = /^(\d+(\.\d+)?)(ns|us|µs|ms|s|m|h)$/;
+    if (!durationRegex.test(advanced.imageTimeout)) {
+      const msg = "Image timeout must be a valid Go duration (e.g., 10m, 1h, 30s).";
+      blockers.push(msg);
+      fieldErrors.imageTimeout = { severity: "blocker", message: msg };
+    }
+  }
+  if (advanced.retryTimes != null) {
+    const val = Number(advanced.retryTimes);
+    if (!Number.isInteger(val) || val < 0 || val > 10) {
+      const msg = "Retry times must be an integer between 0 and 10.";
+      blockers.push(msg);
+      fieldErrors.retryTimes = { severity: "blocker", message: msg };
+    }
+  }
+  if (advanced.retryDelay) {
+    const durationRegex = /^(\d+(\.\d+)?)(ns|us|µs|ms|s|m|h)$/;
+    if (!durationRegex.test(advanced.retryDelay)) {
+      const msg = "Retry delay must be a valid Go duration (e.g., 1s, 5s, 30s).";
+      blockers.push(msg);
+      fieldErrors.retryDelay = { severity: "blocker", message: msg };
+    }
+  }
+  // Note: 'since' and 'strictArchive' are harder to validate (digest/ISO date format), skip for now
+
+  // External config YAML validation
+  if (configSourceType !== "generated" && configPath && checks.config === "present") {
+    try {
+      const configContent = fs.readFileSync(path.resolve(configPath), "utf8");
+      // Basic YAML syntax check - try to parse
+      const yaml = await import("yaml");
+      const parsed = yaml.parse(configContent);
+      // Check for required fields
+      if (!parsed || typeof parsed !== "object") {
+        const msg = "Config file must contain valid YAML.";
+        blockers.push(msg);
+        fieldErrors.configPath = { severity: "blocker", message: msg };
+      } else {
+        if (!parsed.apiVersion) {
+          const msg = "Config file missing required field: apiVersion";
+          blockers.push(msg);
+          fieldErrors.configPath = { severity: "blocker", message: msg };
+        }
+        if (parsed.kind !== "ImageSetConfiguration") {
+          const msg = 'Config file kind must be "ImageSetConfiguration"';
+          blockers.push(msg);
+          fieldErrors.configPath = { severity: "blocker", message: msg };
+        }
+        if (!parsed.mirror || (!parsed.mirror.platform && !parsed.mirror.operators && !parsed.mirror.additionalImages)) {
+          const msg = "Config file must specify at least one of: mirror.platform, mirror.operators, or mirror.additionalImages";
+          warnings.push(msg);
+          fieldErrors.configPath = { severity: "warning", message: msg };
+        }
+      }
+    } catch (err) {
+      const msg = `Config file validation failed: ${String(err?.message || err)}`;
+      blockers.push(msg);
+      fieldErrors.configPath = { severity: "blocker", message: msg };
     }
   }
 

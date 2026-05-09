@@ -102,6 +102,7 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const [browseLoading, setBrowseLoading] = React.useState(false);
   const [browseError, setBrowseError] = React.useState(null);
   const [browseMissingNotice, setBrowseMissingNotice] = React.useState(null);
+  const preflightResultsRef = React.useRef(null);
 
   const updateMirrorWorkflow = useCallback(
     (patch) => updateState({ mirrorWorkflow: { ...mw, ...patch } }),
@@ -204,6 +205,16 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     if (!hasMirrorSecret && mirrorAuthSource === "reuse") setMirrorAuthSource("pasted");
   }, [hasMirrorSecret, mirrorAuthSource]);
 
+  // Scroll to preflight results when they appear (prevents scroll reset to top)
+  useEffect(() => {
+    if (preflightResult && preflightResultsRef.current) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        preflightResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 100);
+    }
+  }, [preflightResult]);
+
   if (!state) return <div className="step"><div className="loading">Loading…</div></div>;
 
   const runPreflight = async () => {
@@ -229,7 +240,17 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
           ? (rhAuthSource === "retained" ? state?.blueprint?.blueprintPullSecretEphemeral : rhPullSecretPaste) || undefined
           : undefined,
         mirrorAuthSource: mode !== "mirrorToDisk" ? mappedMirrorAuthSource : undefined,
-        mirrorPullSecret: mode !== "mirrorToDisk" && mirrorAuthSource === "pasted" ? mirrorPullSecretPaste || undefined : undefined
+        mirrorPullSecret: mode !== "mirrorToDisk" && mirrorAuthSource === "pasted" ? mirrorPullSecretPaste || undefined : undefined,
+        advanced: {
+          logLevel,
+          parallelImages,
+          parallelLayers,
+          imageTimeout,
+          retryTimes,
+          retryDelay,
+          since: since || undefined,
+          strictArchive
+        }
       };
       const result = await apiFetch("/api/ocmirror/preflight", { method: "POST", body: JSON.stringify(body) });
       setPreflightResult(result);
@@ -984,7 +1005,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
 
             {/* Preflight results */}
             {preflightResult ? (
-              <>
+              <div ref={preflightResultsRef}>
                 {preflightResult.blockers?.length > 0 ? (
                   <div className="note warning" style={{ marginTop: "1rem" }}>
                     <strong>Preflight blockers:</strong>
@@ -1013,7 +1034,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                     ⚠ Preflight passed with warnings. Review warnings above before proceeding.
                   </p>
                 ) : null}
-              </>
+              </div>
             ) : null}
 
             {/* Last run summary */}
