@@ -315,7 +315,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="AWS GovCloud region"
-                    hint={metaAwsRegion?.description || `AWS GovCloud region where the OpenShift cluster will be deployed.
+                    hint={`AWS GovCloud region where the OpenShift cluster will be deployed.
 
 **Important:** AWS GovCloud is a SEPARATE cloud partition from AWS Commercial - it has physically and logically isolated infrastructure, different API endpoints, separate account system, and stricter compliance controls (FedRAMP High, DoD IL2-5, ITAR, CJIS). You MUST have an AWS GovCloud account to use these regions - commercial AWS accounts cannot access GovCloud regions.
 
@@ -345,7 +345,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="RHCOS AMI ID (optional; gov/secret regions)"
-                    hint={metaAwsAmiID?.description || 'Amazon Machine Image (AMI) ID for Red Hat CoreOS (RHCOS) in the selected AWS GovCloud region. RHCOS is the operating system that runs on all OpenShift cluster nodes. Leave blank to let the installer auto-discover the correct AMI (recommended for most installations). Click "Refresh from installer" button to fetch the recommended AMI ID for your selected region and OpenShift version from official Red Hat metadata. WHEN TO SET MANUALLY: (1) Disconnected/airgap installations where the installer cannot reach Red Hat metadata servers - you must pre-upload the RHCOS AMI to your AWS account and enter its ID here. (2) AWS Secret or Top Secret regions that are not in public Red Hat metadata. (3) When you need to use a specific RHCOS version for testing or compatibility. (4) Custom RHCOS images with site-specific modifications (advanced use case). WHAT IS AN AMI: An AMI is a pre-configured virtual machine image containing an operating system and software. AWS uses AMIs as templates to launch EC2 instances. Each AWS region has separate AMI IDs - an AMI in us-gov-west-1 has a different ID than the same image in us-gov-east-1. RHCOS AMI IDs follow the format "ami-xxxxxxxxxxxxxxxxx" (17 characters after "ami-"). IMPORTANT: The AMI ID must match: (1) Your selected region. (2) Your selected OpenShift version (RHCOS versions are tied to OpenShift releases - 4.14 uses different RHCOS than 4.15). (3) The architecture (x86_64 for most installs, arm64 for Graviton instances). Using the wrong AMI will cause installation to fail or produce unstable clusters. The "Auto-filled" badge indicates the installer metadata populated this field automatically. For connected installs, leave blank or use the Refresh button - the installer handles AMI discovery automatically. Example: "ami-0a1b2c3d4e5f6g7h8" (but use Refresh button instead of guessing).'}
+                    hint={'Amazon Machine Image (AMI) ID for Red Hat CoreOS (RHCOS) in the selected AWS GovCloud region. RHCOS is the operating system that runs on all OpenShift cluster nodes. Leave blank to let the installer auto-discover the correct AMI (recommended for most installations). Click "Refresh from installer" button to fetch the recommended AMI ID for your selected region and OpenShift version from official Red Hat metadata. WHEN TO SET MANUALLY: (1) Disconnected/airgap installations where the installer cannot reach Red Hat metadata servers - you must pre-upload the RHCOS AMI to your AWS account and enter its ID here. (2) AWS Secret or Top Secret regions that are not in public Red Hat metadata. (3) When you need to use a specific RHCOS version for testing or compatibility. (4) Custom RHCOS images with site-specific modifications (advanced use case). WHAT IS AN AMI: An AMI is a pre-configured virtual machine image containing an operating system and software. AWS uses AMIs as templates to launch EC2 instances. Each AWS region has separate AMI IDs - an AMI in us-gov-west-1 has a different ID than the same image in us-gov-east-1. RHCOS AMI IDs follow the format "ami-xxxxxxxxxxxxxxxxx" (17 characters after "ami-"). IMPORTANT: The AMI ID must match: (1) Your selected region. (2) Your selected OpenShift version (RHCOS versions are tied to OpenShift releases - 4.14 uses different RHCOS than 4.15). (3) The architecture (x86_64 for most installs, arm64 for Graviton instances). Using the wrong AMI will cause installation to fail or produce unstable clusters. The "Auto-filled" badge indicates the installer metadata populated this field automatically. For connected installs, leave blank or use the Refresh button - the installer handles AMI discovery automatically. Example: "ami-0a1b2c3d4e5f6g7h8" (but use Refresh button instead of guessing).'}
                   >
                     <div className="platform-specifics-ami-inline">
                       <input
@@ -470,7 +470,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="Hosted zone ID (omit if not using Route 53)"
-                    hint={metaAwsHostedZone?.description || `AWS Route 53 hosted zone ID for your base domain (the parent domain under which the OpenShift cluster DNS records will be created). Leave blank UNLESS you are using existing subnets (VPC mode = Existing subnets) AND you have a pre-existing Route 53 hosted zone for your base domain.
+                    hint={`AWS Route 53 hosted zone ID for your base domain (the parent domain under which the OpenShift cluster DNS records will be created). Leave blank UNLESS you are using existing subnets (VPC mode = Existing subnets) AND you have a pre-existing Route 53 hosted zone for your base domain.
 
 **What is Route 53 hosted zone:** Route 53 is AWS's managed DNS service. A hosted zone is a container for DNS records for a specific domain (e.g., 'example.com'). It contains records like A, CNAME, NS that route traffic to your infrastructure. When you create a hosted zone, AWS assigns it a unique ID like 'Z1234567890ABC'.
 
@@ -562,7 +562,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <div className="field-grid">
                       <FieldLabelWithInfo
                         label="Control plane instance type (optional)"
-                        hint={metaControlPlaneAwsType?.description || `AWS EC2 instance type to use for control plane (master) nodes. Leave blank to use OpenShift installer defaults (typically m5.xlarge - 4 vCPUs, 16 GB RAM). Control plane nodes run etcd (cluster database), Kubernetes API server, scheduler, and controller manager - all CPU and memory intensive services.
+                        hint={`AWS EC2 instance type to use for control plane (master) nodes. Leave blank to use OpenShift installer defaults (typically m5.xlarge - 4 vCPUs, 16 GB RAM). Control plane nodes run etcd (cluster database), Kubernetes API server, scheduler, and controller manager - all CPU and memory intensive services.
 
 **Sizing guidance:** Minimum for production: 4 vCPUs, 16 GB RAM (e.g., m5.xlarge). Recommended for production: 8 vCPUs, 32 GB RAM (e.g., m5.2xlarge) for clusters with 100+ nodes or many operators/CRDs. For large clusters (500+ nodes): 16+ vCPUs, 64+ GB RAM (e.g., m5.4xlarge).
 
@@ -584,7 +584,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
                         label="Worker instance type (optional)"
-                        hint={metaComputeAwsType?.description || `AWS EC2 instance type to use for worker (compute) nodes. Leave blank to use OpenShift installer defaults (typically m5.large - 2 vCPUs, 8 GB RAM). Worker nodes run your application workloads (pods, containers) - they do NOT run control plane services.
+                        hint={`AWS EC2 instance type to use for worker (compute) nodes. Leave blank to use OpenShift installer defaults (typically m5.large - 2 vCPUs, 8 GB RAM). Worker nodes run your application workloads (pods, containers) - they do NOT run control plane services.
 
 **Sizing guidance:** The right instance type depends entirely on your workload characteristics. General-purpose apps (web services, microservices, CI/CD): m5.large (2 vCPUs, 8 GB) or m5.xlarge (4 vCPUs, 16 GB). CPU-intensive workloads (video encoding, scientific computing, batch processing): c5.xlarge or larger (higher CPU:memory ratio). Memory-intensive workloads (databases, caching, in-memory analytics): r5.xlarge or larger (higher memory:CPU ratio). Mixed workloads or unknown requirements: Start with m5.xlarge (balanced) and adjust based on observed utilization.
 
@@ -754,7 +754,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               <div className="field-grid" style={{ marginTop: 12 }}>
                 <FieldLabelWithInfo
                   label="Cloud name"
-                  hint={metaAzureCloudName?.description || `Azure cloud environment name for Azure Government deployments. For Azure Government (US federal/state/local government customers), this must be set to 'AzureUSGovernmentCloud' - this is the sovereign cloud instance physically and logically isolated from Azure Commercial (public cloud).
+                  hint={`Azure cloud environment name for Azure Government deployments. For Azure Government (US federal/state/local government customers), this must be set to 'AzureUSGovernmentCloud' - this is the sovereign cloud instance physically and logically isolated from Azure Commercial (public cloud).
 
 **Important:** This is NOT the same as Azure Commercial (AzurePublicCloud) - Azure Government runs on separate datacenters with restricted access, US-only data residency, and FedRAMP High/DoD IL2-5 compliance.
 
@@ -774,7 +774,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Region"
-                  hint={metaAzureRegion?.description || `Azure Government region where the cluster will be deployed. This determines the physical datacenter location for all cluster resources (VMs, storage, networking).
+                  hint={`Azure Government region where the cluster will be deployed. This determines the physical datacenter location for all cluster resources (VMs, storage, networking).
 
 **Common regions:**
 • usgovvirginia (US Gov Virginia - primary region, most services)
@@ -800,7 +800,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Resource group name"
-                  hint={metaAzureResourceGroupName?.description || `Name of the Azure resource group where the installer will create all cluster resources (VMs, disks, NSGs, load balancers, public IPs, availability sets, etc.). This resource group must ALREADY EXIST before installation - the installer will not create it.
+                  hint={`Name of the Azure resource group where the installer will create all cluster resources (VMs, disks, NSGs, load balancers, public IPs, availability sets, etc.). This resource group must ALREADY EXIST before installation - the installer will not create it.
 
 **Why a resource group:** In Azure, a resource group is a container that holds related resources for an Azure solution. All cluster infrastructure goes into this one resource group for easier management, billing tracking, and cleanup (delete the entire cluster by deleting the resource group).
 
@@ -819,7 +819,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Base domain resource group"
-                  hint={metaAzureBaseDomainResourceGroupName?.description || `Name of the Azure resource group that contains the DNS zone for your base domain (the parent domain under which the cluster will be created). This resource group must ALREADY EXIST and must contain a properly configured Azure DNS zone matching your base domain.
+                  hint={`Name of the Azure resource group that contains the DNS zone for your base domain (the parent domain under which the cluster will be created). This resource group must ALREADY EXIST and must contain a properly configured Azure DNS zone matching your base domain.
 
 **What is this:** When you set a base domain like 'example.com' in Identity & Access, OpenShift needs to create DNS records for the cluster (e.g., api.my-cluster.example.com, *.apps.my-cluster.example.com). In Azure, DNS zones are managed resources that live in a resource group - this field tells the installer which resource group holds the DNS zone for your domain.
 
