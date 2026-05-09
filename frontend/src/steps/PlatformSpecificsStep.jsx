@@ -886,7 +886,28 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Region"
-                  hint={`${metaIbmRegion?.description ? `${metaIbmRegion.description} ` : ""}IBM Cloud region where the OpenShift cluster will be deployed. This determines which IBM Cloud datacenters host your cluster infrastructure (VMs, storage, load balancers, networks). IMPORTANT: The region you choose must match the location of your existing VPC and subnets (if using existing VPC mode), and must contain sufficient capacity for your chosen instance types. Common regions: 'us-east' (Washington DC), 'us-south' (Dallas), 'eu-de' (Frankfurt), 'eu-gb' (London), 'jp-tok' (Tokyo), 'au-syd' (Sydney), 'ca-tor' (Toronto), 'jp-osa' (Osaka), 'br-sao' (Sao Paulo). Each region is completely independent with separate API endpoints, resource namespaces, and billing. WHY IT MATTERS: Region choice impacts latency to end users, data residency compliance (GDPR, data sovereignty), disaster recovery planning, and cost (some regions have different pricing). For disconnected/airgap installations, the region must have network connectivity to your mirror registry and any required external services. The region also determines which availability zones (AZs) are available for multi-zone high-availability deployments - most IBM Cloud regions have 2-3 AZs. CANNOT BE CHANGED: The region is permanently set at installation time - you cannot migrate a cluster to a different region without rebuilding it entirely. You can find available regions and their status via IBM Cloud CLI: 'ibmcloud regions' or in the IBM Cloud console → Locations. Example: 'us-east' for a US East Coast deployment.`}
+                  hint={`${metaIbmRegion?.description ? `${metaIbmRegion.description} ` : ""}IBM Cloud region where the OpenShift cluster will be deployed. This determines which IBM Cloud datacenters host your cluster infrastructure (VMs, storage, load balancers, networks).
+
+**Important:** The region you choose must match the location of your existing VPC and subnets (if using existing VPC mode), and must contain sufficient capacity for your chosen instance types.
+
+**Common regions:**
+• 'us-east' (Washington DC)
+• 'us-south' (Dallas)
+• 'eu-de' (Frankfurt)
+• 'eu-gb' (London)
+• 'jp-tok' (Tokyo)
+• 'au-syd' (Sydney)
+• 'ca-tor' (Toronto)
+• 'jp-osa' (Osaka)
+• 'br-sao' (Sao Paulo)
+
+Each region is completely independent with separate API endpoints, resource namespaces, and billing.
+
+**Why it matters:** Region choice impacts latency to end users, data residency compliance (GDPR, data sovereignty), disaster recovery planning, and cost (some regions have different pricing). For disconnected/airgap installations, the region must have network connectivity to your mirror registry and any required external services. The region also determines which availability zones (AZs) are available for multi-zone high-availability deployments - most IBM Cloud regions have 2-3 AZs.
+
+**Cannot be changed:** The region is permanently set at installation time - you cannot migrate a cluster to a different region without rebuilding it entirely.
+
+**Example:** 'us-east' for a US East Coast deployment. You can find available regions and their status via IBM Cloud CLI: 'ibmcloud regions' or in the IBM Cloud console → Locations.`}
                   required={metaIbmRegion?.required || isRequiredInstall("platform.ibmcloud.region")}
                   className="platform-specifics-field-short"
                 >
@@ -898,7 +919,17 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Resource group name (optional)"
-                  hint={`${metaIbmResourceGroupName?.description ? `${metaIbmResourceGroupName.description} ` : ""}Name of the IBM Cloud resource group where cluster-managed infrastructure will be created (VMs, load balancers, security groups, public IPs, etc.). Leave blank to use your IBM Cloud account's default resource group. WHAT IS A RESOURCE GROUP: In IBM Cloud, resource groups are logical containers for organizing and managing related resources. They control access (IAM policies), billing (cost tracking by group), and quota management. WHY SPECIFY ONE: Using a dedicated resource group for your OpenShift cluster makes it easier to track costs (all cluster expenses in one group), apply consistent IAM permissions (grant team access to the group), and manage lifecycle (delete the entire cluster by removing the resource group). IMPORTANT: This is DIFFERENT from 'Network resource group name' (which holds existing VPC/subnets in Existing VPC mode). If both fields are set to the same value, it means your VPC and cluster resources live in the same resource group - this is fine for smaller setups. Larger organizations often separate network resources (VPCs, subnets, transit gateways) into a centralized 'network-rg' and individual cluster resources into per-cluster groups like 'ocp-prod-cluster-rg'. PERMISSIONS: The IBM Cloud API key or service ID used for installation must have Editor or Administrator role on this resource group to create cluster infrastructure. You can find existing resource groups via IBM Cloud CLI: 'ibmcloud resource groups' or in the console → Manage → Account → Resource groups. Example: 'ocp-prod-cluster-rg' or 'openshift-dev-useast'. If left blank, the installer uses the account's default resource group (typically named 'Default').`}
+                  hint={`${metaIbmResourceGroupName?.description ? `${metaIbmResourceGroupName.description} ` : ""}Name of the IBM Cloud resource group where cluster-managed infrastructure will be created (VMs, load balancers, security groups, public IPs, etc.). Leave blank to use your IBM Cloud account's default resource group.
+
+**What is a resource group:** In IBM Cloud, resource groups are logical containers for organizing and managing related resources. They control access (IAM policies), billing (cost tracking by group), and quota management.
+
+**Why specify one:** Using a dedicated resource group for your OpenShift cluster makes it easier to track costs (all cluster expenses in one group), apply consistent IAM permissions (grant team access to the group), and manage lifecycle (delete the entire cluster by removing the resource group).
+
+**Important:** This is DIFFERENT from 'Network resource group name' (which holds existing VPC/subnets in Existing VPC mode). If both fields are set to the same value, it means your VPC and cluster resources live in the same resource group - this is fine for smaller setups. Larger organizations often separate network resources (VPCs, subnets, transit gateways) into a centralized 'network-rg' and individual cluster resources into per-cluster groups like 'ocp-prod-cluster-rg'.
+
+**Permissions:** The IBM Cloud API key or service ID used for installation must have Editor or Administrator role on this resource group to create cluster infrastructure.
+
+**Example:** 'ocp-prod-cluster-rg' or 'openshift-dev-useast'. If left blank, the installer uses the account's default resource group (typically named 'Default'). You can find existing resource groups via IBM Cloud CLI: 'ibmcloud resource groups' or in the console → Manage → Account → Resource groups.`}
                   className="platform-specifics-field-medium"
                 >
                   <input
@@ -909,7 +940,17 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Instance type (optional)"
-                  hint={`${metaIbmType?.description ? `${metaIbmType.description} ` : ""}IBM Cloud Virtual Server Instance (VSI) profile to use for cluster nodes (both control plane and compute unless overridden in Machine Pools). A VSI profile defines the CPU/memory configuration for each VM. Leave blank to use OpenShift installer defaults (typically bx2-4x16 for control plane, bx2-4x16 for workers). PROFILE FORMAT: Profiles follow the pattern <family>-<vcpu>x<memory_gb>. Examples: 'bx2-4x16' (Balanced 2nd gen, 4 vCPUs, 16GB RAM), 'bx2-8x32' (8 vCPUs, 32GB RAM), 'cx2-4x8' (Compute 2nd gen, 4 vCPUs, 8GB RAM - higher CPU:memory ratio), 'mx2-8x64' (Memory 2nd gen, 8 vCPUs, 64GB RAM - memory-optimized). IMPORTANT: For production control plane nodes, use at least 4 vCPUs and 16GB RAM - etcd, API server, and controllers are CPU/memory intensive. 'bx2-8x32' or larger recommended for clusters with 100+ nodes or many operators. For worker nodes, size based on workload - 'bx2-4x16' for general apps, 'cx2-8x16' for compute-heavy workloads, 'mx2-8x64' for memory-intensive apps (databases, caching). COST: Larger profiles cost more per hour - balance capacity needs against IBM Cloud pricing. AVAILABILITY: Not all profiles are available in all regions/zones - verify availability via 'ibmcloud is instance-profiles' CLI command or IBM Cloud console. The installer validates profile availability during preflight. You can override this default per-pool in the Machine Pools section if different node types need different sizing. Example: 'bx2-8x32' for production control plane.`}
+                  hint={`${metaIbmType?.description ? `${metaIbmType.description} ` : ""}IBM Cloud Virtual Server Instance (VSI) profile to use for cluster nodes (both control plane and compute unless overridden in Machine Pools). A VSI profile defines the CPU/memory configuration for each VM. Leave blank to use OpenShift installer defaults (typically bx2-4x16 for control plane, bx2-4x16 for workers).
+
+**Profile format:** Profiles follow the pattern <family>-<vcpu>x<memory_gb>. Examples: 'bx2-4x16' (Balanced 2nd gen, 4 vCPUs, 16GB RAM), 'bx2-8x32' (8 vCPUs, 32GB RAM), 'cx2-4x8' (Compute 2nd gen, 4 vCPUs, 8GB RAM - higher CPU:memory ratio), 'mx2-8x64' (Memory 2nd gen, 8 vCPUs, 64GB RAM - memory-optimized).
+
+**Important:** For production control plane nodes, use at least 4 vCPUs and 16GB RAM - etcd, API server, and controllers are CPU/memory intensive. 'bx2-8x32' or larger recommended for clusters with 100+ nodes or many operators. For worker nodes, size based on workload - 'bx2-4x16' for general apps, 'cx2-8x16' for compute-heavy workloads, 'mx2-8x64' for memory-intensive apps (databases, caching).
+
+**Cost:** Larger profiles cost more per hour - balance capacity needs against IBM Cloud pricing.
+
+**Availability:** Not all profiles are available in all regions/zones - verify availability via 'ibmcloud is instance-profiles' CLI command or IBM Cloud console. The installer validates profile availability during preflight.
+
+**Example:** 'bx2-8x32' for production control plane. You can override this default per-pool in the Machine Pools section if different node types need different sizing.`}
                   className="platform-specifics-field-short"
                 >
                   <input
@@ -978,7 +1019,18 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                 <div className="field-grid" style={{ marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Network resource group name"
-                  hint={`${metaIbmNetworkResourceGroupName?.description ? `${metaIbmNetworkResourceGroupName.description} ` : ""}Name of the IBM Cloud resource group that contains your existing VPC, subnets, and related network resources (security groups, public gateways, etc.). REQUIRED when using 'Existing VPC and subnets' mode. WHAT THIS DOES: The installer needs to know where to find your pre-created VPC and subnets so it can attach cluster VMs to the correct networks. In IBM Cloud, resources belong to resource groups - this field tells the installer which group holds your networking infrastructure. IMPORTANT: This is typically DIFFERENT from 'Resource group name' (which holds cluster-managed resources like VMs and load balancers). Many organizations use a centralized 'network-rg' for VPCs shared across multiple clusters, and separate per-cluster resource groups like 'ocp-prod-rg' for cluster-specific infrastructure. However, you CAN use the same resource group for both if your network and compute resources are co-located. PREREQUISITES: (1) The resource group must already exist. (2) The VPC and subnets specified in the fields below must exist within this resource group in the selected region. (3) The IBM Cloud API key or service ID used for installation must have Viewer or Editor role on this resource group to read VPC/subnet details and attach VMs. You can find existing resource groups and their contents via 'ibmcloud resource groups' and 'ibmcloud is vpcs --resource-group-name <name>'. Example: 'shared-network-rg' if you have a centralized network team, or 'ocp-prod-rg' if network and cluster resources are in the same group.`}
+                  hint={`${metaIbmNetworkResourceGroupName?.description ? `${metaIbmNetworkResourceGroupName.description} ` : ""}Name of the IBM Cloud resource group that contains your existing VPC, subnets, and related network resources (security groups, public gateways, etc.). REQUIRED when using 'Existing VPC and subnets' mode.
+
+**What this does:** The installer needs to know where to find your pre-created VPC and subnets so it can attach cluster VMs to the correct networks. In IBM Cloud, resources belong to resource groups - this field tells the installer which group holds your networking infrastructure.
+
+**Important:** This is typically DIFFERENT from 'Resource group name' (which holds cluster-managed resources like VMs and load balancers). Many organizations use a centralized 'network-rg' for VPCs shared across multiple clusters, and separate per-cluster resource groups like 'ocp-prod-rg' for cluster-specific infrastructure. However, you CAN use the same resource group for both if your network and compute resources are co-located.
+
+**Prerequisites:**
+1. The resource group must already exist
+2. The VPC and subnets specified in the fields below must exist within this resource group in the selected region
+3. The IBM Cloud API key or service ID used for installation must have Viewer or Editor role on this resource group to read VPC/subnet details and attach VMs
+
+**Example:** 'shared-network-rg' if you have a centralized network team, or 'ocp-prod-rg' if network and cluster resources are in the same group. You can find existing resource groups and their contents via 'ibmcloud resource groups' and 'ibmcloud is vpcs --resource-group-name <name>'.`}
                   required={true}
                   className="platform-specifics-field-medium"
                 >
@@ -990,7 +1042,22 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="VPC name"
-                  hint={`${metaIbmVpcName?.description ? `${metaIbmVpcName.description} ` : ""}Name of the existing IBM Cloud VPC (Virtual Private Cloud) where cluster nodes will be deployed. REQUIRED when using 'Existing VPC and subnets' mode. WHAT IS A VPC: A VPC is an isolated private network within IBM Cloud where you create subnets, VMs, load balancers, and security groups. It provides network isolation (resources in one VPC cannot communicate with another VPC unless explicitly connected via transit gateways or VPN). IMPORTANT: The VPC must ALREADY EXIST in the selected region within the 'Network resource group name' you specified above. The installer will NOT create the VPC - it only reads VPC details to attach cluster VMs to the correct subnets. PREREQUISITES BEFORE INSTALL: (1) VPC created in the same region as your cluster. (2) VPC must have subnets with available IP addresses (one subnet per availability zone minimum - typically 3 subnets for HA). (3) VPC must have DNS resolution enabled (default). (4) For External publish mode, VPC needs a public gateway attached to subnets for outbound internet access (downloading images, reaching Red Hat registries in connected mode). (5) For disconnected/airgap, VPC subnets must have routes to your mirror registry and any required internal services. NETWORKING: The VPC's IP address range (CIDR) is independent of the Networking tab's Machine/Service/Cluster CIDRs - those are for internal OpenShift networking (pod/service IPs). The VPC subnets you specify in 'Control plane subnets' and 'Compute subnets' fields below are where the VMs' primary interfaces get IPs. You can find existing VPCs via 'ibmcloud is vpcs --resource-group-name <rg-name>' or in the IBM Cloud console → VPC Infrastructure → VPCs. Example: 'prod-vpc-us-east' or 'openshift-network-vpc'.`}
+                  hint={`${metaIbmVpcName?.description ? `${metaIbmVpcName.description} ` : ""}Name of the existing IBM Cloud VPC (Virtual Private Cloud) where cluster nodes will be deployed. REQUIRED when using 'Existing VPC and subnets' mode.
+
+**What is a VPC:** A VPC is an isolated private network within IBM Cloud where you create subnets, VMs, load balancers, and security groups. It provides network isolation (resources in one VPC cannot communicate with another VPC unless explicitly connected via transit gateways or VPN).
+
+**Important:** The VPC must ALREADY EXIST in the selected region within the 'Network resource group name' you specified above. The installer will NOT create the VPC - it only reads VPC details to attach cluster VMs to the correct subnets.
+
+**Prerequisites before install:**
+1. VPC created in the same region as your cluster
+2. VPC must have subnets with available IP addresses (one subnet per availability zone minimum - typically 3 subnets for HA)
+3. VPC must have DNS resolution enabled (default)
+4. For External publish mode, VPC needs a public gateway attached to subnets for outbound internet access (downloading images, reaching Red Hat registries in connected mode)
+5. For disconnected/airgap, VPC subnets must have routes to your mirror registry and any required internal services
+
+**Networking:** The VPC's IP address range (CIDR) is independent of the Networking tab's Machine/Service/Cluster CIDRs - those are for internal OpenShift networking (pod/service IPs). The VPC subnets you specify in 'Control plane subnets' and 'Compute subnets' fields below are where the VMs' primary interfaces get IPs.
+
+**Example:** 'prod-vpc-us-east' or 'openshift-network-vpc'. You can find existing VPCs via 'ibmcloud is vpcs --resource-group-name <rg-name>' or in the IBM Cloud console → VPC Infrastructure → VPCs.`}
                   required={true}
                   className="platform-specifics-field-medium"
                 >
@@ -1002,7 +1069,24 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Control plane subnets"
-                  hint={`${metaIbmControlPlaneSubnets?.description ? `${metaIbmControlPlaneSubnets.description} ` : ""}Comma-separated list of existing subnet names within the VPC where control plane nodes (master nodes) will be deployed. REQUIRED when using 'Existing VPC and subnets' mode. WHAT THIS DOES: Each control plane node gets a primary network interface attached to one of these subnets - the VM's IP address comes from the subnet's CIDR range. HIGH AVAILABILITY: For production clusters, specify multiple subnets across different availability zones (AZs) to ensure control plane survives AZ failures. Example: 'cp-subnet-zone1,cp-subnet-zone2,cp-subnet-zone3' for 3-zone HA (each control plane node lands in a different zone/subnet). IMPORTANT: These subnet names must be exact matches (case-sensitive) to subnet names that ALREADY EXIST in the VPC you specified above. You can list existing subnets via 'ibmcloud is subnets --vpc-name <vpc-name>' or in IBM Cloud console → VPC Infrastructure → Subnets. REQUIREMENTS: (1) Subnets must exist in the same VPC and region. (2) Subnets should have available IP addresses (at least 1 IP per control plane node - typically 3 IPs total for a 3-node HA cluster, but plan for 5-10 IPs to account for upgrades/replacements). (3) Subnets must allow inbound traffic on ports 6443 (API server), 2379-2380 (etcd), 10250-10259 (kubelet/controllers) from worker subnets. (4) For External publish mode, control plane subnets need outbound internet access via public gateway or NAT (for downloading images, reaching Red Hat in connected mode). (5) For disconnected/airgap, subnets must route to mirror registry and required internal services. FORMAT: Subnet names separated by commas with no spaces. Example: 'ocp-cp-us-east-1,ocp-cp-us-east-2,ocp-cp-us-east-3'. These are IBM Cloud subnet resource names, NOT CIDR ranges (CIDRs are defined when you created the subnets).`}
+                  hint={`${metaIbmControlPlaneSubnets?.description ? `${metaIbmControlPlaneSubnets.description} ` : ""}Comma-separated list of existing subnet names within the VPC where control plane nodes (master nodes) will be deployed. REQUIRED when using 'Existing VPC and subnets' mode.
+
+**What this does:** Each control plane node gets a primary network interface attached to one of these subnets - the VM's IP address comes from the subnet's CIDR range.
+
+**High availability:** For production clusters, specify multiple subnets across different availability zones (AZs) to ensure control plane survives AZ failures. Example: 'cp-subnet-zone1,cp-subnet-zone2,cp-subnet-zone3' for 3-zone HA (each control plane node lands in a different zone/subnet).
+
+**Important:** These subnet names must be exact matches (case-sensitive) to subnet names that ALREADY EXIST in the VPC you specified above. You can list existing subnets via 'ibmcloud is subnets --vpc-name <vpc-name>' or in IBM Cloud console → VPC Infrastructure → Subnets.
+
+**Requirements:**
+1. Subnets must exist in the same VPC and region
+2. Subnets should have available IP addresses (at least 1 IP per control plane node - typically 3 IPs total for a 3-node HA cluster, but plan for 5-10 IPs to account for upgrades/replacements)
+3. Subnets must allow inbound traffic on ports 6443 (API server), 2379-2380 (etcd), 10250-10259 (kubelet/controllers) from worker subnets
+4. For External publish mode, control plane subnets need outbound internet access via public gateway or NAT (for downloading images, reaching Red Hat in connected mode)
+5. For disconnected/airgap, subnets must route to mirror registry and required internal services
+
+**Format:** Subnet names separated by commas with no spaces. These are IBM Cloud subnet resource names, NOT CIDR ranges (CIDRs are defined when you created the subnets).
+
+**Example:** 'ocp-cp-us-east-1,ocp-cp-us-east-2,ocp-cp-us-east-3'`}
                   required={true}
                   className="platform-specifics-field-long"
                 >
@@ -1014,7 +1098,27 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Compute subnets"
-                  hint={`${metaIbmComputeSubnets?.description ? `${metaIbmComputeSubnets.description} ` : ""}Comma-separated list of existing subnet names within the VPC where worker nodes (compute nodes) will be deployed. REQUIRED when using 'Existing VPC and subnets' mode. WHAT THIS DOES: Each worker node gets a primary network interface attached to one of these subnets - the VM's IP address comes from the subnet's CIDR range. Worker nodes run your application pods and handle ingress traffic. HIGH AVAILABILITY: For production clusters, specify multiple subnets across different availability zones (AZs) to ensure workloads survive AZ failures. Example: 'worker-subnet-zone1,worker-subnet-zone2,worker-subnet-zone3' for 3-zone HA. As the cluster scales (adding more workers), new nodes are distributed across these subnets. IMPORTANT: These subnet names must be exact matches (case-sensitive) to subnet names that ALREADY EXIST in the VPC you specified above. You can list existing subnets via 'ibmcloud is subnets --vpc-name <vpc-name>' or in IBM Cloud console → VPC Infrastructure → Subnets. REQUIREMENTS: (1) Subnets must exist in the same VPC and region. (2) Subnets should have MORE available IP addresses than control plane subnets - plan for growth (50-100+ IPs per subnet for clusters that will scale to 50+ workers). (3) Subnets must allow inbound traffic on port 10250 (kubelet) from control plane, and application-specific ports for ingress. (4) Subnets must have outbound connectivity to control plane subnets (ports 6443, 2379-2380, 10250-10259). (5) For External publish mode with LoadBalancer services, subnets need internet connectivity via public gateway. (6) For disconnected/airgap, subnets must route to mirror registry and internal services. CAN THEY BE THE SAME AS CONTROL PLANE SUBNETS? Yes, you can use the same subnet names for both control plane and compute if you want all nodes on the same subnets - this simplifies networking but reduces isolation between control plane and workload traffic. Many setups separate them for security/performance isolation. FORMAT: Subnet names separated by commas with no spaces. Example: 'ocp-worker-us-east-1,ocp-worker-us-east-2,ocp-worker-us-east-3'. These are IBM Cloud subnet resource names, NOT CIDR ranges.`}
+                  hint={`${metaIbmComputeSubnets?.description ? `${metaIbmComputeSubnets.description} ` : ""}Comma-separated list of existing subnet names within the VPC where worker nodes (compute nodes) will be deployed. REQUIRED when using 'Existing VPC and subnets' mode.
+
+**What this does:** Each worker node gets a primary network interface attached to one of these subnets - the VM's IP address comes from the subnet's CIDR range. Worker nodes run your application pods and handle ingress traffic.
+
+**High availability:** For production clusters, specify multiple subnets across different availability zones (AZs) to ensure workloads survive AZ failures. Example: 'worker-subnet-zone1,worker-subnet-zone2,worker-subnet-zone3' for 3-zone HA. As the cluster scales (adding more workers), new nodes are distributed across these subnets.
+
+**Important:** These subnet names must be exact matches (case-sensitive) to subnet names that ALREADY EXIST in the VPC you specified above. You can list existing subnets via 'ibmcloud is subnets --vpc-name <vpc-name>' or in IBM Cloud console → VPC Infrastructure → Subnets.
+
+**Requirements:**
+1. Subnets must exist in the same VPC and region
+2. Subnets should have MORE available IP addresses than control plane subnets - plan for growth (50-100+ IPs per subnet for clusters that will scale to 50+ workers)
+3. Subnets must allow inbound traffic on port 10250 (kubelet) from control plane, and application-specific ports for ingress
+4. Subnets must have outbound connectivity to control plane subnets (ports 6443, 2379-2380, 10250-10259)
+5. For External publish mode with LoadBalancer services, subnets need internet connectivity via public gateway
+6. For disconnected/airgap, subnets must route to mirror registry and internal services
+
+**Can they be the same as control plane subnets?** Yes, you can use the same subnet names for both control plane and compute if you want all nodes on the same subnets - this simplifies networking but reduces isolation between control plane and workload traffic. Many setups separate them for security/performance isolation.
+
+**Format:** Subnet names separated by commas with no spaces. These are IBM Cloud subnet resource names, NOT CIDR ranges.
+
+**Example:** 'ocp-worker-us-east-1,ocp-worker-us-east-2,ocp-worker-us-east-3'`}
                   required={true}
                   className="platform-specifics-field-long"
                 >
@@ -1038,7 +1142,28 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Dedicated host profile (optional)"
-                  hint={`${metaIbmDedicatedHostsProfile?.description ? `${metaIbmDedicatedHostsProfile.description} ` : ""}IBM Cloud dedicated host profile to use when cluster VMs must run on single-tenant physical servers instead of shared multi-tenant infrastructure. Leave blank to use standard shared virtual servers (default, most common). WHAT IS A DEDICATED HOST: A dedicated host is a single-tenant physical server in IBM Cloud where only your VMs run - no other customers' workloads share the hardware. Dedicated hosts provide physical isolation for compliance, licensing, or performance reasons. WHY USE DEDICATED HOSTS: (1) Compliance requirements mandate physical isolation (e.g., PCI-DSS Level 1, HIPAA, government regulations). (2) Software licensing is per-physical-host rather than per-VM (e.g., some database licenses - running on dedicated hosts can reduce costs). (3) Performance isolation - no 'noisy neighbor' effect from other tenants. (4) Security requirements prohibit multi-tenancy. PROFILE FORMAT: Dedicated host profiles define the physical server specs (CPU family, core count, memory). Examples: 'cx2-host-152x304' (152 vCPUs, 304 GB RAM, Compute family), 'bx2-host-100x200' (100 vCPUs, 200 GB RAM, Balanced family), 'mx2-host-100x800' (100 vCPUs, 800 GB RAM, Memory family). The profile determines how many VMs you can fit on the host. HOW IT WORKS: (1) Specify a profile here - IBM Cloud creates or assigns a dedicated host with that profile. (2) All cluster VMs (control plane + workers) are placed on dedicated hosts with this profile. (3) The installer automatically provisions hosts as needed for your cluster size. IMPORTANT: Dedicated hosts are SIGNIFICANTLY more expensive than shared VMs - you pay for the entire physical server even if you only use a portion of its capacity. Only use dedicated hosts when you have specific compliance, licensing, or isolation requirements. You cannot mix dedicated hosts and shared VMs in the same cluster via install-config (requires post-install MachineSet customization). CHOOSE ONE: Set either 'Dedicated host profile' (to create new dedicated hosts) OR 'Dedicated host name' (to use a specific pre-existing dedicated host), NOT both. Available profiles vary by region - verify via 'ibmcloud is dedicated-host-profiles' CLI command or IBM Cloud console. Example: 'bx2-host-100x200' for balanced workloads, 'cx2-host-152x304' for compute-intensive clusters.`}
+                  hint={`${metaIbmDedicatedHostsProfile?.description ? `${metaIbmDedicatedHostsProfile.description} ` : ""}IBM Cloud dedicated host profile to use when cluster VMs must run on single-tenant physical servers instead of shared multi-tenant infrastructure. Leave blank to use standard shared virtual servers (default, most common).
+
+**What is a dedicated host:** A dedicated host is a single-tenant physical server in IBM Cloud where only your VMs run - no other customers' workloads share the hardware. Dedicated hosts provide physical isolation for compliance, licensing, or performance reasons.
+
+**Why use dedicated hosts:**
+1. Compliance requirements mandate physical isolation (e.g., PCI-DSS Level 1, HIPAA, government regulations)
+2. Software licensing is per-physical-host rather than per-VM (e.g., some database licenses - running on dedicated hosts can reduce costs)
+3. Performance isolation - no 'noisy neighbor' effect from other tenants
+4. Security requirements prohibit multi-tenancy
+
+**Profile format:** Dedicated host profiles define the physical server specs (CPU family, core count, memory). Examples: 'cx2-host-152x304' (152 vCPUs, 304 GB RAM, Compute family), 'bx2-host-100x200' (100 vCPUs, 200 GB RAM, Balanced family), 'mx2-host-100x800' (100 vCPUs, 800 GB RAM, Memory family). The profile determines how many VMs you can fit on the host.
+
+**How it works:**
+1. Specify a profile here - IBM Cloud creates or assigns a dedicated host with that profile
+2. All cluster VMs (control plane + workers) are placed on dedicated hosts with this profile
+3. The installer automatically provisions hosts as needed for your cluster size
+
+**Important:** Dedicated hosts are SIGNIFICANTLY more expensive than shared VMs - you pay for the entire physical server even if you only use a portion of its capacity. Only use dedicated hosts when you have specific compliance, licensing, or isolation requirements. You cannot mix dedicated hosts and shared VMs in the same cluster via install-config (requires post-install MachineSet customization).
+
+**Choose one:** Set either 'Dedicated host profile' (to create new dedicated hosts) OR 'Dedicated host name' (to use a specific pre-existing dedicated host), NOT both.
+
+**Example:** 'bx2-host-100x200' for balanced workloads, 'cx2-host-152x304' for compute-intensive clusters. Available profiles vary by region - verify via 'ibmcloud is dedicated-host-profiles' CLI command or IBM Cloud console.`}
                   className="platform-specifics-field-medium"
                 >
                   <input
@@ -1049,7 +1174,26 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Dedicated host name (optional)"
-                  hint={`${metaIbmDedicatedHostsName?.description ? `${metaIbmDedicatedHostsName.description} ` : ""}Name of a specific pre-existing IBM Cloud dedicated host where cluster VMs should be placed. Leave blank to let the installer create new dedicated hosts automatically (via 'Dedicated host profile' above) or to use standard shared virtual servers. WHAT IS THIS: If you already have a dedicated host provisioned in IBM Cloud and want to place OpenShift cluster VMs on that specific host, enter its name here. This is useful when you want to maximize utilization of existing dedicated host capacity or when you have pre-allocated dedicated hosts for specific projects. WHEN TO USE: (1) You have an existing dedicated host with available capacity (unused vCPUs and memory) that you want to use for OpenShift. (2) Your organization has pre-provisioned dedicated hosts for compliance/licensing and you want to place this cluster on a specific one. (3) You want precise control over which physical server hosts your cluster (vs letting the installer auto-provision). HOW TO FIND THE HOST NAME: In IBM Cloud console → VPC Infrastructure → Dedicated hosts → select your host → copy the 'Name' field. Or via CLI: 'ibmcloud is dedicated-hosts' to list all dedicated hosts in your account. Example names: 'my-dedicated-host-1', 'prod-ocp-host', 'dedicated-host-useast'. IMPORTANT REQUIREMENTS: (1) The dedicated host must ALREADY EXIST in the same VPC region as your cluster. (2) The host must have SUFFICIENT REMAINING CAPACITY for all cluster VMs (control plane + workers). Check the host's used vs available vCPUs and memory before installation. (3) All cluster VMs will attempt to fit on this single host - if capacity is exceeded, installation will fail. For multi-host deployments or auto-provisioning, use 'Dedicated host profile' instead. (4) The dedicated host must be in the same resource group as your cluster (or you need cross-resource-group permissions). CHOOSE ONE: Set either 'Dedicated host name' (to use a specific pre-existing host) OR 'Dedicated host profile' (to create new hosts), NOT both. If you set a dedicated host name, the installer places ALL cluster VMs on that one host (assuming capacity allows). Example: 'my-existing-dedicated-host' (must match exact name in IBM Cloud).`}
+                  hint={`${metaIbmDedicatedHostsName?.description ? `${metaIbmDedicatedHostsName.description} ` : ""}Name of a specific pre-existing IBM Cloud dedicated host where cluster VMs should be placed. Leave blank to let the installer create new dedicated hosts automatically (via 'Dedicated host profile' above) or to use standard shared virtual servers.
+
+**What is this:** If you already have a dedicated host provisioned in IBM Cloud and want to place OpenShift cluster VMs on that specific host, enter its name here. This is useful when you want to maximize utilization of existing dedicated host capacity or when you have pre-allocated dedicated hosts for specific projects.
+
+**When to use:**
+1. You have an existing dedicated host with available capacity (unused vCPUs and memory) that you want to use for OpenShift
+2. Your organization has pre-provisioned dedicated hosts for compliance/licensing and you want to place this cluster on a specific one
+3. You want precise control over which physical server hosts your cluster (vs letting the installer auto-provision)
+
+**How to find the host name:** In IBM Cloud console → VPC Infrastructure → Dedicated hosts → select your host → copy the 'Name' field. Or via CLI: 'ibmcloud is dedicated-hosts' to list all dedicated hosts in your account. Example names: 'my-dedicated-host-1', 'prod-ocp-host', 'dedicated-host-useast'.
+
+**Important requirements:**
+1. The dedicated host must ALREADY EXIST in the same VPC region as your cluster
+2. The host must have SUFFICIENT REMAINING CAPACITY for all cluster VMs (control plane + workers). Check the host's used vs available vCPUs and memory before installation
+3. All cluster VMs will attempt to fit on this single host - if capacity is exceeded, installation will fail. For multi-host deployments or auto-provisioning, use 'Dedicated host profile' instead
+4. The dedicated host must be in the same resource group as your cluster (or you need cross-resource-group permissions)
+
+**Choose one:** Set either 'Dedicated host name' (to use a specific pre-existing host) OR 'Dedicated host profile' (to create new hosts), NOT both. If you set a dedicated host name, the installer places ALL cluster VMs on that one host (assuming capacity allows).
+
+**Example:** 'my-existing-dedicated-host' (must match exact name in IBM Cloud).`}
                   className="platform-specifics-field-medium"
                 >
                   <input
@@ -1064,7 +1208,22 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Service endpoints (optional)"
-                  hint={`${metaIbmServiceEndpoints?.description ? `${metaIbmServiceEndpoints.description} ` : ""}Override IBM Cloud service API endpoints when the default public endpoints are unreachable from your cluster network (e.g., for private/disconnected/restricted clusters). Leave blank to use IBM Cloud's default public endpoints. WHEN TO USE: Set custom endpoints when: (1) Your cluster has no outbound internet access (disconnected/airgap). (2) Your VPC uses private service endpoints only (no public connectivity). (3) Corporate policies require routing cloud API calls through specific proxy/gateway URLs. (4) You are using IBM Cloud Direct Link or VPN and must access IBM services via private network paths. FORMAT: One NAME=URL pair per line, where NAME is the IBM Cloud service name (uppercase) and URL is the service endpoint. Common services that may need overrides: IAM (identity/authentication), VPC (networking), Resource Controller (resource management), COS (object storage), CIS (cloud internet services). Example overrides for private endpoints in us-east region: 'IAM=https://private.us-east.iam.cloud.ibm.com', 'VPC=https://us-east.private.iaas.cloud.ibm.com/v1', 'ResourceController=https://private.us-east.resource-controller.cloud.ibm.com'. IMPORTANT: The URLs must be reachable from your cluster nodes - verify network connectivity before installation. For disconnected clusters, you may need to configure DNS resolution and routing for these private endpoints. The installer and cluster operators use these endpoints for API calls during and after installation. If endpoints are misconfigured, installation will fail or post-install operations (creating load balancers, persistent volumes) will break. You can find service endpoint URLs in IBM Cloud documentation or via 'ibmcloud catalog service <service-name>' CLI command. Only override endpoints you actually need - unnecessary overrides can complicate troubleshooting. Most connected clusters should leave this blank.`}
+                  hint={`${metaIbmServiceEndpoints?.description ? `${metaIbmServiceEndpoints.description} ` : ""}Override IBM Cloud service API endpoints when the default public endpoints are unreachable from your cluster network (e.g., for private/disconnected/restricted clusters). Leave blank to use IBM Cloud's default public endpoints.
+
+**When to use:** Set custom endpoints when:
+1. Your cluster has no outbound internet access (disconnected/airgap)
+2. Your VPC uses private service endpoints only (no public connectivity)
+3. Corporate policies require routing cloud API calls through specific proxy/gateway URLs
+4. You are using IBM Cloud Direct Link or VPN and must access IBM services via private network paths
+
+**Format:** One NAME=URL pair per line, where NAME is the IBM Cloud service name (uppercase) and URL is the service endpoint. Common services that may need overrides: IAM (identity/authentication), VPC (networking), Resource Controller (resource management), COS (object storage), CIS (cloud internet services).
+
+**Example overrides for private endpoints in us-east region:**
+• IAM=https://private.us-east.iam.cloud.ibm.com
+• VPC=https://us-east.private.iaas.cloud.ibm.com/v1
+• ResourceController=https://private.us-east.resource-controller.cloud.ibm.com
+
+**Important:** The URLs must be reachable from your cluster nodes - verify network connectivity before installation. For disconnected clusters, you may need to configure DNS resolution and routing for these private endpoints. The installer and cluster operators use these endpoints for API calls during and after installation. If endpoints are misconfigured, installation will fail or post-install operations (creating load balancers, persistent volumes) will break. You can find service endpoint URLs in IBM Cloud documentation or via 'ibmcloud catalog service <service-name>' CLI command. Only override endpoints you actually need - unnecessary overrides can complicate troubleshooting. Most connected clusters should leave this blank.`}
                   className="platform-specifics-field-full"
                 >
                   <textarea
@@ -1080,7 +1239,23 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Boot volume encryption key (all machine pools, optional)"
-                  hint={`${metaIbmDefaultMachineBootVolumeKey?.description ? `${metaIbmDefaultMachineBootVolumeKey.description} ` : ""}IBM Key Protect or Hyper Protect Crypto Services root key CRN (Cloud Resource Name) to use for encrypting boot volumes (OS disks) of ALL cluster nodes (both control plane and compute) with a single cluster-wide key. Leave blank to use default IBM Cloud encryption (volumes are still encrypted, but with IBM-managed keys, not customer-managed). WHY USE CUSTOMER-MANAGED KEYS: Many compliance frameworks (PCI-DSS, HIPAA, FedRAMP) require customer-controlled encryption keys with audit trails. Key Protect/HPCS give you full control over key lifecycle (rotation, revocation, access policies) and provide cryptographic proof of data protection. WHAT IS A ROOT KEY: A root key is a master encryption key stored in Key Protect or HPCS that wraps (encrypts) the actual data encryption keys used by boot volumes. You create root keys in Key Protect/HPCS, grant IBM Cloud Block Storage service authorization to use them, then reference them here via CRN. CRN FORMAT: Starts with 'crn:v1:bluemix:public:' followed by service (kms for Key Protect, hs-crypto for HPCS), region, account ID, and key ID. Example: 'crn:v1:bluemix:public:kms:us-east:a/1234567890abcdef:key-instance-id:key-id'. IMPORTANT: (1) The root key must ALREADY EXIST in Key Protect/HPCS before installation. (2) The key must be in the same region as your cluster. (3) You must grant 'Reader' service-to-service authorization from IBM Cloud Block Storage to your Key Protect/HPCS instance. (4) If the key is later deleted or access revoked, nodes cannot boot - plan key lifecycle carefully. PRECEDENCE: This is a cluster-wide default that applies to all machine pools UNLESS you override it with per-pool keys in 'Boot volume encryption key (control plane)' or 'Boot volume encryption key (compute)' below. You can find root key CRNs in IBM Cloud console → Key Protect/HPCS → Keys → Actions → Show CRN, or via CLI: 'ibmcloud kp keys'.`}
+                  hint={`${metaIbmDefaultMachineBootVolumeKey?.description ? `${metaIbmDefaultMachineBootVolumeKey.description} ` : ""}IBM Key Protect or Hyper Protect Crypto Services root key CRN (Cloud Resource Name) to use for encrypting boot volumes (OS disks) of ALL cluster nodes (both control plane and compute) with a single cluster-wide key. Leave blank to use default IBM Cloud encryption (volumes are still encrypted, but with IBM-managed keys, not customer-managed).
+
+**Why use customer-managed keys:** Many compliance frameworks (PCI-DSS, HIPAA, FedRAMP) require customer-controlled encryption keys with audit trails. Key Protect/HPCS give you full control over key lifecycle (rotation, revocation, access policies) and provide cryptographic proof of data protection.
+
+**What is a root key:** A root key is a master encryption key stored in Key Protect or HPCS that wraps (encrypts) the actual data encryption keys used by boot volumes. You create root keys in Key Protect/HPCS, grant IBM Cloud Block Storage service authorization to use them, then reference them here via CRN.
+
+**CRN format:** Starts with 'crn:v1:bluemix:public:' followed by service (kms for Key Protect, hs-crypto for HPCS), region, account ID, and key ID.
+
+**Important requirements:**
+1. The root key must ALREADY EXIST in Key Protect/HPCS before installation
+2. The key must be in the same region as your cluster
+3. You must grant 'Reader' service-to-service authorization from IBM Cloud Block Storage to your Key Protect/HPCS instance
+4. If the key is later deleted or access revoked, nodes cannot boot - plan key lifecycle carefully
+
+**Precedence:** This is a cluster-wide default that applies to all machine pools UNLESS you override it with per-pool keys in 'Boot volume encryption key (control plane)' or 'Boot volume encryption key (compute)' below.
+
+**Example:** 'crn:v1:bluemix:public:kms:us-east:a/1234567890abcdef:key-instance-id:key-id'. You can find root key CRNs in IBM Cloud console → Key Protect/HPCS → Keys → Actions → Show CRN, or via CLI: 'ibmcloud kp keys'.`}
                   className="platform-specifics-field-long"
                 >
                   <input
@@ -1091,7 +1266,19 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Boot volume encryption key (control plane, optional)"
-                  hint={`${metaIbmControlPlaneBootVolumeKey?.description ? `${metaIbmControlPlaneBootVolumeKey.description} ` : ""}Optional IBM Key Protect or HPCS root key CRN to use specifically for control plane (master) node boot volumes, overriding the cluster-wide default set above. Leave blank to use the cluster-wide default key (or IBM-managed encryption if no default is set). WHEN TO USE: Set a separate control plane key when: (1) Compliance requires different key access policies for control plane vs. workload infrastructure. (2) You want to isolate key permissions (e.g., platform team manages control plane keys, app teams manage worker keys). (3) Regulatory separation mandates control plane data be encrypted with keys from a different HPCS instance or region. (4) You need independent key rotation schedules for control plane vs. compute. IMPORTANT: The root key must meet the same requirements as the cluster-wide default: exist before installation, be in the same region, have Block Storage authorization, and follow the CRN format 'crn:v1:bluemix:public:kms:region:account:instance:key-id'. PRECEDENCE: This field takes priority over 'Boot volume encryption key (all machine pools)' for control plane nodes only. If both are set, control plane uses this key, workers use the cluster-wide default (unless 'Boot volume encryption key (compute)' is also set). If this is blank, control plane falls back to the cluster-wide default. Example use case: High-security cluster where control plane uses HPCS (higher security/compliance tier) while workers use standard Key Protect (cost-effective for less-sensitive workload nodes).`}
+                  hint={`${metaIbmControlPlaneBootVolumeKey?.description ? `${metaIbmControlPlaneBootVolumeKey.description} ` : ""}Optional IBM Key Protect or HPCS root key CRN to use specifically for control plane (master) node boot volumes, overriding the cluster-wide default set above. Leave blank to use the cluster-wide default key (or IBM-managed encryption if no default is set).
+
+**When to use:** Set a separate control plane key when:
+1. Compliance requires different key access policies for control plane vs. workload infrastructure
+2. You want to isolate key permissions (e.g., platform team manages control plane keys, app teams manage worker keys)
+3. Regulatory separation mandates control plane data be encrypted with keys from a different HPCS instance or region
+4. You need independent key rotation schedules for control plane vs. compute
+
+**Important:** The root key must meet the same requirements as the cluster-wide default: exist before installation, be in the same region, have Block Storage authorization, and follow the CRN format 'crn:v1:bluemix:public:kms:region:account:instance:key-id'.
+
+**Precedence:** This field takes priority over 'Boot volume encryption key (all machine pools)' for control plane nodes only. If both are set, control plane uses this key, workers use the cluster-wide default (unless 'Boot volume encryption key (compute)' is also set). If this is blank, control plane falls back to the cluster-wide default.
+
+**Example use case:** High-security cluster where control plane uses HPCS (higher security/compliance tier) while workers use standard Key Protect (cost-effective for less-sensitive workload nodes).`}
                   className="platform-specifics-field-long"
                 >
                   <input
@@ -1102,7 +1289,19 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Boot volume encryption key (compute, optional)"
-                  hint={`${metaIbmComputeBootVolumeKey?.description ? `${metaIbmComputeBootVolumeKey.description} ` : ""}Optional IBM Key Protect or HPCS root key CRN to use specifically for compute (worker) node boot volumes, overriding the cluster-wide default set above. Leave blank to use the cluster-wide default key (or IBM-managed encryption if no default is set). WHEN TO USE: Set a separate compute key when: (1) Workload compliance requirements differ from infrastructure compliance (e.g., PCI workloads need dedicated encryption keys). (2) You want to delegate worker key management to application teams while platform team controls control plane keys. (3) Cost optimization - use lower-cost Key Protect for workers while control plane uses premium HPCS. (4) Multi-tenancy isolation - different worker pools for different tenants/apps might need separate keys (though this field sets a default for ALL workers - per-pool keys require post-install MachineSet customization). IMPORTANT: The root key must meet the same requirements as the cluster-wide default: exist before installation, be in the same region, have Block Storage authorization, and follow the CRN format 'crn:v1:bluemix:public:kms:region:account:instance:key-id'. PRECEDENCE: This field takes priority over 'Boot volume encryption key (all machine pools)' for worker nodes only. If all three fields are set, control plane uses the control plane key, workers use this compute key, and the cluster-wide default is unused (but still a good fallback). If this is blank, workers fall back to the cluster-wide default. Example use case: General-purpose cluster where compute nodes use standard Key Protect (cost-effective for ephemeral worker VMs) while control plane uses HPCS (critical infrastructure with higher security/auditability requirements).`}
+                  hint={`${metaIbmComputeBootVolumeKey?.description ? `${metaIbmComputeBootVolumeKey.description} ` : ""}Optional IBM Key Protect or HPCS root key CRN to use specifically for compute (worker) node boot volumes, overriding the cluster-wide default set above. Leave blank to use the cluster-wide default key (or IBM-managed encryption if no default is set).
+
+**When to use:** Set a separate compute key when:
+1. Workload compliance requirements differ from infrastructure compliance (e.g., PCI workloads need dedicated encryption keys)
+2. You want to delegate worker key management to application teams while platform team controls control plane keys
+3. Cost optimization - use lower-cost Key Protect for workers while control plane uses premium HPCS
+4. Multi-tenancy isolation - different worker pools for different tenants/apps might need separate keys (though this field sets a default for ALL workers - per-pool keys require post-install MachineSet customization)
+
+**Important:** The root key must meet the same requirements as the cluster-wide default: exist before installation, be in the same region, have Block Storage authorization, and follow the CRN format 'crn:v1:bluemix:public:kms:region:account:instance:key-id'.
+
+**Precedence:** This field takes priority over 'Boot volume encryption key (all machine pools)' for worker nodes only. If all three fields are set, control plane uses the control plane key, workers use this compute key, and the cluster-wide default is unused (but still a good fallback). If this is blank, workers fall back to the cluster-wide default.
+
+**Example use case:** General-purpose cluster where compute nodes use standard Key Protect (cost-effective for ephemeral worker VMs) while control plane uses HPCS (critical infrastructure with higher security/auditability requirements).`}
                   className="platform-specifics-field-long"
                 >
                   <input
