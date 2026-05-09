@@ -5007,11 +5007,21 @@ body[data-theme="dark"] .field-info-icon:active {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   max-height: 200px;
   overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.field-tooltip-content strong {
+  font-weight: 600;
+  color: #fbbf24;
 }
 
 body[data-theme="dark"] .field-tooltip-content {
   background: #374151;
   color: #e5e7eb;
+}
+
+body[data-theme="dark"] .field-tooltip-content strong {
+  color: #fcd34d;
 }
 
 /* Long-hint click popover: persistent panel with scroll and Close button */
@@ -5033,6 +5043,12 @@ body[data-theme="dark"] .field-tooltip-content {
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
+  white-space: pre-wrap;
+}
+
+.field-help-popover-content strong {
+  font-weight: 600;
+  color: #fbbf24;
 }
 .field-help-popover-actions {
   padding: 8px 12px;
@@ -5050,6 +5066,10 @@ body[data-theme="dark"] .field-tooltip-content {
 body[data-theme="dark"] .field-help-popover-content {
   background: #374151;
   color: #e5e7eb;
+}
+
+body[data-theme="dark"] .field-help-popover-content strong {
+  color: #fcd34d;
 }
 body[data-theme="dark"] .field-help-popover-actions {
   background: #1f2937;

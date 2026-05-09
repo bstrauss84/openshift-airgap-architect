@@ -46,6 +46,36 @@ export function splitLabelPrefixAndLastWord(label) {
   };
 }
 
+/**
+ * Parse hint text to convert **bold** markdown syntax to <strong> tags.
+ * Preserves line breaks (\n) for white-space: pre-wrap CSS.
+ */
+function parseHintMarkdown(text) {
+  if (!text || typeof text !== 'string') return text;
+
+  const parts = [];
+  let lastIndex = 0;
+  const boldRegex = /\*\*([^*]+?)\*\*/g;
+  let match;
+
+  while ((match = boldRegex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    // Add bold text as <strong>
+    parts.push(<strong key={`bold-${match.index}`}>{match[1]}</strong>);
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last match
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
 function FieldLabelWithInfo({ label, hint, required, id: idProp, children, className: wrapperClassName }) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -155,7 +185,7 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
       onMouseEnter={isLongHint ? undefined : () => { cancelClose(); setVisible(true); }}
       onMouseLeave={isLongHint ? undefined : () => { setVisible(false); }}
     >
-      <div className={isLongHint ? "field-help-popover-content" : "field-tooltip-content"}>{hint}</div>
+      <div className={isLongHint ? "field-help-popover-content" : "field-tooltip-content"}>{parseHintMarkdown(hint)}</div>
       {isLongHint ? (
         <div className="field-help-popover-actions">
           <button type="button" className="ghost" onClick={() => setVisible(false)}>Close</button>
