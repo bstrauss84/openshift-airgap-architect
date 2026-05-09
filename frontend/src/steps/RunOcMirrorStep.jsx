@@ -1005,8 +1005,13 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                     </ul>
                   </div>
                 ) : null}
-                {preflightResult.ok ? (
+                {preflightResult.ok && (!preflightResult.warnings || preflightResult.warnings.length === 0) ? (
                   <p className="note subtle" style={{ marginTop: "0.75rem" }}>✓ Preflight passed. Ready to run oc-mirror.</p>
+                ) : null}
+                {preflightResult.ok && preflightResult.warnings?.length > 0 ? (
+                  <p className="note" style={{ marginTop: "0.75rem", color: "var(--color-warning, #b87800)" }}>
+                    ⚠ Preflight passed with warnings. Review warnings above before proceeding.
+                  </p>
                 ) : null}
               </>
             ) : null}
