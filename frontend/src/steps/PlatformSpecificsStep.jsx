@@ -1637,7 +1637,26 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                 <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
                   <FieldLabelWithInfo
                     label="vCenter server"
-                    hint={metaVsphereVcenter?.description || "Fully qualified domain name (FQDN) or IP address of your vCenter Server. This is the management endpoint for your vSphere environment. Example: vcenter.example.com or 192.168.1.10. Port defaults to 443 (HTTPS). The installer uses this address with the credentials provided above to provision VMs, configure networking, and manage cluster infrastructure. Required for both IPI (automated provisioning) and UPI (validation and placement guidance) workflows."}
+                    hint={`Fully qualified domain name (FQDN) or IP address of your vCenter Server.
+
+**What is this:**
+The management endpoint for your vSphere environment. The installer connects to this address to provision VMs, configure networking, and manage cluster infrastructure.
+
+**Format:**
+• FQDN: vcenter.example.com
+• IP address: 192.168.1.10
+• Port: Defaults to 443 (HTTPS)
+
+**Required for:**
+• **IPI:** Automated provisioning - installer creates all infrastructure
+• **UPI:** Validation and placement guidance
+
+**How it's used:**
+The installer authenticates using the credentials provided above and uses this endpoint to create cluster VMs, attach networks, allocate storage, and configure compute resources.
+
+**Example:**
+vcenter.example.com (production)
+192.168.1.10 (lab environment)`}
                     required={true}
                   >
                     <input
@@ -1648,7 +1667,22 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Datacenter"
-                    hint={metaVsphereDatacenter?.description || "vSphere datacenter name where the cluster will be deployed. A datacenter in vSphere is a logical container that organizes compute resources, networks, and storage. Example: DC1 or Datacenter-Production. This must match the exact name as shown in vCenter (case-sensitive). The datacenter contains the clusters, datastores, and networks you'll specify in the fields below. You can find your datacenter names in vCenter by navigating to Inventory → Datacenters."}
+                    hint={`vSphere datacenter name where the OpenShift cluster will be deployed.
+
+**What is a datacenter:**
+In vSphere, a datacenter is a top-level logical container that organizes compute resources (clusters, hosts), networks, and storage (datastores).
+
+**Requirements:**
+• Must match the **exact** name shown in vCenter (case-sensitive)
+• Contains the clusters, datastores, and networks you'll specify below
+• Must exist before installation (installer does not create datacenters)
+
+**How to find datacenter names:**
+vCenter → Inventory → Datacenters (lists all available datacenters)
+
+**Example:**
+DC1 (simple naming)
+Datacenter-Production (descriptive naming)`}
                     required={true}
                   >
                     <input
@@ -1659,7 +1693,26 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Default datastore"
-                    hint={metaVsphereDefaultDatastore?.description || "vSphere datastore name for cluster VM disks and volumes. A datastore is a storage container (VMFS, NFS, vSAN, vVols) where VM disk files are stored. Example: datastore1 or Production-SAN-01. This must match the exact name in vCenter (case-sensitive). The datastore must have sufficient free space for all cluster VMs - typically 800GB minimum for a basic cluster (3 control plane + 3 workers with 120GB disks each). For production, ensure the datastore has good performance (SSD recommended) and adequate IOPS to support etcd and workload requirements."}
+                    hint={`vSphere datastore name for cluster VM disks and volumes.
+
+**What is a datastore:**
+A storage container (VMFS, NFS, vSAN, or vVols) where VM disk files (VMDK) are stored.
+
+**Requirements:**
+• Must match the **exact** name in vCenter (case-sensitive)
+• Sufficient free space: **800GB minimum** for basic cluster (3 control plane + 3 workers with 120GB disks each)
+• Good performance: **SSD recommended** for production
+• Adequate IOPS to support etcd and workload requirements
+
+**Storage calculation:**
+• Control plane nodes: ~300GB each (etcd, OS, containers)
+• Worker nodes: ~120GB each (OS, containers, ephemeral storage)
+• Bootstrap (temporary): ~120GB
+• Overhead: ~15-20%
+
+**Example:**
+datastore1 (default naming)
+Production-SAN-01 (descriptive naming)`}
                     required={metaVsphereDefaultDatastore?.required || isRequiredInstall("platform.vsphere.defaultDatastore")}
                   >
                     <input
@@ -1670,7 +1723,26 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Compute cluster (required for legacy path)"
-                    hint={`vSphere cluster where worker (compute) nodes will be provisioned. This cluster must have sufficient CPU, memory, and storage resources for your worker node count and sizing. The cluster should have DRS (Distributed Resource Scheduler) enabled for automatic VM placement and load balancing. Example: Cluster-Production-01. You can use the same cluster for both control plane and compute nodes, or separate them for workload isolation. For legacy single placement only; failure domains specify cluster per domain.`}
+                    hint={`vSphere compute cluster where worker nodes will be provisioned.
+
+**What is this:**
+A vSphere compute cluster is a collection of ESXi hosts that share resources and provide features like DRS (Distributed Resource Scheduler) and HA (High Availability).
+
+**Requirements:**
+• Sufficient CPU, memory, and storage for your worker node count and sizing
+• **DRS enabled** recommended for automatic VM placement and load balancing
+• Must match exact cluster name in vCenter (case-sensitive)
+
+**Placement options:**
+• **Same cluster:** Use same cluster for control plane and compute (simpler, fewer resources)
+• **Separate clusters:** Dedicate clusters for workload isolation (production pattern)
+
+**Important:**
+This field is for **legacy single placement mode only**. When using failure domains (OpenShift 4.20+ recommended path), each failure domain specifies its own cluster.
+
+**Example:**
+Cluster-Production-01
+Compute-Zone-A`}
                   >
                     <input
                       value={platformConfig.vsphere?.cluster || ""}
@@ -1680,7 +1752,45 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="VM network (required for legacy path)"
-                    hint={`vSphere network name (Standard Port Group or Distributed Port Group) where the installer attaches virtual network interfaces (vNICs) for all OpenShift cluster VMs (control plane, workers, bootstrap). This must match the exact network name as shown in vCenter (case-sensitive). WHAT IS THIS: In vSphere, VMs connect to networks via port groups - either Standard Port Groups (on Standard vSwitches) or Distributed Port Groups (DPGs, on Distributed vSwitches). This field tells the installer which network to use for all cluster communication. Example: 'VM Network' (default), 'Production-Network', or 'DPG-OpenShift-Prod'. CRITICAL REQUIREMENTS: The network must satisfy ALL of these: (1) Contains the API and Ingress VIP addresses you specified in the Networking tab (these IPs must be routable/reachable on this network). (2) DNS server on this network can resolve the cluster domain names (api.<cluster>.<domain>, *.apps.<cluster>.<domain>, etc.). (3) All cluster nodes can reach each other on this network (no isolation/ACLs between nodes). (4) Network has connectivity to any external services the cluster needs (internet for connected installs, mirror registry for disconnected, NTP servers, etc.). (5) Has sufficient available IP addresses - one per VM (typically 3 control plane + N workers + 1 bootstrap = 4+N IPs minimum). IMPORTANT: This is a vSphere network OBJECT NAME, NOT an IP range or CIDR. The IP address ranges (Machine network CIDR, Cluster network CIDR, Service network CIDR) are configured separately in the Networking tab. The network you specify here must have IP addresses available within the Machine network CIDR you configured. FOR MULTI-NETWORK SETUPS: If you have multiple VLANs or networks, ensure this network is the one where nodes communicate and where your VIPs are allocated. The installer does not support multi-homed VMs in install-config (that requires post-install customization). You can find network names in vCenter by navigating to Networking → select switch → Port groups. Example: 'VM Network' (simple deployments), 'OCP-Production-VLAN100' (VLAN-backed network), 'DPG-Cluster-Network' (distributed port group).`}
+                    hint={`vSphere network name where OpenShift cluster VMs connect.
+
+**What is this:**
+vSphere network object name (Standard Port Group or Distributed Port Group) where the installer attaches virtual network interfaces (vNICs) for all cluster VMs (control plane, workers, bootstrap).
+
+**Important distinction:**
+This is a vSphere **network object name**, NOT an IP range or CIDR. The IP address ranges (Machine/Cluster/Service CIDRs) are configured separately in the Networking tab.
+
+**Network types:**
+• **Standard Port Group:** On Standard vSwitches
+• **Distributed Port Group (DPG):** On Distributed vSwitches
+
+**Critical requirements (ALL must be met):**
+1. Contains the API and Ingress VIP addresses from Networking tab (IPs must be routable on this network)
+2. DNS server on this network can resolve cluster domains (api.<cluster>.<domain>, *.apps.<cluster>.<domain>)
+3. All cluster nodes can reach each other (no isolation/ACLs between nodes)
+4. Network has connectivity to external services (internet for connected, mirror registry for disconnected, NTP)
+5. Sufficient available IPs: one per VM (typically 3 control plane + N workers + 1 bootstrap = 4+N minimum)
+
+**Networking requirements:**
+The network must have available IPs within the Machine network CIDR you configured in the Networking tab.
+
+**Multi-network setups:**
+If you have multiple VLANs/networks, ensure this is the network where:
+• Nodes communicate with each other
+• VIPs are allocated
+The installer does not support multi-homed VMs in install-config (requires post-install customization).
+
+**How to find network names:**
+vCenter → Networking → select switch → Port groups (copy exact name shown)
+
+**Legacy path notice:**
+This field is for **legacy single placement mode only**. When using failure domains (OpenShift 4.20+ recommended), each failure domain specifies its own network(s).
+
+**Example:**
+VM Network (default, simple deployments)
+Production-Network (descriptive naming)
+DPG-OpenShift-Prod (distributed port group)
+OCP-Production-VLAN100 (VLAN-backed network)`}
                   >
                     <input
                       value={platformConfig.vsphere?.network || ""}
@@ -2063,7 +2173,40 @@ Affects memory access patterns on large VMs (32+ vCPUs). Misaligned NUMA topolog
                     </FieldLabelWithInfo>
                     <FieldLabelWithInfo
                       label="memoryMB (optional)"
-                      hint={`Memory (RAM) in megabytes (MB) to assign to each VM. Leave blank to use installer defaults (16384MB = 16GB for control plane, 8192MB = 8GB for workers). For control plane nodes, 16GB minimum is required for production (etcd, API server, controllers are memory-intensive). 32GB+ recommended for large clusters (100+ nodes) or if running many operators. For worker nodes, size based on workload - 8GB minimum for light workloads, 16-32GB for general apps, 64GB+ for memory-intensive workloads (databases, big data, ML). Example: 16384 (16GB) for basic control plane, 32768 (32GB) for busy control plane, 16384 for general workers, 65536 (64GB) for database workers. IMPORTANT: The host must have sufficient physical RAM. vSphere memory over-commitment (more virtual RAM allocated than physical) can severely impact OpenShift performance, especially for etcd. Always ensure adequate physical RAM is available. Memory in MB = value you enter (e.g., 16384 = 16GB). Use multiples of 1024 for clean GB values (8192 = 8GB, 16384 = 16GB, 32768 = 32GB, etc.).`}
+                      hint={`Memory (RAM) in megabytes (MB) to assign to each VM.
+
+**Default behavior:**
+Leave blank to use installer defaults:
+• Control plane: 16384MB (16GB)
+• Workers: 8192MB (8GB)
+
+**Control plane sizing:**
+• **16GB minimum** required for production (etcd, API server, controllers are memory-intensive)
+• **32GB+** recommended for large clusters (100+ nodes) or many operators
+
+**Worker sizing:**
+Size based on workload requirements:
+• **8GB minimum:** Light workloads
+• **16-32GB:** General applications
+• **64GB+:** Memory-intensive workloads (databases, big data, ML)
+
+**Important - Physical RAM:**
+⚠️ The host must have sufficient physical RAM
+⚠️ vSphere memory over-commitment (more virtual RAM than physical) can **severely impact** OpenShift performance, especially for etcd
+⚠️ Always ensure adequate physical RAM is available
+
+**Format:**
+Value in MB (use multiples of 1024 for clean GB values):
+• 8192 = 8GB
+• 16384 = 16GB
+• 32768 = 32GB
+• 65536 = 64GB
+
+**Example:**
+16384 (16GB for basic control plane)
+32768 (32GB for busy control plane)
+16384 (16GB for general workers)
+65536 (64GB for database workers)`}
                     >
                       <input
                         type="number"
