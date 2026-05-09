@@ -125,3 +125,8 @@ docker-compose.override.yml
 docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md
 docs/*_COMPARISON_*.md
 docs/*_FEATURE_ANALYSIS_*.md
+
+# Backup files and scratch/test files (local only)
+*.backup
+**/*.backup
+official-*.txt
