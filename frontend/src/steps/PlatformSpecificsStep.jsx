@@ -410,7 +410,29 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <div style={{ gridColumn: "1 / -1" }}>
                       <FieldLabelWithInfo
                         label="Subnet IDs (required for existing VPC)"
-                        hint={metaAwsSubnets?.description || "One or more subnet IDs. Optionally assign roles per subnet (4.20: if any role is set, every subnet must have at least one role and required roles must be covered)."}
+                        hint={`One or more AWS subnet IDs for the existing VPC.
+
+**What are subnets:**
+Subnets are network segments within your VPC where OpenShift VMs will be deployed. Each subnet has a CIDR block and resides in a specific availability zone.
+
+**Required for:**
+When using an existing VPC (not creating a new one), you must provide subnet IDs for the installer to place cluster nodes.
+
+**Subnet roles (OpenShift 4.20+):**
+Optionally assign roles to subnets:
+• **control-plane:** Subnets for master nodes
+• **compute:** Subnets for worker nodes
+• **edge:** Subnets for edge compute nodes
+
+**Important:**
+If you assign roles to any subnet, ALL subnets must have at least one role, and all required roles must be covered.
+
+**Format:**
+subnet-abc123 (AWS subnet ID format)
+
+**Example:**
+subnet-0abc123def456 (us-east-1a)
+subnet-0def456abc789 (us-east-1b)`}
                         required
                       />
                       <div className="list" style={{ marginTop: 6 }}>
@@ -2462,7 +2484,42 @@ Only when you cannot use failure domains and need basic resource pool assignment
                   {showAgentOptionsSection && (
                     <FieldLabelWithInfo
                       label="Boot artifacts base URL"
-                      hint={metaBootArtifacts?.description || "Base URL where Agent-based installer boot artifacts (kernel, initramfs, rootfs) are hosted for network-based installation. REQUIRED for Agent-based installs using network boot (PXE/iPXE) instead of full ISO. WHAT IS THIS: When using Agent-based installation with minimal ISO or network boot, the installer needs to download OS boot artifacts (RHCOS kernel, initramfs, and root filesystem images) from an HTTP/HTTPS server. This URL points to the directory containing those artifacts. WHY YOU NEED IT: Full ISOs embed all boot artifacts (~1GB+), making them large and slow to distribute. Minimal ISOs (~100MB) or network boot (PXE) are faster but require boot artifacts to be served from a web server. In disconnected/airgap environments, you host these artifacts on an internal HTTP server. FORMAT: Must be a complete HTTP or HTTPS URL ending at the directory containing the artifacts, NOT including the artifact filenames themselves. Example: 'https://mirror.example.com/openshift/agent-artifacts' or 'http://192.168.1.100/rhcos-boot'. The installer appends filenames like 'agent.x86_64-initrd.img', 'agent.x86_64-vmlinuz', and 'agent.x86_64-rootfs.img' to this base URL. CRITICAL SETUP: (1) Download agent boot artifacts from Red Hat (or mirror them from official sources) matching your OpenShift version. (2) Place them in a web-accessible directory on your HTTP server. (3) Verify artifacts are downloadable: 'curl <base-url>/agent.x86_64-vmlinuz' should succeed. (4) Ensure the web server is reachable from the network where your bare metal nodes will boot (same subnet or routable). LEAVE BLANK when using full ISO (not minimal ISO or network boot). Example: 'https://mirror.internal.example.com/ocp-4.14/agent-boot'."}
+                      hint={`Base URL where Agent-based installer boot artifacts are hosted for network boot installation.
+
+**What is this:**
+HTTP/HTTPS URL pointing to a directory containing RHCOS boot artifacts (kernel, initramfs, rootfs) that the installer downloads during network-based installation.
+
+**When required:**
+• Agent-based installation with **minimal ISO** (not full ISO)
+• Network boot (PXE/iPXE) instead of ISO media
+• Disconnected/airgap environments hosting artifacts on internal web server
+
+**Why use minimal ISO/network boot:**
+• Full ISOs embed all artifacts (~1GB+) - large and slow to distribute
+• Minimal ISOs (~100MB) or network boot (PXE) are faster
+• Network boot allows centralized artifact management
+
+**Format:**
+Complete HTTP or HTTPS URL ending at the directory containing artifacts (do NOT include filenames):
+• https://mirror.example.com/openshift/agent-artifacts
+• http://192.168.1.100/rhcos-boot
+
+The installer appends filenames:
+• agent.x86_64-vmlinuz (kernel)
+• agent.x86_64-initrd.img (initramfs)
+• agent.x86_64-rootfs.img (root filesystem)
+
+**Setup steps:**
+1. Download agent boot artifacts from Red Hat matching your OpenShift version
+2. Place artifacts in web-accessible directory on your HTTP server
+3. Verify artifacts are downloadable: 'curl <base-url>/agent.x86_64-vmlinuz' should succeed
+4. Ensure web server is reachable from network where nodes boot (same subnet or routable)
+
+**When to leave blank:**
+When using full ISO (not minimal ISO or network boot)
+
+**Example:**
+https://mirror.internal.example.com/ocp-4.14/agent-boot`}
                       required={metaBootArtifacts?.required || isRequiredAgent("bootArtifactsBaseURL")}
                     >
                       <input
@@ -2475,7 +2532,38 @@ Only when you cannot use failure domains and need basic resource pool assignment
                   {showComputeHyperthreading && (
                     <FieldLabelWithInfo
                       label="Compute hyperthreading (optional)"
-                      hint={metaComputeHyperthreading?.description || "Enable or disable CPU hyperthreading (simultaneous multithreading / SMT) on worker (compute) nodes. Leave as 'Not set' to use platform defaults (hyperthreading enabled on most platforms). WHAT IS HYPERTHREADING: Hyperthreading (Intel) or SMT (AMD) allows a single physical CPU core to run two threads simultaneously, doubling the logical CPU count seen by the operating system. A 16-core server with hyperthreading shows 32 vCPUs to OpenShift. This improves CPU utilization for many workloads but can introduce performance variability. WHY DISABLE IT: Some workloads benefit from disabling hyperthreading: (1) Latency-sensitive real-time applications (telecom, industrial control) require predictable CPU scheduling. (2) High-performance computing (HPC) workloads with tight CPU affinity. (3) Security-conscious environments mitigating speculative execution vulnerabilities (Spectre, Meltdown - hyperthreading can increase attack surface). (4) Licensing constraints (some software is licensed per logical CPU - disabling hyperthreading halves the count). WHY KEEP IT ENABLED (default): Most general-purpose workloads (web apps, databases, microservices) benefit from hyperthreading - higher throughput, better CPU utilization. Disabling it reduces available CPU capacity by ~30-40% (you lose half your vCPUs). OPTIONS: 'Enabled' (default) - hyperthreading on, 'Disabled' - hyperthreading off. IMPORTANT: This setting applies to ALL worker nodes at install time. You cannot selectively disable it per-node or per-MachineSet in install-config (that requires post-install tuning via MachineConfig and kubelet settings). Example: Set 'Disabled' for low-latency telco workloads, leave 'Not set' (enabled) for general clusters."}
+                      hint={`Enable or disable CPU hyperthreading (simultaneous multithreading / SMT) on worker nodes.
+
+**Default:**
+Leave as 'Not set' to use platform defaults (hyperthreading **enabled** on most platforms)
+
+**What is hyperthreading:**
+Hyperthreading (Intel) or SMT (AMD) allows a single physical CPU core to run two threads simultaneously, doubling the logical CPU count. A 16-core server with hyperthreading shows 32 vCPUs to OpenShift.
+
+**Benefits (enabled - default):**
+• Higher throughput and better CPU utilization
+• Most workloads (web apps, databases, microservices) benefit
+• ~30-40% more CPU capacity vs disabled
+
+**When to disable:**
+1. **Latency-sensitive applications:** Telecom, industrial control, real-time workloads requiring predictable CPU scheduling
+2. **High-performance computing (HPC):** Workloads with tight CPU affinity
+3. **Security:** Mitigating speculative execution vulnerabilities (Spectre, Meltdown)
+4. **Licensing:** Software licensed per logical CPU (disabling halves the count)
+
+**Trade-off:**
+Disabling reduces available CPU capacity by ~30-40% (lose half your vCPUs)
+
+**Options:**
+• **Enabled** (default): Hyperthreading on
+• **Disabled**: Hyperthreading off
+
+**Important:**
+Applies to **ALL worker nodes** at install time. Cannot selectively disable per-node in install-config (requires post-install MachineConfig tuning).
+
+**Example:**
+Set 'Disabled' for low-latency telco workloads
+Leave 'Not set' (enabled) for general clusters`}
                     >
                       <select
                         value={platformConfig.computeHyperthreading || ""}
@@ -2491,7 +2579,44 @@ Only when you cannot use failure domains and need basic resource pool assignment
                   {showControlPlaneHyperthreading && (
                     <FieldLabelWithInfo
                       label="Control plane hyperthreading (optional)"
-                      hint={metaControlPlaneHyperthreading?.description || "Enable or disable CPU hyperthreading (simultaneous multithreading / SMT) on control plane (master) nodes. Leave as 'Not set' to use platform defaults (hyperthreading enabled on most platforms). WHAT IS HYPERTHREADING: Hyperthreading (Intel) or SMT (AMD) allows a single physical CPU core to run two threads simultaneously, doubling the logical CPU count. Control plane nodes run etcd (distributed database), Kubernetes API server, scheduler, and controllers - all CPU-intensive services. IMPORTANT: Control plane nodes are generally MORE sensitive to CPU performance than workers because etcd requires consistent low-latency CPU scheduling. Disabling hyperthreading can IMPROVE control plane stability for latency-critical clusters by reducing CPU scheduling variability. WHY DISABLE IT ON CONTROL PLANE: (1) etcd performance - etcd is extremely sensitive to CPU latency jitter. Hyperthreading can introduce unpredictable scheduling delays when both threads on a core are busy. Disabling hyperthreading gives etcd exclusive access to physical cores for more consistent latency. (2) Security - control plane runs privileged infrastructure components. Disabling hyperthreading mitigates speculative execution attacks (Spectre/Meltdown) that can leak secrets between threads on the same core. (3) Real-time Kubernetes (telco, edge) - telco clusters often disable hyperthreading on control plane for 5G/MEC latency guarantees. WHY KEEP IT ENABLED (default): For most clusters, the throughput benefit of hyperthreading outweighs the latency penalty. Control plane nodes typically have 8+ physical cores, providing adequate performance even with hyperthreading variability. OPTIONS: 'Enabled' (default) - hyperthreading on, 'Disabled' - hyperthreading off. CAN YOU MIX? Yes - you can disable hyperthreading on control plane while keeping it enabled on workers (common for telco/edge clusters). Example: Set 'Disabled' for telco/edge clusters with strict latency SLAs, leave 'Not set' (enabled) for general-purpose clusters."}
+                      hint={`Enable or disable CPU hyperthreading (simultaneous multithreading / SMT) on control plane nodes.
+
+**Default:**
+Leave as 'Not set' to use platform defaults (hyperthreading **enabled** on most platforms)
+
+**What is hyperthreading:**
+Hyperthreading (Intel) or SMT (AMD) allows a single physical CPU core to run two threads simultaneously, doubling logical CPU count.
+
+**Control plane workloads:**
+Control plane runs etcd (distributed database), Kubernetes API server, scheduler, and controllers - all CPU-intensive services.
+
+**Critical distinction:**
+Control plane nodes are **MORE sensitive** to CPU performance than workers because etcd requires consistent low-latency CPU scheduling.
+
+**Why disable on control plane:**
+
+**1. etcd performance:**
+etcd is extremely sensitive to CPU latency jitter. Hyperthreading can introduce unpredictable scheduling delays when both threads on a core are busy. Disabling gives etcd exclusive access to physical cores for more consistent latency.
+
+**2. Security:**
+Control plane runs privileged infrastructure components. Disabling hyperthreading mitigates speculative execution attacks (Spectre/Meltdown) that can leak secrets between threads on the same core.
+
+**3. Real-time Kubernetes (telco/edge):**
+Telco clusters often disable hyperthreading on control plane for 5G/MEC latency guarantees.
+
+**Why keep enabled (default):**
+For most clusters, the throughput benefit outweighs the latency penalty. Control plane nodes typically have 8+ physical cores, providing adequate performance even with hyperthreading variability.
+
+**Options:**
+• **Enabled** (default): Hyperthreading on
+• **Disabled**: Hyperthreading off
+
+**Can you mix?**
+Yes - you can disable hyperthreading on control plane while keeping it enabled on workers (common for telco/edge clusters).
+
+**Example:**
+Set 'Disabled' for telco/edge with strict latency SLAs
+Leave 'Not set' (enabled) for general-purpose clusters`}
                     >
                       <select
                         value={platformConfig.controlPlaneHyperthreading || ""}
@@ -2508,7 +2633,46 @@ Only when you cannot use failure domains and need basic resource pool assignment
                     <>
                       <FieldLabelWithInfo
                         label="Baseline capability set (optional)"
-                        hint={metaBaselineCapability?.description || "Defines the baseline set of OpenShift capabilities (cluster features) to enable at installation time. Capabilities control which optional components are deployed (monitoring, console, marketplace, etc.). Leave as 'Not set' to use the default 'vCurrent' (all current-version capabilities enabled). WHAT ARE CAPABILITIES: OpenShift 4.11+ uses a modular capability system to let you install minimal clusters (reduced footprint) by excluding optional components. Each capability represents a cluster feature - e.g., 'Console' (web UI), 'Insights' (telemetry), 'Marketplace' (operator hub), 'NodeTuning' (performance tuning). Disabling capabilities reduces resource consumption (control plane CPU/memory) and can simplify airgap scenarios (fewer images to mirror). OPTIONS: 'vCurrent' (default) - enables all capabilities for your OpenShift version (full-featured cluster). 'v4.11' / 'v4.12' / etc. - freezes capability set to a specific version (use for version-pinned deployments). 'None' - minimal cluster with ONLY core Kubernetes and OpenShift infrastructure (no console, no monitoring, no marketplace) - use for ultra-lightweight edge nodes or when you add capabilities manually post-install. WHEN TO USE MINIMAL: (1) Edge deployments with severe resource constraints (single-node OpenShift on small hardware). (2) Airgap environments where mirroring all images is impractical. (3) Security-hardened clusters where you want explicit control over every component. (4) Development/testing where full features aren't needed. IMPORTANT: Starting with a minimal set ('None') means features like the web console and monitoring won't be available until you enable those capabilities post-install (requires editing ClusterVersion object and mirroring additional images). Most users should leave this as 'Not set' (vCurrent) unless they have specific minimal-cluster requirements. You can add individual capabilities via 'Additional enabled capabilities' field below. Example: Set 'None' for minimal edge nodes, leave 'Not set' for normal clusters."}
+                        hint={`Defines the baseline set of OpenShift capabilities (cluster features) enabled at installation time.
+
+**Default:**
+Leave as 'Not set' to use 'vCurrent' (all current-version capabilities enabled)
+
+**What are capabilities:**
+OpenShift 4.11+ uses a modular capability system to install minimal clusters (reduced footprint) by excluding optional components. Each capability represents a cluster feature: Console (web UI), Insights (telemetry), Marketplace (OperatorHub), NodeTuning (performance tuning).
+
+**Options:**
+
+**vCurrent (default):**
+Enables all capabilities for your OpenShift version (full-featured cluster)
+
+**v4.11 / v4.12 / etc.:**
+Freezes capability set to a specific version (version-pinned deployments)
+
+**None:**
+Minimal cluster with ONLY core Kubernetes and OpenShift infrastructure (no console, no monitoring, no marketplace)
+
+**When to use minimal (None):**
+1. Edge deployments with severe resource constraints (single-node OpenShift on small hardware)
+2. Airgap environments where mirroring all images is impractical
+3. Security-hardened clusters requiring explicit control over every component
+4. Development/testing where full features aren't needed
+
+**Important:**
+Starting with 'None' means features like web console and monitoring won't be available until you enable capabilities post-install (requires editing ClusterVersion object and mirroring additional images).
+
+**Benefits of disabling:**
+Reduces resource consumption (control plane CPU/memory) and simplifies airgap scenarios (fewer images to mirror).
+
+**Adding individual capabilities:**
+Use 'Additional enabled capabilities' field below to add specific capabilities on top of baseline.
+
+**Recommendation:**
+Most users should leave 'Not set' (vCurrent) unless you have specific minimal-cluster requirements.
+
+**Example:**
+Set 'None' for minimal edge nodes
+Leave 'Not set' for normal clusters`}
                       >
                         <select
                           value={platformConfig.baselineCapabilitySet || (metaBaselineCapability?.default ?? "")}
@@ -2582,7 +2746,50 @@ Console, Marketplace, Insights (minimal + marketplace)`}
                   {showCpuPartitioningMode && (
                     <FieldLabelWithInfo
                       label="CPU partitioning mode (optional)"
-                      hint={metaCpuPartitioningMode?.description || "Configures CPU partitioning to isolate cluster infrastructure workloads from application workloads on the same nodes (single-node or performance-tuned clusters). Leave as 'Not set' or 'None' for standard clusters. Set to 'AllNodes' for low-latency, real-time, or telco edge deployments. WHAT IS CPU PARTITIONING: CPU partitioning reserves a dedicated set of CPU cores for OpenShift infrastructure pods (kubelet, CRI-O, system services) while isolating application pods to a separate set of cores. This prevents infrastructure overhead from interfering with latency-sensitive workloads. WHY USE IT: Required for real-time workloads (5G/MEC, industrial automation, robotics) that demand guaranteed CPU access without interference from cluster overhead. Common in telco edge Single-Node OpenShift (SNO) deployments where infrastructure and apps share the same physical host. OPTIONS: 'None' (default) - no CPU partitioning, all workloads share CPUs dynamically (standard behavior). 'AllNodes' - enable CPU partitioning on all nodes (or on SNO) - you must also configure CPU manager policies and workload partitioning via Performance Add-on Operator or MachineConfig post-install. HOW IT WORKS: When 'AllNodes' is set, OpenShift reserves CPUs for infrastructure (typically cores 0-1 on a small node, or cores 0-3 on larger nodes) and schedules app pods only on the remaining 'isolated' cores using cgroups and CPU affinity. You configure the exact core split via Performance Profile or PerformanceAddon Operator after installation. PREREQUISITES: (1) Nodes must have sufficient cores (minimum 4 cores for SNO with partitioning - 2 for infra, 2 for apps; more cores recommended). (2) Hyperthreading often disabled (see hyperthreading fields) for predictable latency. (3) You must configure workload partitioning annotations and CPU manager policies post-install. IMPORTANT: Setting this alone doesn't partition CPUs - it signals intent in install-config. Actual partitioning requires post-install MachineConfig, Performance Add-on, and workload annotations. This is ADVANCED configuration for telco/edge/real-time use cases - do not set unless you understand workload partitioning and have a specific low-latency requirement. Example: Set 'AllNodes' for telco vRAN Single-Node OpenShift, leave 'None' for general clusters."}
+                      hint={`Configures CPU partitioning to isolate cluster infrastructure from application workloads.
+
+**Default:**
+Leave as 'Not set' or 'None' for standard clusters
+
+**What is CPU partitioning:**
+Reserves a dedicated set of CPU cores for OpenShift infrastructure pods (kubelet, CRI-O, system services) while isolating application pods to separate cores. Prevents infrastructure overhead from interfering with latency-sensitive workloads.
+
+**When to use:**
+Required for **real-time workloads** demanding guaranteed CPU access:
+• 5G/MEC (mobile edge computing)
+• Industrial automation, robotics
+• Telco edge Single-Node OpenShift (SNO) where infrastructure and apps share same host
+
+**Options:**
+
+**None (default):**
+No CPU partitioning - all workloads share CPUs dynamically (standard behavior)
+
+**AllNodes:**
+Enable CPU partitioning on all nodes (or on SNO). Must also configure CPU manager policies and workload partitioning via Performance Add-on Operator post-install.
+
+**How it works:**
+When 'AllNodes' is set:
+• OpenShift reserves CPUs for infrastructure (typically cores 0-1 on small nodes, 0-3 on larger nodes)
+• App pods scheduled only on remaining 'isolated' cores using cgroups and CPU affinity
+• You configure exact core split via Performance Profile or PerformanceAddon Operator after installation
+
+**Prerequisites:**
+1. **Sufficient cores:** Minimum 4 cores for SNO with partitioning (2 for infra, 2 for apps; more recommended)
+2. **Hyperthreading:** Often disabled for predictable latency (see hyperthreading fields)
+3. **Post-install config:** Must configure workload partitioning annotations and CPU manager policies
+
+**Critical:**
+⚠️ Setting this alone doesn't partition CPUs - it signals intent in install-config
+⚠️ Actual partitioning requires post-install MachineConfig, Performance Add-on, and workload annotations
+⚠️ This is **ADVANCED** configuration for telco/edge/real-time use cases
+
+**Recommendation:**
+Do not set unless you understand workload partitioning and have specific low-latency requirements.
+
+**Example:**
+Set 'AllNodes' for telco vRAN Single-Node OpenShift
+Leave 'None' for general clusters`}
                     >
                       <select
                         value={platformConfig.cpuPartitioningMode || (metaCpuPartitioningMode?.default ?? "None")}
