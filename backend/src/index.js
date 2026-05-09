@@ -154,6 +154,40 @@ const purgeExpiredBundleStates = () => {
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
 
+const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "registry.connect.redhat.com"];
+
+/**
+ * Validates a Red Hat pull secret for required registry entries.
+ * @param {string} secret - Pull secret JSON string
+ * @returns {{valid: boolean, error?: string}} Validation result
+ */
+function validateRhPullSecret(secret) {
+  if (!secret || typeof secret !== "string" || secret.trim().length === 0) {
+    return { valid: false, error: "Red Hat pull secret is required to pull from registry.redhat.io / quay.io." };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(secret);
+  } catch (err) {
+    return { valid: false, error: "Red Hat pull secret must be valid JSON." };
+  }
+
+  if (!parsed?.auths || typeof parsed.auths !== "object") {
+    return { valid: false, error: "Red Hat pull secret must contain an 'auths' object." };
+  }
+
+  const hasRhRegistry = RH_REGISTRIES.some((r) => parsed.auths[r]);
+  if (!hasRhRegistry) {
+    return {
+      valid: false,
+      error: `Red Hat pull secret must include credentials for at least one Red Hat registry: ${RH_REGISTRIES.join(", ")}.`
+    };
+  }
+
+  return { valid: true };
+}
+
 function detectMountedPullSecret() {
   const candidates = [
     process.env.PULL_SECRET_FILE,
@@ -161,12 +195,11 @@ function detectMountedPullSecret() {
     path.join(dataDir, "pull-secret.json"),
     path.join(process.env.HOME || "/root", ".openshift", "pull-secret"),
   ].filter(Boolean);
-  const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "registry.connect.redhat.com"];
   for (const p of candidates) {
     try {
       const raw = fs.readFileSync(p, "utf8").trim();
-      const parsed = JSON.parse(raw);
-      if (parsed?.auths && RH_REGISTRIES.some((r) => parsed.auths[r])) {
+      const validation = validateRhPullSecret(raw);
+      if (validation.valid) {
         mountedRhPullSecret = raw;
         console.log(`[startup] Mounted Red Hat pull secret detected at: ${p}`);
         return;
@@ -1658,13 +1691,13 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
 
   // Auth checks per mode
   if (mode === "mirrorToDisk" || mode === "mirrorToMirror") {
-    if (rhPullSecret && typeof rhPullSecret === "string" && rhPullSecret.trim().length > 0) {
+    const validation = validateRhPullSecret(rhPullSecret);
+    if (validation.valid) {
       checks.auth = "present";
     } else {
       checks.auth = "missing";
-      const msg = "Red Hat pull secret is required to pull from registry.redhat.io / quay.io.";
-      blockers.push(msg);
-      fieldErrors.rhPullSecret = { severity: "blocker", message: msg };
+      blockers.push(validation.error);
+      fieldErrors.rhPullSecret = { severity: "blocker", message: validation.error };
     }
   }
   if (mode === "diskToMirror" || mode === "mirrorToMirror") {
