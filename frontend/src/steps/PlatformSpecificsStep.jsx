@@ -1827,14 +1827,66 @@ On the host where you'll run openshift-install:
                 <div className="field-grid" style={{ marginTop: 12 }}>
                   {showVsphereLegacyFolderResourcePool && (
                     <>
-                      <FieldLabelWithInfo label="vSphere folder (optional, legacy)" hint="VM folder path for cluster VMs (legacy placement only). Doc 9.1.5: deprecated; with failure domains use Topology: Folder per failure domain. Omit to use installer default.">
+                      <FieldLabelWithInfo label="vSphere folder (optional, legacy)" hint="⚠️ **DEPRECATED:** Use Topology: Folder per failure domain instead. This legacy field only applies when using legacy single placement mode (not recommended for OpenShift 4.20+).
+
+**What this is:**
+Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs when using legacy placement (without failure domains).
+
+**Deprecation notice:**
+OpenShift 4.20 documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
+
+**Legacy behavior (if you must use it):**
+• Format: `/datacenter-name/vm/folder-name` or `/datacenter-name/vm/parent/child`
+• Example: `/Datacenter1/vm/OpenShift` or `/DC1/vm/Production/OCP`
+• Leave blank to use datacenter root VM folder
+
+**Why failure domains are better:**
+• Multi-zone placement for high availability
+• Per-zone folder organization
+• Clearer separation of infrastructure by availability zone
+• Future-proof for multi-datacenter deployments
+
+**Migration path:**
+Switch to 'Use failure domains (recommended)' radio button above and set Topology: Folder for each failure domain instead of using this global field.
+
+**When to use legacy mode:**
+Only when you cannot use failure domains (e.g., single cluster deployment with no zone separation needs).">
                         <input
                           value={platformConfig.vsphere?.folder || ""}
                           onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, folder: e.target.value } })}
                           placeholder="VM folder path"
                         />
                       </FieldLabelWithInfo>
-                      <FieldLabelWithInfo label="vSphere resource pool (optional, legacy)" hint="Resource pool path for cluster VMs (legacy placement only). Doc 9.1.5: deprecated; with failure domains use Topology: Resource pool per failure domain. Omit to use cluster root Resources.">
+                      <FieldLabelWithInfo label="vSphere resource pool (optional, legacy)" hint="⚠️ **DEPRECATED:** Use Topology: Resource pool per failure domain instead. This legacy field only applies when using legacy single placement mode (not recommended for OpenShift 4.20+).
+
+**What this is:**
+Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs when using legacy placement (without failure domains).
+
+**Deprecation notice:**
+OpenShift 4.20 documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
+
+**Legacy behavior (if you must use it):**
+• Format: `/datacenter-name/host/cluster-name/Resources/pool-name`
+• Example: `/Datacenter1/host/Cluster1/Resources/OpenShift-Pool`
+• Leave blank to use cluster's root Resources pool (default)
+
+**What are resource pools:**
+vSphere resource pools partition CPU and memory with reservations, limits, and shares. Useful for:
+• Guaranteeing resources to OpenShift separate from other workloads
+• Preventing resource contention on shared compute clusters
+• Enforcing resource quotas or SLAs
+
+**Why failure domains are better:**
+• Different resource pools per availability zone
+• Independent resource allocation across zones
+• Clearer separation for multi-cluster/multi-tenant environments
+• Future-proof for complex infrastructure topologies
+
+**Migration path:**
+Switch to 'Use failure domains (recommended)' radio button above and set Topology: Resource pool for each failure domain instead of using this global field.
+
+**When to use legacy mode:**
+Only when you cannot use failure domains and need basic resource pool assignment for all cluster VMs in a single pool.">
                         <input
                           value={platformConfig.vsphere?.resourcePool || ""}
                           onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, resourcePool: e.target.value } })}
