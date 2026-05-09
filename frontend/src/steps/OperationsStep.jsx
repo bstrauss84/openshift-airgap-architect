@@ -164,6 +164,30 @@ const OperationsStep = () => {
 
   const canStop = (job) => job.type === "oc-mirror-run" && job.status === "running";
 
+  const downloadJobLogs = (job) => {
+    if (!job || !job.output || job.output.trim().length === 0) {
+      alert("No logs available to download for this job.");
+      return;
+    }
+
+    // Create filename: jobType_YYYY-MM-DD_HH-MM-SS.txt
+    const timestamp = job.created_at
+      ? new Date(Number(job.created_at)).toISOString()
+          .replace(/:/g, '-')
+          .replace(/\..+/, '')
+          .replace('T', '_')
+      : new Date().toISOString()
+          .replace(/:/g, '-')
+          .replace(/\..+/, '')
+          .replace('T', '_');
+
+    const jobTypeLabel = JOB_TYPE_LABELS[job.type] || job.type;
+    const sanitizedType = jobTypeLabel.replace(/\s+/g, '-').toLowerCase();
+    const filename = `${sanitizedType}_${timestamp}.txt`;
+
+    downloadTextFile(filename, job.output);
+  };
+
   const completedCount = jobs.filter((j) => TERMINAL_STATUSES.includes(j.status)).length;
 
   const clearCompletedJobs = async () => {
@@ -264,6 +288,16 @@ const OperationsStep = () => {
                       >
                         {selectedJobId === job.id ? "Hide logs" : "View logs"}
                       </button>
+                      {job.output && job.output.trim().length > 0 ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => downloadJobLogs(job)}
+                          title="Download logs as text file"
+                        >
+                          💾 Download
+                        </button>
+                      ) : null}
                       {canStop(job) ? (
                         <button type="button" className="danger" onClick={() => stopJob(job.id)}>
                           Stop
