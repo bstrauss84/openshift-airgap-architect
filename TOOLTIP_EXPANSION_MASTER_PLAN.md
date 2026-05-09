@@ -1,8 +1,8 @@
 # Tooltip Expansion Master Plan
 
-**Last Updated:** 2026-05-09 (Batch 16 complete)
-**Current Status:** 18/87 tooltips at gold standard (~21%), 52 need reformatting (~60%)
-**Current Batch:** Batch 17 (Azure Government section reformatting)
+**Last Updated:** 2026-05-09 (Batch 17 complete)
+**Current Status:** 22/87 tooltips at gold standard (~25%), 48 need reformatting (~55%)
+**Current Batch:** Batch 18 (IBM Cloud section reformatting)
 
 **IMPORTANT:** After comprehensive audit, actual numbers are:
 - 174 total FieldLabelWithInfo components (some don't need tooltips)
@@ -63,8 +63,8 @@ Concrete example values
 | **Total FieldLabelWithInfo components** | 174 | 100% |
 | **Components with tooltips (hint=)** | 87 | 50% |
 | **Components without tooltips** | 87 | 50% |
-| **Gold standard (ready)** | 18 | 20.7% of 87 |
-| **Need reformatting** | 52 | 59.8% of 87 |
+| **Gold standard (ready)** | 22 | 25.3% of 87 |
+| **Need reformatting** | 48 | 55.2% of 87 |
 | **Acceptable as-is** | 17 | 19.5% of 87 |
 
 **Key Insight:** The "174 tooltips" number was actually total components. Only 87 have hint tooltips. 
@@ -157,6 +157,19 @@ The other 87 components use simple labels without help text (which is correct - 
 **Technical:** Fixed catalog fallback syntax (double-quotes → backticks)
 **Validation:** All build/test passing
 **Progress:** Gold standard 12 → 18/87 (20.7%)
+
+### ✅ Batch 17: Azure Government Section Reformatting (Commit: e5ba6c9)
+**Count:** 4 tooltips (83/87 total)
+**Fields:**
+- ✅ platform.azure.cloudName (Azure cloud name)
+- ✅ platform.azure.region (Azure region)
+- ✅ platform.azure.resourceGroupName (Resource group name)
+- ✅ platform.azure.baseDomainResourceGroupName (Base domain resource group)
+
+**Pattern:** Converted UPPERCASE: headers to **bold:** markdown
+**Technical:** Fixed catalog fallback syntax (double-quotes → backticks)
+**Validation:** All build/test passing
+**Progress:** Gold standard 18 → 22/87 (25.3%)
 
 ### ✅ Comprehensive Audit Complete (2026-05-09)
 **What:** Audited ALL 87 hint= tooltips against quality metrics
@@ -432,9 +445,9 @@ For each of the 87 tooltips, we tracked:
 
 ### Current State
 - **Branch:** develop
-- **Last Batch:** 16 (AWS GovCloud section reformatting)
-- **Next Batch:** 17 (Azure Government section reformatting)
-- **Progress:** 18/87 gold standard (20.7%), 52/87 need reformatting (59.8%)
+- **Last Batch:** 17 (Azure Government section reformatting)
+- **Next Batch:** 18 (IBM Cloud section reformatting)
+- **Progress:** 22/87 gold standard (25.3%), 48/87 need reformatting (55.2%)
 
 ### Key Commands
 ```bash
