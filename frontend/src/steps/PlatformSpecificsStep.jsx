@@ -676,7 +676,43 @@ subnet-0def456abc789 (us-east-1b)`}
                     <div className="field-grid">
                       <FieldLabelWithInfo
                         label="Control plane replicas"
-                        hint={`Number of control plane nodes (master nodes) to create during installation. REQUIRED: Must be an odd number for etcd quorum. Standard value is 3 (minimum for production high-availability). WHY ODD NUMBERS: etcd (the cluster's key-value store) requires a quorum (majority) to function - with 3 nodes, the cluster can survive 1 node failure (2 of 3 remaining = quorum). With 5 nodes, you can survive 2 failures (3 of 5 remaining = quorum). IMPORTANT: More control plane nodes does NOT always mean better availability. 3 nodes is the sweet spot for most deployments - it provides HA at reasonable cost. 5 nodes is only needed for very large clusters (500+ nodes) or when you need to survive 2 simultaneous control plane failures. NEVER use even numbers (2, 4, 6) - with 2 nodes, losing 1 means no quorum and the cluster stops functioning; with 4 nodes, losing 2 means no quorum, so you're paying for 4 but can only survive 1 failure (same as 3 nodes). Each control plane node runs etcd, the Kubernetes API server, controller manager, and scheduler - these are CPU/memory intensive. For AWS GovCloud, control plane nodes are EC2 instances (you pay for them). Default: 3. Use 5 only for very large or mission-critical clusters. CANNOT be changed after installation without rebuilding the cluster.`}
+                        hint={`Number of control plane nodes (master nodes) to create during installation.
+
+**Required:**
+Must be an **odd number** for etcd quorum
+
+**Standard value:**
+3 (minimum for production high-availability)
+
+**Why odd numbers:**
+etcd (the cluster's key-value store) requires a quorum (majority) to function:
+• **3 nodes:** Can survive 1 node failure (2 of 3 remaining = quorum)
+• **5 nodes:** Can survive 2 failures (3 of 5 remaining = quorum)
+
+**The sweet spot:**
+3 nodes is optimal for most deployments - provides HA at reasonable cost
+
+**When to use 5 nodes:**
+• Very large clusters (500+ nodes)
+• Need to survive 2 simultaneous control plane failures
+
+**Never use even numbers:**
+• **2 nodes:** Losing 1 = no quorum, cluster stops
+• **4 nodes:** Losing 2 = no quorum, so you pay for 4 but can only survive 1 failure (same as 3 nodes)
+
+**What runs on control plane:**
+Each node runs etcd, Kubernetes API server, controller manager, and scheduler (CPU/memory intensive)
+
+**Cloud cost:**
+Control plane nodes are EC2 instances (you pay for them)
+
+**Important:**
+⚠️ **CANNOT be changed** after installation without rebuilding the cluster
+
+**Default:** 3
+
+**Recommendation:**
+Use 5 only for very large or mission-critical clusters`}
                       >
                         <input
                           type="number"
@@ -691,7 +727,42 @@ subnet-0def456abc789 (us-east-1b)`}
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
                         label="Compute (worker) replicas"
-                        hint={`Number of worker nodes (also called compute nodes) to create during installation. Workers run your application workloads (pods, containers). Unlike control plane, you CAN scale workers up or down after installation via MachineSets. Minimum recommended: 2 workers for production (allows workload redundancy and rolling updates). You can set 0 for a control-plane-only cluster (sometimes called a 'compact cluster') where control plane nodes also run workloads - this is supported but NOT recommended for production (reduces isolation, risks resource contention with etcd/API server). SIZING GUIDANCE: For development/testing: 2-3 workers is fine. For production: Start with 3+ workers. For high availability, spread workers across multiple AWS availability zones (the installer does this automatically in IPI mode). Each worker is an EC2 instance - more workers = higher AWS cost, but also more capacity for workloads. You can start small (3 workers) and scale up post-install as workload demands grow by editing MachineSets. BEST PRACTICE: Use at least 2 workers to ensure workload pods can be rescheduled if a worker fails. If running stateful workloads or databases, consider 5+ workers for better resilience. Default: 0 (you must explicitly set a count for UPI, IPI often defaults to 3). Example: 3 for small production, 5 for medium, 10+ for large workloads or multi-AZ redundancy.`}
+                        hint={`Number of worker nodes (compute nodes) to create during installation.
+
+**What workers do:**
+Run your application workloads (pods, containers)
+
+**Scalability:**
+Unlike control plane, you **CAN scale workers** up or down after installation via MachineSets
+
+**Minimum recommended:**
+**2 workers** for production (allows workload redundancy and rolling updates)
+
+**Compact cluster (0 workers):**
+You can set 0 for a control-plane-only cluster (sometimes called 'compact cluster') where control plane nodes also run workloads - this is **supported but NOT recommended** for production (reduces isolation, risks resource contention with etcd/API server)
+
+**Sizing guidance:**
+
+• **Development/testing:** 2-3 workers
+• **Production:** Start with 3+ workers
+• **High availability:** Spread workers across multiple availability zones (installer does this automatically in IPI mode)
+• **Stateful workloads/databases:** Consider 5+ workers for better resilience
+
+**Cloud cost:**
+Each worker is an EC2 instance - more workers = higher cost, but also more capacity
+
+**Scaling strategy:**
+Start small (3 workers) and scale up post-install as workload demands grow by editing MachineSets
+
+**Best practice:**
+Use at least **2 workers** to ensure workload pods can be rescheduled if a worker fails
+
+**Default:** 0 (you must explicitly set a count for UPI, IPI often defaults to 3)
+
+**Example:**
+3 for small production
+5 for medium
+10+ for large workloads or multi-AZ redundancy`}
                       >
                         <input
                           type="number"
@@ -712,7 +783,24 @@ subnet-0def456abc789 (us-east-1b)`}
                 <div className="field-grid">
                   <FieldLabelWithInfo
                     label="Publish (optional)"
-                    hint={`External (default): API and ingress published to public DNS/load balancer. Use for clusters reachable from the internet or external networks. Required when apps/API must be accessed without VPN. Internal: All cluster endpoints are private-network only. DNS must resolve internally. Required by some compliance regimes. Note: console.redhat.com cluster management and direct Red Hat update checks will not reach the cluster without additional network routing. Recommendation: External for most installs. Internal only when external exposure is explicitly prohibited.`}
+                    hint={`Controls whether cluster endpoints are publicly accessible or private-network only.
+
+**External (default):**
+• API and ingress published to public DNS/load balancer
+• Use for clusters reachable from internet or external networks
+• **Required when:** Apps/API must be accessed without VPN
+
+**Internal:**
+• All cluster endpoints are private-network only
+• DNS must resolve internally
+• **Required by:** Some compliance regimes
+
+**Important:**
+With Internal publishing, console.redhat.com cluster management and direct Red Hat update checks will **not reach the cluster** without additional network routing
+
+**Recommendation:**
+• **External** for most installs
+• **Internal** only when external exposure is explicitly prohibited`}
                   >
                     <select
                       value={platformConfig.publish || metaPublish?.default || "External"}
@@ -724,7 +812,27 @@ subnet-0def456abc789 (us-east-1b)`}
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Credentials mode (optional)"
-                    hint={`Mint (recommended for IPI): CCO creates scoped cloud credentials for each cluster component from your admin credential. Each component gets minimal permissions. Requires IAM rights to create new users/roles. Best choice when you have full IAM admin access. Passthrough: CCO passes your install-time admin credential to all components — no new IAM identities created. Use when your org prohibits new IAM account creation. All components share the broad admin credential. Manual: You provision credentials yourself before install (e.g. via ccoctl for STS/Workload Identity). Required for air-gapped AWS STS installs, highly regulated environments. Most secure, most complex. Must run ccoctl before openshift-install. Nutanix IPI always requires Manual — enforced automatically.`}
+                    hint={`Controls how OpenShift Cloud Credential Operator (CCO) manages cloud provider credentials.
+
+**Mint (recommended for IPI):**
+• CCO creates scoped cloud credentials for each cluster component from your admin credential
+• Each component gets minimal permissions (least privilege)
+• **Requires:** IAM rights to create new users/roles
+• **Best for:** When you have full IAM admin access
+
+**Passthrough:**
+• CCO passes your install-time admin credential to all components — no new IAM identities created
+• All components share the broad admin credential
+• **Use when:** Your org prohibits new IAM account creation
+
+**Manual:**
+• You provision credentials yourself before install (e.g., via ccoctl for STS/Workload Identity)
+• **Required for:** Airgapped AWS STS installs, highly regulated environments
+• **Security:** Most secure, most complex
+• **Important:** Must run ccoctl before openshift-install
+
+**Platform-specific:**
+⚠️ Nutanix IPI always requires Manual mode (enforced automatically)`}
                   >
                     <select
                       value={platformConfig.credentialsMode || ""}
@@ -868,7 +976,24 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Publish (optional)"
-                  hint={`External (default): API and ingress published to public DNS/load balancer. Use for clusters reachable from the internet or external networks. Required when apps/API must be accessed without VPN. Internal: All cluster endpoints are private-network only. DNS must resolve internally. Required by some compliance regimes. Note: console.redhat.com cluster management and direct Red Hat update checks will not reach the cluster without additional network routing. Recommendation: External for most installs. Internal only when external exposure is explicitly prohibited.`}
+                  hint={`Controls whether cluster endpoints are publicly accessible or private-network only.
+
+**External (default):**
+• API and ingress published to public DNS/load balancer
+• Use for clusters reachable from internet or external networks
+• **Required when:** Apps/API must be accessed without VPN
+
+**Internal:**
+• All cluster endpoints are private-network only
+• DNS must resolve internally
+• **Required by:** Some compliance regimes
+
+**Important:**
+With Internal publishing, console.redhat.com cluster management and direct Red Hat update checks will **not reach the cluster** without additional network routing
+
+**Recommendation:**
+• **External** for most installs
+• **Internal** only when external exposure is explicitly prohibited`}
                 >
                   <select
                     value={platformConfig.publish || metaPublish?.default || "External"}
@@ -1491,7 +1616,37 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Storage container (optional)"
-                  hint={`Nutanix storage container name where the cluster's persistent volumes (PVs) and VM disks will be stored. A storage container in Nutanix is similar to a datastore in vSphere - it's a logical storage pool that spans multiple physical disks and provides data services like compression, deduplication, and redundancy. Leave blank to use the cluster's default storage container (most common choice). Only specify a container name if you want OpenShift volumes to land in a dedicated storage container separate from other workloads. WHY YOU MIGHT SET THIS: Capacity isolation (dedicate a container with specific capacity for OpenShift), Performance isolation (use SSD-backed container for OpenShift while other workloads use HDD), Billing/chargeback (separate storage consumption tracking), Compliance (data residency or encryption requirements that differ from default container). The container must exist before installation and must be accessible from the Nutanix cluster you specified above. You can find container names in Prism Central → Storage → Storage Containers. IMPORTANT: This setting affects persistent volumes created by OpenShift storage classes - VM disks for nodes themselves use the cluster's default, this is specifically for workload storage (PVCs). For most deployments, leaving this blank (use default) is fine unless you have specific storage management requirements. Example: 'openshift-storage' or 'ssd-container'.`}
+                  hint={`Nutanix storage container name where cluster persistent volumes (PVs) and VM disks will be stored.
+
+**What is a storage container:**
+Similar to a datastore in vSphere - a logical storage pool spanning multiple physical disks, providing data services like compression, deduplication, and redundancy.
+
+**Default behavior:**
+Leave blank to use the cluster's default storage container (most common choice)
+
+**When to specify a container:**
+Only set this if you want OpenShift volumes in a dedicated storage container separate from other workloads
+
+**Reasons to use dedicated container:**
+• **Capacity isolation:** Dedicate container with specific capacity for OpenShift
+• **Performance isolation:** Use SSD-backed container for OpenShift while other workloads use HDD
+• **Billing/chargeback:** Separate storage consumption tracking
+• **Compliance:** Data residency or encryption requirements that differ from default
+
+**Requirements:**
+• Container must exist before installation
+• Must be accessible from the Nutanix cluster specified above
+• Find container names: Prism Central → Storage → Storage Containers
+
+**Important:**
+This setting affects **persistent volumes** created by OpenShift storage classes (PVCs). VM disks for nodes themselves use the cluster's default - this is specifically for workload storage.
+
+**Recommendation:**
+For most deployments, leave blank (use default) unless you have specific storage management requirements
+
+**Example:**
+openshift-storage
+ssd-container`}
                 >
                   <input
                     value={platformConfig.nutanix?.storageContainer || ""}
@@ -1549,7 +1704,27 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
               <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Credentials mode"
-                  hint={`Mint (recommended for IPI): CCO creates scoped cloud credentials for each cluster component from your admin credential. Each component gets minimal permissions. Requires IAM rights to create new users/roles. Best choice when you have full IAM admin access. Passthrough: CCO passes your install-time admin credential to all components — no new IAM identities created. Use when your org prohibits new IAM account creation. All components share the broad admin credential. Manual: You provision credentials yourself before install (e.g. via ccoctl for STS/Workload Identity). Required for air-gapped AWS STS installs, highly regulated environments. Most secure, most complex. Must run ccoctl before openshift-install. Nutanix IPI always requires Manual — enforced automatically.`}
+                  hint={`Controls how OpenShift Cloud Credential Operator (CCO) manages cloud provider credentials.
+
+**Mint (recommended for IPI):**
+• CCO creates scoped cloud credentials for each cluster component from your admin credential
+• Each component gets minimal permissions (least privilege)
+• **Requires:** IAM rights to create new users/roles
+• **Best for:** When you have full IAM admin access
+
+**Passthrough:**
+• CCO passes your install-time admin credential to all components — no new IAM identities created
+• All components share the broad admin credential
+• **Use when:** Your org prohibits new IAM account creation
+
+**Manual:**
+• You provision credentials yourself before install (e.g., via ccoctl for STS/Workload Identity)
+• **Required for:** Airgapped AWS STS installs, highly regulated environments
+• **Security:** Most secure, most complex
+• **Important:** Must run ccoctl before openshift-install
+
+**Platform-specific:**
+⚠️ Nutanix IPI always requires Manual mode (enforced automatically)`}
                 >
                   <input readOnly value="Manual" aria-label="Credentials mode (Manual, required for Nutanix IPI)" />
                 </FieldLabelWithInfo>
