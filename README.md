@@ -18,6 +18,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   - [Generating assets](#generating-assets)
   - [Operator workflows](#operator-workflows)
   - [Run oc-mirror](#run-oc-mirror)
+  - [Operations](#operations)
   - [Mock mode (offline demo)](#mock-mode-offline-demo)
 - **Platform, Security, and Operations**
   - [Platform and architecture (multi-arch / Apple Silicon)](#platform-and-architecture-multi-arch--apple-silicon)
@@ -59,7 +60,9 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion. Helpers generate pull secrets and SSH keypairs locally and are not stored (see [Identity & Access](#screenshots) and [Mirror secret helper](#screenshots)).
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
-- **Run oc-mirror** — Built-in tab to run oc-mirror v2 directly from the app (mirror-to-disk, disk-to-mirror, mirror-to-mirror workflows; per-run credentials; preflight checks; live job streaming to Operations)
+- **Run oc-mirror** — Built-in tab to run oc-mirror v2 directly from the app (mirror-to-disk, disk-to-mirror, mirror-to-mirror workflows; per-run credentials; comprehensive preflight validation with blockers; live job streaming to Operations)
+- **Operations** — Background job viewer with live streaming output, job history, and downloadable timestamped logs for Cincinnati refresh, operator scans, and oc-mirror runs
+- **Modal accessibility** — Consistent focus trap behavior across all dialogs with keyboard navigation (Tab/Shift+Tab cycling, Escape key support, focus restoration)
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
@@ -248,6 +251,18 @@ For **fully disconnected** environments: run Step 1 on an internet-connected mac
 
 The Authentication section on the Run oc-mirror tab is conditionally rendered based on which workflow is selected and what credentials are already available from earlier steps (Blueprint retained pull secret, Identity & Access mirror registry credentials).
 
+### Preflight validation
+
+Before running oc-mirror, the **Run preflight** button validates your configuration and credentials:
+
+- **Pull secret validation** — For mirror-to-disk and mirror-to-mirror modes, validates that a Red Hat pull secret is present, is valid JSON, and contains an `auths` object. Missing or invalid pull secrets are reported as **blockers** (preflight will not pass).
+- **Mirror registry credentials** — For disk-to-mirror and mirror-to-mirror modes, validates that mirror registry credentials are present and valid. Missing credentials are reported as **blockers**.
+- **Advanced options validation** — Validates `logLevel`, `parallelImages`, `parallelLayers`, `imageTimeout`, `retryTimes`, and `retryDelay` against allowed values and formats.
+- **External config validation** — When using an external `imageset-config.yaml`, validates YAML structure, required fields (`apiVersion`, `kind`, `mirror`), and platform/operator configuration.
+- **Human-readable error messages** — All validation errors are translated to beginner-friendly messages with corrective guidance.
+
+Preflight results show severity (blocker, warning, info) and a summary count. **Blockers** must be resolved before the run button activates. Results are displayed inline with color-coded severity indicators.
+
 ### Storage: archive, workspace, and cache paths
 
 oc-mirror requires three directories inside the backend container:
@@ -420,6 +435,29 @@ docker volume inspect openshift-airgap-architect_backend-data
 Look for the `Mountpoint` field — that host directory corresponds to `/data` inside the container. The archives will be at `<Mountpoint>/oc-mirror/archives/`.
 
 If you used a `compose.override.yml` mount (recommended for large mirrors), the archives are at the host path you specified directly.
+
+<a id="operations"></a>
+## Operations
+
+The **Operations** tab provides a central view of all background jobs (Cincinnati channel refresh, operator scans, oc-mirror runs) with live streaming output, job history, and downloadable logs.
+
+### Features
+
+- **Job history** — All jobs (Cincinnati refresh, operator scan, oc-mirror run) are tracked with start/end time, status (running, completed, failed), and elapsed duration.
+- **Live output** — Job output streams in real-time while a job is running. Logs are preserved after completion.
+- **Download logs** — Each job has a **Download Logs** button that downloads a timestamped text file with the job's complete output. Filename format: `{job-type}_{YYYY-MM-DD_HH-MM-SS}.txt` (e.g., `oc-mirror-run_2026-05-08_14-30-45.txt`, `operator-scan_2026-05-08_09-15-22.txt`, `cincinnati-refresh_2026-05-08_08-00-12.txt`).
+- **Clear completed jobs** — Remove finished jobs from the history to reduce clutter. Running jobs cannot be cleared.
+- **Pre-lock access** — The Operations tab is accessible before Blueprint lock-in, so you can view Cincinnati refresh logs immediately on first launch.
+
+### Job types
+
+| Job type | When it runs | Logs contain |
+|----------|--------------|--------------|
+| **Cincinnati refresh** | On app startup and when **Update** is clicked on Blueprint | Release channel data, available versions, upgrade paths |
+| **Operator scan** | When **Scan** or **Update Operators** is clicked on Operators step | List of available operators, catalogs, channels (from `oc-mirror list operators`) |
+| **oc-mirror run** | When **Run oc-mirror** is clicked on Run oc-mirror step | oc-mirror v2 output (mirror progress, image pulls, tar archive creation, registry pushes) |
+
+All jobs run as background processes in the backend container. Navigation during a job does not cancel it; use the **Stop** button on the Operations tab to cancel a running oc-mirror job if needed.
 
 <a id="mock-mode-offline-demo"></a>
 ## Mock mode (offline demo)
