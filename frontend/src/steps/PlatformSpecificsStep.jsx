@@ -773,7 +773,42 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
                 <FieldLabelWithInfo
                   label="VPC deployment mode"
-                  hint={`Choose whether you provide existing VPC resources or let the installer create them. For disconnected/restricted environments, existing VPC/subnets are the common path. This choice controls which VPC fields are shown and emitted.`}
+                  hint={`Determines whether the OpenShift installer creates a new IBM Cloud Virtual Private Cloud (VPC) and subnets automatically, or uses your pre-existing VPC infrastructure.
+
+**What is an IBM Cloud VPC:**
+A Virtual Private Cloud is an isolated virtual network in IBM Cloud where you deploy resources (virtual servers, load balancers, subnets). It provides network isolation, security groups, access control lists (ACLs), and connectivity options (public gateways, VPN, Direct Link).
+
+**Deployment modes:**
+
+**Installer-managed VPC:**
+• The installer creates a new VPC, subnets (across multiple availability zones), public gateways, security groups, and load balancers automatically
+• Simplest option - no pre-configuration required
+• Good for development, testing, or when you have no existing network infrastructure
+• The installer cleans up VPC resources if installation fails
+
+**Existing VPC and subnets:**
+• You provide pre-created VPC and subnet names, and the installer uses them for cluster nodes
+• Choose this when:
+  - Your organization has centralized network teams managing VPCs (common in enterprises)
+  - Compliance requires specific network topologies (e.g., private-only subnets, custom routing, no public gateways)
+  - You need to integrate with existing on-premises networks via VPN or Direct Link
+  - You want to share a VPC across multiple clusters or applications
+  - Disconnected/airgap installations (no public subnets or internet access)
+
+**When using existing VPC:**
+• You must provide VPC name and subnet names in the 'Network resource group name', 'VPC name', 'Control plane subnets', and 'Compute subnets' fields below
+• The VPC must have subnets across multiple availability zones for high availability (typically 3 zones)
+• Subnets must have sufficient IP addresses available (at least 20-30 IPs per subnet for a small cluster)
+• For connected installs: Public gateway or floating IPs required for outbound internet access
+• For disconnected: Proper routing to mirror registry and required services
+
+**Important notes:**
+• This choice controls which VPC-related fields are shown in the UI and which fields are emitted to install-config.yaml
+• Installer-managed VPC is simpler but gives you less control over network topology
+• Existing VPC requires more upfront setup but provides full control and integration with enterprise networking
+
+**Example:**
+Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choose 'Existing VPC and subnets' for production deployments with pre-configured enterprise networking.`}
                   className="platform-specifics-field-medium"
                 >
                   <select
@@ -1364,7 +1399,43 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
                           label="Topology: Networks (comma delimited)"
-                          hint={`One or more vCenter port group or Distributed Port Group (DPG) names that the installer connects OpenShift VM NICs to. These are vSphere network object names (e.g. 'VM Network', 'DPG-OCP'), not IP ranges — IP address ranges are configured as Machine/Cluster/Service network CIDRs in the Networking step. Comma-separate multiple names.`}
+                          hint={`One or more vSphere network names where OpenShift VMs in this failure domain will be connected and where cluster API/Ingress VIPs and DNS records will be assigned.
+
+**What are vSphere networks:**
+In vSphere, a "network" is a port group (standard switch) or Distributed Port Group (DPG - distributed switch) that represents a virtual network segment VMs can attach to. This field asks for the **network object name** (e.g., "VM Network", "DPG-OCP-Prod"), NOT IP address ranges or CIDRs. The IP addresses and subnet ranges for your OpenShift cluster are configured separately in the Networking tab (Machine/Cluster/Service network CIDRs). Think of this field as "which vSphere network label should VM NICs connect to" - like plugging a physical network cable into a specific switch port.
+
+**Why this field is critical:**
+OpenShift needs to know which vSphere network(s) contain the IP addresses you've allocated for the cluster's Virtual IP addresses (VIPs) - specifically the API VIP (for api.<cluster-name>.<base-domain>) and the Ingress VIP (for *.apps.<cluster-name>.<base-domain>). The installer will place DNS records and assign these VIPs on the networks you specify here. If you specify the wrong network name, the installer cannot reach your VIPs and the installation will fail during bootstrap.
+
+**When to use multiple networks:**
+- **Single network (most common):** Enter one network name (e.g., "VM Network"). All cluster VMs, VIPs, and DNS records will use this network. Use this approach when all your OpenShift traffic (management, workload, storage) shares one network segment.
+- **Multiple networks (advanced):** Enter comma-separated names (e.g., "VM Network, DPG-Storage"). Multiple networks are needed when your vSphere environment separates traffic types across VLANs/port groups - for example, management traffic on one network and application traffic on another. OpenShift will attach VM NICs to all specified networks, but VIPs are typically assigned to the first network listed.
+
+**Requirements:**
+1. Network name must match **exactly** as shown in vCenter (case-sensitive, spaces included).
+2. Network must exist in the same vCenter datacenter specified in this failure domain.
+3. Network must contain sufficient routable IP addresses for VMs and VIPs.
+4. Network must allow communication between VMs (control plane nodes, worker nodes, bootstrap) and from external clients to VIPs.
+5. If using multiple failure domains, each can use different networks OR the same network - depends on your vSphere network design.
+
+**How to find network names in vCenter:**
+1. Log into vSphere Client → Select Datacenter → Select Hosts and Clusters.
+2. Expand cluster → Select a host → Click "Configure" tab → "Networking" → "Virtual switches".
+3. For **standard switch:** Look under "Port groups" - the "Name" column shows port group names (e.g., "VM Network").
+4. For **distributed switch:** Navigate to Networking view → Select Distributed Switch → "Networks" tab shows DPG names (e.g., "DPG-OCP-Prod").
+5. Copy the name exactly as shown - this is what you enter here.
+
+**Important notes:**
+• Do NOT enter IP addresses, CIDRs, or subnet masks here - this field is for vSphere network object names only.
+• The network you specify must be routable to/from the network where you'll run the installer (bootstrap VM needs connectivity).
+• For disconnected/airgap environments, ensure the network has access to your internal mirror registry and DNS server.
+• If you're unsure which network to use, check with your vSphere admin or look at where existing VMs in vCenter are connected.
+
+**Examples:**
+• Single standard port group: \`VM Network\`
+• Single distributed port group: \`DPG-OCP-Production\`
+• Multiple networks: \`DPG-Management, DPG-Storage\` (comma-separated, no quotes)
+• Space in name: \`OCP Prod Network\` (include spaces exactly as shown in vCenter)`}
                         >
                           <input
                             value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")}
