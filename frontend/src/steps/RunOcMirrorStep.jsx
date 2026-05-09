@@ -210,6 +210,12 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     setPreflightLoading(true);
     setPreflightResult(null);
     try {
+      // Map frontend auth source values to backend schema values
+      // Frontend: "retained" or "pasted" → Backend: "inline" (pull secret in body)
+      // Frontend: "mounted" → Backend: "mounted" (pull secret from file)
+      const mappedRhAuthSource = rhAuthSource === "mounted" ? "mounted" : "inline";
+      const mappedMirrorAuthSource = mirrorAuthSource === "reuse" ? "reuse" : "inline";
+
       const body = {
         mode,
         archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
@@ -218,30 +224,30 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
         registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
         configSourceType,
         configPath: configSourceType === "external" ? configPath : undefined,
-        rhAuthSource: mode !== "diskToMirror" ? rhAuthSource : undefined,
+        rhAuthSource: mode !== "diskToMirror" ? mappedRhAuthSource : undefined,
         rhPullSecret: mode !== "diskToMirror" && rhAuthSource !== "mounted"
           ? (rhAuthSource === "retained" ? state?.blueprint?.blueprintPullSecretEphemeral : rhPullSecretPaste) || undefined
           : undefined,
-        mirrorAuthSource: mode !== "mirrorToDisk" ? mirrorAuthSource : undefined,
+        mirrorAuthSource: mode !== "mirrorToDisk" ? mappedMirrorAuthSource : undefined,
         mirrorPullSecret: mode !== "mirrorToDisk" && mirrorAuthSource === "pasted" ? mirrorPullSecretPaste || undefined : undefined
       };
       const result = await apiFetch("/api/ocmirror/preflight", { method: "POST", body: JSON.stringify(body) });
       setPreflightResult(result);
     } catch (err) {
-      // Extract validation details if available from schema validation errors
+      // Extract and translate validation errors to human-readable messages
       const blockers = [];
       const fieldErrors = {};
 
       if (err.payload?.details && Array.isArray(err.payload.details)) {
         // Schema validation errors from validateBody middleware
         err.payload.details.forEach(detail => {
-          const msg = `${detail.path}: ${detail.message}`;
-          blockers.push(msg);
+          const humanMsg = translateValidationError(detail.path, detail.message);
+          blockers.push(humanMsg);
           // Also map to fieldErrors for inline display
           if (detail.path) {
             fieldErrors[detail.path] = {
               severity: "blocker",
-              message: detail.message
+              message: humanMsg
             };
           }
         });
@@ -255,8 +261,52 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     }
   };
 
+  // Translate technical schema validation errors to human-readable messages
+  const translateValidationError = (path, message) => {
+    // Field name mappings
+    const fieldLabels = {
+      archivePath: "Archive directory",
+      workspacePath: "Workspace directory",
+      cachePath: "Cache directory",
+      registryUrl: "Registry URL",
+      configPath: "Config file path",
+      rhAuthSource: "Red Hat authentication source",
+      rhPullSecret: "Red Hat pull secret",
+      mirrorAuthSource: "Mirror registry authentication source",
+      mirrorPullSecret: "Mirror registry pull secret",
+      configSourceType: "Config source type"
+    };
+
+    const fieldLabel = fieldLabels[path] || path;
+
+    // Common validation error translations
+    if (message.includes("Required")) {
+      return `${fieldLabel} is required for this workflow mode.`;
+    }
+    if (message.includes("Invalid enum value")) {
+      return `${fieldLabel} has an invalid value. Please refresh the page and try again.`;
+    }
+    if (message.includes("Pull secret must be valid JSON")) {
+      return `${fieldLabel} must be valid JSON with an "auths" object. Check the format and try again.`;
+    }
+    if (message.includes("String must contain at least")) {
+      return `${fieldLabel} cannot be empty.`;
+    }
+    if (message.includes("at most") || message.includes("too long")) {
+      return `${fieldLabel} is too long. Maximum allowed length is 2048 characters.`;
+    }
+
+    // Default: return translated field name with original message
+    return `${fieldLabel}: ${message}`;
+  };
+
   const runOcMirror = async () => {
     setRunError(null);
+
+    // Map frontend auth source values to backend schema values
+    const mappedRhAuthSource = rhAuthSource === "mounted" ? "mounted" : "inline";
+    const mappedMirrorAuthSource = mirrorAuthSource === "reuse" ? "reuse" : "inline";
+
     const body = {
       mode,
       dryRun,
@@ -266,11 +316,11 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
       registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
       configSourceType,
       configPath: configSourceType === "external" ? configPath : undefined,
-      rhAuthSource: mode !== "diskToMirror" ? rhAuthSource : undefined,
+      rhAuthSource: mode !== "diskToMirror" ? mappedRhAuthSource : undefined,
       rhPullSecret: mode !== "diskToMirror" && rhAuthSource !== "mounted"
         ? (rhAuthSource === "retained" ? state?.blueprint?.blueprintPullSecretEphemeral : rhPullSecretPaste) || undefined
         : undefined,
-      mirrorAuthSource: mode !== "mirrorToDisk" ? mirrorAuthSource : undefined,
+      mirrorAuthSource: mode !== "mirrorToDisk" ? mappedMirrorAuthSource : undefined,
       mirrorPullSecret: mode !== "mirrorToDisk" && mirrorAuthSource === "pasted" ? mirrorPullSecretPaste || undefined : undefined,
       advanced: {
         logLevel,
