@@ -1295,25 +1295,46 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         <button type="button" className="ghost" onClick={() => removeFailureDomain(index)} aria-label={`Remove failure domain ${index + 1}`}>Remove</button>
                       </div>
                       <div className="field-grid">
-                        <FieldLabelWithInfo label="Name" hint="Failure domain name (e.g. fd-0).">
+                        <FieldLabelWithInfo
+                          label="Name"
+                          hint="Unique identifier for this failure domain used in install-config.yaml and zone placement. This name must be unique across all failure domains in your cluster. Example: fd-0, fd-1, or zone-east-1. Keep it short and descriptive (lowercase alphanumeric and hyphens recommended). This name is referenced by the computeZones and controlPlaneZones fields if you want to explicitly control which nodes land in which failure domain. OpenShift uses this name internally to track which resources belong to which zone for high-availability placement and scheduling."
+                        >
                           <input value={fd.name || ""} onChange={(e) => updateFailureDomain(index, { name: e.target.value })} placeholder="fd-0" />
                         </FieldLabelWithInfo>
-                        <FieldLabelWithInfo label="Region" hint="Logical region for this failure domain. For a single datacenter use a short name (e.g. datacenter). For multiple failure domains, use the openshift-region tag value so the installer can group nodes.">
+                        <FieldLabelWithInfo
+                          label="Region"
+                          hint="Logical region identifier for grouping failure domains. In vSphere, a region typically represents a single vCenter or datacenter. For a single-datacenter deployment, use a simple name like 'datacenter' or 'region1'. For multi-datacenter setups, this should match the openshift-region tag value you apply to vSphere resources so the installer can group nodes by region. Region + Zone together define the complete failure domain topology. Example: if you have one vCenter serving multiple clusters, use 'datacenter' for all failure domains. If you have multiple vCenters, use 'east', 'west', or datacenter-specific names. This helps OpenShift understand your infrastructure layout for scheduling and availability decisions."
+                        >
                           <input value={fd.region || ""} onChange={(e) => updateFailureDomain(index, { region: e.target.value })} placeholder="datacenter" />
                         </FieldLabelWithInfo>
-                        <FieldLabelWithInfo label="Zone" hint="Logical zone within the region (e.g. compute cluster name). For a single cluster use its name. For multiple zones use the openshift-zone tag value so the installer can spread nodes.">
+                        <FieldLabelWithInfo
+                          label="Zone"
+                          hint="Logical zone identifier within the region, typically matching your vSphere compute cluster name. For a single-cluster deployment, use the cluster name (e.g., Cluster1). For multi-cluster/multi-zone setups, this should match the openshift-zone tag value you apply to vSphere resources so the installer can spread nodes across zones for high availability. Zone is the granular level of failure domain separation - nodes in different zones should ideally be on different compute clusters or racks to survive hardware failures. Example: if you have three compute clusters (Cluster1, Cluster2, Cluster3), create three failure domains with zones cluster1, cluster2, cluster3. OpenShift will then distribute control plane and worker nodes across these zones to maximize availability."
+                        >
                           <input value={fd.zone || ""} onChange={(e) => updateFailureDomain(index, { zone: e.target.value })} placeholder="cluster-01" />
                         </FieldLabelWithInfo>
-                        <FieldLabelWithInfo label="Server (vCenter FQDN or IP)" hint="vCenter server for this failure domain.">
+                        <FieldLabelWithInfo
+                          label="Server (vCenter FQDN or IP)"
+                          hint="Fully qualified domain name (FQDN) or IP address of the vCenter Server managing this failure domain. Each failure domain can point to the same vCenter (common for single-datacenter multi-cluster setups) or different vCenter instances (for multi-datacenter deployments). Example: vcenter.example.com or 192.168.1.10. The installer uses this address with your provided credentials to provision VMs in this specific failure domain. For high availability across datacenters, you might have vcenter-east.example.com for one failure domain and vcenter-west.example.com for another. This allows OpenShift to span multiple vCenter instances in a single cluster deployment."
+                        >
                           <input value={fd.server || ""} onChange={(e) => updateFailureDomain(index, { server: e.target.value })} placeholder="vcenter.example.com" />
                         </FieldLabelWithInfo>
-                        <FieldLabelWithInfo label="Topology: Datacenter" hint="Datacenter name in failure domain topology.">
+                        <FieldLabelWithInfo
+                          label="Topology: Datacenter"
+                          hint="vSphere datacenter name where resources for this failure domain are located. This must match the exact datacenter name as shown in vCenter (case-sensitive). A datacenter in vSphere is a top-level container that organizes compute clusters, hosts, datastores, and networks. Example: Datacenter1 or Production-DC. For single-datacenter deployments, all failure domains typically reference the same datacenter name. For multi-datacenter setups, each failure domain points to its respective datacenter (e.g., East-DC, West-DC). The installer uses this to locate the other topology resources (cluster, datastore, networks) within the correct vSphere inventory structure. You can find your datacenter names in vCenter by navigating to Inventory → Datacenters."
+                        >
                           <input value={fd.topology?.datacenter || ""} onChange={(e) => updateFailureDomainTopology(index, { datacenter: e.target.value })} placeholder="Datacenter1" />
                         </FieldLabelWithInfo>
-                        <FieldLabelWithInfo label="Topology: Compute cluster" hint="Compute cluster name in failure domain topology.">
+                        <FieldLabelWithInfo
+                          label="Topology: Compute cluster"
+                          hint="vSphere compute cluster name where VMs for this failure domain will be provisioned. This must match the exact cluster name in vCenter (case-sensitive). A compute cluster in vSphere is a collection of ESXi hosts that share resources and provide high availability features like DRS (Distributed Resource Scheduler) and HA (High Availability). Example: Cluster1, Production-Cluster, or Compute-Zone-A. The cluster must have sufficient CPU, memory, and storage resources for the nodes you plan to deploy in this failure domain. DRS should be enabled for automatic VM placement and load balancing. Each failure domain can target a different cluster - this is how you achieve true zone separation in vSphere (nodes in different clusters can survive cluster-level failures). The installer will provision VMs into this cluster according to your node distribution settings."
+                        >
                           <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} placeholder="Cluster1" />
                         </FieldLabelWithInfo>
-                        <FieldLabelWithInfo label="Topology: Datastore" hint="Datastore path in failure domain topology.">
+                        <FieldLabelWithInfo
+                          label="Topology: Datastore"
+                          hint="Absolute datastore path in vSphere inventory for VM disks in this failure domain. Format: /datacenter-name/datastore/datastore-name (e.g., /Datacenter1/datastore/Production-SAN-01 or /Datacenter1/datastore/vsanDatastore). This must match the exact path as shown in vCenter. A datastore is a storage container (VMFS, NFS, vSAN, or vVols) where VM disk files (VMDK) are stored. The datastore must have sufficient free space for all VMs in this failure domain - typically 300GB minimum per control plane node and 120GB per worker node, plus overhead. For high availability, use different datastores for different failure domains if possible (avoids single storage point of failure). For production workloads, ensure the datastore has good performance (SSD-backed or high-performance SAN) and adequate IOPS to support etcd and application workloads. You can find datastore paths in vCenter by navigating to Storage → select datastore → Summary tab."
+                        >
                           <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="/datacenter/datastore/ds1" />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
@@ -1349,10 +1370,16 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                               </div>
                             </FieldLabelWithInfo>
                           )}
-                          <FieldLabelWithInfo label="Topology: Folder (optional)" hint="VM folder path in failure domain topology.">
+                          <FieldLabelWithInfo
+                            label="Topology: Folder (optional)"
+                            hint="Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs for this failure domain. Format: /datacenter-name/vm/folder-name or /datacenter-name/vm/parent-folder/child-folder (e.g., /Datacenter1/vm/OpenShift or /Datacenter1/vm/Production/OCP-Cluster). Leave blank to use the default VM folder at the datacenter root. VM folders in vSphere are organizational containers that group VMs for easier management and permission control - they don't affect VM function, just inventory organization. The installer creates all cluster VMs (control plane, workers, bootstrap) in this folder. For production environments, using a dedicated folder helps separate OpenShift VMs from other workloads. You can create folders in vCenter by navigating to VMs and Templates → right-click datacenter → New Folder. The path must exist before installation (the installer will not create it). This is purely for organization and has no impact on networking, storage, or compute placement."
+                          >
                             <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} placeholder="/datacenter/vm/folder" />
                           </FieldLabelWithInfo>
-                          <FieldLabelWithInfo label="Topology: Resource pool (optional)" hint="Resource pool path in failure domain topology.">
+                          <FieldLabelWithInfo
+                            label="Topology: Resource pool (optional)"
+                            hint="Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs in this failure domain. Format: /datacenter-name/host/cluster-name/Resources/pool-name (e.g., /Datacenter1/host/Cluster1/Resources/OpenShift-Pool). Leave blank to use the cluster's root Resources pool (default). Resource pools in vSphere allow you to partition and allocate CPU and memory resources with reservations, limits, and shares - useful for ensuring OpenShift VMs get guaranteed resources separate from other workloads. The pool must exist before installation. If you're sharing compute clusters with other applications, a dedicated resource pool prevents resource contention. You can create resource pools in vCenter by navigating to Hosts and Clusters → select cluster → right-click Resources → New Resource Pool. For most installations, the default root Resources pool is sufficient unless you need specific resource guarantees or limits. This setting does NOT affect storage (datastore) or network placement."
+                          >
                             <input value={fd.topology?.resourcePool || ""} onChange={(e) => updateFailureDomainTopology(index, { resourcePool: e.target.value })} placeholder="/datacenter/host/cluster/Resources/pool" />
                           </FieldLabelWithInfo>
                         </div>
@@ -1439,7 +1466,10 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     <p className="note subtle" style={{ marginBottom: 8 }} id="cluster-os-image-disabled-note">Disabled: a failure domain has Topology: RHCOS template set (choose one strategy only).</p>
                   )}
                   <div className="field-grid">
-                    <FieldLabelWithInfo label="osDisk.diskSizeGB (optional)" hint="Root disk size in GB for platform.vsphere.">
+                    <FieldLabelWithInfo
+                      label="osDisk.diskSizeGB (optional)"
+                      hint="Root disk size in gigabytes (GB) for each VM's operating system disk in vSphere. This is the size of the VMDK file that contains RHCOS (Red Hat CoreOS), the container runtime, etcd data (for control plane nodes), and all local storage. Leave blank to use the default size (120GB). Minimum recommended: 120GB for control plane nodes (etcd needs space), 60GB for worker nodes. For production clusters with many pods or persistent local storage needs, consider larger sizes (200GB+). Example: 120 for basic nodes, 200 for control plane in busy clusters, 500 for workers with local storage. IMPORTANT: This size cannot be easily expanded after installation without complex procedures - plan for growth. The disk is thin-provisioned by default (see diskType setting) so it only consumes actual used space on the datastore initially. This setting applies cluster-wide to all machine pools unless you override it in specific control plane or compute pool configurations."
+                    >
                       <input
                         type="number"
                         min={1}
@@ -1448,7 +1478,10 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         placeholder="Leave empty for default"
                       />
                     </FieldLabelWithInfo>
-                    <FieldLabelWithInfo label="cpus (optional)" hint="Number of vCPUs for platform.vsphere.">
+                    <FieldLabelWithInfo
+                      label="cpus (optional)"
+                      hint="Number of virtual CPUs (vCPUs) to assign to each VM. This determines the total CPU resources available to the operating system. Leave blank to use installer defaults (typically 4 vCPUs for control plane, 2 for workers). For control plane nodes, 4-8 vCPUs is recommended for production (etcd and API server are CPU-intensive). For worker nodes, size based on workload - 2-4 for light workloads, 8+ for compute-intensive applications. Example: 8 for control plane in busy clusters, 4 for general workers, 16 for workers running demanding workloads like databases. IMPORTANT: vCPUs are scheduled against physical CPU cores on the ESXi host - ensure your vSphere cluster has sufficient physical cores. Over-provisioning vCPUs (more virtual than physical) can work but may impact performance. Total vCPUs = cpus × number of nodes in the pool. This value combined with coresPerSocket determines the virtual CPU topology presented to the VM (affects licensing for some guest OSes, though not relevant for RHCOS)."
+                    >
                       <input
                         type="number"
                         min={1}
@@ -1457,7 +1490,10 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         placeholder="Leave empty for default"
                       />
                     </FieldLabelWithInfo>
-                    <FieldLabelWithInfo label="coresPerSocket (optional)" hint="Cores per socket for platform.vsphere.">
+                    <FieldLabelWithInfo
+                      label="coresPerSocket (optional)"
+                      hint="Number of CPU cores per virtual socket in the VM configuration. This is a vSphere topology setting that affects how vCPUs are presented to the guest OS - it does NOT change total vCPUs (total vCPUs = cpus field). Example: if cpus=8 and coresPerSocket=4, the VM sees 2 sockets with 4 cores each. If cpus=8 and coresPerSocket=2, it sees 4 sockets with 2 cores each. Leave blank to use the default (typically all cores in one socket). WHY IT MATTERS: Some software licenses charge per socket rather than per core - by setting coresPerSocket higher, you reduce socket count. For OpenShift/RHCOS this is not a licensing concern, but it can affect NUMA (Non-Uniform Memory Access) topology which impacts performance for very large VMs. RECOMMENDATION: Leave blank for most deployments. Only set this if you have specific performance tuning requirements or understand NUMA implications. For typical OpenShift nodes (≤16 vCPUs), single-socket (high coresPerSocket) is fine. For very large VMs (32+ vCPUs), consult vSphere best practices for NUMA alignment."
+                    >
                       <input
                         type="number"
                         min={1}
@@ -1466,7 +1502,10 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         placeholder="Leave empty for default"
                       />
                     </FieldLabelWithInfo>
-                    <FieldLabelWithInfo label="memoryMB (optional)" hint="Memory in MB for platform.vsphere.">
+                    <FieldLabelWithInfo
+                      label="memoryMB (optional)"
+                      hint="Memory (RAM) in megabytes (MB) to assign to each VM. Leave blank to use installer defaults (16384MB = 16GB for control plane, 8192MB = 8GB for workers). For control plane nodes, 16GB minimum is required for production (etcd, API server, controllers are memory-intensive). 32GB+ recommended for large clusters (100+ nodes) or if running many operators. For worker nodes, size based on workload - 8GB minimum for light workloads, 16-32GB for general apps, 64GB+ for memory-intensive workloads (databases, big data, ML). Example: 16384 (16GB) for basic control plane, 32768 (32GB) for busy control plane, 16384 for general workers, 65536 (64GB) for database workers. IMPORTANT: The host must have sufficient physical RAM. vSphere memory over-commitment (more virtual RAM allocated than physical) can severely impact OpenShift performance, especially for etcd. Always ensure adequate physical RAM is available. Memory in MB = value you enter (e.g., 16384 = 16GB). Use multiples of 1024 for clean GB values (8192 = 8GB, 16384 = 16GB, 32768 = 32GB, etc.)."
+                    >
                       <input
                         type="number"
                         min={1}
