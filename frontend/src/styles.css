@@ -654,21 +654,32 @@ body[data-theme="dark"] .run-oc-mirror-badge {
 /* Advanced options grid for oc-mirror configuration */
 .advanced-options-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
   gap: 1rem;
   align-items: end;
   width: 100%;
+  max-width: 1200px;
 }
 
 /* Short fields for numeric inputs like parallel images, retry times */
+.field-short {
+  max-width: 180px;
+}
+
 .field-short input,
 .field-short select {
+  width: 100%;
   max-width: 140px;
 }
 
 /* Medium fields for text inputs like timeouts, delays */
+.field-medium {
+  max-width: 220px;
+}
+
 .field-medium input,
 .field-medium select {
+  width: 100%;
   max-width: 200px;
 }
 

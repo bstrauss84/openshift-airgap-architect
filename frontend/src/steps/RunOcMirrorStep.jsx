@@ -228,7 +228,28 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
       const result = await apiFetch("/api/ocmirror/preflight", { method: "POST", body: JSON.stringify(body) });
       setPreflightResult(result);
     } catch (err) {
-      setPreflightResult({ ok: false, blockers: [err.message || "Preflight failed."], warnings: [], checks: {} });
+      // Extract validation details if available from schema validation errors
+      const blockers = [];
+      const fieldErrors = {};
+
+      if (err.payload?.details && Array.isArray(err.payload.details)) {
+        // Schema validation errors from validateBody middleware
+        err.payload.details.forEach(detail => {
+          const msg = `${detail.path}: ${detail.message}`;
+          blockers.push(msg);
+          // Also map to fieldErrors for inline display
+          if (detail.path) {
+            fieldErrors[detail.path] = {
+              severity: "blocker",
+              message: detail.message
+            };
+          }
+        });
+      } else {
+        blockers.push(err.message || "Preflight failed.");
+      }
+
+      setPreflightResult({ ok: false, blockers, warnings: [], checks: {}, fieldErrors });
     } finally {
       setPreflightLoading(false);
     }
