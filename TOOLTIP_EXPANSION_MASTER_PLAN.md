@@ -1,8 +1,15 @@
 # Tooltip Expansion Master Plan
 
-**Last Updated:** 2026-05-09 (Batch 15 complete)
-**Current Status:** 73/174 tooltips expanded (~42%)
-**Current Batch:** Batch 16 (ready to start)
+**Last Updated:** 2026-05-09 (Comprehensive audit complete)
+**Current Status:** 12/87 tooltips at gold standard (~14%), 62 need reformatting (~71%)
+**Current Batch:** Batch 16 (reformatting UPPERCASE headers)
+
+**IMPORTANT:** After comprehensive audit, actual numbers are:
+- 174 total FieldLabelWithInfo components (some don't need tooltips)
+- 87 components with hint= tooltips
+- 12 meet full gold standard (13.8%)
+- 62 need reformatting (71.3%) - have good content, wrong format
+- 13 acceptable as-is (14.9%)
 
 ---
 
@@ -49,13 +56,19 @@ Concrete example values
 
 ---
 
-## Overall Progress
+## Overall Progress (CORRECTED After Comprehensive Audit)
 
 | Metric | Count | Percentage |
 |--------|-------|------------|
-| **Total Tooltips** | 174 | 100% |
-| **Expanded** | 73 | 42% |
-| **Remaining** | 101 | 58% |
+| **Total FieldLabelWithInfo components** | 174 | 100% |
+| **Components with tooltips (hint=)** | 87 | 50% |
+| **Components without tooltips** | 87 | 50% |
+| **Gold standard (ready)** | 12 | 13.8% of 87 |
+| **Need reformatting** | 62 | 71.3% of 87 |
+| **Acceptable as-is** | 13 | 14.9% of 87 |
+
+**Key Insight:** The "174 tooltips" number was actually total components. Only 87 have hint tooltips. 
+The other 87 components use simple labels without help text (which is correct - not all fields need tooltips).
 
 ### Completion by Section
 
@@ -118,65 +131,99 @@ Concrete example values
 **Test:** Created hint-syntax.test.js to prevent regression
 **Status:** Build passing, all tests green
 
-### ✅ Batch 15: IBM Cloud VPC & vSphere Networks (Commit: pending)
-**Count:** 2 tooltips (73/174 total)
+### ✅ Batch 15: IBM Cloud VPC & vSphere Networks (Commit: 30a8e86)
+**Count:** 2 tooltips
 **Fields:**
 - ✅ platform.ibm deployment VPC mode (UI-only control field, not in catalog)
 - ✅ platform.vsphere.failureDomains[].topology.networks
 
 **Validation:** vSphere networks consistent with catalog; IBM VPC mode is UI control field (N/A)
 
----
+### ✅ Comprehensive Audit Complete (2026-05-09)
+**What:** Audited ALL 87 hint= tooltips against quality metrics
+**Tools:** Python script `/tmp/audit_all_tooltips_v3.py`
+**Output:** 
+- `/tmp/TOOLTIP_COMPREHENSIVE_AUDIT.md` - Full breakdown
+- `/tmp/TOOLTIP_AUDIT_SUMMARY_FOR_USER.md` - Executive summary
+- `/tmp/tooltip_audit_data.json` - Machine-readable data
 
-## Remaining Work
+**Findings:**
+- 12 tooltips meet full gold standard (13.8%)
+- 62 tooltips need reformatting (71.3%):
+  - 48 have UPPERCASE headers → need conversion to **bold**
+  - 14 have long plain text → need **bold** structure added
+- 13 tooltips acceptable as-is (14.9%)
+- 3 conditional tooltips need manual review
 
-### Phase 1: Complete Initial Expansion (Target: 174/174)
-
-#### Batch 16+: Remaining Fields (101 tooltips)
-
-**High Priority - Bare Metal IPI (estimated ~15 fields):**
-- [ ] platform.baremetal.bootstrapProvisioningIP
-- [ ] platform.baremetal.externalBridge
-- [ ] platform.baremetal.provisioningBridge
-- [ ] platform.baremetal.hosts[] fields (BMC details, boot MAC, etc.)
-- [ ] Others to be identified
-
-**Medium Priority - AWS/vSphere/Azure/IBM (estimated ~40 fields):**
-- [ ] Remaining AWS optional params (serviceEndpoints, userTags, publicIpv4Pool, etc.)
-- [ ] Remaining vSphere fields (vCenter server, datacenter, datastore when not using FD)
-- [ ] Azure remaining fields
-- [ ] IBM Cloud remaining fields
-
-**Lower Priority - Advanced/Global (estimated ~20 fields):**
-- [ ] Remaining capability/hyperthreading/partitioning fields
-- [ ] Any other advanced configuration options
-
-**To Identify (~28 fields):**
-- Systematic audit of PlatformSpecificsStep.jsx needed to identify all remaining short hints
+**Scroll Bug:** ✅ Fixed globally in FieldLabelWithInfo.jsx (commit d4f8d46)
 
 ---
 
-### Phase 2: Reformat Earlier Batches (58 tooltips)
+## Remaining Work (UPDATED After Audit)
 
-**Goal:** Apply the structured formatting standard to Batches 1-10
+### Phase 1: Reformat Tooltips to Gold Standard (Target: 87/87)
 
-**Effort:** ~5-10 hours total (5-10 min per tooltip)
+#### Batch 16-20: Reformat UPPERCASE Headers to **Bold** (48 tooltips)
+
+These tooltips have excellent content (meet "idiot test") but use OLD formatting:
+- Current format: `WHAT IS THIS:` `WHY IT MATTERS:` `IMPORTANT:`
+- Needed format: `**What is this:**` `**Why it matters:**` `**Important:**`
+
+**Batch Size:** ~10 tooltips per batch  
+**Effort:** 5-10 min per tooltip = ~1-2 hours per batch  
+**Total Batches:** 5 batches
+
+**Tooltips to reformat (48 total):**
+- [ ] Lines 318-599: AWS GovCloud section (~10 tooltips)
+- [ ] Lines 651-738: Azure Government section (~5 tooltips)
+- [ ] Lines 750-916: IBM Cloud section (~10 tooltips)
+- [ ] Lines 998-1158: Nutanix section (~9 tooltips)
+- [ ] Lines 1189-2013: vSphere/Advanced sections (~14 tooltips)
+
+**During reformatting:** Validate each against params.json catalog
+
+---
+
+#### Batch 21-23: Add Structure to Long Plain Tooltips (14 tooltips)
+
+These are long (>600 chars) but lack organizational headers:
+- Current format: Plain paragraph text
+- Needed format: Add `**What is:**`, `**When to use:**`, `**Example:**` sections
+
+**Batch Size:** 5 tooltips per batch  
+**Effort:** 10-15 min per tooltip = ~1-2 hours per batch  
+**Total Batches:** 3 batches
+
+**Tooltips needing structure (14 total):**
+- [ ] Lines 599, 710, 1180: Credentials mode (appears 3x)
+- [ ] Lines 587, 698, 969, 1186: Publish mode (appears 4x)
+- [ ] Lines 1122: Nutanix storage container
+- [ ] Others from audit list
+
+---
+
+### Phase 1 Summary
+
+**Total Work:** 62 tooltips need reformatting  
+**Total Time:** ~8-14 hours (8 batches @ 1-2 hours each)  
+**Validation:** Catalog-validate all 72 remaining tooltips during reformatting
+
+---
+
+### Phase 2: Final Quality Check & Documentation (After Phase 1)
+
+**Goal:** Verify all 87 tooltips meet final standards
+
+**Tasks:**
+- [ ] Review all 87 tooltips for consistency
+- [ ] Verify 87/87 meet gold standard formatting
+- [ ] Complete catalog validation for remaining 72 tooltips
+- [ ] Resolve all discrepancies found during validation
+- [ ] Update docs with final statistics
+
+**Effort:** ~2-4 hours
 
 **Priority:** P2 (after Phase 1 complete)
-
-**Batches to reformat:**
-- Batch 1: vSphere Failure Domain & Machine Pool (11 tooltips)
-- Batch 2: AWS & Nutanix (6 tooltips)
-- Batch 3: Azure Government (4 tooltips)
-- Batch 4: IBM Cloud Region/Resources (6 tooltips)
-- Batch 5: IBM Cloud Subnets & Encryption (5 tooltips)
-- Batch 6: Advanced & Nutanix (6 tooltips)
-- Batch 7: AWS GovCloud (7 tooltips)
-- Batch 8: vSphere Zones & Template (3 tooltips)
-- Batch 9: AWS/vSphere/IBM (6 tooltips)
-- Batch 10: Nutanix Endpoint/Credentials (4 tooltips)
-
-**Strategy:** Do in batches of 10-15 tooltips at a time
 
 ---
 
@@ -326,13 +373,49 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
+## Quality Metrics Tracked (Comprehensive Audit)
+
+For each of the 87 tooltips, we tracked:
+
+### 1. ✅ **Meets Gold Standard "Idiot Question"**
+   - WHAT to enter (format, expected values, examples)
+   - WHY it's needed (purpose, impact on deployment)
+   - WHEN to use it (scenarios: required vs. optional)
+   - EXAMPLES (real-world values)
+   - REQUIREMENTS (if applicable)
+   - Beginner-friendly language
+
+### 2. ✅ **Has Standardized Formatting Structure**
+   - Uses `**bold:**` markdown headers (not UPPERCASE:)
+   - Structured sections: What is, When to use, Requirements, Examples
+   - Bullet lists for options/requirements
+   - Clear examples section
+
+### 3. ✅ **Catalog Validation Complete**
+   - Cross-referenced with params.json files
+   - Verified: type, required status, allowed values, defaults
+   - Documented discrepancies (see `/tmp/params-catalog-discrepancies-comprehensive.md`)
+
+### 4. ✅ **Scroll Bug Addressed**
+   - Fixed globally in FieldLabelWithInfo.jsx (commit d4f8d46)
+   - Applies to all 87 tooltips automatically
+   - Long tooltips (>180c) stay open while scrolling
+   - Close only on: Close button, click outside, Escape, external scroll
+
+**Audit Tools:**
+- `/tmp/audit_all_tooltips_v3.py` - Extraction & analysis script
+- `/tmp/TOOLTIP_COMPREHENSIVE_AUDIT.md` - Full 87-tooltip breakdown
+- `/tmp/tooltip_audit_data.json` - Machine-readable data
+
+---
+
 ## Quick Reference
 
 ### Current State
 - **Branch:** develop
 - **Last Batch:** 15 (IBM Cloud VPC & vSphere networks)
-- **Next Batch:** 16 (TBD - need to identify next 2-5 fields)
-- **Progress:** 73/174 (42%)
+- **Next Batch:** 16 (Reformat UPPERCASE → **bold** headers, AWS GovCloud section)
+- **Progress:** 12/87 gold standard (13.8%), 62/87 need reformatting (71.3%)
 
 ### Key Commands
 ```bash
