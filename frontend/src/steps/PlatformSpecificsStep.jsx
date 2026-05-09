@@ -1038,7 +1038,32 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
               <div className="field-grid" style={{ marginBottom: 16 }}>
                 <FieldLabelWithInfo
                   label="Subnet UUID(s)"
-                  hint="UUID or name of the Nutanix subnet (network segment/VLAN) where the installer creates OpenShift VMs. This is a Nutanix infrastructure identifier, not an IP range — IP address ranges are configured as Machine/Cluster/Service network CIDRs in the Networking step. Comma-separate multiple UUIDs for multi-subnet environments."
+                  hint="UUID or name of the Nutanix subnet (network segment/VLAN) where the OpenShift installer creates cluster VMs. This is a Nutanix infrastructure identifier, NOT an IP address range.
+
+**What is a Nutanix Subnet:**
+A subnet in Nutanix is a Layer 2 network segment (VLAN) configured in Prism Central/Element that VMs attach to for network connectivity. It's similar to a port group in vSphere.
+
+**Important Notes:**
+• This field expects a UUID (universally unique identifier) or the subnet name as shown in Prism Central
+• IP address ranges (Machine/Cluster/Service CIDRs) are configured separately in the Networking tab
+• All cluster VMs (control plane, workers, bootstrap) will attach to this subnet
+• The subnet must have sufficient available IP addresses for all nodes
+
+**Requirements:**
+1. Subnet must exist in Prism Central before installation
+2. Must be associated with the Prism Element cluster where VMs will run
+3. Needs connectivity to any external services (internet, mirror registry, NTP, DNS)
+4. DNS server reachable from this subnet must resolve cluster domain names
+5. API and Ingress VIP addresses must be routable on this subnet
+
+**Finding the Subnet UUID:**
+In Prism Central → Network Configuration → Subnets → select your subnet → copy the UUID from the details panel. UUIDs are typically formatted like: 12345678-1234-1234-1234-123456789abc
+
+**Multiple Subnets:**
+For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
+
+**Example:**
+12345678-abcd-1234-5678-abcdef123456 or 'Production-VLAN100' or 'OCP-Network'"
                   required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
                 >
                   <input
@@ -1451,7 +1476,31 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
                     <FieldLabelWithInfo
                       label="clusterOSImage (optional)"
-                      hint="HTTP/HTTPS URL to a custom RHCOS (Red Hat Core OS) OVA image to use for cluster nodes. Leave blank to use the default RHCOS image for your selected OpenShift version. Only specify this if you have pre-hosted a custom RHCOS template accessible via URL (e.g., for airgap scenarios or specific OS customizations). Example: https://mirror.example.com/rhcos-4.14.0-x86_64-vmware.ova. IMPORTANT: Settinga value here disables the 'Topology: RHCOS template' field in each failure domain - use one image strategy only, not both. The image must match your selected OpenShift release version."
+                      hint="HTTP/HTTPS URL to a custom RHCOS (Red Hat CoreOS) OVA image for cluster nodes. Leave blank to use the default RHCOS image for your OpenShift version.
+
+**What is this:**
+URL pointing to a Red Hat CoreOS OVA file that the installer will download and import into vSphere as a template, then clone to create cluster VMs.
+
+**When to use:**
+• Disconnected/airgap installations where you've hosted RHCOS images on an internal web server
+• Custom RHCOS images with site-specific modifications
+• Testing specific RHCOS versions
+• When you cannot use per-failure-domain template paths
+
+**Image Strategy - Choose ONE:**
+⚠️ Use EITHER clusterOSImage (this field) OR Topology: RHCOS template per failure domain. Do NOT set both.
+• clusterOSImage: Single URL for the entire cluster
+• topology.template: Per-failure-domain template paths in vSphere inventory
+
+**Requirements:**
+1. URL must be reachable from where you run openshift-install
+2. Must be HTTPS or HTTP (HTTPS recommended for security)
+3. Image must match your selected OpenShift release version exactly
+4. Format must be OVA (Open Virtualization Archive)
+
+**Example:**
+https://mirror.example.com/rhcos-4.14.0-x86_64-vmware.ova
+http://192.168.1.100/images/rhcos-vmware.ova"
                     >
                       <input
                         value={platformConfig.vsphere?.clusterOSImage || ""}
@@ -1468,7 +1517,34 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   <div className="field-grid">
                     <FieldLabelWithInfo
                       label="osDisk.diskSizeGB (optional)"
-                      hint="Root disk size in gigabytes (GB) for each VM's operating system disk in vSphere. This is the size of the VMDK file that contains RHCOS (Red Hat CoreOS), the container runtime, etcd data (for control plane nodes), and all local storage. Leave blank to use the default size (120GB). Minimum recommended: 120GB for control plane nodes (etcd needs space), 60GB for worker nodes. For production clusters with many pods or persistent local storage needs, consider larger sizes (200GB+). Example: 120 for basic nodes, 200 for control plane in busy clusters, 500 for workers with local storage. IMPORTANT: This size cannot be easily expanded after installation without complex procedures - plan for growth. The disk is thin-provisioned by default (see diskType setting) so it only consumes actual used space on the datastore initially. This setting applies cluster-wide to all machine pools unless you override it in specific control plane or compute pool configurations."
+                      hint="Root disk size in gigabytes (GB) for each VM's operating system disk. Leave blank to use defaults (120GB).
+
+**What's stored on this disk:**
+• RHCOS operating system
+• Container runtime (CRI-O)
+• etcd data (control plane nodes only)
+• Local ephemeral storage
+• System logs and temporary files
+
+**Recommended sizes:**
+• **Control plane:** 120GB minimum, 200GB+ for production (etcd grows over time)
+• **Workers (light):** 60-120GB for basic workloads
+• **Workers (general):** 120-200GB for typical applications
+• **Workers (heavy):** 200-500GB+ for local databases, caching, or high pod density
+
+**Important considerations:**
+⚠️ Cannot be easily shrunk after installation - plan for growth upfront
+⚠️ Thin-provisioned by default (see diskType setting) - only consumes actual used space initially
+⚠️ Applies cluster-wide to all machine pools in install-config (per-pool sizing requires post-install MachineSet customization)
+
+**Expansion:**
+Volumes CAN be expanded post-install, but it requires node draining and manual procedures. Better to oversize initially.
+
+**Example values:**
+• 120 - Minimum for production control plane
+• 200 - Control plane with room to grow
+• 150 - General workers
+• 500 - Workers with local storage needs"
                     >
                       <input
                         type="number"
@@ -1480,7 +1556,38 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     </FieldLabelWithInfo>
                     <FieldLabelWithInfo
                       label="cpus (optional)"
-                      hint="Number of virtual CPUs (vCPUs) to assign to each VM. This determines the total CPU resources available to the operating system. Leave blank to use installer defaults (typically 4 vCPUs for control plane, 2 for workers). For control plane nodes, 4-8 vCPUs is recommended for production (etcd and API server are CPU-intensive). For worker nodes, size based on workload - 2-4 for light workloads, 8+ for compute-intensive applications. Example: 8 for control plane in busy clusters, 4 for general workers, 16 for workers running demanding workloads like databases. IMPORTANT: vCPUs are scheduled against physical CPU cores on the ESXi host - ensure your vSphere cluster has sufficient physical cores. Over-provisioning vCPUs (more virtual than physical) can work but may impact performance. Total vCPUs = cpus × number of nodes in the pool. This value combined with coresPerSocket determines the virtual CPU topology presented to the VM (affects licensing for some guest OSes, though not relevant for RHCOS)."
+                      hint="Number of virtual CPUs (vCPUs) to assign to each VM. Leave blank for defaults (4 vCPUs control plane, 2 vCPUs workers).
+
+**What this controls:**
+Total CPU resources available to the VM's operating system. More vCPUs = more parallel processing capacity.
+
+**Recommended sizing:**
+
+**Control Plane:**
+• 4 vCPUs - Minimum for small clusters (<50 nodes)
+• 8 vCPUs - Production clusters (50-200 nodes)
+• 16+ vCPUs - Large clusters (200+ nodes) or many operators/CRDs
+
+**Workers:**
+• 2-4 vCPUs - Light workloads (web services, simple apps)
+• 4-8 vCPUs - General purpose (microservices, moderate load)
+• 8-16 vCPUs - Compute-intensive (batch jobs, CI/CD)
+• 16+ vCPUs - Heavy workloads (databases, ML, video encoding)
+
+**Physical resource planning:**
+⚠️ vCPUs are scheduled against physical cores on ESXi hosts
+⚠️ Ensure sufficient physical cores: Total vCPUs across all VMs ≤ (Physical cores × overcommit ratio)
+⚠️ Typical overcommit: 2:1 for general workloads, 1:1 for latency-sensitive (etcd)
+⚠️ Over-provisioning too much degrades performance
+
+**Combined with coresPerSocket:**
+cpus + coresPerSocket determine VM's virtual topology (sockets × cores). See coresPerSocket field for details.
+
+**Example values:**
+• 4 - Control plane for small clusters
+• 8 - Production control plane
+• 4 - General workers
+• 16 - Database/compute workers"
                     >
                       <input
                         type="number"
@@ -1492,7 +1599,38 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                     </FieldLabelWithInfo>
                     <FieldLabelWithInfo
                       label="coresPerSocket (optional)"
-                      hint="Number of CPU cores per virtual socket in the VM configuration. This is a vSphere topology setting that affects how vCPUs are presented to the guest OS - it does NOT change total vCPUs (total vCPUs = cpus field). Example: if cpus=8 and coresPerSocket=4, the VM sees 2 sockets with 4 cores each. If cpus=8 and coresPerSocket=2, it sees 4 sockets with 2 cores each. Leave blank to use the default (typically all cores in one socket). WHY IT MATTERS: Some software licenses charge per socket rather than per core - by setting coresPerSocket higher, you reduce socket count. For OpenShift/RHCOS this is not a licensing concern, but it can affect NUMA (Non-Uniform Memory Access) topology which impacts performance for very large VMs. RECOMMENDATION: Leave blank for most deployments. Only set this if you have specific performance tuning requirements or understand NUMA implications. For typical OpenShift nodes (≤16 vCPUs), single-socket (high coresPerSocket) is fine. For very large VMs (32+ vCPUs), consult vSphere best practices for NUMA alignment."
+                      hint="Number of CPU cores per virtual socket. Leave blank for defaults (all cores in one socket).
+
+**What this controls:**
+How vCPUs are presented to the guest OS as sockets and cores. Does NOT change total vCPUs.
+
+**Formula:**
+Sockets = cpus ÷ coresPerSocket
+
+**Examples:**
+• cpus=8, coresPerSocket=4 → 2 sockets × 4 cores
+• cpus=8, coresPerSocket=2 → 4 sockets × 2 cores
+• cpus=8, coresPerSocket=8 → 1 socket × 8 cores
+
+**Why it matters:**
+
+**Licensing:**
+Some software licenses charge per socket (not per core). Higher coresPerSocket = fewer sockets = lower license cost.
+Not relevant for OpenShift/RHCOS.
+
+**NUMA (Non-Uniform Memory Access):**
+Affects memory access patterns on large VMs (32+ vCPUs). Misaligned NUMA topology can degrade performance.
+
+**When to set:**
+• Leave blank for typical OpenShift nodes (≤16 vCPUs) - single socket is fine
+• Set for very large VMs (32+ vCPUs) - consult vSphere NUMA best practices
+• Set if you have specific performance tuning requirements
+
+**Recommendation:**
+⚠️ Leave blank unless you have specific reasons. Default is optimal for most deployments.
+
+**Example:**
+8 (for an 8-vCPU VM presented as 1 socket × 8 cores)"
                     >
                       <input
                         type="number"
