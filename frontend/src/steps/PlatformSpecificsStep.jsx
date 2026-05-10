@@ -345,7 +345,42 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="RHCOS AMI ID (optional; gov/secret regions)"
-                    hint={'Amazon Machine Image (AMI) ID for Red Hat CoreOS (RHCOS) in the selected AWS GovCloud region. RHCOS is the operating system that runs on all OpenShift cluster nodes. Leave blank to let the installer auto-discover the correct AMI (recommended for most installations). Click "Refresh from installer" button to fetch the recommended AMI ID for your selected region and OpenShift version from official Red Hat metadata. WHEN TO SET MANUALLY: (1) Disconnected/airgap installations where the installer cannot reach Red Hat metadata servers - you must pre-upload the RHCOS AMI to your AWS account and enter its ID here. (2) AWS Secret or Top Secret regions that are not in public Red Hat metadata. (3) When you need to use a specific RHCOS version for testing or compatibility. (4) Custom RHCOS images with site-specific modifications (advanced use case). WHAT IS AN AMI: An AMI is a pre-configured virtual machine image containing an operating system and software. AWS uses AMIs as templates to launch EC2 instances. Each AWS region has separate AMI IDs - an AMI in us-gov-west-1 has a different ID than the same image in us-gov-east-1. RHCOS AMI IDs follow the format "ami-xxxxxxxxxxxxxxxxx" (17 characters after "ami-"). IMPORTANT: The AMI ID must match: (1) Your selected region. (2) Your selected OpenShift version (RHCOS versions are tied to OpenShift releases - 4.14 uses different RHCOS than 4.15). (3) The architecture (x86_64 for most installs, arm64 for Graviton instances). Using the wrong AMI will cause installation to fail or produce unstable clusters. The "Auto-filled" badge indicates the installer metadata populated this field automatically. For connected installs, leave blank or use the Refresh button - the installer handles AMI discovery automatically. Example: "ami-0a1b2c3d4e5f6g7h8" (but use Refresh button instead of guessing).'}
+                    hint={`Amazon Machine Image (AMI) ID for Red Hat CoreOS (RHCOS) in the selected AWS GovCloud region.
+
+**What is RHCOS:**
+Red Hat CoreOS is the operating system that runs on all OpenShift cluster nodes
+
+**Default behavior (recommended):**
+Leave blank to let the installer auto-discover the correct AMI. Click "Refresh from installer" button to fetch the recommended AMI ID for your selected region and OpenShift version from official Red Hat metadata.
+
+**When to set manually:**
+1. **Disconnected/airgap installations** - Installer cannot reach Red Hat metadata servers; you must pre-upload the RHCOS AMI to your AWS account and enter its ID here
+2. **AWS Secret or Top Secret regions** - Not in public Red Hat metadata
+3. **Specific RHCOS version** - Testing or compatibility requirements
+4. **Custom RHCOS images** - Site-specific modifications (advanced use case)
+
+**What is an AMI:**
+A pre-configured virtual machine image containing an operating system and software. AWS uses AMIs as templates to launch EC2 instances. Each AWS region has separate AMI IDs - an AMI in us-gov-west-1 has a different ID than the same image in us-gov-east-1.
+
+**AMI ID format:**
+ami-xxxxxxxxxxxxxxxxx (17 characters after "ami-")
+
+**Critical requirements - AMI must match:**
+⚠️ **Your selected region**
+⚠️ **Your selected OpenShift version** - RHCOS versions are tied to OpenShift releases (4.14 uses different RHCOS than 4.15)
+⚠️ **The architecture** - x86_64 for most installs, arm64 for Graviton instances
+
+**Important:**
+Using the wrong AMI will cause installation to fail or produce unstable clusters
+
+**Auto-filled badge:**
+Indicates the installer metadata populated this field automatically
+
+**For connected installs:**
+Leave blank or use the Refresh button - the installer handles AMI discovery automatically
+
+**Example:**
+ami-0a1b2c3d4e5f6g7h8 (but use Refresh button instead of guessing)`}
                   >
                     <div className="platform-specifics-ami-inline">
                       <input
