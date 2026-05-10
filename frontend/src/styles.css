@@ -654,9 +654,9 @@ body[data-theme="dark"] .run-oc-mirror-badge {
 /* Advanced options grid for oc-mirror configuration */
 .advanced-options-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 1rem;
-  align-items: end;
+  align-items: start;
   width: 100%;
   max-width: 1200px;
 }
@@ -681,6 +681,36 @@ body[data-theme="dark"] .run-oc-mirror-badge {
 .field-medium select {
   width: 100%;
   max-width: 200px;
+}
+
+/* Standard dropdown fields (~280-320px) */
+.field-dropdown {
+  max-width: 320px;
+}
+
+.field-dropdown select {
+  width: 100%;
+  max-width: 280px;
+}
+
+/* Standard text input fields (~280-400px) */
+.field-standard {
+  max-width: 400px;
+}
+
+.field-standard input {
+  width: 100%;
+  max-width: 350px;
+}
+
+/* Endpoint/URL fields (~350-400px) */
+.field-endpoint {
+  max-width: 400px;
+}
+
+.field-endpoint input {
+  width: 100%;
+  max-width: 380px;
 }
 
 /* oc-mirror actions section for consolidated preflight/run buttons */
@@ -1047,6 +1077,7 @@ body[data-theme="dark"] .sticky-panel {
   gap: 1rem;
   margin-top: 0.75rem;
   align-items: start;
+  justify-items: start;
   width: 100%;
 }
 
@@ -2343,6 +2374,16 @@ body[data-theme="dark"] .note-prominent {
   flex-direction: column;
   gap: 0;
   min-width: 0;
+}
+
+/* Constrained credential fields (pull secrets, SSH keys) - matches Blueprint tab layout width */
+.credentials-field-constrained {
+  max-width: 875px;
+  width: 100%;
+}
+
+.credentials-field-constrained textarea {
+  width: 100%;
 }
 
 .pull-secret-section-inline .pull-secret-label-row {
@@ -4360,7 +4401,7 @@ body[data-theme="dark"] .platform-specifics-subsection {
 .platform-specifics-ami-input-wide {
   flex: 1;
   min-width: 200px;
-  max-width: 100%;
+  max-width: 400px;
 }
 
 .platform-specifics-ami-hint {
