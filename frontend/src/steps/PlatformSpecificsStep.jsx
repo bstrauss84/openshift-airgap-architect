@@ -1005,7 +1005,27 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Credentials mode (optional)"
-                  hint={`Mint (recommended for IPI): CCO creates scoped cloud credentials for each cluster component from your admin credential. Each component gets minimal permissions. Requires IAM rights to create new users/roles. Best choice when you have full IAM admin access. Passthrough: CCO passes your install-time admin credential to all components — no new IAM identities created. Use when your org prohibits new IAM account creation. All components share the broad admin credential. Manual: You provision credentials yourself before install (e.g. via ccoctl for STS/Workload Identity). Required for air-gapped AWS STS installs, highly regulated environments. Most secure, most complex. Must run ccoctl before openshift-install. Nutanix IPI always requires Manual — enforced automatically.`}
+                  hint={`Controls how OpenShift Cloud Credential Operator (CCO) manages cloud provider credentials.
+
+**Mint (recommended for IPI):**
+• CCO creates scoped cloud credentials for each cluster component from your admin credential
+• Each component gets minimal permissions (least privilege)
+• **Requires:** IAM rights to create new users/roles
+• **Best for:** When you have full IAM admin access
+
+**Passthrough:**
+• CCO passes your install-time admin credential to all components — no new IAM identities created
+• All components share the broad admin credential
+• **Use when:** Your org prohibits new IAM account creation
+
+**Manual:**
+• You provision credentials yourself before install (e.g., via ccoctl for STS/Workload Identity)
+• **Required for:** Airgapped AWS STS installs, highly regulated environments
+• **Security:** Most secure, most complex
+• **Important:** Must run ccoctl before openshift-install
+
+**Platform-specific:**
+⚠️ Nutanix IPI always requires Manual mode (enforced automatically)`}
                 >
                   <select
                     value={platformConfig.credentialsMode || ""}
@@ -1757,7 +1777,27 @@ ssd-container`}
               <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
                 <FieldLabelWithInfo
                   label="vCenter username (optional)"
-                  hint={`Username for authenticating to vCenter Server. This account must have Administrator privileges or at minimum these permissions: Datastore (Allocate space, Browse), Folder (Create, Delete), Host.Local operations (Create VM), Network (Assign network), Resource (Assign VM to pool), and Virtual machine.Configuration (all). Typically formatted as administrator@vsphere.local or DOMAIN\\username. Required for IPI installations to automate infrastructure provisioning (VM creation, storage allocation, networking). For UPI, credentials are optional but help with validation. Included in install-config only when you choose to include credentials in export.`}
+                  hint={`Username for authenticating to vCenter Server.
+
+**Required permissions:**
+This account must have **Administrator** privileges or at minimum these permissions:
+• **Datastore:** Allocate space, Browse
+• **Folder:** Create, Delete
+• **Host.Local operations:** Create VM
+• **Network:** Assign network
+• **Resource:** Assign VM to pool
+• **Virtual machine.Configuration:** All
+
+**Format:**
+• administrator@vsphere.local
+• DOMAIN\\username
+
+**When required:**
+• **IPI:** Required to automate infrastructure provisioning (VM creation, storage allocation, networking)
+• **UPI:** Optional but helpful for validation
+
+**Important:**
+Included in install-config only when you choose to include credentials in export`}
                 >
                   <input
                     value={platformConfig.vsphere?.username || ""}
@@ -1770,7 +1810,18 @@ ssd-container`}
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="vCenter password (optional)"
-                  hint={`Password for the vCenter username specified above. This credential is used during installation to provision infrastructure resources (VMs, networks, storage) for IPI, or for validation in UPI workflows. The password is included in the generated install-config.yaml only when you choose to include credentials in the export. IMPORTANT: Do not allow your browser to save this password - it will be embedded in plain text in the install-config. After installation, you can remove credentials from the file if needed.`}
+                  hint={`Password for the vCenter username specified above.
+
+**How it's used:**
+• **IPI:** Provisions infrastructure resources (VMs, networks, storage) during installation
+• **UPI:** Used for validation workflows
+
+**Credential handling:**
+The password is included in generated install-config.yaml **only when** you choose to include credentials in export
+
+**Important:**
+⚠️ **Do not allow your browser to save this password** - it will be embedded in **plain text** in the install-config
+⚠️ After installation, you can remove credentials from the file if needed`}
                 >
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                     <input
@@ -2014,37 +2065,158 @@ OCP-Production-VLAN100 (VLAN-backed network)`}
                       <div className="field-grid">
                         <FieldLabelWithInfo
                           label="Name"
-                          hint={`Unique identifier for this failure domain used in install-config.yaml and zone placement. This name must be unique across all failure domains in your cluster. Example: fd-0, fd-1, or zone-east-1. Keep it short and descriptive (lowercase alphanumeric and hyphens recommended). This name is referenced by the computeZones and controlPlaneZones fields if you want to explicitly control which nodes land in which failure domain. OpenShift uses this name internally to track which resources belong to which zone for high-availability placement and scheduling.`}
+                          hint={`Unique identifier for this failure domain.
+
+**Purpose:**
+Used in install-config.yaml and zone placement for referencing this failure domain
+
+**Requirements:**
+• Must be **unique** across all failure domains in your cluster
+• Keep it short and descriptive
+• **Format:** Lowercase alphanumeric and hyphens recommended
+
+**How it's used:**
+• Referenced by computeZones and controlPlaneZones fields for explicit node placement control
+• OpenShift tracks which resources belong to which zone for high-availability placement and scheduling
+
+**Example:**
+fd-0, fd-1
+zone-east-1, zone-west-1`}
                         >
                           <input value={fd.name || ""} onChange={(e) => updateFailureDomain(index, { name: e.target.value })} placeholder="fd-0" />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
                           label="Region"
-                          hint={`Logical region identifier for grouping failure domains. In vSphere, a region typically represents a single vCenter or datacenter. For a single-datacenter deployment, use a simple name like 'datacenter' or 'region1'. For multi-datacenter setups, this should match the openshift-region tag value you apply to vSphere resources so the installer can group nodes by region. Region + Zone together define the complete failure domain topology. Example: if you have one vCenter serving multiple clusters, use 'datacenter' for all failure domains. If you have multiple vCenters, use 'east', 'west', or datacenter-specific names. This helps OpenShift understand your infrastructure layout for scheduling and availability decisions.`}
+                          hint={`Logical region identifier for grouping failure domains.
+
+**What is a region in vSphere:**
+Typically represents a single vCenter or datacenter
+
+**Single-datacenter deployment:**
+Use a simple name like 'datacenter' or 'region1'
+
+**Multi-datacenter setups:**
+Should match the openshift-region tag value you apply to vSphere resources so the installer can group nodes by region
+
+**Topology:**
+Region + Zone together define the complete failure domain topology
+
+**Examples:**
+
+**Single vCenter serving multiple clusters:**
+Use 'datacenter' for all failure domains
+
+**Multiple vCenters:**
+Use 'east', 'west', or datacenter-specific names
+
+**Purpose:**
+Helps OpenShift understand your infrastructure layout for scheduling and availability decisions`}
                         >
                           <input value={fd.region || ""} onChange={(e) => updateFailureDomain(index, { region: e.target.value })} placeholder="datacenter" />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
                           label="Zone"
-                          hint={`Logical zone identifier within the region, typically matching your vSphere compute cluster name. For a single-cluster deployment, use the cluster name (e.g., Cluster1). For multi-cluster/multi-zone setups, this should match the openshift-zone tag value you apply to vSphere resources so the installer can spread nodes across zones for high availability. Zone is the granular level of failure domain separation - nodes in different zones should ideally be on different compute clusters or racks to survive hardware failures. Example: if you have three compute clusters (Cluster1, Cluster2, Cluster3), create three failure domains with zones cluster1, cluster2, cluster3. OpenShift will then distribute control plane and worker nodes across these zones to maximize availability.`}
+                          hint={`Logical zone identifier within the region.
+
+**Typically:**
+Matches your vSphere compute cluster name
+
+**Single-cluster deployment:**
+Use the cluster name (e.g., Cluster1)
+
+**Multi-cluster/multi-zone setups:**
+Should match the openshift-zone tag value you apply to vSphere resources so the installer can spread nodes across zones for high availability
+
+**Failure domain separation:**
+Zone is the granular level of failure domain separation - nodes in different zones should ideally be on different compute clusters or racks to survive hardware failures
+
+**Example:**
+If you have three compute clusters (Cluster1, Cluster2, Cluster3):
+1. Create three failure domains
+2. Set zones: cluster1, cluster2, cluster3
+3. OpenShift distributes control plane and worker nodes across these zones to maximize availability`}
                         >
                           <input value={fd.zone || ""} onChange={(e) => updateFailureDomain(index, { zone: e.target.value })} placeholder="cluster-01" />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
                           label="Server (vCenter FQDN or IP)"
-                          hint={`Fully qualified domain name (FQDN) or IP address of the vCenter Server managing this failure domain. Each failure domain can point to the same vCenter (common for single-datacenter multi-cluster setups) or different vCenter instances (for multi-datacenter deployments). Example: vcenter.example.com or 192.168.1.10. The installer uses this address with your provided credentials to provision VMs in this specific failure domain. For high availability across datacenters, you might have vcenter-east.example.com for one failure domain and vcenter-west.example.com for another. This allows OpenShift to span multiple vCenter instances in a single cluster deployment.`}
+                          hint={`Fully qualified domain name (FQDN) or IP address of the vCenter Server managing this failure domain.
+
+**Deployment patterns:**
+
+**Same vCenter (common):**
+Each failure domain points to the same vCenter - typical for single-datacenter multi-cluster setups
+
+**Different vCenter instances:**
+Different failure domains point to different vCenter instances - for multi-datacenter deployments
+
+**How it's used:**
+The installer uses this address with your provided credentials to provision VMs in this specific failure domain
+
+**High availability across datacenters:**
+• vcenter-east.example.com for one failure domain
+• vcenter-west.example.com for another
+
+This allows OpenShift to span multiple vCenter instances in a single cluster deployment
+
+**Example:**
+vcenter.example.com
+192.168.1.10`}
                         >
                           <input value={fd.server || ""} onChange={(e) => updateFailureDomain(index, { server: e.target.value })} placeholder="vcenter.example.com" />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
                           label="Topology: Datacenter"
-                          hint={`vSphere datacenter name where resources for this failure domain are located. This must match the exact datacenter name as shown in vCenter (case-sensitive). A datacenter in vSphere is a top-level container that organizes compute clusters, hosts, datastores, and networks. Example: Datacenter1 or Production-DC. For single-datacenter deployments, all failure domains typically reference the same datacenter name. For multi-datacenter setups, each failure domain points to its respective datacenter (e.g., East-DC, West-DC). The installer uses this to locate the other topology resources (cluster, datastore, networks) within the correct vSphere inventory structure. You can find your datacenter names in vCenter by navigating to Inventory → Datacenters.`}
+                          hint={`vSphere datacenter name where resources for this failure domain are located.
+
+**Requirements:**
+• Must match the **exact** datacenter name shown in vCenter (**case-sensitive**)
+
+**What is a datacenter:**
+Top-level container that organizes compute clusters, hosts, datastores, and networks
+
+**Deployment patterns:**
+
+**Single-datacenter:**
+All failure domains typically reference the same datacenter name
+
+**Multi-datacenter:**
+Each failure domain points to its respective datacenter (e.g., East-DC, West-DC)
+
+**How it's used:**
+The installer uses this to locate other topology resources (cluster, datastore, networks) within the correct vSphere inventory structure
+
+**How to find datacenter names:**
+vCenter → Inventory → Datacenters
+
+**Example:**
+Datacenter1
+Production-DC`}
                         >
                           <input value={fd.topology?.datacenter || ""} onChange={(e) => updateFailureDomainTopology(index, { datacenter: e.target.value })} placeholder="Datacenter1" />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
                           label="Topology: Compute cluster"
-                          hint={`vSphere compute cluster name where VMs for this failure domain will be provisioned. This must match the exact cluster name in vCenter (case-sensitive). A compute cluster in vSphere is a collection of ESXi hosts that share resources and provide high availability features like DRS (Distributed Resource Scheduler) and HA (High Availability). Example: Cluster1, Production-Cluster, or Compute-Zone-A. The cluster must have sufficient CPU, memory, and storage resources for the nodes you plan to deploy in this failure domain. DRS should be enabled for automatic VM placement and load balancing. Each failure domain can target a different cluster - this is how you achieve true zone separation in vSphere (nodes in different clusters can survive cluster-level failures). The installer will provision VMs into this cluster according to your node distribution settings.`}
+                          hint={`vSphere compute cluster name where VMs for this failure domain will be provisioned.
+
+**Requirements:**
+• Must match the **exact** cluster name in vCenter (**case-sensitive**)
+• Sufficient CPU, memory, and storage resources for nodes in this failure domain
+• **DRS enabled** recommended for automatic VM placement and load balancing
+
+**What is a compute cluster:**
+Collection of ESXi hosts that share resources and provide high availability features like DRS (Distributed Resource Scheduler) and HA (High Availability)
+
+**Zone separation:**
+Each failure domain can target a different cluster - this is how you achieve **true zone separation** in vSphere (nodes in different clusters can survive cluster-level failures)
+
+**How it's used:**
+The installer provisions VMs into this cluster according to your node distribution settings
+
+**Example:**
+Cluster1
+Production-Cluster
+Compute-Zone-A`}
                         >
                           <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} placeholder="Cluster1" />
                         </FieldLabelWithInfo>
