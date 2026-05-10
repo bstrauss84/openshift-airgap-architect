@@ -844,7 +844,53 @@ docker://registry.internal.corp:5000`}
                       <div className="credentials-field-constrained">
                         <SecretInput
                           label="Red Hat pull secret"
-                          labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
+                          hint={`Red Hat pull secret for this oc-mirror run (not stored).
+
+**What is this:**
+Authentication credentials for pulling OpenShift and operator images from Red Hat registries (registry.redhat.io and quay.io) during this oc-mirror run.
+
+**When needed:**
+Required for oc-mirror to authenticate when mirroring content from Red Hat:
+• **diskToMirror mode:** Not needed (reading from local disk)
+• **mirrorToMirror mode:** Required to pull from Red Hat registries
+• **All modes with operators:** Required to mirror operator bundles
+
+**Where to get it:**
+Download from OpenShift Cluster Manager at console.redhat.com:
+1. Log in with your Red Hat account
+2. Navigate to OpenShift → Downloads
+3. Click "Download pull secret"
+
+**How it's used:**
+Passed to oc-mirror via the \`--config\` imageset-config.yaml or as inline auth. oc-mirror uses it to authenticate when pulling images from Red Hat registries during the mirroring process.
+
+**Alternative sources (above):**
+• **Mounted:** Pull secret detected in container filesystem
+• **Retained from Blueprint:** Pull secret saved from Blueprint tab
+
+**Security:**
+⚠️ **Used for this run only - not stored:**
+• Ephemeral - discarded after this oc-mirror run completes
+• Not saved to browser storage or state files
+• Not exported in bundles
+• Provide again for future runs
+
+**Format:**
+Standard Red Hat pull secret JSON:
+\`\`\`json
+{
+  "auths": {
+    "cloud.openshift.com": {"auth": "...", "email": "..."},
+    "quay.io": {"auth": "...", "email": "..."},
+    "registry.redhat.io": {"auth": "...", "email": "..."}
+  }
+}
+\`\`\`
+
+**Important:**
+• Requires active Red Hat subscription or trial
+• Separate from install-config pull secret (Identity & Access tab)
+• Only used for oc-mirror mirroring operations`}
                           value={rhPullSecretPaste}
                           onChange={setRhPullSecretPaste}
                           placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
@@ -858,7 +904,49 @@ docker://registry.internal.corp:5000`}
                   <div className="credentials-field-constrained">
                     <SecretInput
                       label="Red Hat pull secret"
-                      labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
+                      hint={`Red Hat pull secret for this oc-mirror run (not stored).
+
+**What is this:**
+Authentication credentials for pulling OpenShift and operator images from Red Hat registries (registry.redhat.io and quay.io) during this oc-mirror run.
+
+**When needed:**
+Required for oc-mirror to authenticate when mirroring content from Red Hat:
+• **diskToMirror mode:** Not needed (reading from local disk)
+• **mirrorToMirror mode:** Required to pull from Red Hat registries
+• **All modes with operators:** Required to mirror operator bundles
+
+**Where to get it:**
+Download from OpenShift Cluster Manager at console.redhat.com:
+1. Log in with your Red Hat account
+2. Navigate to OpenShift → Downloads
+3. Click "Download pull secret"
+
+**How it's used:**
+Passed to oc-mirror via the \`--config\` imageset-config.yaml or as inline auth. oc-mirror uses it to authenticate when pulling images from Red Hat registries during the mirroring process.
+
+**Security:**
+⚠️ **Used for this run only - not stored:**
+• Ephemeral - discarded after this oc-mirror run completes
+• Not saved to browser storage or state files
+• Not exported in bundles
+• Provide again for future runs
+
+**Format:**
+Standard Red Hat pull secret JSON:
+\`\`\`json
+{
+  "auths": {
+    "cloud.openshift.com": {"auth": "...", "email": "..."},
+    "quay.io": {"auth": "...", "email": "..."},
+    "registry.redhat.io": {"auth": "...", "email": "..."}
+  }
+}
+\`\`\`
+
+**Important:**
+• Requires active Red Hat subscription or trial
+• Separate from install-config pull secret (Identity & Access tab)
+• Only used for oc-mirror mirroring operations`}
                       value={rhPullSecretPaste}
                       onChange={setRhPullSecretPaste}
                       placeholder="Paste, drag and drop, or upload Red Hat pull secret JSON"
@@ -914,7 +1002,65 @@ docker://registry.internal.corp:5000`}
                       <div className="credentials-field-constrained">
                         <SecretInput
                           label="Mirror registry credentials"
-                          labelHint="Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored."
+                          hint={`Mirror registry pull secret for pushing images during this oc-mirror run (not stored).
+
+**What is this:**
+Authentication credentials for your local mirror registry where oc-mirror will push (upload) mirrored OpenShift images.
+
+**When needed:**
+Required for oc-mirror to authenticate when pushing to your mirror registry:
+• **diskToMirror mode:** Required - pushing from disk to mirror registry
+• **mirrorToMirror mode:** Required - pushing to destination mirror registry
+• **All modes:** Required unless mirror registry allows anonymous pushes (not recommended)
+
+**Format:**
+Same JSON structure as Red Hat pull secret, but with your mirror registry hostname:
+\`\`\`json
+{
+  "auths": {
+    "registry.corp.local:5000": {
+      "auth": "base64EncodedUsername:Password",
+      "email": "optional@example.com"
+    }
+  }
+}
+\`\`\`
+
+**How to create:**
+
+**Option 1: Use podman/docker login**
+\`\`\`bash
+podman login registry.corp.local:5000
+cat ~/.docker/config.json
+# or
+cat ${XDG_RUNTIME_DIR}/containers/auth.json
+\`\`\`
+
+**Option 2: Manual base64 encoding**
+\`\`\`bash
+echo -n 'username:password' | base64
+# Use output in auth field
+\`\`\`
+
+**How it's used:**
+oc-mirror uses these credentials to authenticate when pushing mirrored images to your registry. Combined with Red Hat pull secret (above) in mirrorToMirror mode.
+
+**Alternative sources (above):**
+• **Mounted:** Credentials detected in container filesystem
+• **Retained from Identity & Access:** Credentials from install-config configuration
+
+**Security:**
+⚠️ **Used for this run only - not stored:**
+• Ephemeral - discarded after oc-mirror run completes
+• Not saved to browser storage or state files
+• Not exported in bundles
+• Provide again for future runs
+
+**Important:**
+• Credentials must match what's configured on your mirror registry
+• Test with \`podman login\` before running oc-mirror
+• Mirror registry must be accessible from where oc-mirror runs
+• Same credentials used in install-config (Identity & Access tab) for cluster installations`}
                           value={mirrorPullSecretPaste}
                           onChange={setMirrorPullSecretPaste}
                           placeholder="Paste, drag and drop, or upload mirror registry credentials JSON"
@@ -928,7 +1074,64 @@ docker://registry.internal.corp:5000`}
                   <div className="credentials-field-constrained">
                     <SecretInput
                       label="Mirror registry credentials"
-                      labelHint='Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored. Example: {"auths":{"mirror.example.com":{"auth":"base64string"}}}'
+                      hint={`Mirror registry pull secret for pushing images during this oc-mirror run (not stored).
+
+**What is this:**
+Authentication credentials for your local mirror registry where oc-mirror will push (upload) mirrored OpenShift images.
+
+**When needed:**
+Required for oc-mirror to authenticate when pushing to your mirror registry:
+• **diskToMirror mode:** Required - pushing from disk to mirror registry
+• **mirrorToMirror mode:** Required - pushing to destination mirror registry
+• **All modes:** Required unless mirror registry allows anonymous pushes (not recommended)
+
+**Format:**
+Same JSON structure as Red Hat pull secret, but with your mirror registry hostname:
+\`\`\`json
+{
+  "auths": {
+    "registry.corp.local:5000": {
+      "auth": "base64EncodedUsername:Password",
+      "email": "optional@example.com"
+    }
+  }
+}
+\`\`\`
+
+**How to create:**
+
+**Option 1: Use podman/docker login**
+\`\`\`bash
+podman login registry.corp.local:5000
+cat ~/.docker/config.json
+# or
+cat ${XDG_RUNTIME_DIR}/containers/auth.json
+\`\`\`
+
+**Option 2: Manual base64 encoding**
+\`\`\`bash
+echo -n 'username:password' | base64
+# Use output in auth field
+\`\`\`
+
+**How it's used:**
+oc-mirror uses these credentials to authenticate when pushing mirrored images to your registry. Combined with Red Hat pull secret (above) in mirrorToMirror mode.
+
+**Security:**
+⚠️ **Used for this run only - not stored:**
+• Ephemeral - discarded after oc-mirror run completes
+• Not saved to browser storage or state files
+• Not exported in bundles
+• Provide again for future runs
+
+**Important:**
+• Credentials must match what's configured on your mirror registry
+• Test with \`podman login\` before running oc-mirror
+• Mirror registry must be accessible from where oc-mirror runs
+• Same credentials used in install-config (Identity & Access tab) for cluster installations
+
+**Example:**
+{"auths":{"mirror.example.com":{"auth":"dXNlcm5hbWU6cGFzc3dvcmQ="}}}`}
                       value={mirrorPullSecretPaste}
                       onChange={setMirrorPullSecretPaste}
                       placeholder='{"auths":{"mirror.example.com":{"auth":"..."}}}'

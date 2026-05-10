@@ -376,7 +376,48 @@ ocp.company.com`}
                         onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
                         label="Pull secret (Red Hat)"
                         labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
-                        labelHint="For clusters that access Red Hat registries directly or through allowed egress. From OpenShift Cluster Manager. Used in install-config when not using a mirror registry. Not persisted."
+                        hint={`Authentication credentials for accessing Red Hat container registries.
+
+**What is this:**
+A JSON file containing authentication tokens for pulling OpenShift container images from Red Hat's public registries (registry.redhat.io and quay.io). This is your proof of entitlement to download Red Hat software.
+
+**Where to get it:**
+Download from OpenShift Cluster Manager at console.redhat.com:
+1. Log in with your Red Hat account
+2. Navigate to OpenShift → Downloads
+3. Click "Download pull secret" or "Copy pull secret"
+
+**When needed:**
+Required for clusters that access Red Hat registries **directly** or through **allowed egress**:
+• **Connected installations:** Direct internet access to Red Hat registries
+• **Proxy with egress:** Outbound traffic allowed through corporate proxy
+• **NOT needed:** Fully disconnected/airgap installations using a mirror registry
+
+**How it's used:**
+Added to install-config.yaml as the \`pullSecret\` field. During installation, the cluster uses these credentials to authenticate when pulling OpenShift and RHCOS images from Red Hat.
+
+**Format:**
+JSON object with an \`auths\` key containing registry credentials:
+\`\`\`json
+{
+  "auths": {
+    "cloud.openshift.com": {"auth": "...", "email": "..."},
+    "quay.io": {"auth": "...", "email": "..."},
+    "registry.redhat.io": {"auth": "...", "email": "..."}
+  }
+}
+\`\`\`
+
+**Security:**
+⚠️ **Not persisted** - This secret is used only for generating install-config.yaml and is not stored in browser storage or exported in state files. You must provide it again if you start a new session.
+
+**Mirror registry mode:**
+If you toggle "Using a mirror registry?" above, this field is replaced with the mirror registry pull secret field.
+
+**Important:**
+• Requires an active Red Hat subscription or trial
+• Pull secret expires/rotates periodically - download a fresh one if issues occur
+• Keep pull secrets confidential - they prove your entitlement`}
                         getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
                         required={requiredPullSecret}
                         placeholder='{"auths":{...}}'
@@ -402,6 +443,67 @@ ocp.company.com`}
                               }}
                               label="Pull secret (Mirror registry)"
                               labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
+                              hint={`Authentication credentials for your local mirror registry in disconnected environments.
+
+**What is this:**
+A JSON file containing authentication tokens for pulling container images from your organization's local/disconnected mirror registry instead of Red Hat's public registries.
+
+**When needed:**
+Required for **disconnected/airgap installations** where the cluster cannot access Red Hat registries directly:
+• Fully airgapped environments with no internet access
+• Restricted networks with no egress to Red Hat
+• Installations using oc-mirror or other mirroring tools
+• Private container registries
+
+**Format:**
+Same JSON structure as Red Hat pull secret, but with your mirror registry's hostname:
+\`\`\`json
+{
+  "auths": {
+    "registry.corp.local:5000": {
+      "auth": "base64EncodedUsername:Password",
+      "email": "optional@example.com"
+    }
+  }
+}
+\`\`\`
+
+**How to create:**
+
+**Option 1: Use the "Help me generate" button**
+Click the button below to open a helper that creates the pull secret JSON from:
+• Mirror registry hostname (e.g., registry.corp.local:5000)
+• Username
+• Password
+• Email (optional)
+
+**Option 2: Use podman/docker CLI**
+\`\`\`bash
+podman login registry.corp.local:5000
+cat ~/.docker/config.json
+# or
+cat ${XDG_RUNTIME_DIR}/containers/auth.json
+\`\`\`
+
+**Option 3: Manual base64 encoding**
+\`\`\`bash
+echo -n 'username:password' | base64
+# Use the output in the auth field
+\`\`\`
+
+**How it's used:**
+Added to install-config.yaml as the \`pullSecret\` field (when using a mirror registry). The cluster uses these credentials to authenticate when pulling OpenShift images from your local mirror.
+
+**Anonymous pulls:**
+If you selected "Anonymous pulls" above, this field is auto-filled with an OKD-documented dummy pull secret for unauthenticated registries. Switch to "Use mirror-registry credentials" to provide real authentication.
+
+**Security:**
+⚠️ **Not persisted** - This secret is used only for generating install-config.yaml and is not stored or exported. Provide it again in future sessions.
+
+**Important:**
+• Credentials must match what's configured on your mirror registry
+• Test with \`podman login\` before installation
+• Mirror registry must be accessible from installer host and cluster nodes`}
                               required={requiredPullSecret}
                               placeholder='{"auths":{...}}'
                               rows={5}
@@ -433,19 +535,52 @@ ocp.company.com`}
             </div>
 
             <div className="credentials-field-constrained">
-              <label>
-                SSH Public Key {metaSshKey?.required ? <span className="required-indicator">(required)</span> : null}
-              </label>
-              <div className="note">Paste, drag and drop, or upload; or generate a keypair below.</div>
-              <textarea
-                value={sshPublicKey}
-                onChange={(e) => updateCredentials({ sshPublicKey: e.target.value })}
-                rows={3}
-                placeholder="ssh-rsa AAAA..."
-                aria-required="true"
-                aria-invalid={sshKeyInvalid ? "true" : "false"}
-                aria-describedby={sshKeyInvalid ? "ssh-key-error" : undefined}
-              />
+              <FieldLabelWithInfo
+                label="SSH Public Key"
+                hint={`SSH public key for remote access to cluster machines.
+
+**What is this:**
+The public half of an SSH keypair that will be added to all cluster nodes. This allows you to SSH into nodes for debugging, troubleshooting, and day-2 operations.
+
+**Format:**
+Standard SSH public key formats are supported:
+• **ssh-rsa** (RSA, 2048+ bits)
+• **ssh-ed25519** (EdDSA, recommended for modern systems)
+• **ecdsa-sha2-nistp256/384/521** (ECDSA)
+
+**How to provide:**
+• **Paste** an existing public key from ~/.ssh/id_*.pub
+• **Drag and drop** or **upload** a .pub file
+• **Generate keypair** using the button below (saves both .pub and .pem files)
+
+**Generate keypair button:**
+Click "Generate keypair" to create a new SSH keypair using secure algorithms. The modal will show both the public and private keys. You MUST download and save the private key (.pem) immediately - it cannot be retrieved later.
+
+**Why this matters:**
+Without SSH access, you cannot directly access cluster nodes for troubleshooting. This is critical for:
+• Debugging node issues
+• Collecting logs and diagnostics
+• Day-2 operations and maintenance
+• Emergency recovery scenarios
+
+**Security:**
+⚠️ Keep the private key secure - anyone with access to it can SSH into your cluster nodes. Never share the private key or commit it to version control.
+
+**Example public key:**
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC... user@hostname
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJqfh... user@hostname`}
+                required={metaSshKey?.required}
+              >
+                <textarea
+                  value={sshPublicKey}
+                  onChange={(e) => updateCredentials({ sshPublicKey: e.target.value })}
+                  rows={3}
+                  placeholder="ssh-rsa AAAA..."
+                  aria-required="true"
+                  aria-invalid={sshKeyInvalid ? "true" : "false"}
+                  aria-describedby={sshKeyInvalid ? "ssh-key-error" : undefined}
+                />
+              </FieldLabelWithInfo>
               {sshKeyInvalid ? <div id="ssh-key-error" className="note warning" role="alert">SSH public key format is invalid.</div> : null}
               <div className="actions">
                 <button type="button" className="ghost" onClick={openKeygen}>
@@ -462,13 +597,51 @@ ocp.company.com`}
               <h3 className="card-title">Security Compliance</h3>
               <div className="card-subtitle">Enable hardened crypto settings when required.</div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.75rem 0" }}>
-              <span style={{ fontWeight: 500 }}>FIPS mode</span>
+            <FieldLabelWithInfo
+              label="FIPS mode"
+              hint={`Federal Information Processing Standards (FIPS) 140-2 compliant cryptography.
+
+**What is FIPS:**
+FIPS 140-2 is a U.S. government computer security standard used to validate cryptographic modules. When enabled, OpenShift uses only FIPS-validated cryptography libraries and algorithms.
+
+**Who needs this:**
+Organizations with strict compliance requirements:
+• **Government:** Federal, state, and local government agencies
+• **Defense contractors:** Companies working on government contracts
+• **Regulated industries:** Finance, healthcare, critical infrastructure
+• **International compliance:** Some international regulations require FIPS
+
+**Requirements:**
+⚠️ **Critical:** The installer host (where you run openshift-install) MUST run RHEL 9 with FIPS mode already enabled at the OS level. The installation will fail if the installer host does not have FIPS enabled.
+
+**What happens when enabled:**
+• All cluster nodes boot with FIPS-compliant kernel settings
+• Only FIPS-validated cryptographic modules are used
+• Some features may be limited or unavailable
+• Stricter algorithm and key length requirements
+• Cannot be changed after installation
+
+**Impact on cluster:**
+• **Performance:** Slight performance impact due to stricter crypto validation
+• **Compatibility:** Some third-party software may not support FIPS
+• **Upgrades:** FIPS setting persists through cluster upgrades
+• **Immutable:** Cannot disable FIPS after installation without rebuilding cluster
+
+**Important:**
+⚠️ This setting **cannot be changed** after cluster installation. You must rebuild the cluster to change FIPS mode.
+
+**When NOT to enable:**
+If you don't have specific compliance requirements that mandate FIPS, leave this disabled. Enabling FIPS adds complexity and may limit functionality without providing security benefits for non-regulated environments.
+
+**Example use case:**
+A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53 security controls and federal information security requirements.`}
+              style={{ marginBottom: 0 }}
+            >
               <Switch
                 checked={fips}
                 onChange={(checked) => updateStrategy({ fips: checked })}
               />
-            </div>
+            </FieldLabelWithInfo>
           </div>
           <div
             className="note"

@@ -69,7 +69,37 @@ const summarizeReason = (code) => {
   }
 };
 
-function PemField({ label, required, value, onChange, onFiles, error, placeholder }) {
+function PemField({ label, required, value, onChange, onFiles, error, placeholder, hint }) {
+  if (hint) {
+    // Use FieldLabelWithInfo when hint is provided
+    return (
+      <div className="trust-pem-field">
+        <FieldLabelWithInfo label={label} required={required} hint={hint}>
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={3}
+            placeholder={placeholder}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              onFiles(e.dataTransfer.files);
+            }}
+          />
+          {error ? <div className="note warning">{error}</div> : null}
+          <input
+            type="file"
+            accept=".pem,.crt,.cer"
+            multiple
+            onChange={(e) => onFiles(e.target.files || [])}
+            className="trust-file-input"
+          />
+        </FieldLabelWithInfo>
+      </div>
+    );
+  }
+
+  // Fallback to original implementation without hint
   return (
     <div className="trust-pem-field">
       <label>
@@ -682,6 +712,41 @@ Internal cluster networks, service CIDRs, localhost
                   onFiles={handleMirrorCaFiles}
                   error={mirrorCaError}
                   placeholder="Paste or drop .pem/.crt here"
+                  hint={`CA certificate(s) for authenticating to a private or self-signed mirror registry.
+
+**What is this:**
+The Certificate Authority (CA) certificate that signed your mirror registry's TLS certificate. This is required when your mirror registry uses a private CA or self-signed certificate instead of a publicly-trusted CA.
+
+**When required:**
+• **Private CA:** Your organization has its own internal CA
+• **Self-signed:** Your mirror registry uses a self-signed certificate
+• **Not needed:** Your mirror registry uses certificates from a public CA (like Let's Encrypt, DigiCert, etc.)
+
+**Format:**
+PEM-encoded X.509 certificate(s). Each certificate block starts with \`-----BEGIN CERTIFICATE-----\` and ends with \`-----END CERTIFICATE-----\`
+
+**Multiple certificates:**
+You can paste multiple certificate blocks in this field if your trust chain includes intermediate CAs. Include the entire chain from your mirror registry's CA up to (but not including) your registry's server certificate.
+
+**How to provide:**
+• **Paste:** Copy the PEM text directly into the field
+• **Drag and drop:** Drop .pem or .crt files into the field
+• **Upload:** Click to browse and select certificate files
+
+**How it's used:**
+This CA bundle is added to install-config.yaml as \`additionalTrustBundle\`. The installer distributes it to all cluster nodes so they trust TLS connections to your mirror registry during installation and operation.
+
+**Trust bundle policy:**
+When this field is populated, the trust bundle policy below automatically defaults to "Always" to ensure the certificate is trusted cluster-wide for registry pulls.
+
+**Important:**
+⚠️ Without the correct CA certificate, the installer and cluster nodes will reject TLS connections to your mirror registry, causing installation to fail.
+
+**Example certificate:**
+-----BEGIN CERTIFICATE-----
+MIIDXTCCAkWgAwIBAgIJAKL0UG+mRKfzMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
+...
+-----END CERTIFICATE-----`}
                 />
                 {trust.mirrorRegistryUsesPrivateCa && !trust.mirrorRegistryCaPem ? (
                   <Banner variant="warning">Mirror registry CA bundle is required when using a private or self-signed CA. Progress to Assets &amp; Guide is blocked until you add the certificate(s) above.</Banner>
@@ -699,6 +764,44 @@ Internal cluster networks, service CIDRs, localhost
                   onFiles={handleProxyCaFiles}
                   error={proxyCaError}
                   placeholder="Paste or drop .pem/.crt here"
+                  hint={`CA certificate(s) for authenticating to an HTTPS proxy with a custom or corporate CA.
+
+**What is this:**
+The Certificate Authority (CA) certificate that signed your HTTPS proxy's TLS certificate. This is needed when your proxy uses a certificate from a private/corporate CA rather than a publicly-trusted CA.
+
+**When needed:**
+• **Corporate proxy:** Your organization's proxy uses an internal CA
+• **HTTPS inspection:** The proxy performs SSL/TLS inspection with a custom CA
+• **HTTP proxy:** Not needed - only HTTPS proxies require CA certificates
+• **Public CA proxy:** Not needed if your proxy uses publicly-trusted certificates
+
+**Format:**
+PEM-encoded X.509 certificate(s). Each certificate block starts with \`-----BEGIN CERTIFICATE-----\` and ends with \`-----END CERTIFICATE-----\`
+
+**Multiple certificates:**
+Include the full trust chain if your proxy's CA has intermediate certificates. Paste all certificates from your proxy's CA up to (but not including) the proxy's server certificate.
+
+**How to provide:**
+• **Paste:** Copy the PEM text directly into the field
+• **Drag and drop:** Drop .pem or .crt files into the field
+• **Upload:** Click to browse and select certificate files
+
+**How it's used:**
+This CA bundle is added to install-config.yaml as \`additionalTrustBundle\`. During installation and cluster operation, nodes trust this CA when making outbound connections through the HTTPS proxy.
+
+**Trust bundle policy:**
+When only Proxy CA is provided (no Mirror registry CA), the trust bundle policy below automatically defaults to "Proxyonly" - the CA is only used for proxy connections.
+
+**Common scenarios:**
+• **Corporate network:** Internal proxy at proxy.corp.local:3128 uses corporate CA
+• **SSL inspection:** Security appliance decrypts/re-encrypts traffic with custom CA
+• **Cloud environments:** Some cloud providers inject proxy CAs for egress inspection
+
+**Example certificate:**
+-----BEGIN CERTIFICATE-----
+MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
+...
+-----END CERTIFICATE-----`}
                 />
               </div>
             </div>
@@ -706,11 +809,57 @@ Internal cluster networks, service CIDRs, localhost
             {showTrustBundlePolicyUi ? (
               <>
                 <div className="trust-policy-row">
-                  <label className="trust-policy-label-row">
-                    <span className="trust-policy-label-block">
-                      <span className="trust-policy-label">Trust bundle policy</span>
-                      {isRequired("additionalTrustBundlePolicy") ? <span className="required-badge">required</span> : null}
-                    </span>
+                  <FieldLabelWithInfo
+                    label="Trust bundle policy"
+                    required={isRequired("additionalTrustBundlePolicy")}
+                    hint={`Controls how OpenShift distributes the additional trust bundle to cluster nodes.
+
+**What is this:**
+The \`additionalTrustBundlePolicy\` field in install-config.yaml determines how the CA certificates you provide above are made available to cluster nodes and workloads.
+
+**Available policies:**
+
+**Proxyonly:**
+• The trust bundle is ONLY used for proxy connections
+• Recommended when you have only Proxy CA (no Mirror registry CA)
+• The bundle is injected into the proxy trust chain
+• Registry pulls and other operations use the default system trust store
+
+**Always:**
+• The trust bundle is distributed to ALL cluster nodes
+• Recommended when you have a Mirror registry CA
+• The bundle is added to the system-wide trust store on all nodes
+• Both proxy connections AND registry pulls can use these certificates
+• Ensures mirror registry TLS connections succeed everywhere
+
+**Automatic selection:**
+This field is automatically set based on which CA certificates you provide:
+• **Mirror registry CA present:** Defaults to "Always"
+• **Only Proxy CA present:** Defaults to "Proxyonly"
+• **Both present:** Defaults to "Always" (covers both use cases)
+
+**When to change the default:**
+Most users should keep the automatic default. Advanced use cases where you might override:
+• You have a Mirror registry CA but want to limit trust distribution scope
+• You have specific security requirements about where certificates are trusted
+
+**Important:**
+⚠️ If you have a Mirror registry CA and select "Proxyonly", registry pulls will fail because nodes won't trust your mirror registry's certificates.
+
+**How it's used in install-config:**
+\`\`\`yaml
+additionalTrustBundle: |
+  -----BEGIN CERTIFICATE-----
+  ...your CA certificates...
+  -----END CERTIFICATE-----
+additionalTrustBundlePolicy: Always
+\`\`\`
+
+**Example decision tree:**
+• Mirror registry with private CA → **Always**
+• HTTPS proxy with corporate CA, no mirror → **Proxyonly**
+• Both mirror registry and proxy with custom CAs → **Always**`}
+                  >
                     <select
                       value={trust.additionalTrustBundlePolicy || (trustPolicyOptions.length ? policyDefault : "")}
                       onChange={(e) => updateTrust({ additionalTrustBundlePolicy: e.target.value })}
@@ -725,7 +874,7 @@ Internal cluster networks, service CIDRs, localhost
                           : <option value="" disabled>Not available</option>}
                       </optgroup>
                     </select>
-                  </label>
+                  </FieldLabelWithInfo>
                   {!trustPolicyOptions.length ? (
                     <Banner variant="warning">
                       Could not resolve trust bundle policy options for this OpenShift version (release is unknown or not supported here).

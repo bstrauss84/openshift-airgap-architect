@@ -516,13 +516,65 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
                         onChange={setPullSecretInput}
                         label="Red Hat pull secret (optional)"
                         labelEmphasis="Red Hat pull secret (optional)"
-                        labelHint={
-                          state.credentials?.redHatPullSecretConfigured
-                            ? "Pull secret configured for operator discovery."
-                            : hasRetainedPullSecret && discoveryAlreadyRunningOrDone
-                              ? "From Blueprint (in memory only). Used for catalog scan; not stored or exported."
-                              : "Used only for catalog scan. Red Hat login required to obtain."
-                        }
+                        hint={`Red Hat pull secret for scanning Operator catalogs (optional).
+
+**What is this:**
+Authentication credentials for pulling Operator catalog metadata from Red Hat registries (registry.redhat.io and quay.io) when you click "Scan" below.
+
+**When needed:**
+**Optional** - only required if you want to populate Operator catalogs by scanning Red Hat registries:
+• You don't have a pull secret already configured (mounted or retained from Blueprint)
+• You want fresh operator catalog metadata from Red Hat
+• You're using the "Scan" feature to discover available operators
+
+**When NOT needed:**
+• Pull secret is already mounted in the container
+• You retained a pull secret from the Blueprint tab
+• You're manually uploading catalog files
+• You're not using operators in your installation
+
+**Pull secret sources:**
+
+**1. Mounted pull secret:**
+If running in a container with a pull secret mounted, it's automatically detected and used. No need to paste one here.
+
+**2. Retained from Blueprint:**
+If you provided a pull secret on the Blueprint tab and checked "Retain for oc-mirror runs", it's carried forward here.
+
+**3. Paste for this scan only:**
+Paste a fresh pull secret just for this operator scan. It's not stored or exported.
+
+**Where to get it:**
+Download from OpenShift Cluster Manager at console.redhat.com:
+1. Log in with your Red Hat account
+2. Navigate to OpenShift → Downloads
+3. Click "Download pull secret" or "Copy pull secret"
+
+**How it's used:**
+• Authenticates to registry.redhat.io and quay.io when clicking "Scan"
+• Retrieves latest Operator catalog index images
+• Extracts operator bundle metadata for selection
+• **Not stored** - used only for this scan, not persisted or exported
+
+**Format:**
+Standard Red Hat pull secret JSON:
+\`\`\`json
+{
+  "auths": {
+    "cloud.openshift.com": {"auth": "...", "email": "..."},
+    "quay.io": {"auth": "...", "email": "..."},
+    "registry.redhat.io": {"auth": "...", "email": "..."}
+  }
+}
+\`\`\`
+
+**Fast mode:**
+Enable "Fast mode" below to use cached catalog data from previous scans instead of fetching fresh data (skips pull secret requirement if cache exists).
+
+**Important:**
+• Requires active Red Hat subscription or trial
+• This is separate from the install-config pull secret (Identity & Access tab)
+• Only used for catalog scanning, not for cluster installation`}
                         getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
                         placeholder="Paste Red Hat pull secret JSON"
                         rows={4}

@@ -18,7 +18,7 @@ import FieldLabelWithInfo from "./FieldLabelWithInfo.jsx";
  * paste, drag-and-drop, file upload, consistent helper/error placement.
  * dropEffect is set to "copy" on dragover so sources are encouraged not to move/cut; behavior may still vary by source app.
  * Use for all pull secret fields across Blueprint, Identity & Access, Operators, Global Strategy.
- * When labelHint is provided, the (i) icon shows that text as a tooltip and notPersistedMessage is not shown below.
+ * When hint or labelHint is provided, the (i) icon shows that text as a tooltip and notPersistedMessage is not shown below.
  * When getPullSecretUrl is provided, a link button to obtain the Red Hat pull secret is shown (Red Hat login required).
  */
 function SecretInput({
@@ -27,6 +27,7 @@ function SecretInput({
   label = "Pull secret (JSON)",
   labelEmphasis,
   labelHint,
+  hint, // Alias for labelHint (matches FieldLabelWithInfo pattern)
   getPullSecretUrl,
   helperText,
   notPersistedMessage,
@@ -41,7 +42,8 @@ function SecretInput({
   const [showSecret, setShowSecret] = useState(false);
   const fileRef = useRef(null);
   const id = idProp || `secret-input-${Math.random().toString(36).slice(2, 9)}`;
-  const showNotPersisted = notPersistedMessage && !labelHint;
+  const effectiveHint = hint || labelHint; // Use hint if provided, fallback to labelHint
+  const showNotPersisted = notPersistedMessage && !effectiveHint;
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -103,8 +105,8 @@ function SecretInput({
   return (
     <div className="pull-secret-section-inline">
       <div className="pull-secret-label-row">
-        {labelHint ? (
-          <FieldLabelWithInfo label={labelContent} hint={labelHint} required={required} />
+        {effectiveHint ? (
+          <FieldLabelWithInfo label={labelContent} hint={effectiveHint} required={required} />
         ) : (
           <span className="label-emphasis">{labelWithRequired}</span>
         )}

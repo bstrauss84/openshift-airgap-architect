@@ -375,7 +375,59 @@ const BlueprintStep = () => {
                 }}
                 label="Pull secret (JSON)"
                 labelEmphasis="Pull secret (JSON)"
-                labelHint="Not stored or exported. Optional; required only if you plan to include Operators in your mirror."
+                hint={`Red Hat pull secret for fetching Operator catalog metadata (optional).
+
+**What is this:**
+A Red Hat pull secret used at the Blueprint stage to authenticate when scanning for Operators. This is NOT the pull secret used in install-config.yaml - that one is configured later in the Identity & Access tab.
+
+**When needed:**
+**Optional** - only required if you plan to include Operators in your mirror:
+• You want to browse/select Operators from Red Hat catalogs
+• You'll use the Operators tab to catalog and mirror operator bundles
+• You need the latest operator metadata from registry.redhat.io
+
+**When NOT needed:**
+• You're NOT including operators in your mirror
+• You're using a pre-built operator catalog
+• You're doing an install without operators
+
+**Where to get it:**
+Download from OpenShift Cluster Manager at console.redhat.com:
+1. Log in with your Red Hat account
+2. Navigate to OpenShift → Downloads
+3. Click "Download pull secret" or "Copy pull secret"
+
+**How it's used:**
+• **Blueprint stage:** Authenticates to Red Hat when you click "Scan" on the Operators tab
+• **Retained for oc-mirror:** Optionally kept in memory for oc-mirror runs (if you check "Retain for oc-mirror runs" below)
+• **Not in install-config:** This is separate from the pull secret configured in Identity & Access
+
+**Security:**
+⚠️ **Not stored or exported** - This secret is ephemeral:
+• Kept in browser memory only during this session
+• Not saved to state files or exports
+• Not included in generated bundles
+• Discarded when you refresh or close the browser
+
+**Retain for oc-mirror runs:**
+Below this field, you can optionally check "Retain for oc-mirror runs" to keep the pull secret in memory for use on the Run oc-mirror tab. This avoids re-entering it later if you plan to run oc-mirror in the same session.
+
+**Format:**
+Standard Red Hat pull secret JSON:
+\`\`\`json
+{
+  "auths": {
+    "cloud.openshift.com": {"auth": "...", "email": "..."},
+    "quay.io": {"auth": "...", "email": "..."},
+    "registry.redhat.io": {"auth": "...", "email": "..."}
+  }
+}
+\`\`\`
+
+**Important:**
+• This is separate from the install-config pull secret configured in Identity & Access
+• Only needed for operator catalog scanning
+• Requires active Red Hat subscription or trial`}
                 getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
                 errorMessage={blueprintPullSecretError || undefined}
                 disabled={locked}
