@@ -84,8 +84,8 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
 
   const proxyErrors = {};
   if (strategy.proxyEnabled) {
-    if (strategy.proxies?.httpProxy && !strategy.proxies.httpProxy.startsWith("http://")) {
-      proxyErrors.httpProxy = "HTTP proxy must start with http://";
+    if (strategy.proxies?.httpProxy && !strategy.proxies.httpProxy.startsWith("http://") && !strategy.proxies.httpProxy.startsWith("https://")) {
+      proxyErrors.httpProxy = "HTTP proxy must start with http:// or https://";
     }
     if (strategy.proxies?.httpsProxy && !strategy.proxies.httpsProxy.startsWith("http://") && !strategy.proxies.httpsProxy.startsWith("https://")) {
       proxyErrors.httpsProxy = "HTTPS proxy must start with http:// or https:// (use the scheme your proxy supports).";
@@ -530,7 +530,20 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 </label>
                 <FieldLabelWithInfo
                   label={`HTTPS Proxy ${proxyRequired ? "(required for jumpbox)" : "(optional)"}`}
-                  hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                  hint={`URL endpoint for proxying HTTPS traffic.
+
+**Important:**
+Use the **scheme your proxy actually supports**, NOT the traffic type
+
+**Common pattern:**
+Many corporate proxies use http:// even for HTTPS traffic
+
+**Format:**
+http://hostname:port OR https://hostname:port (match your proxy's capabilities)
+
+**Example:**
+http://proxy.corp:8443
+https://proxy.corp:8443 (if your proxy supports TLS)`}
                 >
                   <textarea
                     className="proxy-field-input proxy-field-textarea"
@@ -581,7 +594,19 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               />
               <FieldLabelWithInfo
                 label="Enable IPv6 (cluster-wide)"
-                hint="When enabled, IPv6 machine network and per-host IPv6 fields (on the Host Inventory tab when applicable) are shown and included in generated configs."
+                hint={`Enable IPv6 networking throughout the cluster.
+
+**What this enables:**
+IPv6 machine network CIDR fields and per-host IPv6 fields
+
+**Where it appears:**
+This page and the Host Inventory tab (when applicable)
+
+**Effect on generated configs:**
+IPv6 addresses and networks are included in install-config and agent-config
+
+**Use case:**
+Dual-stack or IPv6-only deployments`}
               />
             </label>
             {state.hostInventory?.enableIpv6 ? (
@@ -599,7 +624,19 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
             <div className="field-grid">
               <FieldLabelWithInfo
                 label="Machine Network (IPv4 CIDR)"
-                hint="Node IPs live here; most installs only customize this CIDR."
+                hint={`IPv4 network range where cluster nodes live.
+
+**What is this:**
+The physical network that hosts, control plane, and workers use
+
+**When to customize:**
+Most installs **only** need to customize this CIDR to match your datacenter network
+
+**Default ranges:**
+Typically safe: cluster and service networks (below) use OpenShift defaults
+
+**Example:**
+10.90.0.0/24`}
               >
                 <input
                   value={networking.machineNetworkV4 || ""}
@@ -618,7 +655,16 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               {state.hostInventory?.enableIpv6 ? (
                 <FieldLabelWithInfo
                   label="Machine Network (IPv6 CIDR)"
-                  hint="Only required for dual-stack deployments."
+                  hint={`IPv6 network range where cluster nodes live (dual-stack only).
+
+**When is this required:**
+Only for dual-stack deployments (IPv4 + IPv6)
+
+**When to leave blank:**
+IPv4-only clusters
+
+**Example:**
+fd10:90::/64`}
                 >
                   <input
                     value={networking.machineNetworkV6 || ""}
@@ -631,7 +677,19 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               ) : null}
               <FieldLabelWithInfo
                 label="Cluster Network CIDR"
-                hint="Pod network; usually safe to keep default."
+                hint={`IPv4 network range for pod-to-pod communication.
+
+**What is this:**
+The software-defined network (SDN) that pods use to communicate
+
+**When to change:**
+Usually safe to **keep the default** (10.128.0.0/14)
+
+**When you must change:**
+Only if this range conflicts with existing corporate networks
+
+**Example:**
+10.128.0.0/14 (default)`}
               >
                 <input
                   value={networking.clusterNetworkCidr || ""}
@@ -649,7 +707,19 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 : null}
               <FieldLabelWithInfo
                 label="Cluster Network Host Prefix"
-                hint="Determines per-node pod CIDR size."
+                hint={`Subnet prefix length for per-node pod allocation.
+
+**What this controls:**
+How many pods each node can run (smaller prefix = more pods per node)
+
+**How it works:**
+Each node gets a /hostPrefix slice of the cluster network CIDR
+
+**Default:**
+23 (allows ~510 pods per node when using 10.128.0.0/14)
+
+**Valid range:**
+16-28`}
               >
                 <input
                   type="number"
@@ -665,7 +735,16 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 <>
                   <FieldLabelWithInfo
                     label="Cluster Network IPv6 CIDR (optional)"
-                    hint="Pod network IPv6 (dual-stack or IPv6 data plane). Default fd01::/48 if blank."
+                    hint={`IPv6 network range for pod-to-pod communication.
+
+**Use case:**
+Dual-stack or IPv6-only data plane
+
+**Default behavior:**
+If left blank, defaults to fd01::/48
+
+**Example:**
+fd01::/48`}
                   >
                     <input
                       value={networking.clusterNetworkCidrV6 || ""}
@@ -682,7 +761,16 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
                     label="Cluster Network IPv6 Host Prefix (optional)"
-                    hint="Default 64 if blank."
+                    hint={`Subnet prefix length for per-node IPv6 pod allocation.
+
+**Default behavior:**
+If left blank, defaults to 64
+
+**Valid range:**
+48-128
+
+**Example:**
+64`}
                   >
                     <input
                       type="number"
@@ -705,7 +793,19 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               ) : null}
               <FieldLabelWithInfo
                 label="Service Network CIDR"
-                hint="ClusterIP range; usually safe to keep default."
+                hint={`IPv4 network range for Kubernetes ClusterIP services.
+
+**What is this:**
+The internal IP range for service load balancers (ClusterIP type)
+
+**When to change:**
+Usually safe to **keep the default** (172.30.0.0/16)
+
+**When you must change:**
+Only if this range conflicts with existing corporate networks
+
+**Example:**
+172.30.0.0/16 (default)`}
               >
                 <input
                   value={networking.serviceNetworkCidr || ""}
@@ -724,7 +824,16 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
               {state.hostInventory?.enableIpv6 ? (
                 <FieldLabelWithInfo
                   label="Service Network IPv6 CIDR (optional)"
-                  hint="Service (ClusterIP) IPv6. Default fd02::/112 if blank."
+                  hint={`IPv6 network range for Kubernetes ClusterIP services.
+
+**Use case:**
+Dual-stack or IPv6-only service networking
+
+**Default behavior:**
+If left blank, defaults to fd02::/112
+
+**Example:**
+fd02::/112`}
                 >
                   <input
                     value={networking.serviceNetworkCidrV6 || ""}
@@ -755,7 +864,19 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
           <div className="card-body">
             <FieldLabelWithInfo
               label="NTP Servers (comma-separated)"
-              hint="Use up to four reliable NTP sources. Time skew is a common install failure."
+              hint={`Up to four reliable NTP sources to keep cluster time synchronized.
+
+**Why this matters:**
+⚠️ Time skew is a **common install failure** - certificates won't validate if clocks are off
+
+**Format:**
+Comma-separated hostnames or IP addresses
+
+**Best practice:**
+Use internal NTP servers that are reachable from your airgap network
+
+**Example:**
+time.corp.local,10.90.0.10`}
             >
               <input
                 value={ntpInput}
@@ -777,7 +898,22 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
           <div className="card-body">
             <FieldLabelWithInfo
               label="Local Registry FQDN"
-              hint="imageDigestSources in install-config are prepopulated from this section. The authoritative values come from the IDMS manifest generated by oc-mirror v2."
+              hint={`Fully qualified domain name and port of your local mirror registry.
+
+**What is this:**
+The endpoint where your mirrored OpenShift images are hosted
+
+**Format:**
+hostname[:port] or IP[:port]
+
+**How it's used:**
+Prepopulates imageDigestSources in install-config.yaml
+
+**Important:**
+⚠️ The authoritative values come from the IDMS manifest generated by **oc-mirror v2**
+
+**Example:**
+registry.corp.local:5000`}
             >
               <input
                 value={strategy.mirroring.registryFqdn}

@@ -836,49 +836,117 @@ wipefs -a /dev/sdX`}</pre>
                             </p>
                             <FieldLabelWithInfo
                               label="Root device — deviceName (optional)"
-                              hint="Stable Linux device path. Prefer /dev/disk/by-path/... over transient kernel names like /dev/sdX or /dev/vdX."
+                              hint={`Stable Linux device path for the root disk.
+
+**What is this:**
+The device that OpenShift will install to (OS root filesystem)
+
+**Best practice:**
+Use **/dev/disk/by-path/...** for stability
+
+**Avoid:**
+Transient kernel names like /dev/sdX or /dev/vdX (can change across reboots)
+
+**Example:**
+/dev/disk/by-path/pci-0000:00:1f.2-ata-1`}
                             >
                               <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-path/... or /dev/sda" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — hctl (optional)"
-                              hint="SCSI address in host:channel:target:lun format (for example, 0:0:0:0)."
+                              hint={`SCSI address for the root disk.
+
+**Format:**
+host:channel:target:lun (four numbers separated by colons)
+
+**Example:**
+0:0:0:0`}
                             >
                               <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — model (optional)"
-                              hint="Device model match. This hint can be a substring of the discovered value."
+                              hint={`Device model identifier for the root disk.
+
+**How matching works:**
+This hint can be a **substring** of the discovered value
+
+**When to use:**
+Useful when you have multiple disks but want a specific model
+
+**Example:**
+INTEL SSDPE...`}
                             >
                               <input value={selectedNode.rootDeviceHintModel || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintModel: e.target.value })} placeholder="INTEL SSDPE..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — vendor (optional)"
-                              hint="Device vendor/manufacturer match. This hint can be a substring of the discovered value."
+                              hint={`Device vendor/manufacturer identifier.
+
+**How matching works:**
+This hint can be a **substring** of the discovered value
+
+**Examples:**
+ATA, NVMe, Samsung, Intel`}
                             >
                               <input value={selectedNode.rootDeviceHintVendor || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintVendor: e.target.value })} placeholder="ATA, NVMe, Samsung..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — serial number (optional)"
-                              hint="Exact serial number match."
+                              hint={`Disk serial number for exact matching.
+
+**How matching works:**
+This hint requires an **exact** match (not a substring)
+
+**When to use:**
+Most specific hint - identifies a unique disk
+
+**Example:**
+S3Z9NX0M123456`}
                             >
                               <input value={selectedNode.rootDeviceHintSerialNumber || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintSerialNumber: e.target.value })} placeholder="S3Z9..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — wwn (optional)"
-                              hint="Exact WWN match. If udevadm shows ID_WWN_WITH_EXTENSION, use that value for this field."
+                              hint={`World Wide Name (WWN) for exact disk matching.
+
+**How matching works:**
+This hint requires an **exact** match (not a substring)
+
+**Important:**
+If udevadm shows ID_WWN_WITH_EXTENSION, use that value for this field
+
+**Example:**
+0x5000c500a1b2c3d4`}
                             >
                               <input value={selectedNode.rootDeviceHintWwn || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintWwn: e.target.value })} placeholder="0x5000..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — min size GB (optional)"
-                              hint="Minimum disk size in gigabytes (rootDeviceHints.minSizeGigabytes)."
+                              hint={`Minimum disk size requirement in gigabytes.
+
+**What is this:**
+Excludes disks smaller than this value
+
+**Where this goes:**
+rootDeviceHints.minSizeGigabytes
+
+**Example:**
+100 (selects disks 100GB or larger)`}
                             >
                               <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — rotational (optional)"
-                              hint="Require spinning media or non-rotational media."
+                              hint={`Filter by disk rotation type.
+
+**Options:**
+• false = non-rotational (SSD/NVMe)
+• true = rotational (HDD, spinning media)
+• Any = no preference
+
+**Use case:**
+Ensure OS is installed on SSD, not spinning disks`}
                             >
                               <select
                                 value={selectedNode.rootDeviceHintRotational ?? ""}
@@ -891,7 +959,16 @@ wipefs -a /dev/sdX`}</pre>
                             </FieldLabelWithInfo>
                           </div>
                           <div className="divider" />
-                          <h4><FieldLabelWithInfo label="BMC (IPI)" hint="Baseboard management controller. Required for installer-provisioned deployment." /></h4>
+                          <h4><FieldLabelWithInfo label="BMC (IPI)" hint={`Baseboard management controller for remote power/boot control.
+
+**What is this:**
+Out-of-band management interface (iDRAC, iLO, IPMI, Redfish)
+
+**When required:**
+**Required** for installer-provisioned (IPI) deployment
+
+**Use case:**
+Allows OpenShift installer to remotely boot and provision bare metal nodes`} /></h4>
                           <div className="field-grid">
                             <label>BMC address <input value={selectedNode.bmc?.address || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })} placeholder="redfish+http://192.168.1.1/..." /></label>
                             <label>BMC username <input autoComplete="off" value={selectedNode.bmc?.username || ""} onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, username: e.target.value } })} /></label>
@@ -954,49 +1031,117 @@ wipefs -a /dev/sdX`}</pre>
                             </p>
                             <FieldLabelWithInfo
                               label="Root device — deviceName (optional)"
-                              hint="Stable Linux device path. Prefer /dev/disk/by-path/... over transient kernel names like /dev/sdX or /dev/vdX."
+                              hint={`Stable Linux device path for the root disk.
+
+**What is this:**
+The device that OpenShift will install to (OS root filesystem)
+
+**Best practice:**
+Use **/dev/disk/by-path/...** for stability
+
+**Avoid:**
+Transient kernel names like /dev/sdX or /dev/vdX (can change across reboots)
+
+**Example:**
+/dev/disk/by-path/pci-0000:00:1f.2-ata-1`}
                             >
                               <input value={selectedNode.rootDevice || ""} onChange={(e) => updateNode(selectedIndex, { rootDevice: e.target.value })} placeholder="/dev/disk/by-path/... or /dev/sda" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — hctl (optional)"
-                              hint="SCSI address in host:channel:target:lun format (for example, 0:0:0:0)."
+                              hint={`SCSI address for the root disk.
+
+**Format:**
+host:channel:target:lun (four numbers separated by colons)
+
+**Example:**
+0:0:0:0`}
                             >
                               <input value={selectedNode.rootDeviceHintHctl || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintHctl: e.target.value })} placeholder="0:0:0:0" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — model (optional)"
-                              hint="Device model match. This hint can be a substring of the discovered value."
+                              hint={`Device model identifier for the root disk.
+
+**How matching works:**
+This hint can be a **substring** of the discovered value
+
+**When to use:**
+Useful when you have multiple disks but want a specific model
+
+**Example:**
+INTEL SSDPE...`}
                             >
                               <input value={selectedNode.rootDeviceHintModel || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintModel: e.target.value })} placeholder="INTEL SSDPE..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — vendor (optional)"
-                              hint="Device vendor/manufacturer match. This hint can be a substring of the discovered value."
+                              hint={`Device vendor/manufacturer identifier.
+
+**How matching works:**
+This hint can be a **substring** of the discovered value
+
+**Examples:**
+ATA, NVMe, Samsung, Intel`}
                             >
                               <input value={selectedNode.rootDeviceHintVendor || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintVendor: e.target.value })} placeholder="ATA, NVMe, Samsung..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — serial number (optional)"
-                              hint="Exact serial number match."
+                              hint={`Disk serial number for exact matching.
+
+**How matching works:**
+This hint requires an **exact** match (not a substring)
+
+**When to use:**
+Most specific hint - identifies a unique disk
+
+**Example:**
+S3Z9NX0M123456`}
                             >
                               <input value={selectedNode.rootDeviceHintSerialNumber || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintSerialNumber: e.target.value })} placeholder="S3Z9..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — wwn (optional)"
-                              hint="Exact WWN match. If udevadm shows ID_WWN_WITH_EXTENSION, use that value for this field."
+                              hint={`World Wide Name (WWN) for exact disk matching.
+
+**How matching works:**
+This hint requires an **exact** match (not a substring)
+
+**Important:**
+If udevadm shows ID_WWN_WITH_EXTENSION, use that value for this field
+
+**Example:**
+0x5000c500a1b2c3d4`}
                             >
                               <input value={selectedNode.rootDeviceHintWwn || ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintWwn: e.target.value })} placeholder="0x5000..." />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — min size GB (optional)"
-                              hint="Minimum disk size in gigabytes (rootDeviceHints.minSizeGigabytes)."
+                              hint={`Minimum disk size requirement in gigabytes.
+
+**What is this:**
+Excludes disks smaller than this value
+
+**Where this goes:**
+rootDeviceHints.minSizeGigabytes
+
+**Example:**
+100 (selects disks 100GB or larger)`}
                             >
                               <input type="number" value={selectedNode.rootDeviceHintMinSizeGb ?? ""} onChange={(e) => updateNode(selectedIndex, { rootDeviceHintMinSizeGb: e.target.value || undefined })} placeholder="e.g. 100" />
                             </FieldLabelWithInfo>
                             <FieldLabelWithInfo
                               label="Root device — rotational (optional)"
-                              hint="Require spinning media or non-rotational media."
+                              hint={`Filter by disk rotation type.
+
+**Options:**
+• false = non-rotational (SSD/NVMe)
+• true = rotational (HDD, spinning media)
+• Any = no preference
+
+**Use case:**
+Ensure OS is installed on SSD, not spinning disks`}
                             >
                               <select
                                 value={selectedNode.rootDeviceHintRotational ?? ""}
@@ -1009,7 +1154,18 @@ wipefs -a /dev/sdX`}</pre>
                             </FieldLabelWithInfo>
                           </>
                         ) : null}
-                        <FieldLabelWithInfo label="Primary Interface Type" hint="Primary network is used for install/cluster networking.">
+                        <FieldLabelWithInfo label="Primary Interface Type" hint={`Network interface configuration used for installation and cluster networking.
+
+**What is this:**
+The network that carries cluster control plane and pod traffic
+
+**Options:**
+• Single NIC ethernet (most common)
+• Bond (LACP or active-backup for redundancy)
+• VLAN on ethernet or bond (for network isolation)
+
+**Important:**
+This network must be reachable by all cluster nodes`}>
                           <select value={selectedNode.primary?.type || "ethernet"} onChange={(e) => updatePrimary(selectedIndex, { type: e.target.value })}>
                             {PRIMARY_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                           </select>
@@ -1030,7 +1186,17 @@ wipefs -a /dev/sdX`}</pre>
                         {(selectedNode.primary?.type === "bond" || selectedNode.primary?.type === "vlan-on-bond") && (
                           <>
                             <label>Bond name <input value={selectedNode.primary?.bond?.name || ""} onChange={(e) => updatePrimaryBond(selectedIndex, { name: e.target.value })} placeholder="bond0" /></label>
-                            <FieldLabelWithInfo label="Bond mode" hint="Bond members: at least 2 required. Add or remove as needed.">
+                            <FieldLabelWithInfo label="Bond mode" hint={`Network bonding mode for redundancy.
+
+**Requirements:**
+At least **2 bond members** required
+
+**Modes:**
+• active-backup: one active, others standby
+• 802.3ad (LACP): link aggregation (requires switch support)
+
+**How to configure:**
+Add or remove bond member interfaces below as needed`}>
                               <select className="bond-mode-select" value={selectedNode.primary?.bond?.mode || "active-backup"} onChange={(e) => updatePrimaryBond(selectedIndex, { mode: e.target.value })}>
                                 {BOND_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
                               </select>
@@ -1124,7 +1290,15 @@ wipefs -a /dev/sdX`}</pre>
                       {!isArbiterDrawer ? (
                       <>
                       <div className="divider" />
-                      <h4><FieldLabelWithInfo label="Additional Interfaces" hint="Use this for extra NIC networks or additional VLANs." /></h4>
+                      <h4><FieldLabelWithInfo label="Additional Interfaces" hint={`Configure extra network interfaces beyond the primary.
+
+**Use cases:**
+• Extra NIC for storage or management traffic
+• Additional VLANs for network isolation
+• Secondary networks for tenant workloads
+
+**Primary vs Additional:**
+Primary interface is used for cluster networking; additional interfaces are optional`} /></h4>
                       <div className="list">
                         {(selectedNode.additionalInterfaces || []).map((iface, ifaceIndex) => (
                           <section key={`iface-${ifaceIndex}`} className="card">
@@ -1212,7 +1386,16 @@ wipefs -a /dev/sdX`}</pre>
                               )}
                               {(iface.type === "vlan-on-ethernet" || iface.type === "vlan-on-bond") && (
                                 <>
-                                  <FieldLabelWithInfo label="VLAN ID" hint="VLAN base interface is derived from the selected interface.">
+                                  <FieldLabelWithInfo label="VLAN ID" hint={`802.1Q VLAN tag for this interface.
+
+**What is this:**
+The numeric VLAN tag (1-4094)
+
+**How it works:**
+VLAN base interface is **derived from the selected interface** (ethernet or bond)
+
+**Example:**
+100`}>
                                     <input value={iface.vlan?.id || ""} onChange={(e) => updateAdditionalInterface(selectedIndex, ifaceIndex, { vlan: { ...iface.vlan, id: e.target.value } })} />
                                   </FieldLabelWithInfo>
                                   <label>
@@ -1324,7 +1507,18 @@ wipefs -a /dev/sdX`}</pre>
                                 One MTU value applies to the primary physical interface and any VLAN on that path (same value in generated nmstate). Default 1500. Each additional interface has its own Advanced section with its own MTU.
                               </p>
                               <div className="list">
-                                <h4><FieldLabelWithInfo label="Additional Routes" hint="Optional static routes beyond the default gateway." /></h4>
+                                <h4><FieldLabelWithInfo label="Additional Routes" hint={`Optional static routes beyond the default gateway.
+
+**When to use:**
+When nodes need to reach networks not covered by the default route
+
+**Common scenarios:**
+• Multiple subnets on the primary network
+• Routes to storage networks
+• Routes to management networks
+
+**Example:**
+Destination: 10.0.0.0/24, Next Hop: 192.168.1.1`} /></h4>
                                 {(selectedNode.primary?.advanced?.routes || []).map((route, ri) => {
                                   const baseIface = primaryBaseIface(selectedNode);
                                   const vlanName = selectedNode.primary?.vlan?.name || suggestedVlanName(selectedNode.primary?.vlan?.baseIface || baseIface, selectedNode.primary?.vlan?.id);

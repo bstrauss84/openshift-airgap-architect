@@ -292,8 +292,8 @@ export default function TrustProxyStep({ highlightErrors }) {
 
   const proxyErrors = {};
   if (strategy.proxyEnabled) {
-    if (proxies.httpProxy && !proxies.httpProxy.startsWith("http://")) {
-      proxyErrors.httpProxy = "HTTP proxy must start with http://";
+    if (proxies.httpProxy && !proxies.httpProxy.startsWith("http://") && !proxies.httpProxy.startsWith("https://")) {
+      proxyErrors.httpProxy = "HTTP proxy must start with http:// or https://";
     }
     if (proxies.httpsProxy && !proxies.httpsProxy.startsWith("http://") && !proxies.httpsProxy.startsWith("https://")) {
       proxyErrors.httpsProxy = "HTTPS proxy must start with http:// or https:// (use the scheme your proxy supports).";
@@ -547,7 +547,19 @@ export default function TrustProxyStep({ highlightErrors }) {
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
                     label={`HTTP Proxy ${metaHttpProxy?.required ? "" : "(optional)"}`}
-                    hint="URL for HTTP traffic. Scheme must be http://."
+                    hint={`URL endpoint for proxying HTTP traffic.
+
+**What is this:**
+The corporate proxy server that handles HTTP (port 80) egress
+
+**Scheme requirement:**
+Must start with http:// (even though it's proxying HTTP traffic)
+
+**Format:**
+http://hostname:port or http://ip:port
+
+**Example:**
+http://proxy.corp:8080`}
                     required={metaHttpProxy?.required}
                   >
                     <textarea
@@ -564,7 +576,20 @@ export default function TrustProxyStep({ highlightErrors }) {
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
                     label={`HTTPS Proxy ${metaHttpsProxy?.required ? "" : "(optional)"}`}
-                    hint="For httpsProxy, use the scheme your proxy actually supports. Many environments use http:// here even for HTTPS traffic."
+                    hint={`URL endpoint for proxying HTTPS traffic.
+
+**Important:**
+Use the **scheme your proxy actually supports**, NOT the traffic type
+
+**Common pattern:**
+Many corporate proxies use http:// even for HTTPS traffic
+
+**Format:**
+http://hostname:port OR https://hostname:port (match your proxy's capabilities)
+
+**Example:**
+http://proxy.corp:8443
+https://proxy.corp:8443 (if your proxy supports TLS)`}
                     required={metaHttpsProxy?.required}
                   >
                     <textarea
@@ -581,7 +606,23 @@ export default function TrustProxyStep({ highlightErrors }) {
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
                     label={`No Proxy ${isRequired("proxy.noProxy") ? "" : "(optional)"}`}
-                    hint="Comma-separated destinations to exclude from proxying. Use . for subdomains; * to bypass for all."
+                    hint={`Comma-separated destinations to bypass the proxy.
+
+**What is this:**
+Traffic to these destinations goes direct, NOT through your proxy
+
+**Format:**
+Comma-separated hostnames, IPs, CIDRs, or domain patterns
+
+**Special patterns:**
+• Start with . for subdomain matching (.cluster.local)
+• Use * to bypass proxy for all traffic
+
+**Typical entries:**
+Internal cluster networks, service CIDRs, localhost
+
+**Example:**
+.cluster.local,.svc,10.128.0.0/14,127.0.0.1`}
                     required={isRequired("proxy.noProxy")}
                   >
                     <textarea

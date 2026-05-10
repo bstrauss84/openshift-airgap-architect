@@ -189,7 +189,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const showVsphereIpiSection = catalogParams.some(
     (p) => p.path === "platform.vsphere.vcenter" && p.outputFile === INSTALL_CONFIG
   );
-  const showFailureDomainsSection = showVsphereIpiSection && catalogParams.some(
+  // Failure domains are IPI-only (not valid for UPI or Agent-based)
+  const showFailureDomainsSection = scenarioId === "vsphere-ipi" && catalogParams.some(
     (p) => p.path === "platform.vsphere.failureDomains" && p.outputFile === INSTALL_CONFIG
   );
   const metaVsphereVcenter = getParamMeta(scenarioId, "platform.vsphere.vcenter", INSTALL_CONFIG);
@@ -254,7 +255,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const metaMinimalISO = getParamMeta(scenarioId, "minimalISO", AGENT_CONFIG);
 
   const hyperthreadingOptions = ["Enabled", "Disabled"];
-  const baselineCapabilityOptions = Array.isArray(metaBaselineCapability?.allowed) ? metaBaselineCapability.allowed : ["None", "v4.11", "v4.12", "vCurrent"];
+  const baselineCapabilityOptions = Array.isArray(metaBaselineCapability?.allowed) ? metaBaselineCapability.allowed : ["None", "v4.11", "v4.12", "v4.20", "vCurrent"];
   const cpuPartitioningOptions = Array.isArray(metaCpuPartitioningMode?.allowed) ? metaCpuPartitioningMode.allowed : ["None", "AllNodes"];
 
   return (
@@ -334,6 +335,7 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
                         <select
                           value={platformConfig.aws?.region || ""}
                           onChange={(e) => updateAws({ region: e.target.value })}
+                          style={{ maxWidth: "280px" }}
                         >
                           <option value="" disabled>Select a region</option>
                           {regionsForDropdown.map((r) => (
@@ -434,6 +436,7 @@ ami-0a1b2c3d4e5f6g7h8 (but use Refresh button instead of guessing)`}
                     <select
                       value={awsVpcMode}
                       onChange={(e) => updateAws({ vpcMode: e.target.value })}
+                      style={{ maxWidth: "320px" }}
                     >
                       <option value="installer-managed">Installer-managed VPC (default)</option>
                       <option value="existing">Existing VPC/subnets</option>
@@ -545,6 +548,7 @@ subnet-0def456abc789 (us-east-1b)`}
                       value={platformConfig.aws?.hostedZone || ""}
                       onChange={(e) => updateAws({ hostedZone: e.target.value })}
                       placeholder="Z1234567890"
+                      style={{ maxWidth: "280px" }}
                     />
                   </FieldLabelWithInfo>
                   <label className="host-inventory-v2-checkbox-label" style={{ gridColumn: "1 / -1" }}>
@@ -577,6 +581,7 @@ subnet-0def456abc789 (us-east-1b)`}
                         value={platformConfig.aws?.hostedZoneRole || ""}
                         onChange={(e) => updateAws({ hostedZoneRole: e.target.value })}
                         placeholder="arn:aws-us-gov:iam::123:role/HostedZoneRole"
+                        style={{ maxWidth: "400px" }}
                       />
                     </FieldLabelWithInfo>
                   ) : null}
@@ -605,6 +610,7 @@ subnet-0def456abc789 (us-east-1b)`}
                     <select
                       value={platformConfig.aws?.lbType || ""}
                       onChange={(e) => updateAws({ lbType: e.target.value })}
+                      style={{ maxWidth: "280px" }}
                     >
                       <option value="" disabled>Not set</option>
                       <option value="Classic">Classic</option>
@@ -637,6 +643,7 @@ subnet-0def456abc789 (us-east-1b)`}
                           value={platformConfig.aws?.controlPlaneInstanceType || ""}
                           onChange={(e) => updateAws({ controlPlaneInstanceType: e.target.value })}
                           placeholder="e.g. m5.xlarge"
+                          style={{ maxWidth: "280px" }}
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
@@ -655,6 +662,7 @@ subnet-0def456abc789 (us-east-1b)`}
                           value={platformConfig.aws?.workerInstanceType || ""}
                           onChange={(e) => updateAws({ workerInstanceType: e.target.value })}
                           placeholder="e.g. m5.large"
+                          style={{ maxWidth: "280px" }}
                         />
                       </FieldLabelWithInfo>
                     </div>
@@ -672,6 +680,7 @@ subnet-0def456abc789 (us-east-1b)`}
 **Critical:** EBS volumes cannot be shrunk after creation, only expanded - plan for growth upfront. You can expand volumes post-install but it requires node draining and manual steps. Setting this value applies the same size to ALL nodes (control plane and compute); you cannot set different sizes per pool in install-config (that requires post-install customization via MachineSet). Cost consideration: larger volumes cost more per month - balance capacity needs against AWS EBS pricing.
 
 **Example:** 200 for control plane with room to grow, 150 for general workers, 500 for workers with local databases.`}
+                        className="field-short"
                       >
                         <input
                           type="number"
@@ -691,6 +700,7 @@ subnet-0def456abc789 (us-east-1b)`}
 **Recommendation:** Use gp3 for most installations (best balance of cost and performance). Only use io1/io2 if you have specific IOPS requirements (e.g., etcd in 500+ node clusters, or workers running high-IOPS databases).
 
 **Why it matters:** EBS volume type affects both performance (IOPS, throughput) and cost. gp3 volumes can deliver up to 16,000 IOPS which is sufficient for almost all OpenShift workloads. io1/io2 costs significantly more but provides guaranteed IOPS above 16k. For control plane nodes, adequate IOPS is critical for etcd health - but gp3 handles this well for clusters under 500 nodes. Setting this value applies to ALL nodes in the cluster (both control plane and compute).`}
+                        className="field-medium"
                       >
                         <input
                           value={platformConfig.aws?.rootVolumeType || ""}
@@ -748,6 +758,7 @@ Control plane nodes are EC2 instances (you pay for them)
 
 **Recommendation:**
 Use 5 only for very large or mission-critical clusters`}
+                        className="field-short"
                       >
                         <input
                           type="number"
@@ -798,6 +809,7 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
 3 for small production
 5 for medium
 10+ for large workloads or multi-AZ redundancy`}
+                        className="field-short"
                       >
                         <input
                           type="number"
@@ -840,6 +852,7 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                     <select
                       value={platformConfig.publish || metaPublish?.default || "External"}
                       onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
+                      style={{ maxWidth: "280px" }}
                     >
                       <option value="External">External</option>
                       <option value="Internal">Internal</option>
@@ -872,6 +885,7 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                     <select
                       value={platformConfig.credentialsMode || ""}
                       onChange={(e) => updatePlatformConfig({ credentialsMode: e.target.value })}
+                      style={{ maxWidth: "280px" }}
                     >
                       <option value="" disabled>Not set</option>
                       <option value="Mint">Mint</option>
@@ -917,26 +931,6 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 12 }}>
-                <FieldLabelWithInfo
-                  label="Cloud name"
-                  hint={`Azure cloud environment name for Azure Government deployments. For Azure Government (US federal/state/local government customers), this must be set to 'AzureUSGovernmentCloud' - this is the sovereign cloud instance physically and logically isolated from Azure Commercial (public cloud).
-
-**Important:** This is NOT the same as Azure Commercial (AzurePublicCloud) - Azure Government runs on separate datacenters with restricted access, US-only data residency, and FedRAMP High/DoD IL2-5 compliance.
-
-**Why it matters:** Setting the correct cloud name determines which Azure endpoints the installer and cluster components contact - using AzurePublicCloud endpoints from a Government subscription (or vice versa) will fail authentication. Azure Government has different API endpoints (management.usgovcloudapi.net vs management.azure.com), different portal (portal.azure.us vs portal.azure.com), and geographically separate regions (USGov Virginia, USGov Texas, etc.).
-
-**When to use:** For commercial Azure deployments, use the regular Azure IPI scenario instead - this Azure Government scenario is specifically for sovereign cloud customers with Azure Government subscriptions. The dropdown typically shows only AzureUSGovernmentCloud because that's the only supported value for Government deployments in this context. If you need Azure China (AzureChinaCloud) or other sovereign clouds, consult OpenShift documentation for supported configurations.`}
-                  required={metaAzureCloudName?.required || isRequiredInstall("platform.azure.cloudName")}
-                >
-                  <select
-                    value={platformConfig.azure?.cloudName || metaAzureCloudName?.default || "AzureUSGovernmentCloud"}
-                    onChange={(e) => updateAzure({ cloudName: e.target.value })}
-                  >
-                    {Array.isArray(metaAzureCloudName?.allowed)
-                      ? metaAzureCloudName.allowed.map((v) => <option key={v} value={v}>{v}</option>)
-                      : <option value="AzureUSGovernmentCloud">AzureUSGovernmentCloud</option>}
-                  </select>
-                </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Region"
                   hint={`Azure Government region where the cluster will be deployed. This determines the physical datacenter location for all cluster resources (VMs, storage, networking).
@@ -1111,12 +1105,12 @@ Each region is completely independent with separate API endpoints, resource name
 
 **Example:** 'us-east' for a US East Coast deployment. You can find available regions and their status via IBM Cloud CLI: 'ibmcloud regions' or in the IBM Cloud console → Locations.`}
                   required={metaIbmRegion?.required || isRequiredInstall("platform.ibmcloud.region")}
-                  className="platform-specifics-field-short"
                 >
                   <input
                     value={platformConfig.ibmcloud?.region || ""}
                     onChange={(e) => updateIbmCloud({ region: e.target.value })}
                     placeholder="e.g. us-east"
+                    style={{ maxWidth: "280px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1132,12 +1126,12 @@ Each region is completely independent with separate API endpoints, resource name
 **Permissions:** The IBM Cloud API key or service ID used for installation must have Editor or Administrator role on this resource group to create cluster infrastructure.
 
 **Example:** 'ocp-prod-cluster-rg' or 'openshift-dev-useast'. If left blank, the installer uses the account's default resource group (typically named 'Default'). You can find existing resource groups via IBM Cloud CLI: 'ibmcloud resource groups' or in the console → Manage → Account → Resource groups.`}
-                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.resourceGroupName || ""}
                     onChange={(e) => updateIbmCloud({ resourceGroupName: e.target.value })}
                     placeholder="cluster-resource-group"
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1153,12 +1147,12 @@ Each region is completely independent with separate API endpoints, resource name
 **Availability:** Not all profiles are available in all regions/zones - verify availability via 'ibmcloud is instance-profiles' CLI command or IBM Cloud console. The installer validates profile availability during preflight.
 
 **Example:** 'bx2-8x32' for production control plane. You can override this default per-pool in the Machine Pools section if different node types need different sizing.`}
-                  className="platform-specifics-field-short"
                 >
                   <input
                     value={platformConfig.ibmcloud?.type || ""}
                     onChange={(e) => updateIbmCloud({ type: e.target.value })}
                     placeholder="e.g. bx2-8x32"
+                    style={{ maxWidth: "280px" }}
                   />
                 </FieldLabelWithInfo>
               </div>
@@ -1203,11 +1197,11 @@ A Virtual Private Cloud is an isolated virtual network in IBM Cloud where you de
 
 **Example:**
 Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choose 'Existing VPC and subnets' for production deployments with pre-configured enterprise networking.`}
-                  className="platform-specifics-field-medium"
                 >
                   <select
                     value={ibmVpcMode}
                     onChange={(e) => updateIbmCloud({ vpcMode: e.target.value })}
+                    style={{ maxWidth: "320px" }}
                   >
                     <option value="existing-vpc">Existing VPC and subnets</option>
                     <option value="installer-managed">Installer-managed VPC</option>
@@ -1234,12 +1228,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 
 **Example:** 'shared-network-rg' if you have a centralized network team, or 'ocp-prod-rg' if network and cluster resources are in the same group. You can find existing resource groups and their contents via 'ibmcloud resource groups' and 'ibmcloud is vpcs --resource-group-name <name>'.`}
                   required={true}
-                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.networkResourceGroupName || ""}
                     onChange={(e) => updateIbmCloud({ networkResourceGroupName: e.target.value })}
                     placeholder="existing-network-rg"
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1261,12 +1255,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 
 **Example:** 'prod-vpc-us-east' or 'openshift-network-vpc'. You can find existing VPCs via 'ibmcloud is vpcs --resource-group-name <rg-name>' or in the IBM Cloud console → VPC Infrastructure → VPCs.`}
                   required={true}
-                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.vpcName || ""}
                     onChange={(e) => updateIbmCloud({ vpcName: e.target.value })}
                     placeholder="existing-vpc-name"
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1290,12 +1284,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 
 **Example:** 'ocp-cp-us-east-1,ocp-cp-us-east-2,ocp-cp-us-east-3'`}
                   required={true}
-                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.controlPlaneSubnets || ""}
                     onChange={(e) => updateIbmCloud({ controlPlaneSubnets: e.target.value })}
                     placeholder="cp-subnet-a,cp-subnet-b,cp-subnet-c"
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1322,12 +1316,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 
 **Example:** 'ocp-worker-us-east-1,ocp-worker-us-east-2,ocp-worker-us-east-3'`}
                   required={true}
-                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.computeSubnets || ""}
                     onChange={(e) => updateIbmCloud({ computeSubnets: e.target.value })}
                     placeholder="compute-subnet-a,compute-subnet-b,compute-subnet-c"
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
                 </div>
@@ -1366,12 +1360,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Choose one:** Set either 'Dedicated host profile' (to create new dedicated hosts) OR 'Dedicated host name' (to use a specific pre-existing dedicated host), NOT both.
 
 **Example:** 'bx2-host-100x200' for balanced workloads, 'cx2-host-152x304' for compute-intensive clusters. Available profiles vary by region - verify via 'ibmcloud is dedicated-host-profiles' CLI command or IBM Cloud console.`}
-                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.dedicatedHostsProfile || ""}
                     onChange={(e) => setIbmDedicatedHostsProfile(e.target.value)}
                     placeholder="e.g. cx2-host-152x304"
+                    style={{ maxWidth: "280px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1396,12 +1390,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Choose one:** Set either 'Dedicated host name' (to use a specific pre-existing host) OR 'Dedicated host profile' (to create new hosts), NOT both. If you set a dedicated host name, the installer places ALL cluster VMs on that one host (assuming capacity allows).
 
 **Example:** 'my-existing-dedicated-host' (must match exact name in IBM Cloud).`}
-                  className="platform-specifics-field-medium"
                 >
                   <input
                     value={platformConfig.ibmcloud?.dedicatedHostsName || ""}
                     onChange={(e) => setIbmDedicatedHostsName(e.target.value)}
                     placeholder="existing-dedicated-host"
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
               </div>
@@ -1458,12 +1452,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Precedence:** This is a cluster-wide default that applies to all machine pools UNLESS you override it with per-pool keys in 'Boot volume encryption key (control plane)' or 'Boot volume encryption key (compute)' below.
 
 **Example:** 'crn:v1:bluemix:public:kms:us-east:a/1234567890abcdef:key-instance-id:key-id'. You can find root key CRNs in IBM Cloud console → Key Protect/HPCS → Keys → Actions → Show CRN, or via CLI: 'ibmcloud kp keys'.`}
-                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey || ""}
                     onChange={(e) => updateIbmCloud({ defaultMachineBootVolumeEncryptionKey: e.target.value })}
                     placeholder="crn:v1:bluemix:public:kms:..."
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1481,12 +1475,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Precedence:** This field takes priority over 'Boot volume encryption key (all machine pools)' for control plane nodes only. If both are set, control plane uses this key, workers use the cluster-wide default (unless 'Boot volume encryption key (compute)' is also set). If this is blank, control plane falls back to the cluster-wide default.
 
 **Example use case:** High-security cluster where control plane uses HPCS (higher security/compliance tier) while workers use standard Key Protect (cost-effective for less-sensitive workload nodes).`}
-                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey || ""}
                     onChange={(e) => updateIbmCloud({ controlPlaneBootVolumeEncryptionKey: e.target.value })}
                     placeholder="crn:v1:bluemix:public:kms:..."
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
@@ -1504,12 +1498,12 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Precedence:** This field takes priority over 'Boot volume encryption key (all machine pools)' for worker nodes only. If all three fields are set, control plane uses the control plane key, workers use this compute key, and the cluster-wide default is unused (but still a good fallback). If this is blank, workers fall back to the cluster-wide default.
 
 **Example use case:** General-purpose cluster where compute nodes use standard Key Protect (cost-effective for ephemeral worker VMs) while control plane uses HPCS (critical infrastructure with higher security/auditability requirements).`}
-                  className="platform-specifics-field-long"
                 >
                   <input
                     value={platformConfig.ibmcloud?.computeBootVolumeEncryptionKey || ""}
                     onChange={(e) => updateIbmCloud({ computeBootVolumeEncryptionKey: e.target.value })}
                     placeholder="crn:v1:bluemix:public:kms:..."
+                    style={{ maxWidth: "400px" }}
                   />
                 </FieldLabelWithInfo>
               </div>
@@ -1525,11 +1519,11 @@ Exposes API/apps via public endpoints
 
 **Internal:**
 Keeps endpoints private to your network/VPC - typical for private-cluster designs`}
-                  className="platform-specifics-field-short"
                 >
                   <select
                     value={platformConfig.publish || metaPublish?.default || "External"}
                     onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
+                    style={{ maxWidth: "280px" }}
                   >
                     <option value="External">External</option>
                     <option value="Internal">Internal</option>
@@ -1557,6 +1551,7 @@ Keeps endpoints private to your network/VPC - typical for private-cluster design
                   label="Endpoint (FQDN or IP)"
                   hint={"Fully qualified domain name (FQDN) or IP address of your Nutanix Prism Central instance. Prism Central is the centralized management interface for Nutanix clusters that the OpenShift installer uses to provision VMs, configure networking, and manage cluster infrastructure.\n\n**What is Prism Central:** Prism Central (PC) is Nutanix's multi-cluster management platform that sits above one or more Prism Element (PE) clusters. It provides unified management, monitoring, and automation across your Nutanix infrastructure. The installer communicates with Prism Central's REST API to create and configure OpenShift VMs.\n\n**FQDN vs IP:** You can use either a fully qualified domain name (e.g., 'prism.example.com', 'pc.nutanix.internal') or an IPv4 address (e.g., '192.168.1.50'). FQDN is recommended for production - it's more maintainable if the IP changes, and supports TLS certificate validation better.\n\n**Requirements:**\n1. The endpoint must be reachable from the network where you run openshift-install (for disconnected installs, this means routable within your private network)\n2. The Prism Central instance must be running and accessible on the API port (default 9440, see 'Port' field below)\n3. For TLS/HTTPS (default), ensure the TLS certificate is valid or you have proper certificate trust configured (Prism Central uses self-signed certs by default - you may need to import the CA cert into your trust store)\n4. The credentials you provide below must have admin-level permissions in Prism Central to create VMs, networks, and storage\n\n**Version compatibility:** Ensure your Prism Central version is compatible with the OpenShift version you're installing - consult OpenShift documentation for the support matrix. Typically Prism Central 2020.9+ is required for OpenShift 4.9+, and newer OpenShift versions may require newer PC versions.\n\n**Example:** 'prism-central.example.com' or '10.50.100.20'."}
                   required={metaNutanixEndpoint?.required || isRequiredInstall("platform.nutanix.prismCentral.endpoint.address")}
+                  style={{ maxWidth: "400px" }}
                 >
                   <input
                     value={platformConfig.nutanix?.endpoint || ""}
@@ -1585,6 +1580,7 @@ Keeps endpoints private to your network/VPC - typical for private-cluster design
                 <FieldLabelWithInfo
                   label="Username"
                   hint={"Username for authenticating to Prism Central with administrative privileges. The OpenShift installer uses these credentials to provision VMs, configure networking, and manage cluster infrastructure via the Prism Central API.\n\n**Required permissions:** The user must have admin-level permissions in Prism Central, specifically:\n1. Ability to create and manage VMs (including power operations, configuration changes, disk management)\n2. Ability to create and configure virtual networks/VLANs\n3. Ability to allocate and manage storage (create volumes, attach disks)\n4. Read access to cluster configuration and resources\n\nTypically, the built-in 'admin' user has all required permissions. For production environments, you may want to create a dedicated service account with specific OpenShift-related permissions instead of using the default admin account (consult Nutanix documentation for role-based access control / RBAC setup).\n\n**Authentication methods:** Prism Central supports local users (managed in Prism Central itself) and directory-integrated users (Active Directory, LDAP). Either can be used as long as the user has the required permissions. The username format depends on your authentication source - local users are typically simple usernames like 'admin' or 'openshift-svc', while directory users might be formatted like 'DOMAIN\\\\username' or 'user@domain.com'.\n\n**Important:** The credentials are stored in plain text in the install-config.yaml file unless you choose to exclude them at export. After installation, you can remove credentials from the config file if needed. Never store install-config.yaml with credentials in version control or shared storage.\n\n**Example:** 'admin' for local admin user, or 'openshift-installer@corp.example.com' for a dedicated directory service account."}
+                  className="field-medium"
                 >
                   <input
                     value={platformConfig.nutanix?.username || ""}
@@ -1598,6 +1594,7 @@ Keeps endpoints private to your network/VPC - typical for private-cluster design
                 <FieldLabelWithInfo
                   label="Password"
                   hint={"Password for the Prism Central username specified above. This credential is used during OpenShift installation to authenticate API calls for provisioning VMs, configuring networks, and managing cluster infrastructure. The installer stores this password in plain text in the install-config.yaml file (unless you choose to exclude credentials at export time), so treat the install-config with appropriate security controls.\n\n**Important security notes:**\n1. DO NOT allow your browser to save this password - it will be embedded in plain text in the generated config file. Use your browser's password manager ignore features if prompted\n2. After installation completes, you can remove the credentials from install-config.yaml if you no longer need them (though some day-2 operations may require them)\n3. Store install-config.yaml securely - never commit it to version control or place it in shared/public storage with credentials included\n4. Consider using a dedicated service account with limited permissions instead of the main admin account for better security and auditability\n5. Rotate credentials periodically and update any stored install-config files accordingly\n\n**Credential inclusion:** When you export/generate the install-config, you'll have an option to include or exclude credentials. If excluded, you must provide credentials separately when running openshift-install (via prompts or environment variables). If included, the install-config is self-contained but more sensitive. For production deployments, many organizations use temporary credentials that are rotated or revoked after installation, or use secrets management tools (HashiCorp Vault, AWS Secrets Manager) instead of plain text storage."}
+                  className="field-medium"
                 >
                   <div style={{ display: "flex", gap: 6 }}>
                     <input
@@ -1820,6 +1817,7 @@ Start with 3 workers and scale up post-install by editing MachineSets if workloa
 
 **Platform-specific:**
 ⚠️ Nutanix IPI always requires Manual mode (enforced automatically)`}
+                  style={{ maxWidth: "280px" }}
                 >
                   <input readOnly value="Manual" aria-label="Credentials mode (Manual, required for Nutanix IPI)" />
                 </FieldLabelWithInfo>
@@ -1846,6 +1844,7 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
 
 **Platform-specific:**
 ⚠️ Nutanix IPI forces External in the generated install-config`}
+                  style={{ maxWidth: "320px" }}
                 >
                   <input readOnly value="External (required for Nutanix IPI)" aria-label="Publish (External, required for Nutanix IPI)" />
                 </FieldLabelWithInfo>
@@ -2148,7 +2147,7 @@ OCP-Production-VLAN100 (VLAN-backed network)`}
                 <div style={{ marginBottom: 20 }}>
                   <h4 className="card-title" style={{ marginBottom: 4, fontSize: "1rem" }}>Failure domains</h4>
                   <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                    For vSphere IPI at least one failure domain is required (4.20 recommended path). Add more for multi-zone placement. Only the selected path is emitted; legacy fields above are ignored when using failure domains.
+                    For vSphere IPI, at least one failure domain is required (4.20+ recommended path). Add more for multi-zone placement. Only the selected path is emitted; legacy fields above are ignored when using failure domains.
                   </p>
                   <button type="button" className="ghost" onClick={addFailureDomain} style={{ marginBottom: 12 }}>Add failure domain</button>
                   {failureDomains.map((fd, index) => (
@@ -2691,15 +2690,18 @@ zone-east, zone-central, zone-west (matching your failure domain names)`}
                 </>
               )}
 
-              {scenarioId === "vsphere-ipi" && (
+              {(scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi") && (
                 <CollapsibleSection title="Machine pool (advanced)" defaultCollapsed={true} style={{ marginBottom: 20 }}>
-                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                    Choose one RHCOS image strategy: clusterOSImage URL or topology.template per failure domain. Do not set both.
-                  </p>
+                  {scenarioId === "vsphere-ipi" && (
+                    <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                      Choose one RHCOS image strategy: clusterOSImage URL or topology.template per failure domain. Do not set both.
+                    </p>
+                  )}
                   <div className="field-grid" style={{ marginTop: 8, marginBottom: 12 }}>
                     <FieldLabelWithInfo
                       label="clusterOSImage (optional)"
-                      hint={`HTTP/HTTPS URL to a custom RHCOS (Red Hat CoreOS) OVA image for cluster nodes. Leave blank to use the default RHCOS image for your OpenShift version.
+                      hint={scenarioId === "vsphere-ipi"
+                        ? `HTTP/HTTPS URL to a custom RHCOS (Red Hat CoreOS) OVA image for cluster nodes. Leave blank to use the default RHCOS image for your OpenShift version.
 
 **What is this:**
 URL pointing to a Red Hat CoreOS OVA file that the installer will download and import into vSphere as a template, then clone to create cluster VMs.
@@ -2723,18 +2725,41 @@ URL pointing to a Red Hat CoreOS OVA file that the installer will download and i
 
 **Example:**
 https://mirror.example.com/rhcos-4.14.0-x86_64-vmware.ova
-http://192.168.1.100/images/rhcos-vmware.ova`}
+http://192.168.1.100/images/rhcos-vmware.ova`
+                        : `HTTP/HTTPS URL to a custom RHCOS (Red Hat CoreOS) OVA image for cluster nodes. Leave blank to use the default RHCOS image for your OpenShift version.
+
+**What is this:**
+URL pointing to a Red Hat CoreOS OVA file that the installer will download and import into vSphere as a template, then clone to create cluster VMs.
+
+**When to use:**
+• Disconnected/airgap installations where you've hosted RHCOS images on an internal web server
+• Custom RHCOS images with site-specific modifications
+• Testing specific RHCOS versions
+
+**Applies to:**
+Both IPI and UPI (4.20 doc 9.1.6: Optional VMware vSphere machine pool configuration parameters)
+
+**Requirements:**
+1. URL must be reachable from where you run openshift-install
+2. Must be HTTPS or HTTP (HTTPS recommended for security)
+3. Image must match your selected OpenShift release version exactly
+4. Format must be OVA (Open Virtualization Archive)
+
+**Example:**
+https://mirror.example.com/rhcos-4.14.0-x86_64-vmware.ova
+http://192.168.1.100/images/rhcos-vmware.ova`
+                      }
                     >
                       <input
                         value={platformConfig.vsphere?.clusterOSImage || ""}
                         onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, clusterOSImage: e.target.value } })}
                         placeholder="https://mirror.example.com/rhcos.ova"
-                        disabled={failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")}
-                        aria-describedby={failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") ? "cluster-os-image-disabled-note" : undefined}
+                        disabled={scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")}
+                        aria-describedby={scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") ? "cluster-os-image-disabled-note" : undefined}
                       />
                     </FieldLabelWithInfo>
                   </div>
-                  {failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
+                  {scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
                     <p className="note subtle" style={{ marginBottom: 8 }} id="cluster-os-image-disabled-note">Disabled: a failure domain has Topology: RHCOS template set (choose one strategy only).</p>
                   )}
                   <div className="field-grid">

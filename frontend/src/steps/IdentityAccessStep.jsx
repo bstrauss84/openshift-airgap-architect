@@ -209,7 +209,27 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
           <div className="cluster-identity-fields">
             <FieldLabelWithInfo
               label="Cluster Name"
-              hint="Short identifier for this cluster (lowercase alphanumeric and hyphens only, no underscores or special chars). This becomes part of your cluster's URLs and DNS records. Example: 'prod-cluster' or 'dev-ocp'. The full cluster domain will be <cluster-name>.<base-domain> - e.g., prod-cluster.example.com. API endpoint becomes api.prod-cluster.example.com and applications are *.apps.prod-cluster.example.com. Keep it short (under 15 characters recommended) and descriptive. This cannot be changed after installation."
+              hint={`Short identifier for this cluster.
+
+**Format requirements:**
+• Lowercase alphanumeric and hyphens only
+• No underscores or special characters
+• Keep it short (under 15 characters recommended)
+
+**What this becomes:**
+This becomes part of your cluster's URLs and DNS records. The full cluster domain will be <cluster-name>.<base-domain>
+
+**DNS records created:**
+• **Full domain:** prod-cluster.example.com
+• **API endpoint:** api.prod-cluster.example.com
+• **Applications:** *.apps.prod-cluster.example.com
+
+**Important:**
+⚠️ This **cannot be changed** after installation
+
+**Example:**
+prod-cluster
+dev-ocp`}
               required
               className={fieldErrors.clusterName ? "input-error" : ""}
             >
@@ -224,7 +244,36 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
               label="Base Domain"
-              hint="DNS domain suffix for your cluster. This is the parent domain under which all cluster DNS records are created. Example: example.com or ocp.company.com. Your cluster's full domain becomes <cluster-name>.<base-domain>. You must own/control this domain and be able to create DNS records in it (api, *.apps, etc.). For on-premises installations, this is often a subdomain of your corporate domain. For cloud, it's typically a Route 53 zone (AWS) or Azure DNS zone. Cannot be changed after installation. Some platforms (like AWS with pre-existing VPC) require you to provide DNS zones, so check your platform's requirements."
+              hint={`DNS domain suffix for your cluster.
+
+**What is this:**
+The parent domain under which all cluster DNS records are created
+
+**How it's used:**
+Your cluster's full domain becomes <cluster-name>.<base-domain>
+
+**Requirements:**
+• You must **own/control** this domain
+• You must be able to **create DNS records** in it (api, *.apps, etc.)
+
+**Common patterns:**
+
+**On-premises:**
+Often a subdomain of your corporate domain (e.g., ocp.company.com)
+
+**Cloud:**
+• **AWS:** Route 53 hosted zone
+• **Azure:** Azure DNS zone
+
+**Platform-specific:**
+Some platforms (like AWS with pre-existing VPC) require you to provide DNS zones - check your platform's requirements
+
+**Important:**
+⚠️ **Cannot be changed** after installation
+
+**Example:**
+example.com
+ocp.company.com`}
               required={requiredBaseDomain}
               className={fieldErrors.baseDomain ? "input-error" : ""}
             >
@@ -311,94 +360,98 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
               ) : null}
             </div>
 
-            {(() => {
-              const pullSecretError = fieldErrors.pullSecret || (!pullSecretCheck.valid ? pullSecretCheck.error : null);
-              return (
-                <>
-                  {pullSecretError ? (
-                    <div className="note warning" style={{ marginBottom: 8 }}>
-                      {pullSecretError}
-                    </div>
-                  ) : null}
-                  {!usingMirrorRegistry ? (
-                    <SecretInput
-                      value={pullSecretPlaceholder}
-                      onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
-                      label="Pull secret (Red Hat)"
-                      labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
-                      labelHint="For clusters that access Red Hat registries directly or through allowed egress. From OpenShift Cluster Manager. Used in install-config when not using a mirror registry. Not persisted."
-                      getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
-                      required={requiredPullSecret}
-                      placeholder='{"auths":{...}}'
-                      rows={5}
-                      aria-label="Red Hat pull secret JSON"
-                    />
-                  ) : (
-                    <>
-                      {mirrorRegistryUnauthenticated ? (
-                        <p className="note" style={{ marginTop: 0 }}>
-                          Anonymous pulls selected. Choose &quot;Use mirror-registry credentials&quot; above to paste, upload, or generate credentials.
-                        </p>
-                      ) : (
-                        <>
-                          <SecretInput
-                            value={mirrorRegistryPullSecret}
-                            onChange={(v) => {
-                              if (mirrorRegistryUnauthenticated) {
-                                updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: v });
-                              } else {
-                                updateCredentials({ mirrorRegistryPullSecret: v });
-                              }
-                            }}
-                            label="Pull secret (Mirror registry)"
-                            labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
-                            required={requiredPullSecret}
-                            placeholder='{"auths":{...}}'
-                            rows={5}
-                            aria-label="Mirror registry pull secret JSON"
-                          />
-                          <div className="actions">
-                            <button
-                              type="button"
-                              className="ghost"
-                              onClick={() => {
-                                setShowKeygen(false);
+            <div className="credentials-field-constrained">
+              {(() => {
+                const pullSecretError = fieldErrors.pullSecret || (!pullSecretCheck.valid ? pullSecretCheck.error : null);
+                return (
+                  <>
+                    {pullSecretError ? (
+                      <div className="note warning" style={{ marginBottom: 8 }}>
+                        {pullSecretError}
+                      </div>
+                    ) : null}
+                    {!usingMirrorRegistry ? (
+                      <SecretInput
+                        value={pullSecretPlaceholder}
+                        onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}
+                        label="Pull secret (Red Hat)"
+                        labelEmphasis="Paste, drag and drop, or upload a Red Hat pull secret (JSON)"
+                        labelHint="For clusters that access Red Hat registries directly or through allowed egress. From OpenShift Cluster Manager. Used in install-config when not using a mirror registry. Not persisted."
+                        getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
+                        required={requiredPullSecret}
+                        placeholder='{"auths":{...}}'
+                        rows={5}
+                        aria-label="Red Hat pull secret JSON"
+                      />
+                    ) : (
+                      <>
+                        {mirrorRegistryUnauthenticated ? (
+                          <p className="note" style={{ marginTop: 0 }}>
+                            Anonymous pulls selected. Choose &quot;Use mirror-registry credentials&quot; above to paste, upload, or generate credentials.
+                          </p>
+                        ) : (
+                          <>
+                            <SecretInput
+                              value={mirrorRegistryPullSecret}
+                              onChange={(v) => {
                                 if (mirrorRegistryUnauthenticated) {
-                                  updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: "" });
+                                  updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: v });
+                                } else {
+                                  updateCredentials({ mirrorRegistryPullSecret: v });
                                 }
-                                setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry }));
-                                setShowMirrorSecretHelper(true);
                               }}
-                            >
-                              Help me generate
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </>
-                  )}
-                </>
-              );
-            })()}
+                              label="Pull secret (Mirror registry)"
+                              labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
+                              required={requiredPullSecret}
+                              placeholder='{"auths":{...}}'
+                              rows={5}
+                              aria-label="Mirror registry pull secret JSON"
+                            />
+                            <div className="actions">
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => {
+                                  setShowKeygen(false);
+                                  if (mirrorRegistryUnauthenticated) {
+                                    updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: "" });
+                                  }
+                                  setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry }));
+                                  setShowMirrorSecretHelper(true);
+                                }}
+                              >
+                                Help me generate
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
 
-            <label>
-              SSH Public Key {metaSshKey?.required ? <span className="required-indicator">(required)</span> : null}
-            </label>
-            <div className="note">Paste, drag and drop, or upload; or generate a keypair below.</div>
-            <textarea
-              value={sshPublicKey}
-              onChange={(e) => updateCredentials({ sshPublicKey: e.target.value })}
-              rows={3}
-              placeholder="ssh-rsa AAAA..."
-              aria-required="true"
-              aria-invalid={sshKeyInvalid ? "true" : "false"}
-              aria-describedby={sshKeyInvalid ? "ssh-key-error" : undefined}
-            />
-            {sshKeyInvalid ? <div id="ssh-key-error" className="note warning" role="alert">SSH public key format is invalid.</div> : null}
-            <div className="actions">
-              <button type="button" className="ghost" onClick={openKeygen}>
-                Generate keypair
-              </button>
+            <div className="credentials-field-constrained">
+              <label>
+                SSH Public Key {metaSshKey?.required ? <span className="required-indicator">(required)</span> : null}
+              </label>
+              <div className="note">Paste, drag and drop, or upload; or generate a keypair below.</div>
+              <textarea
+                value={sshPublicKey}
+                onChange={(e) => updateCredentials({ sshPublicKey: e.target.value })}
+                rows={3}
+                placeholder="ssh-rsa AAAA..."
+                aria-required="true"
+                aria-invalid={sshKeyInvalid ? "true" : "false"}
+                aria-describedby={sshKeyInvalid ? "ssh-key-error" : undefined}
+              />
+              {sshKeyInvalid ? <div id="ssh-key-error" className="note warning" role="alert">SSH public key format is invalid.</div> : null}
+              <div className="actions">
+                <button type="button" className="ghost" onClick={openKeygen}>
+                  Generate keypair
+                </button>
+              </div>
             </div>
           </div>
         </section>
