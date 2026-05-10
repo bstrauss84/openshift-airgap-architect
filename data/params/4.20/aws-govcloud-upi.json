@@ -283,6 +283,7 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": [
+        "aws",
         "baremetal",
         "vsphere",
         "{}"
@@ -415,6 +416,7 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": [
+        "aws",
         "baremetal",
         "vsphere",
         "{}"
@@ -894,7 +896,7 @@
       "path": "platform",
       "outputFile": "install-config.yaml",
       "type": "object",
-      "allowed": "baremetal, external, none, vsphere, nutanix",
+      "allowed": "aws, baremetal, external, none, vsphere, nutanix",
       "default": "not specified in docs",
       "required": true,
       "description": "Configuration for the platform for installation.",
@@ -938,8 +940,17 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Existing Route 53 hosted zone ID for the base domain. Omit when not using Route 53 (manage DNS manually).",
-      "applies_to": ["aws-govcloud-upi"],
-      "citations": [{"docId": "installing-aws-govcloud-upi", "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure", "sectionHeading": "AWS GovCloud UPI install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"}]
+      "applies_to": [
+        "aws-govcloud-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-aws-govcloud-upi",
+          "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
+          "sectionHeading": "AWS GovCloud UPI install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"
+        }
+      ]
     },
     {
       "path": "platform.aws.hostedZoneRole",
@@ -949,19 +960,41 @@
       "default": "not specified in docs",
       "required": false,
       "description": "IAM role ARN for cross-account Route 53 hosted zone access when base domain is in another account.",
-      "applies_to": ["aws-govcloud-upi"],
-      "citations": [{"docId": "installing-aws-govcloud-upi", "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure", "sectionHeading": "AWS GovCloud UPI install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"}]
+      "applies_to": [
+        "aws-govcloud-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-aws-govcloud-upi",
+          "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
+          "sectionHeading": "AWS GovCloud UPI install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"
+        }
+      ]
     },
     {
       "path": "platform.aws.lbType",
       "outputFile": "install-config.yaml",
       "type": "string",
-      "allowed": ["Classic", "NLB", "nlb"],
+      "allowed": [
+        "Classic",
+        "NLB",
+        "nlb"
+      ],
       "default": "not specified in docs",
       "required": false,
       "description": "Load balancer type for API and ingress: Classic or NLB.",
-      "applies_to": ["aws-govcloud-upi"],
-      "citations": [{"docId": "installing-aws-govcloud-upi", "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure", "sectionHeading": "AWS GovCloud UPI install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"}]
+      "applies_to": [
+        "aws-govcloud-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-aws-govcloud-upi",
+          "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
+          "sectionHeading": "AWS GovCloud UPI install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"
+        }
+      ]
     },
     {
       "path": "platform.aws.vpc.subnets",
@@ -971,8 +1004,17 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per 4.20. Required for UPI in existing VPC. If any role is set, each subnet must have ≥1 role and required role coverage applies.",
-      "applies_to": ["aws-govcloud-upi"],
-      "citations": [{"docId": "installing-aws-govcloud-upi", "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure", "sectionHeading": "AWS GovCloud UPI install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"}]
+      "applies_to": [
+        "aws-govcloud-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-aws-govcloud-upi",
+          "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
+          "sectionHeading": "AWS GovCloud UPI install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"
+        }
+      ]
     },
     {
       "path": "platform.aws.amiID",
@@ -982,8 +1024,17 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Custom RHCOS AMI ID for government or secret regions where default AMI lookup is not available.",
-      "applies_to": ["aws-govcloud-upi"],
-      "citations": [{"docId": "installing-aws-govcloud-upi", "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure", "sectionHeading": "AWS GovCloud UPI install-config parameters", "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"}]
+      "applies_to": [
+        "aws-govcloud-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-aws-govcloud-upi",
+          "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
+          "sectionHeading": "AWS GovCloud UPI install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"
+        }
+      ]
     },
     {
       "path": "publish",

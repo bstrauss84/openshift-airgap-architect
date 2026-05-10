@@ -173,6 +173,7 @@
         "None",
         "v4.11",
         "v4.12",
+        "v4.20",
         "vCurrent"
       ],
       "default": "vCurrent",
@@ -439,10 +440,11 @@
       "outputFile": "install-config.yaml",
       "type": "int",
       "allowed": [
+        1,
+        2,
         3,
         4,
-        5,
-        1
+        5
       ],
       "default": "not specified in docs",
       "required": false,
@@ -1487,7 +1489,7 @@
       "path": "proxy.httpProxy",
       "outputFile": "install-config.yaml",
       "type": "string",
-      "allowed": "http URL",
+      "allowed": "http or https URL",
       "default": "not specified in docs",
       "required": false,
       "description": "Proxy URL for HTTP connections outside the cluster. URL scheme must be http.",
@@ -1507,7 +1509,7 @@
       "path": "proxy.httpsProxy",
       "outputFile": "install-config.yaml",
       "type": "string",
-      "allowed": "https URL",
+      "allowed": "http or https URL",
       "default": "not specified in docs",
       "required": false,
       "description": "Proxy URL for HTTPS connections outside the cluster.",

@@ -514,6 +514,7 @@ const buildInstallConfig = (state) => {
             ...(networksArray.length ? { networks: networksArray } : {}),
             ...(top.folder != null && top.folder !== "" ? { folder: top.folder } : {}),
             ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {}),
+            // topology.template: IPI only per doc 9.1.4; suppress when clusterOSImage is set (mutually exclusive).
             ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" && !(vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") ? { template: String(top.template).trim() } : {})
           };
           return {
@@ -567,7 +568,8 @@ const buildInstallConfig = (state) => {
       vsphere.diskType = vs.diskType;
     }
     // clusterOSImage vs topology.template: mutually exclusive. When clusterOSImage is set, emit it and suppress template in FDs (already done in mapping above).
-    if (isVsphereIpi && vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") {
+    // 4.20 doc 9.1.6: clusterOSImage applies to both IPI and UPI.
+    if (vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") {
       vsphere.clusterOSImage = String(vs.clusterOSImage).trim();
     }
     // Machine-pool (platform.vsphere): emit only when provided.
@@ -683,7 +685,8 @@ const buildInstallConfig = (state) => {
 
   if (state.blueprint?.platform === "Azure Government" && (state.methodology?.method === "IPI" || state.methodology?.method === "UPI")) {
     const azure = {};
-    if (platformConfig.azure?.cloudName) azure.cloudName = platformConfig.azure.cloudName;
+    // Auto-fill cloudName to AzureUSGovernmentCloud (only valid value for Azure Government)
+    azure.cloudName = platformConfig.azure?.cloudName || "AzureUSGovernmentCloud";
     if (platformConfig.azure?.region) azure.region = platformConfig.azure.region;
     if (platformConfig.azure?.resourceGroupName) azure.resourceGroupName = platformConfig.azure.resourceGroupName;
     if (platformConfig.azure?.baseDomainResourceGroupName) {

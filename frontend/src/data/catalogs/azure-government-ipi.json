@@ -958,8 +958,8 @@
       "type": "string",
       "allowed": "not specified in docs",
       "default": "not specified in docs",
-      "required": true,
-      "description": "Name of an existing Azure resource group to install the cluster into.",
+      "required": false,
+      "description": "Resource group name for the cluster. Optional for IPI (installer creates); required for UPI when using existing resource group.",
       "applies_to": [
         "azure-government-ipi"
       ],
@@ -979,7 +979,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "Name of the resource group that contains the DNS zone for the base domain.",
+      "description": "Resource group containing the DNS zone for the base domain. Required for public clusters; optional for private clusters.",
       "applies_to": [
         "azure-government-ipi"
       ],

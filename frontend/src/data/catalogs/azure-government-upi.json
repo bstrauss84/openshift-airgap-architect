@@ -979,7 +979,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "description": "Name of the resource group that contains the DNS zone for the base domain.",
+      "description": "Resource group containing the DNS zone for the base domain. Required for public clusters; optional for private clusters.",
       "applies_to": [
         "azure-government-upi"
       ],

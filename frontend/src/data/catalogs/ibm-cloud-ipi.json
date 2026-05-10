@@ -280,8 +280,7 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": [
-        "baremetal",
-        "vsphere",
+        "ibmcloud",
         "{}"
       ],
       "default": "not specified in docs",
@@ -449,8 +448,7 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": [
-        "baremetal",
-        "vsphere",
+        "ibmcloud",
         "{}"
       ],
       "default": "not specified in docs",
@@ -642,6 +640,26 @@
       ]
     },
     {
+      "path": "imageDigestSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of source-to-mirror mappings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Sources and repositories for image registry mirroring. Each entry maps a source to one or more mirrors.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "Disconnected installation mirroring",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
       "path": "imageDigestSources[].mirrors",
       "outputFile": "install-config.yaml",
       "type": "array",
@@ -824,7 +842,7 @@
     {
       "path": "networking.machineNetwork[].cidr",
       "outputFile": "install-config.yaml",
-      "type": "array",
+      "type": "string",
       "allowed": "IPv4 CIDR",
       "default": "10.0.0.0/16",
       "required": false,
@@ -907,7 +925,7 @@
       "path": "platform",
       "outputFile": "install-config.yaml",
       "type": "object",
-      "allowed": "baremetal, external, none, vsphere, nutanix",
+      "allowed": "ibmcloud",
       "default": "not specified in docs",
       "required": true,
       "description": "Configuration for the platform for installation.",

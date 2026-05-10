@@ -1348,6 +1348,56 @@
       ]
     },
     {
+      "path": "platform.vsphere.folder",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "absolute VM folder path in vSphere inventory",
+      "default": "datacenter root VM folder",
+      "required": false,
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.folder",
+      "description": "VM folder path in vSphere inventory (e.g., /datacenter/vm/folder). Deprecated in 4.13+; prefer failureDomains[].topology.folder; still supported for legacy single placement.",
+      "applies_to": ["vsphere-ipi"],
+      "conditionals": {
+        "placementPath": "legacy",
+        "mutuallyExclusiveWith": ["platform.vsphere.failureDomains"],
+        "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ]
+    },
+    {
+      "path": "platform.vsphere.resourcePool",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "absolute resource pool path in vSphere inventory",
+      "default": "root resource pool of the cluster",
+      "required": false,
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.resourcePool",
+      "description": "Resource pool path in vSphere inventory (e.g., /datacenter/host/cluster/Resources/pool). Deprecated in 4.13+; prefer failureDomains[].topology.resourcePool; still supported for legacy single placement.",
+      "applies_to": ["vsphere-ipi"],
+      "conditionals": {
+        "placementPath": "legacy",
+        "mutuallyExclusiveWith": ["platform.vsphere.failureDomains"],
+        "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ]
+    },
+    {
       "path": "platform.vsphere.diskType",
       "outputFile": "install-config.yaml",
       "type": "string",
