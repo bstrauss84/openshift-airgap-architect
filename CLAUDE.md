@@ -1,0 +1,291 @@
+# OpenShift Airgap Architect - AI Agent Instructions
+
+**Purpose:** This file establishes the documentation hierarchy and authority for AI agents working on this codebase.
+
+---
+
+## Documentation Hierarchy (Single Source of Truth)
+
+### 1. Canonical Status Registry: `/docs/BACKLOG_STATUS.md`
+
+**Authority:** Single source of truth for ALL status claims  
+**Items:** DOC-001 through DOC-056+  
+**Purpose:** Evidence-first reconciliation of all work completed, in progress, and planned
+
+**Before making status claims:**
+1. Check `/docs/BACKLOG_STATUS.md` first
+2. Provide code/commit evidence for any updates
+3. Use canonical status vocabulary ONLY (see below)
+4. If updating status, add a row to the BACKLOG_STATUS.md table with evidence
+
+**Status vocabulary (canonical):**
+- `active`: planned and in-scope
+- `deferred`: intentionally postponed
+- `blocked`: cannot progress until blocker resolved
+- `done_pending_verification`: implemented, verification incomplete
+- `verified_done`: implemented and verified against code/tests
+- `obsolete`: no longer relevant
+- `superseded`: replaced by another item
+
+**Priority vocabulary:**
+- `p0`: urgent correctness/security impact
+- `p1`: high product impact
+- `p2`: normal planned work
+- `p3`: low-priority improvement
+
+### 2. Living Work Plan: `/COMPREHENSIVE_MASTER_PLAN.md`
+
+**Authority:** Detailed phase/batch tracking with progress metrics  
+**Current Status:** 10 phases, Phases 1-2 COMPLETE (100% tooltip coverage)  
+**Purpose:** Tactical work breakdown with quality standards and batch-level detail
+
+**When to update:**
+- Mark phases/batches complete with dates and evidence
+- Cross-reference BACKLOG_STATUS.md items (e.g., "See DOC-049")
+- Update current focus section when starting new phases
+- Document discrepancies or blockers discovered during work
+
+### 3. Local Backlog: `/LOCAL_BACKLOG.md` (not committed)
+
+**Authority:** User's personal tracking (in .gitignore)  
+**Purpose:** Lower-priority items, experimental work, deferred features  
+**Scope:** NOT canonical - check BACKLOG_STATUS.md for any claims
+
+---
+
+## Evidence Requirements
+
+For any status update to BACKLOG_STATUS.md:
+
+**Required fields:**
+1. **Commit SHA** or **file path** - Concrete code evidence
+2. **Test files** - Link to passing tests (if applicable)
+3. **Source documentation** - Reference planning docs or user requests
+4. **Next action** - What remains if not `verified_done`
+
+**Example row:**
+```markdown
+| DOC-049 | Comprehensive Tooltip Expansion | verified_done | p1 | `COMPREHENSIVE_MASTER_PLAN.md` | Commits 0e3fe69-596fc2a, `frontend/tests/hint-syntax.test.js` passing | Tooltip expansion complete. |
+```
+
+---
+
+## Work Session Protocol
+
+### At End of Work Session
+
+1. **Update COMPREHENSIVE_MASTER_PLAN.md progress**
+   - Mark completed phases/batches
+   - Update completion percentages
+   - Add completion dates
+
+2. **Add completed items to BACKLOG_STATUS.md with evidence**
+   - Follow canonical status vocabulary
+   - Provide commit SHAs or file paths
+   - Link to tests if applicable
+
+3. **Archive session notes to `.archive/session-notes-YYYY-MM-DD/`**
+   - Move temporary working files
+   - Delete `.bak` files
+   - Create README.md index in archive directory
+
+4. **Update this file if patterns change**
+   - New documentation files added
+   - Authority structure changes
+   - Process improvements discovered
+
+---
+
+## Tooltip Standards (Phases 1-2 Complete)
+
+All FieldLabelWithInfo tooltips must use gold standard formatting:
+
+### Required Format
+
+```jsx
+<FieldLabelWithInfo
+  label="Field Name"
+  hint={`Brief one-line description.
+
+**What is this:**
+Explanation of the concept or field purpose.
+
+**When needed:**
+Scenarios where this is required or optional.
+
+**Format:**
+Expected input format, data type, constraints.
+
+**How it's used:**
+Where this appears in generated configs or how it affects deployment.
+
+**Important:**
+⚠️ Critical warnings, immutability notes, security considerations.
+
+**Example:**
+Concrete real-world example values.`}
+  required={isRequired}
+>
+```
+
+### Quality Checklist
+
+- ✅ Template literal syntax `{`...`}`
+- ✅ **Bold** section headers (renders as yellow highlighting)
+- ✅ Comprehensive WHAT/WHY/WHEN/FORMAT/EXAMPLE sections
+- ✅ Beginner-friendly language, no unexplained jargon
+- ✅ Real-world examples with actual values
+- ✅ Security warnings (⚠️) where applicable
+- ✅ Immutability noted ("cannot be changed after installation")
+
+---
+
+## File Organization
+
+### Keep (Living Documents)
+- `docs/BACKLOG_STATUS.md` - Canonical registry
+- `COMPREHENSIVE_MASTER_PLAN.md` - Living work plan
+- `LOCAL_BACKLOG.md` - User's personal backlog (not committed)
+- `TOOLTIP_EXPANSION_MASTER_PLAN.md` - Tooltip audit data reference
+- `SETUP_COMPLETE.md` - Catalog sync reference guide
+- `UI_STANDARDS.md` - UI design and implementation standards
+- `CATALOG_SYNC_GUIDE.md` - Catalog synchronization procedures
+
+### Archive (Session Notes)
+Create `.archive/session-notes-YYYY-MM-DD/` directories for:
+- Temporary working files
+- Session status reports
+- Audit findings
+- Implementation notes
+
+Include a README.md index listing all archived files.
+
+### Delete (Temporary Artifacts)
+- `.bak` files after validation
+- Temporary test output
+- Build artifacts not in `.gitignore`
+
+---
+
+## Git Workflow
+
+### Commit Message Format
+
+Follow existing patterns in the repository:
+
+```
+Brief summary (70 chars or less)
+
+Optional longer description:
+- Bullet points for multiple changes
+- Reference DOC-XXX items when applicable
+- Explain WHY not just WHAT
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+```
+
+### Before Committing
+
+1. Review git status and diff
+2. Stage specific files (avoid `git add -A`)
+3. Write meaningful commit message
+4. Ensure tests pass
+5. Check for sensitive data (.env, credentials)
+
+### Branch Strategy
+
+- **main:** Production-ready code
+- **develop:** Active development (default target)
+- Feature branches: For experimental work
+
+---
+
+## Testing Requirements
+
+### Before Marking Work Complete
+
+1. ✅ Frontend tests pass: `npm test`
+2. ✅ Backend tests pass: `npm test` (backend directory)
+3. ✅ Build succeeds: `npm run build`
+4. ✅ No console errors in development mode
+5. ✅ Validate tooltips render correctly (check UI)
+
+### Test Coverage Expectations
+
+- New features require tests
+- Bug fixes should include regression tests
+- UI changes: manual verification required
+- API changes: integration tests required
+
+---
+
+## Common Pitfalls
+
+### ❌ Don't Do This
+
+1. **Don't claim work is complete without code evidence**
+   - Bad: "I updated the tooltips" (no commit reference)
+   - Good: "Updated tooltips in commit a1b2c3d, verified in UI"
+
+2. **Don't use non-canonical status terms**
+   - Bad: "mostly done", "in progress", "finished"
+   - Good: `verified_done`, `done_pending_verification`, `active`
+
+3. **Don't duplicate status claims across multiple docs**
+   - Canonical status lives in BACKLOG_STATUS.md only
+   - Other docs reference it: "See DOC-049"
+
+4. **Don't archive or delete living documents**
+   - COMPREHENSIVE_MASTER_PLAN.md is living, not session notes
+   - Check this file before archiving anything
+
+5. **Don't skip evidence when updating status**
+   - Every status change needs commit SHA or file path
+   - "It's done" without evidence is not acceptable
+
+### ✅ Do This Instead
+
+1. **Provide concrete evidence for all claims**
+   - Link to specific commits
+   - Reference test files
+   - Point to lines of code
+
+2. **Use canonical vocabulary consistently**
+   - Learn the 6 status terms
+   - Learn the 4 priority levels
+   - Use them everywhere
+
+3. **Keep BACKLOG_STATUS.md as single source of truth**
+   - Update it when work completes
+   - Reference it from other docs
+   - Check it before making claims
+
+4. **Archive session notes, keep living docs**
+   - Session-specific findings → archive
+   - Ongoing tracking → living docs
+
+5. **Always include next_action if not verified_done**
+   - What remains to do
+   - What blocks completion
+   - What verification is needed
+
+---
+
+## Questions?
+
+If you're unsure about:
+- **Status vocabulary:** Check BACKLOG_STATUS.md header
+- **What to archive:** Check "File Organization" section above
+- **Commit format:** Check git log for recent examples
+- **Testing requirements:** Check "Testing Requirements" section above
+
+**When in doubt:** Ask the user before making assumptions about:
+- Status of incomplete work
+- Whether to archive or keep a file
+- Priority of new work
+- Scope of a feature request
+
+---
+
+**Last Updated:** 2026-05-10  
+**Revision:** Initial version establishing documentation authority
