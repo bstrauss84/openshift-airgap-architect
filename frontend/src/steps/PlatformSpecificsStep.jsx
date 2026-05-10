@@ -2896,7 +2896,23 @@ Value in MB (use multiples of 1024 for clean GB values):
                   <FieldLabelWithInfo
                     className="field-grid-span-full"
                     label="Provisioning network"
-                    hint={`Managed (default): The installer runs DHCP and TFTP on the provisioning network; no other DHCP on that network. Choose when you have a dedicated provisioning NIC and can give the installer full control. Unmanaged: Provisioning network exists but you run DHCP yourself; virtual media is recommended, PXE still possible. Choose when you must use existing DHCP or share the network. Disabled: No provisioning network; use virtual media or Assisted Installer only. BMCs must be reachable on the bare-metal network; reserve two IPs on that network for provisioning services. Choose for fully static or disconnected flows.`}
+                    hint={`Configure how the provisioning network is used during bare metal installation.
+
+**Managed (default):**
+• The installer runs DHCP and TFTP on the provisioning network
+• No other DHCP allowed on that network
+• **Choose when:** You have a dedicated provisioning NIC and can give the installer full control
+
+**Unmanaged:**
+• Provisioning network exists but you run DHCP yourself
+• Virtual media is recommended, PXE still possible
+• **Choose when:** You must use existing DHCP or share the network
+
+**Disabled:**
+• No provisioning network; use virtual media or Assisted Installer only
+• BMCs must be reachable on the bare-metal network
+• Reserve two IPs on that network for provisioning services
+• **Choose for:** Fully static or disconnected flows`}
                     required={metaProvisioningNetwork?.required}
                   >
                     <select
