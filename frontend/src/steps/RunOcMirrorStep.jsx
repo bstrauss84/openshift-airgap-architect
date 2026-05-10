@@ -514,7 +514,19 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
             </OptionRow>
             {configSourceType === "external" ? (
               <div>
-                <FieldLabelWithInfo label="Config file path" hint="Container-internal path to your ImageSetConfiguration YAML file. Must be accessible from within the backend container (typically under /data).">
+                <FieldLabelWithInfo label="Config file path" hint={`Container-internal path to your ImageSetConfiguration YAML file - the config that defines which images to mirror (OpenShift releases, operators, additional images).
+
+**What is this:**
+The ImageSetConfiguration YAML is the master list of what to mirror: OpenShift version(s), operator catalogs, Helm charts, and any additional container images you need.
+
+**File location:**
+Must be a path inside the backend container's filesystem. Since the backend mounts your host's directory to /data, place your config YAML in that mounted directory. Example: if you mounted ~/ocp-mirror to /data, and your config is ~/ocp-mirror/imageset-config.yaml, then enter /data/imageset-config.yaml here.
+
+**Use the Browse button:**
+Opens a file browser showing files in /data - easier than typing paths manually.
+
+**Example:**
+/data/my-imageset-config.yaml`}>
                   <div className="path-input-row">
                     <input
                       type="text"
@@ -605,8 +617,23 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                 <FieldLabelWithInfo
                   label={mode === "mirrorToDisk" ? "Archive directory (destination)" : "Archive directory (source)"}
                   hint={mode === "mirrorToDisk"
-                    ? "Destination directory for oc-mirror tar archives and working-dir. Container-internal path under /data. Typically 50–200+ GB for a full OCP + operator mirror. Should be empty (or contain only prior run archives) before the first mirror-to-disk run. Keep archives after a successful run — they are the input for disk-to-mirror."
-                    : "Source directory containing tar archives from a previous mirror-to-disk run. Must contain the working-dir structure written by oc-mirror. Container-internal path under /data."}
+                    ? `Destination directory for oc-mirror tar archives and working-dir. Container-internal path under /data.
+
+**Storage requirements:**
+Typically 50-200+ GB for a full OCP + operator mirror
+
+**Important:**
+Should be empty (or contain only prior run archives) before the first mirror-to-disk run
+
+**Keep archives:**
+Keep archives after a successful run — they are the input for disk-to-mirror
+
+**Example:**
+/data/archive`
+                    : `Source directory containing tar archives from a previous mirror-to-disk run. Must contain the working-dir structure written by oc-mirror. Container-internal path under /data.
+
+**Example:**
+/data/archive`}
                 >
                   <div className="path-input-row">
                     <input
@@ -627,7 +654,28 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               <div>
                 <FieldLabelWithInfo
                   label="Workspace directory"
-                  hint="Required. Directory for oc-mirror metadata and cluster-resources output (creates a working-dir/ subdirectory here). Container-internal path under /data. Typically 1–5 GB."
+                  hint={`Required directory where oc-mirror stores metadata and generates cluster-resources output. Container-internal path under /data.
+
+**Storage requirements:**
+Typically 1-5 GB
+
+**What is this:**
+oc-mirror creates a working-dir/ subdirectory here containing:
+• Mirror metadata (what was mirrored, when, versions)
+• Cluster-resources/ directory with YAML manifests for ImageContentSourcePolicy/CatalogSource
+• Metadata for incremental mirror tracking
+
+**Why it matters:**
+The metadata is essential for:
+1. Incremental mirrors (oc-mirror uses it to determine what's new/changed since last run)
+2. Installing OpenShift (cluster-resources/ contains ICSP/CatalogSource manifests you apply to the cluster)
+3. Troubleshooting (logs and state for diagnosing mirror issues)
+
+**Keep this directory:**
+Do not delete the workspace between mirror runs if you want incremental mirroring. The working-dir/ metadata accumulates over time (1-5 GB).
+
+**Example:**
+/data/workspace (oc-mirror creates /data/workspace/working-dir/ inside)`}
                 >
                   <div className="path-input-row">
                     <input
@@ -648,7 +696,25 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               <div>
                 <FieldLabelWithInfo
                   label="Cache directory"
-                  hint="Persistent image layer cache. Significantly speeds up subsequent runs. Container-internal path under /data. Safe to delete — oc-mirror rebuilds it automatically. Typically 5–50+ GB. Not used in mirror-to-mirror mode."
+                  hint={`Persistent image layer cache directory. Significantly speeds up subsequent mirror runs by caching downloaded image layers. Container-internal path under /data.
+
+**Storage requirements:**
+Typically 5-50+ GB depending on how many images you mirror
+
+**What is this:**
+When oc-mirror downloads images, it caches the individual layers (filesystem chunks) in this directory. On subsequent runs, if an image layer already exists in cache, oc-mirror skips re-downloading it, saving time and bandwidth.
+
+**Why it matters:**
+Without cache, every mirror run downloads all layers from scratch - wasteful for large mirrors. With cache, subsequent runs (re-syncing catalogs, mirroring new OpenShift versions, incremental updates) are MUCH faster. The first run populates the cache; later runs benefit.
+
+**Safe to delete:**
+If you delete the cache directory, oc-mirror automatically recreates it on the next run. You'll lose the speed benefit for that run, but no data loss. Deleting cache is useful if you're low on disk space and willing to re-download layers.
+
+**Not used in mirror-to-mirror mode:**
+In mirror-to-mirror, oc-mirror pulls directly from source registry and pushes to destination registry without creating tar archives, so there's no layer caching step.
+
+**Example:**
+/data/cache (grows to 10-50GB+ over time)`}
                 >
                   <div className="path-input-row">
                     <input
@@ -679,7 +745,26 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
               <div>
                 <FieldLabelWithInfo
                   label="Registry URL"
-                  hint="Use docker:// prefix. Must be reachable from the machine running the backend."
+                  hint={`Destination mirror registry URL where oc-mirror will push images. Must use docker:// prefix and be network-reachable from the machine running this backend container.
+
+**Format:**
+docker://registry.example.com:5000
+docker://10.90.10.50:5000
+
+**What is this:**
+The container registry (Harbor, Red Hat Quay, Docker Registry, etc.) in your airgap environment where mirrored images will be stored. This registry serves images to your OpenShift cluster during installation and ongoing operations.
+
+**Requirements:**
+1. **Network reachability:** The backend container must be able to reach this registry's IP/hostname and port. Test with 'curl' or 'podman login' from the host before mirroring.
+2. **Authentication:** If the registry requires login (most production registries do), you must provide credentials in the 'Identity & Access' tab under 'Mirror registry pull secret'.
+3. **Sufficient storage:** The registry needs storage for all mirrored images - typically 50-200+ GB for a full OpenShift + operators mirror.
+4. **TLS/HTTPS:** For production, use TLS certificates. For testing, you can use insecure registries (requires podman/docker config changes).
+
+**Port:**
+Typically 5000 for Docker Registry, 443 for Harbor/Quay with TLS, or custom ports.
+
+**Example:**
+docker://registry.internal.corp:5000`}
                 >
                   <input
                     type="text"
@@ -756,7 +841,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                       />
                     </OptionRow>
                     {rhAuthSource === "pasted" && (
-                      <div>
+                      <div className="credentials-field-constrained">
                         <SecretInput
                           label="Red Hat pull secret"
                           labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
@@ -770,7 +855,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                     )}
                   </>
                 ) : (
-                  <div>
+                  <div className="credentials-field-constrained">
                     <SecretInput
                       label="Red Hat pull secret"
                       labelHint="Paste, drag-and-drop, or upload your Red Hat pull secret JSON from console.redhat.com. Used for this run only — not stored."
@@ -826,7 +911,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                       />
                     </OptionRow>
                     {mirrorAuthSource === "pasted" && (
-                      <div>
+                      <div className="credentials-field-constrained">
                         <SecretInput
                           label="Mirror registry credentials"
                           labelHint="Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored."
@@ -840,7 +925,7 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
                     )}
                   </>
                 ) : (
-                  <div>
+                  <div className="credentials-field-constrained">
                     <SecretInput
                       label="Mirror registry credentials"
                       labelHint='Paste, drag-and-drop, or upload mirror registry auth JSON. Used for this run only — not stored. Example: {"auths":{"mirror.example.com":{"auth":"base64string"}}}'
@@ -881,11 +966,22 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             </OptionRow>
           )}
           {/* Advanced options grid with responsive layout */}
-          <div className="advanced-options-grid">
+          <div className="field-grid" style={{ marginTop: 12 }}>
             <FieldLabelWithInfo
               label="Log level"
-              hint="Verbosity level for oc-mirror command output. 'info' (default) shows progress and important messages - good for normal operation. 'debug' shows detailed diagnostic information including HTTP requests, registry operations, and internal state - useful when troubleshooting mirror failures or investigating unexpected behavior. Debug logs can be very verbose (100s of MB for large mirrors), so use it only when diagnosing issues. Logs are saved to the Operations tab regardless of level."
-              className="field-short"
+              hint={`Verbosity level for oc-mirror command output.
+
+**Default:**
+'info' shows progress and important messages - good for normal operation
+
+**Debug mode:**
+'debug' shows detailed diagnostic information including HTTP requests, registry operations, and internal state - useful when troubleshooting mirror failures or investigating unexpected behavior
+
+**Important:**
+Debug logs can be very verbose (100s of MB for large mirrors), so use it only when diagnosing issues. Logs are saved to the Operations tab regardless of level.
+
+**Example:**
+Set to 'debug' when troubleshooting mirror failures or connection issues`}
             >
               <select
                 value={logLevel}
@@ -897,8 +993,28 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
               label="Parallel images"
-              hint="Maximum number of container images to download/mirror simultaneously (1-32). Default is 4. Higher values speed up mirroring but consume more network bandwidth, memory, and registry connections. For fast networks (10Gbps+) with powerful systems, you can increase to 8-16. For slow/unstable connections or limited bandwidth, reduce to 2-4. Each concurrent image can use 100-500MB of RAM, so monitor memory usage on large mirrors. If you see out-of-memory errors or registry throttling, reduce this value."
-              className="field-short"
+              hint={`Maximum number of container images to download/mirror simultaneously (1-32).
+
+**Default:**
+4 concurrent images
+
+**Why it matters:**
+Higher values speed up mirroring but consume more network bandwidth, memory, and registry connections
+
+**When to increase:**
+For fast networks (10Gbps+) with powerful systems, you can increase to 8-16
+
+**When to decrease:**
+For slow/unstable connections or limited bandwidth, reduce to 2-4
+
+**Resource usage:**
+Each concurrent image can use 100-500MB of RAM, so monitor memory usage on large mirrors
+
+**Troubleshooting:**
+If you see out-of-memory errors or registry throttling, reduce this value
+
+**Example:**
+Set to 8 for fast networks, 2 for slow connections`}
             >
               <input
                 type="number"
@@ -910,8 +1026,28 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
               label="Parallel layers"
-              hint="Max concurrent layer pulls (1–32)."
-              className="field-short"
+              hint={`Maximum number of image layers to download concurrently (1-32).
+
+**Default:**
+5 concurrent layers
+
+**What are layers:**
+Layers are the individual filesystem chunks that make up container images
+
+**Why it matters:**
+Higher values can speed up mirroring for images with many layers, but also consume more network bandwidth and memory
+
+**Recommendation:**
+For most installations, the default (5) is sufficient. Only increase this if you have very fast networks (10Gbps+) AND you're mirroring images with many layers (20+ layers per image)
+
+**Risk:**
+Too high can cause memory exhaustion or registry throttling
+
+**Works with Parallel images:**
+Both settings affect overall mirror performance - tune them together
+
+**Example:**
+Set to 8 for very fast networks with large images, keep at 5 for most cases`}
             >
               <input
                 type="number"
@@ -923,8 +1059,28 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
               label="Image timeout"
-              hint="Timeout per image (e.g. 10m)."
-              className="field-medium"
+              hint={`Maximum time allowed to download a single container image before timing out.
+
+**Default:**
+10m (10 minutes)
+
+**Format:**
+Go duration format: 5m, 10m, 30m, 1h
+
+**When to increase:**
+Large images (2GB+ for databases, AI/ML workloads) on slow connections may need longer timeouts - increase to 30m or 1h
+
+**When to decrease:**
+For fast networks (1Gbps+), 5m is usually sufficient
+
+**Trade-offs:**
+Setting too short causes unnecessary timeout failures on large images; too long wastes time on stalled downloads
+
+**Important:**
+This timeout is per-image, not total mirror time
+
+**Example:**
+'5m' for fast networks, '30m' for slow connections or large images`}
             >
               <input
                 type="text"
@@ -935,8 +1091,28 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
               label="Retry times"
-              hint="Number of automatic retry attempts when an image pull/push fails (0-10). Default is 2. Mirroring often encounters transient network errors, registry throttling, or temporary connection issues - retries help complete the mirror successfully without manual intervention. For unstable networks or busy registries, increase to 4-5. For reliable high-speed connections, 2 is usually sufficient. Set to 0 to fail immediately on any error (not recommended for production mirroring). Each retry waits according to the 'Retry delay' setting below."
-              className="field-short"
+              hint={`Number of automatic retry attempts when an image pull/push fails (0-10).
+
+**Default:**
+2 retries
+
+**Why retries help:**
+Mirroring often encounters transient network errors, registry throttling, or temporary connection issues - retries help complete the mirror successfully without manual intervention
+
+**When to increase:**
+For unstable networks or busy registries, increase to 4-5
+
+**When to keep low:**
+For reliable high-speed connections, 2 is usually sufficient
+
+**Not recommended:**
+Set to 0 to fail immediately on any error (not recommended for production mirroring)
+
+**Works with Retry delay:**
+Each retry waits according to the 'Retry delay' setting below
+
+**Example:**
+Set to 4 for unstable networks, keep at 2 for stable connections`}
             >
               <input
                 type="number"
@@ -948,8 +1124,28 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
               label="Retry delay"
-              hint="Time to wait between retry attempts (Go duration format: 1s, 5s, 30s, 1m). Default is 1s (1 second). This delay gives transient errors time to resolve - for example, waiting for a registry rate limit to reset or a network connection to stabilize. For high-volume mirroring or registries with strict rate limits, increase to 5s-10s to avoid hammering the registry with repeated requests. For fast, reliable networks, 1s is sufficient. Too short (less than 1s) might trigger rate limiting; too long (minutes) wastes time on permanent failures."
-              className="field-medium"
+              hint={`Time to wait between retry attempts.
+
+**Default:**
+1s (1 second)
+
+**Format:**
+Go duration format: 1s, 5s, 30s, 1m
+
+**Why it matters:**
+This delay gives transient errors time to resolve - for example, waiting for a registry rate limit to reset or a network connection to stabilize
+
+**When to increase:**
+For high-volume mirroring or registries with strict rate limits, increase to 5s-10s to avoid hammering the registry with repeated requests
+
+**When to keep low:**
+For fast, reliable networks, 1s is sufficient
+
+**Trade-offs:**
+Too short (less than 1s) might trigger rate limiting; too long (minutes) wastes time on permanent failures
+
+**Example:**
+Set to '10s' for registries with rate limits, keep at '1s' for fast networks`}
             >
               <input
                 type="text"
@@ -961,8 +1157,24 @@ docker compose down -v --remove-orphans && docker image prune -f && docker compo
             {mode === "mirrorToDisk" && (
               <FieldLabelWithInfo
                 label="Since (incremental)"
-                hint="Only mirror images newer than this (ISO or digest). Optional."
-                className="field-medium"
+                hint={`Timestamp or digest for incremental mirroring - only mirror images published after this point. Optional.
+
+**What is this:**
+Useful for reducing mirror time and bandwidth when you've already mirrored a base set of images and only want to sync newer content
+
+**Format:**
+• ISO 8601 timestamp: '2024-01-15T10:00:00Z'
+• Image digest: 'sha256:abc123...'
+
+**Use case:**
+First mirror (full): Leave blank to mirror all images
+Subsequent mirrors (incremental): Set to timestamp/digest from previous mirror to only pull new/updated images
+
+**Important:**
+This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value is saved in oc-mirror's metadata after each run, so you can reference it for the next incremental mirror. Incremental mirroring significantly reduces bandwidth and time for regular sync operations.
+
+**Example:**
+'2024-06-01T00:00:00Z' to mirror only images published after June 1, 2024`}
               >
                 <input
                   type="text"
