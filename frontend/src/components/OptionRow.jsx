@@ -18,7 +18,7 @@ import React from "react";
  * Pass htmlFor (matching the id of a radio/checkbox input inside children) to make
  * the title and description area a clickable <label> that activates the input.
  */
-function OptionRow({ title, description, children, note, warning, id, htmlFor }) {
+function OptionRow({ title, description, children, note, warning, id, htmlFor, style, className }) {
   // When htmlFor is provided, wrap the text area in a <label> so clicking
   // the title or description selects the associated radio/checkbox input.
   const TextWrapper = htmlFor ? "label" : "div";
@@ -26,7 +26,7 @@ function OptionRow({ title, description, children, note, warning, id, htmlFor })
     ? { htmlFor, className: "option-row-text", style: { cursor: "pointer" } }
     : { className: "option-row-text" };
   return (
-    <div className="option-row" id={id}>
+    <div className={className ? `option-row ${className}` : "option-row"} id={id} style={style}>
       <div className="option-row-main">
         <TextWrapper {...textProps}>
           <span className="option-row-title">{title}</span>

@@ -510,27 +510,30 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
                         Using pull secret from Blueprint. You can scan or re-scan below.
                       </p>
                     ) : null}
-                    <SecretInput
-                      value={pullSecretInput}
-                      onChange={setPullSecretInput}
-                      label="Red Hat pull secret (optional)"
-                      labelEmphasis="Red Hat pull secret (optional)"
-                      labelHint={
-                        state.credentials?.redHatPullSecretConfigured
-                          ? "Pull secret configured for operator discovery."
-                          : hasRetainedPullSecret && discoveryAlreadyRunningOrDone
-                            ? "From Blueprint (in memory only). Used for catalog scan; not stored or exported."
-                            : "Used only for catalog scan. Red Hat login required to obtain."
-                      }
-                      getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
-                      placeholder="Paste Red Hat pull secret JSON"
-                      rows={4}
-                      aria-label="Red Hat pull secret JSON for operator discovery"
-                    />
+                    <div className="credentials-field-constrained">
+                      <SecretInput
+                        value={pullSecretInput}
+                        onChange={setPullSecretInput}
+                        label="Red Hat pull secret (optional)"
+                        labelEmphasis="Red Hat pull secret (optional)"
+                        labelHint={
+                          state.credentials?.redHatPullSecretConfigured
+                            ? "Pull secret configured for operator discovery."
+                            : hasRetainedPullSecret && discoveryAlreadyRunningOrDone
+                              ? "From Blueprint (in memory only). Used for catalog scan; not stored or exported."
+                              : "Used only for catalog scan. Red Hat login required to obtain."
+                        }
+                        getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
+                        placeholder="Paste Red Hat pull secret JSON"
+                        rows={4}
+                        aria-label="Red Hat pull secret JSON for operator discovery"
+                      />
+                    </div>
                     <OptionRow
                       title="Fast mode"
                       description="Use cached catalogs when available"
                       note={fastMode && cachedAt ? `Using cached catalogs from ${new Date(cachedAt).toLocaleString()}.` : null}
+                      style={{ marginTop: "1rem" }}
                     >
                       <Switch
                         checked={fastMode}
