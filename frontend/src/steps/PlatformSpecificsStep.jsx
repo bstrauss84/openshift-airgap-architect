@@ -1483,7 +1483,13 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
               <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Publish (optional)"
-                  hint={`${metaPublish?.description ? `${metaPublish.description} ` : ""}External exposes API/apps via public endpoints. Internal keeps endpoints private to your network/VPC path and is typical for private-cluster designs.`}
+                  hint={`Controls whether cluster endpoints are publicly accessible or private-network only.
+
+**External:**
+Exposes API/apps via public endpoints
+
+**Internal:**
+Keeps endpoints private to your network/VPC - typical for private-cluster designs`}
                   className="platform-specifics-field-short"
                 >
                   <select
@@ -1702,7 +1708,41 @@ ssd-container`}
                 <div className="field-grid" style={{ marginBottom: 16 }}>
                   <FieldLabelWithInfo
                     label="Worker count"
-                    hint={`Number of worker nodes (compute nodes) to create during installation for High Availability topology. Workers run your application workloads - they do NOT run control plane services (API, etcd, schedulers). Minimum: 2 workers required for HA topology (allows workload redundancy and rolling updates). Unlike control plane nodes, you CAN scale workers up or down after installation. SIZING GUIDANCE: For development/testing: 2-3 workers is sufficient. For production: Start with 3-5 workers to ensure adequate capacity and resilience. Each worker is a Nutanix VM that consumes cluster resources (CPU, RAM, storage). WHY MINIMUM 2: With only 1 worker, you have no redundancy - if that worker fails or needs maintenance, workloads have nowhere to run. With 2+ workers, workloads can be rescheduled to surviving nodes during failures or updates. BEST PRACTICE: Plan worker count based on expected workload - more workers provide more total capacity and better failure resilience, but consume more Nutanix resources. You can start with 3 workers and scale up post-install by editing MachineSets if workload demands grow. For mission-critical applications or large workloads, consider 5+ workers. Default: 3 (good starting point for most production clusters). Example: 3 for small production workloads, 5 for medium-sized clusters, 10+ for large-scale deployments with heavy compute/memory needs.`}
+                    hint={`Number of worker nodes (compute nodes) to create during installation for High Availability topology.
+
+**What workers do:**
+Run your application workloads - they do **NOT** run control plane services (API, etcd, schedulers)
+
+**Minimum required:**
+**2 workers** required for HA topology (allows workload redundancy and rolling updates)
+
+**Scalability:**
+Unlike control plane nodes, you **CAN** scale workers up or down after installation
+
+**Sizing guidance:**
+• **Development/testing:** 2-3 workers
+• **Production:** Start with 3-5 workers for adequate capacity and resilience
+• **Mission-critical:** Consider 5+ workers for large workloads
+
+**Resource consumption:**
+Each worker is a Nutanix VM that consumes cluster resources (CPU, RAM, storage)
+
+**Why minimum 2:**
+• **1 worker:** No redundancy - if it fails or needs maintenance, workloads have nowhere to run
+• **2+ workers:** Workloads can be rescheduled to surviving nodes during failures or updates
+
+**Best practice:**
+Plan worker count based on expected workload - more workers provide more total capacity and better failure resilience, but consume more Nutanix resources
+
+**Scaling strategy:**
+Start with 3 workers and scale up post-install by editing MachineSets if workload demands grow
+
+**Default:** 3 (good starting point for most production clusters)
+
+**Example:**
+3 for small production workloads
+5 for medium-sized clusters
+10+ for large-scale deployments with heavy compute/memory needs`}
                   >
                     <input
                       type="number"
@@ -1750,7 +1790,27 @@ ssd-container`}
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Publish"
-                  hint={`External (default): API and ingress published to public DNS/load balancer. Use for clusters reachable from the internet or external networks. Required when apps/API must be accessed without VPN. Internal: All cluster endpoints are private-network only. DNS must resolve internally. Required by some compliance regimes. Note: console.redhat.com cluster management and direct Red Hat update checks will not reach the cluster without additional network routing. Recommendation: External for most installs. Internal only when external exposure is explicitly prohibited. Note: Nutanix IPI forces External in the generated install-config.`}
+                  hint={`Controls whether cluster endpoints are publicly accessible or private-network only.
+
+**External (default):**
+• API and ingress published to public DNS/load balancer
+• Use for clusters reachable from internet or external networks
+• **Required when:** Apps/API must be accessed without VPN
+
+**Internal:**
+• All cluster endpoints are private-network only
+• DNS must resolve internally
+• **Required by:** Some compliance regimes
+
+**Important:**
+With Internal publishing, console.redhat.com cluster management and direct Red Hat update checks will **not reach the cluster** without additional network routing
+
+**Recommendation:**
+• **External** for most installs
+• **Internal** only when external exposure is explicitly prohibited
+
+**Platform-specific:**
+⚠️ Nutanix IPI forces External in the generated install-config`}
                 >
                   <input readOnly value="External (required for Nutanix IPI)" aria-label="Publish (External, required for Nutanix IPI)" />
                 </FieldLabelWithInfo>
@@ -2222,7 +2282,37 @@ Compute-Zone-A`}
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo
                           label="Topology: Datastore"
-                          hint={`Absolute datastore path in vSphere inventory for VM disks in this failure domain. Format: /datacenter-name/datastore/datastore-name (e.g., /Datacenter1/datastore/Production-SAN-01 or /Datacenter1/datastore/vsanDatastore). This must match the exact path as shown in vCenter. A datastore is a storage container (VMFS, NFS, vSAN, or vVols) where VM disk files (VMDK) are stored. The datastore must have sufficient free space for all VMs in this failure domain - typically 300GB minimum per control plane node and 120GB per worker node, plus overhead. For high availability, use different datastores for different failure domains if possible (avoids single storage point of failure). For production workloads, ensure the datastore has good performance (SSD-backed or high-performance SAN) and adequate IOPS to support etcd and application workloads. You can find datastore paths in vCenter by navigating to Storage → select datastore → Summary tab.`}
+                          hint={`Absolute datastore path in vSphere inventory for VM disks in this failure domain.
+
+**Format:**
+/datacenter-name/datastore/datastore-name
+
+**Requirements:**
+• Must match the **exact** path as shown in vCenter
+
+**What is a datastore:**
+Storage container (VMFS, NFS, vSAN, or vVols) where VM disk files (VMDK) are stored
+
+**Capacity requirements:**
+The datastore must have sufficient free space for all VMs in this failure domain:
+• **Control plane:** ~300GB minimum per node
+• **Worker:** ~120GB minimum per node
+• **Plus overhead:** 15-20%
+
+**High availability:**
+Use different datastores for different failure domains if possible (avoids single storage point of failure)
+
+**Performance requirements:**
+For production workloads, ensure:
+• Good performance (SSD-backed or high-performance SAN)
+• Adequate IOPS to support etcd and application workloads
+
+**How to find datastore paths:**
+vCenter → Storage → select datastore → Summary tab
+
+**Example:**
+/Datacenter1/datastore/Production-SAN-01
+/Datacenter1/datastore/vsanDatastore`}
                         >
                           <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="/datacenter/datastore/ds1" />
                         </FieldLabelWithInfo>
@@ -2279,7 +2369,41 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
                           {scenarioId === "vsphere-ipi" && (
                             <FieldLabelWithInfo
                               label="Topology: RHCOS template (optional, IPI only)"
-                              hint={`Absolute path to a pre-deployed RHCOS (Red Hat CoreOS) OVA template in vSphere inventory that the installer will clone to create cluster VMs. Format: /datacenter-name/vm/folder-name/template-name (e.g., /Datacenter1/vm/Templates/rhcos-4.14.0). Leave blank to use 'clusterOSImage' URL strategy (Machine pool advanced section). IMPORTANT: Use ONE image strategy - either set 'Topology: RHCOS template' per failure domain (useful when each zone needs a different template), OR set 'clusterOSImage' URL once for the whole cluster. Do not set both. HOW TO SET UP: (1) Download the RHCOS OVA for your OpenShift version from Red Hat (e.g., rhcos-4.14.0-x86_64-vmware.x86_64.ova). (2) In vCenter, right-click folder → Deploy OVF Template → select downloaded OVA → complete wizard WITHOUT customizing guest OS settings. (3) After deploy completes, note the template's full inventory path (Hosts and Clusters view → VM → Summary tab shows path). (4) Enter that path here. WHY PRE-DEPLOY TEMPLATES: For disconnected/airgap environments where the installer cannot download images directly. When you need tight control over image provenance. For multi-zone deployments where each zone needs images on local storage. MULTIPLE FAILURE DOMAINS: If you have 3 failure domains, you can set a different RHCOS template path for each one (useful if templates are on different datastores per zone for locality). Or use one template accessible across all zones. IMPORTANT: The template must match your selected OpenShift version - using RHCOS 4.14 template for OpenShift 4.15 will cause failures. After deployment, do NOT power on or customize the template - the installer expects it in the pristine post-OVF-deploy state. Example: /Datacenter1/vm/rhcos-templates/rhcos-4.14.0-vmware. You can find the full path in vCenter by selecting the VM → Summary tab → VM Path field.`}
+                              hint={`Absolute path to a pre-deployed RHCOS (Red Hat CoreOS) OVA template in vSphere inventory that the installer will clone to create cluster VMs.
+
+**Format:**
+/datacenter-name/vm/folder-name/template-name
+
+**Default behavior:**
+Leave blank to use 'clusterOSImage' URL strategy (Machine pool advanced section)
+
+**Important - Choose ONE image strategy:**
+⚠️ Either set 'Topology: RHCOS template' per failure domain (useful when each zone needs a different template), OR set 'clusterOSImage' URL once for the whole cluster
+⚠️ Do not set both
+
+**How to set up:**
+1. Download the RHCOS OVA for your OpenShift version from Red Hat (e.g., rhcos-4.14.0-x86_64-vmware.x86_64.ova)
+2. In vCenter, right-click folder → Deploy OVF Template → select downloaded OVA → complete wizard **WITHOUT** customizing guest OS settings
+3. After deploy completes, note the template's full inventory path (Hosts and Clusters view → VM → Summary tab shows path)
+4. Enter that path here
+
+**Why pre-deploy templates:**
+• Disconnected/airgap environments where the installer cannot download images directly
+• When you need tight control over image provenance
+• For multi-zone deployments where each zone needs images on local storage
+
+**Multiple failure domains:**
+If you have 3 failure domains, you can set a different RHCOS template path for each one (useful if templates are on different datastores per zone for locality). Or use one template accessible across all zones.
+
+**Critical requirements:**
+⚠️ The template must match your selected OpenShift version - using RHCOS 4.14 template for OpenShift 4.15 will cause failures
+⚠️ After deployment, do NOT power on or customize the template - the installer expects it in the pristine post-OVF-deploy state
+
+**How to find the full path:**
+vCenter → select the VM → Summary tab → VM Path field
+
+**Example:**
+/Datacenter1/vm/rhcos-templates/rhcos-4.14.0-vmware`}
                             >
                               <div>
                                 <input
@@ -2297,13 +2421,67 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
                           )}
                           <FieldLabelWithInfo
                             label="Topology: Folder (optional)"
-                            hint={`Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs for this failure domain. Format: /datacenter-name/vm/folder-name or /datacenter-name/vm/parent-folder/child-folder (e.g., /Datacenter1/vm/OpenShift or /Datacenter1/vm/Production/OCP-Cluster). Leave blank to use the default VM folder at the datacenter root. VM folders in vSphere are organizational containers that group VMs for easier management and permission control - they don't affect VM function, just inventory organization. The installer creates all cluster VMs (control plane, workers, bootstrap) in this folder. For production environments, using a dedicated folder helps separate OpenShift VMs from other workloads. You can create folders in vCenter by navigating to VMs and Templates → right-click datacenter → New Folder. The path must exist before installation (the installer will not create it). This is purely for organization and has no impact on networking, storage, or compute placement.`}
+                            hint={`Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs for this failure domain.
+
+**Format:**
+/datacenter-name/vm/folder-name
+/datacenter-name/vm/parent-folder/child-folder
+
+**Default behavior:**
+Leave blank to use the default VM folder at the datacenter root
+
+**What are VM folders:**
+Organizational containers that group VMs for easier management and permission control - they **don't affect VM function**, just inventory organization
+
+**How it's used:**
+The installer creates all cluster VMs (control plane, workers, bootstrap) in this folder
+
+**When to use:**
+For production environments, using a dedicated folder helps separate OpenShift VMs from other workloads
+
+**How to create folders:**
+vCenter → VMs and Templates → right-click datacenter → New Folder
+
+**Important:**
+• The path must exist **before installation** (the installer will not create it)
+• This is purely for organization and has **no impact** on networking, storage, or compute placement
+
+**Example:**
+/Datacenter1/vm/OpenShift
+/Datacenter1/vm/Production/OCP-Cluster`}
                           >
                             <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} placeholder="/datacenter/vm/folder" />
                           </FieldLabelWithInfo>
                           <FieldLabelWithInfo
                             label="Topology: Resource pool (optional)"
-                            hint={`Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs in this failure domain. Format: /datacenter-name/host/cluster-name/Resources/pool-name (e.g., /Datacenter1/host/Cluster1/Resources/OpenShift-Pool). Leave blank to use the cluster's root Resources pool (default). Resource pools in vSphere allow you to partition and allocate CPU and memory resources with reservations, limits, and shares - useful for ensuring OpenShift VMs get guaranteed resources separate from other workloads. The pool must exist before installation. If you're sharing compute clusters with other applications, a dedicated resource pool prevents resource contention. You can create resource pools in vCenter by navigating to Hosts and Clusters → select cluster → right-click Resources → New Resource Pool. For most installations, the default root Resources pool is sufficient unless you need specific resource guarantees or limits. This setting does NOT affect storage (datastore) or network placement.`}
+                            hint={`Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs in this failure domain.
+
+**Format:**
+/datacenter-name/host/cluster-name/Resources/pool-name
+
+**Default behavior:**
+Leave blank to use the cluster's root Resources pool (default)
+
+**What are resource pools:**
+Allow you to partition and allocate CPU and memory resources with reservations, limits, and shares - useful for ensuring OpenShift VMs get guaranteed resources separate from other workloads
+
+**When to use:**
+If you're sharing compute clusters with other applications, a dedicated resource pool prevents resource contention
+
+**Requirements:**
+The pool must exist before installation
+
+**How to create resource pools:**
+vCenter → Hosts and Clusters → select cluster → right-click Resources → New Resource Pool
+
+**Recommendation:**
+For most installations, the default root Resources pool is sufficient unless you need specific resource guarantees or limits
+
+**Important:**
+This setting does **NOT** affect storage (datastore) or network placement
+
+**Example:**
+/Datacenter1/host/Cluster1/Resources/OpenShift-Pool`}
                           >
                             <input value={fd.topology?.resourcePool || ""} onChange={(e) => updateFailureDomainTopology(index, { resourcePool: e.target.value })} placeholder="/datacenter/host/cluster/Resources/pool" />
                           </FieldLabelWithInfo>
@@ -2321,7 +2499,54 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
               <div className="field-grid field-grid-single" style={{ marginTop: 8, marginBottom: 20 }}>
                 <FieldLabelWithInfo
                   label="Disk type (optional)"
-                  hint={`vSphere disk provisioning format for VM disk files (VMDKs). This controls how storage space is allocated on the datastore for cluster node disks. Leave as 'Not set' to use the datastore's default provisioning policy (recommended for most installations). WHAT ARE THESE FORMATS: vSphere supports multiple disk formats that trade off between performance, space efficiency, and provisioning speed. OPTIONS: 'thin' (Thin Provisioning) - allocates storage space on-demand as data is written. A 120GB thin disk might only consume 20GB on the datastore initially, growing as the VM writes data. Fast to create, space-efficient, good for most OpenShift installs. 'thick' (Thick Provision Lazy Zeroed) - allocates the full disk size immediately (120GB disk = 120GB consumed on datastore), but doesn't zero out blocks until first write. Faster to create than eagerZeroedThick, more predictable I/O performance than thin. 'eagerZeroedThick' (Thick Provision Eager Zeroed) - allocates full disk size AND zeros out all blocks at creation time. Slowest to create (can take minutes for large disks), but provides most consistent I/O performance and is REQUIRED for vSphere features like Fault Tolerance. RECOMMENDATION: Use 'thin' for most OpenShift installations - it's space-efficient and performs well for typical workloads. Use 'thick' or 'eagerZeroedThick' only when: (1) You need guaranteed storage capacity upfront (avoiding over-subscription). (2) Predictable I/O performance is critical (e.g., etcd on control plane nodes in high-transaction clusters). (3) Your storage team mandates thick provisioning policies. (4) You're enabling vSphere Fault Tolerance (requires eagerZeroedThick). IMPORTANT: Thin provisioning requires monitoring datastore space - if the datastore fills up, thin disk expansion can fail and VMs can pause. Ensure adequate datastore capacity and alerts. This setting applies to ALL cluster nodes (control plane and workers). For production etcd performance, some organizations prefer thick or eagerZeroedThick for control plane nodes, but this requires post-install MachineConfig customization (install-config applies one type to all nodes). Example: Leave 'Not set' for most installs (uses datastore default, usually thin). Set 'eagerZeroedThick' only if mandated by storage team or for Fault Tolerance requirements.`}
+                  hint={`vSphere disk provisioning format for VM disk files (VMDKs).
+
+**What this controls:**
+How storage space is allocated on the datastore for cluster node disks
+
+**Default:**
+Leave as 'Not set' to use the datastore's default provisioning policy (recommended for most installations)
+
+**Options:**
+
+**thin (Thin Provisioning):**
+• Allocates storage space on-demand as data is written
+• A 120GB thin disk might only consume 20GB initially, growing as VM writes data
+• Fast to create, space-efficient, good for most OpenShift installs
+
+**thick (Thick Provision Lazy Zeroed):**
+• Allocates full disk size immediately (120GB disk = 120GB consumed on datastore)
+• Doesn't zero out blocks until first write
+• Faster to create than eagerZeroedThick, more predictable I/O performance than thin
+
+**eagerZeroedThick (Thick Provision Eager Zeroed):**
+• Allocates full disk size AND zeros out all blocks at creation time
+• Slowest to create (can take minutes for large disks)
+• Most consistent I/O performance
+• **REQUIRED** for vSphere features like Fault Tolerance
+
+**Recommendation:**
+Use 'thin' for most OpenShift installations - it's space-efficient and performs well for typical workloads
+
+**When to use thick/eagerZeroedThick:**
+1. You need guaranteed storage capacity upfront (avoiding over-subscription)
+2. Predictable I/O performance is critical (e.g., etcd on control plane nodes in high-transaction clusters)
+3. Your storage team mandates thick provisioning policies
+4. You're enabling vSphere Fault Tolerance (requires eagerZeroedThick)
+
+**Important - Thin provisioning:**
+⚠️ Requires monitoring datastore space - if the datastore fills up, thin disk expansion can fail and VMs can pause
+⚠️ Ensure adequate datastore capacity and alerts
+
+**Scope:**
+This setting applies to **ALL** cluster nodes (control plane and workers)
+
+**Note:**
+For production etcd performance, some organizations prefer thick or eagerZeroedThick for control plane nodes, but this requires post-install MachineConfig customization (install-config applies one type to all nodes)
+
+**Example:**
+Leave 'Not set' for most installs (uses datastore default, usually thin)
+Set 'eagerZeroedThick' only if mandated by storage team or for Fault Tolerance requirements`}
                 >
                   <select
                     className="platform-specifics-disk-type-select"
@@ -2346,7 +2571,38 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
                   <div className="field-grid" style={{ marginTop: 8, marginBottom: 20 }}>
                     <FieldLabelWithInfo
                       label="Compute zones"
-                      hint={`Comma-separated list of failure domain names where worker (compute) nodes should be deployed. Each name must EXACTLY match a 'Name' field from the failure domains you defined above (case-sensitive). Example: if you created failure domains named 'fd-0', 'fd-1', and 'fd-2', enter 'fd-0, fd-1, fd-2' here (or a subset like 'fd-0, fd-1' if you want workers only in those two zones). WHY SET THIS: By specifying compute zones, you control which failure domains host worker nodes for high availability. If left blank, the installer defaults to spreading workers across ALL defined failure domains automatically. WHEN TO SET IT: (1) You want workers in only a subset of failure domains (e.g., you have 4 zones but want workers in only 3 of them). (2) You want asymmetric placement (e.g., control plane in zones A/B/C, but workers only in zones A/B). (3) You want to explicitly document zone placement in install-config. HOW IT WORKS: The installer distributes worker replicas evenly across the specified zones. For example, if you have 6 workers and specify 3 zones, each zone gets 2 workers. If worker count doesn't divide evenly, some zones get one extra worker. IMPORTANT: The zone names here are just identifiers - they don't create new failure domains. You must first define failure domains in the 'Failure domains' section above with datacenter, cluster, datastore, and network details. This field simply references those pre-defined failure domains by name. Format: Comma-separated names, spaces allowed, no quotes needed. Example: 'fd-0, fd-1, fd-2' or 'zone-east, zone-west' (matching your failure domain names).`}
+                      hint={`Comma-separated list of failure domain names where worker (compute) nodes should be deployed.
+
+**Requirements:**
+Each name must **EXACTLY** match a 'Name' field from the failure domains you defined above (case-sensitive)
+
+**Default behavior:**
+If left blank, the installer defaults to spreading workers across **ALL** defined failure domains automatically
+
+**Why set this:**
+By specifying compute zones, you control which failure domains host worker nodes for high availability
+
+**When to set it:**
+1. You want workers in only a subset of failure domains (e.g., you have 4 zones but want workers in only 3)
+2. You want asymmetric placement (e.g., control plane in zones A/B/C, but workers only in zones A/B)
+3. You want to explicitly document zone placement in install-config
+
+**How it works:**
+The installer distributes worker replicas evenly across the specified zones. For example:
+• 6 workers + 3 zones = 2 workers per zone
+• If worker count doesn't divide evenly, some zones get one extra worker
+
+**Important:**
+⚠️ The zone names here are just identifiers - they **don't create** new failure domains
+⚠️ You must first define failure domains in the 'Failure domains' section above with datacenter, cluster, datastore, and network details
+⚠️ This field simply references those pre-defined failure domains by name
+
+**Format:**
+Comma-separated names, spaces allowed, no quotes needed
+
+**Example:**
+fd-0, fd-1, fd-2
+zone-east, zone-west (matching your failure domain names)`}
                     >
                       <input
                         value={Array.isArray(platformConfig.vsphere?.computeZones) ? platformConfig.vsphere.computeZones.join(", ") : ""}
@@ -2356,7 +2612,39 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
                     </FieldLabelWithInfo>
                     <FieldLabelWithInfo
                       label="Control plane zones"
-                      hint={`Comma-separated list of failure domain names where control plane (master) nodes should be deployed. Each name must EXACTLY match a 'Name' field from the failure domains you defined above (case-sensitive). Example: if you created failure domains named 'fd-0', 'fd-1', and 'fd-2', enter 'fd-0, fd-1, fd-2' here for full high availability. WHY SET THIS: Control plane zone placement is CRITICAL for cluster availability. You should spread control plane nodes across multiple failure domains (typically 3) to survive zone-level failures. If left blank, the installer defaults to spreading control plane across ALL defined failure domains (which is usually what you want). WHEN TO SET IT: (1) You want control plane in only a subset of failure domains (e.g., you have 4 zones but want control plane in only the first 3). (2) You want asymmetric placement (e.g., control plane in zones A/B/C, but workers in zones C/D/E). (3) You want to explicitly document control plane placement in install-config for compliance/architecture records. HOW IT WORKS: OpenShift always uses 3 or 5 control plane nodes (odd number for etcd quorum). If you specify 3 zones, one control plane node goes in each zone. If you specify fewer zones than control plane nodes, some zones will host multiple control plane nodes (reduces availability). If you specify more zones than control plane nodes, only a subset of zones will get control plane nodes. IMPORTANT: For production high availability, you should have AT LEAST 3 zones specified here (one control plane node per zone). This ensures the cluster survives a zone failure - if one zone goes down, you still have 2/3 control plane nodes for etcd quorum. Never put all control plane nodes in the same zone (defeats the purpose of failure domains). Format: Comma-separated names, spaces allowed, no quotes needed. Example: 'fd-0, fd-1, fd-2' or 'zone-east, zone-central, zone-west' (matching your failure domain names).`}
+                      hint={`Comma-separated list of failure domain names where control plane (master) nodes should be deployed.
+
+**Requirements:**
+Each name must **EXACTLY** match a 'Name' field from the failure domains you defined above (case-sensitive)
+
+**Default behavior:**
+If left blank, the installer defaults to spreading control plane across **ALL** defined failure domains (usually what you want)
+
+**Why set this:**
+Control plane zone placement is **CRITICAL** for cluster availability. You should spread control plane nodes across multiple failure domains (typically 3) to survive zone-level failures.
+
+**When to set it:**
+1. You want control plane in only a subset of failure domains (e.g., you have 4 zones but want control plane in only the first 3)
+2. You want asymmetric placement (e.g., control plane in zones A/B/C, but workers in zones C/D/E)
+3. You want to explicitly document control plane placement in install-config for compliance/architecture records
+
+**How it works:**
+OpenShift always uses 3 or 5 control plane nodes (odd number for etcd quorum):
+• **3 zones specified:** One control plane node per zone
+• **Fewer zones than nodes:** Some zones host multiple control plane nodes (reduces availability)
+• **More zones than nodes:** Only a subset of zones get control plane nodes
+
+**Critical for production HA:**
+⚠️ You should have **AT LEAST 3 zones** specified here (one control plane node per zone)
+⚠️ This ensures the cluster survives a zone failure - if one zone goes down, you still have 2/3 control plane nodes for etcd quorum
+⚠️ **Never** put all control plane nodes in the same zone (defeats the purpose of failure domains)
+
+**Format:**
+Comma-separated names, spaces allowed, no quotes needed
+
+**Example:**
+fd-0, fd-1, fd-2
+zone-east, zone-central, zone-west (matching your failure domain names)`}
                     >
                       <input
                         value={Array.isArray(platformConfig.vsphere?.controlPlaneZones) ? platformConfig.vsphere.controlPlaneZones.join(", ") : ""}
