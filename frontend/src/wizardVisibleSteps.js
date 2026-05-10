@@ -75,8 +75,20 @@ export function computeVisibleWizardRows(state, stepMap) {
     const runOcMirrorStep = base.find((s) => s.id === "run-oc-mirror");
     const operationsStep = base.find((s) => s.id === "operations");
     const showHostsStep = scenarioId && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(scenarioId);
+
+    // Show Connectivity & Mirroring tab if:
+    // - NTP section is needed (not AWS GovCloud), OR
+    // - User is using a mirror registry
+    const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
+    const usingMirrorRegistry = state?.credentials?.usingMirrorRegistry === true;
+    const showConnectivityMirroring = !isAwsGovCloud || usingMirrorRegistry;
+
     const replacementRows = SEGMENTED_REPLACEMENT_ROWS.filter(
-      (def) => def.id !== "hosts-inventory" || showHostsStep
+      (def) => {
+        if (def.id === "hosts-inventory") return showHostsStep;
+        if (def.id === "connectivity-mirroring") return showConnectivityMirroring;
+        return true;
+      }
     ).map((def) => ({
       id: def.id,
       label: def.label,
