@@ -224,7 +224,7 @@ All tooltips from Batches 1-10 (and all subsequent batches) now use the structur
 
 **Current State:** Brief generic summary in dropdown
 
-**Goal:** Robust, comprehensive scenario-specific summary
+**Goal:** Robust, comprehensive scenario-specific summary with **live updating** behavior
 
 **Requirements:**
 - Expand each scenario summary to include:
@@ -235,6 +235,15 @@ All tooltips from Batches 1-10 (and all subsequent batches) now use the structur
   - Link to official OpenShift docs for that scenario
 - Match tooltip comprehensiveness standard
 - Use structured formatting (paragraphs, bullets)
+- **Live updating values:** Summary dynamically reflects user's actual configuration as they make selections:
+  - Proxy enabled/disabled
+  - FIPS on/off
+  - NTP servers configured
+  - Dual-stack networking
+  - Mirror registry usage
+  - Other scenario-specific selections
+- **Documentation sources section:** Replicate the accurate documentation sources section from Field Guide, with **live real-time links** to docs relevant to the user's specific scenario + configurations
+- **Implementation note:** Review Field Guide generation logic for initial summary section and documentation sources section; apply same behavior to scenario summary dropdown
 
 **Scenarios to Enhance:**
 - [ ] vSphere IPI
@@ -252,8 +261,12 @@ All tooltips from Batches 1-10 (and all subsequent batches) now use the structur
 
 **Deliverables:**
 - [ ] Enhanced summaries for all 12+ scenarios
+- [ ] Live updating logic integrated
+- [ ] Documentation sources section with real-time links
 - [ ] Validation that summaries match official docs
 - [ ] User feedback on clarity
+
+**Canonical tracking:** See `docs/BACKLOG_STATUS.md` DOC-058
 
 ---
 
@@ -289,41 +302,78 @@ Identify and rationalize dropdowns with only one possible value
 
 ## Phase 6: YAML View Drawer
 **Status:** NOT STARTED  
-**Priority:** P2  
-**Estimated Time:** 3-4 days
+**Priority:** P1 (elevated from P2)  
+**Estimated Time:** 4-6 days (increased scope)
 
 ### Goal
-Persistent, optional YAML view drawer showing generated configs
+Persistent, optional YAML view drawer showing generated configs with **security-first design**
 
 ### Requirements
 
 **UI/UX:**
-- Right-side drawer (distinct from Tools drawer - no conflict)
-- Expandable/collapsible
-- Toggle button (e.g., "Show YAML" button or icon in header)
+- **Show/Hide YAML button** placed to the **left of the Tools button** in header
+- Right-side drawer (distinct from Tools drawer and Host Inventory side panel - **no conflict**)
+- Expandable/collapsible with **smooth expand/collapse animation**
 - When expanded: overlays content area (or pushes it left)
 - When collapsed: hidden completely
 - Internal horizontal and vertical scrollbars
 - Syntax-highlighted YAML
 - Read-only initially (edit mode is future Phase 6.2)
+- **Drag-resize capability:** Allow user to drag drawer edge to expand/shrink width, with **limits** to ensure left panel sections retain enough space
+- **Slick, modern design** with appropriate visual polish
 
-**Config Switching:**
-- Tab/dropdown to switch between configs:
-  - **install-config.yaml** (all scenarios)
-  - **agent-config.yaml** (agent-based scenarios only)
-  - **imageset-config.yaml** (Operators tab)
-- Context-aware: show relevant configs based on current scenario/step
+**Tab Visibility:**
+- Drawer and Show/Hide YAML button visible on **all tabs EXCEPT:**
+  - Landing page
+  - Blueprint page
+  - Assets & Guide page
+  - Operations page
+
+**Config Display & Switching:**
+- **Agent-based paths:** Show scrollable view with:
+  - **install-config.yaml** (top half of drawer space)
+  - **agent-config.yaml** (bottom half of drawer space)
+  - Each config independently scrollable
+- **Non-agent paths:** Show install-config.yaml only
+- **Operators tab:** Pivot to **ImageSet config** (imageset-config.yaml)
+- **Run oc-mirror tab:** 
+  - Show generated ImageSet config by default if available (when drawer set to "Show")
+  - Pivot to uploaded ImageSet config when user specifies and provides one in Run oc-mirror options
+
+**Download Buttons:**
+- **Download button per YAML file** displayed (e.g., separate downloads for install-config, agent-config, ImageSet config)
+
+**Warnings for Incomplete Files:**
+- Show clear warnings/badges when files are incomplete
+- Identify what's missing before user can treat files as valid
 
 **Sync Behavior:**
-- Live updates as user fills out wizard
+- **Real-time live updates** as user fills out wizard fields
+- Updates reflect immediately in YAML view
 - Highlights recently changed sections (optional enhancement)
-- Copy-to-clipboard button per config
+
+**Security Requirements (PARAMOUNT):**
+- **ALWAYS obfuscate pull secrets and credential fields** in YAML display by default
+- User must **explicitly toggle "Show sensitive values"** to reveal credentials in drawer
+- Credentials **NEVER** included in:
+  - Git commits
+  - Logs (frontend or backend)
+  - localStorage or any persistence
+- Security golden rules already in place must not be violated
+
+**Blueprint Pull Secret Carry-Over:**
+- If user specifies on Blueprint page to keep Red Hat pull secret in memory/cache
+- AND user is NOT using mirror registry
+- Then pull secret can carry over to drawer in same way it carries to subsequent tabs
+- BUT pull secret must be **obscured/hidden by default** in drawer
+- Only shown if user explicitly toggles "Show sensitive values"
 
 **Technical Considerations:**
-- Don't conflict with Tools drawer
+- Don't conflict with Tools drawer or Host Inventory side panel
 - Use same drawer/modal z-index hierarchy
 - Mobile-responsive (maybe hide or overlay differently on small screens)
 - Performant (debounce YAML regeneration)
+- Drag-resize must respect minimum left panel width constraints
 
 ### Phases
 
@@ -343,10 +393,24 @@ Persistent, optional YAML view drawer showing generated configs
 - [ ] Warning banners ("Direct YAML edit mode - advanced users only")
 
 ### Deliverables (Phase 6.1)
-- [ ] YAML drawer component
-- [ ] Integration with all steps
-- [ ] Tests (drawer open/close, config switching, copy)
+- [ ] YAML drawer component with drag-resize
+- [ ] Show/Hide YAML button (left of Tools button)
+- [ ] Tab visibility logic (hide on Landing, Blueprint, Assets/Guide, Operations)
+- [ ] Multi-config display (install-config + agent-config split view for agent paths)
+- [ ] Download buttons per YAML file
+- [ ] Incomplete file warnings
+- [ ] Security: credential obfuscation by default + "Show sensitive values" toggle
+- [ ] Real-time live updates from wizard state
+- [ ] Integration with all visible tabs
+- [ ] Syntax highlighting (YAML)
+- [ ] Copy buttons per config
+- [ ] Conflict avoidance with Tools drawer and Host Inventory panel
+- [ ] Mobile-responsive behavior
+- [ ] Expand/collapse animation
+- [ ] Tests (drawer open/close, config switching, download, security obfuscation, drag-resize, tab visibility)
 - [ ] Documentation
+
+**Canonical tracking:** See `docs/BACKLOG_STATUS.md` DOC-034
 
 ---
 
