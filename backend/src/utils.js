@@ -54,6 +54,11 @@ const createJob = (type, message = "") => {
   db.prepare(
     "INSERT INTO jobs (id, type, status, progress, message, output, created_at, updated_at, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
   ).run(id, type, "queued", 0, message, null, ts, ts, "");
+
+  if (process.env.NODE_ENV !== "test") {
+    console.log("[job:create]", { jobId: id, type, message, status: "queued" });
+  }
+
   return id;
 };
 
@@ -86,6 +91,26 @@ const updateJob = (id, patch) => {
     updated.metadata_json,
     id
   );
+
+  // Log terminal state transitions (completed, failed, cancelled) and running state
+  if (process.env.NODE_ENV !== "test") {
+    const statusChanged = updated.status !== current.status;
+    const isTerminalState = ["completed", "failed", "cancelled"].includes(updated.status);
+    const isRunning = updated.status === "running" && current.status !== "running";
+
+    if (statusChanged && (isTerminalState || isRunning)) {
+      const duration = updated.updated_at - current.created_at;
+      console.log("[job:update]", {
+        jobId: id,
+        type: current.type,
+        status: updated.status,
+        progress: updated.progress,
+        message: updated.message,
+        duration: isTerminalState ? `${(duration / 1000).toFixed(1)}s` : undefined
+      });
+    }
+  }
+
   return updated;
 };
 

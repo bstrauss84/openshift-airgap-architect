@@ -74,6 +74,44 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
+// Request logging middleware (skip in test mode)
+if (process.env.NODE_ENV !== "test") {
+  app.use((req, res, next) => {
+    const requestId = req.headers["x-request-id"] || `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const startTime = Date.now();
+
+    // Attach request ID to request for potential later use
+    req.requestId = requestId;
+
+    // Log request completion
+    res.on("finish", () => {
+      const duration = Date.now() - startTime;
+      const logLevel = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+
+      // Skip logging for health/status endpoints to reduce noise
+      if (req.path === "/api/health" || req.path === "/api/jobs/count") return;
+
+      const logData = {
+        requestId,
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        duration: `${duration}ms`
+      };
+
+      if (logLevel === "error") {
+        console.error("[request]", logData);
+      } else if (logLevel === "warn") {
+        console.warn("[request]", logData);
+      } else {
+        console.log("[request]", logData);
+      }
+    });
+
+    next();
+  });
+}
+
 markStaleJobs();
 
 // Only trust X-Forwarded-For header from known proxy IPs to prevent spoofing
@@ -1229,6 +1267,16 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
       error: "OpenShift release minor is not set. Select minor channel and patch in Blueprint (or ensure patchVersion is set)."
     });
   }
+
+  if (process.env.NODE_ENV !== "test") {
+    console.log("[operator-scan:start]", {
+      requestId: req.requestId,
+      version: catalogMinor,
+      catalogCount: getCatalogs().length,
+      authMethod: tempAuthFile ? "pull-secret" : "mounted"
+    });
+  }
+
   const resolved = await resolveOcMirrorBinary(dataDir);
   const jobs = {};
   if (resolved.error) {
@@ -1254,6 +1302,15 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
       ocMirrorPath: resolved.path
     });
     jobs[catalog.id] = jobId;
+
+    if (process.env.NODE_ENV !== "test") {
+      console.log("[operator-scan:job-created]", {
+        requestId: req.requestId,
+        jobId,
+        catalogId: catalog.id,
+        version: catalogMinor
+      });
+    }
   }
   res.json({ jobs });
 });
@@ -2291,7 +2348,19 @@ const buildBundleZip = async (state, res) => {
     res.status(400).json({ error: "Version not confirmed." });
     return;
   }
+
   const version = getOpenShiftMinorFromState(state) || "4.0";
+
+  if (process.env.NODE_ENV !== "test") {
+    console.log("[bundle:start]", {
+      version,
+      platform: state.blueprint?.platform,
+      method: state.methodology?.method,
+      includeClientTools: Boolean(state.exportOptions?.includeClientTools),
+      draftMode: Boolean(state.exportOptions?.draftMode)
+    });
+  }
+
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
