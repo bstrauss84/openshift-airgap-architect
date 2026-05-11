@@ -262,6 +262,14 @@ const AppShell = () => {
         })
       );
   }, []);
+
+  // Sync showLanding from loaded state on mount (for imports/restores that have showLanding: false)
+  useEffect(() => {
+    if (!loading && state?.ui?.showLanding === false) {
+      setShowLanding(false);
+    }
+  }, [loading, state?.ui?.showLanding]);
+
   useEffect(() => {
     if (!showLanding) return;
     apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: false, error: "Unavailable" }));
@@ -814,6 +822,11 @@ const AppShell = () => {
     const data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
     setIsToolsOpen(false);
 
+    // Clear the file input value so re-selecting the same file will trigger onChange
+    if (importRef.current) {
+      importRef.current.value = "";
+    }
+
     const baseState = data.state || {};
     const ui = baseState.ui || {};
     const rowState =
@@ -836,6 +849,9 @@ const AppShell = () => {
       setActive(0);
       return;
     }
+
+    // Hide landing page when importing a state that doesn't explicitly request it
+    setShowLanding(false);
 
     let targetIdx = 0;
     let targetStepId = rows[0]?.id || "blueprint";
