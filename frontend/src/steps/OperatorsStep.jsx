@@ -175,13 +175,18 @@ const scenarios = [
     label: "Quay + OpenShift Integration",
     description: "Quay as default OpenShift registry with namespace sync and ImageStream mirroring",
     picks: { redhat: ["quay-operator", "quay-bridge-operator"] }
-  },
-  {
-    id: "trusted-supply-chain",
-    label: "Trusted Software Supply Chain",
-    description: "Artifact signing (RHTAS) and SBOM analysis (RHTPA) - requires OpenShift 4.16+",
-    picks: { redhat: ["trusted-artifact-signer", "trusted-profile-analyzer-operator"] }
   }
+  // NOTE: Trusted Software Supply Chain quick pick temporarily disabled - operator package names
+  // need verification against live catalog before activation. Research indicates operators may be:
+  // - trusted-artifact-signer (RHTAS) - possibly in certified catalog or tech preview
+  // - trusted-profile-analyzer-operator (RHTPA) - from trustification GitHub org, may use different name
+  // TODO: Verify exact package names with `oc get packagemanifests` on live cluster before re-enabling
+  // {
+  //   id: "trusted-supply-chain",
+  //   label: "Trusted Software Supply Chain",
+  //   description: "Artifact signing (RHTAS) and SBOM analysis (RHTPA) - requires OpenShift 4.16+",
+  //   picks: { redhat: ["trusted-artifact-signer", "trusted-profile-analyzer-operator"] }
+  // }
 ];
 
 const catalogImages = (version) => ({
