@@ -359,10 +359,12 @@ describe('Scenario Summary Helpers', () => {
       const state = {
         blueprint: { platform: 'AWS' },
         platformConfig: {
-          region: 'us-east-1',
-          controlPlane: { type: 'm5.xlarge' },
-          compute: { type: 'm5.2xlarge' },
-          zones: ['us-east-1a', 'us-east-1b', 'us-east-1c']
+          aws: {
+            region: 'us-east-1',
+            controlPlaneInstanceType: 'm5.xlarge',
+            workerInstanceType: 'm5.2xlarge',
+            zones: ['us-east-1a', 'us-east-1b', 'us-east-1c']
+          }
         }
       };
       const summary = buildPlatformSummary(state);

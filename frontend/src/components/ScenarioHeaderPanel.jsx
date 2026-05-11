@@ -52,7 +52,7 @@ export default function ScenarioHeaderPanel({ state }) {
   );
 
   const networkingSummary = useMemo(() =>
-    confirmedTabs.includes('networking') ? buildNetworkingSummary(state) : null,
+    confirmedTabs.includes('networking-v2') ? buildNetworkingSummary(state) : null,
     [state, confirmedTabs]
   );
 
@@ -72,7 +72,7 @@ export default function ScenarioHeaderPanel({ state }) {
   );
 
   const hostInventorySummary = useMemo(() =>
-    confirmedTabs.includes('host-inventory') ? buildHostInventorySummary(state) : null,
+    confirmedTabs.includes('hosts-inventory') || confirmedTabs.includes('platform-specifics') ? buildHostInventorySummary(state) : null,
     [state, confirmedTabs]
   );
 
@@ -130,82 +130,84 @@ export default function ScenarioHeaderPanel({ state }) {
             <>
               <dt>Configuration Summary</dt>
               <dd>
-                {identitySummary ? (
-                  <div className="scenario-summary-section">
-                    <strong>Identity &amp; Security</strong>
-                    <ul className="list-inline">
-                      {identitySummary.map((item, idx) => (
-                        <li key={idx}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                <div className="scenario-summary-scroll-container">
+                  {identitySummary ? (
+                    <div className="scenario-summary-section">
+                      <strong>Identity &amp; Security</strong>
+                      <ul className="list-inline">
+                        {identitySummary.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {networkingSummary ? (
-                  <div className="scenario-summary-section">
-                    <strong>Networking</strong>
-                    <ul className="list-inline">
-                      {networkingSummary.map((item, idx) => (
-                        <li key={idx}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                  {networkingSummary ? (
+                    <div className="scenario-summary-section">
+                      <strong>Networking</strong>
+                      <ul className="list-inline">
+                        {networkingSummary.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {connectivitySummary ? (
-                  <div className="scenario-summary-section">
-                    <strong>Connectivity &amp; Mirroring</strong>
-                    <ul className="list-inline">
-                      {connectivitySummary.map((item, idx) => (
-                        <li key={idx}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                  {connectivitySummary ? (
+                    <div className="scenario-summary-section">
+                      <strong>Connectivity &amp; Mirroring</strong>
+                      <ul className="list-inline">
+                        {connectivitySummary.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {trustProxySummary ? (
-                  <div className="scenario-summary-section">
-                    <strong>Trust &amp; Proxy</strong>
-                    <ul className="list-inline">
-                      {trustProxySummary.map((item, idx) => (
-                        <li key={idx}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                  {trustProxySummary ? (
+                    <div className="scenario-summary-section">
+                      <strong>Trust &amp; Proxy</strong>
+                      <ul className="list-inline">
+                        {trustProxySummary.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {platformSummary ? (
-                  <div className="scenario-summary-section">
-                    <strong>Platform Configuration</strong>
-                    <ul className="list-inline">
-                      {platformSummary.map((item, idx) => (
-                        <li key={idx}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                  {platformSummary ? (
+                    <div className="scenario-summary-section">
+                      <strong>Platform Configuration</strong>
+                      <ul className="list-inline">
+                        {platformSummary.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {hostInventorySummary ? (
-                  <div className="scenario-summary-section">
-                    <strong>Hosts &amp; Inventory</strong>
-                    <ul className="list-inline">
-                      {hostInventorySummary.map((item, idx) => (
-                        <li key={idx}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                  {hostInventorySummary ? (
+                    <div className="scenario-summary-section">
+                      <strong>Hosts &amp; Inventory</strong>
+                      <ul className="list-inline">
+                        {hostInventorySummary.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {operatorsSummary ? (
-                  <div className="scenario-summary-section">
-                    <strong>Operators</strong>
-                    <ul className="list-inline">
-                      {operatorsSummary.map((item, idx) => (
-                        <li key={idx}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                  {operatorsSummary ? (
+                    <div className="scenario-summary-section">
+                      <strong>Operators</strong>
+                      <ul className="list-inline">
+                        {operatorsSummary.map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
               </dd>
             </>
           ) : null}

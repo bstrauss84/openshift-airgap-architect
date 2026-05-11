@@ -56,7 +56,7 @@ const ensureInstaller = async (version) => {
   const tarPath = path.join(toolsDir, `openshift-install-${version}.tar.gz`);
   const url = `https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${version}/openshift-install-linux.tar.gz`;
   await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
-  await runCmd("tar", ["-xzf", tarPath, "-C", toolsDir, "--no-absolute-filenames"]);
+  await runCmd("tar", ["-xzf", tarPath, "-C", toolsDir]);
   const extracted = path.join(toolsDir, "openshift-install");
   if (!fs.existsSync(extracted)) {
     throw new Error("openshift-install binary not found after extraction.");

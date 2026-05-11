@@ -4193,6 +4193,43 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
 }
 
 /* Scenario summary configuration sections (DOC-058) */
+.scenario-summary-scroll-container {
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-right: -0.5rem;
+}
+
+.scenario-summary-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scenario-summary-scroll-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.scenario-summary-scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.scenario-summary-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+body[data-theme="dark"] .scenario-summary-scroll-container::-webkit-scrollbar-track {
+  background: #334155;
+}
+
+body[data-theme="dark"] .scenario-summary-scroll-container::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+body[data-theme="dark"] .scenario-summary-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 .scenario-summary-section {
   margin-top: 0.75rem;
 }

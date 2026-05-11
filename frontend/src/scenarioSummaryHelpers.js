@@ -49,11 +49,11 @@ export function getConfirmedTabs(state) {
     'blueprint',
     'methodology',
     'identity-access',
-    'networking',
+    'networking-v2',
     'connectivity-mirroring',
     'trust-proxy',
     'platform-specifics',
-    'host-inventory',
+    'hosts-inventory',
     'operators'
   ];
 
@@ -309,26 +309,29 @@ export function buildPlatformSummary(state) {
 
   // AWS
   if (platform === 'AWS' || platform === 'AWS GovCloud') {
-    const platformConfig = state.platformConfig;
-    if (platformConfig?.region) {
-      items.push(`Region: ${platformConfig.region}`);
+    const awsConfig = state.platformConfig?.aws;
+    if (awsConfig?.region) {
+      items.push(`Region: ${awsConfig.region}`);
     }
 
     // Instance types (show if specified)
-    if (platformConfig?.defaultMachinePlatform?.type) {
-      items.push(`Default instance type: ${platformConfig.defaultMachinePlatform.type}`);
+    if (awsConfig?.controlPlaneInstanceType) {
+      items.push(`Control plane instance type: ${awsConfig.controlPlaneInstanceType}`);
     }
-    if (platformConfig?.controlPlane?.type) {
-      items.push(`Control plane instance type: ${platformConfig.controlPlane.type}`);
-    }
-    if (platformConfig?.compute?.type) {
-      items.push(`Worker instance type: ${platformConfig.compute.type}`);
+    if (awsConfig?.workerInstanceType) {
+      items.push(`Worker instance type: ${awsConfig.workerInstanceType}`);
     }
 
-    // Availability zones
-    const zones = platformConfig?.zones;
+    // Availability zones (if specified via subnets or zones)
+    const zones = awsConfig?.zones;
     if (zones && zones.length > 0) {
       items.push(`Availability zones: ${zones.join(', ')}`);
+    }
+
+    // VPC mode
+    const vpcMode = awsConfig?.vpcMode || 'installer-managed';
+    if (vpcMode === 'existing') {
+      items.push(`VPC mode: Existing VPC/subnets`);
     }
   }
 
@@ -351,8 +354,18 @@ export function buildPlatformSummary(state) {
 
   // IBM Cloud
   if (platform === 'IBM Cloud') {
-    if (state.platformSpecifics?.region) {
-      items.push(`Region: ${state.platformSpecifics.region}`);
+    const ibmConfig = state.platformConfig?.ibmcloud;
+    if (ibmConfig?.region) {
+      items.push(`Region: ${ibmConfig.region}`);
+    }
+    if (ibmConfig?.resourceGroupName) {
+      items.push(`Resource group: ${ibmConfig.resourceGroupName}`);
+    }
+    if (ibmConfig?.vpcName) {
+      items.push(`VPC: ${ibmConfig.vpcName}`);
+    }
+    if (ibmConfig?.type) {
+      items.push(`Instance type: ${ibmConfig.type}`);
     }
   }
 
