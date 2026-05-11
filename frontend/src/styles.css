@@ -1095,9 +1095,10 @@ body[data-theme="dark"] .sticky-panel {
 }
 
 .proxy-fields-grid {
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem 1.25rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
   align-items: start;
+  max-width: 875px;
 }
 
 .proxy-fields-grid .proxy-field-cell {
@@ -1111,17 +1112,7 @@ body[data-theme="dark"] .sticky-panel {
   gap: 4px;
 }
 
-@media (max-width: 900px) {
-  .proxy-fields-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 720px) {
-  .proxy-fields-grid {
-    grid-template-columns: 1fr;
-  }
-}
+/* Proxy fields are now single-column at all breakpoints for readability */
 
 .proxy-field-input {
   min-width: 0;
