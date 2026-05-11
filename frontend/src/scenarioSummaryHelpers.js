@@ -13,6 +13,7 @@
  */
 
 import { validateStep } from "./validation.js";
+import { getScenarioId } from "./hostInventoryV2Helpers.js";
 
 /**
  * Check if a tab is confirmed and clean (safe to include in summary).
@@ -257,7 +258,7 @@ export function buildPlatformSummary(state) {
   const items = [];
 
   // vSphere
-  if (platform === 'vsphere') {
+  if (platform === 'VMware vSphere') {
     if (state.platformSpecifics?.vcenter) {
       items.push(`vCenter: ${state.platformSpecifics.vcenter}`);
     }
@@ -273,7 +274,7 @@ export function buildPlatformSummary(state) {
   }
 
   // AWS
-  if (platform === 'aws' || platform === 'aws-government') {
+  if (platform === 'AWS' || platform === 'AWS GovCloud') {
     if (state.platformSpecifics?.region) {
       items.push(`Region: ${state.platformSpecifics.region}`);
     }
@@ -283,7 +284,7 @@ export function buildPlatformSummary(state) {
   }
 
   // Azure
-  if (platform === 'azure' || platform === 'azure-government') {
+  if (platform === 'Azure' || platform === 'Azure Government') {
     if (state.platformSpecifics?.region) {
       items.push(`Region: ${state.platformSpecifics.region}`);
     }
@@ -293,14 +294,14 @@ export function buildPlatformSummary(state) {
   }
 
   // IBM Cloud
-  if (platform === 'ibmcloud') {
+  if (platform === 'IBM Cloud') {
     if (state.platformSpecifics?.region) {
       items.push(`Region: ${state.platformSpecifics.region}`);
     }
   }
 
   // Nutanix
-  if (platform === 'nutanix') {
+  if (platform === 'Nutanix') {
     if (state.platformSpecifics?.prismCentral) {
       items.push(`Prism Central: ${state.platformSpecifics.prismCentral}`);
     }
@@ -376,8 +377,10 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
   const docs = [];
 
   // Base scenario docs (always include)
-  const scenarioId = getScenarioId(state);
-  if (docsIndex?.scenarios?.[scenarioId]?.docs) {
+  const platform = state.blueprint?.platform;
+  const method = state.methodology?.method;
+  const scenarioId = getScenarioId(platform, method);
+  if (scenarioId && docsIndex?.scenarios?.[scenarioId]?.docs) {
     docs.push(...docsIndex.scenarios[scenarioId].docs);
   }
 
@@ -451,15 +454,6 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
 
   // Deduplicate by URL
   return deduplicateByUrl(docs);
-}
-
-/**
- * Get scenario ID from state.
- */
-function getScenarioId(state) {
-  const platform = state.blueprint?.platform || '';
-  const method = state.methodology?.method || '';
-  return `${platform}-${method}`;
 }
 
 /**

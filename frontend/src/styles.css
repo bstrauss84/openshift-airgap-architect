@@ -4198,7 +4198,7 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
 }
 
 .scenario-summary-section:first-child {
-  margin-top: 0;
+  margin-top: 0.5rem; /* Add breathing room after "Configuration Summary" label */
 }
 
 .scenario-summary-section strong {

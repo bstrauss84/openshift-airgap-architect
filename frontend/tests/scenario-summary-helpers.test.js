@@ -9,7 +9,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   isTabConfirmed,
   getConfirmedTabs,
@@ -22,6 +22,15 @@ import {
   buildOperatorsSummary,
   buildDocumentationSources
 } from '../src/scenarioSummaryHelpers.js';
+
+// Mock getScenarioId to avoid importing the whole helper
+vi.mock('../src/hostInventoryV2Helpers.js', () => ({
+  getScenarioId: (platform, method) => {
+    if (platform === 'VMware vSphere' && method === 'IPI') return 'vsphere-ipi';
+    if (platform === 'Bare Metal' && method === 'Agent-Based Installer') return 'bare-metal-agent';
+    return null;
+  }
+}));
 
 describe('Scenario Summary Helpers', () => {
   describe('isTabConfirmed', () => {
@@ -318,7 +327,7 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes vSphere details', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
+        blueprint: { platform: 'VMware vSphere' },
         platformSpecifics: {
           vcenter: 'vcenter.corp.local',
           datacenter: 'DC1',
@@ -335,7 +344,7 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes AWS details', () => {
       const state = {
-        blueprint: { platform: 'aws' },
+        blueprint: { platform: 'AWS' },
         platformSpecifics: {
           region: 'us-east-1',
           instanceType: 'm5.xlarge'
@@ -348,7 +357,7 @@ describe('Scenario Summary Helpers', () => {
 
     it('NEVER includes vCenter passwords', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
+        blueprint: { platform: 'VMware vSphere' },
         platformSpecifics: {
           vcenter: 'vcenter.corp.local'
         },
@@ -416,15 +425,15 @@ describe('Scenario Summary Helpers', () => {
 
   describe('buildDocumentationSources', () => {
     it('returns empty array when no docs index', () => {
-      const state = { blueprint: { platform: 'vsphere' }, methodology: { method: 'ipi' } };
+      const state = { blueprint: { platform: 'VMware vSphere' }, methodology: { method: 'IPI' } };
       const docs = buildDocumentationSources(state, [], null);
       expect(docs).toEqual([]);
     });
 
     it('includes base scenario docs', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
-        methodology: { method: 'ipi' }
+        blueprint: { platform: 'VMware vSphere' },
+        methodology: { method: 'IPI' }
       };
       const docsIndex = {
         scenarios: {
@@ -442,8 +451,8 @@ describe('Scenario Summary Helpers', () => {
 
     it('adds FIPS doc when FIPS enabled and identity-access confirmed', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
-        methodology: { method: 'ipi' },
+        blueprint: { platform: 'VMware vSphere' },
+        methodology: { method: 'IPI' },
         credentials: { fipsMode: true }
       };
       const docs = buildDocumentationSources(state, ['identity-access'], {});
@@ -453,8 +462,8 @@ describe('Scenario Summary Helpers', () => {
 
     it('adds dual-stack doc when dual-stack configured and networking confirmed', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
-        methodology: { method: 'ipi' },
+        blueprint: { platform: 'VMware vSphere' },
+        methodology: { method: 'IPI' },
         networking: {
           clusterNetwork: '10.128.0.0/14',
           clusterNetworkV6: 'fd01::/48'
@@ -467,8 +476,8 @@ describe('Scenario Summary Helpers', () => {
 
     it('adds mirror registry doc when mirror registry used and connectivity confirmed', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
-        methodology: { method: 'ipi' },
+        blueprint: { platform: 'VMware vSphere' },
+        methodology: { method: 'IPI' },
         mirroring: { useMirrorRegistry: true }
       };
       const docs = buildDocumentationSources(state, ['connectivity-mirroring'], {});
@@ -478,8 +487,8 @@ describe('Scenario Summary Helpers', () => {
 
     it('adds proxy doc when proxy enabled and trust-proxy confirmed', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
-        methodology: { method: 'ipi' },
+        blueprint: { platform: 'VMware vSphere' },
+        methodology: { method: 'IPI' },
         strategy: { proxyEnabled: true }
       };
       const docs = buildDocumentationSources(state, ['trust-proxy'], {});
@@ -489,8 +498,8 @@ describe('Scenario Summary Helpers', () => {
 
     it('deduplicates docs by URL', () => {
       const state = {
-        blueprint: { platform: 'vsphere' },
-        methodology: { method: 'ipi' }
+        blueprint: { platform: 'VMware vSphere' },
+        methodology: { method: 'IPI' }
       };
       const docsIndex = {
         scenarios: {
