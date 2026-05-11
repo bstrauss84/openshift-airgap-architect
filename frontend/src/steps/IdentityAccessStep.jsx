@@ -482,7 +482,7 @@ Click the button below to open a helper that creates the pull secret JSON from:
 podman login registry.corp.local:5000
 cat ~/.docker/config.json
 # or
-cat ${XDG_RUNTIME_DIR}/containers/auth.json
+cat \${XDG_RUNTIME_DIR}/containers/auth.json
 \`\`\`
 
 **Option 3: Manual base64 encoding**
