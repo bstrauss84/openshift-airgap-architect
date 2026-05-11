@@ -42,7 +42,8 @@ const scenarios = [
   {
     id: "compliance",
     label: "Compliance and Security",
-    picks: { redhat: ["compliance-operator", "file-integrity-operator", "container-security-operator"] }
+    description: "File integrity monitoring (AIDE) and compliance scanning",
+    picks: { redhat: ["compliance-operator", "file-integrity-operator"] }
   },
   {
     id: "disconnected",
@@ -114,15 +115,15 @@ const scenarios = [
   {
     id: "platform-plus",
     label: "OpenShift Platform Plus",
-    description: "Multi-cluster management (ACM), security (ACS), registry (Quay), and storage (ODF base stack)",
+    description: "Multi-cluster management (ACM + MCE), security (ACS), registry (Quay), and storage (ODF base stack)",
     versionPicks: {
-      "4.16": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
-      "4.17": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
-      "4.18": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.19": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.20": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "4.21": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "default": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
+      "4.16": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
+      "4.17": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
+      "4.18": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.19": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.20": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "4.21": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "default": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
     }
   },
   {
@@ -162,6 +163,24 @@ const scenarios = [
     label: "Cost Management",
     description: "Cluster cost tracking and resource usage metrics",
     picks: { redhat: ["costmanagement-metrics-operator"] }
+  },
+  {
+    id: "quay",
+    label: "Red Hat Quay",
+    description: "Enterprise container registry with enhanced RBAC",
+    picks: { redhat: ["quay-operator"] }
+  },
+  {
+    id: "quay-bridge",
+    label: "Quay + OpenShift Integration",
+    description: "Quay as default OpenShift registry with namespace sync and ImageStream mirroring",
+    picks: { redhat: ["quay-operator", "quay-bridge-operator"] }
+  },
+  {
+    id: "trusted-supply-chain",
+    label: "Trusted Software Supply Chain",
+    description: "Artifact signing (RHTAS) and SBOM analysis (RHTPA) - requires OpenShift 4.16+",
+    picks: { redhat: ["trusted-artifact-signer", "trusted-profile-analyzer-operator"] }
   }
 ];
 
