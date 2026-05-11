@@ -212,12 +212,13 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   }, [blocked, hasWarnings]);
 
   const refresh = async () => {
+    // Set block reason if validation errors exist, but continue generating preview
     if (blocked) {
-      setBlockReason("Outputs are blocked until version is confirmed and required fields are valid.");
-      return;
+      setBlockReason("⚠️ Configuration incomplete: Review validation errors and complete required fields before exporting.");
+    } else {
+      setBlockReason("");
     }
     setGenerateError("");
-    setBlockReason("");
     setLoading(true);
     try {
       const includeCreds = exportOptions.includeCredentials;
@@ -242,9 +243,8 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   };
 
   useEffect(() => {
-    if (!blocked) {
-      refresh().catch(() => {});
-    }
+    // Always refresh, even when blocked - show incomplete preview with warnings
+    refresh().catch(() => {});
   }, [state.release?.patchVersion, state.operators?.selected?.length, blocked, exportOptions.includeCredentials]);
 
   const downloadAll = async () => {
