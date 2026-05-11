@@ -573,7 +573,7 @@ export default function TrustProxyStep({ highlightErrors }) {
           </div>
           {strategy.proxyEnabled ? (
             <div className="card-body" style={{ paddingTop: 0 }}>
-              <div className="field-grid proxy-fields-grid">
+              <div className="proxy-fields-grid">
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
                     label={`HTTP Proxy ${metaHttpProxy?.required ? "" : "(optional)"}`}
