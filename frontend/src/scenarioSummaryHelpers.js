@@ -89,11 +89,19 @@ export function buildIdentitySummary(state) {
 /**
  * Determine pull secret source (Red Hat, Mirror registry, or both).
  * NEVER includes actual pull secret content.
+ * Respects credentials.usingMirrorRegistry flag to determine primary source.
  */
 function getPullSecretSource(state) {
+  const usingMirror = Boolean(state.credentials?.usingMirrorRegistry);
   const hasRedHat = Boolean(state.blueprint?.blueprintPullSecretEphemeral || state.credentials?.pullSecretPlaceholder);
   const hasMirror = Boolean(state.credentials?.mirrorRegistryPullSecret);
 
+  // If explicitly using mirror registry, show that as primary
+  if (usingMirror && hasMirror) {
+    return hasRedHat ? 'Mirror registry + Red Hat' : 'Mirror registry';
+  }
+
+  // Otherwise, traditional logic
   if (hasRedHat && hasMirror) return 'Red Hat + Mirror registry';
   if (hasRedHat) return 'Red Hat';
   if (hasMirror) return 'Mirror registry';
@@ -103,9 +111,13 @@ function getPullSecretSource(state) {
 /**
  * Build Networking summary section.
  * Only call if networking tab is confirmed.
+ * Networking data is in globalStrategy.networking, NOT state.networking!
  */
 export function buildNetworkingSummary(state) {
-  if (!state?.networking) return null;
+  const networking = state?.globalStrategy?.networking;
+  const hostInventory = state?.hostInventory;
+
+  if (!networking && !hostInventory) return null;
 
   const items = [];
 
@@ -115,29 +127,36 @@ export function buildNetworkingSummary(state) {
     items.push(`Topology: ${topology}`);
   }
 
-  // Cluster network CIDR
-  if (state.networking.clusterNetwork) {
-    items.push(`Cluster network: ${state.networking.clusterNetwork}`);
+  // Machine network CIDR (V4)
+  if (networking?.machineNetworkV4) {
+    items.push(`Machine network: ${networking.machineNetworkV4}`);
   }
 
-  // Service network CIDR
-  if (state.networking.serviceNetwork) {
-    items.push(`Service network: ${state.networking.serviceNetwork}`);
+  // Cluster network CIDR (V4)
+  if (networking?.clusterNetworkCidr) {
+    items.push(`Cluster network: ${networking.clusterNetworkCidr}`);
   }
 
-  // Machine network CIDR (if specified)
-  if (state.networking.machineNetwork) {
-    items.push(`Machine network: ${state.networking.machineNetwork}`);
+  // Service network CIDR (V4)
+  if (networking?.serviceNetworkCidr) {
+    items.push(`Service network: ${networking.serviceNetworkCidr}`);
   }
 
-  // API VIP
-  if (state.networking.apiVip) {
-    items.push(`API VIP: ${state.networking.apiVip}`);
+  // Machine network V6 (if dual-stack)
+  if (networking?.machineNetworkV6) {
+    items.push(`Machine network (IPv6): ${networking.machineNetworkV6}`);
   }
 
-  // Ingress VIP
-  if (state.networking.ingressVip) {
-    items.push(`Ingress VIP: ${state.networking.ingressVip}`);
+  // API VIP (from hostInventory, not networking)
+  const apiVip = hostInventory?.apiVip;
+  if (apiVip) {
+    items.push(`API VIP: ${apiVip}`);
+  }
+
+  // Ingress VIP (from hostInventory, not networking)
+  const ingressVip = hostInventory?.ingressVip;
+  if (ingressVip) {
+    items.push(`Ingress VIP: ${ingressVip}`);
   }
 
   return items.length > 0 ? items : null;
@@ -145,13 +164,14 @@ export function buildNetworkingSummary(state) {
 
 /**
  * Determine network topology (Single-stack IPv4, Dual-stack, etc.).
+ * Read from globalStrategy.networking, NOT state.networking!
  */
 function getNetworkTopology(state) {
-  const net = state?.networking;
+  const net = state?.globalStrategy?.networking;
   if (!net) return null;
 
-  const hasV4 = Boolean(net.clusterNetwork || net.machineNetwork);
-  const hasV6 = Boolean(net.clusterNetworkV6 || net.machineNetworkV6);
+  const hasV4 = Boolean(net.clusterNetworkCidr || net.machineNetworkV4);
+  const hasV6 = Boolean(net.clusterNetworkCidrV6 || net.machineNetworkV6);
 
   if (hasV4 && hasV6) return 'Dual-stack (IPv4 + IPv6)';
   if (hasV6) return 'Single-stack IPv6';
@@ -289,21 +309,43 @@ export function buildPlatformSummary(state) {
 
   // AWS
   if (platform === 'AWS' || platform === 'AWS GovCloud') {
-    if (state.platformSpecifics?.region) {
-      items.push(`Region: ${state.platformSpecifics.region}`);
+    const platformConfig = state.platformConfig;
+    if (platformConfig?.region) {
+      items.push(`Region: ${platformConfig.region}`);
     }
-    if (state.platformSpecifics?.instanceType) {
-      items.push(`Instance type: ${state.platformSpecifics.instanceType}`);
+
+    // Instance types (show if specified)
+    if (platformConfig?.defaultMachinePlatform?.type) {
+      items.push(`Default instance type: ${platformConfig.defaultMachinePlatform.type}`);
+    }
+    if (platformConfig?.controlPlane?.type) {
+      items.push(`Control plane instance type: ${platformConfig.controlPlane.type}`);
+    }
+    if (platformConfig?.compute?.type) {
+      items.push(`Worker instance type: ${platformConfig.compute.type}`);
+    }
+
+    // Availability zones
+    const zones = platformConfig?.zones;
+    if (zones && zones.length > 0) {
+      items.push(`Availability zones: ${zones.join(', ')}`);
     }
   }
 
   // Azure
   if (platform === 'Azure' || platform === 'Azure Government') {
-    if (state.platformSpecifics?.region) {
-      items.push(`Region: ${state.platformSpecifics.region}`);
+    const platformConfig = state.platformConfig?.azure || state.platformConfig;
+    if (platformConfig?.cloudName) {
+      items.push(`Cloud: ${platformConfig.cloudName}`);
     }
-    if (state.platformSpecifics?.resourceGroupName) {
-      items.push(`Resource group: ${state.platformSpecifics.resourceGroupName}`);
+    if (platformConfig?.region) {
+      items.push(`Region: ${platformConfig.region}`);
+    }
+    if (platformConfig?.resourceGroupName) {
+      items.push(`Resource group: ${platformConfig.resourceGroupName}`);
+    }
+    if (platformConfig?.baseDomainResourceGroupName) {
+      items.push(`Base domain RG: ${platformConfig.baseDomainResourceGroupName}`);
     }
   }
 
@@ -328,22 +370,41 @@ export function buildPlatformSummary(state) {
 }
 
 /**
- * Build Host Inventory summary section.
- * Only call if host-inventory tab is confirmed.
+ * Build Host Inventory / Node Count summary section.
+ * Handles both host inventory (Agent-based) and platform config replicas (IPI).
+ * Only call if host-inventory or platform-specifics tab is confirmed.
  */
 export function buildHostInventorySummary(state) {
-  const inventory = state.inventory;
-  if (!inventory?.nodes || inventory.nodes.length === 0) return null;
-
   const items = [];
 
-  const total = inventory.nodes.length;
-  const controlPlane = inventory.nodes.filter(n => n.role === 'master').length;
-  const workers = inventory.nodes.filter(n => n.role === 'worker').length;
+  // Check for agent-based inventory (bare metal, vsphere agent)
+  const hostInventory = state.hostInventory;
+  if (hostInventory?.nodes && hostInventory.nodes.length > 0) {
+    const total = hostInventory.nodes.length;
+    const controlPlane = hostInventory.nodes.filter(n => n.role === 'master').length;
+    const workers = hostInventory.nodes.filter(n => n.role === 'worker').length;
 
-  items.push(`Total nodes: ${total} (${controlPlane} control plane, ${workers} workers)`);
+    items.push(`Total nodes: ${total} (${controlPlane} control plane, ${workers} worker${workers !== 1 ? 's' : ''})`);
+    return items.length > 0 ? items : null;
+  }
 
-  return items.length > 0 ? items : null;
+  // Check for IPI-style replica counts (AWS, Azure, etc.)
+  const platformConfig = state.platformConfig;
+  if (platformConfig) {
+    const controlPlaneReplicas = platformConfig.controlPlaneReplicas;
+    const computeReplicas = platformConfig.computeReplicas;
+
+    if (controlPlaneReplicas !== undefined || computeReplicas !== undefined) {
+      const cp = controlPlaneReplicas ?? 3;
+      const workers = computeReplicas ?? 0;
+      const total = cp + workers;
+
+      items.push(`Total nodes: ${total} (${cp} control plane, ${workers} worker${workers !== 1 ? 's' : ''})`);
+      return items.length > 0 ? items : null;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -410,7 +471,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     }
   }
 
-  if (confirmedTabs.includes('networking')) {
+  if (confirmedTabs.includes('networking') || confirmedTabs.includes('networking-v2')) {
     // Dual-stack networking
     if (isDualStack(state)) {
       docs.push({
@@ -481,13 +542,14 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
 
 /**
  * Check if dual-stack networking is configured.
+ * Read from globalStrategy.networking!
  */
 function isDualStack(state) {
-  const net = state?.networking;
+  const net = state?.globalStrategy?.networking;
   if (!net) return false;
 
-  const hasV4 = Boolean(net.clusterNetwork || net.machineNetwork);
-  const hasV6 = Boolean(net.clusterNetworkV6 || net.machineNetworkV6);
+  const hasV4 = Boolean(net.clusterNetworkCidr || net.machineNetworkV4);
+  const hasV6 = Boolean(net.clusterNetworkCidrV6 || net.machineNetworkV6);
 
   return hasV4 && hasV6;
 }

@@ -185,8 +185,10 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes network topology for single-stack IPv4', () => {
       const state = {
-        networking: {
-          clusterNetwork: '10.128.0.0/14'
+        globalStrategy: {
+          networking: {
+            clusterNetworkCidr: '10.128.0.0/14'
+          }
         }
       };
       const summary = buildNetworkingSummary(state);
@@ -195,9 +197,11 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes network topology for dual-stack', () => {
       const state = {
-        networking: {
-          clusterNetwork: '10.128.0.0/14',
-          clusterNetworkV6: 'fd01::/48'
+        globalStrategy: {
+          networking: {
+            clusterNetworkCidr: '10.128.0.0/14',
+            clusterNetworkCidrV6: 'fd01::/48'
+          }
         }
       };
       const summary = buildNetworkingSummary(state);
@@ -206,9 +210,11 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes cluster and service network CIDRs', () => {
       const state = {
-        networking: {
-          clusterNetwork: '10.128.0.0/14',
-          serviceNetwork: '172.30.0.0/16'
+        globalStrategy: {
+          networking: {
+            clusterNetworkCidr: '10.128.0.0/14',
+            serviceNetworkCidr: '172.30.0.0/16'
+          }
         }
       };
       const summary = buildNetworkingSummary(state);
@@ -218,7 +224,7 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes VIPs when configured', () => {
       const state = {
-        networking: {
+        hostInventory: {
           apiVip: '192.168.1.100',
           ingressVip: '192.168.1.101'
         }
@@ -349,17 +355,21 @@ describe('Scenario Summary Helpers', () => {
       expect(summary).toContain('Datastore: vsanDatastore');
     });
 
-    it('includes AWS details', () => {
+    it('includes AWS details with instance types', () => {
       const state = {
         blueprint: { platform: 'AWS' },
-        platformSpecifics: {
+        platformConfig: {
           region: 'us-east-1',
-          instanceType: 'm5.xlarge'
+          controlPlane: { type: 'm5.xlarge' },
+          compute: { type: 'm5.2xlarge' },
+          zones: ['us-east-1a', 'us-east-1b', 'us-east-1c']
         }
       };
       const summary = buildPlatformSummary(state);
       expect(summary).toContain('Region: us-east-1');
-      expect(summary).toContain('Instance type: m5.xlarge');
+      expect(summary).toContain('Control plane instance type: m5.xlarge');
+      expect(summary).toContain('Worker instance type: m5.2xlarge');
+      expect(summary).toContain('Availability zones: us-east-1a, us-east-1b, us-east-1c');
     });
 
     it('NEVER includes vCenter passwords', () => {
@@ -388,9 +398,9 @@ describe('Scenario Summary Helpers', () => {
       expect(buildHostInventorySummary(state)).toBeNull();
     });
 
-    it('includes node counts by role', () => {
+    it('includes node counts by role for agent-based inventory', () => {
       const state = {
-        inventory: {
+        hostInventory: {
           nodes: [
             { hostname: 'master1', role: 'master' },
             { hostname: 'master2', role: 'master' },
@@ -402,6 +412,17 @@ describe('Scenario Summary Helpers', () => {
       };
       const summary = buildHostInventorySummary(state);
       expect(summary).toContain('Total nodes: 5 (3 control plane, 2 workers)');
+    });
+
+    it('includes node counts from platform config replicas (IPI)', () => {
+      const state = {
+        platformConfig: {
+          controlPlaneReplicas: 3,
+          computeReplicas: 5
+        }
+      };
+      const summary = buildHostInventorySummary(state);
+      expect(summary).toContain('Total nodes: 8 (3 control plane, 5 workers)');
     });
   });
 
@@ -471,12 +492,14 @@ describe('Scenario Summary Helpers', () => {
       const state = {
         blueprint: { platform: 'VMware vSphere' },
         methodology: { method: 'IPI' },
-        networking: {
-          clusterNetwork: '10.128.0.0/14',
-          clusterNetworkV6: 'fd01::/48'
+        globalStrategy: {
+          networking: {
+            clusterNetworkCidr: '10.128.0.0/14',
+            clusterNetworkCidrV6: 'fd01::/48'
+          }
         }
       };
-      const docs = buildDocumentationSources(state, ['networking'], {});
+      const docs = buildDocumentationSources(state, ['networking-v2'], {});
       const dualStackDoc = docs.find(d => d.title === 'Configuring dual-stack networking');
       expect(dualStackDoc).toBeDefined();
     });
