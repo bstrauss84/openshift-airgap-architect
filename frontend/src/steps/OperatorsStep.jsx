@@ -42,7 +42,7 @@ const scenarios = [
   {
     id: "compliance",
     label: "Compliance and Security",
-    picks: { redhat: ["compliance-operator", "container-security-operator"] }
+    picks: { redhat: ["compliance-operator", "file-integrity-operator", "container-security-operator"] }
   },
   {
     id: "disconnected",
@@ -52,12 +52,12 @@ const scenarios = [
   {
     id: "qol",
     label: "Quality of Life",
-    picks: { redhat: ["web-terminal", "devspaces"] }
+    picks: { redhat: ["web-terminal", "devspaces", "rhdh-operator"] }
   },
   {
     id: "node-health",
     label: "Node Health and Maintenance",
-    picks: { redhat: ["self-node-remediation", "node-healthcheck-operator", "node-maintenance-operator", "node-observability-operator"] }
+    picks: { redhat: ["self-node-remediation", "fence-agents-remediation", "node-healthcheck-operator", "node-maintenance-operator", "node-observability-operator"] }
   },
   {
     id: "gitops",
@@ -132,6 +132,36 @@ const scenarios = [
     versionPicks: {
       "default": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] }
     }
+  },
+  {
+    id: "logging",
+    label: "Logging Stack",
+    description: "Cluster logging with Loki log aggregation (Elasticsearch deprecated in 5.x+)",
+    picks: { redhat: ["cluster-logging", "loki-operator"] }
+  },
+  {
+    id: "service-mesh",
+    label: "Service Mesh",
+    description: "Istio-based service mesh with Kiali observability and Jaeger distributed tracing",
+    picks: { redhat: ["servicemeshoperator", "kiali-ossm", "jaeger-product"] }
+  },
+  {
+    id: "serverless",
+    label: "Serverless",
+    description: "Knative-based serverless workloads (Serving and Eventing)",
+    picks: { redhat: ["serverless-operator"] }
+  },
+  {
+    id: "network-observability",
+    label: "Network Observability",
+    description: "eBPF-based network traffic monitoring and analysis",
+    picks: { redhat: ["netobserv-operator"] }
+  },
+  {
+    id: "cost-management",
+    label: "Cost Management",
+    description: "Cluster cost tracking and resource usage metrics",
+    picks: { redhat: ["costmanagement-metrics-operator"] }
   }
 ];
 
