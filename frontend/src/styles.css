@@ -2514,6 +2514,7 @@ body[data-theme="dark"] .pull-secret-placeholder {
 .pull-secret-upload-wrap {
   display: flex;
   justify-content: flex-start;
+  gap: 8px;
   margin-top: 8px;
 }
 

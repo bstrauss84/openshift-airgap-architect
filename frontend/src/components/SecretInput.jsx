@@ -37,7 +37,8 @@ function SecretInput({
   rows = 8,
   required,
   "aria-label": ariaLabel,
-  id: idProp
+  id: idProp,
+  additionalButtons // Additional buttons to show alongside "Upload file"
 }) {
   const [showSecret, setShowSecret] = useState(false);
   const fileRef = useRef(null);
@@ -178,6 +179,7 @@ function SecretInput({
         >
           Upload file
         </button>
+        {additionalButtons}
       </div>
       {errorMessage ? (
         <div id={`${id}-error`} className="note warning" role="alert" style={{ marginTop: 8 }}>{errorMessage}</div>

@@ -508,23 +508,23 @@ If you selected "Anonymous pulls" above, this field is auto-filled with an OKD-d
                               placeholder='{"auths":{...}}'
                               rows={5}
                               aria-label="Mirror registry pull secret JSON"
+                              additionalButtons={
+                                <button
+                                  type="button"
+                                  className="ghost pull-secret-upload"
+                                  onClick={() => {
+                                    setShowKeygen(false);
+                                    if (mirrorRegistryUnauthenticated) {
+                                      updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: "" });
+                                    }
+                                    setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry }));
+                                    setShowMirrorSecretHelper(true);
+                                  }}
+                                >
+                                  Help me generate
+                                </button>
+                              }
                             />
-                            <div className="actions">
-                              <button
-                                type="button"
-                                className="ghost"
-                                onClick={() => {
-                                  setShowKeygen(false);
-                                  if (mirrorRegistryUnauthenticated) {
-                                    updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: "" });
-                                  }
-                                  setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry }));
-                                  setShowMirrorSecretHelper(true);
-                                }}
-                              >
-                                Help me generate
-                              </button>
-                            </div>
                           </>
                         )}
                       </>
@@ -582,8 +582,8 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJqfh... user@hostname`}
                 />
               </FieldLabelWithInfo>
               {sshKeyInvalid ? <div id="ssh-key-error" className="note warning" role="alert">SSH public key format is invalid.</div> : null}
-              <div className="actions">
-                <button type="button" className="ghost" onClick={openKeygen}>
+              <div className="actions" style={{ marginTop: 8, marginBottom: 0 }}>
+                <button type="button" className="ghost" style={{ padding: "8px 14px", fontSize: "0.875rem", fontWeight: 500 }} onClick={openKeygen}>
                   Generate keypair
                 </button>
               </div>
