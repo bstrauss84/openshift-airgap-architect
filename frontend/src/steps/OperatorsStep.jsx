@@ -254,6 +254,20 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const maxExpandableRows = Math.max(2, actualRowCount);
   const showScrollbar = actualRowCount > selectedGridRows;
 
+  // Auto-expand Scan Status if any scan needs attention
+  const shouldExpandScanStatus = useMemo(() => {
+    const catalogIds = ["redhat", "certified", "community"];
+    const hasJobs = Object.keys(jobs).length > 0;
+
+    if (!hasJobs) return false; // No jobs, stay collapsed
+
+    return catalogIds.some((catalogId) => {
+      const status = jobStatuses[catalogId]?.status;
+      // Expand if status is not "completed" or if job exists but status not loaded
+      return !status || status !== "completed";
+    });
+  }, [jobStatuses, jobs]);
+
   // Resize handle drag handler
   const startResize = (e) => {
     e.preventDefault();
@@ -761,7 +775,7 @@ Enable "Fast mode" below to use cached catalog data from previous scans instead 
             )}
           </CollapsibleSection>
 
-          <CollapsibleSection title="Scan Status" defaultCollapsed={false}>
+          <CollapsibleSection title="Scan Status" defaultCollapsed={!shouldExpandScanStatus}>
               <div className="scan-status-list">
                 {["redhat", "certified", "community"].map((catalogId) => {
                   const status = jobStatuses[catalogId];
