@@ -68,6 +68,42 @@ const scenarios = [
     id: "cicd",
     label: "CI/CD",
     picks: { redhat: ["openshift-pipelines-operator-rh"] }
+  },
+  {
+    id: "odf",
+    label: "OpenShift Data Foundation",
+    description: "Persistent storage with file, block, and object support (Ceph-based)",
+    versionPicks: {
+      "4.16": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.17": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.18": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.19": { redhat: ["odf-operator", "local-storage-operator"] }, // Special case: auto-managed dependencies
+      "4.20": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.21": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "default": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] }
+    }
+  },
+  {
+    id: "platform-plus",
+    label: "OpenShift Platform Plus",
+    description: "Multi-cluster management (ACM), security (ACS), registry (Quay), and storage (ODF)",
+    versionPicks: {
+      "4.16": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.17": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.18": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.19": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "local-storage-operator"] }, // ODF 4.19 special case
+      "4.20": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "4.21": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
+      "default": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] }
+    }
+  },
+  {
+    id: "app-dev-suite",
+    label: "App Development Suite",
+    description: "GitOps, CI/CD pipelines, cloud IDE, and web terminal",
+    versionPicks: {
+      "default": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] }
+    }
   }
 ];
 
@@ -245,7 +281,11 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       const prevSelected = prev.operators?.selected || [];
       const nextSelected = [...prevSelected];
       const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
-      Object.entries(scenario.picks).forEach(([catalogId, names]) => {
+
+      // Get version-specific picks or fall back to static picks
+      const picks = scenario.versionPicks?.[version] || scenario.versionPicks?.["default"] || scenario.picks;
+
+      Object.entries(picks).forEach(([catalogId, names]) => {
         const list = catalogs[catalogId] || [];
         names.forEach((name) => {
           const target = name.toLowerCase();
@@ -703,19 +743,36 @@ Enable "Fast mode" below to use cached catalog data from previous scans instead 
           <h3 className="card-title">Scenario Quick Picks</h3>
           <p className="card-subtitle">One-click presets for common operator sets.</p>
           <div className="scenario-picks">
-            {scenarios.map((scenario) => (
-              <button
-                key={scenario.id}
-                type="button"
-                className={`scenario-pick ${scenarioSelections?.[scenario.id] ? "selected" : ""}`}
-                onClick={() => handleScenarioClick(scenario)}
-                title={!scenarioReady ? "Scenario picks need operator catalogs" : ""}
-                disabled={!scenarioReady}
-              >
-                <span className="scenario-pick-label">{scenario.label}</span>
-                {scenarioSelections?.[scenario.id] ? <span className="scenario-pick-check" aria-hidden>✓</span> : null}
-              </button>
-            ))}
+            {scenarios.map((scenario) => {
+              const isVersionAware = Boolean(scenario.versionPicks);
+              const effectiveVersion = isVersionAware ? (scenario.versionPicks[version] ? version : "default") : null;
+              const titleText = !scenarioReady
+                ? "Scenario picks need operator catalogs"
+                : scenario.description
+                  ? `${scenario.description}${isVersionAware ? ` (${effectiveVersion})` : ""}`
+                  : isVersionAware
+                    ? `Version-aware quick pick (${effectiveVersion})`
+                    : "";
+
+              return (
+                <button
+                  key={scenario.id}
+                  type="button"
+                  className={`scenario-pick ${scenarioSelections?.[scenario.id] ? "selected" : ""}`}
+                  onClick={() => handleScenarioClick(scenario)}
+                  title={titleText}
+                  disabled={!scenarioReady}
+                >
+                  <span className="scenario-pick-label">{scenario.label}</span>
+                  {isVersionAware && effectiveVersion && (
+                    <span className="scenario-pick-version subtle" aria-label={`for OpenShift ${effectiveVersion}`}>
+                      {effectiveVersion}
+                    </span>
+                  )}
+                  {scenarioSelections?.[scenario.id] ? <span className="scenario-pick-check" aria-hidden>✓</span> : null}
+                </button>
+              );
+            })}
           </div>
         </section>
 

@@ -2853,6 +2853,17 @@ body[data-theme="dark"] .scan-status-card {
   font-weight: 700;
 }
 
+.scenario-pick-version {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #3730a3;
+  line-height: 1.2;
+}
+
 body[data-theme="dark"] .scenario-pick {
   background: #334155;
   border-color: #475569;
@@ -2872,6 +2883,11 @@ body[data-theme="dark"] .scenario-pick.selected {
 
 body[data-theme="dark"] .scenario-pick-check {
   color: #93c5fd;
+}
+
+body[data-theme="dark"] .scenario-pick-version {
+  background: #1e3a5f;
+  color: #a5b4fc;
 }
 
 .app-loading {
