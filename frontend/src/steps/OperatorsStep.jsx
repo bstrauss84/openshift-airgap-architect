@@ -645,7 +645,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           </Banner>
         ) : null}
         <div className="sticky-panel">
-          <section className="card">
+          <CollapsibleSection title="Operator Catalog Selection" defaultCollapsed={true}>
             <OptionRow
               title="Enable Operator Discovery"
               description="Use pull secret and scan to populate operator catalogs from Red Hat."
@@ -759,7 +759,7 @@ Enable "Fast mode" below to use cached catalog data from previous scans instead 
                     </div>
               </CollapsibleSection>
             )}
-          </section>
+          </CollapsibleSection>
 
           <CollapsibleSection title="Scan Status" defaultCollapsed={false}>
               <div className="scan-status-list">
