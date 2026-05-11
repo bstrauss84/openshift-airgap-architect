@@ -556,18 +556,27 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       const prevSelected = prev.operators?.selected || [];
       const next = prevSelected.filter((op) => op.id !== id);
       const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
-      const scenarios = { ...(prev.operators?.scenarios || {}) };
+      const scenarioStates = { ...(prev.operators?.scenarios || {}) };
 
       // Check if this operator was added by any scenarios
       const operatorScenarios = Object.keys(scenarioAdded[id] || {});
       operatorScenarios.forEach((scenarioId) => {
-        // Check if all operators from this scenario have been removed
-        const scenarioStillHasOperators = next.some((op) =>
-          op.sources && op.sources.includes(scenarioId)
+        // Find the scenario definition
+        const scenarioDef = scenarios.find((s) => s.id === scenarioId);
+        if (!scenarioDef) return;
+
+        // Get version-aware or static picks
+        const picks = scenarioDef.versionPicks?.[version] || scenarioDef.versionPicks?.["default"] || scenarioDef.picks;
+        const allPickNames = Object.values(picks).flat().map((name) => name.toLowerCase());
+
+        // Check if ALL operators from this scenario are still selected
+        const allOperatorsStillSelected = allPickNames.every((name) =>
+          next.some((op) => op.name?.toLowerCase() === name)
         );
-        // If no operators remain from this scenario, deselect the scenario
-        if (!scenarioStillHasOperators) {
-          delete scenarios[scenarioId];
+
+        // If not all operators are selected, deselect the scenario
+        if (!allOperatorsStillSelected) {
+          delete scenarioStates[scenarioId];
         }
       });
 
@@ -579,7 +588,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         operators: {
           ...prev.operators,
           selected: next,
-          scenarios,
+          scenarios: scenarioStates,
           scenarioAdded,
           version
         }
