@@ -433,6 +433,12 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     });
   };
 
+  const clearAllSelections = () => {
+    setState((prev) => {
+      return { ...prev, operators: { ...prev.operators, selected: [], version } };
+    });
+  };
+
   const warnVersionChange = state.operators?.version && state.operators?.version !== version;
   const keepCurrent = () => {
     updateState({ operators: { ...state.operators, version } });
@@ -715,8 +721,15 @@ Enable "Fast mode" below to use cached catalog data from previous scans instead 
 
         <section className="card">
         <div className="selected-operators-header">
-          <h3>Selected Operators</h3>
-          {selected.length > 0 && <span className="operator-count">({selected.length})</span>}
+          <div className="selected-operators-title">
+            <h3>Selected Operators</h3>
+            {selected.length > 0 && <span className="operator-count">({selected.length})</span>}
+          </div>
+          {selected.length > 0 && (
+            <Button variant="ghost" onClick={clearAllSelections}>
+              Clear selections
+            </Button>
+          )}
         </div>
         <div
           className="selected-grid-wrapper"

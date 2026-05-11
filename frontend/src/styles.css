@@ -2701,8 +2701,15 @@ body[data-theme="dark"] .selected-card .subtle {
 .selected-operators-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.selected-operators-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .selected-operators-header h3 {
