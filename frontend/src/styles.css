@@ -1095,27 +1095,16 @@ body[data-theme="dark"] .sticky-panel {
 }
 
 .proxy-fields-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(400px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem 1.25rem;
   align-items: start;
-  overflow-x: auto;
 }
 
 .proxy-fields-grid .proxy-field-cell {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.proxy-field-cell .field-with-info-row {
-  gap: 4px;
-}
-
-@media (max-width: 1400px) {
-  .proxy-fields-grid {
-    grid-template-columns: repeat(2, minmax(350px, 1fr));
-  }
 }
 
 @media (max-width: 900px) {
