@@ -20,6 +20,7 @@ import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
+import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
 const scenarios = [
   {
@@ -825,7 +826,7 @@ Enable "Fast mode" below to use cached catalog data from previous scans instead 
           </CollapsibleSection>
         </div>
 
-        <CollapsibleSection title="ImageSet options" defaultCollapsed={true}>
+        <CollapsibleSection title="ImageSet options" defaultCollapsed={false}>
           <OptionRow
             title="Include update graph"
             description="Add graph: true under mirror.platform in ImageSetConfiguration. Required for disconnected clusters to determine upgrade paths via the Cincinnati graph (oc-mirror v2)."
@@ -837,15 +838,41 @@ Enable "Fast mode" below to use cached catalog data from previous scans instead 
             />
           </OptionRow>
           <div style={{ marginTop: 12 }}>
-            <label className="label-emphasis" style={{ display: "block", marginBottom: 4 }}>
-              Additional images to mirror (optional)
-            </label>
-            <p className="note subtle" style={{ marginTop: 0, marginBottom: 6 }}>
-              One image reference per line (e.g. quay.io/org/app:tag). Added to mirror.additionalImages in ImageSetConfiguration.
-            </p>
+            <FieldLabelWithInfo
+              label="Additional images to mirror (optional)"
+              hint={`Manually specify additional container images to mirror beyond OpenShift and Operator catalogs.
+
+**What is this:**
+A list of container images to include in the mirror operation. Each image is specified by its full registry path and tag.
+
+**When needed:**
+**Optional** - only needed if you have custom or third-party images to mirror:
+• Internal applications or tools not available in Red Hat catalogs
+• Third-party container images required by your workloads
+• Custom-built images from your development teams
+• Partner applications not available as Operators
+
+**When NOT needed:**
+• You're only mirroring OpenShift platform images
+• You're only using Red Hat Operator catalog images
+• All your workloads use images from Red Hat registries
+
+**Format:**
+One image reference per line in the format: \`registry.example.com/repository/image:tag\`
+
+**How it's used:**
+Added to the \`mirror.additionalImages\` array in the ImageSetConfiguration YAML. oc-mirror will download these images along with platform and operator images, then push them to your disconnected registry during the mirror operation.
+
+**Example:**
+\`\`\`
+quay.io/myorg/app:v1.2.3
+registry.example.com/tools/monitoring:latest
+gcr.io/vendor/database:stable
+\`\`\``}
+            />
             <textarea
               rows={4}
-              style={{ width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: "0.875rem" }}
+              style={{ width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: "0.875rem", marginTop: 6 }}
               value={state.imagesetConfig?.additionalImages || ""}
               onChange={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), additionalImages: e.target.value } })}
               placeholder={"quay.io/org/app:tag\nregistry.example.com/repo/image:v1.0"}
@@ -853,16 +880,43 @@ Enable "Fast mode" below to use cached catalog data from previous scans instead 
             />
           </div>
           <div style={{ marginTop: 12 }}>
-            <label className="label-emphasis" style={{ display: "block", marginBottom: 4 }}>
-              Archive chunk size — GiB (optional)
-            </label>
-            <p className="note subtle" style={{ marginTop: 0, marginBottom: 6 }}>
-              Split oc-mirror output into archive files of this size. Leave blank for the default (500 GiB). Sets the top-level <code>archiveSize</code> field in ImageSetConfiguration (oc-mirror v2). Archives are named mirror_000001.tar, mirror_000002.tar, etc.
-            </p>
+            <FieldLabelWithInfo
+              label="Archive chunk size — GiB (optional)"
+              hint={`Maximum size for each archive file when mirroring to disk for transfer.
+
+**What is this:**
+The size limit (in GiB) for individual tar archive files created by oc-mirror when mirroring to disk. When the mirror exceeds this size, oc-mirror splits it into multiple numbered archive files.
+
+**When needed:**
+**Optional** - only needed if you need smaller archive files:
+• Physical media has size limits (USB drives, portable hard drives)
+• File system limits (FAT32 has 4 GiB file limit)
+• Network transfer limits
+• Easier to manage smaller chunks for sneakernet transfer
+
+**When NOT needed:**
+• Default 500 GiB chunks work for your transfer method
+• Mirroring directly between registries (not to disk)
+• Your transfer media supports files larger than 500 GiB
+
+**Format:**
+Positive integer representing GiB (gibibytes). Common values: 100, 200, 500.
+
+**How it's used:**
+Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-mirror will split the mirrored content into files named \`mirror_000001.tar\`, \`mirror_000002.tar\`, etc., each up to this size limit.
+
+**Important:**
+⚠️ Smaller chunks mean more files to manage during transfer. Balance between file size limits and number of files.
+
+**Example:**
+100 — Split into 100 GiB chunks for USB hard drives
+200 — Split into 200 GiB chunks for portable storage
+(blank) — Use default 500 GiB chunk size`}
+            />
             <input
               type="number"
               min={1}
-              style={{ maxWidth: 120 }}
+              style={{ maxWidth: 120, marginTop: 6 }}
               value={state.imagesetConfig?.archiveSize || ""}
               onChange={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } })}
               placeholder="e.g. 100"
