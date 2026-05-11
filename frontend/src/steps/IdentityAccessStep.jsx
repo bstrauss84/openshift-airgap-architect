@@ -661,32 +661,49 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
               Save the private key now. It will not be stored and cannot be retrieved later.
             </div>
 
-            <div className="field-grid" style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
-              <label>
+            <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", marginTop: "1.5rem", marginBottom: keygenLoading || keypair ? "1.5rem" : "0" }}>
+              <label style={{ flex: 1 }}>
                 Key type
-                <select value={keygenAlgorithm} onChange={(e) => setKeygenAlgorithm(e.target.value)} disabled={keygenLoading}>
+                <select value={keygenAlgorithm} onChange={(e) => setKeygenAlgorithm(e.target.value)} disabled={keygenLoading} style={{ width: "100%" }}>
                   <option value="ed25519">ed25519 (recommended)</option>
                   <option value="rsa">RSA 4096</option>
                   <option value="ecdsa">ECDSA P-521</option>
                 </select>
               </label>
-              <div className="actions" style={{ alignItems: "flex-end" }}>
-                <button className="primary" onClick={generateKeypair} disabled={keygenLoading}>
-                  {keygenLoading ? "Generating…" : "Generate"}
-                </button>
-              </div>
+              <button className="primary" onClick={generateKeypair} disabled={keygenLoading} style={{ flexShrink: 0 }}>
+                {keygenLoading ? "Generating…" : "Generate"}
+              </button>
             </div>
 
             {keygenLoading ? <div className="loading">Generating keypair…</div> : null}
             {!keygenLoading && keypair ? (
               <>
                 <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated keypair</h4>
-                <label>
+
+                <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <input
+                    type="checkbox"
+                    id="use-generated-key"
+                    checked={useGeneratedKey}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setUseGeneratedKey(checked);
+                      if (checked) updateCredentials({ sshPublicKey: keypair.publicKey });
+                    }}
+                    style={{ margin: 0, cursor: "pointer" }}
+                  />
+                  <label htmlFor="use-generated-key" style={{ margin: 0, cursor: "pointer", fontSize: "0.875rem", fontWeight: 500 }}>
+                    Use generated public key for this run
+                  </label>
+                </div>
+
+                <label style={{ display: "block", marginBottom: "1rem" }}>
                   Public key
-                  <textarea className="textarea" rows={3} value={keypair.publicKey} readOnly style={{ fontFamily: "monospace", fontSize: "0.8125rem" }} />
+                  <textarea className="textarea" rows={3} value={keypair.publicKey} readOnly style={{ fontFamily: "monospace", fontSize: "0.8125rem", width: "100%", marginTop: "0.5rem" }} />
                 </label>
-                <label style={{ marginTop: "1rem" }}>
-                  <div className="field-header">
+
+                <label style={{ display: "block", marginBottom: "1.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
                     <span>Private key</span>
                     <button type="button" className="ghost mini" title={showPrivateKey ? "Hide key" : "Show key"} onClick={() => setShowPrivateKey((p) => !p)}>
                       {showPrivateKey ? "Hide" : "Show"}
@@ -697,20 +714,8 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
                     rows={6}
                     value={showPrivateKey ? keypair.privateKey : "•".repeat(Math.min(keypair.privateKey.length, 1200))}
                     readOnly
-                    style={{ fontFamily: "monospace", fontSize: "0.8125rem" }}
+                    style={{ fontFamily: "monospace", fontSize: "0.8125rem", width: "100%" }}
                   />
-                </label>
-                <label className="toggle" style={{ marginTop: "1rem" }}>
-                  <input
-                    type="checkbox"
-                    checked={useGeneratedKey}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setUseGeneratedKey(checked);
-                      if (checked) updateCredentials({ sshPublicKey: keypair.publicKey });
-                    }}
-                  />
-                  <span>Use generated public key for this run</span>
                 </label>
               </>
             ) : null}
