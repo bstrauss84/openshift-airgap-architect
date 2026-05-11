@@ -1067,6 +1067,116 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                   </select>
                 </FieldLabelWithInfo>
               </div>
+
+              <h4 className="platform-specifics-subsection">Machine counts</h4>
+              <p className="note subtle" style={{ marginTop: 8, marginBottom: 8 }}>
+                Control plane and worker node counts for Azure Government IPI. Azure IPI does not use host inventory; set counts here.
+              </p>
+              <div className="field-grid">
+                <FieldLabelWithInfo
+                  label="Control plane replicas"
+                  hint={`Number of control plane nodes (master nodes) to create during installation.
+
+**Required:**
+Must be an **odd number** for etcd quorum
+
+**Standard value:**
+3 (minimum for production high-availability)
+
+**Why odd numbers:**
+etcd (the cluster's key-value store) requires a quorum (majority) to function:
+• **3 nodes:** Can survive 1 node failure (2 of 3 remaining = quorum)
+• **5 nodes:** Can survive 2 failures (3 of 5 remaining = quorum)
+
+**The sweet spot:**
+3 nodes is optimal for most deployments - provides HA at reasonable cost
+
+**When to use 5 nodes:**
+• Very large clusters (500+ nodes)
+• Need to survive 2 simultaneous control plane failures
+
+**Never use even numbers:**
+• **2 nodes:** Losing 1 = no quorum, cluster stops
+• **4 nodes:** Losing 2 = no quorum, so you pay for 4 but can only survive 1 failure (same as 3 nodes)
+
+**What runs on control plane:**
+Each node runs etcd, Kubernetes API server, controller manager, and scheduler (CPU/memory intensive)
+
+**Azure resources:**
+Control plane nodes are VMs (you pay for them)
+
+**Important:**
+⚠️ **CANNOT be changed** after installation without rebuilding the cluster
+
+**Default:** 3
+
+**Recommendation:**
+Use 5 only for very large or mission-critical clusters`}
+                  className="field-short"
+                >
+                  <input
+                    type="number"
+                    min={1}
+                    max={9}
+                    value={platformConfig.controlPlaneReplicas ?? 3}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? undefined : Number(e.target.value);
+                      updatePlatformConfig({ controlPlaneReplicas: v });
+                    }}
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Compute (worker) replicas"
+                  hint={`Number of worker nodes (compute nodes) to create during installation.
+
+**What workers do:**
+Run your application workloads (pods, containers)
+
+**Scalability:**
+Unlike control plane, you **CAN scale workers** up or down after installation via MachineSets
+
+**Minimum recommended:**
+**2 workers** for production (allows workload redundancy and rolling updates)
+
+**Compact cluster (0 workers):**
+You can set 0 for a control-plane-only cluster (sometimes called 'compact cluster') where control plane nodes also run workloads - this is **supported but NOT recommended** for production (reduces isolation, risks resource contention with etcd/API server)
+
+**Sizing guidance:**
+
+• **Development/testing:** 2-3 workers
+• **Production:** Start with 3+ workers
+• **High availability:** Azure IPI distributes nodes across availability zones automatically (when available in the region)
+• **Stateful workloads/databases:** Consider 5+ workers for better resilience
+
+**Azure cost:**
+Each worker is an Azure VM - more workers = higher cost, but also more capacity
+
+**Scaling strategy:**
+Start small (3 workers) and scale up post-install as workload demands grow by editing MachineSets
+
+**Best practice:**
+Use at least **2 workers** to ensure workload pods can be rescheduled if a worker fails
+
+**Default:** 3
+
+**Example:**
+3 for small production
+5 for medium
+10+ for large workloads or multi-AZ redundancy`}
+                  className="field-short"
+                >
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={platformConfig.computeReplicas ?? 3}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? undefined : Number(e.target.value);
+                      updatePlatformConfig({ computeReplicas: v });
+                    }}
+                  />
+                </FieldLabelWithInfo>
+              </div>
             </div>
           </section>
         )}
@@ -1530,6 +1640,117 @@ Keeps endpoints private to your network/VPC - typical for private-cluster design
                   </select>
                 </FieldLabelWithInfo>
               </div>
+
+              <h4 className="platform-specifics-subsection">Machine counts</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Control plane and worker node counts for IBM Cloud IPI. IBM Cloud IPI does not use host inventory; set counts here.
+              </p>
+              <div className="field-grid">
+                <FieldLabelWithInfo
+                  label="Control plane replicas"
+                  hint={`Number of control plane nodes (master nodes) to create during installation.
+
+**Required:**
+Must be an **odd number** for etcd quorum
+
+**Standard value:**
+3 (minimum for production high-availability)
+
+**Why odd numbers:**
+etcd (the cluster's key-value store) requires a quorum (majority) to function:
+• **3 nodes:** Can survive 1 node failure (2 of 3 remaining = quorum)
+• **5 nodes:** Can survive 2 failures (3 of 5 remaining = quorum)
+
+**The sweet spot:**
+3 nodes is optimal for most deployments - provides HA at reasonable cost
+
+**When to use 5 nodes:**
+• Very large clusters (500+ nodes)
+• Need to survive 2 simultaneous control plane failures
+
+**Never use even numbers:**
+• **2 nodes:** Losing 1 = no quorum, cluster stops
+• **4 nodes:** Losing 2 = no quorum, so you pay for 4 but can only survive 1 failure (same as 3 nodes)
+
+**What runs on control plane:**
+Each node runs etcd, Kubernetes API server, controller manager, and scheduler (CPU/memory intensive)
+
+**IBM Cloud resources:**
+Control plane nodes are virtual server instances (VSIs) - you pay for them
+
+**Important:**
+⚠️ **CANNOT be changed** after installation without rebuilding the cluster
+
+**Default:** 3
+
+**Recommendation:**
+Use 5 only for very large or mission-critical clusters`}
+                  className="field-short"
+                >
+                  <input
+                    type="number"
+                    min={1}
+                    max={9}
+                    value={platformConfig.controlPlaneReplicas ?? 3}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? undefined : Number(e.target.value);
+                      updatePlatformConfig({ controlPlaneReplicas: v });
+                    }}
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Compute (worker) replicas"
+                  hint={`Number of worker nodes (compute nodes) to create during installation.
+
+**What workers do:**
+Run your application workloads (pods, containers)
+
+**Scalability:**
+Unlike control plane, you **CAN scale workers** up or down after installation via MachineSets
+
+**Minimum recommended:**
+**2 workers** for production (allows workload redundancy and rolling updates)
+
+**Compact cluster (0 workers):**
+You can set 0 for a control-plane-only cluster (sometimes called 'compact cluster') where control plane nodes also run workloads - this is **supported but NOT recommended** for production (reduces isolation, risks resource contention with etcd/API server)
+
+**Sizing guidance:**
+
+• **Development/testing:** 2-3 workers
+• **Production:** Start with 3+ workers
+• **High availability:** IBM Cloud IPI distributes workers across availability zones automatically (when multiple zones available in region)
+• **Stateful workloads/databases:** Consider 5+ workers for better resilience
+
+**IBM Cloud cost:**
+Each worker is a VSI (virtual server instance) - more workers = higher cost, but also more capacity
+
+**Scaling strategy:**
+Start small (3 workers) and scale up post-install as workload demands grow by editing MachineSets
+
+**Best practice:**
+Use at least **2 workers** to ensure workload pods can be rescheduled if a worker fails
+
+**Default:** 3
+
+**Example:**
+3 for small production
+5 for medium
+10+ for large workloads or multi-zone redundancy`}
+                  className="field-short"
+                >
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={platformConfig.computeReplicas ?? 3}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? undefined : Number(e.target.value);
+                      updatePlatformConfig({ computeReplicas: v });
+                    }}
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
               <p className="note subtle" style={{ marginTop: 8, marginBottom: 0 }}>
                 Credentials mode is fixed to <code>Manual</code> for IBM Cloud IPI and is emitted automatically in generated assets.
               </p>
@@ -2684,6 +2905,120 @@ zone-east, zone-central, zone-west (matching your failure domain names)`}
                         value={Array.isArray(platformConfig.vsphere?.controlPlaneZones) ? platformConfig.vsphere.controlPlaneZones.join(", ") : ""}
                         onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, controlPlaneZones: e.target.value.split(",").map((z) => z.trim()).filter(Boolean) } })}
                         placeholder="e.g. fd-0, fd-1"
+                      />
+                    </FieldLabelWithInfo>
+                  </div>
+                </>
+              )}
+
+              {scenarioId === "vsphere-ipi" && (
+                <>
+                  <h4 className="platform-specifics-subsection">Machine counts</h4>
+                  <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                    Control plane and worker node counts for vSphere IPI. vSphere IPI does not use host inventory; set counts here.
+                  </p>
+                  <div className="field-grid">
+                    <FieldLabelWithInfo
+                      label="Control plane replicas"
+                      hint={`Number of control plane nodes (master nodes) to create during installation.
+
+**Required:**
+Must be an **odd number** for etcd quorum
+
+**Standard value:**
+3 (minimum for production high-availability)
+
+**Why odd numbers:**
+etcd (the cluster's key-value store) requires a quorum (majority) to function:
+• **3 nodes:** Can survive 1 node failure (2 of 3 remaining = quorum)
+• **5 nodes:** Can survive 2 failures (3 of 5 remaining = quorum)
+
+**The sweet spot:**
+3 nodes is optimal for most deployments - provides HA at reasonable cost
+
+**When to use 5 nodes:**
+• Very large clusters (500+ nodes)
+• Need to survive 2 simultaneous control plane failures
+
+**Never use even numbers:**
+• **2 nodes:** Losing 1 = no quorum, cluster stops
+• **4 nodes:** Losing 2 = no quorum, so you pay for 4 but can only survive 1 failure (same as 3 nodes)
+
+**What runs on control plane:**
+Each node runs etcd, Kubernetes API server, controller manager, and scheduler (CPU/memory intensive)
+
+**vSphere resources:**
+Control plane nodes are VMs (consume vCPU, RAM, storage)
+
+**Important:**
+⚠️ **CANNOT be changed** after installation without rebuilding the cluster
+
+**Default:** 3
+
+**Recommendation:**
+Use 5 only for very large or mission-critical clusters`}
+                      className="field-short"
+                    >
+                      <input
+                        type="number"
+                        min={1}
+                        max={9}
+                        value={platformConfig.controlPlaneReplicas ?? 3}
+                        onChange={(e) => {
+                          const v = e.target.value === "" ? undefined : Number(e.target.value);
+                          updatePlatformConfig({ controlPlaneReplicas: v });
+                        }}
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Compute (worker) replicas"
+                      hint={`Number of worker nodes (compute nodes) to create during installation.
+
+**What workers do:**
+Run your application workloads (pods, containers)
+
+**Scalability:**
+Unlike control plane, you **CAN scale workers** up or down after installation via MachineSets
+
+**Minimum recommended:**
+**2 workers** for production (allows workload redundancy and rolling updates)
+
+**Compact cluster (0 workers):**
+You can set 0 for a control-plane-only cluster (sometimes called 'compact cluster') where control plane nodes also run workloads - this is **supported but NOT recommended** for production (reduces isolation, risks resource contention with etcd/API server)
+
+**Sizing guidance:**
+
+• **Development/testing:** 2-3 workers
+• **Production:** Start with 3+ workers
+• **High availability:** Spread workers across multiple failure domains if using failure domain topology
+• **Stateful workloads/databases:** Consider 5+ workers for better resilience
+
+**vSphere resources:**
+Each worker is a VM - more workers = more vCPU/RAM/storage consumption
+
+**Scaling strategy:**
+Start small (3 workers) and scale up post-install as workload demands grow by editing MachineSets
+
+**Best practice:**
+Use at least **2 workers** to ensure workload pods can be rescheduled if a worker fails
+
+**Default:** 3
+
+**Example:**
+3 for small production
+5 for medium
+10+ for large workloads or multi-failure-domain redundancy`}
+                      className="field-short"
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={platformConfig.computeReplicas ?? 3}
+                        onChange={(e) => {
+                          const v = e.target.value === "" ? undefined : Number(e.target.value);
+                          updatePlatformConfig({ computeReplicas: v });
+                        }}
                       />
                     </FieldLabelWithInfo>
                   </div>
