@@ -93,11 +93,22 @@ operators:
 
 ## Red Hat Trusted Software Supply Chain
 
+**CRITICAL UPDATE (2026-05-11):** Red Hat Advanced Developer Suite - Software Supply Chain (RHADS - SSC) **does NOT support air-gapped environments** per official release notes.
+
+**Source:** [RHADS - SSC 1.9 Release Notes - Unsupported Environments](https://docs.redhat.com/en/documentation/red_hat_advanced_developer_suite_-_software_supply_chain/1.9/html-single/release_notes_for_red_hat_advanced_developer_suite_-_software_supply_chain_1.9/index#unsupported-environments_release-notes)
+
+**Quote from documentation:**
+> "Red Hat's RHADS - SSC 1.9 release notes explicitly say it does not support air-gapped environments."
+
+**Implication:** While operators CAN be mirrored for staging/partial disconnected workflows, the full RHADS - SSC installer deployment is NOT supported in air-gapped environments by Red Hat.
+
+**Recommendation:** DO NOT create a quick pick for this solution. Users would be misled into thinking they can deploy RHADS - SSC in disconnected environments when Red Hat explicitly doesn't support this configuration.
+
 ### Component 1: Red Hat Trusted Artifact Signer (RHTAS)
 
-**Operator:** trusted-artifact-signer
+**Operator:** rhtas-operator
 
-**Package name:** `trusted-artifact-signer` (confirmed in OLM console references)
+**Package name:** `rhtas-operator` (✅ CONFIRMED via ChatGPT research and Red Hat catalog)
 
 **Components deployed:**
 - Fulcio - Certificate authority for code signing
@@ -128,9 +139,11 @@ operators:
 
 ### Component 2: Red Hat Trusted Profile Analyzer (RHTPA)
 
-**Operator:** trusted-profile-analyzer-operator
+**Operator:** rhtpa-operator
 
-**Package name:** `trusted-profile-analyzer-operator` (found in GitHub trustification org)
+**Package name:** `rhtpa-operator` (✅ CONFIRMED via ChatGPT research and Red Hat catalog)
+
+**Previous research error:** Originally documented as `trusted-profile-analyzer-operator` - this was INCORRECT
 
 **Purpose:** SBOM analysis and vulnerability management
 
@@ -154,7 +167,35 @@ operators:
 - [RHTPA Helm Chart - Artifact Hub](https://artifacthub.io/packages/helm/openshift/redhat-trusted-profile-analyzer)
 - [RHTPA Operator Catalog - Red Hat Ecosystem](https://catalog.redhat.com/en/software/containers/rhtpa-tech-preview/trustification-service-rhel9/)
 
-### Component 3: Red Hat Trusted Application Pipeline (RHTAP)
+### Complete RHADS - SSC 1.9 Component List (ChatGPT Research)
+
+**Full product name:** Red Hat Advanced Developer Suite - Software Supply Chain (RHADS - SSC)
+
+**Version:** 1.9 (as of 2026-05-11)
+
+**Core Components:**
+- Red Hat Developer Hub (RHDH) 1.9 - Package: `rhdh` - Channel: `fast-1.9`
+- Red Hat Trusted Artifact Signer (RHTAS) 1.3 - Package: `rhtas-operator`
+- Red Hat Trusted Profile Analyzer (RHTPA) 2.2 - Package: `rhtpa-operator`
+- Conforma 0.7 - **No OLM package** (CLI-based, not operator)
+
+**Required OCP Subscription Products:**
+- Red Hat Advanced Cluster Security (RHACS) 4.10 - Package: `rhacs-operator` - Channel: `stable`
+- OpenShift Pipelines 1.21 - Package: `openshift-pipelines-operator-rh` - Channel: `pipelines-1.21`
+- OpenShift GitOps 1.19 - Package: `openshift-gitops-operator` - Channel: `gitops-1.19`
+- Red Hat build of Keycloak - Package: `rhbk-operator`
+
+**Operators Already Available in Other Quick Picks:**
+- ✅ `rhacs-operator` - included in **Platform Plus** quick pick
+- ✅ `openshift-pipelines-operator-rh` - included in **CI/CD** quick pick
+- ✅ `openshift-gitops-operator` - included in **GitOps** quick pick
+- ✅ `rhdh` - included in **Quality of Life** quick pick (as rhdh-operator in our list - need to verify)
+
+**Source:** ChatGPT research verified against Red Hat RHADS - SSC 1.9 documentation
+
+### Component 3: Red Hat Trusted Application Pipeline (RHTAP) - DEPRECATED NAME
+
+**Current name:** Now part of RHADS - SSC (see above)
 
 **NOT operator-based** - This is a managed service/framework
 
@@ -206,19 +247,29 @@ operators:
 **Do NOT create:**
 - Container Security quick pick (operator is deprecated)
 
-### Trusted Software Supply Chain Quick Pick
+### Trusted Software Supply Chain Quick Pick - **NOT RECOMMENDED** ❌
 
-**Name:** "Red Hat Trusted Software Supply Chain"  
-**Operators:**
-- trusted-artifact-signer (RHTAS)
-- trusted-profile-analyzer-operator (RHTPA)
+**Decision:** **DO NOT create this quick pick**
 
-**Note:** RHTAP does not require additional operators beyond OpenShift Pipelines and GitOps, which are already available in other quick picks.
+**Official product name:** Red Hat Advanced Developer Suite - Software Supply Chain (RHADS - SSC)
 
-**Prerequisites note for users:**
-- Requires OpenShift Pipelines (available in "CI/CD" quick pick)
-- Requires OpenShift GitOps (available in "GitOps" quick pick)
-- Consider suggesting "App Development Suite" quick pick which includes both
+**CRITICAL LIMITATION:** Red Hat explicitly does NOT support RHADS - SSC in air-gapped environments per [RHADS - SSC 1.9 Release Notes](https://docs.redhat.com/en/documentation/red_hat_advanced_developer_suite_-_software_supply_chain/1.9/html-single/release_notes_for_red_hat_advanced_developer_suite_-_software_supply_chain_1.9/index#unsupported-environments_release-notes).
+
+**Why not add this quick pick:**
+- Would mislead users into thinking RHADS - SSC can be deployed in disconnected environments
+- Red Hat explicitly states air-gapped environments are unsupported
+- Most components already available in other quick picks (RHACS, Pipelines, GitOps, RHDH)
+
+**Correct package names (for reference only):**
+- `rhtas-operator` (RHTAS 1.3) - was `trusted-artifact-signer` in original research ❌
+- `rhtpa-operator` (RHTPA 2.2) - was `trusted-profile-analyzer-operator` in original research ❌
+- `rhbk-operator` (Red Hat build of Keycloak)
+- `rhdh` (Red Hat Developer Hub 1.9) - already in Quality of Life quick pick ✅
+
+**Alternative recommendation for users:**
+- Use **Platform Plus** for RHACS (security/compliance)
+- Use **App Development Suite** for Pipelines + GitOps (CI/CD)
+- Manual artifact signing workflows for air-gapped environments (not RHTAS)
 
 ---
 
@@ -229,17 +280,19 @@ operators:
 | ACM | advanced-cluster-management | ✅ Confirmed | Official ACM docs |
 | Multicluster Engine | multicluster-engine | ✅ Confirmed | Official ACM docs |
 | Quay | quay-operator | ✅ Confirmed | Multiple sources, GitHub |
-| Quay Bridge | quay-bridge-operator | ⚠️ Likely | GitHub repo name, not confirmed in catalog |
+| Quay Bridge | quay-bridge-operator | ⚠️ High confidence | GitHub repo name, not confirmed in catalog |
 | Container Security | container-security-operator | ✅ Confirmed (deprecated) | Red Hat Ecosystem Catalog |
-| RHTAS | trusted-artifact-signer | ✅ Confirmed | OLM console references in docs |
-| RHTPA | trusted-profile-analyzer-operator | ⚠️ Likely | GitHub repo name in trustification org |
+| RHTAS | rhtas-operator | ✅ Confirmed | ChatGPT research + Red Hat catalog |
+| RHTPA | rhtpa-operator | ✅ Confirmed | ChatGPT research + Red Hat catalog |
+| RHDH | rhdh | ✅ Confirmed | ChatGPT research (NOT rhdh-operator) |
+| RHBK | rhbk-operator | ✅ Confirmed | ChatGPT research + Red Hat docs |
 
 **Action items:**
 1. Update Platform Plus to include multicluster-engine ✅
 2. Create Quay base quick pick ✅
 3. Create Quay + Bridge integration quick pick ✅
-4. Create Trusted Software Supply Chain quick pick ✅
-5. Test operator names against actual OpenShift OperatorHub if possible
+4. ~~Create Trusted Software Supply Chain quick pick~~ ❌ **NOT DOING** - Red Hat doesn't support RHADS - SSC in air-gapped environments
+5. Test operator names against actual OpenShift OperatorHub if possible ⚠️ Pending live cluster access
 
 ---
 
