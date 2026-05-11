@@ -497,7 +497,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
             </OptionRow>
             <OptionRow
               title="Include mirror-registry binary"
-              description="Add latest mirror-registry (amd64) to the bundle under tools/. Download from mirror.openshift.com at export time."
+              description="Add latest mirror-registry to the bundle under tools/. Download from mirror.openshift.com at export time."
             >
               <Switch
                 checked={exportOptions.includeMirrorRegistry || false}
@@ -507,6 +507,29 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include mirror-registry binary"
               />
             </OptionRow>
+            {exportOptions.includeMirrorRegistry ? (
+              <OptionRow
+                title="Target architecture for mirror-registry"
+                description="Choose which architecture binary to include for mirror-registry."
+              >
+                <select
+                  value={exportOptions.mirrorRegistryArch ?? "amd64"}
+                  onChange={(e) =>
+                    updateState({
+                      exportOptions: {
+                        ...exportOptions,
+                        mirrorRegistryArch: e.target.value
+                      }
+                    })
+                  }
+                  aria-label="Target architecture for mirror-registry"
+                >
+                  <option value="amd64">amd64</option>
+                  <option value="ppc64le">ppc64le</option>
+                  <option value="s390x">s390x</option>
+                </select>
+              </OptionRow>
+            ) : null}
           </CollapsibleSection>
         </div>
         {needsReview ? (

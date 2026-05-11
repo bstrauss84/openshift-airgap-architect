@@ -2445,8 +2445,10 @@ const buildBundleZip = async (state, res) => {
   }
   if (state.exportOptions?.includeMirrorRegistry) {
     try {
-      const mirrorRegistryUrl = "https://mirror.openshift.com/pub/cgw/mirror-registry/latest/mirror-registry-amd64.tar.gz";
-      const mirrorRegistryPath = path.join(dataDir, "cache", "mirror-registry-amd64.tar.gz");
+      const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
+      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
+      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
+      const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
 
       // Ensure cache directory exists
       fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
@@ -2472,11 +2474,14 @@ const buildBundleZip = async (state, res) => {
       }
 
       if (fs.existsSync(mirrorRegistryPath)) {
-        archive.file(mirrorRegistryPath, { name: "tools/mirror-registry-amd64.tar.gz" });
+        archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
       }
     } catch (error) {
+      const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
+      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
+      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
       archive.append(
-        `Failed to include mirror-registry: ${String(error?.message || error)}\nDownload manually from: https://mirror.openshift.com/pub/cgw/mirror-registry/latest/mirror-registry-amd64.tar.gz\n`,
+        `Failed to include mirror-registry: ${String(error?.message || error)}\nDownload manually from: ${mirrorRegistryUrl}\n`,
         { name: "tools/mirror-registry.ERROR.txt" }
       );
     }
