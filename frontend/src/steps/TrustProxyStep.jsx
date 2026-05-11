@@ -75,25 +75,27 @@ function PemField({ label, required, value, onChange, onFiles, error, placeholde
     return (
       <div className="trust-pem-field">
         <FieldLabelWithInfo label={label} required={required} hint={hint}>
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            rows={3}
-            placeholder={placeholder}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              onFiles(e.dataTransfer.files);
-            }}
-          />
-          {error ? <div className="note warning">{error}</div> : null}
-          <input
-            type="file"
-            accept=".pem,.crt,.cer"
-            multiple
-            onChange={(e) => onFiles(e.target.files || [])}
-            className="trust-file-input"
-          />
+          <div>
+            <textarea
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              rows={3}
+              placeholder={placeholder}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                onFiles(e.dataTransfer.files);
+              }}
+            />
+            {error ? <div className="note warning">{error}</div> : null}
+            <input
+              type="file"
+              accept=".pem,.crt,.cer"
+              multiple
+              onChange={(e) => onFiles(e.target.files || [])}
+              className="trust-file-input"
+            />
+          </div>
         </FieldLabelWithInfo>
       </div>
     );
