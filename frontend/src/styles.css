@@ -1096,10 +1096,11 @@ body[data-theme="dark"] .sticky-panel {
 
 .proxy-fields-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  grid-template-columns: repeat(3, minmax(500px, 1fr));
+  gap: 20px;
   margin-bottom: 20px;
   align-items: start;
+  overflow-x: auto;
 }
 
 .proxy-fields-grid .proxy-field-cell {
@@ -1111,6 +1112,7 @@ body[data-theme="dark"] .sticky-panel {
 @media (max-width: 800px) {
   .proxy-fields-grid {
     grid-template-columns: 1fr;
+    overflow-x: visible;
   }
 }
 
