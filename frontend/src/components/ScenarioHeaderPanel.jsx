@@ -10,7 +10,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
 import { getScenarioId } from "../hostInventoryV2Helpers.js";
 import {
   getConfirmedTabs,
@@ -31,10 +31,17 @@ import docsIndex420 from "../data/docs-index/4.20.json";
  * live-updating configuration summary, "This will generate" list, and dynamic
  * doc links based on confirmed tabs.
  * Collapsible: default collapsed; click bar to expand/collapse.
+ * Resizable: drag handle at bottom to adjust height.
  * Uses frontend copy from frontend/src/data/docs-index/ (see docs/DATA_AND_FRONTEND_COPIES.md).
  */
 export default function ScenarioHeaderPanel({ state }) {
   const [expanded, setExpanded] = useState(false);
+  const [panelHeight, setPanelHeight] = useState(300); // Default height in pixels
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef(null);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(0);
+
   const docsIndex = docsIndex420;
   const platform = state?.blueprint?.platform || "";
   const method = state?.methodology?.method || "";
@@ -101,6 +108,39 @@ export default function ScenarioHeaderPanel({ state }) {
     [state, confirmedTabs, docsIndex]
   );
 
+  // Resize handle mouse down
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    setIsResizing(true);
+    startYRef.current = e.clientY;
+    startHeightRef.current = panelHeight;
+  }, [panelHeight]);
+
+  // Mouse move handler
+  const handleMouseMove = useCallback((e) => {
+    if (!isResizing) return;
+    const delta = e.clientY - startYRef.current;
+    const newHeight = Math.max(150, Math.min(800, startHeightRef.current + delta));
+    setPanelHeight(newHeight);
+  }, [isResizing]);
+
+  // Mouse up handler
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  // Add/remove mouse event listeners
+  React.useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isResizing, handleMouseMove, handleMouseUp]);
+
   return (
     <div className="card scenario-header-panel host-inventory-v2-gather-info" role="region" aria-label="Scenario summary">
       <button
@@ -119,125 +159,128 @@ export default function ScenarioHeaderPanel({ state }) {
         </span>
       </button>
       {expanded ? (
-        <div className="host-inventory-v2-gather-info-body">
-        <dl className="scenario-header-dl">
-          <dt>Scenario</dt>
-          <dd>{scenarioName}</dd>
-          <dt>Target OCP version</dt>
-          <dd>{version}</dd>
+        <>
+          <div
+            ref={panelRef}
+            className="scenario-summary-body-scrollable"
+            style={{ height: `${panelHeight}px`, overflow: 'auto' }}
+          >
+            <dl className="scenario-header-dl">
+              <div className="scenario-summary-row">
+                <dt>Scenario</dt>
+                <dd>{scenarioName}</dd>
+              </div>
 
-          {hasConfigSummary ? (
-            <>
-              <dt>Configuration Summary</dt>
-              <dd>
-                <div className="scenario-summary-scroll-container">
-                  {identitySummary ? (
-                    <div className="scenario-summary-section">
-                      <strong>Identity &amp; Security</strong>
-                      <ul className="list-inline">
+              <div className="scenario-summary-row">
+                <dt>Target OCP version</dt>
+                <dd>{version}</dd>
+              </div>
+
+              {hasConfigSummary ? (
+                <div className="scenario-summary-row">
+                  <dt>Configuration</dt>
+                  <dd>
+                    {identitySummary ? (
+                      <div className="scenario-summary-section">
+                        <div className="scenario-summary-category">Identity &amp; Security</div>
                         {identitySummary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
+                          <div key={idx} className="scenario-summary-item">{item}</div>
                         ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                      </div>
+                    ) : null}
 
-                  {networkingSummary ? (
-                    <div className="scenario-summary-section">
-                      <strong>Networking</strong>
-                      <ul className="list-inline">
+                    {networkingSummary ? (
+                      <div className="scenario-summary-section">
+                        <div className="scenario-summary-category">Networking</div>
                         {networkingSummary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
+                          <div key={idx} className="scenario-summary-item">{item}</div>
                         ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                      </div>
+                    ) : null}
 
-                  {connectivitySummary ? (
-                    <div className="scenario-summary-section">
-                      <strong>Connectivity &amp; Mirroring</strong>
-                      <ul className="list-inline">
+                    {connectivitySummary ? (
+                      <div className="scenario-summary-section">
+                        <div className="scenario-summary-category">Connectivity &amp; Mirroring</div>
                         {connectivitySummary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
+                          <div key={idx} className="scenario-summary-item">{item}</div>
                         ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                      </div>
+                    ) : null}
 
-                  {trustProxySummary ? (
-                    <div className="scenario-summary-section">
-                      <strong>Trust &amp; Proxy</strong>
-                      <ul className="list-inline">
+                    {trustProxySummary ? (
+                      <div className="scenario-summary-section">
+                        <div className="scenario-summary-category">Trust &amp; Proxy</div>
                         {trustProxySummary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
+                          <div key={idx} className="scenario-summary-item">{item}</div>
                         ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                      </div>
+                    ) : null}
 
-                  {platformSummary ? (
-                    <div className="scenario-summary-section">
-                      <strong>Platform Configuration</strong>
-                      <ul className="list-inline">
+                    {platformSummary ? (
+                      <div className="scenario-summary-section">
+                        <div className="scenario-summary-category">Platform Configuration</div>
                         {platformSummary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
+                          <div key={idx} className="scenario-summary-item">{item}</div>
                         ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                      </div>
+                    ) : null}
 
-                  {hostInventorySummary ? (
-                    <div className="scenario-summary-section">
-                      <strong>Hosts &amp; Inventory</strong>
-                      <ul className="list-inline">
+                    {hostInventorySummary ? (
+                      <div className="scenario-summary-section">
+                        <div className="scenario-summary-category">Hosts &amp; Inventory</div>
                         {hostInventorySummary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
+                          <div key={idx} className="scenario-summary-item">{item}</div>
                         ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                      </div>
+                    ) : null}
 
-                  {operatorsSummary ? (
-                    <div className="scenario-summary-section">
-                      <strong>Operators</strong>
-                      <ul className="list-inline">
+                    {operatorsSummary ? (
+                      <div className="scenario-summary-section">
+                        <div className="scenario-summary-category">Operators</div>
                         {operatorsSummary.map((item, idx) => (
-                          <li key={idx}>{item}</li>
+                          <div key={idx} className="scenario-summary-item">{item}</div>
                         ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                      </div>
+                    ) : null}
+                  </dd>
                 </div>
-              </dd>
-            </>
-          ) : null}
+              ) : null}
 
-          <dt>This will generate</dt>
-          <dd>
-            <ul className="list-inline">
-              {generates.map((g) => (
-                <li key={g}>{g}</li>
-              ))}
-            </ul>
-          </dd>
-          {docs.length > 0 ? (
-            <>
-              <dt>Documentation</dt>
-              <dd>
-                <ul className="list-inline">
-                  {docs.map((doc, idx) => (
-                    <li key={doc.id || doc.url || idx}>
-                      <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                        {doc.title}
-                      </a>
-                    </li>
+              <div className="scenario-summary-row">
+                <dt>Generates</dt>
+                <dd>
+                  {generates.map((g) => (
+                    <div key={g} className="scenario-summary-item">{g}</div>
                   ))}
-                </ul>
-              </dd>
-            </>
-          ) : null}
-        </dl>
-        </div>
+                </dd>
+              </div>
+
+              {docs.length > 0 ? (
+                <div className="scenario-summary-row">
+                  <dt>Documentation</dt>
+                  <dd>
+                    {docs.map((doc, idx) => (
+                      <div key={doc.id || doc.url || idx} className="scenario-summary-item">
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                          {doc.title}
+                        </a>
+                      </div>
+                    ))}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+          <div
+            className={`scenario-summary-resize-handle ${isResizing ? 'resizing' : ''}`}
+            onMouseDown={handleMouseDown}
+            role="separator"
+            aria-label="Resize scenario summary"
+            aria-orientation="horizontal"
+          >
+            <div className="scenario-summary-resize-grip" aria-hidden></div>
+          </div>
+        </>
       ) : null}
     </div>
   );

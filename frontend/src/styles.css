@@ -4192,71 +4192,219 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   text-decoration: underline;
 }
 
-/* Scenario summary configuration sections (DOC-058) */
-.scenario-summary-scroll-container {
-  max-height: 40vh;
+/* Scenario summary - scrollable body and resize handle (DOC-058) */
+.scenario-summary-body-scrollable {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fafbfc;
   overflow-y: auto;
-  padding-right: 0.5rem;
-  margin-right: -0.5rem;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
-.scenario-summary-scroll-container::-webkit-scrollbar {
-  width: 8px;
+body[data-theme="dark"] .scenario-summary-body-scrollable {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  background: #1e293b;
+  scrollbar-color: #475569 #334155;
 }
 
-.scenario-summary-scroll-container::-webkit-scrollbar-track {
+.scenario-summary-body-scrollable::-webkit-scrollbar {
+  width: 10px;
+}
+
+.scenario-summary-body-scrollable::-webkit-scrollbar-track {
   background: #f1f5f9;
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
-.scenario-summary-scroll-container::-webkit-scrollbar-thumb {
+.scenario-summary-body-scrollable::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 5px;
+  border: 2px solid #f1f5f9;
 }
 
-.scenario-summary-scroll-container::-webkit-scrollbar-thumb:hover {
+.scenario-summary-body-scrollable::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-body[data-theme="dark"] .scenario-summary-scroll-container::-webkit-scrollbar-track {
+body[data-theme="dark"] .scenario-summary-body-scrollable::-webkit-scrollbar-track {
   background: #334155;
 }
 
-body[data-theme="dark"] .scenario-summary-scroll-container::-webkit-scrollbar-thumb {
+body[data-theme="dark"] .scenario-summary-body-scrollable::-webkit-scrollbar-thumb {
   background: #475569;
+  border-color: #334155;
 }
 
-body[data-theme="dark"] .scenario-summary-scroll-container::-webkit-scrollbar-thumb:hover {
+body[data-theme="dark"] .scenario-summary-body-scrollable::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
 
-.scenario-summary-section {
-  margin-top: 0.75rem;
+.scenario-summary-body-scrollable dl {
+  margin: 0;
 }
 
-.scenario-summary-section:first-child {
-  margin-top: 0.5rem; /* Add breathing room after "Configuration Summary" label */
+.scenario-summary-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.scenario-summary-section strong {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary, #1e293b);
-  margin-bottom: 0.375rem;
+.scenario-summary-row:first-child {
+  padding-top: 0;
 }
 
-body[data-theme="dark"] .scenario-summary-section strong {
-  color: var(--text-primary, #e2e8f0);
+.scenario-summary-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
-.scenario-summary-section ul {
-  margin-top: 0.25rem;
+body[data-theme="dark"] .scenario-summary-row {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
-.scenario-summary-section li {
-  font-size: 0.875rem;
+.scenario-summary-row dt {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #64748b;
+  margin: 0;
+  padding-top: 2px;
+}
+
+body[data-theme="dark"] .scenario-summary-row dt {
+  color: #94a3b8;
+}
+
+.scenario-summary-row dd {
+  margin: 0;
+  font-size: 0.9375rem;
   line-height: 1.6;
+  color: #1e293b;
+}
+
+body[data-theme="dark"] .scenario-summary-row dd {
+  color: #e2e8f0;
+}
+
+.scenario-summary-section {
+  margin-bottom: 16px;
+}
+
+.scenario-summary-section:last-child {
+  margin-bottom: 0;
+}
+
+.scenario-summary-category {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #2563eb;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+body[data-theme="dark"] .scenario-summary-category {
+  color: #60a5fa;
+}
+
+.scenario-summary-item {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: #334155;
+  padding: 2px 0;
+  padding-left: 12px;
+  position: relative;
+}
+
+.scenario-summary-item::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+body[data-theme="dark"] .scenario-summary-item {
+  color: #cbd5e1;
+}
+
+body[data-theme="dark"] .scenario-summary-item::before {
+  color: #64748b;
+}
+
+.scenario-summary-item a {
+  color: #2563eb;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.scenario-summary-item a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+body[data-theme="dark"] .scenario-summary-item a {
+  color: #60a5fa;
+}
+
+body[data-theme="dark"] .scenario-summary-item a:hover {
+  color: #93c5fd;
+}
+
+/* Resize handle */
+.scenario-summary-resize-handle {
+  height: 12px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.03), rgba(0, 0, 0, 0.06));
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+  user-select: none;
+}
+
+.scenario-summary-resize-handle:hover,
+.scenario-summary-resize-handle.resizing {
+  background: linear-gradient(to bottom, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.12));
+}
+
+body[data-theme="dark"] .scenario-summary-resize-handle {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.06));
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] .scenario-summary-resize-handle:hover,
+body[data-theme="dark"] .scenario-summary-resize-handle.resizing {
+  background: linear-gradient(to bottom, rgba(96, 165, 250, 0.08), rgba(96, 165, 250, 0.12));
+}
+
+.scenario-summary-resize-grip {
+  width: 40px;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+  transition: background 0.2s ease, width 0.2s ease;
+}
+
+.scenario-summary-resize-handle:hover .scenario-summary-resize-grip,
+.scenario-summary-resize-handle.resizing .scenario-summary-resize-grip {
+  background: #2563eb;
+  width: 60px;
+}
+
+body[data-theme="dark"] .scenario-summary-resize-grip {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+body[data-theme="dark"] .scenario-summary-resize-handle:hover .scenario-summary-resize-grip,
+body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summary-resize-grip {
+  background: #60a5fa;
 }
 
 /* Platform specifics: uniform column gutter; row-gap separates each label-band / control-band pair */
