@@ -419,7 +419,15 @@ const AppShell = () => {
     if (previewStepId === "global") return "install-config.yaml";
     return "install-config.yaml";
   }, [previewStepId]);
-  const previewEnabled = useMemo(() => ["global", "review"].includes(previewStepId), [previewStepId]);
+  const previewEnabled = useMemo(() => {
+    // Enable preview on all steps after Blueprint lock-in, except landing/blueprint/assets-guide/operations
+    const locked = Boolean(
+      state?.blueprint?.confirmed &&
+      (state?.version?.versionConfirmed ?? state?.release?.confirmed)
+    );
+    const excludedSteps = ["landing", "blueprint", "assets-guide", "operations", "run-oc-mirror"];
+    return locked && !excludedSteps.includes(previewStepId);
+  }, [previewStepId, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
   const feedbackScenarioContext = useMemo(
     () => ({
       platform: state?.blueprint?.platform || "",
@@ -1083,6 +1091,11 @@ const AppShell = () => {
                   <div className="note">Source: {previewTarget}</div>
                   {previewLoading ? <div className="loading">Generating preview…</div> : null}
                   {previewError ? <div className="note warning">{previewError}</div> : null}
+                  {!previewLoading && !previewError && errorFlags[previewStepId] ? (
+                    <div className="note warning">
+                      ⚠️ <strong>Incomplete Configuration:</strong> This YAML preview may be missing required fields or contain placeholder values. Review validation errors and complete all required fields before using in production.
+                    </div>
+                  ) : null}
                 <pre className="preview">
                   {previewFiles[previewTarget] || "Not generated yet."}
                 </pre>
