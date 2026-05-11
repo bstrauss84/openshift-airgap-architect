@@ -2443,6 +2443,44 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
+  if (state.exportOptions?.includeMirrorRegistry) {
+    try {
+      const mirrorRegistryUrl = "https://mirror.openshift.com/pub/cgw/mirror-registry/latest/mirror-registry-amd64.tar.gz";
+      const mirrorRegistryPath = path.join(dataDir, "cache", "mirror-registry-amd64.tar.gz");
+
+      // Ensure cache directory exists
+      fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
+
+      // Download if not already cached
+      if (!fs.existsSync(mirrorRegistryPath)) {
+        const https = await import("https");
+        const file = fs.createWriteStream(mirrorRegistryPath);
+        await new Promise((resolve, reject) => {
+          https.get(mirrorRegistryUrl, (response) => {
+            if (response.statusCode === 302 || response.statusCode === 301) {
+              // Follow redirect
+              https.get(response.headers.location, (redirectResponse) => {
+                redirectResponse.pipe(file);
+                file.on("finish", () => file.close(resolve));
+              }).on("error", reject);
+            } else {
+              response.pipe(file);
+              file.on("finish", () => file.close(resolve));
+            }
+          }).on("error", reject);
+        });
+      }
+
+      if (fs.existsSync(mirrorRegistryPath)) {
+        archive.file(mirrorRegistryPath, { name: "tools/mirror-registry-amd64.tar.gz" });
+      }
+    } catch (error) {
+      archive.append(
+        `Failed to include mirror-registry: ${String(error?.message || error)}\nDownload manually from: https://mirror.openshift.com/pub/cgw/mirror-registry/latest/mirror-registry-amd64.tar.gz\n`,
+        { name: "tools/mirror-registry.ERROR.txt" }
+      );
+    }
+  }
   const mirrorOutputPath = state.mirrorWorkflow?.archivePath || state.mirrorWorkflow?.outputPath;
   if (state.mirrorWorkflow?.includeInExport && mirrorOutputPath) {
     const rawPath = mirrorOutputPath;

@@ -495,6 +495,18 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include version-specific openshift-install"
               />
             </OptionRow>
+            <OptionRow
+              title="Include mirror-registry binary"
+              description="Add latest mirror-registry (amd64) to the bundle under tools/. Download from mirror.openshift.com at export time."
+            >
+              <Switch
+                checked={exportOptions.includeMirrorRegistry || false}
+                onChange={(checked) =>
+                  updateState({ exportOptions: { ...exportOptions, includeMirrorRegistry: checked } })
+                }
+                aria-label="Include mirror-registry binary"
+              />
+            </OptionRow>
           </CollapsibleSection>
         </div>
         {needsReview ? (
