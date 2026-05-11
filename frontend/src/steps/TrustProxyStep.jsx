@@ -597,7 +597,7 @@ http://proxy.corp:8080`}
                       value={proxies.httpProxy || ""}
                       onChange={(e) => updateProxy("httpProxy", e.target.value.replace(/\n/g, " ").trim())}
                       placeholder="http://proxy.corp:8080"
-                      rows={2}
+                      rows={4}
                       spellCheck={false}
                     />
                   </FieldLabelWithInfo>
@@ -627,7 +627,7 @@ https://proxy.corp:8443 (if your proxy supports TLS)`}
                       value={proxies.httpsProxy || ""}
                       onChange={(e) => updateProxy("httpsProxy", e.target.value.replace(/\n/g, " ").trim())}
                       placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
-                      rows={2}
+                      rows={4}
                       spellCheck={false}
                     />
                   </FieldLabelWithInfo>
@@ -660,7 +660,7 @@ Internal cluster networks, service CIDRs, localhost
                       value={proxies.noProxy || ""}
                       onChange={(e) => updateProxy("noProxy", e.target.value.replace(/\n/g, " ").trim())}
                       placeholder=".cluster.local,.svc,10.128.0.0/14,127.0.0.1"
-                      rows={2}
+                      rows={4}
                       spellCheck={false}
                     />
                   </FieldLabelWithInfo>
