@@ -65,16 +65,16 @@ export function getConfirmedTabs(state) {
  * Only call if identity-access tab is confirmed.
  */
 export function buildIdentitySummary(state) {
-  if (!state?.credentials) return null;
+  if (!state) return null;
 
   const items = [];
 
-  // FIPS mode
-  const fipsEnabled = state.credentials.fipsMode;
+  // FIPS mode (from globalStrategy, NOT credentials)
+  const fipsEnabled = Boolean(state.globalStrategy?.fips);
   items.push(`FIPS mode: ${fipsEnabled ? 'Enabled' : 'Disabled'}`);
 
   // SSH key (presence only, not the actual key)
-  const sshConfigured = Boolean(state.credentials.sshPublicKey);
+  const sshConfigured = Boolean(state.credentials?.sshPublicKey);
   items.push(`SSH key: ${sshConfigured ? 'Configured' : 'Not configured'}`);
 
   // Pull secret source (but never the actual secret)
@@ -167,17 +167,26 @@ function getNetworkTopology(state) {
 export function buildConnectivitySummary(state) {
   const items = [];
 
-  // NTP servers count (not the actual servers for security)
-  const ntpCount = state.connectivity?.ntpServers?.length || 0;
+  // NTP servers count (from globalStrategy.ntpServers, not connectivity)
+  const ntpServers = state.globalStrategy?.ntpServers;
+  let ntpCount = 0;
+  if (ntpServers) {
+    if (Array.isArray(ntpServers)) {
+      ntpCount = ntpServers.filter(s => String(s).trim()).length;
+    } else if (typeof ntpServers === 'string') {
+      ntpCount = ntpServers.split(',').filter(s => s.trim()).length;
+    }
+  }
   if (ntpCount > 0) {
     items.push(`NTP servers: ${ntpCount} configured`);
   }
 
-  // Mirror registry (FQDN only, never credentials)
-  const useMirror = state.mirroring?.useMirrorRegistry;
-  if (useMirror && state.mirroring?.registryFqdn) {
+  // Mirror registry (FQDN from globalStrategy.mirroring, never credentials)
+  const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn?.trim();
+  const usingMirror = Boolean(state.credentials?.usingMirrorRegistry);
+  if (usingMirror && registryFqdn) {
     const auth = state.credentials?.mirrorRegistryUnauthenticated ? 'anonymous' : 'authenticated';
-    items.push(`Mirror registry: ${state.mirroring.registryFqdn} (${auth})`);
+    items.push(`Mirror registry: ${registryFqdn} (${auth})`);
   }
 
   return items.length > 0 ? items : null;
@@ -190,8 +199,8 @@ export function buildConnectivitySummary(state) {
 export function buildTrustProxySummary(state) {
   const items = [];
 
-  // Proxy enabled
-  const proxyEnabled = state.strategy?.proxyEnabled;
+  // Proxy enabled (from globalStrategy, NOT strategy)
+  const proxyEnabled = Boolean(state.globalStrategy?.proxyEnabled);
   if (proxyEnabled) {
     const proxyType = getProxyType(state);
     items.push(`Corporate proxy: Enabled${proxyType ? ` (${proxyType})` : ''}`);
@@ -213,10 +222,12 @@ export function buildTrustProxySummary(state) {
 
 /**
  * Determine proxy type (HTTP, HTTPS, or both).
+ * Read from globalStrategy.proxies, NOT strategy.
  */
 function getProxyType(state) {
-  const hasHttp = Boolean(state.strategy?.httpProxy);
-  const hasHttps = Boolean(state.strategy?.httpsProxy);
+  const proxies = state.globalStrategy?.proxies || {};
+  const hasHttp = Boolean(proxies.httpProxy);
+  const hasHttps = Boolean(proxies.httpsProxy);
 
   if (hasHttp && hasHttps) return 'HTTP + HTTPS';
   if (hasHttps) return 'HTTPS';
@@ -227,15 +238,18 @@ function getProxyType(state) {
 /**
  * Get CA bundle counts with sources.
  * NEVER includes actual certificate contents.
+ * Matches Field Guide logic: trust.mirrorRegistryCaPem and trust.proxyCaPem
  */
 function getCaBundleCounts(state) {
   const sources = [];
 
-  if (state.credentials?.mirrorRegistryCert) {
+  // Mirror registry CA (from trust.mirrorRegistryCaPem, NOT credentials.mirrorRegistryCert)
+  if (state.trust?.mirrorRegistryCaPem) {
     sources.push('mirror');
   }
 
-  if (state.trust?.additionalTrustBundle) {
+  // Proxy CA (from trust.proxyCaPem or trust.additionalTrustBundle)
+  if (state.trust?.proxyCaPem || state.trust?.additionalTrustBundle) {
     sources.push('proxy');
   }
 
@@ -387,8 +401,8 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
   // Conditional docs based on confirmed configuration
 
   if (confirmedTabs.includes('identity-access')) {
-    // FIPS mode
-    if (state.credentials?.fipsMode) {
+    // FIPS mode (from globalStrategy, NOT credentials)
+    if (state.globalStrategy?.fips) {
       docs.push({
         title: 'Enabling FIPS mode',
         url: 'https://docs.openshift.com/container-platform/4.20/installing/installing-fips.html'
@@ -407,16 +421,25 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
   }
 
   if (confirmedTabs.includes('connectivity-mirroring')) {
-    // Mirror registry
-    if (state.mirroring?.useMirrorRegistry) {
+    // Mirror registry (check credentials.usingMirrorRegistry, not mirroring.useMirrorRegistry)
+    if (state.credentials?.usingMirrorRegistry) {
       docs.push({
         title: 'Mirroring images for a disconnected installation',
         url: 'https://docs.openshift.com/container-platform/4.20/installing/disconnected_install/installing-mirroring-installation-images.html'
       });
     }
 
-    // NTP servers
-    if (state.connectivity?.ntpServers?.length > 0) {
+    // NTP servers (from globalStrategy.ntpServers, NOT connectivity.ntpServers)
+    const ntpServers = state.globalStrategy?.ntpServers;
+    let hasNtp = false;
+    if (ntpServers) {
+      if (Array.isArray(ntpServers)) {
+        hasNtp = ntpServers.filter(s => String(s).trim()).length > 0;
+      } else if (typeof ntpServers === 'string') {
+        hasNtp = ntpServers.trim().length > 0;
+      }
+    }
+    if (hasNtp) {
       docs.push({
         title: 'Configuring NTP servers for disconnected clusters',
         url: 'https://docs.openshift.com/container-platform/4.20/installing/install_config/installing-customizing.html'
@@ -425,16 +448,16 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
   }
 
   if (confirmedTabs.includes('trust-proxy')) {
-    // Proxy
-    if (state.strategy?.proxyEnabled) {
+    // Proxy (from globalStrategy, NOT strategy)
+    if (state.globalStrategy?.proxyEnabled) {
       docs.push({
         title: 'Configuring corporate proxy for disconnected clusters',
         url: 'https://docs.openshift.com/container-platform/4.20/installing/install_config/configuring-firewall.html'
       });
     }
 
-    // Additional trust bundle
-    if (state.trust?.additionalTrustBundle) {
+    // Additional trust bundle (from trust.mirrorRegistryCaPem or trust.proxyCaPem)
+    if (state.trust?.mirrorRegistryCaPem || state.trust?.proxyCaPem || state.trust?.additionalTrustBundle) {
       docs.push({
         title: 'Configuring additional trust bundles',
         url: 'https://docs.openshift.com/container-platform/4.20/networking/configuring-a-custom-pki.html'

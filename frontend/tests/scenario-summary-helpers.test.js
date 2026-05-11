@@ -124,14 +124,17 @@ describe('Scenario Summary Helpers', () => {
   });
 
   describe('buildIdentitySummary', () => {
-    it('returns null when credentials not present', () => {
+    it('shows default values when state fields not present', () => {
       const state = {};
-      expect(buildIdentitySummary(state)).toBeNull();
+      const summary = buildIdentitySummary(state);
+      // FIPS and SSH still shown with default values even if credentials not present
+      expect(summary).toContain('FIPS mode: Disabled');
+      expect(summary).toContain('SSH key: Not configured');
     });
 
     it('includes FIPS mode status', () => {
       const state = {
-        credentials: { fipsMode: true }
+        globalStrategy: { fips: true }
       };
       const summary = buildIdentitySummary(state);
       expect(summary).toContain('FIPS mode: Enabled');
@@ -234,7 +237,7 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes NTP server count (not actual servers)', () => {
       const state = {
-        connectivity: {
+        globalStrategy: {
           ntpServers: ['time.example.com', 'time2.example.com', 'time3.example.com']
         }
       };
@@ -245,11 +248,13 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes mirror registry FQDN (not credentials)', () => {
       const state = {
-        mirroring: {
-          useMirrorRegistry: true,
-          registryFqdn: 'registry.corp.local:5000'
+        globalStrategy: {
+          mirroring: {
+            registryFqdn: 'registry.corp.local:5000'
+          }
         },
         credentials: {
+          usingMirrorRegistry: true,
           mirrorRegistryUnauthenticated: false
         }
       };
@@ -259,17 +264,19 @@ describe('Scenario Summary Helpers', () => {
 
     it('NEVER includes mirror registry credentials', () => {
       const state = {
-        mirroring: {
-          useMirrorRegistry: true,
-          registryFqdn: 'registry.corp.local:5000'
+        globalStrategy: {
+          mirroring: {
+            registryFqdn: 'registry.corp.local:5000'
+          }
         },
         credentials: {
-          mirrorRegistryPullSecret: '{"auths":{"registry.corp.local":{"auth":"secret"}}}'
+          usingMirrorRegistry: true,
+          mirrorRegistryPullSecret: '{"auths":{"registry.corp.local":{"auth":"SECRETKEY123"}}}'
         }
       };
       const summary = buildConnectivitySummary(state);
       const joined = summary ? summary.join(' ') : '';
-      expect(joined).not.toContain('secret');
+      expect(joined).not.toContain('SECRETKEY123');
       expect(joined).not.toContain('auths');
     });
   });
@@ -282,10 +289,12 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes proxy status with type', () => {
       const state = {
-        strategy: {
+        globalStrategy: {
           proxyEnabled: true,
-          httpProxy: 'http://proxy.corp.local:8080',
-          httpsProxy: 'https://proxy.corp.local:8443'
+          proxies: {
+            httpProxy: 'http://proxy.corp.local:8080',
+            httpsProxy: 'https://proxy.corp.local:8443'
+          }
         }
       };
       const summary = buildTrustProxySummary(state);
@@ -304,11 +313,9 @@ describe('Scenario Summary Helpers', () => {
 
     it('includes CA bundle counts with sources (not actual certs)', () => {
       const state = {
-        credentials: {
-          mirrorRegistryCert: '-----BEGIN CERTIFICATE-----\nMIIFake...'
-        },
         trust: {
-          additionalTrustBundle: '-----BEGIN CERTIFICATE-----\nMIIFake2...'
+          mirrorRegistryCaPem: '-----BEGIN CERTIFICATE-----\nMIIFake...',
+          proxyCaPem: '-----BEGIN CERTIFICATE-----\nMIIFake2...'
         }
       };
       const summary = buildTrustProxySummary(state);
@@ -453,7 +460,7 @@ describe('Scenario Summary Helpers', () => {
       const state = {
         blueprint: { platform: 'VMware vSphere' },
         methodology: { method: 'IPI' },
-        credentials: { fipsMode: true }
+        globalStrategy: { fips: true }
       };
       const docs = buildDocumentationSources(state, ['identity-access'], {});
       const fipsDoc = docs.find(d => d.title === 'Enabling FIPS mode');
@@ -478,7 +485,7 @@ describe('Scenario Summary Helpers', () => {
       const state = {
         blueprint: { platform: 'VMware vSphere' },
         methodology: { method: 'IPI' },
-        mirroring: { useMirrorRegistry: true }
+        credentials: { usingMirrorRegistry: true }
       };
       const docs = buildDocumentationSources(state, ['connectivity-mirroring'], {});
       const mirrorDoc = docs.find(d => d.title === 'Mirroring images for a disconnected installation');
@@ -489,7 +496,7 @@ describe('Scenario Summary Helpers', () => {
       const state = {
         blueprint: { platform: 'VMware vSphere' },
         methodology: { method: 'IPI' },
-        strategy: { proxyEnabled: true }
+        globalStrategy: { proxyEnabled: true }
       };
       const docs = buildDocumentationSources(state, ['trust-proxy'], {});
       const proxyDoc = docs.find(d => d.title === 'Configuring corporate proxy for disconnected clusters');
@@ -526,8 +533,7 @@ describe('Scenario Summary Helpers', () => {
           mirrorRegistryPullSecret: '{"auths":{"mirror.local":{"auth":"ANOTHERSECRET"}}}'
         },
         networking: {},
-        mirroring: {},
-        strategy: {},
+        globalStrategy: {},
         trust: {},
         inventory: {},
         operators: {}
@@ -566,11 +572,9 @@ describe('Scenario Summary Helpers', () => {
 
     it('NEVER includes CA certificate contents', () => {
       const state = {
-        credentials: {
-          mirrorRegistryCert: '-----BEGIN CERTIFICATE-----\nMIICertContent123\n-----END CERTIFICATE-----'
-        },
         trust: {
-          additionalTrustBundle: '-----BEGIN CERTIFICATE-----\nMIICertContent456\n-----END CERTIFICATE-----'
+          mirrorRegistryCaPem: '-----BEGIN CERTIFICATE-----\nMIICertContent123\n-----END CERTIFICATE-----',
+          proxyCaPem: '-----BEGIN CERTIFICATE-----\nMIICertContent456\n-----END CERTIFICATE-----'
         }
       };
 
