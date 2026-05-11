@@ -739,27 +739,27 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
             </div>
 
             <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Registry credentials</h4>
-            <div className="field-grid" style={{ marginBottom: "1.5rem" }}>
-              <label>
-                Registry FQDN
-                <input value={mirrorHelper.registry} onChange={(e) => setMirrorHelper((h) => ({ ...h, registry: e.target.value }))} placeholder="registry.corp.local:5000" />
-              </label>
+
+            <label style={{ display: "block", marginBottom: "1rem" }}>
+              Registry FQDN
+              <input value={mirrorHelper.registry} onChange={(e) => setMirrorHelper((h) => ({ ...h, registry: e.target.value }))} placeholder="registry.corp.local:5000" style={{ width: "100%" }} />
+            </label>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
               <label>
                 Username
-                <input autoComplete="off" value={mirrorHelper.username} onChange={(e) => setMirrorHelper((h) => ({ ...h, username: e.target.value }))} placeholder="mirror-user" />
+                <input autoComplete="off" value={mirrorHelper.username} onChange={(e) => setMirrorHelper((h) => ({ ...h, username: e.target.value }))} placeholder="mirror-user" style={{ width: "100%" }} />
+              </label>
+              <label>
+                Password
+                <input type="password" autoComplete="new-password" value={mirrorHelper.password} onChange={(e) => setMirrorHelper((h) => ({ ...h, password: e.target.value }))} placeholder="••••••••" style={{ width: "100%" }} />
               </label>
             </div>
 
-            <div className="field-grid" style={{ marginBottom: "1.5rem" }}>
-              <label>
-                Password
-                <input type="password" autoComplete="new-password" value={mirrorHelper.password} onChange={(e) => setMirrorHelper((h) => ({ ...h, password: e.target.value }))} placeholder="••••••••" />
-              </label>
-              <label>
-                Email (optional)
-                <input value={mirrorHelper.email} onChange={(e) => setMirrorHelper((h) => ({ ...h, email: e.target.value }))} placeholder="ops@example.com" />
-              </label>
-            </div>
+            <label style={{ display: "block", marginBottom: "1.5rem" }}>
+              Email (optional)
+              <input value={mirrorHelper.email} onChange={(e) => setMirrorHelper((h) => ({ ...h, email: e.target.value }))} placeholder="ops@example.com" style={{ width: "100%" }} />
+            </label>
 
             <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated pull secret</h4>
             <label>
