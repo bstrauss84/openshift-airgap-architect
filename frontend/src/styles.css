@@ -4192,6 +4192,36 @@ body[data-theme="dark"] .scenario-header-panel .scenario-header-dl a:hover {
   text-decoration: underline;
 }
 
+/* Scenario summary configuration sections (DOC-058) */
+.scenario-summary-section {
+  margin-top: 0.75rem;
+}
+
+.scenario-summary-section:first-child {
+  margin-top: 0;
+}
+
+.scenario-summary-section strong {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 0.375rem;
+}
+
+body[data-theme="dark"] .scenario-summary-section strong {
+  color: var(--text-primary, #e2e8f0);
+}
+
+.scenario-summary-section ul {
+  margin-top: 0.25rem;
+}
+
+.scenario-summary-section li {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
 /* Platform specifics: uniform column gutter; row-gap separates each label-band / control-band pair */
 .platform-specifics .field-grid {
   display: grid;

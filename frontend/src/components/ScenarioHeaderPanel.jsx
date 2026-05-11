@@ -2,21 +2,34 @@
  * OpenShift Airgap Architect - Scenario Header Panel Component
  *
  * Collapsible scenario header for segmented flow: scenario name, OCP version,
- * "This will generate" list, and documentation links from the docs index.
+ * live-updating configuration summary, "This will generate" list, and dynamic
+ * documentation links based on confirmed wizard tabs.
  * Uses frontend copy from frontend/src/data/docs-index/.
  *
  * @author Bill Strauss
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { getScenarioId } from "../hostInventoryV2Helpers.js";
+import {
+  getConfirmedTabs,
+  buildIdentitySummary,
+  buildNetworkingSummary,
+  buildConnectivitySummary,
+  buildTrustProxySummary,
+  buildPlatformSummary,
+  buildHostInventorySummary,
+  buildOperatorsSummary,
+  buildDocumentationSources
+} from "../scenarioSummaryHelpers.js";
 
 import docsIndex420 from "../data/docs-index/4.20.json";
 
 /**
  * Scenario header panel for the segmented flow: scenario name, OCP version,
- * "This will generate" list, and doc links from the docs index.
+ * live-updating configuration summary, "This will generate" list, and dynamic
+ * doc links based on confirmed tabs.
  * Collapsible: default collapsed; click bar to expand/collapse.
  * Uses frontend copy from frontend/src/data/docs-index/ (see docs/DATA_AND_FRONTEND_COPIES.md).
  */
@@ -28,7 +41,51 @@ export default function ScenarioHeaderPanel({ state }) {
   const scenarioName = [platform, method].filter(Boolean).join(", ") || "—";
   const version = state?.version?.selectedVersion || state?.release?.patchVersion || docsIndex?.version || "4.20";
   const scenarioId = getScenarioId(platform, method);
-  const scenarioMeta = scenarioId && docsIndex?.scenarios?.[scenarioId];
+
+  // Track which tabs are confirmed (visited, not flagged for review, validation passes)
+  const confirmedTabs = useMemo(() => getConfirmedTabs(state), [state]);
+
+  // Build configuration summaries (only for confirmed tabs)
+  const identitySummary = useMemo(() =>
+    confirmedTabs.includes('identity-access') ? buildIdentitySummary(state) : null,
+    [state, confirmedTabs]
+  );
+
+  const networkingSummary = useMemo(() =>
+    confirmedTabs.includes('networking') ? buildNetworkingSummary(state) : null,
+    [state, confirmedTabs]
+  );
+
+  const connectivitySummary = useMemo(() =>
+    confirmedTabs.includes('connectivity-mirroring') ? buildConnectivitySummary(state) : null,
+    [state, confirmedTabs]
+  );
+
+  const trustProxySummary = useMemo(() =>
+    confirmedTabs.includes('trust-proxy') ? buildTrustProxySummary(state) : null,
+    [state, confirmedTabs]
+  );
+
+  const platformSummary = useMemo(() =>
+    confirmedTabs.includes('platform-specifics') ? buildPlatformSummary(state) : null,
+    [state, confirmedTabs]
+  );
+
+  const hostInventorySummary = useMemo(() =>
+    confirmedTabs.includes('host-inventory') ? buildHostInventorySummary(state) : null,
+    [state, confirmedTabs]
+  );
+
+  const operatorsSummary = useMemo(() =>
+    confirmedTabs.includes('operators') ? buildOperatorsSummary(state) : null,
+    [state, confirmedTabs]
+  );
+
+  // Check if we have any configuration summaries to display
+  const hasConfigSummary = !!(
+    identitySummary || networkingSummary || connectivitySummary ||
+    trustProxySummary || platformSummary || hostInventorySummary || operatorsSummary
+  );
 
   const generates = [];
   generates.push("install-config.yaml");
@@ -38,7 +95,11 @@ export default function ScenarioHeaderPanel({ state }) {
   }
   generates.push("imageset-config.yaml (if mirroring)");
 
-  const docs = scenarioMeta?.docs || [];
+  // Build dynamic documentation sources based on confirmed configuration
+  const docs = useMemo(() =>
+    buildDocumentationSources(state, confirmedTabs, docsIndex),
+    [state, confirmedTabs, docsIndex]
+  );
 
   return (
     <div className="card scenario-header-panel host-inventory-v2-gather-info" role="region" aria-label="Scenario summary">
@@ -64,6 +125,91 @@ export default function ScenarioHeaderPanel({ state }) {
           <dd>{scenarioName}</dd>
           <dt>Target OCP version</dt>
           <dd>{version}</dd>
+
+          {hasConfigSummary ? (
+            <>
+              <dt>Configuration Summary</dt>
+              <dd>
+                {identitySummary ? (
+                  <div className="scenario-summary-section">
+                    <strong>Identity &amp; Security</strong>
+                    <ul className="list-inline">
+                      {identitySummary.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {networkingSummary ? (
+                  <div className="scenario-summary-section">
+                    <strong>Networking</strong>
+                    <ul className="list-inline">
+                      {networkingSummary.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {connectivitySummary ? (
+                  <div className="scenario-summary-section">
+                    <strong>Connectivity &amp; Mirroring</strong>
+                    <ul className="list-inline">
+                      {connectivitySummary.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {trustProxySummary ? (
+                  <div className="scenario-summary-section">
+                    <strong>Trust &amp; Proxy</strong>
+                    <ul className="list-inline">
+                      {trustProxySummary.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {platformSummary ? (
+                  <div className="scenario-summary-section">
+                    <strong>Platform Configuration</strong>
+                    <ul className="list-inline">
+                      {platformSummary.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {hostInventorySummary ? (
+                  <div className="scenario-summary-section">
+                    <strong>Hosts &amp; Inventory</strong>
+                    <ul className="list-inline">
+                      {hostInventorySummary.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {operatorsSummary ? (
+                  <div className="scenario-summary-section">
+                    <strong>Operators</strong>
+                    <ul className="list-inline">
+                      {operatorsSummary.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </dd>
+            </>
+          ) : null}
+
           <dt>This will generate</dt>
           <dd>
             <ul className="list-inline">
@@ -77,8 +223,8 @@ export default function ScenarioHeaderPanel({ state }) {
               <dt>Documentation</dt>
               <dd>
                 <ul className="list-inline">
-                  {docs.map((doc) => (
-                    <li key={doc.id}>
+                  {docs.map((doc, idx) => (
+                    <li key={doc.id || doc.url || idx}>
                       <a href={doc.url} target="_blank" rel="noopener noreferrer">
                         {doc.title}
                       </a>
