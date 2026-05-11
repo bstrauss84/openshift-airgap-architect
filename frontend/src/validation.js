@@ -534,6 +534,34 @@ const validateHostInventory = (state) => {
     warnings.push(...result.warnings.map((msg) => `Node ${idx + 1}: ${msg}`));
   });
 
+  // Check for duplicate hostnames across all nodes
+  const hostnameMap = new Map();
+  (inventory.nodes || []).forEach((node, idx) => {
+    const hostname = (node.hostname || "").trim();
+    if (hostname) {
+      if (!hostnameMap.has(hostname)) {
+        hostnameMap.set(hostname, []);
+      }
+      hostnameMap.get(hostname).push(idx + 1);
+    }
+  });
+
+  // Report duplicates
+  hostnameMap.forEach((nodeIndices, hostname) => {
+    if (nodeIndices.length > 1) {
+      errors.push(`Duplicate hostname "${hostname}" found in nodes: ${nodeIndices.join(", ")}`);
+      // Also add to per-node errors for each affected node
+      nodeIndices.forEach(nodeNum => {
+        const idx = nodeNum - 1;
+        if (perNode[idx]) {
+          perNode[idx].errors.push(`Duplicate hostname "${hostname}"`);
+          if (!perNode[idx].fieldErrors) perNode[idx].fieldErrors = {};
+          perNode[idx].fieldErrors.hostname = `Duplicate hostname "${hostname}"`;
+        }
+      });
+    }
+  });
+
   return { errors, warnings, perNode };
 };
 
@@ -1097,7 +1125,8 @@ const validateStep = (state, stepId) => {
     const warnings = [...(base.warnings || []), ...(catalog.warnings || [])];
     return {
       errors,
-      warnings
+      warnings,
+      perNode: base.perNode || []
     };
   }
   if (stepId === "review") {
