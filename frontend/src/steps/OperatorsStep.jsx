@@ -177,25 +177,6 @@ const scenarios = [
     description: "Quay as default OpenShift registry with namespace sync and ImageStream mirroring",
     picks: { redhat: ["quay-operator", "quay-bridge-operator"] }
   }
-  // NOTE: Red Hat Advanced Developer Suite - Software Supply Chain (RHADS - SSC) quick pick NOT ADDED
-  //
-  // REASON: Red Hat explicitly does NOT support RHADS - SSC in air-gapped environments per official docs:
-  // https://docs.redhat.com/en/documentation/red_hat_advanced_developer_suite_-_software_supply_chain/1.9/html-single/release_notes_for_red_hat_advanced_developer_suite_-_software_supply_chain_1.9/index#unsupported-environments_release-notes
-  //
-  // Creating this quick pick would mislead users into thinking they can deploy RHADS - SSC in
-  // disconnected environments when Red Hat explicitly doesn't support this configuration.
-  //
-  // RHADS - SSC 1.9 components (for reference only - DO NOT add as quick pick):
-  // - rhtas-operator (Red Hat Trusted Artifact Signer 1.3)
-  // - rhtpa-operator (Red Hat Trusted Profile Analyzer 2.2)
-  // - rhbk-operator (Red Hat build of Keycloak)
-  // - rhdh (Red Hat Developer Hub 1.9) - already in "Quality of Life" quick pick
-  // - rhacs-operator (RHACS 4.10) - already in "Platform Plus" quick pick
-  // - openshift-pipelines-operator-rh - already in "CI/CD" quick pick
-  // - openshift-gitops-operator - already in "GitOps" quick pick
-  //
-  // Alternative for users: Recommend Platform Plus (RHACS) + App Development Suite (Pipelines + GitOps)
-  // for software supply chain security in air-gapped environments.
 ];
 
 const catalogImages = (version) => ({
@@ -560,13 +541,50 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     setState((prev) => {
       const prevSelected = prev.operators?.selected || [];
       const next = prevSelected.filter((op) => op.id !== id);
-      return { ...prev, operators: { ...prev.operators, selected: next, version } };
+      const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
+      const scenarios = { ...(prev.operators?.scenarios || {}) };
+
+      // Check if this operator was added by any scenarios
+      const operatorScenarios = Object.keys(scenarioAdded[id] || {});
+      operatorScenarios.forEach((scenarioId) => {
+        // Check if all operators from this scenario have been removed
+        const scenarioStillHasOperators = next.some((op) =>
+          op.sources && op.sources.includes(scenarioId)
+        );
+        // If no operators remain from this scenario, deselect the scenario
+        if (!scenarioStillHasOperators) {
+          delete scenarios[scenarioId];
+        }
+      });
+
+      // Clean up scenarioAdded tracking for this operator
+      delete scenarioAdded[id];
+
+      return {
+        ...prev,
+        operators: {
+          ...prev.operators,
+          selected: next,
+          scenarios,
+          scenarioAdded,
+          version
+        }
+      };
     });
   };
 
   const clearAllSelections = () => {
     setState((prev) => {
-      return { ...prev, operators: { ...prev.operators, selected: [], version } };
+      return {
+        ...prev,
+        operators: {
+          ...prev.operators,
+          selected: [],
+          scenarios: {},
+          scenarioAdded: {},
+          version
+        }
+      };
     });
   };
 
