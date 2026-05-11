@@ -660,7 +660,8 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
             <div className="note warning">
               Save the private key now. It will not be stored and cannot be retrieved later.
             </div>
-            <div className="field-grid">
+
+            <div className="field-grid" style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
               <label>
                 Key type
                 <select value={keygenAlgorithm} onChange={(e) => setKeygenAlgorithm(e.target.value)} disabled={keygenLoading}>
@@ -675,14 +676,16 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
                 </button>
               </div>
             </div>
+
             {keygenLoading ? <div className="loading">Generating keypair…</div> : null}
             {!keygenLoading && keypair ? (
               <>
+                <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated keypair</h4>
                 <label>
                   Public key
-                  <textarea className="textarea" rows={3} value={keypair.publicKey} readOnly />
+                  <textarea className="textarea" rows={3} value={keypair.publicKey} readOnly style={{ fontFamily: "monospace", fontSize: "0.8125rem" }} />
                 </label>
-                <label>
+                <label style={{ marginTop: "1rem" }}>
                   <div className="field-header">
                     <span>Private key</span>
                     <button type="button" className="ghost mini" title={showPrivateKey ? "Hide key" : "Show key"} onClick={() => setShowPrivateKey((p) => !p)}>
@@ -694,9 +697,10 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
                     rows={6}
                     value={showPrivateKey ? keypair.privateKey : "•".repeat(Math.min(keypair.privateKey.length, 1200))}
                     readOnly
+                    style={{ fontFamily: "monospace", fontSize: "0.8125rem" }}
                   />
                 </label>
-                <label className="toggle">
+                <label className="toggle" style={{ marginTop: "1rem" }}>
                   <input
                     type="checkbox"
                     checked={useGeneratedKey}
@@ -710,8 +714,9 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
                 </label>
               </>
             ) : null}
-            {keygenError ? <div className="note warning">{keygenError}</div> : null}
-            <div className="actions">
+            {keygenError ? <div className="note warning" style={{ marginTop: "1rem" }}>{keygenError}</div> : null}
+
+            <div className="actions" style={{ marginTop: "1.5rem" }}>
               {!keygenLoading && keypair ? (
                 <>
                   <button type="button" className="ghost" onClick={() => navigator.clipboard.writeText(keypair.publicKey)}>Copy public key</button>
@@ -729,10 +734,12 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowMirrorSecretHelper(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Mirror registry pull secret helper</h3>
-            <div className="note">
+            <div className="note warning">
               Credentials entered here are used only to generate the JSON locally. They are not stored or exported.
             </div>
-            <div className="field-grid">
+
+            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Registry credentials</h4>
+            <div className="field-grid" style={{ marginBottom: "1.5rem" }}>
               <label>
                 Registry FQDN
                 <input value={mirrorHelper.registry} onChange={(e) => setMirrorHelper((h) => ({ ...h, registry: e.target.value }))} placeholder="registry.corp.local:5000" />
@@ -741,6 +748,9 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
                 Username
                 <input autoComplete="off" value={mirrorHelper.username} onChange={(e) => setMirrorHelper((h) => ({ ...h, username: e.target.value }))} placeholder="mirror-user" />
               </label>
+            </div>
+
+            <div className="field-grid" style={{ marginBottom: "1.5rem" }}>
               <label>
                 Password
                 <input type="password" autoComplete="new-password" value={mirrorHelper.password} onChange={(e) => setMirrorHelper((h) => ({ ...h, password: e.target.value }))} placeholder="••••••••" />
@@ -750,12 +760,13 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
                 <input value={mirrorHelper.email} onChange={(e) => setMirrorHelper((h) => ({ ...h, email: e.target.value }))} placeholder="ops@example.com" />
               </label>
             </div>
+
+            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated pull secret</h4>
             <label>
-              Generated pull secret
-              <textarea className="textarea" rows={6} value={generateMirrorPullSecret()} readOnly />
+              <textarea className="textarea" rows={6} value={generateMirrorPullSecret()} readOnly style={{ fontFamily: "monospace", fontSize: "0.8125rem" }} />
             </label>
-            <div className="actions">
-              <button type="button" className="ghost" onClick={() => navigator.clipboard.writeText(generateMirrorPullSecret())}>Copy generated secret</button>
+
+            <div className="actions" style={{ marginTop: "1.5rem" }}>
               <button
                 type="button"
                 className="primary"
@@ -769,6 +780,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
               >
                 Use generated secret
               </button>
+              <button type="button" className="ghost" onClick={() => navigator.clipboard.writeText(generateMirrorPullSecret())}>Copy generated secret</button>
               <button type="button" className="ghost" onClick={() => setShowMirrorSecretHelper(false)}>Close</button>
             </div>
           </div>
