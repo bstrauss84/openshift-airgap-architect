@@ -813,6 +813,62 @@ const validateNetworkingFormat = (state) => {
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) errors.push("Provisioning network CIDR must be a valid CIDR.");
   if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) errors.push("Cluster provisioning IP must be a valid IPv4 address.");
+
+  // Provisioning network DHCP range validation (bare metal IPI only)
+  const dhcpRange = (hostInventory.provisioningDHCPRange || "").trim();
+  if (dhcpRange) {
+    const parts = dhcpRange.split(",").map(p => p.trim());
+    if (parts.length !== 2) {
+      errors.push("Provisioning DHCP range must be in format: start_ip,end_ip (e.g. 172.22.0.10,172.22.0.254)");
+    } else {
+      const [startIP, endIP] = parts;
+      if (!isValidIpv4(startIP) || !isValidIpv4(endIP)) {
+        errors.push("Provisioning DHCP range: both start and end must be valid IPv4 addresses.");
+      } else {
+        // Convert IPs to integers for comparison
+        const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
+        const startInt = toInt(startIP);
+        const endInt = toInt(endIP);
+
+        if (startInt > endInt) {
+          errors.push("Provisioning DHCP range: start IP must be less than or equal to end IP.");
+        }
+
+        // Validate both IPs are within provisioning CIDR
+        if (provisioningCIDR) {
+          const range = cidrToRange(provisioningCIDR);
+          if (range) {
+            if (startInt < range.start || startInt > range.end) {
+              errors.push(`Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+            }
+            if (endInt < range.start || endInt > range.end) {
+              errors.push(`Provisioning DHCP end IP (${endIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+            }
+          }
+        }
+
+        // Validate cluster provisioning IP is NOT in DHCP range
+        if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP)) {
+          const clusterInt = toInt(clusterProvisioningIP);
+          if (clusterInt >= startInt && clusterInt <= endInt) {
+            errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`);
+          }
+        }
+      }
+    }
+  }
+
+  // Validate cluster provisioning IP is within provisioning CIDR (when both are set)
+  if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP) && provisioningCIDR) {
+    const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
+    const range = cidrToRange(provisioningCIDR);
+    if (range) {
+      const ipInt = toInt(clusterProvisioningIP);
+      if (ipInt < range.start || ipInt > range.end) {
+        errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+      }
+    }
+  }
   if (scenarioIdNw === "ibm-cloud-ipi" && (networking.machineNetworkV6 || "").trim()) {
     errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
   }
