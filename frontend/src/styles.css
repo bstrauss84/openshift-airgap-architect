@@ -1103,7 +1103,6 @@ body[data-theme="dark"] .sticky-panel {
 }
 
 .proxy-fields-grid .proxy-field-cell {
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
