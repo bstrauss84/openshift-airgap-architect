@@ -71,30 +71,58 @@ const scenarios = [
   },
   {
     id: "odf",
-    label: "OpenShift Data Foundation",
-    description: "Persistent storage with file, block, and object support (Ceph-based)",
+    label: "OpenShift Data Foundation (Base)",
+    description: "Persistent storage with file, block, and object support - base packages for disconnected mirroring",
     versionPicks: {
-      "4.16": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.17": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.18": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.19": { redhat: ["odf-operator", "local-storage-operator"] }, // Special case: auto-managed dependencies
-      "4.20": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.21": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "default": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] }
+      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
+      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
+      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
+    }
+  },
+  {
+    id: "odf-local-storage",
+    label: "ODF + Local Storage",
+    description: "ODF base packages + local-storage-operator for internal mode deployments (Ceph on local disks)",
+    versionPicks: {
+      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "local-storage-operator"] },
+      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "local-storage-operator"] },
+      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
+      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
+      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
+      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
+      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] }
+    }
+  },
+  {
+    id: "odf-disaster-recovery",
+    label: "ODF + Disaster Recovery",
+    description: "ODF base packages + Regional-DR/Metro-DR operators for disaster recovery configurations",
+    versionPicks: {
+      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] }
     }
   },
   {
     id: "platform-plus",
     label: "OpenShift Platform Plus",
-    description: "Multi-cluster management (ACM), security (ACS), registry (Quay), and storage (ODF)",
+    description: "Multi-cluster management (ACM), security (ACS), registry (Quay), and storage (ODF base stack)",
     versionPicks: {
-      "4.16": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.17": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.18": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.19": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "local-storage-operator"] }, // ODF 4.19 special case
-      "4.20": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.21": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "default": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] }
+      "4.16": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
+      "4.17": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
+      "4.18": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.19": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.20": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "4.21": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "default": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
     }
   },
   {

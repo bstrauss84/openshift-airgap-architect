@@ -18,16 +18,23 @@ This document captures verified operator package names and dependencies for comm
 
 ### OpenShift Data Foundation (ODF) - Version Comparison
 
-| Version | Channel | User-Selectable Operators | Auto-Managed Dependencies | Notes |
-|---------|---------|--------------------------|---------------------------|-------|
-| **4.16** | stable-4.16 | odf-operator, ocs-operator, mcg-operator, local-storage-operator | ocs-operator pulled by odf-operator | Standard ODF stack |
-| **4.17** | stable-4.17 | odf-operator, ocs-operator, mcg-operator, local-storage-operator | ocs-operator pulled by odf-operator | Same as 4.16 |
-| **4.18** | stable-4.18 | odf-operator, ocs-operator, mcg-operator, local-storage-operator | ocs-operator pulled by odf-operator | Same as 4.16 |
-| **4.19** | stable-4.19 | odf-operator, local-storage-operator | cephcsi-operator, ibm-block-csi-operator, ibm-storage-odf-operator, mcg-operator, ocs-client-operator, ocs-operator, odf-csi-addons-operator, odf-dependencies, odf-prometheus-operator | **Significant expansion** - many operators now auto-managed |
-| **4.20** | stable-4.20 | odf-operator, ocs-operator, mcg-operator, local-storage-operator | ocs-operator pulled by odf-operator | Returns to standard stack |
-| **4.21** | stable-4.21 | odf-operator, ocs-operator, mcg-operator, local-storage-operator | ocs-operator pulled by odf-operator | Same as 4.20 |
+**Source:** Official Red Hat ODF Planning Documentation - Disconnected Environment sections (Chapters 10)
 
-**Analysis:** Version 4.19 introduces a significantly expanded operator set, with many operators now auto-managed by odf-operator. For user selection in UI, we should focus on the user-selectable operators that users would manually subscribe to.
+| Version | Channel | Required Packages for Mirror | Optional - Local Storage | Optional - Regional-DR/Metro-DR | Notes |
+|---------|---------|------------------------------|-------------------------|--------------------------------|-------|
+| **4.16** | stable-4.16 | ocs-operator, odf-operator, mcg-operator, odf-csi-addons-operator, ocs-client-operator, odf-prometheus-operator, recipe, rook-ceph-operator | local-storage-operator | odf-multicluster-orchestrator, odr-cluster-operator, odr-hub-operator | 8 base packages |
+| **4.17** | stable-4.17 | ocs-operator, odf-operator, mcg-operator, odf-csi-addons-operator, ocs-client-operator, odf-prometheus-operator, recipe, rook-ceph-operator, cephcsi-operator | local-storage-operator | odf-multicluster-orchestrator, odr-cluster-operator, odr-hub-operator | 9 base packages, added cephcsi-operator |
+| **4.18** | stable-4.18 | ocs-operator, odf-operator, mcg-operator, odf-csi-addons-operator, ocs-client-operator, odf-prometheus-operator, recipe, rook-ceph-operator, cephcsi-operator, odf-dependencies | local-storage-operator | odf-multicluster-orchestrator, odr-cluster-operator, odr-hub-operator | 10 base packages, added odf-dependencies |
+| **4.19** | stable-4.19 | ocs-operator, odf-operator, mcg-operator, odf-csi-addons-operator, ocs-client-operator, odf-prometheus-operator, recipe, rook-ceph-operator, cephcsi-operator, odf-dependencies | local-storage-operator | odf-multicluster-orchestrator, odr-cluster-operator, odr-hub-operator | 10 base packages, same as 4.18 |
+| **4.20** | stable-4.20 | ocs-operator, odf-operator, mcg-operator, odf-csi-addons-operator, ocs-client-operator, odf-prometheus-operator, recipe, rook-ceph-operator, cephcsi-operator, odf-dependencies, odf-external-snapshotter-operator | local-storage-operator | odf-multicluster-orchestrator, odr-cluster-operator, odr-hub-operator | 11 base packages, added odf-external-snapshotter-operator |
+| **4.21** | stable-4.21 | ocs-operator, odf-operator, mcg-operator, odf-csi-addons-operator, ocs-client-operator, odf-prometheus-operator, recipe, rook-ceph-operator, cephcsi-operator, odf-dependencies, odf-external-snapshotter-operator | local-storage-operator | odf-multicluster-orchestrator, odr-cluster-operator, odr-hub-operator | 11 base packages, same as 4.20 |
+
+**Critical Analysis:** 
+- All versions require the same core set of packages for disconnected mirroring
+- These are the packages needed when pruning the redhat-operator index image
+- Version 4.19 does NOT have fewer operators - original research was incorrect
+- Package list progressively expands: 4.16 (8) → 4.17 (9) → 4.18/4.19 (10) → 4.20/4.21 (11)
+- CatalogSource MUST be named "redhat-operators" per Red Hat documentation
 
 ### OpenShift Platform Plus - Version Comparison
 
@@ -52,214 +59,200 @@ This document captures verified operator package names and dependencies for comm
 
 ### OpenShift Data Foundation (ODF) - 4.16
 
-**Package Names:**
+**Source:** Red Hat ODF 4.16 Planning Deployment PDF - Chapter 10: Disconnected Environment
 
-1. **odf-operator** (Main operator)
-   - Catalog: `redhat`
-   - Channel: `stable-4.16`
-   - Description: OpenShift Data Foundation meta-operator
+**Required Packages for Disconnected Mirror (8 packages):**
 
-2. **ocs-operator** (Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.16`
-   - Description: OpenShift Container Storage operator
-   - Note: Dependency of odf-operator
+1. **ocs-operator** - OpenShift Container Storage operator
+2. **odf-operator** - OpenShift Data Foundation meta-operator  
+3. **mcg-operator** - Multi-Cloud Gateway operator
+4. **odf-csi-addons-operator** - CSI addons for ODF
+5. **ocs-client-operator** - OCS client operator
+6. **odf-prometheus-operator** - Prometheus monitoring for ODF
+7. **recipe** - Recipe operator for ODF
+8. **rook-ceph-operator** - Rook Ceph operator
 
-3. **mcg-operator** (Managed Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.16`
-   - Description: Multi-Cloud Gateway operator
-   - Note: Managed by odf-operator subscription
+**Optional - Only for Local Storage Deployments:**
+- **local-storage-operator** - Local Storage Operator for internal mode (Ceph on local disks)
 
-4. **local-storage-operator** (Prerequisite for internal mode)
-   - Catalog: `redhat`
-   - Channel: `stable`
-   - Description: Local Storage Operator for discovering and managing local block devices
-   - Note: Required for internal mode ODF deployments (Ceph on local disks)
+**Optional - Only for Disaster Recovery Configuration:**
+- **odf-multicluster-orchestrator** - Multicluster orchestration for DR
+- **odr-cluster-operator** - OpenShift DR cluster operator  
+- **odr-hub-operator** - OpenShift DR hub operator
 
-**Installation Order:**
-1. Install `local-storage-operator` first (if using internal mode)
-2. Install `odf-operator` (which will pull in ocs-operator and manage mcg-operator)
+**Important:** CatalogSource must be named `redhat-operators`
 
 **Sources:**
-- [ODF 4.16 Deployment Guide](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.16/html-single/deploying_openshift_data_foundation_on_any_platform/index)
+- [ODF 4.16 Planning - Disconnected Environment](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.16/html/planning_your_deployment/disconnected-environment_rhodf)
 
 ---
 
 ### OpenShift Data Foundation (ODF) - 4.17
 
-**Package Names:**
+**Source:** Red Hat ODF 4.17 Planning Deployment PDF - Chapter 10: Disconnected Environment
 
-1. **odf-operator** (Main operator)
-   - Catalog: `redhat`
-   - Channel: `stable-4.17`
+**Required Packages for Disconnected Mirror (9 packages):**
 
-2. **ocs-operator** (Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.17`
+1. **ocs-operator** - OpenShift Container Storage operator
+2. **odf-operator** - OpenShift Data Foundation meta-operator  
+3. **mcg-operator** - Multi-Cloud Gateway operator
+4. **odf-csi-addons-operator** - CSI addons for ODF
+5. **ocs-client-operator** - OCS client operator
+6. **odf-prometheus-operator** - Prometheus monitoring for ODF
+7. **recipe** - Recipe operator for ODF
+8. **rook-ceph-operator** - Rook Ceph operator
+9. **cephcsi-operator** - Ceph CSI operator ← **NEW in 4.17**
 
-3. **mcg-operator** (Managed Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.17`
+**Optional - Only for Local Storage Deployments:**
+- **local-storage-operator** - Local Storage Operator for internal mode
 
-4. **local-storage-operator** (Prerequisite for internal mode)
-   - Catalog: `redhat`
-   - Channel: `stable`
+**Optional - Only for Disaster Recovery Configuration:**
+- **odf-multicluster-orchestrator** - Multicluster orchestration for DR
+- **odr-cluster-operator** - OpenShift DR cluster operator  
+- **odr-hub-operator** - OpenShift DR hub operator
 
-**Installation Order:** Same as 4.16
+**Important:** CatalogSource must be named `redhat-operators`
 
 **Sources:**
-- [ODF 4.17 Architecture PDF](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.17/pdf/red_hat_openshift_data_foundation_architecture/Red_Hat_OpenShift_Data_Foundation-4.17-Red_Hat_OpenShift_Data_Foundation_architecture-en-US.pdf)
+- [ODF 4.17 Planning - Disconnected Environment](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.17/html/planning_your_deployment/disconnected-environment_rhodf)
 
 ---
 
 ### OpenShift Data Foundation (ODF) - 4.18
 
-**Package Names:**
+**Source:** Red Hat ODF 4.18 Planning Deployment PDF - Chapter 10: Disconnected Environment
 
-1. **odf-operator** (Main operator)
-   - Catalog: `redhat`
-   - Channel: `stable-4.18`
+**Required Packages for Disconnected Mirror (10 packages):**
 
-2. **ocs-operator** (Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.18`
+1. **ocs-operator** - OpenShift Container Storage operator
+2. **odf-operator** - OpenShift Data Foundation meta-operator  
+3. **mcg-operator** - Multi-Cloud Gateway operator
+4. **odf-csi-addons-operator** - CSI addons for ODF
+5. **ocs-client-operator** - OCS client operator
+6. **odf-prometheus-operator** - Prometheus monitoring for ODF
+7. **recipe** - Recipe operator for ODF
+8. **rook-ceph-operator** - Rook Ceph operator
+9. **cephcsi-operator** - Ceph CSI operator
+10. **odf-dependencies** - ODF dependencies operator ← **NEW in 4.18**
 
-3. **mcg-operator** (Managed Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.18`
+**Optional - Only for Local Storage Deployments:**
+- **local-storage-operator** - Local Storage Operator for internal mode
 
-4. **local-storage-operator** (Prerequisite for internal mode)
-   - Catalog: `redhat`
-   - Channel: `stable`
+**Optional - Only for Regional-DR or Metro-DR Configuration:**
+- **odf-multicluster-orchestrator** - Multicluster orchestration for DR
+- **odr-cluster-operator** - OpenShift DR cluster operator  
+- **odr-hub-operator** - OpenShift DR hub operator
 
-**Installation Order:** Same as 4.16
+**Important:** CatalogSource must be named `redhat-operators`
 
-**Important Note:** Upgrading to 4.18 directly from any version older than 4.17 is not supported. Regional-DR environments with multipath devices or partitioned disks should not upgrade from v4.17 to v4.18 due to known issues with Ceph.
+**Upgrade Note:** Upgrading to 4.18 directly from any version older than 4.17 is not supported.
 
 **Sources:**
-- [ODF 4.18 Update Guide](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.18/html-single/updating_openshift_data_foundation/index)
+- [ODF 4.18 Planning - Disconnected Environment](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.18/html/planning_your_deployment/disconnected-environment_rhodf)
 
 ---
 
 ### OpenShift Data Foundation (ODF) - 4.19
 
-**Package Names:**
+**Source:** Red Hat ODF 4.19 Planning Deployment PDF - Chapter 10: Disconnected Environment
 
-**Critical Change:** Version 4.19 significantly expands the operator ecosystem. The following operators are created as subscriptions:
+**Required Packages for Disconnected Mirror (10 packages):**
 
-**User-Selectable Operators:**
-1. **odf-operator** (Main operator)
-   - Catalog: `redhat`
-   - Channel: `stable-4.19`
+1. **ocs-operator** - OpenShift Container Storage operator
+2. **odf-operator** - OpenShift Data Foundation meta-operator  
+3. **mcg-operator** - Multi-Cloud Gateway operator
+4. **odf-csi-addons-operator** - CSI addons for ODF
+5. **ocs-client-operator** - OCS client operator
+6. **odf-prometheus-operator** - Prometheus monitoring for ODF
+7. **recipe** - Recipe operator for ODF
+8. **rook-ceph-operator** - Rook Ceph operator
+9. **cephcsi-operator** - Ceph CSI operator
+10. **odf-dependencies** - ODF dependencies operator
 
-2. **local-storage-operator** (Prerequisite for internal mode)
-   - Catalog: `redhat`
-   - Channel: `stable`
+**Optional - Only for Local Storage Deployments:**
+- **local-storage-operator** - Local Storage Operator for internal mode
 
-**Auto-Managed by odf-operator (DO NOT manually select):**
-- cephcsi-operator
-- ibm-block-csi-operator
-- ibm-storage-odf-operator
-- mcg-operator
-- ocs-client-operator
-- ocs-operator
-- odf-csi-addons-operator
-- odf-dependencies
-- odf-prometheus-operator
+**Optional - Only for Regional-DR or Metro-DR Configuration:**
+- **odf-multicluster-orchestrator** - Multicluster orchestration for DR
+- **odr-cluster-operator** - OpenShift DR cluster operator  
+- **odr-hub-operator** - OpenShift DR hub operator
 
-**Installation Order:**
-1. Install `local-storage-operator` first (if using internal mode)
-2. Install `odf-operator` (which will automatically manage all dependency operators)
+**Important:** CatalogSource must be named `redhat-operators`
 
-**Important:** In 4.19, users should only manually select `odf-operator` and `local-storage-operator`. All other operators are now auto-managed by OLM through the odf-operator subscription.
+**Note:** Version 4.19 has the same package list as 4.18 (10 packages). Previous research incorrectly stated 4.19 had fewer operators.
 
 **Sources:**
-- [ODF 4.19 External Mode Guide](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.19/html/deploying_openshift_data_foundation_in_external_mode/deploy-openshift-data-foundation-using-ibm-flashsystem)
+- [ODF 4.19 Planning - Disconnected Environment](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.19/html/planning_your_deployment/disconnected-environment_rhodf)
 
 ---
 
 ### OpenShift Data Foundation (ODF) - 4.20
 
-**Package Names (Verified for 4.20):**
+**Source:** Red Hat ODF 4.20 Planning Deployment PDF - Chapter 10: Disconnected Environment
 
-1. **odf-operator** (Main operator)
-   - Catalog: `redhat`
-   - Channel: `stable-4.20`
-   - Description: OpenShift Data Foundation meta-operator
+**Required Packages for Disconnected Mirror (11 packages):**
 
-2. **ocs-operator** (Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.20`
-   - Description: OpenShift Container Storage operator
-   - Note: Dependency of odf-operator
+1. **ocs-operator** - OpenShift Container Storage operator
+2. **odf-operator** - OpenShift Data Foundation meta-operator  
+3. **mcg-operator** - Multi-Cloud Gateway operator
+4. **odf-csi-addons-operator** - CSI addons for ODF
+5. **ocs-client-operator** - OCS client operator
+6. **odf-prometheus-operator** - Prometheus monitoring for ODF
+7. **recipe** - Recipe operator for ODF
+8. **rook-ceph-operator** - Rook Ceph operator
+9. **cephcsi-operator** - Ceph CSI operator
+10. **odf-dependencies** - ODF dependencies operator
+11. **odf-external-snapshotter-operator** - External snapshotter for ODF ← **NEW in 4.20**
 
-3. **mcg-operator** (Managed Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.20`
-   - Description: Multi-Cloud Gateway operator
-   - Note: Managed by odf-operator subscription
+**Optional - Only for Local Storage Deployments:**
+- **local-storage-operator** - Local Storage Operator for internal mode
 
-4. **local-storage-operator** (Prerequisite for internal mode)
-   - Catalog: `redhat`
-   - Channel: `stable`
-   - Description: Local Storage Operator for discovering and managing local block devices
-   - Note: Required for internal mode ODF deployments (Ceph on local disks)
+**Optional - Only for Regional-DR or Metro-DR Configuration:**
+- **odf-multicluster-orchestrator** - Multicluster orchestration for DR
+- **odr-cluster-operator** - OpenShift DR cluster operator  
+- **odr-hub-operator** - OpenShift DR hub operator
 
-**Installation Order:**
-1. Install `local-storage-operator` first (if using internal mode)
-2. Install `odf-operator` (which will pull in ocs-operator and manage mcg-operator)
+**Important:** CatalogSource must be named `redhat-operators`
 
 **Sources:**
-- https://kifarunix.com/install-configure-openshift-data-foundation-on-openshift/
-- https://github.com/red-hat-storage/odf-operator
-- https://linuxelite.com.br/blog/openshift-oc-mirror-v2-catalog/
+- [ODF 4.20 Planning - Disconnected Environment](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.20/html/planning_your_deployment/disconnected-environment_rhodf)
 
 ---
 
 ### OpenShift Data Foundation (ODF) - 4.21
 
-**Package Names:**
+**Source:** Red Hat ODF 4.21 Planning Deployment PDF - Chapter 10: Disconnected Environment
 
-1. **odf-operator** (Main operator)
-   - Catalog: `redhat`
-   - Channel: `stable-4.21`
-   - Description: OpenShift Data Foundation meta-operator
+**Required Packages for Disconnected Mirror (11 packages):**
 
-2. **ocs-operator** (Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.21`
-   - Description: OpenShift Container Storage operator
-   - Note: Dependency of odf-operator
+1. **ocs-operator** - OpenShift Container Storage operator
+2. **odf-operator** - OpenShift Data Foundation meta-operator  
+3. **mcg-operator** - Multi-Cloud Gateway operator
+4. **odf-csi-addons-operator** - CSI addons for ODF
+5. **ocs-client-operator** - OCS client operator
+6. **odf-prometheus-operator** - Prometheus monitoring for ODF
+7. **recipe** - Recipe operator for ODF
+8. **rook-ceph-operator** - Rook Ceph operator
+9. **cephcsi-operator** - Ceph CSI operator
+10. **odf-dependencies** - ODF dependencies operator
+11. **odf-external-snapshotter-operator** - External snapshotter for ODF
 
-3. **mcg-operator** (Managed Dependency)
-   - Catalog: `redhat`
-   - Channel: `stable-4.21`
-   - Description: Multi-Cloud Gateway operator
-   - Note: Managed by odf-operator subscription
+**Optional - Only for Local Storage Deployments:**
+- **local-storage-operator** - Local Storage Operator for internal mode
 
-4. **local-storage-operator** (Prerequisite for internal mode)
-   - Catalog: `redhat`
-   - Channel: `stable`
-   - Description: Local Storage Operator for discovering and managing local block devices
-   - Note: Required for internal mode ODF deployments (Ceph on local disks)
+**Optional - Only for Regional-DR or Metro-DR Configuration:**
+- **odf-multicluster-orchestrator** - Multicluster orchestration for DR
+- **odr-cluster-operator** - OpenShift DR cluster operator  
+- **odr-hub-operator** - OpenShift DR hub operator
 
-**Installation Order:**
-1. Install `local-storage-operator` first (if using internal mode)
-2. Install `odf-operator` (which will pull in ocs-operator and manage mcg-operator)
+**Important:** CatalogSource must be named `redhat-operators`
 
 **Version Compatibility:**
 - ODF 4.21 supports OpenShift Container Platform 4.21 and 4.22 (when generally available)
 - Can upgrade from ODF 4.20 using the stable-4.21 channel
 
-**Cluster Requirements:**
-- Minimum of 3 x 16 = 48 units of CPU and 3 x 64 = 192 GB of memory for 3-node internal-attached devices mode
-- Minimum of 3 x 10 = 30 units of CPU for 3-node internal mode with single device set
-- We generally recommend 12 devices or less per node
-
 **Sources:**
-- [ODF 4.21 Documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.21)
-- [ODF 4.21 Release Notes PDF](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.21/pdf/4.21_release_notes/Red_Hat_OpenShift_Data_Foundation-4.21-4.21_Release_Notes-en-US.pdf)
+- [ODF 4.21 Planning - Disconnected Environment](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.21/html/planning_your_deployment/disconnected-environment_rhodf)
 
 ---
 
@@ -405,37 +398,57 @@ These operators are already defined in existing quick picks and can be combined 
 
 ### Recommended Approach: Version-Aware Quick Picks (All Versions)
 
-Based on research findings, implement version-aware quick picks for versions 4.16-4.21:
+Based on official Red Hat documentation, implement version-aware quick picks for versions 4.16-4.21:
 
-#### 1. OpenShift Data Foundation Quick Pick
+#### 1. OpenShift Data Foundation (Base) Quick Pick
 
-**Versions 4.16, 4.17, 4.18, 4.20, 4.21:**
+**Version 4.16 (8 packages):**
 ```javascript
-redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"]
+redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"]
 ```
 
-**Version 4.19 (Special Case):**
+**Version 4.17 (9 packages):**
 ```javascript
-redhat: ["odf-operator", "local-storage-operator"]
-// Note: All other operators auto-managed by odf-operator in 4.19
+redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"]
 ```
 
-**Rationale:** In 4.19, the odf-operator auto-manages all dependencies. Users should only select the main operator and LSO.
-
-#### 2. OpenShift Platform Plus Quick Pick
-
-**All Versions (4.16-4.21):**
+**Versions 4.18, 4.19 (10 packages):**
 ```javascript
-redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator"]
+redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"]
 ```
 
-**Additional for 4.19:**
+**Versions 4.20, 4.21 (11 packages):**
 ```javascript
-redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "local-storage-operator"]
-// Include LSO for ODF in 4.19 since ocs-operator is auto-managed
+redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"]
 ```
 
-**Rationale:** Package names are consistent across versions. Component version compatibility is handled by operator channels.
+**Rationale:** These are the required packages for pruning the redhat-operator index image per official Red Hat documentation.
+
+#### 2. ODF + Local Storage Quick Pick
+
+**All Versions:** Base ODF packages + `local-storage-operator`
+
+**Rationale:** For users deploying ODF in internal mode with local disks (Ceph on local storage).
+
+#### 3. ODF + Regional-DR or Metro-DR Quick Pick
+
+**All Versions:** Base ODF packages + DR operators:
+```javascript
+redhat: [...baseOdfPackages, "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"]
+```
+
+**Rationale:** For users implementing disaster recovery configurations (Regional-DR or Metro-DR).
+
+#### 4. OpenShift Platform Plus Quick Pick
+
+**Platform Plus includes:** ACM + ACS + Quay + ODF (full stack)
+
+**All Versions:** 
+```javascript
+redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", ...baseOdfPackages]
+```
+
+**Rationale:** Package names are consistent across versions. Component version compatibility is handled by operator channels. Platform Plus includes the full ODF base stack.
 
 #### 3. App Development Suite Quick Pick
 
@@ -456,30 +469,58 @@ redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspa
 const versionAwareScenarios = [
   {
     id: "odf",
-    label: "OpenShift Data Foundation",
-    description: "Persistent storage with file, block, and object support (Ceph-based)",
+    label: "OpenShift Data Foundation (Base)",
+    description: "Persistent storage with file, block, and object support - base packages for disconnected mirroring",
     versionPicks: {
-      "4.16": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.17": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.18": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.19": { redhat: ["odf-operator", "local-storage-operator"] }, // Special case: auto-managed dependencies
-      "4.20": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.21": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "default": { redhat: ["odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] }
+      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
+      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
+      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
+    }
+  },
+  {
+    id: "odf-local-storage",
+    label: "ODF + Local Storage",
+    description: "ODF base packages + local-storage-operator for internal mode deployments (Ceph on local disks)",
+    versionPicks: {
+      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "local-storage-operator"] },
+      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "local-storage-operator"] },
+      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
+      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
+      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
+      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
+      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] }
+    }
+  },
+  {
+    id: "odf-disaster-recovery",
+    label: "ODF + Disaster Recovery",
+    description: "ODF base packages + Regional-DR/Metro-DR operators for disaster recovery configurations",
+    versionPicks: {
+      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
+      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] }
     }
   },
   {
     id: "platform-plus",
     label: "OpenShift Platform Plus",
-    description: "Multi-cluster management (ACM), security (ACS), registry (Quay), and storage (ODF)",
+    description: "Multi-cluster management (ACM), security (ACS), registry (Quay), and storage (ODF base stack)",
     versionPicks: {
-      "4.16": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.17": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.18": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.19": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "local-storage-operator"] }, // ODF 4.19 special case
-      "4.20": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "4.21": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] },
-      "default": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "odf-operator", "ocs-operator", "mcg-operator", "local-storage-operator"] }
+      "4.16": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
+      "4.17": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
+      "4.18": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.19": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
+      "4.20": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "4.21": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
+      "default": { redhat: ["advanced-cluster-management", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
     }
   },
   {
@@ -487,7 +528,6 @@ const versionAwareScenarios = [
     label: "App Development Suite",
     description: "GitOps, CI/CD pipelines, cloud IDE, and web terminal",
     versionPicks: {
-      // Version-agnostic: same operators across all versions
       "default": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] }
     }
   }
