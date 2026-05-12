@@ -232,16 +232,9 @@ This is often the **main network you customize** - other networks (cluster/servi
 192.168.1.0/24 or 10.0.0.0/16`}
                   required={isRequired("networking.machineNetwork[].cidr")}
                   className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
-                            title={fieldErrors.machineNetworkV4 || ""}
-                          title={fieldErrors.machineNetworkV4 || ""}
-                        title={fieldErrors.machineNetworkV4 || ""}
-                      title={fieldErrors.machineNetworkV4 || ""}
                 >
                   <input
                     className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
-                            title={fieldErrors.machineNetworkV4 || ""}
-                          title={fieldErrors.machineNetworkV4 || ""}
-                        title={fieldErrors.machineNetworkV4 || ""}
                       title={fieldErrors.machineNetworkV4 || ""}
                     value={networking.machineNetworkV4 || ""}
                     onChange={(e) => updateNetworking({ machineNetworkV4: formatIpv4Cidr(e.target.value) })}
@@ -270,16 +263,9 @@ IPv4-only clusters
 **Example:**
 fd10:90::/64`}
                     className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
-                            title={fieldErrors.machineNetworkV6 || ""}
-                          title={fieldErrors.machineNetworkV6 || ""}
-                        title={fieldErrors.machineNetworkV6 || ""}
-                      title={fieldErrors.machineNetworkV6 || ""}
                   >
                     <input
                       className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
-                            title={fieldErrors.machineNetworkV6 || ""}
-                          title={fieldErrors.machineNetworkV6 || ""}
-                        title={fieldErrors.machineNetworkV6 || ""}
                       title={fieldErrors.machineNetworkV6 || ""}
                       value={networking.machineNetworkV6 || ""}
                       onChange={(e) =>
@@ -320,16 +306,9 @@ Cluster network is **completely isolated** from external networks - pods communi
 If your datacenter uses 10.x.x.x, change to 172.30.0.0/16`}
                   required={isRequired("networking.clusterNetwork[].cidr")}
                   className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
-                            title={fieldErrors.clusterNetworkCidr || ""}
-                          title={fieldErrors.clusterNetworkCidr || ""}
-                        title={fieldErrors.clusterNetworkCidr || ""}
-                      title={fieldErrors.clusterNetworkCidr || ""}
                 >
                   <input
                     className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
-                            title={fieldErrors.clusterNetworkCidr || ""}
-                          title={fieldErrors.clusterNetworkCidr || ""}
-                        title={fieldErrors.clusterNetworkCidr || ""}
                       title={fieldErrors.clusterNetworkCidr || ""}
                     value={networking.clusterNetworkCidr || ""}
                     onChange={(e) => updateNetworking({ clusterNetworkCidr: formatIpv4Cidr(e.target.value) })}
@@ -394,16 +373,9 @@ If left blank, defaults to fd01::/48
 **Example:**
 fd01::/48`}
                       className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
-                            title={fieldErrors.clusterNetworkCidrV6 || ""}
-                          title={fieldErrors.clusterNetworkCidrV6 || ""}
-                        title={fieldErrors.clusterNetworkCidrV6 || ""}
-                      title={fieldErrors.clusterNetworkCidrV6 || ""}
                     >
                       <input
                         className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
-                            title={fieldErrors.clusterNetworkCidrV6 || ""}
-                          title={fieldErrors.clusterNetworkCidrV6 || ""}
-                        title={fieldErrors.clusterNetworkCidrV6 || ""}
                       title={fieldErrors.clusterNetworkCidrV6 || ""}
                         value={networking.clusterNetworkCidrV6 || ""}
                         onChange={(e) =>
@@ -461,16 +433,9 @@ Only if this range conflicts with existing infrastructure networks
 If datacenter uses 172.x.x.x, change to 10.96.0.0/12`}
                   required={isRequired("networking.serviceNetwork")}
                   className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
-                            title={fieldErrors.serviceNetworkCidr || ""}
-                          title={fieldErrors.serviceNetworkCidr || ""}
-                        title={fieldErrors.serviceNetworkCidr || ""}
-                      title={fieldErrors.serviceNetworkCidr || ""}
                 >
                   <input
                     className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
-                            title={fieldErrors.serviceNetworkCidr || ""}
-                          title={fieldErrors.serviceNetworkCidr || ""}
-                        title={fieldErrors.serviceNetworkCidr || ""}
                       title={fieldErrors.serviceNetworkCidr || ""}
                     value={networking.serviceNetworkCidr || ""}
                     onChange={(e) => updateNetworking({ serviceNetworkCidr: formatIpv4Cidr(e.target.value) })}
@@ -499,16 +464,9 @@ If left blank, defaults to fd02::/112
 **Example:**
 fd02::/112`}
                     className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
-                            title={fieldErrors.serviceNetworkCidrV6 || ""}
-                          title={fieldErrors.serviceNetworkCidrV6 || ""}
-                        title={fieldErrors.serviceNetworkCidrV6 || ""}
-                      title={fieldErrors.serviceNetworkCidrV6 || ""}
                   >
                     <input
                       className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
-                            title={fieldErrors.serviceNetworkCidrV6 || ""}
-                          title={fieldErrors.serviceNetworkCidrV6 || ""}
-                        title={fieldErrors.serviceNetworkCidrV6 || ""}
                       title={fieldErrors.serviceNetworkCidrV6 || ""}
                       value={networking.serviceNetworkCidrV6 || ""}
                       onChange={(e) =>
@@ -604,9 +562,6 @@ If machine network is 192.168.1.0/24, use 192.168.1.10`}
                         >
                           <input
                             className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
-                            title={fieldErrors.nutanixApiVIP || ""}
-                          title={fieldErrors.nutanixApiVIP || ""}
-                        title={fieldErrors.nutanixApiVIP || ""}
                       title={fieldErrors.nutanixApiVIP || ""}
                             value={platformConfig.nutanix?.apiVIP || ""}
                             onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
@@ -625,9 +580,6 @@ When both IPv4 and IPv6 are set, emits apiVIPs list
 fd00::5`}>
                           <input
                             className={fieldErrors.nutanixApiVIPV6 ? "input-error" : ""}
-                            title={fieldErrors.nutanixApiVIPV6 || ""}
-                          title={fieldErrors.nutanixApiVIPV6 || ""}
-                        title={fieldErrors.nutanixApiVIPV6 || ""}
                       title={fieldErrors.nutanixApiVIPV6 || ""}
                             value={platformConfig.nutanix?.apiVIPV6 || ""}
                             onChange={(e) => updateNutanix({ apiVIPV6: e.target.value })}
@@ -662,9 +614,6 @@ If machine network is 192.168.1.0/24, use 192.168.1.11`}
                         >
                           <input
                             className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
-                            title={fieldErrors.nutanixIngressVIP || ""}
-                          title={fieldErrors.nutanixIngressVIP || ""}
-                        title={fieldErrors.nutanixIngressVIP || ""}
                       title={fieldErrors.nutanixIngressVIP || ""}
                             value={platformConfig.nutanix?.ingressVIP || ""}
                             onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
@@ -683,9 +632,6 @@ When both IPv4 and IPv6 are set, emits ingressVIPs list
 fd00::6`}>
                           <input
                             className={fieldErrors.nutanixIngressVIPV6 ? "input-error" : ""}
-                            title={fieldErrors.nutanixIngressVIPV6 || ""}
-                          title={fieldErrors.nutanixIngressVIPV6 || ""}
-                        title={fieldErrors.nutanixIngressVIPV6 || ""}
                       title={fieldErrors.nutanixIngressVIPV6 || ""}
                             value={platformConfig.nutanix?.ingressVIPV6 || ""}
                             onChange={(e) => updateNutanix({ ingressVIPV6: e.target.value })}
@@ -712,9 +658,6 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                       >
                         <input
                           className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
-                            title={fieldErrors.nutanixApiVIP || ""}
-                          title={fieldErrors.nutanixApiVIP || ""}
-                        title={fieldErrors.nutanixApiVIP || ""}
                       title={fieldErrors.nutanixApiVIP || ""}
                           value={platformConfig.nutanix?.apiVIP || ""}
                           onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
@@ -737,9 +680,6 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                       >
                         <input
                           className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
-                            title={fieldErrors.nutanixIngressVIP || ""}
-                          title={fieldErrors.nutanixIngressVIP || ""}
-                        title={fieldErrors.nutanixIngressVIP || ""}
                       title={fieldErrors.nutanixIngressVIP || ""}
                           value={platformConfig.nutanix?.ingressVIP || ""}
                           onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
@@ -810,9 +750,6 @@ Orders VIPs to match machine networks (IPv4 first, then IPv6)
                         >
                           <input
                             className={fieldErrors.apiVip ? "input-error" : ""}
-                            title={fieldErrors.apiVip || ""}
-                          title={fieldErrors.apiVip || ""}
-                        title={fieldErrors.apiVip || ""}
                       title={fieldErrors.apiVip || ""}
                             value={hostInventory.apiVip || ""}
                             onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
@@ -831,9 +768,6 @@ IPv4-only clusters
 fd00::1`}>
                           <input
                             className={fieldErrors.apiVipV6 ? "input-error" : ""}
-                            title={fieldErrors.apiVipV6 || ""}
-                          title={fieldErrors.apiVipV6 || ""}
-                        title={fieldErrors.apiVipV6 || ""}
                       title={fieldErrors.apiVipV6 || ""}
                             value={hostInventory.apiVipV6 ?? ""}
                             onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
@@ -859,9 +793,6 @@ Set IPv6 below for dual-stack deployments
                         >
                           <input
                             className={fieldErrors.ingressVip ? "input-error" : ""}
-                            title={fieldErrors.ingressVip || ""}
-                          title={fieldErrors.ingressVip || ""}
-                        title={fieldErrors.ingressVip || ""}
                       title={fieldErrors.ingressVip || ""}
                             value={hostInventory.ingressVip || ""}
                             onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
@@ -880,9 +811,6 @@ IPv4-only clusters
 fd00::2`}>
                           <input
                             className={fieldErrors.ingressVipV6 ? "input-error" : ""}
-                            title={fieldErrors.ingressVipV6 || ""}
-                          title={fieldErrors.ingressVipV6 || ""}
-                        title={fieldErrors.ingressVipV6 || ""}
                       title={fieldErrors.ingressVipV6 || ""}
                             value={hostInventory.ingressVipV6 ?? ""}
                             onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
@@ -900,9 +828,6 @@ fd00::2`}>
                       >
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
-                            title={fieldErrors.apiVip || ""}
-                          title={fieldErrors.apiVip || ""}
-                        title={fieldErrors.apiVip || ""}
                       title={fieldErrors.apiVip || ""}
                           value={hostInventory.apiVip || ""}
                           onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
@@ -916,9 +841,6 @@ fd00::2`}>
                       >
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
-                            title={fieldErrors.ingressVip || ""}
-                          title={fieldErrors.ingressVip || ""}
-                        title={fieldErrors.ingressVip || ""}
                       title={fieldErrors.ingressVip || ""}
                           value={hostInventory.ingressVip || ""}
                           onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
@@ -948,9 +870,6 @@ Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
                         >
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
-                            title={fieldErrors.apiVip || ""}
-                          title={fieldErrors.apiVip || ""}
-                        title={fieldErrors.apiVip || ""}
                       title={fieldErrors.apiVip || ""}
                           value={hostInventory.apiVip || ""}
                           onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
@@ -975,9 +894,6 @@ fd00::1`}
                       >
                         <input
                           className={fieldErrors.apiVipV6 ? "input-error" : ""}
-                            title={fieldErrors.apiVipV6 || ""}
-                          title={fieldErrors.apiVipV6 || ""}
-                        title={fieldErrors.apiVipV6 || ""}
                       title={fieldErrors.apiVipV6 || ""}
                           value={hostInventory.apiVipV6 ?? ""}
                           onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
@@ -1003,9 +919,6 @@ Emitted ingressVIPs order is IPv4 then IPv6
                       >
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
-                            title={fieldErrors.ingressVip || ""}
-                          title={fieldErrors.ingressVip || ""}
-                        title={fieldErrors.ingressVip || ""}
                       title={fieldErrors.ingressVip || ""}
                           value={hostInventory.ingressVip || ""}
                           onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
@@ -1027,9 +940,6 @@ fd00::2`}
                       >
                         <input
                           className={fieldErrors.ingressVipV6 ? "input-error" : ""}
-                            title={fieldErrors.ingressVipV6 || ""}
-                          title={fieldErrors.ingressVipV6 || ""}
-                        title={fieldErrors.ingressVipV6 || ""}
                       title={fieldErrors.ingressVipV6 || ""}
                           value={hostInventory.ingressVipV6 ?? ""}
                           onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
@@ -1056,9 +966,6 @@ Single IPv4 address (not comma-separated)
                       >
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
-                            title={fieldErrors.apiVip || ""}
-                          title={fieldErrors.apiVip || ""}
-                        title={fieldErrors.apiVip || ""}
                       title={fieldErrors.apiVip || ""}
                           value={hostInventory.apiVip || ""}
                           onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
@@ -1081,9 +988,6 @@ Single IPv4 address (not comma-separated)
                       >
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
-                            title={fieldErrors.ingressVip || ""}
-                          title={fieldErrors.ingressVip || ""}
-                        title={fieldErrors.ingressVip || ""}
                       title={fieldErrors.ingressVip || ""}
                           value={hostInventory.ingressVip || ""}
                           onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}

@@ -27,14 +27,15 @@ describe('Regression Tests', () => {
     });
 
     it('should render label text correctly without stringifying JSX', () => {
-      const { getByText } = render(
+      const { container } = render(
         <FieldLabelWithInfo label="Test Field" hint="Test hint" required>
           <input type="text" />
         </FieldLabelWithInfo>
       );
 
       // Should show "Test Field" text, not "[object Object]"
-      expect(getByText('Test Field')).toBeTruthy();
+      // Text may be split across multiple elements due to hint icon placement
+      expect(container.textContent).toContain('Test Field');
     });
 
     it('should render with single child element correctly', () => {
@@ -87,27 +88,28 @@ describe('Regression Tests', () => {
   });
 
   describe('Required marker rendering', () => {
-    it('should render required badge when required=true', () => {
+    it('should render required marker when required=true', () => {
       const { container } = render(
         <FieldLabelWithInfo label="Required Field" hint="Test hint" required>
           <input type="text" />
         </FieldLabelWithInfo>
       );
 
-      const requiredBadge = container.querySelector('.required-badge');
-      expect(requiredBadge).toBeTruthy();
-      expect(requiredBadge.textContent).toBe('required');
+      const requiredMarker = container.querySelector('.required-marker');
+      expect(requiredMarker).toBeTruthy();
+      expect(requiredMarker.textContent).toBe('*');
+      expect(requiredMarker.getAttribute('aria-label')).toBe('required');
     });
 
-    it('should not render required badge when required=false', () => {
+    it('should not render required marker when required=false', () => {
       const { container } = render(
         <FieldLabelWithInfo label="Optional Field" hint="Test hint" required={false}>
           <input type="text" />
         </FieldLabelWithInfo>
       );
 
-      const requiredBadge = container.querySelector('.required-badge');
-      expect(requiredBadge).toBeFalsy();
+      const requiredMarker = container.querySelector('.required-marker');
+      expect(requiredMarker).toBeFalsy();
     });
   });
 });

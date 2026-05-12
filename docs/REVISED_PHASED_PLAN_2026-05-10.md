@@ -20,15 +20,18 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 
 ## Phase Sequencing
 
-### **Phase 0: Quick Wins & Foundation** ✅ **NEARLY COMPLETE** (1 item remaining)
+### **Phase 0: Quick Wins & Foundation** ✅ **COMPLETE**
 
 **Priority:** P0/P1  
 **Goal:** Clear blockers, establish momentum, fix high-value bugs  
-**Status:** 11 of 12 items complete (92%)
+**Status:** 12 of 12 items complete (100%)  
+**Completed:** 2026-05-12
 
-#### Completed Items (9)
+#### Completed Items (12)
 
 - ✅ **DOC-021:** Header actions a11y/keyboard tests (verified_done 2026-05-10)
+- ✅ **DOC-024:** Node drawer duplicate hostname validation (verified_done 2026-05-12)
+- ✅ **DOC-025:** Bare metal provisioning network audit (verified_done 2026-05-12 - already existed)
 - ✅ **DOC-036:** Import-run reload override fix (verified_done 2026-05-10)
 - ✅ **DOC-061:** Double proxy field width (verified_done 2026-05-10)
 - ✅ **DOC-062:** Clear selections button for Operators tab (verified_done 2026-05-10)
@@ -37,22 +40,14 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 - ✅ **DOC-066:** Scan Status conditional auto-expansion (verified_done 2026-05-12)
 - ✅ **DOC-067:** ImageSet fields standardized tooltips (verified_done 2026-05-12)
 - ✅ **DOC-068:** Validation error tooltips on alert icons (verified_done 2026-05-12)
-
-#### Remaining Items (1)
-
-- **LOCAL #5:** Frontend/backend logs expansion (request IDs, job lifecycle, operator-scan events)
-
-#### Recently Completed (2 more - 2026-05-12)
-
-- ✅ **DOC-024:** Node drawer data integrity (verified_done 2026-05-12)
-- ✅ **DOC-025:** Bare metal provisioning network audit (verified_done 2026-05-12 - already existed)
+- ✅ **LOCAL #5:** Frontend/backend logs expansion (verified_done 2026-05-12)
 
 #### Success Criteria
 
-- ✅ 9/12 Phase 0 items marked verified_done
+- ✅ 12/12 Phase 0 items marked verified_done
 - ✅ Tests passing
 - ✅ No regressions
-- ⏳ Remaining 3 items in progress
+- ✅ All quick wins complete
 
 ---
 

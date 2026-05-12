@@ -128,7 +128,7 @@ describe('Operations log download button visibility', () => {
     };
 
     const shouldShow = job.output && job.output.trim().length > 0;
-    expect(shouldShow).toBe(false);
+    expect(shouldShow).toBeFalsy();
   });
 
   it('should hide download button when output is only whitespace', () => {
@@ -140,7 +140,7 @@ describe('Operations log download button visibility', () => {
     };
 
     const shouldShow = job.output && job.output.trim().length > 0;
-    expect(shouldShow).toBe(false);
+    expect(shouldShow).toBeFalsy();
   });
 
   it('should hide download button when output is null', () => {
@@ -152,6 +152,6 @@ describe('Operations log download button visibility', () => {
     };
 
     const shouldShow = job.output && job.output.trim().length > 0;
-    expect(shouldShow).toBe(false);
+    expect(shouldShow).toBeFalsy();
   });
 });

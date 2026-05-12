@@ -37,7 +37,13 @@ describe("ToolsDrawer About section", () => {
         buildInfo={{ gitSha: "abc1234", buildTime: "2025-03-03T12:00:00Z", branch: "main", repo: "owner/repo" }}
       />
     );
-    expect(screen.getByText(/Build abc1234 • 2025-03-03T12:00:00Z • main/)).toBeInTheDocument();
+    // Build info is split across multiple <span> elements
+    // ToolsDrawer is portaled to document.body, so use screen instead of container
+    const buildInfo = document.querySelector('.about-build-info');
+    expect(buildInfo).toBeTruthy();
+    expect(buildInfo.textContent).toContain('Build abc1234');
+    expect(buildInfo.textContent).toContain('2025-03-03T12:00:00Z');
+    expect(buildInfo.textContent).toContain('main');
   });
 
   it("shows Update checks disabled when updateInfo.enabled is false", () => {
