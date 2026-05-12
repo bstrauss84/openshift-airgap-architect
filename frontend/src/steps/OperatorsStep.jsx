@@ -447,11 +447,21 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       }
       return;
     }
-    if (scenarioSelections?.[scenario.id]) {
+
+    // Check if ALL operators from this scenario are currently selected
+    const picks = scenario.versionPicks?.[version] || scenario.versionPicks?.["default"] || scenario.picks;
+    const allPickNames = Object.values(picks).flat().map((name) => name.toLowerCase());
+    const allOperatorsSelected = allPickNames.every((name) =>
+      selected.some((op) => op.name?.toLowerCase() === name)
+    );
+
+    if (allOperatorsSelected) {
+      // All operators are selected, so remove them
       removeScenarioOperators(scenario.id);
-      return;
+    } else {
+      // Some operators are missing, so add them (applyScenario handles existing ones gracefully)
+      applyScenario(scenario);
     }
-    applyScenario(scenario);
   };
 
   const startScan = async () => {
