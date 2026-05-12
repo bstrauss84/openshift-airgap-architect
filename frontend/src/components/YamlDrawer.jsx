@@ -80,10 +80,16 @@ export default function YamlDrawer({
   // State for agent-based split view ratio
   const [splitRatio, setSplitRatio] = useState(0.5); // 0-1, represents install-config percentage
 
-  // Refs for drag-resize
+  // Refs for drag-resize (vertical - width)
   const resizingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+
+  // Refs for horizontal split resize (height split in agent view)
+  const splitResizingRef = useRef(false);
+  const splitStartYRef = useRef(0);
+  const splitStartRatioRef = useRef(0);
+  const splitContainerRef = useRef(null);
 
   // Persist drawer width to localStorage
   useEffect(() => {
@@ -128,6 +134,49 @@ export default function YamlDrawer({
       document.removeEventListener('mouseup', handleResizeEnd);
     };
   }, []);
+
+  // Handle horizontal split resize (agent-based split view)
+  const handleSplitResizeStart = (e) => {
+    e.preventDefault();
+    splitResizingRef.current = true;
+    splitStartYRef.current = e.clientY;
+    splitStartRatioRef.current = splitRatio;
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  useEffect(() => {
+    const handleSplitResizeMove = (e) => {
+      if (!splitResizingRef.current || !splitContainerRef.current) return;
+
+      const containerHeight = splitContainerRef.current.clientHeight;
+      const deltaY = e.clientY - splitStartYRef.current;
+      const deltaRatio = deltaY / containerHeight;
+      let newRatio = splitStartRatioRef.current + deltaRatio;
+
+      // Apply min constraints (120px each pane minimum)
+      const minRatio = 120 / containerHeight;
+      const maxRatio = 1 - minRatio;
+      newRatio = Math.max(minRatio, Math.min(newRatio, maxRatio));
+
+      setSplitRatio(newRatio);
+    };
+
+    const handleSplitResizeEnd = () => {
+      if (!splitResizingRef.current) return;
+      splitResizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleSplitResizeMove);
+    document.addEventListener('mouseup', handleSplitResizeEnd);
+
+    return () => {
+      document.removeEventListener('mousemove', handleSplitResizeMove);
+      document.removeEventListener('mouseup', handleSplitResizeEnd);
+    };
+  }, [splitRatio]);
 
   // Close on Escape key
   useEffect(() => {
@@ -207,7 +256,7 @@ export default function YamlDrawer({
     const agentHighlighted = agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
 
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div ref={splitContainerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Install config pane */}
         <div style={{ flex: splitRatio, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border-color)' }}>
@@ -251,9 +300,12 @@ export default function YamlDrawer({
             background: 'linear-gradient(to bottom, transparent 0%, transparent 45%, var(--border-color) 45%, var(--border-color) 55%, transparent 55%, transparent 100%)',
             transition: 'background 150ms'
           }}
-          onMouseDown={(e) => {
-            // TODO: Implement horizontal split resize in Phase 4
-            e.preventDefault();
+          onMouseDown={handleSplitResizeStart}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(37, 99, 235, 0.15)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(to bottom, transparent 0%, transparent 45%, var(--border-color) 45%, var(--border-color) 55%, transparent 55%, transparent 100%)';
           }}
         />
 
