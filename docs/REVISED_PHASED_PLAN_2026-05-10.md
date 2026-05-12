@@ -20,11 +20,11 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 
 ## Phase Sequencing
 
-### **Phase 0: Quick Wins & Foundation** ✅ **COMPLETE** (except 3 items)
+### **Phase 0: Quick Wins & Foundation** ✅ **NEARLY COMPLETE** (1 item remaining)
 
 **Priority:** P0/P1  
 **Goal:** Clear blockers, establish momentum, fix high-value bugs  
-**Status:** 9 of 12 items complete (75%)
+**Status:** 11 of 12 items complete (92%)
 
 #### Completed Items (9)
 
@@ -38,11 +38,14 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 - ✅ **DOC-067:** ImageSet fields standardized tooltips (verified_done 2026-05-12)
 - ✅ **DOC-068:** Validation error tooltips on alert icons (verified_done 2026-05-12)
 
-#### Remaining Items (3)
+#### Remaining Items (1)
 
-- **DOC-024:** Node drawer data integrity (duplicate hostname validation)
-- **DOC-025:** Bare metal provisioning network audit (DHCP range, provisioning IP validation)
 - **LOCAL #5:** Frontend/backend logs expansion (request IDs, job lifecycle, operator-scan events)
+
+#### Recently Completed (2 more - 2026-05-12)
+
+- ✅ **DOC-024:** Node drawer data integrity (verified_done 2026-05-12)
+- ✅ **DOC-025:** Bare metal provisioning network audit (verified_done 2026-05-12 - already existed)
 
 #### Success Criteria
 
