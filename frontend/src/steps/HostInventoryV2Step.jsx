@@ -9,7 +9,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useApp } from "../store.jsx";
 import { validateNode } from "../validation.js";
 import {

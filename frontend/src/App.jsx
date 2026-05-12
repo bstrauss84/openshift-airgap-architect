@@ -194,6 +194,7 @@ const AppShell = () => {
   const [previewFiles, setPreviewFiles] = useState({});
   const [previewError, setPreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const previewRequestIdRef = useRef(0);
   const [confirmingRelease, setConfirmingRelease] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
   const [showStartOverModal, setShowStartOverModal] = useState(false);
@@ -575,21 +576,26 @@ metadata:
     setPreviewError("");
     setPreviewLoading(true);
 
-    // NO debounce - update immediately on every state change (real-time as user types)
-    const controller = new AbortController();
+    // Track request ID to ignore stale responses when typing fast
+    previewRequestIdRef.current += 1;
+    const currentRequestId = previewRequestIdRef.current;
 
-    apiFetch("/api/generate", { signal: controller.signal })
+    apiFetch("/api/generate")
       .then((data) => {
-        logAction("generate_preview", { stepId: previewStepId });
-        setPreviewFiles(data.files || {});
+        // Only apply result if this is still the latest request
+        if (currentRequestId === previewRequestIdRef.current) {
+          logAction("generate_preview", { stepId: previewStepId });
+          setPreviewFiles(data.files || {});
+          setPreviewLoading(false);
+        }
       })
       .catch((error) => {
-        if (error.name === 'AbortError') return; // Ignore cancelled requests
-        setPreviewError(String(error?.message || error));
-      })
-      .finally(() => setPreviewLoading(false));
-
-    return () => controller.abort(); // Cancel in-flight request if new change occurs
+        // Only show error if this is still the latest request
+        if (currentRequestId === previewRequestIdRef.current) {
+          setPreviewError(String(error?.message || error));
+          setPreviewLoading(false);
+        }
+      });
   }, [
     showPreview,
     previewStepId,
