@@ -599,6 +599,7 @@ http://proxy.corp:8080`}
                       placeholder="http://proxy.corp:8080"
                       rows={4}
                       spellCheck={false}
+                      title={proxyErrors.httpProxy || ""}
                     />
                   </FieldLabelWithInfo>
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
@@ -629,6 +630,7 @@ https://proxy.corp:8443 (if your proxy supports TLS)`}
                       placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
                       rows={4}
                       spellCheck={false}
+                      title={proxyErrors.httpsProxy || ""}
                     />
                   </FieldLabelWithInfo>
                   {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}

@@ -653,6 +653,7 @@ wipefs -a /dev/sdX</pre>
                     value={node.hostname}
                     onChange={(e) => updateNode(index, { hostname: e.target.value })}
                     className={fieldError("hostname") ? "input-error" : ""}
+                    title={fieldError("hostname") || ""}
                   />
                   {fieldError("hostname") ? <div className="note warning">{fieldError("hostname")}</div> : null}
                 </label>
@@ -663,6 +664,7 @@ wipefs -a /dev/sdX</pre>
                     onChange={(e) => updateNode(index, { rootDevice: e.target.value })}
                     placeholder="/dev/disk/by-path/..."
                     className={fieldError("rootDevice") ? "input-error" : ""}
+                    title={fieldError("rootDevice") || ""}
                   />
                   {fieldError("rootDevice") ? <div className="note warning">{fieldError("rootDevice")}</div> : null}
                 </label>
@@ -672,6 +674,7 @@ wipefs -a /dev/sdX</pre>
                     value={node.primary.type}
                     onChange={(e) => updatePrimary(index, { type: e.target.value })}
                     className={fieldError("primary.type") ? "input-error" : ""}
+                    title={fieldError("primary.type") || ""}
                   >
                     {PRIMARY_TYPES.map((type) => (
                       <option key={type.id} value={type.id}>{type.label}</option>
@@ -693,6 +696,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updateNode(index, { bmc: { ...node.bmc, address: e.target.value } })}
                         placeholder="redfish://10.10.10.10/redfish/v1/Systems/1"
                         className={fieldError("bmc.address") ? "input-error" : ""}
+                        title={fieldError("bmc.address") || ""}
                       />
                       {fieldError("bmc.address") ? <div className="note warning">{fieldError("bmc.address")}</div> : null}
                     </label>
@@ -703,6 +707,7 @@ wipefs -a /dev/sdX</pre>
                         value={node.bmc?.username || ""}
                         onChange={(e) => updateNode(index, { bmc: { ...node.bmc, username: e.target.value } })}
                         className={fieldError("bmc.username") ? "input-error" : ""}
+                        title={fieldError("bmc.username") || ""}
                       />
                       {fieldError("bmc.username") ? <div className="note warning">{fieldError("bmc.username")}</div> : null}
                     </label>
@@ -714,6 +719,7 @@ wipefs -a /dev/sdX</pre>
                         value={node.bmc?.password || ""}
                         onChange={(e) => updateNode(index, { bmc: { ...node.bmc, password: e.target.value } })}
                         className={fieldError("bmc.password") ? "input-error" : ""}
+                        title={fieldError("bmc.password") || ""}
                       />
                       {fieldError("bmc.password") ? <div className="note warning">{fieldError("bmc.password")}</div> : null}
                     </label>
@@ -724,6 +730,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updateNode(index, { bmc: { ...node.bmc, bootMACAddress: e.target.value } })}
                         placeholder="52:54:00:aa:11:01"
                         className={fieldError("bmc.bootMACAddress") ? "input-error" : ""}
+                        title={fieldError("bmc.bootMACAddress") || ""}
                       />
                       {fieldError("bmc.bootMACAddress") ? <div className="note warning">{fieldError("bmc.bootMACAddress")}</div> : null}
                     </label>
@@ -749,6 +756,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimaryEthernet(index, { name: e.target.value })}
                         placeholder="eth0"
                         className={fieldError("primary.ethernet.name") ? "input-error" : ""}
+                        title={fieldError("primary.ethernet.name") || ""}
                       />
                       {fieldError("primary.ethernet.name") ? <div className="note warning">{fieldError("primary.ethernet.name")}</div> : null}
                     </label>
@@ -759,6 +767,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimaryEthernet(index, { macAddress: e.target.value })}
                         placeholder="52:54:00:aa:11:01"
                         className={fieldError("primary.ethernet.macAddress") ? "input-error" : ""}
+                        title={fieldError("primary.ethernet.macAddress") || ""}
                       />
                       {fieldError("primary.ethernet.macAddress") ? <div className="note warning">{fieldError("primary.ethernet.macAddress")}</div> : null}
                     </label>
@@ -773,6 +782,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimaryBond(index, { name: e.target.value })}
                         placeholder="bond0"
                         className={fieldError("primary.bond.name") ? "input-error" : ""}
+                        title={fieldError("primary.bond.name") || ""}
                       />
                       {fieldError("primary.bond.name") ? <div className="note warning">{fieldError("primary.bond.name")}</div> : null}
                     </label>
@@ -782,6 +792,7 @@ wipefs -a /dev/sdX</pre>
                         value={node.primary.bond.mode}
                         onChange={(e) => updatePrimaryBond(index, { mode: e.target.value })}
                         className={fieldError("primary.bond.mode") ? "input-error" : ""}
+                        title={fieldError("primary.bond.mode") || ""}
                       >
                         {BOND_MODES.map((mode) => (
                           <option key={mode} value={mode}>{mode}</option>
@@ -800,6 +811,7 @@ wipefs -a /dev/sdX</pre>
                               onChange={(e) => updateBondSlave(index, slaveIndex, { name: e.target.value })}
                               placeholder={`eth${slaveIndex}`}
                               className={fieldError(`primary.bond.slaves.${slaveIndex}.name`) ? "input-error" : ""}
+                              title={fieldError(`primary.bond.slaves.${slaveIndex}.name`) || ""}
                             />
                             {fieldError(`primary.bond.slaves.${slaveIndex}.name`) ? (
                               <div className="note warning">{fieldError(`primary.bond.slaves.${slaveIndex}.name`)}</div>
@@ -812,6 +824,7 @@ wipefs -a /dev/sdX</pre>
                               onChange={(e) => updateBondSlave(index, slaveIndex, { macAddress: e.target.value })}
                               placeholder="52:54:00:aa:11:02"
                               className={fieldError(`primary.bond.slaves.${slaveIndex}.macAddress`) ? "input-error" : ""}
+                              title={fieldError(`primary.bond.slaves.${slaveIndex}.macAddress`) || ""}
                             />
                             {fieldError(`primary.bond.slaves.${slaveIndex}.macAddress`) ? (
                               <div className="note warning">{fieldError(`primary.bond.slaves.${slaveIndex}.macAddress`)}</div>
@@ -838,6 +851,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimaryVlan(index, { id: e.target.value })}
                         placeholder="100"
                         className={fieldError("primary.vlan.id") ? "input-error" : ""}
+                        title={fieldError("primary.vlan.id") || ""}
                       />
                       {fieldError("primary.vlan.id") ? <div className="note warning">{fieldError("primary.vlan.id")}</div> : null}
                     </label>
@@ -863,6 +877,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimary(index, { ipv4Cidr: e.target.value })}
                         placeholder={nodeIpv4Placeholder(node.role, index)}
                         className={fieldError("primary.ipv4Cidr") ? "input-error" : ""}
+                        title={fieldError("primary.ipv4Cidr") || ""}
                       />
                       {machineCidr && primaryIpv4 && !ipInCidr(primaryIpv4, machineCidr) ? (
                         <div className="note warning">IP is outside machine network ({machineCidr}).</div>
@@ -876,6 +891,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimary(index, { ipv4Gateway: e.target.value })}
                         placeholder={networkHints?.gateway || "192.168.1.1"}
                         className={fieldError("primary.ipv4Gateway") ? "input-error" : ""}
+                        title={fieldError("primary.ipv4Gateway") || ""}
                       />
                       {fieldError("primary.ipv4Gateway") ? <div className="note warning">{fieldError("primary.ipv4Gateway")}</div> : null}
                     </label>
@@ -890,6 +906,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimary(index, { ipv6Cidr: e.target.value })}
                         placeholder="fd10:90::20/64"
                         className={fieldError("primary.ipv6Cidr") ? "input-error" : ""}
+                        title={fieldError("primary.ipv6Cidr") || ""}
                       />
                       {fieldError("primary.ipv6Cidr") ? <div className="note warning">{fieldError("primary.ipv6Cidr")}</div> : null}
                     </label>
@@ -900,6 +917,7 @@ wipefs -a /dev/sdX</pre>
                         onChange={(e) => updatePrimary(index, { ipv6Gateway: e.target.value })}
                         placeholder="fd10:90::1"
                         className={fieldError("primary.ipv6Gateway") ? "input-error" : ""}
+                        title={fieldError("primary.ipv6Gateway") || ""}
                       />
                       {fieldError("primary.ipv6Gateway") ? <div className="note warning">{fieldError("primary.ipv6Gateway")}</div> : null}
                     </label>
