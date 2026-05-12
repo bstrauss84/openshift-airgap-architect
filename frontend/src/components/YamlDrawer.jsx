@@ -12,6 +12,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Prism from 'prismjs';
+import 'prismjs/components/prism-yaml';
 import { obfuscateYaml } from "../utils/yamlObfuscation.js";
 
 const DRAWER_Z = 10072; // Between Feedback (10070) and Modals (10080)
@@ -154,6 +156,7 @@ export default function YamlDrawer({
   const renderSingleConfig = (filename) => {
     const content = previewFiles[filename] || '';
     const displayContent = obfuscateYaml(content, showSensitive);
+    const highlightedHtml = displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
 
     return (
       <div className="yaml-config-pane" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
@@ -171,7 +174,7 @@ export default function YamlDrawer({
         {loading && <p className="subtle">Generating...</p>}
         {error && <p className="error">{error}</p>}
         {!loading && !error && content && (
-          <pre className="yaml-preview" style={{
+          <pre className="yaml-preview language-yaml" style={{
             background: 'var(--code-bg, #f5f5f5)',
             color: 'var(--code-color, #333)',
             padding: 12,
@@ -181,7 +184,10 @@ export default function YamlDrawer({
             lineHeight: 1.5,
             margin: 0
           }}>
-            <code>{displayContent}</code>
+            <code
+              className="language-yaml"
+              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+            />
           </pre>
         )}
         {!loading && !error && !content && (
@@ -197,6 +203,8 @@ export default function YamlDrawer({
     const agentContent = previewFiles['agent-config.yaml'] || '';
     const installDisplay = obfuscateYaml(installContent, showSensitive);
     const agentDisplay = obfuscateYaml(agentContent, showSensitive);
+    const installHighlighted = installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
+    const agentHighlighted = agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
 
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -216,7 +224,7 @@ export default function YamlDrawer({
             </div>
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-            <pre className="yaml-preview" style={{
+            <pre className="yaml-preview language-yaml" style={{
               background: 'var(--code-bg, #f5f5f5)',
               color: 'var(--code-color, #333)',
               padding: 12,
@@ -226,7 +234,10 @@ export default function YamlDrawer({
               lineHeight: 1.5,
               margin: 0
             }}>
-              <code>{installDisplay || 'No install-config available yet.'}</code>
+              <code
+                className="language-yaml"
+                dangerouslySetInnerHTML={{ __html: installHighlighted || 'No install-config available yet.' }}
+              />
             </pre>
           </div>
         </div>
@@ -262,7 +273,7 @@ export default function YamlDrawer({
             </div>
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-            <pre className="yaml-preview" style={{
+            <pre className="yaml-preview language-yaml" style={{
               background: 'var(--code-bg, #f5f5f5)',
               color: 'var(--code-color, #333)',
               padding: 12,
@@ -272,7 +283,10 @@ export default function YamlDrawer({
               lineHeight: 1.5,
               margin: 0
             }}>
-              <code>{agentDisplay || 'No agent-config available yet.'}</code>
+              <code
+                className="language-yaml"
+                dangerouslySetInnerHTML={{ __html: agentHighlighted || 'No agent-config available yet.' }}
+              />
             </pre>
           </div>
         </div>
