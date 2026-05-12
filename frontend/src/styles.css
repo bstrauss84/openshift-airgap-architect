@@ -6261,3 +6261,97 @@ body[data-theme="dark"] .token.variable {
 .token.entity {
   cursor: help;
 }
+
+/* YAML Drawer Mobile Responsive */
+@media (max-width: 1024px) {
+  .yaml-drawer-panel {
+    width: 90vw !important;
+    max-width: 90vw !important;
+  }
+  
+  .yaml-drawer-resize-handle {
+    display: none; /* No drag resize on tablet */
+  }
+}
+
+@media (max-width: 768px) {
+  .yaml-drawer-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+  
+  .yaml-drawer-header {
+    flex-wrap: wrap;
+  }
+  
+  .yaml-drawer-header h2 {
+    width: 100%;
+    margin-bottom: 8px !important;
+  }
+}
+
+/* YAML Drawer Polish */
+.yaml-drawer-panel {
+  /* Smooth slide-in animation handled by inline transform transition */
+}
+
+.yaml-split-handle {
+  position: relative;
+}
+
+.yaml-split-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-color);
+  pointer-events: none;
+}
+
+.yaml-config-pane .note {
+  line-height: 1.5;
+}
+
+.yaml-config-pane .note strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Focus visible for accessibility */
+.yaml-drawer-panel button:focus-visible,
+.yaml-drawer-resize-handle:focus-visible,
+.yaml-split-handle:focus-visible {
+  outline: 2px solid rgb(14, 165, 233);
+  outline-offset: 2px;
+}
+
+/* Improve scrollbar styling in drawer */
+.yaml-config-pane::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.yaml-config-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.yaml-config-pane::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.yaml-config-pane::-webkit-scrollbar-thumb:hover {
+  background: rgb(156, 163, 175);
+}
+
+body[data-theme="dark"] .yaml-config-pane::-webkit-scrollbar-thumb {
+  background: rgb(75, 85, 99);
+}
+
+body[data-theme="dark"] .yaml-config-pane::-webkit-scrollbar-thumb:hover {
+  background: rgb(107, 114, 128);
+}

@@ -294,6 +294,10 @@ export default function YamlDrawer({
         {/* Horizontal drag handle */}
         <div
           className="yaml-split-handle"
+          role="separator"
+          aria-label="Resize split between install-config and agent-config"
+          aria-orientation="horizontal"
+          tabIndex={0}
           style={{
             height: 12,
             cursor: 'ns-resize',
@@ -471,6 +475,10 @@ export default function YamlDrawer({
         {/* Vertical drag-resize handle (left edge) */}
         <div
           className="yaml-drawer-resize-handle"
+          role="separator"
+          aria-label="Resize drawer width"
+          aria-orientation="vertical"
+          tabIndex={0}
           style={{
             position: 'absolute',
             left: 0,
