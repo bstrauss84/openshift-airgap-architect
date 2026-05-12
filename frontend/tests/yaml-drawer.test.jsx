@@ -42,9 +42,9 @@ metadata:
     vi.clearAllMocks();
   });
 
-  it('renders drawer dialog when isOpen is true', () => {
+  it('renders drawer region when isOpen is true', () => {
     render(<YamlDrawer {...defaultProps} />);
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('region')).toBeInTheDocument();
   });
 
   it('renders YAML Preview title', () => {
@@ -117,9 +117,8 @@ metadata:
 
   it('has proper ARIA attributes', () => {
     render(<YamlDrawer {...defaultProps} />);
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(dialog).toHaveAttribute('aria-labelledby', 'yaml-drawer-title');
+    const region = screen.getByRole('region');
+    expect(region).toHaveAttribute('aria-labelledby', 'yaml-drawer-title');
   });
 
   it('shows helpful message when ImageSet is missing on Run oc-mirror tab', () => {

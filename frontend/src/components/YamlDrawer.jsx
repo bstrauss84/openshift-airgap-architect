@@ -11,52 +11,14 @@
  */
 
 import React, { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import Prism from 'prismjs';
 import 'prismjs/components/prism-yaml';
 import { obfuscateYaml } from "../utils/yamlObfuscation.js";
 
-const DRAWER_Z = 10072; // Between Feedback (10070) and Modals (10080)
 const MIN_WIDTH = 350;
 const MAX_WIDTH_PX = 800;
-
-function FocusTrap({ children, onClose, className }) {
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const el = ref.current;
-    const focusables = el.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (first) first.focus();
-
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (e.key !== "Tab") return;
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-    el.addEventListener("keydown", onKeyDown);
-    return () => el.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return <div ref={ref} className={className}>{children}</div>;
-}
+const DEFAULT_WIDTH = 450;
+const DEFAULT_SPLIT_RATIO = 0.5;
 
 export default function YamlDrawer({
   isOpen,
@@ -66,19 +28,25 @@ export default function YamlDrawer({
   scenario = {},
   showIncompleteWarning = false,
   loading = false,
-  error = ""
+  error = "",
+  resetSizing = false
 }) {
-  // State for drawer width (persisted to localStorage)
+  // State for drawer width (persisted to localStorage, reset on close)
   const [drawerWidth, setDrawerWidth] = useState(() => {
+    if (resetSizing) return DEFAULT_WIDTH;
     const saved = localStorage.getItem('yamlDrawerWidth');
-    return saved ? parseInt(saved, 10) : 450;
+    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
 
   // State for showing sensitive values toggle
   const [showSensitive, setShowSensitive] = useState(false);
 
-  // State for agent-based split view ratio
-  const [splitRatio, setSplitRatio] = useState(0.5); // 0-1, represents install-config percentage
+  // State for agent-based split view ratio (persisted to localStorage, reset on close)
+  const [splitRatio, setSplitRatio] = useState(() => {
+    if (resetSizing) return DEFAULT_SPLIT_RATIO;
+    const saved = localStorage.getItem('yamlDrawerSplitRatio');
+    return saved ? parseFloat(saved) : DEFAULT_SPLIT_RATIO;
+  });
 
   // Refs for drag-resize (vertical - width)
   const resizingRef = useRef(false);
@@ -91,10 +59,22 @@ export default function YamlDrawer({
   const splitStartRatioRef = useRef(0);
   const splitContainerRef = useRef(null);
 
-  // Persist drawer width to localStorage
+  // Persist drawer width and split ratio to localStorage
   useEffect(() => {
     localStorage.setItem('yamlDrawerWidth', String(drawerWidth));
   }, [drawerWidth]);
+
+  useEffect(() => {
+    localStorage.setItem('yamlDrawerSplitRatio', String(splitRatio));
+  }, [splitRatio]);
+
+  // Reset sizing when resetSizing prop changes to true
+  useEffect(() => {
+    if (resetSizing) {
+      setDrawerWidth(DEFAULT_WIDTH);
+      setSplitRatio(DEFAULT_SPLIT_RATIO);
+    }
+  }, [resetSizing]);
 
   // Handle vertical drag-resize (width adjustment)
   const handleResizeStart = (e) => {
@@ -437,125 +417,103 @@ export default function YamlDrawer({
     return renderSingleConfig('install-config.yaml');
   };
 
-  const content = (
-    <>
+  return (
+    <div
+      className="yaml-drawer-panel"
+      role="region"
+      aria-labelledby="yaml-drawer-title"
+      style={{
+        width: `${drawerWidth}px`,
+        minWidth: `${MIN_WIDTH}px`,
+        maxWidth: `${MAX_WIDTH_PX}px`,
+        background: 'var(--card-bg)',
+        borderLeft: '1px solid var(--border-color)',
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        position: 'relative',
+        height: '100%'
+      }}
+    >
+      {/* Vertical drag-resize handle (left edge) */}
       <div
-        className="yaml-drawer-backdrop"
-        role="presentation"
-        aria-hidden
+        className="yaml-drawer-resize-handle"
+        role="separator"
+        aria-label="Resize drawer width"
+        aria-orientation="vertical"
+        tabIndex={0}
         style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: DRAWER_Z,
-          background: "rgba(0,0,0,0.35)",
-          pointerEvents: "none"
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 8,
+          cursor: 'col-resize',
+          background: 'transparent',
+          transition: 'background 150ms',
+          zIndex: 10
+        }}
+        onMouseDown={handleResizeStart}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(14, 165, 233, 0.2)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
         }}
       />
+
+      {/* Header */}
       <div
-        className="yaml-drawer-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="yaml-drawer-title"
+        className="yaml-drawer-header"
         style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: `${drawerWidth}px`,
-          zIndex: DRAWER_Z + 1,
-          background: 'var(--card-bg)',
-          boxShadow: '-4px 0 24px rgba(0,0,0,0.15)',
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          transition: 'transform 200ms ease-out',
-          transform: 'translateX(0)'
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '16px 20px',
+          borderBottom: '1px solid var(--border-color)'
         }}
       >
-        {/* Vertical drag-resize handle (left edge) */}
-        <div
-          className="yaml-drawer-resize-handle"
-          role="separator"
-          aria-label="Resize drawer width"
-          aria-orientation="vertical"
-          tabIndex={0}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 8,
-            cursor: 'col-resize',
-            background: 'transparent',
-            transition: 'background 150ms',
-            zIndex: 10
-          }}
-          onMouseDown={handleResizeStart}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(14, 165, 233, 0.2)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-          }}
-        />
-
-        <FocusTrap onClose={onClose} className="yaml-drawer-focus-trap" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Header */}
-          <div
-            className="yaml-drawer-header"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '16px 20px',
-              borderBottom: '1px solid var(--border-color)'
-            }}
-          >
-            <h2 id="yaml-drawer-title" className="card-title" style={{ margin: 0, flex: 1 }}>
-              YAML Preview
-            </h2>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={showSensitive}
-                onChange={(e) => setShowSensitive(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              <span>Show sensitive values</span>
-            </label>
-            <button
-              type="button"
-              className="ghost icon-button"
-              onClick={onClose}
-              aria-label="Close YAML Preview"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Incomplete warning */}
-          {showIncompleteWarning && (
-            <div className="note warning" style={{ margin: 16, marginBottom: 0 }}>
-              ⚠️ <strong>Incomplete Configuration:</strong> Required fields are missing. Complete the current step to generate a valid configuration.
-            </div>
-          )}
-
-          {/* Content area */}
-          <div
-            className="yaml-drawer-content"
-            style={{
-              flex: 1,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            {renderConfigs()}
-          </div>
-        </FocusTrap>
+        <h2 id="yaml-drawer-title" className="card-title" style={{ margin: 0, flex: 1 }}>
+          YAML Preview
+        </h2>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={showSensitive}
+            onChange={(e) => setShowSensitive(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          <span>Show sensitive values</span>
+        </label>
+        <button
+          type="button"
+          className="ghost icon-button"
+          onClick={onClose}
+          aria-label="Close YAML Preview"
+        >
+          ✕
+        </button>
       </div>
-    </>
-  );
 
-  return createPortal(content, document.body);
+      {/* Incomplete warning */}
+      {showIncompleteWarning && (
+        <div className="note warning" style={{ margin: 16, marginBottom: 0 }}>
+          ⚠️ <strong>Incomplete Configuration:</strong> Required fields are missing. Complete the current step to generate a valid configuration.
+        </div>
+      )}
+
+      {/* Content area */}
+      <div
+        className="yaml-drawer-content"
+        style={{
+          flex: 1,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        {renderConfigs()}
+      </div>
+    </div>
+  );
 }

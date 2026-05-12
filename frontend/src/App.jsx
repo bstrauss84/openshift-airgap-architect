@@ -559,16 +559,14 @@ const AppShell = () => {
     }
     setPreviewError("");
     setPreviewLoading(true);
-    const timeout = setTimeout(() => {
-      apiFetch("/api/generate")
-        .then((data) => {
-          logAction("generate_preview", { stepId: previewStepId });
-          setPreviewFiles(data.files || {});
-        })
-        .catch((error) => setPreviewError(String(error?.message || error)))
-        .finally(() => setPreviewLoading(false));
-    }, 100);
-    return () => clearTimeout(timeout);
+    // No debounce - update immediately on state change
+    apiFetch("/api/generate")
+      .then((data) => {
+        logAction("generate_preview", { stepId: previewStepId });
+        setPreviewFiles(data.files || {});
+      })
+      .catch((error) => setPreviewError(String(error?.message || error)))
+      .finally(() => setPreviewLoading(false));
   }, [
     showPreview,
     previewStepId,
@@ -1010,6 +1008,11 @@ const AppShell = () => {
               className="ghost icon-button"
               onClick={() => {
                 const newState = !yamlDrawerOpen;
+                if (!newState) {
+                  // Closing drawer - clear sizing from localStorage
+                  localStorage.removeItem('yamlDrawerWidth');
+                  localStorage.removeItem('yamlDrawerSplitRatio');
+                }
                 setYamlDrawerOpen(newState);
                 setShowPreview(newState);
               }}
@@ -1085,8 +1088,8 @@ const AppShell = () => {
               <ScenarioHeaderPanel state={state} />
             </div>
           ) : null}
-          <div className="main-layout">
-            <main className="main" id="main-content" aria-label="Wizard step content" ref={mainContentRef}>
+          <div className="main-layout" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <main className="main" id="main-content" aria-label="Wizard step content" ref={mainContentRef} style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
               <ErrorBoundary fallbackMessage="Something went wrong in this step; refresh or go back.">
                 <Current
                     previewControls={{ showPreview, setShowPreview }}
@@ -1106,6 +1109,25 @@ const AppShell = () => {
                   />
               </ErrorBoundary>
             </main>
+            {yamlDrawerOpen && previewEnabled && (
+              <YamlDrawer
+                isOpen={yamlDrawerOpen}
+                onClose={() => {
+                  // Clear sizing from localStorage on close
+                  localStorage.removeItem('yamlDrawerWidth');
+                  localStorage.removeItem('yamlDrawerSplitRatio');
+                  setYamlDrawerOpen(false);
+                  setShowPreview(false);
+                }}
+                previewFiles={previewFiles}
+                activeStepId={previewStepId}
+                scenario={yamlDrawerScenario}
+                showIncompleteWarning={!!errorFlags[previewStepId]}
+                loading={previewLoading}
+                error={previewError}
+                resetSizing={false}
+              />
+            )}
           </div>
           <footer className="footer">
             {visibleSteps[active]?.id !== "operations" ? (
@@ -1344,21 +1366,6 @@ const AppShell = () => {
           uiContext={visibleSteps[active]?.id || ""}
           scenarioContext={feedbackScenarioContext}
         />
-        {yamlDrawerOpen && previewEnabled && (
-          <YamlDrawer
-            isOpen={yamlDrawerOpen}
-            onClose={() => {
-              setYamlDrawerOpen(false);
-              setShowPreview(false);
-            }}
-            previewFiles={previewFiles}
-            activeStepId={previewStepId}
-            scenario={yamlDrawerScenario}
-            showIncompleteWarning={!!errorFlags[previewStepId]}
-            loading={previewLoading}
-            error={previewError}
-          />
-        )}
     </div>
   );
 };
