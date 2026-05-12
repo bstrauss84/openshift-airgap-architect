@@ -1008,7 +1008,11 @@ const AppShell = () => {
             <button
               type="button"
               className="ghost icon-button"
-              onClick={() => setYamlDrawerOpen(!yamlDrawerOpen)}
+              onClick={() => {
+                const newState = !yamlDrawerOpen;
+                setYamlDrawerOpen(newState);
+                setShowPreview(newState);
+              }}
               title={yamlDrawerOpen ? "Hide YAML preview" : "Show YAML preview"}
               aria-label={yamlDrawerOpen ? "Hide YAML" : "Show YAML"}
             >
@@ -1343,7 +1347,10 @@ const AppShell = () => {
         {yamlDrawerOpen && previewEnabled && (
           <YamlDrawer
             isOpen={yamlDrawerOpen}
-            onClose={() => setYamlDrawerOpen(false)}
+            onClose={() => {
+              setYamlDrawerOpen(false);
+              setShowPreview(false);
+            }}
             previewFiles={previewFiles}
             activeStepId={previewStepId}
             scenario={yamlDrawerScenario}

@@ -443,12 +443,12 @@ export default function YamlDrawer({
         className="yaml-drawer-backdrop"
         role="presentation"
         aria-hidden
-        onClick={onClose}
         style={{
           position: "fixed",
           inset: 0,
           zIndex: DRAWER_Z,
-          background: "rgba(0,0,0,0.35)"
+          background: "rgba(0,0,0,0.35)",
+          pointerEvents: "none"
         }}
       />
       <div
