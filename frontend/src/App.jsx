@@ -559,14 +559,19 @@ const AppShell = () => {
     }
     setPreviewError("");
     setPreviewLoading(true);
-    // No debounce - update immediately on state change
-    apiFetch("/api/generate")
-      .then((data) => {
-        logAction("generate_preview", { stepId: previewStepId });
-        setPreviewFiles(data.files || {});
-      })
-      .catch((error) => setPreviewError(String(error?.message || error)))
-      .finally(() => setPreviewLoading(false));
+
+    // Small debounce to batch rapid changes, but fast enough to feel immediate
+    const timeout = setTimeout(() => {
+      apiFetch("/api/generate")
+        .then((data) => {
+          logAction("generate_preview", { stepId: previewStepId });
+          setPreviewFiles(data.files || {});
+        })
+        .catch((error) => setPreviewError(String(error?.message || error)))
+        .finally(() => setPreviewLoading(false));
+    }, 200);
+
+    return () => clearTimeout(timeout);
   }, [
     showPreview,
     previewStepId,
@@ -578,7 +583,14 @@ const AppShell = () => {
     state?.operators?.selected?.length,
     state?.credentials,
     state?.trust,
-    state?.platformConfig
+    state?.platformConfig,
+    // Add stringified state to catch deep changes
+    JSON.stringify(state?.credentials || {}),
+    JSON.stringify(state?.trust || {}),
+    JSON.stringify(state?.platformConfig || {}),
+    JSON.stringify(state?.globalStrategy || {}),
+    JSON.stringify(state?.hostInventory || {}),
+    JSON.stringify(state?.operators || {})
   ]);
 
   const setActiveStep = (nextIndex, options = {}) => {
