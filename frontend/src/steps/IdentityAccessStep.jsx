@@ -176,13 +176,6 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
           <h2>Identity & Access</h2>
           <p className="subtle">Cluster identity and access credentials for the install.</p>
         </div>
-        {previewEnabled ? (
-          <div className="header-actions">
-            <button className="ghost" onClick={() => previewControls?.setShowPreview((prev) => !prev)}>
-              {previewControls?.showPreview ? "Hide YAML" : "Show YAML"}
-            </button>
-          </div>
-        ) : null}
       </div>
 
       <div className="step-body">

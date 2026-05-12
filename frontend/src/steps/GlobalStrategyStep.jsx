@@ -413,13 +413,6 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
           <h2>Global Strategy</h2>
           <p className="subtle">Define security, proxy, and mirroring defaults for the deployment.</p>
         </div>
-        {previewEnabled ? (
-          <div className="header-actions">
-            <button className="ghost" onClick={() => previewControls?.setShowPreview((prev) => !prev)}>
-              {previewControls?.showPreview ? "Hide YAML" : "Show YAML"}
-            </button>
-          </div>
-        ) : null}
       </div>
 
       <div className="step-body">

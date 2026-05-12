@@ -657,13 +657,6 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           <h2>Operator Catalog Strategy</h2>
           <p className="subtle">Select Day 2 operators to mirror into the disconnected registry.</p>
         </div>
-        {previewEnabled ? (
-          <div className="header-actions">
-            <button className="ghost" onClick={() => previewControls?.setShowPreview((prev) => !prev)}>
-              {previewControls?.showPreview ? "Hide YAML" : "Show YAML"}
-            </button>
-          </div>
-        ) : null}
       </div>
 
       <div className="step-body">

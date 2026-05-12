@@ -402,11 +402,6 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
           <p className="subtle">Add nodes and networking details for agent-based bare metal installs.</p>
         </div>
         <div className="header-actions">
-          {previewEnabled ? (
-            <button className="ghost" onClick={() => previewControls?.setShowPreview((prev) => !prev)}>
-              {previewControls?.showPreview ? "Hide YAML" : "Show YAML"}
-            </button>
-          ) : null}
           <button className="primary control-plane" onClick={addControlPlane}>Add Control Plane Node</button>
           <button className="primary worker" onClick={addWorker}>Add Worker Node</button>
           <button className="ghost" onClick={runAllValidations} disabled={!nodes.length}>

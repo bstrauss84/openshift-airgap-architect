@@ -594,21 +594,29 @@ metadata:
     showPreview,
     previewStepId,
     state?.release?.patchVersion,
-    state?.blueprint,
-    state?.methodology,
-    state?.globalStrategy,
-    state?.hostInventory,
-    state?.operators?.selected?.length,
-    state?.credentials,
-    state?.trust,
-    state?.platformConfig,
-    // Add stringified state to catch deep changes
-    JSON.stringify(state?.credentials || {}),
-    JSON.stringify(state?.trust || {}),
-    JSON.stringify(state?.platformConfig || {}),
-    JSON.stringify(state?.globalStrategy || {}),
-    JSON.stringify(state?.hostInventory || {}),
-    JSON.stringify(state?.operators || {})
+    state?.blueprint?.platform,
+    state?.blueprint?.confirmed,
+    state?.methodology?.method,
+    // Track individual fields that affect YAML generation
+    state?.globalStrategy?.clusterName,
+    state?.globalStrategy?.baseDomain,
+    state?.globalStrategy?.fips,
+    state?.globalStrategy?.proxy,
+    state?.globalStrategy?.mirroring,
+    state?.credentials?.pullSecret,
+    state?.credentials?.sshKey,
+    state?.credentials?.username,
+    state?.credentials?.password,
+    state?.trust?.bundle,
+    state?.trust?.policy,
+    state?.platformConfig?.region,
+    state?.platformConfig?.instanceType,
+    state?.platformConfig?.replicas,
+    state?.hostInventory?.nodes,
+    state?.hostInventory?.vips,
+    state?.operators?.selected,
+    // Full state for other changes
+    state
   ]);
 
   const setActiveStep = (nextIndex, options = {}) => {
@@ -844,6 +852,9 @@ metadata:
     setStartOverCheckError("");
     setShowLanding(true);
     setActive(0);
+    // Close YAML drawer on start over
+    setYamlDrawerOpen(false);
+    setShowPreview(false);
   };
 
   const exportRun = async () => {

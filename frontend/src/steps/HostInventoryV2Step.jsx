@@ -157,6 +157,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const [panelWidthPx, setPanelWidthPx] = useState(() => Math.min(420, typeof window !== "undefined" ? Math.max(280, window.innerWidth * 0.33) : 380));
   const [isResizing, setIsResizing] = useState(false);
   const [copiedGatherCommand, setCopiedGatherCommand] = useState("");
+  const containerRef = useRef(null);
 
   const copyGatherCommand = useCallback((key, text) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -166,13 +167,16 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   }, []);
 
   const MIN_PANEL_PX = 400;
-  const MAX_PANEL_PX = Math.min(800, typeof window !== "undefined" ? window.innerWidth * 0.5 : 800);
 
   const handleResizeMove = useCallback(
     (e) => {
-      if (!isResizing) return;
-      const rightEdge = typeof window !== "undefined" ? window.innerWidth - e.clientX : 0;
-      const next = Math.min(MAX_PANEL_PX, Math.max(MIN_PANEL_PX, rightEdge));
+      if (!isResizing || !containerRef.current) return;
+      // Use container width instead of window width to account for YAML drawer
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const containerRight = containerRect.right;
+      const distanceFromContainerRight = containerRight - e.clientX;
+      const MAX_PANEL_PX = Math.min(800, containerRect.width * 0.7); // Max 70% of available width
+      const next = Math.min(MAX_PANEL_PX, Math.max(MIN_PANEL_PX, distanceFromContainerRight));
       setPanelWidthPx(next);
     },
     [isResizing]
@@ -450,16 +454,9 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
           <h2>Hosts (New)</h2>
           <p className="subtle">Set node counts, then edit each host in the grid.</p>
         </div>
-        <div className="header-actions">
-          {previewEnabled ? (
-            <button className="ghost" onClick={() => previewControls?.setShowPreview((prev) => !prev)}>
-              {previewControls?.showPreview ? "Hide YAML" : "Show YAML"}
-            </button>
-          ) : null}
-        </div>
       </div>
 
-      <div className={`step-body host-inventory-v2-body ${drawerOpen ? "host-inventory-v2-body-with-drawer" : ""}`}>
+      <div ref={containerRef} className={`step-body host-inventory-v2-body ${drawerOpen ? "host-inventory-v2-body-with-drawer" : ""}`}>
         <div className="host-inventory-v2-main">
         <CollapsibleSection title="How to gather host info from nodes" defaultCollapsed={false}>
               <p className="note">
