@@ -551,27 +551,45 @@ const AppShell = () => {
 
   useEffect(() => {
     if (!showPreview) return;
+
     const confirmed = state?.version?.versionConfirmed ?? state?.release?.confirmed;
     if (!confirmed) {
-      setPreviewError("Confirm the release version to generate YAML previews.");
-      setPreviewFiles({});
+      // Show skeleton YAML before version confirmation
+      setPreviewError("");
+      setPreviewFiles({
+        "install-config.yaml": `apiVersion: v1
+baseDomain: example.com
+metadata:
+  name: cluster-name
+# Complete configuration after confirming OpenShift version`,
+        "agent-config.yaml": state?.methodology?.method === "Agent-Based Installer" ?
+          `apiVersion: v1beta1
+kind: AgentConfig
+metadata:
+  name: cluster-name
+# Complete configuration after confirming OpenShift version` : null
+      });
       return;
     }
+
     setPreviewError("");
     setPreviewLoading(true);
 
-    // Small debounce to batch rapid changes, but fast enough to feel immediate
-    const timeout = setTimeout(() => {
-      apiFetch("/api/generate")
-        .then((data) => {
-          logAction("generate_preview", { stepId: previewStepId });
-          setPreviewFiles(data.files || {});
-        })
-        .catch((error) => setPreviewError(String(error?.message || error)))
-        .finally(() => setPreviewLoading(false));
-    }, 200);
+    // NO debounce - update immediately on every state change (real-time as user types)
+    const controller = new AbortController();
 
-    return () => clearTimeout(timeout);
+    apiFetch("/api/generate", { signal: controller.signal })
+      .then((data) => {
+        logAction("generate_preview", { stepId: previewStepId });
+        setPreviewFiles(data.files || {});
+      })
+      .catch((error) => {
+        if (error.name === 'AbortError') return; // Ignore cancelled requests
+        setPreviewError(String(error?.message || error));
+      })
+      .finally(() => setPreviewLoading(false));
+
+    return () => controller.abort(); // Cancel in-flight request if new change occurs
   }, [
     showPreview,
     previewStepId,
