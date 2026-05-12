@@ -371,6 +371,22 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
       platform,
       method
     });
+
+    // Check for duplicate hostnames across all nodes
+    const hostname = (node.hostname || "").trim();
+    if (hostname) {
+      const duplicateIndices = nodes
+        .map((n, idx) => ({ hostname: (n.hostname || "").trim(), idx }))
+        .filter(({ hostname: h, idx }) => h === hostname && idx !== nodeIndex)
+        .map(({ idx }) => idx);
+
+      if (duplicateIndices.length > 0) {
+        const duplicateMsg = `Duplicate hostname "${hostname}" (also used by node ${duplicateIndices.map(i => i + 1).join(", ")})`;
+        result.errors.push(duplicateMsg);
+        result.fieldErrors.hostname = duplicateMsg;
+      }
+    }
+
     setNodeValidation((prev) => ({ ...prev, [nodeIndex]: result }));
   };
 
@@ -652,6 +668,7 @@ wipefs -a /dev/sdX</pre>
                   <input
                     value={node.hostname}
                     onChange={(e) => updateNode(index, { hostname: e.target.value })}
+                    onBlur={() => runNodeValidation(index, node)}
                     className={fieldError("hostname") ? "input-error" : ""}
                     title={fieldError("hostname") || ""}
                   />
