@@ -20,26 +20,36 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 
 ## Phase Sequencing
 
-### **Phase 0: Quick Wins & Foundation** (1-2 weeks)
+### **Phase 0: Quick Wins & Foundation** ✅ **COMPLETE** (except 3 items)
 
 **Priority:** P0/P1  
-**Goal:** Clear blockers, establish momentum, fix high-value bugs
+**Goal:** Clear blockers, establish momentum, fix high-value bugs  
+**Status:** 9 of 12 items complete (75%)
 
-#### Items (7)
+#### Completed Items (9)
 
-- **DOC-021:** Header actions a11y/keyboard tests
+- ✅ **DOC-021:** Header actions a11y/keyboard tests (verified_done 2026-05-10)
+- ✅ **DOC-036:** Import-run reload override fix (verified_done 2026-05-10)
+- ✅ **DOC-061:** Double proxy field width (verified_done 2026-05-10)
+- ✅ **DOC-062:** Clear selections button for Operators tab (verified_done 2026-05-10)
+- ✅ **DOC-064:** Sidebar operational tabs exclusion (verified_done 2026-05-12)
+- ✅ **DOC-065:** Operators collapsible catalog selection (verified_done 2026-05-12)
+- ✅ **DOC-066:** Scan Status conditional auto-expansion (verified_done 2026-05-12)
+- ✅ **DOC-067:** ImageSet fields standardized tooltips (verified_done 2026-05-12)
+- ✅ **DOC-068:** Validation error tooltips on alert icons (verified_done 2026-05-12)
+
+#### Remaining Items (3)
+
 - **DOC-024:** Node drawer data integrity (duplicate hostname validation)
 - **DOC-025:** Bare metal provisioning network audit (DHCP range, provisioning IP validation)
-- **DOC-036:** Import-run reload override fix
-- **DOC-061:** Double proxy field width
-- **DOC-062:** Clear selections button for Operators tab
 - **LOCAL #5:** Frontend/backend logs expansion (request IDs, job lifecycle, operator-scan events)
 
 #### Success Criteria
 
-- All Phase 0 items marked verified_done
-- Tests passing
-- No regressions
+- ✅ 9/12 Phase 0 items marked verified_done
+- ✅ Tests passing
+- ✅ No regressions
+- ⏳ Remaining 3 items in progress
 
 ---
 
@@ -86,11 +96,17 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
   - Drag-resize, real-time updates
   - Dependencies: DOC-032 (layout consistency) recommended but not blocking
 
-#### 2B: Preview & Summary Enhancements (2-3 weeks)
+#### 2B: Preview & Summary Enhancements ✅ **COMPLETE** (verified 2026-05-11)
 
-- **DOC-057:** Preview panels always display (incomplete warnings)
-- **DOC-058:** Scenario summary dropdown rework (live updating + docs sources)
-- **DOC-063:** Expand operator quick picks (Platform Plus, App Dev Suite)
+- ✅ **DOC-057:** Preview panels always display (incomplete warnings) — verified_done 2026-05-10
+- ✅ **DOC-058:** Scenario summary dropdown rework (live updating + docs sources) — verified_done 2026-05-11
+- ⏳ **DOC-063:** Expand operator quick picks (Platform Plus, App Dev Suite) — **IN PROGRESS**
+  - Platform Plus quick pick added (ACM+MCE, RHACS, Quay, ODF base stack)
+  - App Development Suite quick pick added (GitOps, Pipelines, DevSpaces, Web Terminal)
+  - Quay quick pick added
+  - Quay + Bridge integration quick pick added
+  - Version-aware ODF quick picks implemented (4.16-4.21 support)
+  - **Remaining:** Research RHADS-SSC completed, decided NOT to add (air-gapped unsupported)
 
 #### Success Criteria
 
@@ -118,9 +134,10 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 - **LOCAL #4:** FIPS vs regular installer binary
   - Backend pulls both binaries
   - Assets bundle includes correct one based on FIPS checkbox
-- **DOC-060:** Mirror-registry binary in assets
-  - Add toggle on Assets & Guide tab
-  - Include latest mirror-registry binary in bundle
+- ✅ **DOC-060:** Mirror-registry binary in assets — verified_done 2026-05-10
+  - Toggle added to Assets & Guide export options
+  - Downloads latest mirror-registry-amd64.tar.gz at export time
+  - Caches for reuse, includes in bundle under tools/
 
 #### Success Criteria
 
