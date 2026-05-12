@@ -33,19 +33,43 @@
 - `p2`: normal planned work
 - `p3`: low-priority improvement
 
-### 2. Living Work Plan: `/COMPREHENSIVE_MASTER_PLAN.md`
+### 2. Active Execution Plan: `/docs/REVISED_PHASED_PLAN_2026-05-10.md`
 
-**Authority:** Detailed phase/batch tracking with progress metrics  
-**Current Status:** 10 phases, Phases 1-2 COMPLETE (100% tooltip coverage)  
-**Purpose:** Tactical work breakdown with quality standards and batch-level detail
+**Authority:** Current phased implementation roadmap  
+**Created:** 2026-05-10 (after systematic backlog review)  
+**Current Phase:** Phase 0 (Quick Wins & Foundation) - 75% complete  
+**Purpose:** Clean, actionable phases based on verified backlog status and user priorities
+
+**What it contains:**
+- 8 phases with clear sequencing (Phase 0 through Phase 7 + exploratory)
+- Dependencies and parallelization opportunities
+- Estimated timelines (5-8 months total)
+- Success criteria per phase
+- Risk mitigation strategies
 
 **When to update:**
-- Mark phases/batches complete with dates and evidence
-- Cross-reference BACKLOG_STATUS.md items (e.g., "See DOC-049")
-- Update current focus section when starting new phases
-- Document discrepancies or blockers discovered during work
+- Mark items complete as they finish (with dates + commit evidence)
+- Update phase completion percentages
+- Track remaining items in each phase
+- Cross-reference BACKLOG_STATUS.md for detailed status
 
-### 3. Local Backlog: `/LOCAL_BACKLOG.md` (not committed)
+**Current focus:** Finish Phase 0 (3 remaining items), then start Phase 2A (YAML Drawer)
+
+### 3. Historical Work Plan: `/COMPREHENSIVE_MASTER_PLAN.md`
+
+**Authority:** Detailed historical phase/batch tracking (Phases 1-2 tooltip work)  
+**Status:** Phases 1-2 COMPLETE (100% tooltip coverage)  
+**Purpose:** Reference for tooltip standards and completed tooltip expansion work
+
+**Use for:**
+- Tooltip formatting standards (gold standard reference)
+- Historical batch completion tracking
+- Quality checklist for FieldLabelWithInfo components
+- Evidence of Phases 1-2 completion
+
+**Do NOT use for:** Current work planning (use REVISED_PHASED_PLAN instead)
+
+### 4. Local Backlog: `/LOCAL_BACKLOG.md` (not committed)
 
 **Authority:** User's personal tracking (in .gitignore)  
 **Purpose:** Lower-priority items, experimental work, deferred features  
@@ -143,13 +167,15 @@ Concrete real-world example values.`}
 ## File Organization
 
 ### Keep (Living Documents)
-- `docs/BACKLOG_STATUS.md` - Canonical registry
-- `COMPREHENSIVE_MASTER_PLAN.md` - Living work plan
+- `docs/BACKLOG_STATUS.md` - Canonical status registry (single source of truth)
+- `docs/REVISED_PHASED_PLAN_2026-05-10.md` - **ACTIVE execution plan** (current work roadmap)
+- `COMPREHENSIVE_MASTER_PLAN.md` - Historical plan (Phases 1-2 tooltip work, quality standards)
 - `LOCAL_BACKLOG.md` - User's personal backlog (not committed)
 - `TOOLTIP_EXPANSION_MASTER_PLAN.md` - Tooltip audit data reference
 - `SETUP_COMPLETE.md` - Catalog sync reference guide
 - `UI_STANDARDS.md` - UI design and implementation standards
 - `CATALOG_SYNC_GUIDE.md` - Catalog synchronization procedures
+- `docs/BACKLOG_REVIEW_2026-05-10.md` - Review summary that led to revised plan
 
 ### Archive (Session Notes)
 Create `.archive/session-notes-YYYY-MM-DD/` directories for:
@@ -287,5 +313,5 @@ If you're unsure about:
 
 ---
 
-**Last Updated:** 2026-05-10  
-**Revision:** Initial version establishing documentation authority
+**Last Updated:** 2026-05-12  
+**Revision:** Added REVISED_PHASED_PLAN as active execution plan, clarified doc hierarchy
