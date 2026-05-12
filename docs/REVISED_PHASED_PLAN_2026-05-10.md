@@ -86,13 +86,15 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 **Goal:** High-value user-facing features  
 **Dependencies:** Phase 0-1 complete
 
-#### 2A: YAML Drawer (4-6 weeks) ⭐ **HIGH PRIORITY**
+#### 2A: YAML Drawer ✅ **COMPLETE** (verified 2026-05-12)
 
-- **DOC-034:** Live-updating YAML drawer with security-first design
-  - 24 detailed specifications
-  - Security paramount (credential obfuscation)
-  - Drag-resize, real-time updates
-  - Dependencies: DOC-032 (layout consistency) recommended but not blocking
+- ✅ **DOC-034:** Live-updating YAML drawer with security-first design — verified_done 2026-05-12
+  - All 24 specifications implemented and tested
+  - Security obfuscation with "Show sensitive values" toggle
+  - Vertical drag-resize (350-800px), horizontal split for agent-based
+  - Real-time updates (100ms debounce)
+  - Syntax highlighting, download buttons, mobile responsive
+  - Commits: 3858d60, 9475242, 377f9a2, ee686b2, f29e70c, db4bfdc
 
 #### 2B: Preview & Summary Enhancements ✅ **COMPLETE** (verified 2026-05-11)
 
@@ -108,10 +110,10 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 
 #### Success Criteria
 
-- YAML drawer functional with all 24 specs
-- Preview panels show with incomplete warnings
-- Scenario summary live-updates
-- New operator quick picks available
+- ✅ YAML drawer functional with all 24 specs (complete 2026-05-12)
+- ✅ Preview panels show with incomplete warnings (complete 2026-05-10)
+- ✅ Scenario summary live-updates (complete 2026-05-11)
+- ⏳ New operator quick picks available (Platform Plus, App Dev Suite, Quay complete; RHADS-SSC declined)
 
 ---
 

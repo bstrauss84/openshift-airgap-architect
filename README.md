@@ -65,6 +65,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Modal accessibility** — Consistent focus trap behavior across all dialogs with keyboard navigation (Tab/Shift+Tab cycling, Escape key support, focus restoration)
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
+- **Live YAML Preview** — Right-side resizable drawer shows real-time generated YAML as you configure. Displays install-config.yaml (or split view with agent-config.yaml for agent-based scenarios). ImageSet config visible on Operators tab. Credentials obfuscated by default with "Show sensitive values" toggle. Download individual files. Syntax highlighting for readability. Available on all configuration tabs after Blueprint lock-in.
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
 
 <a id="quick-start-container"></a>
