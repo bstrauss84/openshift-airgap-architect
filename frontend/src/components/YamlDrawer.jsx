@@ -346,10 +346,70 @@ export default function YamlDrawer({
     );
   };
 
-  // Render ImageSet config with switching logic
+  // Render ImageSet config with switching logic (Run oc-mirror tab)
   const renderImageSetWithSwitching = () => {
-    // TODO: Implement uploaded vs generated switching in Phase 5
-    return renderSingleConfig('imageset-config.yaml');
+    const content = previewFiles['imageset-config.yaml'] || '';
+    const displayContent = obfuscateYaml(content, showSensitive);
+    const highlightedHtml = displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
+
+    // TODO: When uploaded ImageSet config is stored in state, prioritize it over generated
+    // Check state.ocMirror?.uploadedImageSetConfig or similar field
+    const source = 'Generated'; // Will be 'Uploaded' when user provides their own
+
+    return (
+      <div className="yaml-config-pane" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>imageset-config.yaml</h3>
+            <span style={{
+              fontSize: '0.75rem',
+              padding: '2px 6px',
+              borderRadius: 3,
+              background: source === 'Uploaded' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+              color: source === 'Uploaded' ? 'rgb(22, 163, 74)' : 'rgb(37, 99, 235)',
+              fontWeight: 500
+            }}>
+              {source}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="ghost small"
+            onClick={() => downloadFile(content, 'imageset-config.yaml')}
+            disabled={!content}
+          >
+            Download
+          </button>
+        </div>
+        {loading && <p className="subtle">Generating...</p>}
+        {error && <p className="error">{error}</p>}
+        {!loading && !error && content && (
+          <pre className="yaml-preview language-yaml" style={{
+            background: 'var(--code-bg, #f5f5f5)',
+            color: 'var(--code-color, #333)',
+            padding: 12,
+            borderRadius: 4,
+            overflowX: 'auto',
+            fontSize: '0.8125rem',
+            lineHeight: 1.5,
+            margin: 0
+          }}>
+            <code
+              className="language-yaml"
+              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+            />
+          </pre>
+        )}
+        {!loading && !error && !content && (
+          <div className="note" style={{ marginTop: 16 }}>
+            <p><strong>No ImageSet configuration available yet.</strong></p>
+            <p className="subtle" style={{ marginTop: 8, marginBottom: 0 }}>
+              Complete the Operators tab to generate an ImageSet configuration, or upload your own on the Run oc-mirror tab.
+            </p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Main config rendering logic
