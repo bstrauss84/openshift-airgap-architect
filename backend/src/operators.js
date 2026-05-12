@@ -73,6 +73,17 @@ const authAvailable = () => {
 
 const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "operator-scan", message, ocMirrorPath }) => {
   const jobId = createJob(jobType, message || `Scanning ${catalogId} operators...`);
+
+  if (process.env.NODE_ENV !== "test") {
+    console.log("[operator-scan:start]", {
+      jobId,
+      catalogId,
+      catalogImage,
+      version,
+      authProvided: !!authFile
+    });
+  }
+
   updateJob(jobId, { status: "running", progress: 5 });
 
   const args = ["--v1", "list", "operators", `--catalog=${catalogImage}`];
@@ -82,11 +93,21 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
   const child = spawn(bin, args, { env });
   let output = "";
   let error = "";
+  let downloadStarted = false;
 
   child.stdout.on("data", (data) => {
     const s = data.toString();
     output += s;
     appendJobOutput(jobId, s);
+
+    // Detect catalog download/processing events
+    if (!downloadStarted && (s.includes("Pulling") || s.includes("Downloading") || s.includes("copying"))) {
+      downloadStarted = true;
+      if (process.env.NODE_ENV !== "test") {
+        console.log("[operator-scan:download]", { jobId, catalogId, event: "catalog_download_started" });
+      }
+      updateJob(jobId, { progress: 20, message: `Downloading ${catalogId} catalog...` });
+    }
   });
   child.stderr.on("data", (data) => {
     const s = data.toString();
@@ -116,6 +137,16 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
       const userMessage = isArchMismatch(error)
         ? ARCH_GUIDANCE
         : `oc-mirror failed (${catalogId}).`;
+
+      if (process.env.NODE_ENV !== "test") {
+        console.log("[operator-scan:failed]", {
+          jobId,
+          catalogId,
+          exitCode: code,
+          archMismatch: isArchMismatch(error)
+        });
+      }
+
       updateJob(jobId, {
         status: "failed",
         progress: 100,
@@ -124,8 +155,36 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
       });
       return;
     }
+
+    if (process.env.NODE_ENV !== "test") {
+      console.log("[operator-scan:parsing]", { jobId, catalogId, event: "parsing_operator_table" });
+    }
+    updateJob(jobId, { progress: 80, message: `Parsing ${catalogId} operators...` });
+
     const parsed = parseOperatorTable(output, catalogId);
+
+    if (process.env.NODE_ENV !== "test") {
+      console.log("[operator-scan:caching]", {
+        jobId,
+        catalogId,
+        version,
+        operatorCount: parsed.length,
+        event: "storing_to_cache"
+      });
+    }
+    updateJob(jobId, { progress: 95, message: `Caching ${parsed.length} ${catalogId} operators...` });
+
     storeResults(version, catalogId, parsed);
+
+    if (process.env.NODE_ENV !== "test") {
+      console.log("[operator-scan:complete]", {
+        jobId,
+        catalogId,
+        version,
+        operatorCount: parsed.length
+      });
+    }
+
     updateJob(jobId, {
       status: "completed",
       progress: 100,

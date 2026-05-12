@@ -57,7 +57,18 @@ const apiFetch = async (path, options = {}) => {
         requestId,
         path,
         method: options.method || "GET",
-        duration
+        duration: `${duration}ms`
+      });
+    }
+
+    // Log successful requests (debug mode only)
+    if (process.env.NODE_ENV !== "production" && typeof window !== "undefined" && window.console?.debug) {
+      window.console.debug(`[AirgapArchitect] Request complete`, {
+        requestId,
+        path,
+        method: options.method || "GET",
+        status: res.status,
+        duration: `${duration}ms`
       });
     }
 

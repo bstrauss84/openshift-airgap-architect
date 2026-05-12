@@ -499,6 +499,8 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     const ids = Object.values(jobs);
     if (!ids.length) return;
     let cancelled = false;
+    let prevPolledStatuses = {};
+
     const poll = async () => {
       const nextStatuses = {};
       for (const id of ids) {
@@ -507,6 +509,20 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           const catalogId = Object.entries(jobs).find(([, jobId]) => jobId === id)?.[0];
           if (catalogId) {
             nextStatuses[catalogId] = job;
+
+            // Log status transitions
+            const prev = prevPolledStatuses[catalogId];
+            if (prev?.status !== job.status && process.env.NODE_ENV !== "production") {
+              if (typeof window !== "undefined" && window.console?.info) {
+                window.console.info(`[AirgapArchitect] Job status changed`, {
+                  catalogId,
+                  jobId: id,
+                  from: prev?.status || "unknown",
+                  to: job.status,
+                  progress: job.progress
+                });
+              }
+            }
           }
           if (job.status === "completed" || job.status === "failed") {
             const data = await apiFetch(`/api/operators/status?version=${version}`);
@@ -521,6 +537,9 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           // ignore
         }
       }
+
+      // Update previous statuses for next poll
+      prevPolledStatuses = { ...nextStatuses };
       if (!cancelled) {
         setJobStatuses(nextStatuses);
       }
