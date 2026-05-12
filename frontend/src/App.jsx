@@ -423,12 +423,12 @@ const AppShell = () => {
     return "install-config.yaml";
   }, [previewStepId]);
   const previewEnabled = useMemo(() => {
-    // Enable preview on all steps after Blueprint lock-in, except landing/blueprint/assets-guide/operations
+    // Enable preview on all steps after Blueprint lock-in, except landing/blueprint/review/operations
     const locked = Boolean(
       state?.blueprint?.confirmed &&
       (state?.version?.versionConfirmed ?? state?.release?.confirmed)
     );
-    const excludedSteps = ["landing", "blueprint", "assets-guide", "operations"];
+    const excludedSteps = ["landing", "blueprint", "review", "operations"];
     return locked && !excludedSteps.includes(previewStepId);
   }, [previewStepId, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
   const yamlDrawerScenario = useMemo(() => ({
