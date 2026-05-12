@@ -34,6 +34,7 @@ import HostsInventorySegmentStep from "./steps/HostsInventorySegmentStep.jsx";
 import ScenarioHeaderPanel from "./components/ScenarioHeaderPanel.jsx";
 import ToolsDrawer from "./components/ToolsDrawer.jsx";
 import FeedbackDrawer from "./components/FeedbackDrawer.jsx";
+import YamlDrawer from "./components/YamlDrawer.jsx";
 import {
   validateStep,
   validateBlueprintPullSecretOptional,
@@ -205,6 +206,7 @@ const AppShell = () => {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [jobsCount, setJobsCount] = useState(0);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [yamlDrawerOpen, setYamlDrawerOpen] = useState(false);
   const [lockToast, setLockToast] = useState("");
   const [updateInfo, setUpdateInfo] = useState(null);
   const [buildInfo, setBuildInfo] = useState(null);
@@ -425,9 +427,16 @@ const AppShell = () => {
       state?.blueprint?.confirmed &&
       (state?.version?.versionConfirmed ?? state?.release?.confirmed)
     );
-    const excludedSteps = ["landing", "blueprint", "assets-guide", "operations", "run-oc-mirror"];
+    const excludedSteps = ["landing", "blueprint", "assets-guide", "operations"];
     return locked && !excludedSteps.includes(previewStepId);
   }, [previewStepId, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
+  const yamlDrawerScenario = useMemo(() => ({
+    isAgentBased: state?.methodology?.method === "Agent-Based Installer" &&
+                  (state?.blueprint?.platform === "Bare Metal" ||
+                   state?.blueprint?.platform === "VMware vSphere"),
+    platform: state?.blueprint?.platform,
+    method: state?.methodology?.method
+  }), [state?.methodology?.method, state?.blueprint?.platform]);
   const feedbackScenarioContext = useMemo(
     () => ({
       platform: state?.blueprint?.platform || "",
@@ -558,7 +567,7 @@ const AppShell = () => {
         })
         .catch((error) => setPreviewError(String(error?.message || error)))
         .finally(() => setPreviewLoading(false));
-    }, 500);
+    }, 100);
     return () => clearTimeout(timeout);
   }, [
     showPreview,
@@ -995,6 +1004,17 @@ const AppShell = () => {
           />
         </div>
         <div className="header-actions">
+          {previewEnabled && (
+            <button
+              type="button"
+              className="ghost icon-button"
+              onClick={() => setYamlDrawerOpen(!yamlDrawerOpen)}
+              title={yamlDrawerOpen ? "Hide YAML preview" : "Show YAML preview"}
+              aria-label={yamlDrawerOpen ? "Hide YAML" : "Show YAML"}
+            >
+              {yamlDrawerOpen ? "Hide YAML" : "Show YAML"}
+            </button>
+          )}
           <button
             type="button"
             className="ghost icon-button"
@@ -1082,36 +1102,6 @@ const AppShell = () => {
                   />
               </ErrorBoundary>
             </main>
-            {showPreview && previewEnabled ? (
-              <aside className="preview-pane">
-                <div className="card">
-                  <div className="card-header">
-                    <h3>YAML Preview</h3>
-                  </div>
-                  <div className="note">Source: {previewTarget}</div>
-                  {previewLoading ? <div className="loading">Generating preview…</div> : null}
-                  {previewError ? <div className="note warning">{previewError}</div> : null}
-                  {!previewLoading && !previewError && errorFlags[previewStepId] ? (
-                    <div className="note warning">
-                      ⚠️ <strong>Incomplete Configuration:</strong> This YAML preview may be missing required fields or contain placeholder values. Review validation errors and complete all required fields before using in production.
-                    </div>
-                  ) : null}
-                <pre className="preview">
-                  {previewFiles[previewTarget] || "Not generated yet."}
-                </pre>
-                {extraPreviewFiles.length ? (
-                  <div className="list">
-                    {extraPreviewFiles.map(([name, content]) => (
-                      <div key={name}>
-                        <div className="note">Additional file: {name}</div>
-                        <pre className="preview">{content}</pre>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                </div>
-              </aside>
-            ) : null}
           </div>
           <footer className="footer">
             {visibleSteps[active]?.id !== "operations" ? (
@@ -1350,6 +1340,18 @@ const AppShell = () => {
           uiContext={visibleSteps[active]?.id || ""}
           scenarioContext={feedbackScenarioContext}
         />
+        {yamlDrawerOpen && previewEnabled && (
+          <YamlDrawer
+            isOpen={yamlDrawerOpen}
+            onClose={() => setYamlDrawerOpen(false)}
+            previewFiles={previewFiles}
+            activeStepId={previewStepId}
+            scenario={yamlDrawerScenario}
+            showIncompleteWarning={!!errorFlags[previewStepId]}
+            loading={previewLoading}
+            error={previewError}
+          />
+        )}
     </div>
   );
 };
