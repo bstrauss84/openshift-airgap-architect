@@ -195,6 +195,8 @@ const AppShell = () => {
   const [previewError, setPreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewRequestIdRef = useRef(0);
+  const prevMethodologyRef = useRef(state?.methodology?.method);
+  const importingRef = useRef(false);  // Track when import is in progress
   const [confirmingRelease, setConfirmingRelease] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
   const [showStartOverModal, setShowStartOverModal] = useState(false);
@@ -551,9 +553,14 @@ const AppShell = () => {
   }, []);
 
   useEffect(() => {
-    if (!showPreview) return;
+    // BUG FIX (2026-05-13): Removed showPreview guard that was blocking YAML generation
+    // Previous code: if (!showPreview) return;
+    // Problem: When drawer closed (showPreview=false), YAML was never generated
+    // Fix: Always generate YAML when state changes; YamlDrawer controls display via isOpen
+    // This fixes: import showing wrong YAML, methodology switch showing empty agent-config
 
     const confirmed = state?.version?.versionConfirmed ?? state?.release?.confirmed;
+
     if (!confirmed) {
       // Show skeleton YAML before version confirmation
       setPreviewError("");
@@ -573,47 +580,65 @@ metadata:
       return;
     }
 
-    // NO DEBOUNCE: text inputs now update on blur (infrequent), so immediate API calls are fine
+    // NO DEBOUNCE for regular field changes: text inputs now update on blur (infrequent)
     // Toggles/selects are single-click operations (also infrequent)
+    // EXCEPTION: Small delay for large state changes (methodology switch, imports)
+    const currentMethod = state?.methodology?.method;
+    const methodologyChanged = currentMethod !== prevMethodologyRef.current;
+    prevMethodologyRef.current = currentMethod;
+
+    const isImporting = importingRef.current;
+
+    // 150ms delay for large state changes (lets React finish batching state updates)
+    // - Methodology changes: switching between IPI/UPI/Agent-based
+    // - Imports: loading run file with full state
+    // 0ms delay for regular field edits (immediate feedback)
+    const delay = (methodologyChanged || isImporting) ? 150 : 0;
+
     const controller = new AbortController();
 
-    setPreviewError("");
-    setPreviewLoading(true);
+    const timer = setTimeout(() => {
+      setPreviewError("");
+      setPreviewLoading(true);
 
-    // Track request ID to ignore stale responses
-    previewRequestIdRef.current += 1;
-    const currentRequestId = previewRequestIdRef.current;
+      // Track request ID to ignore stale responses
+      previewRequestIdRef.current += 1;
+      const currentRequestId = previewRequestIdRef.current;
 
-    // FIX: Use POST and send current state directly to backend
-    // Backend has TWO endpoints:
-    // - GET /api/generate: reads from backend state (600ms behind due to debounce)
-    // - POST /api/generate: accepts state in request body (immediate, current)
-    // Previous bug: used GET, so YAML was always generated from stale backend state
-    apiFetch("/api/generate", {
-      method: "POST",
-      body: JSON.stringify({ state }),
-      signal: controller.signal
-    })
-      .then((data) => {
-        // Only apply result if this is still the latest request
-        if (currentRequestId === previewRequestIdRef.current) {
-          logAction("generate_preview", { stepId: previewStepId });
-          setPreviewFiles(data.files || {});
-          setPreviewLoading(false);
-        }
+      // Use POST and send current state directly to backend
+      // Backend has TWO endpoints:
+      // - GET /api/generate: reads from backend state (600ms behind due to debounce)
+      // - POST /api/generate: accepts state in request body (immediate, current)
+
+      apiFetch("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({ state }),
+        signal: controller.signal
       })
-      .catch((error) => {
-        // Ignore aborted requests (cancelled by cleanup)
-        if (error.name === 'AbortError') return;
-        // Only show error if this is still the latest request
-        if (currentRequestId === previewRequestIdRef.current) {
-          setPreviewError(String(error?.message || error));
-          setPreviewLoading(false);
-        }
-      });
+        .then((data) => {
+          // Only apply result if this is still the latest request
+          if (currentRequestId === previewRequestIdRef.current) {
+            logAction("generate_preview", { stepId: previewStepId });
+            setPreviewFiles(data.files || {});
+            setPreviewLoading(false);
+          }
+        })
+        .catch((error) => {
+          // Ignore aborted requests (cancelled by cleanup)
+          if (error.name === 'AbortError') return;
+          // Only show error if this is still the latest request
+          if (currentRequestId === previewRequestIdRef.current) {
+            setPreviewError(String(error?.message || error));
+            setPreviewLoading(false);
+          }
+        });
+    }, delay);
 
-    // Cleanup: abort in-flight request on dependency change
-    return () => controller.abort();
+    // Cleanup: clear timer and abort request on dependency change
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [
     showPreview,
     previewStepId,
@@ -891,7 +916,9 @@ metadata:
     logAction("import_run");
     const text = await file.text();
     const payload = JSON.parse(text);
+
     const data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
+
     setIsToolsOpen(false);
 
     // Clear the file input value so re-selecting the same file will trigger onChange
@@ -951,8 +978,17 @@ metadata:
       visitedSteps: { ...(importedUi.visitedSteps || {}), [targetStepId]: true }
     };
 
+    // Mark import in progress to trigger delay in YAML generation
+    // This gives React time to settle all state updates from import
+    importingRef.current = true;
+
     setState({ ...merged, ui: nextUi });
     setActive(targetIdx);
+
+    // Clear import flag after state settles (200ms is longer than 150ms delay)
+    setTimeout(() => {
+      importingRef.current = false;
+    }, 200);
   };
 
   if (loading || !state) {

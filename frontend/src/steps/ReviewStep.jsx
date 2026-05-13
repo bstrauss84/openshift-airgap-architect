@@ -179,6 +179,13 @@ const downloadZip = async (stateForBundle) => {
 const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const { state, updateState, setState } = useApp();
   const importRef = useRef(null);
+
+  // BUG FIX #2: Track request IDs to prevent race conditions
+  // When multiple refresh() calls happen rapidly (e.g., during import or rapid state changes),
+  // responses can arrive out of order. Without this, the last response wins even if stale.
+  // This matches the pattern used in App.jsx for YamlDrawer (line 197)
+  const refreshRequestIdRef = useRef(0);
+
   const exportOptions = state.exportOptions || {};
   const [files, setFiles] = useState({});
   const [loading, setLoading] = useState(false);
@@ -211,7 +218,12 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     }
   }, [blocked, hasWarnings]);
 
-  const refresh = async () => {
+  const refresh = async (signal) => {
+    // BUG FIX (2026-05-13): Race condition protection
+    // Track request IDs to discard stale responses when multiple refresh() calls happen rapidly
+    refreshRequestIdRef.current += 1;
+    const currentRequestId = refreshRequestIdRef.current;
+
     // Set block reason if validation errors exist, but continue generating preview
     if (blocked) {
       setBlockReason("⚠️ Configuration incomplete: Review validation errors and complete required fields before exporting.");
@@ -221,30 +233,59 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     setGenerateError("");
     setLoading(true);
     try {
-      const includeCreds = exportOptions.includeCredentials;
-      const data = includeCreds
-        ? await apiFetch("/api/generate", { method: "POST", body: JSON.stringify({ state }) })
-        : await apiFetch("/api/generate");
-      logAction("generate_review", { stepId: "review" });
-      setFiles(data.files || {});
+      // ALWAYS use POST with current state (don't use GET endpoint)
+      // GET endpoint reads from backend state store which is 600ms behind frontend
+
+      const data = await apiFetch("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({ state }),
+        signal: signal
+      });
+
+      // Only apply response if this is still the latest request
+      if (currentRequestId === refreshRequestIdRef.current) {
+        logAction("generate_review", { stepId: "review" });
+        setFiles(data.files || {});
+      }
     } catch (error) {
-      const mismatch = error?.payload?.analysisHashMismatch;
-      const hardLimit = error?.payload?.trustSelectionHardLimitExceeded;
-      if (mismatch) {
-        setGenerateError(`${String(error?.message || error)} Re-run trust analysis on Trust & Proxy, then explicitly choose original or reduced bundle.`);
-      } else if (hardLimit) {
-        setGenerateError(`${String(error?.message || error)} Go to Trust & Proxy and reduce selected certificates or switch to original bundle.`);
-      } else {
-        setGenerateError(String(error?.message || error));
+      // Ignore aborted requests (cancelled by cleanup)
+      if (error.name === 'AbortError') return;
+
+      // Only set error state if this is still the latest request
+      if (currentRequestId === refreshRequestIdRef.current) {
+        const mismatch = error?.payload?.analysisHashMismatch;
+        const hardLimit = error?.payload?.trustSelectionHardLimitExceeded;
+        if (mismatch) {
+          setGenerateError(`${String(error?.message || error)} Re-run trust analysis on Trust & Proxy, then explicitly choose original or reduced bundle.`);
+        } else if (hardLimit) {
+          setGenerateError(`${String(error?.message || error)} Go to Trust & Proxy and reduce selected certificates or switch to original bundle.`);
+        } else {
+          setGenerateError(String(error?.message || error));
+        }
       }
     } finally {
-      setLoading(false);
+      // Only clear loading if this is still the latest request
+      if (currentRequestId === refreshRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    // Always refresh, even when blocked - show incomplete preview with warnings
-    refresh().catch(() => {});
+    // BUG FIX (2026-05-13): AbortController to cancel in-flight requests on cleanup
+    const controller = new AbortController();
+
+    // Add small delay to allow React to finish batching state updates
+    // This is especially important after imports which change multiple state fields simultaneously
+    const timer = setTimeout(() => {
+      // Always refresh, even when blocked - show incomplete preview with warnings
+      refresh(controller.signal).catch(() => {});
+    }, 100);  // 100ms delay to let React settle
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [state.release?.patchVersion, state.operators?.selected?.length, blocked, exportOptions.includeCredentials]);
 
   const downloadAll = async () => {
