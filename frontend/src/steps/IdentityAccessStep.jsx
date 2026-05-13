@@ -42,6 +42,19 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   const sshPublicKey = state.credentials?.sshPublicKey ?? "";
   const fips = state.globalStrategy?.fips ?? false;
 
+  // Local state for text inputs to allow typing without immediate state updates
+  const [localClusterName, setLocalClusterName] = useState(clusterName);
+  const [localBaseDomain, setLocalBaseDomain] = useState(baseDomain);
+
+  // Sync local state when prop values change (e.g., from import/load)
+  useEffect(() => {
+    setLocalClusterName(clusterName);
+  }, [clusterName]);
+
+  useEffect(() => {
+    setLocalBaseDomain(baseDomain);
+  }, [baseDomain]);
+
   const [showKeygen, setShowKeygen] = useState(false);
   const [keypair, setKeypair] = useState(null);
   const [useGeneratedKey, setUseGeneratedKey] = useState(false);
@@ -227,8 +240,14 @@ dev-ocp`}
               className={fieldErrors.clusterName ? "input-error" : ""}
             >
               <input
-                value={clusterName}
-                onChange={(e) => updateBlueprint({ clusterName: e.target.value })}
+                value={localClusterName}
+                onChange={(e) => setLocalClusterName(e.target.value)}
+                onBlur={(e) => {
+                  const newValue = e.target.value.trim();
+                  if (newValue !== clusterName) {
+                    updateBlueprint({ clusterName: newValue });
+                  }
+                }}
                 placeholder={defaultClusterName}
                 className={fieldErrors.clusterName ? "input-error" : ""}
                 aria-required="true"
@@ -271,8 +290,14 @@ ocp.company.com`}
               className={fieldErrors.baseDomain ? "input-error" : ""}
             >
               <input
-                value={baseDomain}
-                onChange={(e) => updateBlueprint({ baseDomain: e.target.value })}
+                value={localBaseDomain}
+                onChange={(e) => setLocalBaseDomain(e.target.value)}
+                onBlur={(e) => {
+                  const newValue = e.target.value.trim();
+                  if (newValue !== baseDomain) {
+                    updateBlueprint({ baseDomain: newValue });
+                  }
+                }}
                 placeholder="example.com"
                 className={fieldErrors.baseDomain ? "input-error" : ""}
                 aria-required={requiredBaseDomain ? "true" : "false"}

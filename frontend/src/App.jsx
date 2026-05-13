@@ -573,48 +573,47 @@ metadata:
       return;
     }
 
-    // Debounce: wait 300ms after last change before firing API call
-    // This prevents race conditions when typing fast
+    // NO DEBOUNCE: text inputs now update on blur (infrequent), so immediate API calls are fine
+    // Toggles/selects are single-click operations (also infrequent)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      setPreviewError("");
-      setPreviewLoading(true);
 
-      // Track request ID to ignore stale responses when typing fast
-      previewRequestIdRef.current += 1;
-      const currentRequestId = previewRequestIdRef.current;
+    setPreviewError("");
+    setPreviewLoading(true);
 
-      apiFetch("/api/generate", { signal: controller.signal })
-        .then((data) => {
-          // Only apply result if this is still the latest request
-          if (currentRequestId === previewRequestIdRef.current) {
-            logAction("generate_preview", { stepId: previewStepId });
-            setPreviewFiles(data.files || {});
-            setPreviewLoading(false);
-          }
-        })
-        .catch((error) => {
-          // Ignore aborted requests (cancelled by cleanup)
-          if (error.name === 'AbortError') return;
-          // Only show error if this is still the latest request
-          if (currentRequestId === previewRequestIdRef.current) {
-            setPreviewError(String(error?.message || error));
-            setPreviewLoading(false);
-          }
-        });
-    }, 300); // 300ms debounce - prevents excessive API calls during fast typing
+    // Track request ID to ignore stale responses
+    previewRequestIdRef.current += 1;
+    const currentRequestId = previewRequestIdRef.current;
 
-    // Cleanup: cancel pending timeout and abort in-flight request on dependency change
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
+    apiFetch("/api/generate", { signal: controller.signal })
+      .then((data) => {
+        // Only apply result if this is still the latest request
+        if (currentRequestId === previewRequestIdRef.current) {
+          logAction("generate_preview", { stepId: previewStepId });
+          setPreviewFiles(data.files || {});
+          setPreviewLoading(false);
+        }
+      })
+      .catch((error) => {
+        // Ignore aborted requests (cancelled by cleanup)
+        if (error.name === 'AbortError') return;
+        // Only show error if this is still the latest request
+        if (currentRequestId === previewRequestIdRef.current) {
+          setPreviewError(String(error?.message || error));
+          setPreviewLoading(false);
+        }
+      });
+
+    // Cleanup: abort in-flight request on dependency change
+    return () => controller.abort();
   }, [
     showPreview,
     previewStepId,
     state?.release?.patchVersion,
+    state?.release?.confirmed,
+    state?.version?.versionConfirmed,
     state?.blueprint?.platform,
     state?.blueprint?.confirmed,
+    state?.blueprint?.blueprintPullSecretEphemeral,
     state?.methodology?.method,
     // Track individual fields that affect YAML generation
     state?.blueprint?.clusterName,

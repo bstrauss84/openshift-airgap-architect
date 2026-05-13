@@ -9,7 +9,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import FieldLabelWithInfo from "./FieldLabelWithInfo.jsx";
 
@@ -41,7 +41,13 @@ function SecretInput({
   additionalButtons // Additional buttons to show alongside "Upload file"
 }) {
   const [showSecret, setShowSecret] = useState(false);
+  const [localValue, setLocalValue] = useState(value);
   const fileRef = useRef(null);
+
+  // Sync local state when prop value changes (e.g., from import/load)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
   const id = idProp || `secret-input-${Math.random().toString(36).slice(2, 9)}`;
   const effectiveHint = hint || labelHint; // Use hint if provided, fallback to labelHint
   const showNotPersisted = notPersistedMessage && !effectiveHint;
@@ -63,20 +69,28 @@ function SecretInput({
       const r = new FileReader();
       r.onload = () => {
         const text = typeof r.result === "string" ? r.result : "";
-        onChange(text.trim ? text.trim() : text);
+        const trimmed = text.trim ? text.trim() : text;
+        setLocalValue(trimmed);
+        onChange(trimmed); // Immediate update for paste/drop
       };
       r.readAsText(file);
       return;
     }
     const text = e.dataTransfer?.getData("text/plain") || e.dataTransfer?.getData("text");
-    if (text != null && text.trim()) onChange(text.trim());
+    if (text != null && text.trim()) {
+      const trimmed = text.trim();
+      setLocalValue(trimmed);
+      onChange(trimmed); // Immediate update for paste/drop
+    }
   };
 
   const handlePaste = (e) => {
     const v = e.clipboardData?.getData("text");
     if (v != null) {
       e.preventDefault();
-      onChange(v.trim ? v.trim() : v);
+      const trimmed = v.trim ? v.trim() : v;
+      setLocalValue(trimmed);
+      onChange(trimmed); // Immediate update for paste
     }
   };
 
@@ -86,13 +100,22 @@ function SecretInput({
     const r = new FileReader();
     r.onload = () => {
       const text = typeof r.result === "string" ? r.result : "";
-      onChange(text.trim ? text.trim() : text);
+      const trimmed = text.trim ? text.trim() : text;
+      setLocalValue(trimmed);
+      onChange(trimmed); // Immediate update for file upload
     };
     r.readAsText(file);
     e.target.value = "";
   };
 
-  const displayValue = showSecret ? value : (value ? "\u2022".repeat(12) : "");
+  const handleBlur = (e) => {
+    const newValue = e.target.value.trim ? e.target.value.trim() : e.target.value;
+    if (newValue !== value) {
+      onChange(newValue); // Update parent state only on blur if changed
+    }
+  };
+
+  const displayValue = showSecret ? localValue : (localValue ? "\u2022".repeat(12) : "");
   const hasError = Boolean(errorMessage);
 
   const labelContent = labelEmphasis || label;
@@ -153,7 +176,8 @@ function SecretInput({
           aria-invalid={hasError ? "true" : "false"}
           aria-describedby={hasError ? `${id}-error` : undefined}
           value={displayValue}
-          onChange={(e) => showSecret && onChange(e.target.value)}
+          onChange={(e) => setLocalValue(e.target.value)} // Always update local state
+          onBlur={handleBlur} // Update parent state on blur
           onPaste={handlePaste}
           placeholder=""
           disabled={disabled}
