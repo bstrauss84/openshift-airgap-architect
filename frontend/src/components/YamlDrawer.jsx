@@ -185,7 +185,11 @@ export default function YamlDrawer({
   const renderSingleConfig = (filename) => {
     const content = previewFiles[filename] || '';
     const displayContent = obfuscateYaml(content, showSensitive);
-    const highlightedHtml = displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
+
+    // Memoize Prism highlighting to avoid expensive re-renders on every keystroke
+    const highlightedHtml = React.useMemo(() => {
+      return displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
+    }, [displayContent]);
 
     return (
       <div className="yaml-config-pane" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
@@ -239,8 +243,15 @@ kind: AgentConfig
 metadata:
   name: ${installContent.match(/name:\s*(\S+)/)?.[1] || 'cluster-name'}
 # Loading...`;
-    const installHighlighted = installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
-    const agentHighlighted = agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
+
+    // Memoize Prism highlighting to avoid expensive re-renders
+    const installHighlighted = React.useMemo(() => {
+      return installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
+    }, [installDisplay]);
+
+    const agentHighlighted = React.useMemo(() => {
+      return agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
+    }, [agentDisplay]);
 
     return (
       <div ref={splitContainerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -341,7 +352,11 @@ metadata:
   const renderImageSetWithSwitching = () => {
     const content = previewFiles['imageset-config.yaml'] || '';
     const displayContent = obfuscateYaml(content, showSensitive);
-    const highlightedHtml = displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
+
+    // Memoize Prism highlighting to avoid expensive re-renders
+    const highlightedHtml = React.useMemo(() => {
+      return displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
+    }, [displayContent]);
 
     // TODO: When uploaded ImageSet config is stored in state, prioritize it over generated
     // Check state.ocMirror?.uploadedImageSetConfig or similar field

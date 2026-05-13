@@ -573,29 +573,42 @@ metadata:
       return;
     }
 
-    setPreviewError("");
-    setPreviewLoading(true);
+    // Debounce: wait 300ms after last change before firing API call
+    // This prevents race conditions when typing fast
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      setPreviewError("");
+      setPreviewLoading(true);
 
-    // Track request ID to ignore stale responses when typing fast
-    previewRequestIdRef.current += 1;
-    const currentRequestId = previewRequestIdRef.current;
+      // Track request ID to ignore stale responses when typing fast
+      previewRequestIdRef.current += 1;
+      const currentRequestId = previewRequestIdRef.current;
 
-    apiFetch("/api/generate")
-      .then((data) => {
-        // Only apply result if this is still the latest request
-        if (currentRequestId === previewRequestIdRef.current) {
-          logAction("generate_preview", { stepId: previewStepId });
-          setPreviewFiles(data.files || {});
-          setPreviewLoading(false);
-        }
-      })
-      .catch((error) => {
-        // Only show error if this is still the latest request
-        if (currentRequestId === previewRequestIdRef.current) {
-          setPreviewError(String(error?.message || error));
-          setPreviewLoading(false);
-        }
-      });
+      apiFetch("/api/generate", { signal: controller.signal })
+        .then((data) => {
+          // Only apply result if this is still the latest request
+          if (currentRequestId === previewRequestIdRef.current) {
+            logAction("generate_preview", { stepId: previewStepId });
+            setPreviewFiles(data.files || {});
+            setPreviewLoading(false);
+          }
+        })
+        .catch((error) => {
+          // Ignore aborted requests (cancelled by cleanup)
+          if (error.name === 'AbortError') return;
+          // Only show error if this is still the latest request
+          if (currentRequestId === previewRequestIdRef.current) {
+            setPreviewError(String(error?.message || error));
+            setPreviewLoading(false);
+          }
+        });
+    }, 300); // 300ms debounce - prevents excessive API calls during fast typing
+
+    // Cleanup: cancel pending timeout and abort in-flight request on dependency change
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [
     showPreview,
     previewStepId,
@@ -621,9 +634,9 @@ metadata:
     state?.platformConfig?.replicas,
     state?.hostInventory?.nodes,
     state?.hostInventory?.vips,
-    state?.operators?.selected,
-    // Full state for other changes
-    state
+    state?.operators?.selected
+    // NOTE: Removed entire 'state' dependency - it was causing excessive re-renders
+    // on EVERY state change. The specific fields above are sufficient.
   ]);
 
   const setActiveStep = (nextIndex, options = {}) => {
