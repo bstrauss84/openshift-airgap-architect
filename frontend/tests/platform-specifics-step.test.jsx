@@ -574,17 +574,18 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
   });
 
-  it("when scenario is azure-government-ipi, getScenarioId returns azure-government-ipi and validation requires cloudName, region, resourceGroupName, baseDomainResourceGroupName (Prompt J)", () => {
+  it("when scenario is azure-government-ipi, getScenarioId returns azure-government-ipi and validation requires cloudName, region, baseDomainResourceGroupName (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "Azure Government" },
       methodology: { method: "IPI" }
     });
     expect(getScenarioId(state)).toBe("azure-government-ipi");
     const resultEmpty = validateStep(state, "platform-specifics");
+    // Note: resourceGroupName is optional for IPI per catalog (installer creates it)
     expect(resultEmpty.errors).toContain("Azure cloud name is required for Azure Government IPI.");
     expect(resultEmpty.errors).toContain("Azure region is required for Azure Government IPI.");
-    expect(resultEmpty.errors).toContain("Resource group name is required for Azure Government IPI.");
     expect(resultEmpty.errors).toContain("Base domain resource group is required for Azure Government IPI.");
+    expect(resultEmpty.errors).not.toContain("Resource group name is required for Azure Government IPI.");
     const stateFilled = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "Azure Government" },
       methodology: { method: "IPI" },

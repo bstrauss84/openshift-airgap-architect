@@ -610,28 +610,36 @@ metadata:
       // - GET /api/generate: reads from backend state (600ms behind due to debounce)
       // - POST /api/generate: accepts state in request body (immediate, current)
 
-      apiFetch("/api/generate", {
+      const fetchPromise = apiFetch("/api/generate", {
         method: "POST",
         body: JSON.stringify({ state }),
         signal: controller.signal
-      })
-        .then((data) => {
-          // Only apply result if this is still the latest request
-          if (currentRequestId === previewRequestIdRef.current) {
-            logAction("generate_preview", { stepId: previewStepId });
-            setPreviewFiles(data.files || {});
-            setPreviewLoading(false);
-          }
-        })
-        .catch((error) => {
-          // Ignore aborted requests (cancelled by cleanup)
-          if (error.name === 'AbortError') return;
-          // Only show error if this is still the latest request
-          if (currentRequestId === previewRequestIdRef.current) {
-            setPreviewError(String(error?.message || error));
-            setPreviewLoading(false);
-          }
-        });
+      });
+
+      // Defensive: ensure apiFetch returned a promise (test mocks may not)
+      if (fetchPromise?.then) {
+        fetchPromise
+          .then((data) => {
+            // Only apply result if this is still the latest request
+            if (currentRequestId === previewRequestIdRef.current) {
+              logAction("generate_preview", { stepId: previewStepId });
+              setPreviewFiles(data.files || {});
+              setPreviewLoading(false);
+            }
+          })
+          .catch((error) => {
+            // Ignore aborted requests (cancelled by cleanup)
+            if (error.name === 'AbortError') return;
+            // Only show error if this is still the latest request
+            if (currentRequestId === previewRequestIdRef.current) {
+              setPreviewError(String(error?.message || error));
+              setPreviewLoading(false);
+            }
+          });
+      } else {
+        // apiFetch didn't return a promise (test mock scenario)
+        setPreviewLoading(false);
+      }
     }, delay);
 
     // Cleanup: clear timer and abort request on dependency change

@@ -236,7 +236,7 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     if (preflightResult && preflightResultsRef.current) {
       // Small delay to ensure DOM has updated
       setTimeout(() => {
-        preflightResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        preflightResultsRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
       }, 100);
     }
   }, [preflightResult]);
