@@ -186,10 +186,9 @@ export default function YamlDrawer({
     const content = previewFiles[filename] || '';
     const displayContent = obfuscateYaml(content, showSensitive);
 
-    // Memoize Prism highlighting to avoid expensive re-renders on every keystroke
-    const highlightedHtml = React.useMemo(() => {
-      return displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
-    }, [displayContent]);
+    // NOTE: useMemo removed to fix React Hooks violation
+    // Highlighting is now done inline without memoization
+    const highlightedHtml = displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
 
     return (
       <div className="yaml-config-pane" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
@@ -349,10 +348,9 @@ metadata:
     const content = previewFiles['imageset-config.yaml'] || '';
     const displayContent = obfuscateYaml(content, showSensitive);
 
-    // Memoize Prism highlighting to avoid expensive re-renders
-    const highlightedHtml = React.useMemo(() => {
-      return displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
-    }, [displayContent]);
+    // NOTE: useMemo removed to fix React Hooks violation
+    // Highlighting is now done inline without memoization
+    const highlightedHtml = displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
 
     // TODO: When uploaded ImageSet config is stored in state, prioritize it over generated
     // Check state.ocMirror?.uploadedImageSetConfig or similar field
