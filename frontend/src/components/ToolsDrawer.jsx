@@ -2,18 +2,12 @@
  * OpenShift Airgap Architect - Tools Drawer Component
  *
  * Right-side overlay drawer for global tools: dark mode toggle, export/import run,
- * start over, and about information. Portaled to document.body with backdrop,
- * Escape key close, and focus trap.
+ * start over, and about information. Job logs are on the Operations step (sidebar).
+ * Portaled to document.body with backdrop, Escape key close, and focus trap.
  *
  * @author Bill Strauss
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
- */
-
-/**
- * Tools drawer: right-side overlay (not a route). Dark mode, export/import run, start over, about.
- * Job logs live on the Operations wizard step (sidebar), not duplicated here.
- * Portaled to document.body; backdrop + Escape close; focus trap.
  */
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -70,9 +64,6 @@ export default function ToolsDrawer({
   onExportRun,
   onImportClick,
   onStartOver,
-  jobsCount = 0,
-  onNavigateToOperations,
-  isLocked,
   logAction,
   buildInfo = null,
   updateInfo = null
@@ -132,7 +123,8 @@ export default function ToolsDrawer({
               </button>
             </div>
             <p className="subtle" style={{ marginTop: 0, marginBottom: 20 }}>
-              Theme, run export/import, start over, and operations.
+              Theme, run export/import, and start over. Background jobs and logs are on the{" "}
+              <strong>Operations</strong> step in the sidebar.
             </p>
 
             <section className="card" style={{ marginBottom: 16 }}>
@@ -162,28 +154,6 @@ export default function ToolsDrawer({
               <p className="note" style={{ marginTop: 12, marginBottom: 0 }}>
                 Export saves your current selections and run state to a JSON file. Import restores from a previously exported file.
               </p>
-            </section>
-
-            <section className="card" style={{ marginBottom: 16 }}>
-              <h3 className="card-title" style={{ marginTop: 0 }}>Operations</h3>
-              <p className="card-subtitle" style={{ marginTop: 0 }}>
-                Background jobs (e.g. operator catalog scans) and logs.
-              </p>
-              {isLocked ? (
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    onClose();
-                    onNavigateToOperations();
-                  }}
-                >
-                  {jobsCount > 0 ? `Open Operations (${jobsCount})` : "Open Operations"}
-                </Button>
-              ) : (
-                <p className="note subtle" style={{ marginBottom: 0 }}>
-                  Available after lock-in. Lock your foundational selections on the Blueprint step to continue.
-                </p>
-              )}
             </section>
 
             <section className="card" style={{ marginBottom: 16 }}>

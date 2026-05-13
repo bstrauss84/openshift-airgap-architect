@@ -44,11 +44,11 @@ After migrating app containers from Debian/Alpine to Red Hat UBI 9, use this doc
 | Lock selections | “Yes, lock selections” in modal | POST /api/operators/confirm | DB write |
 | Release confirm | “Yes” in release modal | POST /api/operators/confirm | DB write |
 | Blueprint confirm | “Yes” in blueprint modal | (local state only) | — |
-| Cincinnati channels | Blueprint step load | GET /api/cincinnati/channels | Cache/network (Cincinnati) |
-| Cincinnati update | Update button | POST /api/cincinnati/update | Cache/network |
-| Patches | Version picker | GET /api/cincinnati/patches, POST /api/cincinnati/patches/update | Cache/network |
+| Cincinnati channels | Blueprint step load | GET /api/cincinnati/channels | Cache/network: GitHub `api.github.com` + `raw.githubusercontent.com` (or `MOCK_MODE`) |
+| Cincinnati update | Update button | POST /api/cincinnati/update | Same as channels |
+| Patches | Version picker | GET /api/cincinnati/patches, POST /api/cincinnati/patches/update | Same as channels |
 | Operator credentials | Operators step | GET /api/operators/credentials | REGISTRY_AUTH_FILE (optional) |
-| Operator scan | Operators → Scan / discovery | POST /api/operators/scan | DB (jobs), oc-mirror binary, auth |
+| Operator scan | Operators → Scan / discovery | POST /api/operators/scan | DB (jobs), oc-mirror binary, `REGISTRY_AUTH_FILE`; egress to catalog registries (e.g. `registry.redhat.io`) via proxy env inherited by `oc-mirror` |
 | Operator prefetch | Operators prefetch | POST /api/operators/prefetch | oc-mirror, auth |
 | Operator status | Operators step | GET /api/operators/status | DB (operator_results) |
 | Jobs list / stream | Operations step | GET /api/jobs, GET /api/jobs/:id/stream | DB, EventSource |
@@ -57,15 +57,18 @@ After migrating app containers from Debian/Alpine to Red Hat UBI 9, use this doc
 | Import run | Tools | POST /api/run/import | DB write |
 | Generate YAML | Review / Assets | GET/POST /api/generate | DB read |
 | Bundle ZIP | Download bundle | GET/POST /api/bundle.zip | DB read, DATA_DIR, oc/installer paths |
-| Build info / update info | Tools → About | GET /api/build-info, GET /api/update-info | Env vars, optional GitHub |
+| Build info / update info | Tools → About | GET /api/build-info, GET /api/update-info | Env vars; optional `fetch` to `api.github.com` (disable with `CHECK_UPDATES=false`) |
 | SSH keypair | Identity step | POST /api/ssh/keypair | Spawn `ssh-keygen` (openssh in image) |
-| AWS regions/AMI | AWS platform steps | GET /api/aws/regions, GET /api/aws/ami | Network (AWS), optional installer |
-| Docs update | Update Docs Links | POST /api/docs/update | DB/cache, network (docs) |
+| AWS regions/AMI | AWS platform steps | GET /api/aws/regions, GET /api/aws/ami | `curl` to `mirror.openshift.com` (openshift-install tarball), then local `openshift-install coreos print-stream-json` |
+| Docs update | Update Docs Links | POST /api/docs/update | DB/cache, `fetch` to `docs.redhat.com` |
+| Run oc-mirror job | Run oc-mirror tab | POST /api/oc-mirror/run, job stream | `oc-mirror` subprocess; inherits `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` from backend env (not `REGISTRY_AUTH_FILE`); image pulls per `imageset-config.yaml` |
 | Runtime info | Review step | GET /api/runtime-info | oc-mirror binary, arch |
 | Path check | (internal) | POST /api/system/path-check | DATA_DIR writable, `df` |
 | Schema stepMap | App init | GET /api/schema/stepMap | Static |
 
 ## Backend dependencies in UBI image
+
+- **Corporate proxy:** At **runtime**, Cincinnati, docs refresh, update checks, and optional `oc-mirror` tarball resolution use Node **`fetch`** (honors `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` via undici `EnvHttpProxyAgent` unless `AIRGAP_FETCH_USE_ENV_PROXY=false`). **`curl`**, **`oc-mirror`**, and **`oc`** inherit the same container environment. At **image build** time, [`backend/Containerfile`](../backend/Containerfile) uses **`curl`** to `mirror.openshift.com` and **`npm install`**; those use the **build host’s** proxy settings, not the running pod’s env. **Feedback (github mode):** no server-side GitHub API for submit; the browser must reach `github.com` for the issue link. See README [Corporate HTTP proxy and backend egress](../README.md#corporate-proxy-backend-egress).
 
 - **SQLite (better-sqlite3):** DB file under `DATA_DIR` (default `/data`). Backend runs as UID 1001; the entrypoint chowns that directory to 1001:0 at startup so the process can write.
 - **oc / oc-mirror:** Installed at build time into `/usr/local/bin` from OpenShift mirror. Used for operator scan, prefetch, runtime info, and bundle export. If the binary is missing or wrong arch, operator scan and related flows fail; other flows (state, Start Over, lock, generate YAML, export/import run) do not need oc-mirror.

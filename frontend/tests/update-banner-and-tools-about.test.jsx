@@ -24,9 +24,6 @@ describe("ToolsDrawer About section", () => {
     onExportRun: () => {},
     onImportClick: () => {},
     onStartOver: () => {},
-    jobsCount: 0,
-    onNavigateToOperations: () => {},
-    isLocked: false,
     logAction: () => {}
   };
 

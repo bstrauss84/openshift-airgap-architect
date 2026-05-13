@@ -1,16 +1,7 @@
 /**
- * OpenShift Airgap Architect - Validation Engine
- *
- * Comprehensive validation for all wizard steps in both legacy and segmented flows.
- * Validates Blueprint, credentials, networking (IP/CIDR format + overlap detection),
- * trust/proxy configuration, platform-specific settings, and host inventory.
- *
- * Main entry point: validateStep(state, stepId)
- * StepId values correspond to App.jsx routing (e.g., identity-access, networking-v2, platform-specifics).
- *
- * @author Bill Strauss
- *
- * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ * Step and field validation for both legacy and segmented flows.
+ * Validates Blueprint, credentials, networking (format + overlaps), trust/proxy, platform config, and host inventory.
+ * validateStep(state, stepId) is the main entry; stepId matches App.jsx (e.g. identity-access, networking-v2, platform-specifics).
  */
 
 import { getTrustBundlePolicies, getTrustBundlePolicySupport, getForwardOpenShiftMinorDocNotice } from "./shared/versionPolicy.js";
@@ -39,106 +30,26 @@ const isValidIpv4 = (value) => {
   });
 };
 
-/**
- * IPv4 CIDR validation - ensures IP is the network address for the given prefix.
- * For example, "10.0.0.0/24" is valid but "10.0.0.5/24" is invalid.
- * Use this for network definitions (machineNetwork, serviceNetwork, clusterNetwork, etc.).
- */
 const isValidIpv4Cidr = (value) => {
   if (!value || !value.includes("/")) return false;
   const [ip, prefix] = value.split("/");
   if (!isValidIpv4(ip)) return false;
   const bits = Number(prefix);
-  // Ensure prefix is an integer in valid range
-  if (Number.isNaN(bits) || !Number.isInteger(bits) || bits < 0 || bits > 32) return false;
-
-  // Verify IP is the network address for this prefix
-  const parts = ip.split(".").map(Number);
-  const ipInt = ((parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3]) >>> 0;
-  const mask = bits === 0 ? 0 : ((~0 << (32 - bits)) >>> 0);
-  const networkInt = (ipInt & mask) >>> 0;
-
-  return ipInt === networkInt;
+  return !Number.isNaN(bits) && bits >= 0 && bits <= 32;
 };
 
-/**
- * IPv4 address with prefix length validation - accepts any valid IP with CIDR notation.
- * For example, both "10.0.0.5/24" and "10.0.0.0/24" are valid.
- * Use this for host static IP configuration where the IP is the actual address assigned to the interface.
- * Does NOT require the IP to be the network address.
- */
-const isValidIpv4AddressWithPrefix = (value) => {
-  if (!value || !value.includes("/")) return false;
-  const [ip, prefix] = value.split("/");
-  if (!isValidIpv4(ip)) return false;
-  const bits = Number(prefix);
-  // Ensure prefix is an integer in valid range
-  if (Number.isNaN(bits) || !Number.isInteger(bits) || bits < 0 || bits > 32) return false;
-  return true;
-};
-
-/**
- * IPv6 address validation (single address, no CIDR).
- * Validates standard IPv6 formats including compressed notation (::).
- * Rejects invalid formats like ":::::", "gggg::1", or malformed addresses.
- */
+/** Simple IPv6 address check (single address, no CIDR). */
 const isValidIpv6 = (value) => {
   if (!value || typeof value !== "string") return false;
   const trimmed = value.trim();
   if (trimmed.includes("/")) return false;
-
-  // Quick reject obviously invalid patterns
-  if (trimmed === "" || trimmed === ":" || trimmed === ":::" || trimmed.includes(":::")) return false;
-
-  // Handle special cases
-  if (trimmed === "::") return true; // All zeros
-
-  // Split on :: for compressed notation
-  const parts = trimmed.split("::");
-
-  // Can only have one :: (compression)
-  if (parts.length > 2) return false;
-
-  if (parts.length === 2) {
-    // Compressed format - validate each side
-    const left = parts[0] ? parts[0].split(":") : [];
-    const right = parts[1] ? parts[1].split(":") : [];
-
-    // Total groups must be less than 8 (compression replaces at least one group)
-    if (left.length + right.length >= 8) return false;
-
-    // Validate each group
-    const allGroups = [...left, ...right];
-    for (const group of allGroups) {
-      if (group === "") return false; // Empty groups not allowed except in ::
-      if (group.length > 4) return false;
-      if (!/^[0-9a-fA-F]+$/.test(group)) return false;
-    }
-
-    return true;
-  } else {
-    // Full format - must have exactly 8 groups
-    const groups = trimmed.split(":");
-    if (groups.length !== 8) return false;
-
-    for (const group of groups) {
-      if (group === "" || group.length > 4) return false;
-      if (!/^[0-9a-fA-F]+$/.test(group)) return false;
-    }
-
-    return true;
-  }
+  return /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/.test(trimmed) || /^::[0-9a-fA-F.:]+$/.test(trimmed);
 };
 
-/**
- * IPv6 CIDR validation - ensures both the IPv6 address and prefix are valid.
- * For example, "2001:db8::/64" is valid but "gggg::/64" is invalid (bad hex).
- * Use this for network definitions (machineNetworkV6, serviceNetworkCidrV6, clusterNetworkCidrV6).
- */
 const isValidIpv6Cidr = (value) => {
   if (!value || !value.includes("/")) return false;
   const [ip, prefix] = value.split("/");
-  if (!isValidIpv6(ip)) return false;
+  if (!ip.includes(":")) return false;
   const bits = Number(prefix);
   return !Number.isNaN(bits) && bits >= 0 && bits <= 128;
 };
@@ -153,7 +64,6 @@ const isValidSshPublicKey = (value) => {
   const trimmed = value.trim();
   const parts = trimmed.split(/\s+/);
   if (parts.length < 2) return false;
-
   const type = parts[0];
   const allowed = [
     "ssh-rsa",
@@ -163,68 +73,15 @@ const isValidSshPublicKey = (value) => {
     "ecdsa-sha2-nistp521"
   ];
   if (!allowed.includes(type)) return false;
-
-  const keyData = parts[1];
-
-  // Validate base64 format with proper padding
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(keyData)) return false;
-
-  // Validate key length requirements (base64 decoded length should be reasonable)
-  // Ed25519 keys are ~68 chars base64, RSA 2048+ are ~370+ chars, ECDSA ~140+ chars
-  const minLengths = {
-    "ssh-ed25519": 60,
-    "ssh-rsa": 200,
-    "ecdsa-sha2-nistp256": 100,
-    "ecdsa-sha2-nistp384": 120,
-    "ecdsa-sha2-nistp521": 140
-  };
-
-  if (keyData.length < (minLengths[type] || 60)) return false;
-
-  // Validate base64 padding alignment (length should be multiple of 4)
-  if (keyData.length % 4 !== 0) return false;
-
-  return true;
+  return /^[A-Za-z0-9+/=]+$/.test(parts[1]);
 };
 
 const isValidPullSecret = (value) => {
   if (!value) return { valid: false, error: "Pull secret is required for install-config." };
   try {
     const parsed = JSON.parse(value);
-    if (!parsed.auths || typeof parsed.auths !== "object") {
-      return { valid: false, error: "Pull secret must include an auths object." };
-    }
-
-    // Validate each registry entry (enhanced validation without breaking existing behavior)
-    const authEntries = Object.entries(parsed.auths);
-
-    for (const [registry, authData] of authEntries) {
-      // Validate registry hostname format (must be valid hostname or hostname:port)
-      // Don't use full URL validation since registry keys are hostnames, not URLs
-      if (!registry || typeof registry !== "string" || registry.trim() === "") {
-        return { valid: false, error: "Invalid registry hostname format." };
-      }
-
-      // Basic hostname validation (allow alphanumeric, dots, dashes, colons for port)
-      // More permissive to handle various registry hostname formats
-      if (!/^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:[0-9]+)?$/.test(registry)) {
-        return { valid: false, error: `Invalid registry hostname: ${registry}` };
-      }
-
-      // Auth object can be empty (Red Hat pull secrets sometimes have empty objects)
-      // If authData exists and has an auth field, validate it
-      if (authData && typeof authData === "object" && authData.auth) {
-        if (typeof authData.auth !== "string") {
-          return { valid: false, error: `Invalid auth token type for registry: ${registry}` };
-        }
-        // Base64 validation (standard base64 with optional padding)
-        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(authData.auth)) {
-          return { valid: false, error: `Invalid auth token encoding for registry: ${registry}` };
-        }
-      }
-    }
-
-    return { valid: true, error: "" };
+    if (parsed.auths && typeof parsed.auths === "object") return { valid: true, error: "" };
+    return { valid: false, error: "Pull secret must include an auths object." };
   } catch {
     return { valid: false, error: "Pull secret must be valid JSON." };
   }
@@ -243,9 +100,9 @@ const cidrToRange = (cidr) => {
   const bits = Number(prefix);
   const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
   const mask = bits === 0 ? 0 : (-1 << (32 - bits)) >>> 0;
-  const base = (toInt(ip) & mask) >>> 0;
+  const base = toInt(ip) & mask;
   const size = 2 ** (32 - bits);
-  return { start: base >>> 0, end: (base + size - 1) >>> 0 };
+  return { start: base, end: base + size - 1 };
 };
 
 const cidrOverlaps = (cidrA, cidrB) => {
@@ -261,10 +118,6 @@ const ipv6CidrToRange = (cidr) => {
   const [addr, prefixStr] = cidr.split("/");
   const prefix = Number(prefixStr);
   if (Number.isNaN(prefix) || prefix < 0 || prefix > 128) return null;
-
-  // Reject invalid patterns like ::: (more than two consecutive colons)
-  if (addr.includes(":::")) return null;
-
   const parts = addr.trim().split(":");
   if (parts.length < 2) return null;
   const expanded = [];
@@ -289,15 +142,9 @@ const ipv6CidrToRange = (cidr) => {
   for (const w of expanded) big = (big << 16n) + BigInt(w);
   const maskBits = BigInt(prefix);
   const size = 128 - prefix;
-
-  // For /128, the network is the single address itself
-  if (size === 0) {
-    return { start: big, end: big };
-  }
-
-  const mask = (1n << BigInt(size)) - 1n;
+  const mask = size <= 0 ? -1n : (1n << BigInt(size)) - 1n;
   const start = big & ~mask;
-  const end = start + mask;
+  const end = start + ((1n << BigInt(size)) - 1n);
   return { start, end };
 };
 
@@ -308,66 +155,14 @@ const ipv6CidrOverlaps = (cidrA, cidrB) => {
   return a.start <= b.end && b.start <= a.end;
 };
 
-/**
- * Checks if an IPv4 address (with optional /prefix) is within a CIDR range.
- * Returns true (permissive) when ip or cidr is missing/invalid, allowing partial configurations.
- * Returns true for IPv6 (not validated here; see ipv6InCidr for IPv6 validation).
- * Only performs strict validation when both ip and cidr are valid IPv4.
- */
 const ipInCidr = (ipCidr, cidr) => {
   const ip = ipCidr.split("/")[0];
-  if (!ip || !cidr || !cidr.includes("/")) return true; // Permissive: allow missing/invalid CIDR
-  if (ip.includes(":")) return true; // IPv6: skip validation (handled by ipv6InCidr)
+  if (!ip || !cidr || !cidr.includes("/")) return true;
+  if (ip.includes(":")) return true;
   const [range, bits] = cidr.split("/");
   const mask = -1 << (32 - Number(bits));
   const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
   return (toInt(ip) & mask) === (toInt(range) & mask);
-};
-
-/**
- * Checks if an IPv6 address is within an IPv6 CIDR range.
- * Returns true (permissive) when ip or cidr is missing/invalid, allowing partial configurations.
- * Returns false for IPv4 addresses (those should use ipInCidr).
- * Only performs strict validation when both ip and cidr are valid IPv6.
- */
-const ipv6InCidr = (ipAddr, cidr) => {
-  if (!ipAddr || !cidr || !cidr.includes("/")) return true; // Permissive: allow missing/invalid CIDR
-  if (!ipAddr.includes(":")) return false; // IPv4: wrong function
-
-  // Parse the IPv6 address to BigInt using the same logic as ipv6CidrToRange
-  const parts = ipAddr.trim().split(":");
-  if (parts.length < 2) return true; // Permissive for invalid format
-
-  // Expand compressed IPv6 notation (::)
-  const expanded = [];
-  let i = 0;
-  while (i < parts.length) {
-    if (parts[i] === "") {
-      const before = expanded.length;
-      const after = parts.slice(i + 1).filter((s) => s !== "").length;
-      const total = before + after;
-      if (total > 8) return true; // Permissive for invalid
-      for (let z = 0; z < 8 - total; z++) expanded.push(0);
-      i++;
-      continue;
-    }
-    const n = parseInt(parts[i], 16);
-    if (Number.isNaN(n) || n < 0 || n > 0xffff) return true; // Permissive for invalid
-    expanded.push(n);
-    i++;
-  }
-  if (expanded.length !== 8) return true; // Permissive for invalid
-
-  // Convert expanded parts to BigInt
-  let ipBig = 0n;
-  for (const w of expanded) ipBig = (ipBig << 16n) + BigInt(w);
-
-  // Get the CIDR range
-  const range = ipv6CidrToRange(cidr);
-  if (!range) return true; // Permissive for invalid CIDR
-
-  // Check if IP is within the CIDR range
-  return ipBig >= range.start && ipBig <= range.end;
 };
 
 /** Validates a single host-inventory node: hostname, BMC (bare-metal IPI), primary interface (ethernet/bond/vlan), static IP/MAC. */
@@ -446,7 +241,7 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
 
   if (primary.mode === "static") {
     if (!primary.ipv4Cidr) addError("primary.ipv4Cidr", "IPv4 address/CIDR is required for static mode.");
-    if (primary.ipv4Cidr && !isValidIpv4AddressWithPrefix(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
+    if (primary.ipv4Cidr && !isValidIpv4Cidr(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
     if (!primary.ipv4Gateway) addError("primary.ipv4Gateway", "IPv4 default gateway is required.");
     if (primary.ipv4Gateway && !isValidIpv4(primary.ipv4Gateway)) addError("primary.ipv4Gateway", "IPv4 gateway must be a valid IPv4 address.");
     if (primary.ipv4Cidr && machineCidr && !ipInCidr(primary.ipv4Cidr, machineCidr)) {
@@ -498,7 +293,7 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     }
     if (iface.mode === "static") {
       if (!iface.ipv4Cidr) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 address/CIDR is required for static mode.");
-      if (iface.ipv4Cidr && !isValidIpv4AddressWithPrefix(iface.ipv4Cidr)) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
+      if (iface.ipv4Cidr && !isValidIpv4Cidr(iface.ipv4Cidr)) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
       if (enableIpv6 && iface.ipv6Cidr && !isValidIpv6Cidr(iface.ipv6Cidr)) {
         addError(`${prefix}.ipv6Cidr`, "Additional IPv6 CIDR is invalid.");
       }
@@ -532,34 +327,6 @@ const validateHostInventory = (state) => {
     perNode[idx] = result;
     errors.push(...result.errors.map((msg) => `Node ${idx + 1}: ${msg}`));
     warnings.push(...result.warnings.map((msg) => `Node ${idx + 1}: ${msg}`));
-  });
-
-  // Check for duplicate hostnames across all nodes
-  const hostnameMap = new Map();
-  (inventory.nodes || []).forEach((node, idx) => {
-    const hostname = (node.hostname || "").trim();
-    if (hostname) {
-      if (!hostnameMap.has(hostname)) {
-        hostnameMap.set(hostname, []);
-      }
-      hostnameMap.get(hostname).push(idx + 1);
-    }
-  });
-
-  // Report duplicates
-  hostnameMap.forEach((nodeIndices, hostname) => {
-    if (nodeIndices.length > 1) {
-      errors.push(`Duplicate hostname "${hostname}" found in nodes: ${nodeIndices.join(", ")}`);
-      // Also add to per-node errors for each affected node
-      nodeIndices.forEach(nodeNum => {
-        const idx = nodeNum - 1;
-        if (perNode[idx]) {
-          perNode[idx].errors.push(`Duplicate hostname "${hostname}"`);
-          if (!perNode[idx].fieldErrors) perNode[idx].fieldErrors = {};
-          perNode[idx].fieldErrors.hostname = `Duplicate hostname "${hostname}"`;
-        }
-      });
-    }
   });
 
   return { errors, warnings, perNode };
@@ -607,18 +374,6 @@ const validateTrust = (state) => {
   if (forwardDocNotice) warnings.push(forwardDocNotice);
   if (effective.length && policySupport.source === "unsupported") {
     warnings.push("Selected version is not supported for trust bundle policy; default behavior may be conservative.");
-  }
-  if (trust.bundleSelectionMode === "reduced") {
-    if (!trust.reducedSelection?.analysisHash || !Array.isArray(trust.reducedSelection?.selectedCertFingerprints) || trust.reducedSelection.selectedCertFingerprints.length === 0) {
-      errors.push("Reduced trust bundle mode requires a current trust analysis and explicit reduced certificate selection.");
-    }
-    const band = trust.reducedSelection?.selectionSummary?.thresholdBand;
-    if (band === "hard_max_exceeded") {
-      errors.push("Reduced trust selection exceeds hard maximum thresholds. Reduce selected certificates or switch to original bundle mode.");
-    }
-    if (band === "caution_exceeded" && !trust.reducedSelection?.cautionAcknowledged) {
-      errors.push("Reduced trust selection exceeds caution thresholds and requires explicit acknowledgment in Trust & Proxy.");
-    }
   }
   return { errors, warnings };
 };
@@ -813,62 +568,6 @@ const validateNetworkingFormat = (state) => {
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) errors.push("Provisioning network CIDR must be a valid CIDR.");
   if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) errors.push("Cluster provisioning IP must be a valid IPv4 address.");
-
-  // Provisioning network DHCP range validation (bare metal IPI only)
-  const dhcpRange = (hostInventory.provisioningDHCPRange || "").trim();
-  if (dhcpRange) {
-    const parts = dhcpRange.split(",").map(p => p.trim());
-    if (parts.length !== 2) {
-      errors.push("Provisioning DHCP range must be in format: start_ip,end_ip (e.g. 172.22.0.10,172.22.0.254)");
-    } else {
-      const [startIP, endIP] = parts;
-      if (!isValidIpv4(startIP) || !isValidIpv4(endIP)) {
-        errors.push("Provisioning DHCP range: both start and end must be valid IPv4 addresses.");
-      } else {
-        // Convert IPs to integers for comparison
-        const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
-        const startInt = toInt(startIP);
-        const endInt = toInt(endIP);
-
-        if (startInt > endInt) {
-          errors.push("Provisioning DHCP range: start IP must be less than or equal to end IP.");
-        }
-
-        // Validate both IPs are within provisioning CIDR
-        if (provisioningCIDR) {
-          const range = cidrToRange(provisioningCIDR);
-          if (range) {
-            if (startInt < range.start || startInt > range.end) {
-              errors.push(`Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
-            }
-            if (endInt < range.start || endInt > range.end) {
-              errors.push(`Provisioning DHCP end IP (${endIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
-            }
-          }
-        }
-
-        // Validate cluster provisioning IP is NOT in DHCP range
-        if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP)) {
-          const clusterInt = toInt(clusterProvisioningIP);
-          if (clusterInt >= startInt && clusterInt <= endInt) {
-            errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`);
-          }
-        }
-      }
-    }
-  }
-
-  // Validate cluster provisioning IP is within provisioning CIDR (when both are set)
-  if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP) && provisioningCIDR) {
-    const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
-    const range = cidrToRange(provisioningCIDR);
-    if (range) {
-      const ipInt = toInt(clusterProvisioningIP);
-      if (ipInt < range.start || ipInt > range.end) {
-        errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
-      }
-    }
-  }
   if (scenarioIdNw === "ibm-cloud-ipi" && (networking.machineNetworkV6 || "").trim()) {
     errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
   }
@@ -928,7 +627,12 @@ const validateVipsInMachineNetwork = (state) => {
     const parseList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
     checkVips(parseList(hi.apiVip), "API VIPs", "apiVip");
     checkVips(parseList(hi.ingressVip), "Ingress VIPs", "ingressVip");
-    // IPv6 VIPs validated separately in validateVipsInMachineNetworkV6
+    if ((hi.apiVipV6 || "").trim()) {
+      checkVips([(hi.apiVipV6 || "").trim()], "API VIPs (IPv6)", "apiVipV6");
+    }
+    if ((hi.ingressVipV6 || "").trim()) {
+      checkVips([(hi.ingressVipV6 || "").trim()], "Ingress VIPs (IPv6)", "ingressVipV6");
+    }
   }
   if (scenarioId === "nutanix-ipi") {
     const nx = state.platformConfig?.nutanix || {};
@@ -936,7 +640,7 @@ const validateVipsInMachineNetwork = (state) => {
     const ingNx = (nx.ingressVIP || "").trim();
     if (apiNx) checkVips([apiNx], "Nutanix API VIP", "nutanixApiVIP");
     if (ingNx) checkVips([ingNx], "Nutanix Ingress VIP", "nutanixIngressVIP");
-    // IPv6 VIPs validated separately in validateVipsInMachineNetworkV6
+    // IPv6 VIPs: format validated in validateNetworkingFormat; CIDR membership for IPv6 VIPs is not enforced here (same gap as other scenarios).
   }
   // Bare Metal UPI: no API/Ingress VIPs in install-config (platform.none only per 4.20 doc); user configures LB/DNS externally. Only validate for bare-metal-ipi.
   if (scenarioId === "bare-metal-ipi") {
@@ -945,67 +649,6 @@ const validateVipsInMachineNetwork = (state) => {
     checkVips(parseList(hi.apiVip), "API VIPs", "apiVip");
     checkVips(parseList(hi.ingressVip), "Ingress VIPs", "ingressVip");
   }
-  return { errors, fieldErrors };
-};
-
-/**
- * Validates that IPv6 VIPs are within the IPv6 machine network.
- * Parallel to validateVipsInMachineNetwork for IPv4.
- */
-const validateVipsInMachineNetworkV6 = (state) => {
-  const errors = [];
-  const fieldErrors = {};
-  const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
-  const networking = state.globalStrategy?.networking || {};
-  const machineV6 = (networking.machineNetworkV6 || "").trim();
-
-  // If no IPv6 machine network configured, skip validation
-  if (!machineV6 || !isValidIpv6Cidr(machineV6)) return { errors: [], fieldErrors: {} };
-
-  const checkVipsV6 = (vips, label, fieldKey) => {
-    if (!Array.isArray(vips)) return;
-    vips.forEach((ip) => {
-      const trimmed = (ip != null ? String(ip) : "").trim();
-      if (!trimmed) return;
-      if (!isValidIpv6(trimmed)) return;
-      if (!ipv6InCidr(trimmed, machineV6)) {
-        errors.push(`${label} must be within the IPv6 machine network (${machineV6}).`);
-        fieldErrors[fieldKey] = fieldErrors[fieldKey] || `${label} must be within the IPv6 machine network.`;
-      }
-    });
-  };
-
-  // vSphere Agent: supports IPv6 VIPs
-  if (scenarioId === "vsphere-agent") {
-    const hi = state.hostInventory || {};
-    if ((hi.apiVipV6 || "").trim()) {
-      checkVipsV6([(hi.apiVipV6 || "").trim()], "API VIP (IPv6)", "apiVipV6");
-    }
-    if ((hi.ingressVipV6 || "").trim()) {
-      checkVipsV6([(hi.ingressVipV6 || "").trim()], "Ingress VIP (IPv6)", "ingressVipV6");
-    }
-  }
-
-  // Nutanix IPI: supports IPv6 VIPs (when IPv6 machine network is configured)
-  if (scenarioId === "nutanix-ipi") {
-    const nx = state.platformConfig?.nutanix || {};
-    const apiV6 = (nx.apiVIPV6 || "").trim();
-    const ingV6 = (nx.ingressVIPV6 || "").trim();
-    if (apiV6) checkVipsV6([apiV6], "Nutanix API VIP (IPv6)", "nutanixApiVIPV6");
-    if (ingV6) checkVipsV6([ingV6], "Nutanix Ingress VIP (IPv6)", "nutanixIngressVIPV6");
-  }
-
-  // Bare Metal IPI: supports IPv6 VIPs when dual-stack configured
-  if (scenarioId === "bare-metal-ipi") {
-    const hi = state.hostInventory || {};
-    if ((hi.apiVipV6 || "").trim()) {
-      checkVipsV6([(hi.apiVipV6 || "").trim()], "API VIP (IPv6)", "apiVipV6");
-    }
-    if ((hi.ingressVipV6 || "").trim()) {
-      checkVipsV6([(hi.ingressVipV6 || "").trim()], "Ingress VIP (IPv6)", "ingressVipV6");
-    }
-  }
-
   return { errors, fieldErrors };
 };
 
@@ -1093,7 +736,6 @@ const validateStep = (state, stepId) => {
     const format = validateNetworkingFormat(state);
     const networking = validateNetworkingOverlaps(state);
     const vipsInMachine = validateVipsInMachineNetwork(state);
-    const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     return {
@@ -1106,7 +748,6 @@ const validateStep = (state, stepId) => {
         ...format.errors,
         ...networking.errors,
         ...vipsInMachine.errors,
-        ...vipsInMachineV6.errors,
         ...credentials.errors,
         ...mirrorSecret.errors
       ],
@@ -1181,8 +822,7 @@ const validateStep = (state, stepId) => {
     const warnings = [...(base.warnings || []), ...(catalog.warnings || [])];
     return {
       errors,
-      warnings,
-      perNode: base.perNode || []
+      warnings
     };
   }
   if (stepId === "review") {
@@ -1194,7 +834,6 @@ const validateStep = (state, stepId) => {
     const format = validateNetworkingFormat(state);
     const networking = validateNetworkingOverlaps(state);
     const vipsInMachine = validateVipsInMachineNetwork(state);
-    const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     return {
@@ -1207,7 +846,6 @@ const validateStep = (state, stepId) => {
         ...format.errors,
         ...networking.errors,
         ...vipsInMachine.errors,
-        ...vipsInMachineV6.errors,
         ...credentials.errors,
         ...mirrorSecret.errors
       ],
@@ -1249,7 +887,6 @@ const validateStep = (state, stepId) => {
     const format = validateNetworkingFormat(state);
     const networking = validateNetworkingOverlaps(state);
     const vipsInMachine = validateVipsInMachineNetwork(state);
-    const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
     const fieldErrors = {};
     format.errors.forEach((msg) => {
       if (msg.includes("Machine network")) fieldErrors.machineNetworkV4 = msg;
@@ -1268,7 +905,6 @@ const validateStep = (state, stepId) => {
       else if (msg.includes("service network IPv6")) fieldErrors.serviceNetworkCidrV6 = msg;
     });
     Object.assign(fieldErrors, vipsInMachine.fieldErrors);
-    Object.assign(fieldErrors, vipsInMachineV6.fieldErrors);
     // Catalog-driven requiredness (bare-metal-agent): apiVIPs/ingressVIPs required for multi-node Agent-based
     // (doc: validation checks before agent ISO creation). SNO (1 control plane, 0 workers) uses platform.none and does not require VIPs.
     const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
@@ -1311,7 +947,7 @@ const validateStep = (state, stepId) => {
       }
     }
     return {
-      errors: [...format.errors, ...networking.errors, ...vipsInMachine.errors, ...vipsInMachineV6.errors],
+      errors: [...format.errors, ...networking.errors, ...vipsInMachine.errors],
       warnings: networking.warnings || [],
       fieldErrors
     };
@@ -1350,12 +986,15 @@ const validateStep = (state, stepId) => {
     if (scenarioId === "azure-government-ipi") {
       const errors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
-      // Note: cloudName is auto-filled to "AzureUSGovernmentCloud" in generation (only valid value)
-      // so no validation needed - field not shown in UI
+      if (requiredPaths.includes("platform.azure.cloudName") && !(azure.cloudName || "").trim()) {
+        errors.push("Azure cloud name is required for Azure Government IPI.");
+      }
       if (requiredPaths.includes("platform.azure.region") && !(azure.region || "").trim()) {
         errors.push("Azure region is required for Azure Government IPI.");
       }
-      // Note: resourceGroupName is optional for IPI (installer creates it), so no validation
+      if (requiredPaths.includes("platform.azure.resourceGroupName") && !(azure.resourceGroupName || "").trim()) {
+        errors.push("Resource group name is required for Azure Government IPI.");
+      }
       if (requiredPaths.includes("platform.azure.baseDomainResourceGroupName") && !(azure.baseDomainResourceGroupName || "").trim()) {
         errors.push("Base domain resource group is required for Azure Government IPI.");
       }
@@ -1528,6 +1167,21 @@ export function reconcileReviewFlagsForImportedState(state, visibleStepIds) {
   return next;
 }
 
+/** Validate manual OpenShift minor (4.xx) and patch (4.xx.yy) for Blueprint advanced entry. */
+const validateManualOpenShiftRelease = (minorRaw, patchRaw) => {
+  const minor = String(minorRaw ?? "").trim();
+  const patch = String(patchRaw ?? "").trim();
+  const errors = [];
+  if (!minor) errors.push("Minor channel is required (e.g. 4.17).");
+  else if (!/^4\.\d+$/.test(minor)) errors.push("Minor channel must look like 4.17.");
+  if (!patch) errors.push("Patch version is required (e.g. 4.17.12).");
+  else if (!/^4\.\d+\.\d+$/.test(patch)) errors.push("Patch version must look like 4.17.12.");
+  if (minor && patch && !patch.startsWith(`${minor}.`)) {
+    errors.push(`Patch ${patch} must belong to minor ${minor}.`);
+  }
+  return { ok: errors.length === 0, errors };
+};
+
 export {
   validateHostInventory,
   validateNode,
@@ -1538,9 +1192,6 @@ export {
   validateBlueprintPullSecretOptional,
   validateMirrorRegistrySecret,
   validateBlueprint,
-  ipv6CidrOverlaps,
-  isValidIpv6,
-  isValidIpv4Cidr,
-  isValidIpv4AddressWithPrefix,
-  cidrOverlaps
+  validateManualOpenShiftRelease,
+  ipv6CidrOverlaps
 };

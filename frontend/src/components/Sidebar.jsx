@@ -26,7 +26,9 @@ const Sidebar = ({
   lockToast,
   setLockToast
 }) => {
-  const isDisabled = (step) => !foundationalLocked && step.id !== "blueprint";
+  /** Before foundational lock-in, only Blueprint and Operations are reachable (Operations for job logs). */
+  const isDisabled = (step) =>
+    !foundationalLocked && step.id !== "blueprint" && step.id !== "operations";
 
   // Operational/output tabs don't show completion indicators
   const isOperationalTab = (stepId) => ["assets-guide", "run-oc-mirror", "operations"].includes(stepId);
