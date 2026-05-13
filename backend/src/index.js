@@ -2478,28 +2478,39 @@ const buildBundleZip = async (state, res) => {
       // Ensure cache directory exists
       fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
 
-      // Download if not already cached
-      if (!fs.existsSync(mirrorRegistryPath)) {
-        const https = await import("https");
-        const file = fs.createWriteStream(mirrorRegistryPath);
-        await new Promise((resolve, reject) => {
-          https.get(mirrorRegistryUrl, (response) => {
-            if (response.statusCode === 302 || response.statusCode === 301) {
-              // Follow redirect
-              https.get(response.headers.location, (redirectResponse) => {
-                redirectResponse.pipe(file);
-                file.on("finish", () => file.close(resolve));
-              }).on("error", reject);
-            } else {
-              response.pipe(file);
-              file.on("finish", () => file.close(resolve));
-            }
-          }).on("error", reject);
-        });
+      // Download if not already cached or if cached file is invalid
+      const needsDownload = !fs.existsSync(mirrorRegistryPath) || fs.statSync(mirrorRegistryPath).size === 0;
+
+      if (needsDownload) {
+        // Use Node's built-in fetch which handles redirects automatically (301, 302, 307, 308)
+        const response = await fetch(mirrorRegistryUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // Stream response to file
+        const buffer = await response.arrayBuffer();
+        fs.writeFileSync(mirrorRegistryPath, Buffer.from(buffer));
+
+        // Verify download succeeded and file is not empty
+        const stat = fs.statSync(mirrorRegistryPath);
+        if (stat.size === 0) {
+          fs.unlinkSync(mirrorRegistryPath); // Remove corrupt file
+          throw new Error("Downloaded file is 0 bytes (download failed)");
+        }
+
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`[Mirror Registry] Downloaded ${mirrorRegistryFilename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
+        }
       }
 
       if (fs.existsSync(mirrorRegistryPath)) {
-        archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
+        const stat = fs.statSync(mirrorRegistryPath);
+        if (stat.size > 0) {
+          archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
+        } else {
+          throw new Error("Cached file is 0 bytes (corrupt)");
+        }
       }
     } catch (error) {
       const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
