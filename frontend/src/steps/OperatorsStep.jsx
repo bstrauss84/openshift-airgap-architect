@@ -512,8 +512,23 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     if (!ids.length) return;
     let cancelled = false;
     let prevPolledStatuses = {};
+    let pollCount = 0;
+    const MAX_POLLS = 150; // 150 * 4s = 10 minutes max polling time
+    const startTime = Date.now();
+    const MAX_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
     const poll = async () => {
+      pollCount++;
+      const elapsed = Date.now() - startTime;
+
+      // Safety: stop polling after max iterations or time
+      if (pollCount > MAX_POLLS || elapsed > MAX_DURATION_MS) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[AirgapArchitect] Catalog scan polling stopped: max ${pollCount > MAX_POLLS ? 'iterations' : 'duration'} reached`);
+        }
+        return;
+      }
+
       const nextStatuses = {};
       for (const id of ids) {
         try {
@@ -567,7 +582,9 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         }));
         if (pullSecretInput) setPullSecretInput("");
       }
-      if (!cancelled) {
+
+      // Stop polling if all jobs are done or cancelled
+      if (!cancelled && !allDone) {
         setTimeout(poll, 4000);
       }
     };

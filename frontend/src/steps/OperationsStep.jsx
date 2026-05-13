@@ -122,15 +122,28 @@ const OperationsStep = () => {
       .catch(() => {});
     const es = new EventSource(`${API_BASE}/api/jobs/${selectedJobId}/stream`);
     eventSourceRef.current = es;
+    const MAX_OUTPUT_SIZE = 1024 * 1024; // 1MB max display (safety against memory exhaustion)
     es.addEventListener("update", (event) => {
       try {
         const payload = JSON.parse(event.data);
+        // Truncate output if too large (prevents browser memory issues with massive logs)
+        if (payload.output && payload.output.length > MAX_OUTPUT_SIZE) {
+          const truncated = payload.output.slice(0, MAX_OUTPUT_SIZE);
+          const remaining = payload.output.length - MAX_OUTPUT_SIZE;
+          payload.output = truncated + `\n\n[... output truncated, ${remaining} bytes not shown for performance ...]`;
+        }
         setStreamingJob(payload);
       } catch {}
     });
     es.addEventListener("done", (event) => {
       try {
         const payload = JSON.parse(event.data);
+        // Truncate output if too large
+        if (payload.output && payload.output.length > MAX_OUTPUT_SIZE) {
+          const truncated = payload.output.slice(0, MAX_OUTPUT_SIZE);
+          const remaining = payload.output.length - MAX_OUTPUT_SIZE;
+          payload.output = truncated + `\n\n[... output truncated, ${remaining} bytes not shown for performance ...]`;
+        }
         setStreamingJob(payload);
       } catch {}
       setStreamEnded(true);
