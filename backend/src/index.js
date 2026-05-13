@@ -1010,7 +1010,10 @@ app.get("/api/schema/stepMap", (req, res) => {
 });
 
 app.get("/api/state", (req, res) => {
-  res.json(ensureState());
+  // Security: Never expose credentials via GET endpoint
+  const state = ensureState();
+  const sanitized = sanitizeStateForExport(state, { includeCredentials: false });
+  res.json(sanitized);
 });
 
 app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
@@ -1043,6 +1046,16 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
         }]
       });
     }
+  }
+
+  // Security: Defense in depth - reject state updates that include credentials
+  // Frontend should have stripped these, but validate server-side to prevent compromised client
+  if (patch?.credentials?.pullSecretPlaceholder ||
+      patch?.credentials?.mirrorRegistryPullSecret ||
+      patch?.blueprint?.blueprintPullSecretEphemeral) {
+    return res.status(400).json({
+      error: "Credentials should not be included in state POST. Frontend must strip sensitive data before sending."
+    });
   }
 
   // Remove ephemeral fields that should never be persisted
@@ -1150,6 +1163,18 @@ app.post("/api/run/import", (req, res) => {
   if (schemaVersion > 2) {
     return res.status(400).json({ error: `Unsupported run bundle schemaVersion ${schemaVersion}.` });
   }
+
+  // Security: Validate imported state structure against schema
+  // Prevents injection of malicious nested objects or invalid data types
+  try {
+    stateUpdateSchema.parse(payload.state);
+  } catch (err) {
+    return res.status(400).json({
+      error: "Invalid state structure in imported run bundle",
+      details: err.errors || String(err)
+    });
+  }
+
   const migrated = schemaVersion === 1
     ? { ...defaultState(), ...payload.state, exportOptions: payload.state.exportOptions || defaultState().exportOptions }
     : payload.state;
@@ -2592,6 +2617,15 @@ app.post("/api/bundle.prepare", (req, res) => {
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   const state = parsed.state;
   purgeExpiredBundleStates();
+
+  // Security: Prevent memory exhaustion from excessive pending bundle requests
+  const MAX_PENDING_BUNDLES = 50;
+  if (pendingBundleStates.size >= MAX_PENDING_BUNDLES) {
+    return res.status(429).json({
+      error: "Too many pending bundle preparations. Please wait and try again later."
+    });
+  }
+
   const token = nanoid();
   pendingBundleStates.set(token, {
     state,
