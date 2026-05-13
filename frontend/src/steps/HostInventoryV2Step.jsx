@@ -167,6 +167,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   }, []);
 
   const MIN_PANEL_PX = 400;
+  const MAX_PANEL_PX = 800;
 
   const handleResizeMove = useCallback(
     (e) => {
@@ -175,7 +176,6 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       const containerRect = containerRef.current.getBoundingClientRect();
       const containerRight = containerRect.right;
       const distanceFromContainerRight = containerRight - e.clientX;
-      const MAX_PANEL_PX = Math.min(800, containerRect.width * 0.7); // Max 70% of available width
       const next = Math.min(MAX_PANEL_PX, Math.max(MIN_PANEL_PX, distanceFromContainerRight));
       setPanelWidthPx(next);
     },

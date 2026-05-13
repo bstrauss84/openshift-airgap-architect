@@ -231,7 +231,14 @@ export default function YamlDrawer({
     const installContent = previewFiles['install-config.yaml'] || '';
     const agentContent = previewFiles['agent-config.yaml'] || '';
     const installDisplay = obfuscateYaml(installContent, showSensitive);
-    const agentDisplay = obfuscateYaml(agentContent, showSensitive);
+    // Show skeleton YAML while waiting for agent-config API response
+    const agentDisplay = agentContent ?
+      obfuscateYaml(agentContent, showSensitive) :
+      `apiVersion: v1beta1
+kind: AgentConfig
+metadata:
+  name: ${installContent.match(/name:\s*(\S+)/)?.[1] || 'cluster-name'}
+# Loading...`;
     const installHighlighted = installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
     const agentHighlighted = agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
 
