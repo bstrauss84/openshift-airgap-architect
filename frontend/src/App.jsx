@@ -584,7 +584,16 @@ metadata:
     previewRequestIdRef.current += 1;
     const currentRequestId = previewRequestIdRef.current;
 
-    apiFetch("/api/generate", { signal: controller.signal })
+    // FIX: Use POST and send current state directly to backend
+    // Backend has TWO endpoints:
+    // - GET /api/generate: reads from backend state (600ms behind due to debounce)
+    // - POST /api/generate: accepts state in request body (immediate, current)
+    // Previous bug: used GET, so YAML was always generated from stale backend state
+    apiFetch("/api/generate", {
+      method: "POST",
+      body: JSON.stringify({ state }),
+      signal: controller.signal
+    })
       .then((data) => {
         // Only apply result if this is still the latest request
         if (currentRequestId === previewRequestIdRef.current) {
