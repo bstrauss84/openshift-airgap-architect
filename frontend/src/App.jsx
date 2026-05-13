@@ -608,34 +608,22 @@ metadata:
   }, [
     showPreview,
     previewStepId,
-    state?.release?.patchVersion,
-    state?.release?.confirmed,
-    state?.version?.versionConfirmed,
-    state?.blueprint?.platform,
-    state?.blueprint?.confirmed,
-    state?.blueprint?.blueprintPullSecretEphemeral,
-    state?.methodology?.method,
-    // Track individual fields that affect YAML generation
-    state?.blueprint?.clusterName,
-    state?.blueprint?.baseDomain,
-    state?.globalStrategy?.fips,
-    state?.globalStrategy?.proxyEnabled,
-    state?.globalStrategy?.proxies,
-    state?.globalStrategy?.mirroring,
-    state?.credentials?.pullSecret,
-    state?.credentials?.sshKey,
-    state?.credentials?.username,
-    state?.credentials?.password,
-    state?.trust?.bundle,
-    state?.trust?.policy,
-    state?.platformConfig?.region,
-    state?.platformConfig?.instanceType,
-    state?.platformConfig?.replicas,
-    state?.hostInventory?.nodes,
-    state?.hostInventory?.vips,
-    state?.operators?.selected
-    // NOTE: Removed entire 'state' dependency - it was causing excessive re-renders
-    // on EVERY state change. The specific fields above are sufficient.
+    // FIX: Depend on top-level objects instead of individual nested fields
+    // This catches ALL changes to these objects, including deeply nested fields
+    // Previous approach missed changes like networking.machineNetworkV4 because
+    // dependency array didn't include networking, only other globalStrategy fields
+    state?.globalStrategy,      // Catches ALL globalStrategy changes (networking, fips, proxy, etc.)
+    state?.platformConfig,      // Catches ALL platformConfig changes (vsphere, nutanix, aws, azure)
+    state?.hostInventory,       // Catches ALL hostInventory changes (nodes, vips, etc.)
+    state?.credentials,         // Catches ALL credentials changes
+    state?.trust,               // Catches ALL trust changes
+    state?.operators,           // Catches ALL operators changes
+    state?.blueprint,           // Catches ALL blueprint changes
+    state?.methodology,         // Catches methodology changes
+    state?.release,             // Catches release changes
+    state?.version              // Catches version changes
+    // NOTE: We depend on top-level objects, NOT the entire 'state', to avoid
+    // triggering on UI-only changes (activeStepId, visitedSteps, completedSteps, etc.)
   ]);
 
   const setActiveStep = (nextIndex, options = {}) => {
