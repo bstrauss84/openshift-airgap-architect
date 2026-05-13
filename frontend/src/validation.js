@@ -1350,15 +1350,12 @@ const validateStep = (state, stepId) => {
     if (scenarioId === "azure-government-ipi") {
       const errors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
-      if (requiredPaths.includes("platform.azure.cloudName") && !(azure.cloudName || "").trim()) {
-        errors.push("Azure cloud name is required for Azure Government IPI.");
-      }
+      // Note: cloudName is auto-filled to "AzureUSGovernmentCloud" in generation (only valid value)
+      // so no validation needed - field not shown in UI
       if (requiredPaths.includes("platform.azure.region") && !(azure.region || "").trim()) {
         errors.push("Azure region is required for Azure Government IPI.");
       }
-      if (requiredPaths.includes("platform.azure.resourceGroupName") && !(azure.resourceGroupName || "").trim()) {
-        errors.push("Resource group name is required for Azure Government IPI.");
-      }
+      // Note: resourceGroupName is optional for IPI (installer creates it), so no validation
       if (requiredPaths.includes("platform.azure.baseDomainResourceGroupName") && !(azure.baseDomainResourceGroupName || "").trim()) {
         errors.push("Base domain resource group is required for Azure Government IPI.");
       }
