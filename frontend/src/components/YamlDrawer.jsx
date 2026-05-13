@@ -244,14 +244,10 @@ metadata:
   name: ${installContent.match(/name:\s*(\S+)/)?.[1] || 'cluster-name'}
 # Loading...`;
 
-    // Memoize Prism highlighting to avoid expensive re-renders
-    const installHighlighted = React.useMemo(() => {
-      return installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
-    }, [installDisplay]);
-
-    const agentHighlighted = React.useMemo(() => {
-      return agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
-    }, [agentDisplay]);
+    // NOTE: useMemo removed from here to fix React Hooks violation
+    // Highlighting is now done inline without memoization
+    const installHighlighted = installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
+    const agentHighlighted = agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
 
     return (
       <div ref={splitContainerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
