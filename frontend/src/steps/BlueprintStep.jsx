@@ -1,20 +1,8 @@
-/**
- * OpenShift Airgap Architect - Blueprint Configuration Step
- *
- * Initial deployment blueprint: platform selection, architecture, OpenShift version/channel,
- * FIPS mode, and optional Red Hat pull secret. Integrates with Cincinnati API for version
- * discovery and supports manual version entry for airgapped environments.
- *
- * @author Bill Strauss
- *
- * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
- */
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
-import { validateBlueprintPullSecretOptional } from "../validation.js";
+import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
-import Switch from "../components/Switch.jsx";
 import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
 
 const archOptions = [
@@ -43,6 +31,18 @@ const platformOptions = [
   { value: "IBM Cloud", label: "IBM Cloud", rec: "Rec: IPI" }
 ];
 
+const JOB_TERMINAL = new Set(["completed", "failed", "cancelled"]);
+
+async function pollJobUntilTerminal(jobId, { timeoutMs = 120000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const job = await apiFetch(`/api/jobs/${jobId}`);
+    if (JOB_TERMINAL.has(job.status)) return job;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  throw new Error("Timed out waiting for Cincinnati refresh job.");
+}
+
 const BlueprintStep = () => {
   const { state, updateState } = useApp();
   const blueprint = state.blueprint;
@@ -59,8 +59,15 @@ const BlueprintStep = () => {
   const [refreshNote, setRefreshNote] = useState("");
   const [updatedMessage, setUpdatedMessage] = useState(false);
   const [mountedSecretBadge, setMountedSecretBadge] = useState(false);
-  /** After a forced patch refresh, skip the release.channel effect once so it does not overwrite POST results with a stale GET. */
-  const skipChannelPatchFetchRef = useRef(false);
+  const [refreshError, setRefreshError] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [manualMinor, setManualMinor] = useState("");
+  const [manualPatch, setManualPatch] = useState("");
+  const [manualApplyError, setManualApplyError] = useState("");
+  /** Suppress automatic patch fetch for N `release.channel` effect runs (forced refresh + StrictMode). */
+  const channelPatchAutoFetchSuppressRef = useRef(0);
+  const prevAdvancedOpenRef = useRef(false);
+  const patchFetchGenerationRef = useRef(0);
   const blueprintPullSecretRaw = state.blueprint?.blueprintPullSecretEphemeral ?? "";
   const blueprintPullSecretTrimmed = blueprintPullSecretRaw.trim();
   const blueprintPullSecretError = useMemo(() => {
@@ -155,49 +162,68 @@ const BlueprintStep = () => {
   const fetchPatches = async (channel, force = false) => {
     if (!channel) return;
     if (force && channel !== release?.channel) {
-      skipChannelPatchFetchRef.current = true;
+      channelPatchAutoFetchSuppressRef.current = 1;
     }
+    const gen = ++patchFetchGenerationRef.current;
     setPatchesLoading(true);
     setPatches([]);
     const endpoint = force ? "/api/cincinnati/patches/update" : "/api/cincinnati/patches";
-    const data = force
-      ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }) })
-      : await apiFetch(`${endpoint}?channel=${channel}`);
-    setPatches(data.versions || []);
-    if (releaseLocked) {
+    try {
+      const data = force
+        ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }) })
+        : await apiFetch(`${endpoint}?channel=${encodeURIComponent(channel)}`);
+      if (gen !== patchFetchGenerationRef.current) return;
+      setPatches(data.versions || []);
+      if (releaseLocked) {
+        return;
+      }
+      if (data.versions?.length) {
+        const patchVersion = data.versions[0];
+        updateState({ release: { ...release, channel, patchVersion, confirmed: false } });
+        updateVersionSelection({
+          selectedChannel: `stable-${channel}`,
+          selectedVersion: patchVersion,
+          selectionTimestamp: Date.now()
+        });
+      } else {
+        updateState({ release: { ...release, channel, patchVersion: null, confirmed: false } });
+        updateVersionSelection({
+          selectedChannel: `stable-${channel}`,
+          selectedVersion: null,
+          selectionTimestamp: Date.now()
+        });
+      }
+    } finally {
       setPatchesLoading(false);
-      return;
     }
-    if (data.versions?.length) {
-      const patchVersion = data.versions[0];
-      updateState({ release: { ...release, channel, patchVersion, confirmed: false } });
-      updateVersionSelection({
-        selectedChannel: `stable-${channel}`,
-        selectedVersion: patchVersion,
-        selectionTimestamp: Date.now()
-      });
-    } else {
-      updateState({ release: { ...release, channel, patchVersion: null, confirmed: false } });
-      updateVersionSelection({
-        selectedChannel: `stable-${channel}`,
-        selectedVersion: null,
-        selectionTimestamp: Date.now()
-      });
-    }
-    setPatchesLoading(false);
   };
 
   useEffect(() => {
     if (!release?.channel) return;
-    if (skipChannelPatchFetchRef.current) {
-      skipChannelPatchFetchRef.current = false;
+    if (channelPatchAutoFetchSuppressRef.current > 0) {
+      channelPatchAutoFetchSuppressRef.current -= 1;
       return;
     }
     fetchPatches(release.channel).catch(() => setPatchesLoading(false));
   }, [release?.channel]);
 
+  useEffect(() => {
+    const wasOpen = prevAdvancedOpenRef.current;
+    if (advancedOpen && !wasOpen) {
+      setManualMinor(String(release?.channel ?? ""));
+      setManualPatch(String(release?.patchVersion ?? ""));
+    }
+    prevAdvancedOpenRef.current = advancedOpen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-seed when the panel opens; release is read from the render that opened it.
+  }, [advancedOpen]);
+
   const updateChannel = (channel) => {
     if (releaseLocked) return;
+    // User explicitly changed minor: drop stale patch list / in-flight fetches from manual entry or prior channel.
+    channelPatchAutoFetchSuppressRef.current = 0;
+    patchFetchGenerationRef.current += 1;
+    setPatches([]);
+    setPatchesLoading(true);
     updateState({
       release: { ...release, channel, patchVersion: null, confirmed: false, followLatestMinor: false }
     });
@@ -212,14 +238,31 @@ const BlueprintStep = () => {
 
   const refresh = async () => {
     setRefreshing(true);
-    setRefreshNote("Refreshing channels from upstream…");
+    setRefreshError("");
+    setRefreshNote("Queuing Cincinnati refresh…");
     try {
-      const data = await apiFetch("/api/cincinnati/update", { method: "POST" });
-      const newChannels = sortChannelsBySemverDescending(data.channels || []);
+      const { jobId } = await apiFetch("/api/cincinnati/refresh-job", {
+        method: "POST",
+        body: JSON.stringify({ preferredChannel: release?.channel || null })
+      });
+      setRefreshNote("Refresh running—Operations shows live progress…");
+      const job = await pollJobUntilTerminal(jobId);
+      if (job.status !== "completed") {
+        const outLines = job.output ? String(job.output).trim().split("\n").filter(Boolean) : [];
+        const msg =
+          (job.message && String(job.message).trim()) ||
+          outLines[outLines.length - 1] ||
+          "Cincinnati refresh failed.";
+        setRefreshError(String(msg));
+        updateState({ ui: { ...(state.ui || {}), highlightJobId: jobId } });
+        return;
+      }
+      const chRes = await apiFetch("/api/cincinnati/channels");
+      const newChannels = sortChannelsBySemverDescending(chRes.channels || []);
       setChannels(newChannels);
       if (newChannels.length === 0) {
-        setRefreshNote("");
-        setRefreshing(false);
+        setUpdatedMessage(true);
+        setTimeout(() => setUpdatedMessage(false), 5000);
         return;
       }
       const newestChannel = getNewestChannel(newChannels);
@@ -233,14 +276,42 @@ const BlueprintStep = () => {
         const cur = release?.channel;
         channelToLoad = cur && newChannels.includes(cur) ? cur : newestChannel;
       }
-      await fetchPatches(channelToLoad, true);
-      setRefreshNote("");
+      await fetchPatches(channelToLoad, false);
       setUpdatedMessage(true);
       setTimeout(() => setUpdatedMessage(false), 5000);
-    } catch {
+    } catch (e) {
+      setPatchesLoading(false);
+      setRefreshError(e?.message || String(e));
+    } finally {
       setRefreshNote("");
+      setRefreshing(false);
     }
-    setRefreshing(false);
+  };
+
+  const applyManualRelease = () => {
+    setManualApplyError("");
+    const r = validateManualOpenShiftRelease(manualMinor, manualPatch);
+    if (!r.ok) {
+      setManualApplyError(r.errors[0]);
+      return;
+    }
+    const minor = manualMinor.trim();
+    const patch = manualPatch.trim();
+    if (minor !== (release?.channel || "")) {
+      channelPatchAutoFetchSuppressRef.current = 2;
+      patchFetchGenerationRef.current += 1;
+    }
+    updateState({
+      release: { ...release, channel: minor, patchVersion: patch, confirmed: false, followLatestMinor: false },
+      operators: { ...state.operators, stale: true }
+    });
+    updateVersionSelection({
+      selectedChannel: `stable-${minor}`,
+      selectedVersion: patch,
+      selectionTimestamp: Date.now()
+    });
+    setPatches([patch]);
+    setRefreshError("");
   };
 
   return (
@@ -302,17 +373,29 @@ const BlueprintStep = () => {
         <section className="card">
           <div className="card-header" style={{ marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>OpenShift release</h3>
-            <div className="release-update-controls">
-              <button type="button" className="ghost release-update-btn" onClick={refresh} disabled={releaseLocked}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
                 Update
               </button>
-              <span className="release-update-status">
+              <span
+                className="subtle"
+                style={{
+                  fontSize: "0.8125rem",
+                  minHeight: "1.25rem",
+                  lineHeight: 1.25
+                }}
+              >
                 {(refreshing && refreshNote) || updatedMessage
                   ? (refreshing && refreshNote ? refreshNote : "Channels updated.")
                   : "\u00A0"}
               </span>
             </div>
           </div>
+          {refreshError ? (
+            <div className="note" style={{ marginBottom: 12, color: "var(--danger, #c62828)" }} role="alert">
+              {refreshError}
+            </div>
+          ) : null}
           <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem" }}>
             <label className="label-emphasis" style={{ minWidth: "10rem" }}>
               Minor channel
@@ -322,6 +405,11 @@ const BlueprintStep = () => {
                 onChange={(e) => updateChannel(e.target.value || null)}
               >
                 <option value="" disabled>Select channel</option>
+                {release?.channel && !channels.includes(release.channel) ? (
+                  <option key={`manual-ch-${release.channel}`} value={release.channel}>
+                    stable-{release.channel} (manual)
+                  </option>
+                ) : null}
                 {channels.map((ch) => (
                   <option key={ch} value={ch}>stable-{ch}</option>
                 ))}
@@ -335,6 +423,11 @@ const BlueprintStep = () => {
                 onChange={(e) => updatePatch(e.target.value || null)}
               >
                 <option value="" disabled>Select patch</option>
+                {release?.patchVersion && !patches.includes(release.patchVersion) ? (
+                  <option key={`manual-pv-${release.patchVersion}`} value={release.patchVersion}>
+                    {release.patchVersion} (manual)
+                  </option>
+                ) : null}
                 {patches.map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
@@ -343,6 +436,58 @@ const BlueprintStep = () => {
           </div>
           {loading ? <div className="loading">Loading channels…</div> : null}
           {patchesLoading && release?.channel ? <div className="loading">Loading patches…</div> : null}
+          <details
+            className="subtle"
+            style={{ marginTop: 12, marginBottom: 8 }}
+            onToggle={(e) => setAdvancedOpen(e.target.open)}
+          >
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>Advanced: set release manually</summary>
+            <p className="note" style={{ marginTop: 10, marginBottom: 8 }}>
+              Use only when Cincinnati lists are empty or wrong for your environment. Verify versions against the{" "}
+              <a
+                href="https://github.com/openshift/cincinnati-graph-data/tree/master/channels"
+                target="_blank"
+                rel="noreferrer"
+              >
+                openshift/cincinnati-graph-data channels
+              </a>{" "}
+              tree for your disconnected reality before locking the blueprint.
+            </p>
+            <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem", maxWidth: "32rem" }}>
+              <label className="label-emphasis">
+                Minor (e.g. 4.17)
+                <input
+                  type="text"
+                  data-testid="blueprint-manual-minor"
+                  value={manualMinor}
+                  disabled={releaseLocked}
+                  onChange={(e) => setManualMinor(e.target.value)}
+                  placeholder="4.17"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="label-emphasis">
+                Patch (e.g. 4.17.12)
+                <input
+                  type="text"
+                  data-testid="blueprint-manual-patch"
+                  value={manualPatch}
+                  disabled={releaseLocked}
+                  onChange={(e) => setManualPatch(e.target.value)}
+                  placeholder="4.17.12"
+                  autoComplete="off"
+                />
+              </label>
+              <button type="button" className="primary" data-testid="blueprint-manual-apply" onClick={applyManualRelease} disabled={releaseLocked}>
+                Apply
+              </button>
+            </div>
+            {manualApplyError ? (
+              <div className="note" style={{ marginTop: 8, color: "var(--danger, #c62828)" }} role="alert">
+                {manualApplyError}
+              </div>
+            ) : null}
+          </details>
           <p className="note note-prominent">
             Operator scans are blocked until you lock these selections.
             {releaseLocked ? " Release is locked; use Start Over to change it." : ""}
@@ -375,59 +520,7 @@ const BlueprintStep = () => {
                 }}
                 label="Pull secret (JSON)"
                 labelEmphasis="Pull secret (JSON)"
-                hint={`Red Hat pull secret for fetching Operator catalog metadata (optional).
-
-**What is this:**
-A Red Hat pull secret used at the Blueprint stage to authenticate when scanning for Operators. This is NOT the pull secret used in install-config.yaml - that one is configured later in the Identity & Access tab.
-
-**When needed:**
-**Optional** - only required if you plan to include Operators in your mirror:
-• You want to browse/select Operators from Red Hat catalogs
-• You'll use the Operators tab to catalog and mirror operator bundles
-• You need the latest operator metadata from registry.redhat.io
-
-**When NOT needed:**
-• You're NOT including operators in your mirror
-• You're using a pre-built operator catalog
-• You're doing an install without operators
-
-**Where to get it:**
-Download from OpenShift Cluster Manager at console.redhat.com:
-1. Log in with your Red Hat account
-2. Navigate to OpenShift → Downloads
-3. Click "Download pull secret" or "Copy pull secret"
-
-**How it's used:**
-• **Blueprint stage:** Authenticates to Red Hat when you click "Scan" on the Operators tab
-• **Retained for oc-mirror:** Optionally kept in memory for oc-mirror runs (if you check "Retain for oc-mirror runs" below)
-• **Not in install-config:** This is separate from the pull secret configured in Identity & Access
-
-**Security:**
-⚠️ **Not stored or exported** - This secret is ephemeral:
-• Kept in browser memory only during this session
-• Not saved to state files or exports
-• Not included in generated bundles
-• Discarded when you refresh or close the browser
-
-**Retain for oc-mirror runs:**
-Below this field, you can optionally check "Retain for oc-mirror runs" to keep the pull secret in memory for use on the Run oc-mirror tab. This avoids re-entering it later if you plan to run oc-mirror in the same session.
-
-**Format:**
-Standard Red Hat pull secret JSON:
-\`\`\`json
-{
-  "auths": {
-    "cloud.openshift.com": {"auth": "...", "email": "..."},
-    "quay.io": {"auth": "...", "email": "..."},
-    "registry.redhat.io": {"auth": "...", "email": "..."}
-  }
-}
-\`\`\`
-
-**Important:**
-• This is separate from the install-config pull secret configured in Identity & Access
-• Only needed for operator catalog scanning
-• Requires active Red Hat subscription or trial`}
+                labelHint="Not stored or exported. Optional; required only if you plan to include Operators in your mirror."
                 getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
                 errorMessage={blueprintPullSecretError || undefined}
                 disabled={locked}
@@ -441,19 +534,20 @@ Standard Red Hat pull secret JSON:
                 Optional. Only required if you plan to include Operators in your mirror. Used only to fetch the latest Operator catalog metadata from Red Hat. Not stored or transmitted anywhere except to authenticate those requests.
               </p>
               {blueprintPullSecretTrimmed ? (
-                <div className="blueprint-retain-section">
-                  <div className="blueprint-retain-content">
-                    <span className="blueprint-retain-label">Retain for oc-mirror runs</span>
-                    <span className="blueprint-retain-description">
-                      Store pull secret for use in Run oc-mirror step (kept in memory only; never saved or exported).
-                    </span>
-                  </div>
-                  <Switch
-                    checked={Boolean(blueprint?.blueprintRetainPullSecret)}
-                    onChange={(checked) => updateBlueprint({ blueprintRetainPullSecret: checked })}
-                    disabled={locked}
-                    aria-label="Retain pull secret for oc-mirror runs"
-                  />
+                <div className="blueprint-retain-row" style={{ marginTop: 16, width: "max-content", maxWidth: "100%" }}>
+                  <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>
+                    Retain pull secret for use on subsequent pages (kept in memory only; never saved or exported).
+                  </span>
+                  <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(blueprint?.blueprintRetainPullSecret)}
+                      onChange={(e) => updateBlueprint({ blueprintRetainPullSecret: e.target.checked })}
+                      disabled={locked}
+                      aria-describedby="retain-pull-secret-desc"
+                    />
+                    <span id="retain-pull-secret-desc" aria-hidden="true" />
+                  </label>
                 </div>
               ) : null}
             </div>
