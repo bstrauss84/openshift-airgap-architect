@@ -297,6 +297,97 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
+## Debugging Protocol: Systematic Over Clever
+
+**See `.research/POSTMORTEM_WHY_I_FAILED.md` for detailed case study (2026-05-13 YAML bug)**
+
+### Core Rule: After 2-3 Failed Fix Attempts
+
+**STOP GUESSING. Start instrumenting.**
+
+### The 6-Step Protocol
+
+#### 1. Instrument FIRST, Fix SECOND
+**Do this IMMEDIATELY (attempt #1 or #2):**
+- Add comprehensive logging to ALL relevant code paths
+- Log ALL conditional branches (which path taken + WHY)
+- Log ALL early returns with the reason they're returning
+- Log state snapshots before/after key operations
+- Log request/response pairs with timing
+
+**Don't:** Make educated guesses without evidence. Logs don't lie.
+
+#### 2. Compare Working vs Broken Flows
+**If something works in scenario A but not B:**
+- Trace BOTH scenarios with logging enabled
+- Ask user to test BOTH scenarios
+- Compare logs side-by-side
+- Find the exact divergence point
+- Question WHY they diverge
+
+**Don't:** Assume you know what's different. Prove it with logs.
+
+#### 3. Question ALL Assumptions
+**Guards and early returns are SUSPECTS, not givens:**
+- "Why does this guard exist?"
+- "What happens if I remove it?"
+- "Is this guard necessary or redundant?"
+- "Could this guard be CAUSING the bug?"
+
+**Don't:** Assume existing code is correct. It might be the bug.
+
+#### 4. Listen to User Frustration as Data
+**When user says:**
+- "Still broken" → Your analysis is wrong, start over
+- "I don't see how..." → Your approach is flawed
+- "Tired of guessing" → Need systematic approach
+- "What is X doing that Y isn't?" → THIS IS THE KEY QUESTION
+
+**Don't:** Treat frustration as noise. It's signal.
+
+#### 5. Never Claim "Fixed" Without User Testing
+**Language matters:**
+- ✅ "This SHOULD fix it, please test"
+- ✅ "If my analysis is correct, this will help"
+- ✅ "Let's try this approach"
+- ❌ "This is 100% fixed"
+- ❌ "This is definitely the issue"
+- ❌ "Smoking gun found"
+
+**Don't:** Confuse confidence with correctness. Wait for confirmation.
+
+#### 6. Use Plan Mode After 2-3 Failures
+**Signals need for systematic investigation:**
+- Forces comprehensive exploration
+- Prevents guess-and-check loops
+- Gets user buy-in for thorough approach
+- Use parallel agents to investigate independently
+
+**Don't:** Keep guessing for 10+ attempts. That's the definition of insanity.
+
+### Red Flags That You're Off Track
+
+- ❌ Claiming "fixed" multiple times
+- ❌ Finding 40+ "smoking guns" but nothing works
+- ❌ User frustration increasing
+- ❌ Not comparing working vs broken flows
+- ❌ Guessing at root cause without evidence
+- ❌ Adding logging too late (attempt #8+)
+- ❌ Assuming guards/early returns are correct
+
+### Why This Matters
+
+**Real example (2026-05-13):**
+- Bug: One line `if (!showPreview) return;` blocking YAML generation
+- Attempts: 10+ failed guesses (delays, POST vs GET, state closures)
+- User clue: "what is show/hide doing that import isn't?" ← The answer was in this question
+- Fix: Plan mode → systematic comparison → found guard → deleted 1 line → done
+- Time wasted: Hours of guessing when logging would have shown it immediately
+
+**Lesson:** Debugging is not about being clever. It's about being systematic.
+
+---
+
 ## Questions?
 
 If you're unsure about:
@@ -313,5 +404,5 @@ If you're unsure about:
 
 ---
 
-**Last Updated:** 2026-05-12  
-**Revision:** Added REVISED_PHASED_PLAN as active execution plan, clarified doc hierarchy
+**Last Updated:** 2026-05-13  
+**Revision:** Added Debugging Protocol section based on YAML bug postmortem, systematic debugging over guesswork
