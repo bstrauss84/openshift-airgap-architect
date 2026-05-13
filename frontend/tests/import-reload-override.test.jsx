@@ -113,6 +113,15 @@ describe("Import Reload Override", () => {
       expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
     });
 
+    // Click "Start new install" if on landing page to get into wizard mode
+    const startButton = screen.queryByText(/Start new install/i);
+    if (startButton) {
+      fireEvent.click(startButton);
+      await waitFor(() => {
+        expect(screen.queryByText(/Start new install/i)).not.toBeInTheDocument();
+      });
+    }
+
     // Find the file input (it's hidden but should exist)
     const fileInputs = document.querySelectorAll('input[type="file"]');
     expect(fileInputs.length).toBeGreaterThan(0);

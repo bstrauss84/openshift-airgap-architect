@@ -202,6 +202,18 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const [selectedGridRows, setSelectedGridRows] = useState(2);
   const selectedGridRef = useRef(null);
   const hasVisited = state.ui?.visitedSteps?.operators;
+
+  // Local state for text inputs (onBlur pattern)
+  const [additionalImagesLocal, setAdditionalImagesLocal] = useState(() => state.imagesetConfig?.additionalImages || "");
+  const [archiveSizeLocal, setArchiveSizeLocal] = useState(() => state.imagesetConfig?.archiveSize || "");
+
+  // Sync local state when store changes
+  useEffect(() => {
+    setAdditionalImagesLocal(state.imagesetConfig?.additionalImages || "");
+  }, [state.imagesetConfig?.additionalImages]);
+  useEffect(() => {
+    setArchiveSizeLocal(state.imagesetConfig?.archiveSize || "");
+  }, [state.imagesetConfig?.archiveSize]);
   const needsReview = state.reviewFlags?.operators && hasVisited;
   const staleResults = state.operators?.stale && hasVisited;
   const hasScanJobs = Object.keys(jobs).length > 0;
@@ -895,8 +907,9 @@ gcr.io/vendor/database:stable
             <textarea
               rows={4}
               style={{ width: "100%", resize: "vertical", fontFamily: "monospace", fontSize: "0.875rem", marginTop: 6 }}
-              value={state.imagesetConfig?.additionalImages || ""}
-              onChange={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), additionalImages: e.target.value } })}
+              value={additionalImagesLocal}
+              onChange={(e) => setAdditionalImagesLocal(e.target.value)}
+              onBlur={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), additionalImages: e.target.value } })}
               placeholder={"quay.io/org/app:tag\nregistry.example.com/repo/image:v1.0"}
               aria-label="Additional images to mirror"
             />
@@ -939,8 +952,9 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
               type="number"
               min={1}
               style={{ maxWidth: 120, marginTop: 6 }}
-              value={state.imagesetConfig?.archiveSize || ""}
-              onChange={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } })}
+              value={archiveSizeLocal}
+              onChange={(e) => setArchiveSizeLocal(e.target.value)}
+              onBlur={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } })}
               placeholder="e.g. 100"
               aria-label="Archive chunk size in GiB"
             />

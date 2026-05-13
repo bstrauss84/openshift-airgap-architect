@@ -8,7 +8,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
 import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
@@ -57,6 +57,97 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     updateState({ platformConfig: { ...platformConfig, vsphere: { ...platformConfig.vsphere, ...patch } } });
   const updateNutanix = (patch) =>
     updateState({ platformConfig: { ...platformConfig, nutanix: { ...platformConfig.nutanix, ...patch } } });
+
+  // Local state for onBlur pattern (23 text input fields)
+  const [localMachineNetworkV4, setLocalMachineNetworkV4] = useState(networking.machineNetworkV4 || "");
+  const [localMachineNetworkV6, setLocalMachineNetworkV6] = useState(networking.machineNetworkV6 || "");
+  const [localClusterNetworkCidr, setLocalClusterNetworkCidr] = useState(networking.clusterNetworkCidr || "");
+  const [localClusterNetworkCidrV6, setLocalClusterNetworkCidrV6] = useState(networking.clusterNetworkCidrV6 || "");
+  const [localServiceNetworkCidr, setLocalServiceNetworkCidr] = useState(networking.serviceNetworkCidr || "");
+  const [localServiceNetworkCidrV6, setLocalServiceNetworkCidrV6] = useState(networking.serviceNetworkCidrV6 || "");
+  const [localNutanixApiVIP, setLocalNutanixApiVIP] = useState(platformConfig.nutanix?.apiVIP || "");
+  const [localNutanixApiVIPV6, setLocalNutanixApiVIPV6] = useState(platformConfig.nutanix?.apiVIPV6 || "");
+  const [localNutanixIngressVIP, setLocalNutanixIngressVIP] = useState(platformConfig.nutanix?.ingressVIP || "");
+  const [localNutanixIngressVIPV6, setLocalNutanixIngressVIPV6] = useState(platformConfig.nutanix?.ingressVIPV6 || "");
+  const [localVsphereApiVIPs, setLocalVsphereApiVIPs] = useState(
+    Array.isArray(platformConfig.vsphere?.apiVIPs) ? platformConfig.vsphere.apiVIPs.join(", ") : ""
+  );
+  const [localVsphereIngressVIPs, setLocalVsphereIngressVIPs] = useState(
+    Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""
+  );
+  const [localApiVip, setLocalApiVip] = useState(hostInventory.apiVip || "");
+  const [localApiVipV6, setLocalApiVipV6] = useState(hostInventory.apiVipV6 ?? "");
+  const [localIngressVip, setLocalIngressVip] = useState(hostInventory.ingressVip || "");
+  const [localIngressVipV6, setLocalIngressVipV6] = useState(hostInventory.ingressVipV6 ?? "");
+
+  // Sync local state with store changes
+  useEffect(() => {
+    setLocalMachineNetworkV4(networking.machineNetworkV4 || "");
+  }, [networking.machineNetworkV4]);
+
+  useEffect(() => {
+    setLocalMachineNetworkV6(networking.machineNetworkV6 || "");
+  }, [networking.machineNetworkV6]);
+
+  useEffect(() => {
+    setLocalClusterNetworkCidr(networking.clusterNetworkCidr || "");
+  }, [networking.clusterNetworkCidr]);
+
+  useEffect(() => {
+    setLocalClusterNetworkCidrV6(networking.clusterNetworkCidrV6 || "");
+  }, [networking.clusterNetworkCidrV6]);
+
+  useEffect(() => {
+    setLocalServiceNetworkCidr(networking.serviceNetworkCidr || "");
+  }, [networking.serviceNetworkCidr]);
+
+  useEffect(() => {
+    setLocalServiceNetworkCidrV6(networking.serviceNetworkCidrV6 || "");
+  }, [networking.serviceNetworkCidrV6]);
+
+  useEffect(() => {
+    setLocalNutanixApiVIP(platformConfig.nutanix?.apiVIP || "");
+  }, [platformConfig.nutanix?.apiVIP]);
+
+  useEffect(() => {
+    setLocalNutanixApiVIPV6(platformConfig.nutanix?.apiVIPV6 || "");
+  }, [platformConfig.nutanix?.apiVIPV6]);
+
+  useEffect(() => {
+    setLocalNutanixIngressVIP(platformConfig.nutanix?.ingressVIP || "");
+  }, [platformConfig.nutanix?.ingressVIP]);
+
+  useEffect(() => {
+    setLocalNutanixIngressVIPV6(platformConfig.nutanix?.ingressVIPV6 || "");
+  }, [platformConfig.nutanix?.ingressVIPV6]);
+
+  useEffect(() => {
+    setLocalVsphereApiVIPs(
+      Array.isArray(platformConfig.vsphere?.apiVIPs) ? platformConfig.vsphere.apiVIPs.join(", ") : ""
+    );
+  }, [platformConfig.vsphere?.apiVIPs]);
+
+  useEffect(() => {
+    setLocalVsphereIngressVIPs(
+      Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""
+    );
+  }, [platformConfig.vsphere?.ingressVIPs]);
+
+  useEffect(() => {
+    setLocalApiVip(hostInventory.apiVip || "");
+  }, [hostInventory.apiVip]);
+
+  useEffect(() => {
+    setLocalApiVipV6(hostInventory.apiVipV6 ?? "");
+  }, [hostInventory.apiVipV6]);
+
+  useEffect(() => {
+    setLocalIngressVip(hostInventory.ingressVip || "");
+  }, [hostInventory.ingressVip]);
+
+  useEffect(() => {
+    setLocalIngressVipV6(hostInventory.ingressVipV6 ?? "");
+  }, [hostInventory.ingressVipV6]);
 
   const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
   const isRequired = (path) => requiredPaths.includes(path);
@@ -236,8 +327,14 @@ This is often the **main network you customize** - other networks (cluster/servi
                   <input
                     className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
                       title={fieldErrors.machineNetworkV4 || ""}
-                    value={networking.machineNetworkV4 || ""}
-                    onChange={(e) => updateNetworking({ machineNetworkV4: formatIpv4Cidr(e.target.value) })}
+                    value={localMachineNetworkV4}
+                    onChange={(e) => setLocalMachineNetworkV4(e.target.value)}
+                    onBlur={(e) => {
+                      const formatted = formatIpv4Cidr(e.target.value.trim());
+                      if (formatted !== networking.machineNetworkV4) {
+                        updateNetworking({ machineNetworkV4: formatted });
+                      }
+                    }}
                     placeholder="10.90.0.0/24"
                     aria-required="true"
                     aria-invalid={fieldErrors.machineNetworkV4 ? "true" : "false"}
@@ -267,10 +364,14 @@ fd10:90::/64`}
                     <input
                       className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
                       title={fieldErrors.machineNetworkV6 || ""}
-                      value={networking.machineNetworkV6 || ""}
-                      onChange={(e) =>
-                        updateNetworking({ machineNetworkV6: formatIpv6Cidr(e.target.value) })
-                      }
+                      value={localMachineNetworkV6}
+                      onChange={(e) => setLocalMachineNetworkV6(e.target.value)}
+                      onBlur={(e) => {
+                        const formatted = formatIpv6Cidr(e.target.value.trim());
+                        if (formatted !== networking.machineNetworkV6) {
+                          updateNetworking({ machineNetworkV6: formatted });
+                        }
+                      }}
                       placeholder="fd10:90::/64"
                     />
                   </FieldLabelWithInfo>
@@ -310,8 +411,14 @@ If your datacenter uses 10.x.x.x, change to 172.30.0.0/16`}
                   <input
                     className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
                       title={fieldErrors.clusterNetworkCidr || ""}
-                    value={networking.clusterNetworkCidr || ""}
-                    onChange={(e) => updateNetworking({ clusterNetworkCidr: formatIpv4Cidr(e.target.value) })}
+                    value={localClusterNetworkCidr}
+                    onChange={(e) => setLocalClusterNetworkCidr(e.target.value)}
+                    onBlur={(e) => {
+                      const formatted = formatIpv4Cidr(e.target.value.trim());
+                      if (formatted !== networking.clusterNetworkCidr) {
+                        updateNetworking({ clusterNetworkCidr: formatted });
+                      }
+                    }}
                     placeholder="10.128.0.0/14"
                     aria-required={isRequired("networking.clusterNetwork[].cidr") ? "true" : "false"}
                     aria-invalid={fieldErrors.clusterNetworkCidr ? "true" : "false"}
@@ -377,10 +484,14 @@ fd01::/48`}
                       <input
                         className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                       title={fieldErrors.clusterNetworkCidrV6 || ""}
-                        value={networking.clusterNetworkCidrV6 || ""}
-                        onChange={(e) =>
-                          updateNetworking({ clusterNetworkCidrV6: formatIpv6Cidr(e.target.value) || undefined })
-                        }
+                        value={localClusterNetworkCidrV6}
+                        onChange={(e) => setLocalClusterNetworkCidrV6(e.target.value)}
+                        onBlur={(e) => {
+                          const formatted = formatIpv6Cidr(e.target.value.trim()) || undefined;
+                          if (formatted !== networking.clusterNetworkCidrV6) {
+                            updateNetworking({ clusterNetworkCidrV6: formatted });
+                          }
+                        }}
                         placeholder="fd01::/48"
                         aria-required="false"
                         aria-invalid={fieldErrors.clusterNetworkCidrV6 ? "true" : "false"}
@@ -437,8 +548,14 @@ If datacenter uses 172.x.x.x, change to 10.96.0.0/12`}
                   <input
                     className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
                       title={fieldErrors.serviceNetworkCidr || ""}
-                    value={networking.serviceNetworkCidr || ""}
-                    onChange={(e) => updateNetworking({ serviceNetworkCidr: formatIpv4Cidr(e.target.value) })}
+                    value={localServiceNetworkCidr}
+                    onChange={(e) => setLocalServiceNetworkCidr(e.target.value)}
+                    onBlur={(e) => {
+                      const formatted = formatIpv4Cidr(e.target.value.trim());
+                      if (formatted !== networking.serviceNetworkCidr) {
+                        updateNetworking({ serviceNetworkCidr: formatted });
+                      }
+                    }}
                     placeholder="172.30.0.0/16"
                     aria-required={isRequired("networking.serviceNetwork") ? "true" : "false"}
                     aria-invalid={fieldErrors.serviceNetworkCidr ? "true" : "false"}
@@ -468,10 +585,14 @@ fd02::/112`}
                     <input
                       className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                       title={fieldErrors.serviceNetworkCidrV6 || ""}
-                      value={networking.serviceNetworkCidrV6 || ""}
-                      onChange={(e) =>
-                        updateNetworking({ serviceNetworkCidrV6: formatIpv6Cidr(e.target.value) || undefined })
-                      }
+                      value={localServiceNetworkCidrV6}
+                      onChange={(e) => setLocalServiceNetworkCidrV6(e.target.value)}
+                      onBlur={(e) => {
+                        const formatted = formatIpv6Cidr(e.target.value.trim()) || undefined;
+                        if (formatted !== networking.serviceNetworkCidrV6) {
+                          updateNetworking({ serviceNetworkCidrV6: formatted });
+                        }
+                      }}
                       placeholder="fd02::/112"
                       aria-required="false"
                       aria-invalid={fieldErrors.serviceNetworkCidrV6 ? "true" : "false"}
@@ -563,8 +684,14 @@ If machine network is 192.168.1.0/24, use 192.168.1.10`}
                           <input
                             className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
                       title={fieldErrors.nutanixApiVIP || ""}
-                            value={platformConfig.nutanix?.apiVIP || ""}
-                            onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                            value={localNutanixApiVIP}
+                            onChange={(e) => setLocalNutanixApiVIP(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== platformConfig.nutanix?.apiVIP) {
+                                updateNutanix({ apiVIP: newValue });
+                              }
+                            }}
                             placeholder="e.g. 10.0.0.5"
                           />
                         </FieldLabelWithInfo>
@@ -581,8 +708,14 @@ fd00::5`}>
                           <input
                             className={fieldErrors.nutanixApiVIPV6 ? "input-error" : ""}
                       title={fieldErrors.nutanixApiVIPV6 || ""}
-                            value={platformConfig.nutanix?.apiVIPV6 || ""}
-                            onChange={(e) => updateNutanix({ apiVIPV6: e.target.value })}
+                            value={localNutanixApiVIPV6}
+                            onChange={(e) => setLocalNutanixApiVIPV6(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== platformConfig.nutanix?.apiVIPV6) {
+                                updateNutanix({ apiVIPV6: newValue });
+                              }
+                            }}
                             placeholder="e.g. fd00::5"
                           />
                         </FieldLabelWithInfo>
@@ -615,8 +748,14 @@ If machine network is 192.168.1.0/24, use 192.168.1.11`}
                           <input
                             className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
                       title={fieldErrors.nutanixIngressVIP || ""}
-                            value={platformConfig.nutanix?.ingressVIP || ""}
-                            onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                            value={localNutanixIngressVIP}
+                            onChange={(e) => setLocalNutanixIngressVIP(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== platformConfig.nutanix?.ingressVIP) {
+                                updateNutanix({ ingressVIP: newValue });
+                              }
+                            }}
                             placeholder="e.g. 10.0.0.6"
                           />
                         </FieldLabelWithInfo>
@@ -633,8 +772,14 @@ fd00::6`}>
                           <input
                             className={fieldErrors.nutanixIngressVIPV6 ? "input-error" : ""}
                       title={fieldErrors.nutanixIngressVIPV6 || ""}
-                            value={platformConfig.nutanix?.ingressVIPV6 || ""}
-                            onChange={(e) => updateNutanix({ ingressVIPV6: e.target.value })}
+                            value={localNutanixIngressVIPV6}
+                            onChange={(e) => setLocalNutanixIngressVIPV6(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== platformConfig.nutanix?.ingressVIPV6) {
+                                updateNutanix({ ingressVIPV6: newValue });
+                              }
+                            }}
                             placeholder="e.g. fd00::6"
                           />
                         </FieldLabelWithInfo>
@@ -659,8 +804,14 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                         <input
                           className={fieldErrors.nutanixApiVIP ? "input-error" : ""}
                       title={fieldErrors.nutanixApiVIP || ""}
-                          value={platformConfig.nutanix?.apiVIP || ""}
-                          onChange={(e) => updateNutanix({ apiVIP: e.target.value })}
+                          value={localNutanixApiVIP}
+                          onChange={(e) => setLocalNutanixApiVIP(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== platformConfig.nutanix?.apiVIP) {
+                              updateNutanix({ apiVIP: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.0.0.5"
                         />
                       </FieldLabelWithInfo>
@@ -681,8 +832,14 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                         <input
                           className={fieldErrors.nutanixIngressVIP ? "input-error" : ""}
                       title={fieldErrors.nutanixIngressVIP || ""}
-                          value={platformConfig.nutanix?.ingressVIP || ""}
-                          onChange={(e) => updateNutanix({ ingressVIP: e.target.value })}
+                          value={localNutanixIngressVIP}
+                          onChange={(e) => setLocalNutanixIngressVIP(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== platformConfig.nutanix?.ingressVIP) {
+                              updateNutanix({ ingressVIP: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.0.0.6"
                         />
                       </FieldLabelWithInfo>
@@ -704,8 +861,15 @@ Comma-separated if multiple (rare)
 192.168.1.10`}
                     >
                       <input
-                        value={Array.isArray(platformConfig.vsphere?.apiVIPs) ? platformConfig.vsphere.apiVIPs.join(", ") : ""}
-                        onChange={(e) => updateVsphere({ apiVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                        value={localVsphereApiVIPs}
+                        onChange={(e) => setLocalVsphereApiVIPs(e.target.value)}
+                        onBlur={(e) => {
+                          const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                          const currentArray = platformConfig.vsphere?.apiVIPs || [];
+                          if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                            updateVsphere({ apiVIPs: newArray });
+                          }
+                        }}
                         placeholder="e.g. 192.168.1.10"
                       />
                     </FieldLabelWithInfo>
@@ -723,8 +887,15 @@ Comma-separated if multiple (rare)
 192.168.1.11`}
                     >
                       <input
-                        value={Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""}
-                        onChange={(e) => updateVsphere({ ingressVIPs: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                        value={localVsphereIngressVIPs}
+                        onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
+                        onBlur={(e) => {
+                          const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                          const currentArray = platformConfig.vsphere?.ingressVIPs || [];
+                          if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                            updateVsphere({ ingressVIPs: newArray });
+                          }
+                        }}
                         placeholder="e.g. 192.168.1.11"
                       />
                     </FieldLabelWithInfo>
@@ -751,8 +922,14 @@ Orders VIPs to match machine networks (IPv4 first, then IPv6)
                           <input
                             className={fieldErrors.apiVip ? "input-error" : ""}
                       title={fieldErrors.apiVip || ""}
-                            value={hostInventory.apiVip || ""}
-                            onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                            value={localApiVip}
+                            onChange={(e) => setLocalApiVip(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== hostInventory.apiVip) {
+                                updateHostInventory({ apiVip: newValue });
+                              }
+                            }}
                             placeholder="e.g. 10.90.0.1"
                           />
                         </FieldLabelWithInfo>
@@ -769,8 +946,14 @@ fd00::1`}>
                           <input
                             className={fieldErrors.apiVipV6 ? "input-error" : ""}
                       title={fieldErrors.apiVipV6 || ""}
-                            value={hostInventory.apiVipV6 ?? ""}
-                            onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
+                            value={localApiVipV6}
+                            onChange={(e) => setLocalApiVipV6(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== (hostInventory.apiVipV6 ?? "")) {
+                                updateHostInventory({ apiVipV6: newValue });
+                              }
+                            }}
                             placeholder="e.g. fd00::1"
                           />
                         </FieldLabelWithInfo>
@@ -794,8 +977,14 @@ Set IPv6 below for dual-stack deployments
                           <input
                             className={fieldErrors.ingressVip ? "input-error" : ""}
                       title={fieldErrors.ingressVip || ""}
-                            value={hostInventory.ingressVip || ""}
-                            onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                            value={localIngressVip}
+                            onChange={(e) => setLocalIngressVip(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== hostInventory.ingressVip) {
+                                updateHostInventory({ ingressVip: newValue });
+                              }
+                            }}
                             placeholder="e.g. 10.90.0.2"
                           />
                         </FieldLabelWithInfo>
@@ -812,8 +1001,14 @@ fd00::2`}>
                           <input
                             className={fieldErrors.ingressVipV6 ? "input-error" : ""}
                       title={fieldErrors.ingressVipV6 || ""}
-                            value={hostInventory.ingressVipV6 ?? ""}
-                            onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
+                            value={localIngressVipV6}
+                            onChange={(e) => setLocalIngressVipV6(e.target.value)}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== (hostInventory.ingressVipV6 ?? "")) {
+                                updateHostInventory({ ingressVipV6: newValue });
+                              }
+                            }}
                             placeholder="e.g. fd00::2"
                           />
                         </FieldLabelWithInfo>
@@ -829,8 +1024,14 @@ fd00::2`}>
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
                       title={fieldErrors.apiVip || ""}
-                          value={hostInventory.apiVip || ""}
-                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          value={localApiVip}
+                          onChange={(e) => setLocalApiVip(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== hostInventory.apiVip) {
+                              updateHostInventory({ apiVip: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.90.0.1"
                         />
                       </FieldLabelWithInfo>
@@ -842,8 +1043,14 @@ fd00::2`}>
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
                       title={fieldErrors.ingressVip || ""}
-                          value={hostInventory.ingressVip || ""}
-                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          value={localIngressVip}
+                          onChange={(e) => setLocalIngressVip(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== hostInventory.ingressVip) {
+                              updateHostInventory({ ingressVip: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.90.0.2"
                         />
                       </FieldLabelWithInfo>
@@ -871,8 +1078,14 @@ Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
                       title={fieldErrors.apiVip || ""}
-                          value={hostInventory.apiVip || ""}
-                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          value={localApiVip}
+                          onChange={(e) => setLocalApiVip(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== hostInventory.apiVip) {
+                              updateHostInventory({ apiVip: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.90.0.1"
                         />
                       </FieldLabelWithInfo>
@@ -895,8 +1108,14 @@ fd00::1`}
                         <input
                           className={fieldErrors.apiVipV6 ? "input-error" : ""}
                       title={fieldErrors.apiVipV6 || ""}
-                          value={hostInventory.apiVipV6 ?? ""}
-                          onChange={(e) => updateHostInventory({ apiVipV6: e.target.value })}
+                          value={localApiVipV6}
+                          onChange={(e) => setLocalApiVipV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== (hostInventory.apiVipV6 ?? "")) {
+                              updateHostInventory({ apiVipV6: newValue });
+                            }
+                          }}
                           placeholder="e.g. fd00::1"
                         />
                       </FieldLabelWithInfo>
@@ -920,8 +1139,14 @@ Emitted ingressVIPs order is IPv4 then IPv6
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
                       title={fieldErrors.ingressVip || ""}
-                          value={hostInventory.ingressVip || ""}
-                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          value={localIngressVip}
+                          onChange={(e) => setLocalIngressVip(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== hostInventory.ingressVip) {
+                              updateHostInventory({ ingressVip: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.90.0.2"
                         />
                       </FieldLabelWithInfo>
@@ -941,8 +1166,14 @@ fd00::2`}
                         <input
                           className={fieldErrors.ingressVipV6 ? "input-error" : ""}
                       title={fieldErrors.ingressVipV6 || ""}
-                          value={hostInventory.ingressVipV6 ?? ""}
-                          onChange={(e) => updateHostInventory({ ingressVipV6: e.target.value })}
+                          value={localIngressVipV6}
+                          onChange={(e) => setLocalIngressVipV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== (hostInventory.ingressVipV6 ?? "")) {
+                              updateHostInventory({ ingressVipV6: newValue });
+                            }
+                          }}
                           placeholder="e.g. fd00::2"
                         />
                       </FieldLabelWithInfo>
@@ -967,8 +1198,14 @@ Single IPv4 address (not comma-separated)
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
                       title={fieldErrors.apiVip || ""}
-                          value={hostInventory.apiVip || ""}
-                          onChange={(e) => updateHostInventory({ apiVip: e.target.value })}
+                          value={localApiVip}
+                          onChange={(e) => setLocalApiVip(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== hostInventory.apiVip) {
+                              updateHostInventory({ apiVip: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.90.0.1"
                         />
                       </FieldLabelWithInfo>
@@ -989,8 +1226,14 @@ Single IPv4 address (not comma-separated)
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
                       title={fieldErrors.ingressVip || ""}
-                          value={hostInventory.ingressVip || ""}
-                          onChange={(e) => updateHostInventory({ ingressVip: e.target.value })}
+                          value={localIngressVip}
+                          onChange={(e) => setLocalIngressVip(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== hostInventory.ingressVip) {
+                              updateHostInventory({ ingressVip: newValue });
+                            }
+                          }}
                           placeholder="e.g. 10.90.0.2"
                         />
                       </FieldLabelWithInfo>

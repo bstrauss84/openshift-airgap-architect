@@ -105,6 +105,106 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
   const [advancedOpen, setAdvancedOpen] = React.useState({});
   const [nodeValidation, setNodeValidation] = React.useState({});
   const needsReview = state.reviewFlags?.inventory && state.ui?.visitedSteps?.inventory;
+
+  // Local state for VIP fields
+  const [localApiVip, setLocalApiVip] = React.useState("");
+  const [localIngressVip, setLocalIngressVip] = React.useState("");
+
+  // Local state for all node text fields (indexed by node index)
+  const [localNodeFields, setLocalNodeFields] = React.useState({});
+
+  // Sync local VIP state with store
+  React.useEffect(() => {
+    setLocalApiVip(inventory.apiVip || "");
+    setLocalIngressVip(inventory.ingressVip || "");
+  }, [inventory.apiVip, inventory.ingressVip]);
+
+  // Sync local node fields with store
+  React.useEffect(() => {
+    const newLocalFields = {};
+    nodes.forEach((node, index) => {
+      newLocalFields[index] = {
+        hostname: node.hostname || "",
+        rootDevice: node.rootDevice || "",
+        dnsServers: node.dnsServers || "",
+        dnsSearch: node.dnsSearch || "",
+        bmc: {
+          address: node.bmc?.address || "",
+          username: node.bmc?.username || "",
+          password: node.bmc?.password || "",
+          bootMACAddress: node.bmc?.bootMACAddress || ""
+        },
+        primary: {
+          ipv4Cidr: node.primary?.ipv4Cidr || "",
+          ipv4Gateway: node.primary?.ipv4Gateway || "",
+          ipv6Cidr: node.primary?.ipv6Cidr || "",
+          ipv6Gateway: node.primary?.ipv6Gateway || "",
+          ethernet: {
+            name: node.primary?.ethernet?.name || "",
+            macAddress: node.primary?.ethernet?.macAddress || ""
+          },
+          bond: {
+            name: node.primary?.bond?.name || "",
+            slaves: (node.primary?.bond?.slaves || []).map(s => ({
+              name: s.name || "",
+              macAddress: s.macAddress || ""
+            }))
+          },
+          vlan: {
+            id: node.primary?.vlan?.id || "",
+            name: node.primary?.vlan?.name || ""
+          },
+          advanced: {
+            mtu: node.primary?.advanced?.mtu || "",
+            sriov: {
+              totalVfs: node.primary?.advanced?.sriov?.totalVfs || ""
+            },
+            vrf: {
+              name: node.primary?.advanced?.vrf?.name || "vrf0",
+              tableId: node.primary?.advanced?.vrf?.tableId || "100",
+              ports: node.primary?.advanced?.vrf?.ports || ""
+            },
+            routes: (node.primary?.advanced?.routes || []).map(r => ({
+              destination: r.destination || "",
+              nextHopAddress: r.nextHopAddress || "",
+              nextHopInterface: r.nextHopInterface || ""
+            }))
+          }
+        },
+        additionalInterfaces: (node.additionalInterfaces || []).map(iface => ({
+          ethernet: {
+            name: iface.ethernet?.name || "",
+            macAddress: iface.ethernet?.macAddress || ""
+          },
+          bond: {
+            name: iface.bond?.name || "",
+            slaves: (iface.bond?.slaves || []).map(s => ({
+              name: s.name || "",
+              macAddress: s.macAddress || ""
+            }))
+          },
+          vlan: {
+            id: iface.vlan?.id || "",
+            name: iface.vlan?.name || ""
+          },
+          ipv4Cidr: iface.ipv4Cidr || "",
+          ipv6Cidr: iface.ipv6Cidr || "",
+          advanced: {
+            mtu: iface.advanced?.mtu || "",
+            sriov: {
+              totalVfs: iface.advanced?.sriov?.totalVfs || ""
+            },
+            vrf: {
+              name: iface.advanced?.vrf?.name || "vrf0",
+              tableId: iface.advanced?.vrf?.tableId || "100",
+              ports: iface.advanced?.vrf?.ports || ""
+            }
+          }
+        }))
+      };
+    });
+    setLocalNodeFields(newLocalFields);
+  }, [nodes]);
   const copyCommand = (key, text) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopiedCommand(key);
@@ -394,6 +494,34 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
     nodes.forEach((node, idx) => runNodeValidation(idx, node));
   };
 
+  // Helper to update local node field
+  const updateLocalNodeField = (nodeIndex, path, value) => {
+    setLocalNodeFields(prev => {
+      const newFields = { ...prev };
+      if (!newFields[nodeIndex]) return prev;
+
+      const pathParts = path.split('.');
+      let current = newFields[nodeIndex];
+
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const part = pathParts[i];
+        if (!current[part]) return prev;
+        current = current[part];
+      }
+
+      current[pathParts[pathParts.length - 1]] = value;
+      return newFields;
+    });
+  };
+
+  // Helper to normalize MAC addresses
+  const normalizeMAC = (mac) => {
+    const cleaned = mac.replace(/[^0-9a-fA-F]/g, "");
+    if (cleaned.length === 0) return "";
+    if (cleaned.length !== 12) return mac;
+    return cleaned.match(/.{1,2}/g).join(":").toLowerCase();
+  };
+
   return (
     <div className="step">
       <div className="step-header sticky">
@@ -440,16 +568,28 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
             <label>
               API VIP
               <input
-                value={inventory.apiVip}
-                onChange={(e) => updateInventory({ apiVip: e.target.value })}
+                value={localApiVip}
+                onChange={(e) => setLocalApiVip(e.target.value)}
+                onBlur={(e) => {
+                  const newValue = e.target.value.trim();
+                  if (newValue !== (inventory.apiVip || "")) {
+                    updateInventory({ apiVip: newValue });
+                  }
+                }}
                 placeholder={networkHints?.apiVip || "192.168.1.5"}
               />
             </label>
             <label>
               Ingress VIP
               <input
-                value={inventory.ingressVip}
-                onChange={(e) => updateInventory({ ingressVip: e.target.value })}
+                value={localIngressVip}
+                onChange={(e) => setLocalIngressVip(e.target.value)}
+                onBlur={(e) => {
+                  const newValue = e.target.value.trim();
+                  if (newValue !== (inventory.ingressVip || "")) {
+                    updateInventory({ ingressVip: newValue });
+                  }
+                }}
                 placeholder={networkHints?.ingressVip || "192.168.1.7"}
               />
             </label>
@@ -661,9 +801,15 @@ wipefs -a /dev/sdX</pre>
                 <label>
                   Hostname
                   <input
-                    value={node.hostname}
-                    onChange={(e) => updateNode(index, { hostname: e.target.value })}
-                    onBlur={() => runNodeValidation(index, node)}
+                    value={localNodeFields[index]?.hostname ?? node.hostname}
+                    onChange={(e) => updateLocalNodeField(index, 'hostname', e.target.value)}
+                    onBlur={(e) => {
+                      const newValue = e.target.value.trim();
+                      if (newValue !== node.hostname) {
+                        updateNode(index, { hostname: newValue });
+                      }
+                      runNodeValidation(index, node);
+                    }}
                     className={fieldError("hostname") ? "input-error" : ""}
                     title={fieldError("hostname") || ""}
                   />
@@ -672,8 +818,14 @@ wipefs -a /dev/sdX</pre>
                 <label>
                   Root Device Hint
                   <input
-                    value={node.rootDevice}
-                    onChange={(e) => updateNode(index, { rootDevice: e.target.value })}
+                    value={localNodeFields[index]?.rootDevice ?? node.rootDevice}
+                    onChange={(e) => updateLocalNodeField(index, 'rootDevice', e.target.value)}
+                    onBlur={(e) => {
+                      const newValue = e.target.value.trim();
+                      if (newValue !== node.rootDevice) {
+                        updateNode(index, { rootDevice: newValue });
+                      }
+                    }}
                     placeholder="/dev/disk/by-path/..."
                     className={fieldError("rootDevice") ? "input-error" : ""}
                     title={fieldError("rootDevice") || ""}
@@ -704,8 +856,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       BMC Address
                       <input
-                        value={node.bmc?.address || ""}
-                        onChange={(e) => updateNode(index, { bmc: { ...node.bmc, address: e.target.value } })}
+                        value={localNodeFields[index]?.bmc?.address ?? node.bmc?.address ?? ""}
+                        onChange={(e) => updateLocalNodeField(index, 'bmc.address', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== (node.bmc?.address || "")) {
+                            updateNode(index, { bmc: { ...node.bmc, address: newValue } });
+                          }
+                        }}
                         placeholder="redfish://10.10.10.10/redfish/v1/Systems/1"
                         className={fieldError("bmc.address") ? "input-error" : ""}
                         title={fieldError("bmc.address") || ""}
@@ -716,8 +874,14 @@ wipefs -a /dev/sdX</pre>
                       BMC Username
                       <input
                         autoComplete="off"
-                        value={node.bmc?.username || ""}
-                        onChange={(e) => updateNode(index, { bmc: { ...node.bmc, username: e.target.value } })}
+                        value={localNodeFields[index]?.bmc?.username ?? node.bmc?.username ?? ""}
+                        onChange={(e) => updateLocalNodeField(index, 'bmc.username', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== (node.bmc?.username || "")) {
+                            updateNode(index, { bmc: { ...node.bmc, username: newValue } });
+                          }
+                        }}
                         className={fieldError("bmc.username") ? "input-error" : ""}
                         title={fieldError("bmc.username") || ""}
                       />
@@ -728,8 +892,14 @@ wipefs -a /dev/sdX</pre>
                       <input
                         type="password"
                         autoComplete="new-password"
-                        value={node.bmc?.password || ""}
-                        onChange={(e) => updateNode(index, { bmc: { ...node.bmc, password: e.target.value } })}
+                        value={localNodeFields[index]?.bmc?.password ?? node.bmc?.password ?? ""}
+                        onChange={(e) => updateLocalNodeField(index, 'bmc.password', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value;
+                          if (newValue !== (node.bmc?.password || "")) {
+                            updateNode(index, { bmc: { ...node.bmc, password: newValue } });
+                          }
+                        }}
                         className={fieldError("bmc.password") ? "input-error" : ""}
                         title={fieldError("bmc.password") || ""}
                       />
@@ -738,8 +908,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       Boot MAC Address
                       <input
-                        value={node.bmc?.bootMACAddress || ""}
-                        onChange={(e) => updateNode(index, { bmc: { ...node.bmc, bootMACAddress: e.target.value } })}
+                        value={localNodeFields[index]?.bmc?.bootMACAddress ?? node.bmc?.bootMACAddress ?? ""}
+                        onChange={(e) => updateLocalNodeField(index, 'bmc.bootMACAddress', e.target.value)}
+                        onBlur={(e) => {
+                          const normalized = normalizeMAC(e.target.value);
+                          if (normalized !== (node.bmc?.bootMACAddress || "")) {
+                            updateNode(index, { bmc: { ...node.bmc, bootMACAddress: normalized } });
+                          }
+                        }}
                         placeholder="52:54:00:aa:11:01"
                         className={fieldError("bmc.bootMACAddress") ? "input-error" : ""}
                         title={fieldError("bmc.bootMACAddress") || ""}
@@ -764,8 +940,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       Ethernet Interface Name
                       <input
-                        value={node.primary.ethernet.name}
-                        onChange={(e) => updatePrimaryEthernet(index, { name: e.target.value })}
+                        value={localNodeFields[index]?.primary?.ethernet?.name ?? node.primary.ethernet.name}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.ethernet.name', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== node.primary.ethernet.name) {
+                            updatePrimaryEthernet(index, { name: newValue });
+                          }
+                        }}
                         placeholder="eth0"
                         className={fieldError("primary.ethernet.name") ? "input-error" : ""}
                         title={fieldError("primary.ethernet.name") || ""}
@@ -775,8 +957,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       Ethernet MAC Address
                       <input
-                        value={node.primary.ethernet.macAddress}
-                        onChange={(e) => updatePrimaryEthernet(index, { macAddress: e.target.value })}
+                        value={localNodeFields[index]?.primary?.ethernet?.macAddress ?? node.primary.ethernet.macAddress}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.ethernet.macAddress', e.target.value)}
+                        onBlur={(e) => {
+                          const normalized = normalizeMAC(e.target.value);
+                          if (normalized !== node.primary.ethernet.macAddress) {
+                            updatePrimaryEthernet(index, { macAddress: normalized });
+                          }
+                        }}
                         placeholder="52:54:00:aa:11:01"
                         className={fieldError("primary.ethernet.macAddress") ? "input-error" : ""}
                         title={fieldError("primary.ethernet.macAddress") || ""}
@@ -790,8 +978,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       Bond Name
                       <input
-                        value={node.primary.bond.name}
-                        onChange={(e) => updatePrimaryBond(index, { name: e.target.value })}
+                        value={localNodeFields[index]?.primary?.bond?.name ?? node.primary.bond.name}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.bond.name', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== node.primary.bond.name) {
+                            updatePrimaryBond(index, { name: newValue });
+                          }
+                        }}
                         placeholder="bond0"
                         className={fieldError("primary.bond.name") ? "input-error" : ""}
                         title={fieldError("primary.bond.name") || ""}
@@ -819,8 +1013,21 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             Bond Member Interface
                             <input
-                              value={slave.name}
-                              onChange={(e) => updateBondSlave(index, slaveIndex, { name: e.target.value })}
+                              value={localNodeFields[index]?.primary?.bond?.slaves?.[slaveIndex]?.name ?? slave.name}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.primary?.bond?.slaves?.[slaveIndex]) return prev;
+                                  updated[index].primary.bond.slaves[slaveIndex].name = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== slave.name) {
+                                  updateBondSlave(index, slaveIndex, { name: newValue });
+                                }
+                              }}
                               placeholder={`eth${slaveIndex}`}
                               className={fieldError(`primary.bond.slaves.${slaveIndex}.name`) ? "input-error" : ""}
                               title={fieldError(`primary.bond.slaves.${slaveIndex}.name`) || ""}
@@ -832,8 +1039,21 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             Bond Member MAC
                             <input
-                              value={slave.macAddress}
-                              onChange={(e) => updateBondSlave(index, slaveIndex, { macAddress: e.target.value })}
+                              value={localNodeFields[index]?.primary?.bond?.slaves?.[slaveIndex]?.macAddress ?? slave.macAddress}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.primary?.bond?.slaves?.[slaveIndex]) return prev;
+                                  updated[index].primary.bond.slaves[slaveIndex].macAddress = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const normalized = normalizeMAC(e.target.value);
+                                if (normalized !== slave.macAddress) {
+                                  updateBondSlave(index, slaveIndex, { macAddress: normalized });
+                                }
+                              }}
                               placeholder="52:54:00:aa:11:02"
                               className={fieldError(`primary.bond.slaves.${slaveIndex}.macAddress`) ? "input-error" : ""}
                               title={fieldError(`primary.bond.slaves.${slaveIndex}.macAddress`) || ""}
@@ -859,8 +1079,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       VLAN ID
                       <input
-                        value={node.primary.vlan.id}
-                        onChange={(e) => updatePrimaryVlan(index, { id: e.target.value })}
+                        value={localNodeFields[index]?.primary?.vlan?.id ?? node.primary.vlan.id}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.vlan.id', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== node.primary.vlan.id) {
+                            updatePrimaryVlan(index, { id: newValue });
+                          }
+                        }}
                         placeholder="100"
                         className={fieldError("primary.vlan.id") ? "input-error" : ""}
                         title={fieldError("primary.vlan.id") || ""}
@@ -873,8 +1099,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       VLAN Interface Name (auto)
                       <input
-                        value={vlanName}
-                        onChange={(e) => updatePrimaryVlan(index, { name: e.target.value })}
+                        value={localNodeFields[index]?.primary?.vlan?.name ?? vlanName}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.vlan.name', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== (node.primary.vlan.name || "")) {
+                            updatePrimaryVlan(index, { name: newValue });
+                          }
+                        }}
                         placeholder={vlanNameSuggestion || "bond0.100"}
                       />
                     </label>
@@ -885,8 +1117,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       IPv4 Address/CIDR
                       <input
-                        value={node.primary.ipv4Cidr}
-                        onChange={(e) => updatePrimary(index, { ipv4Cidr: e.target.value })}
+                        value={localNodeFields[index]?.primary?.ipv4Cidr ?? node.primary.ipv4Cidr}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.ipv4Cidr', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== node.primary.ipv4Cidr) {
+                            updatePrimary(index, { ipv4Cidr: newValue });
+                          }
+                        }}
                         placeholder={nodeIpv4Placeholder(node.role, index)}
                         className={fieldError("primary.ipv4Cidr") ? "input-error" : ""}
                         title={fieldError("primary.ipv4Cidr") || ""}
@@ -899,8 +1137,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       IPv4 Default Gateway
                       <input
-                        value={node.primary.ipv4Gateway}
-                        onChange={(e) => updatePrimary(index, { ipv4Gateway: e.target.value })}
+                        value={localNodeFields[index]?.primary?.ipv4Gateway ?? node.primary.ipv4Gateway}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.ipv4Gateway', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== node.primary.ipv4Gateway) {
+                            updatePrimary(index, { ipv4Gateway: newValue });
+                          }
+                        }}
                         placeholder={networkHints?.gateway || "192.168.1.1"}
                         className={fieldError("primary.ipv4Gateway") ? "input-error" : ""}
                         title={fieldError("primary.ipv4Gateway") || ""}
@@ -914,8 +1158,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       IPv6 Address/CIDR
                       <input
-                        value={node.primary.ipv6Cidr}
-                        onChange={(e) => updatePrimary(index, { ipv6Cidr: e.target.value })}
+                        value={localNodeFields[index]?.primary?.ipv6Cidr ?? node.primary.ipv6Cidr}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.ipv6Cidr', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== node.primary.ipv6Cidr) {
+                            updatePrimary(index, { ipv6Cidr: newValue });
+                          }
+                        }}
                         placeholder="fd10:90::20/64"
                         className={fieldError("primary.ipv6Cidr") ? "input-error" : ""}
                         title={fieldError("primary.ipv6Cidr") || ""}
@@ -925,8 +1175,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       IPv6 Default Gateway
                       <input
-                        value={node.primary.ipv6Gateway}
-                        onChange={(e) => updatePrimary(index, { ipv6Gateway: e.target.value })}
+                        value={localNodeFields[index]?.primary?.ipv6Gateway ?? node.primary.ipv6Gateway}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.ipv6Gateway', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== node.primary.ipv6Gateway) {
+                            updatePrimary(index, { ipv6Gateway: newValue });
+                          }
+                        }}
                         placeholder="fd10:90::1"
                         className={fieldError("primary.ipv6Gateway") ? "input-error" : ""}
                         title={fieldError("primary.ipv6Gateway") || ""}
@@ -938,16 +1194,28 @@ wipefs -a /dev/sdX</pre>
                 <label>
                   DNS Servers (comma-separated)
                   <input
-                    value={node.dnsServers}
-                    onChange={(e) => updateNode(index, { dnsServers: e.target.value })}
+                    value={localNodeFields[index]?.dnsServers ?? node.dnsServers}
+                    onChange={(e) => updateLocalNodeField(index, 'dnsServers', e.target.value)}
+                    onBlur={(e) => {
+                      const newValue = e.target.value.trim();
+                      if (newValue !== node.dnsServers) {
+                        updateNode(index, { dnsServers: newValue });
+                      }
+                    }}
                     placeholder={networkHints?.dnsServers || "192.168.1.10,192.168.1.11"}
                   />
                 </label>
                 <label>
                   DNS Search Domains (comma-separated)
                   <input
-                    value={node.dnsSearch || ""}
-                    onChange={(e) => updateNode(index, { dnsSearch: e.target.value })}
+                    value={localNodeFields[index]?.dnsSearch ?? node.dnsSearch ?? ""}
+                    onChange={(e) => updateLocalNodeField(index, 'dnsSearch', e.target.value)}
+                    onBlur={(e) => {
+                      const newValue = e.target.value.trim();
+                      if (newValue !== (node.dnsSearch || "")) {
+                        updateNode(index, { dnsSearch: newValue });
+                      }
+                    }}
                     placeholder="example.com,corp.local"
                   />
                 </label>
@@ -964,8 +1232,14 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       MTU (optional)
                       <input
-                        value={node.primary.advanced.mtu || ""}
-                        onChange={(e) => updatePrimaryAdvanced(index, { mtu: e.target.value })}
+                        value={localNodeFields[index]?.primary?.advanced?.mtu ?? node.primary.advanced.mtu ?? ""}
+                        onChange={(e) => updateLocalNodeField(index, 'primary.advanced.mtu', e.target.value)}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          if (newValue !== (node.primary.advanced.mtu || "")) {
+                            updatePrimaryAdvanced(index, { mtu: newValue });
+                          }
+                        }}
                         placeholder="1500"
                       />
                       <div className="note">Applies to physical and VLAN interfaces for this host. Default 1500.</div>
@@ -983,10 +1257,21 @@ wipefs -a /dev/sdX</pre>
                       <label>
                         SR-IOV Total VFs
                         <input
-                          value={node.primary.advanced.sriov?.totalVfs || ""}
-                          onChange={(e) =>
-                            updatePrimaryAdvanced(index, { sriov: { ...node.primary.advanced.sriov, totalVfs: e.target.value } })
-                          }
+                          value={localNodeFields[index]?.primary?.advanced?.sriov?.totalVfs ?? node.primary.advanced.sriov?.totalVfs ?? ""}
+                          onChange={(e) => {
+                            setLocalNodeFields(prev => {
+                              const updated = { ...prev };
+                              if (!updated[index]?.primary?.advanced?.sriov) return prev;
+                              updated[index].primary.advanced.sriov.totalVfs = e.target.value;
+                              return updated;
+                            });
+                          }}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== (node.primary.advanced.sriov?.totalVfs || "")) {
+                              updatePrimaryAdvanced(index, { sriov: { ...node.primary.advanced.sriov, totalVfs: newValue } });
+                            }
+                          }}
                           placeholder="8"
                         />
                       </label>
@@ -1005,23 +1290,62 @@ wipefs -a /dev/sdX</pre>
                         <label>
                           VRF Name
                           <input
-                            value={node.primary.advanced.vrf?.name || "vrf0"}
-                            onChange={(e) => updatePrimaryAdvanced(index, { vrf: { ...node.primary.advanced.vrf, name: e.target.value } })}
+                            value={localNodeFields[index]?.primary?.advanced?.vrf?.name ?? node.primary.advanced.vrf?.name ?? "vrf0"}
+                            onChange={(e) => {
+                              setLocalNodeFields(prev => {
+                                const updated = { ...prev };
+                                if (!updated[index]?.primary?.advanced?.vrf) return prev;
+                                updated[index].primary.advanced.vrf.name = e.target.value;
+                                return updated;
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== (node.primary.advanced.vrf?.name || "vrf0")) {
+                                updatePrimaryAdvanced(index, { vrf: { ...node.primary.advanced.vrf, name: newValue } });
+                              }
+                            }}
                           />
                         </label>
                         <label>
                           VRF Table ID
                           <input
-                            value={node.primary.advanced.vrf?.tableId || "100"}
-                            onChange={(e) => updatePrimaryAdvanced(index, { vrf: { ...node.primary.advanced.vrf, tableId: e.target.value } })}
+                            value={localNodeFields[index]?.primary?.advanced?.vrf?.tableId ?? node.primary.advanced.vrf?.tableId ?? "100"}
+                            onChange={(e) => {
+                              setLocalNodeFields(prev => {
+                                const updated = { ...prev };
+                                if (!updated[index]?.primary?.advanced?.vrf) return prev;
+                                updated[index].primary.advanced.vrf.tableId = e.target.value;
+                                return updated;
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== (node.primary.advanced.vrf?.tableId || "100")) {
+                                updatePrimaryAdvanced(index, { vrf: { ...node.primary.advanced.vrf, tableId: newValue } });
+                              }
+                            }}
                             placeholder="100"
                           />
                         </label>
                         <label>
                           VRF Ports (comma-separated)
                           <input
-                            value={node.primary.advanced.vrf?.ports || ""}
-                            onChange={(e) => updatePrimaryAdvanced(index, { vrf: { ...node.primary.advanced.vrf, ports: e.target.value } })}
+                            value={localNodeFields[index]?.primary?.advanced?.vrf?.ports ?? node.primary.advanced.vrf?.ports ?? ""}
+                            onChange={(e) => {
+                              setLocalNodeFields(prev => {
+                                const updated = { ...prev };
+                                if (!updated[index]?.primary?.advanced?.vrf) return prev;
+                                updated[index].primary.advanced.vrf.ports = e.target.value;
+                                return updated;
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== (node.primary.advanced.vrf?.ports || "")) {
+                                updatePrimaryAdvanced(index, { vrf: { ...node.primary.advanced.vrf, ports: newValue } });
+                              }
+                            }}
                             placeholder={`${baseIface},${vlanName}`}
                           />
                         </label>
@@ -1037,24 +1361,63 @@ wipefs -a /dev/sdX</pre>
                         <label>
                           Destination
                           <input
-                            value={route.destination}
-                            onChange={(e) => updatePrimaryRoute(index, routeIndex, { destination: e.target.value })}
+                            value={localNodeFields[index]?.primary?.advanced?.routes?.[routeIndex]?.destination ?? route.destination}
+                            onChange={(e) => {
+                              setLocalNodeFields(prev => {
+                                const updated = { ...prev };
+                                if (!updated[index]?.primary?.advanced?.routes?.[routeIndex]) return prev;
+                                updated[index].primary.advanced.routes[routeIndex].destination = e.target.value;
+                                return updated;
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== route.destination) {
+                                updatePrimaryRoute(index, routeIndex, { destination: newValue });
+                              }
+                            }}
                             placeholder="10.0.0.0/24"
                           />
                         </label>
                         <label>
                           Next Hop Address
                           <input
-                            value={route.nextHopAddress}
-                            onChange={(e) => updatePrimaryRoute(index, routeIndex, { nextHopAddress: e.target.value })}
+                            value={localNodeFields[index]?.primary?.advanced?.routes?.[routeIndex]?.nextHopAddress ?? route.nextHopAddress}
+                            onChange={(e) => {
+                              setLocalNodeFields(prev => {
+                                const updated = { ...prev };
+                                if (!updated[index]?.primary?.advanced?.routes?.[routeIndex]) return prev;
+                                updated[index].primary.advanced.routes[routeIndex].nextHopAddress = e.target.value;
+                                return updated;
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== route.nextHopAddress) {
+                                updatePrimaryRoute(index, routeIndex, { nextHopAddress: newValue });
+                              }
+                            }}
                             placeholder="192.168.1.1"
                           />
                         </label>
                         <label>
                           Next Hop Interface (optional)
                           <input
-                            value={route.nextHopInterface || ""}
-                            onChange={(e) => updatePrimaryRoute(index, routeIndex, { nextHopInterface: e.target.value })}
+                            value={localNodeFields[index]?.primary?.advanced?.routes?.[routeIndex]?.nextHopInterface ?? route.nextHopInterface ?? ""}
+                            onChange={(e) => {
+                              setLocalNodeFields(prev => {
+                                const updated = { ...prev };
+                                if (!updated[index]?.primary?.advanced?.routes?.[routeIndex]) return prev;
+                                updated[index].primary.advanced.routes[routeIndex].nextHopInterface = e.target.value;
+                                return updated;
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== (route.nextHopInterface || "")) {
+                                updatePrimaryRoute(index, routeIndex, { nextHopInterface: newValue });
+                              }
+                            }}
                             placeholder={vlanName || baseIface}
                           />
                         </label>
@@ -1105,20 +1468,42 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             Ethernet Interface Name
                             <input
-                              value={iface.ethernet.name}
-                              onChange={(e) =>
-                                updateAdditionalInterface(index, ifaceIndex, { ethernet: { ...iface.ethernet, name: e.target.value } })
-                              }
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.ethernet?.name ?? iface.ethernet.name}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.ethernet) return prev;
+                                  updated[index].additionalInterfaces[ifaceIndex].ethernet.name = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== iface.ethernet.name) {
+                                  updateAdditionalInterface(index, ifaceIndex, { ethernet: { ...iface.ethernet, name: newValue } });
+                                }
+                              }}
                               placeholder="eth2"
                             />
                           </label>
                           <label>
                             Ethernet MAC Address
                             <input
-                              value={iface.ethernet.macAddress}
-                              onChange={(e) =>
-                                updateAdditionalInterface(index, ifaceIndex, { ethernet: { ...iface.ethernet, macAddress: e.target.value } })
-                              }
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.ethernet?.macAddress ?? iface.ethernet.macAddress}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.ethernet) return prev;
+                                  updated[index].additionalInterfaces[ifaceIndex].ethernet.macAddress = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const normalized = normalizeMAC(e.target.value);
+                                if (normalized !== iface.ethernet.macAddress) {
+                                  updateAdditionalInterface(index, ifaceIndex, { ethernet: { ...iface.ethernet, macAddress: normalized } });
+                                }
+                              }}
                               placeholder="52:54:00:aa:11:03"
                             />
                           </label>
@@ -1129,10 +1514,21 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             Bond Name
                             <input
-                              value={iface.bond.name}
-                              onChange={(e) =>
-                                updateAdditionalInterface(index, ifaceIndex, { bond: { ...iface.bond, name: e.target.value } })
-                              }
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.bond?.name ?? iface.bond.name}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.bond) return prev;
+                                  updated[index].additionalInterfaces[ifaceIndex].bond.name = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== iface.bond.name) {
+                                  updateAdditionalInterface(index, ifaceIndex, { bond: { ...iface.bond, name: newValue } });
+                                }
+                              }}
                             />
                           </label>
                           <label>
@@ -1153,12 +1549,23 @@ wipefs -a /dev/sdX</pre>
                               <label>
                                 Bond Member Interface
                                 <input
-                                  value={slave.name}
+                                  value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.bond?.slaves?.[slaveIndex]?.name ?? slave.name}
                                   onChange={(e) => {
-                                    const next = iface.bond.slaves.map((entry, i) =>
-                                      i === slaveIndex ? { ...entry, name: e.target.value } : entry
-                                    );
-                                    updateAdditionalInterface(index, ifaceIndex, { bond: { ...iface.bond, slaves: next } });
+                                    setLocalNodeFields(prev => {
+                                      const updated = { ...prev };
+                                      if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.bond?.slaves?.[slaveIndex]) return prev;
+                                      updated[index].additionalInterfaces[ifaceIndex].bond.slaves[slaveIndex].name = e.target.value;
+                                      return updated;
+                                    });
+                                  }}
+                                  onBlur={(e) => {
+                                    const newValue = e.target.value.trim();
+                                    if (newValue !== slave.name) {
+                                      const next = iface.bond.slaves.map((entry, i) =>
+                                        i === slaveIndex ? { ...entry, name: newValue } : entry
+                                      );
+                                      updateAdditionalInterface(index, ifaceIndex, { bond: { ...iface.bond, slaves: next } });
+                                    }
                                   }}
                                   placeholder={`eth${slaveIndex}`}
                                 />
@@ -1166,12 +1573,23 @@ wipefs -a /dev/sdX</pre>
                               <label>
                                 Bond Member MAC
                                 <input
-                                  value={slave.macAddress}
+                                  value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.bond?.slaves?.[slaveIndex]?.macAddress ?? slave.macAddress}
                                   onChange={(e) => {
-                                    const next = iface.bond.slaves.map((entry, i) =>
-                                      i === slaveIndex ? { ...entry, macAddress: e.target.value } : entry
-                                    );
-                                    updateAdditionalInterface(index, ifaceIndex, { bond: { ...iface.bond, slaves: next } });
+                                    setLocalNodeFields(prev => {
+                                      const updated = { ...prev };
+                                      if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.bond?.slaves?.[slaveIndex]) return prev;
+                                      updated[index].additionalInterfaces[ifaceIndex].bond.slaves[slaveIndex].macAddress = e.target.value;
+                                      return updated;
+                                    });
+                                  }}
+                                  onBlur={(e) => {
+                                    const normalized = normalizeMAC(e.target.value);
+                                    if (normalized !== slave.macAddress) {
+                                      const next = iface.bond.slaves.map((entry, i) =>
+                                        i === slaveIndex ? { ...entry, macAddress: normalized } : entry
+                                      );
+                                      updateAdditionalInterface(index, ifaceIndex, { bond: { ...iface.bond, slaves: next } });
+                                    }
                                   }}
                                 />
                               </label>
@@ -1184,10 +1602,21 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             VLAN ID
                             <input
-                              value={iface.vlan.id}
-                              onChange={(e) =>
-                                updateAdditionalInterface(index, ifaceIndex, { vlan: { ...iface.vlan, id: e.target.value } })
-                              }
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.vlan?.id ?? iface.vlan.id}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.vlan) return prev;
+                                  updated[index].additionalInterfaces[ifaceIndex].vlan.id = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== iface.vlan.id) {
+                                  updateAdditionalInterface(index, ifaceIndex, { vlan: { ...iface.vlan, id: newValue } });
+                                }
+                              }}
                             />
                           </label>
                           <div className="note">
@@ -1196,10 +1625,21 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             VLAN Interface Name (auto)
                             <input
-                              value={iface.vlan.name || suggestedVlanName(iface.vlan.baseIface || iface.ethernet.name || iface.bond.name, iface.vlan.id)}
-                              onChange={(e) =>
-                                updateAdditionalInterface(index, ifaceIndex, { vlan: { ...iface.vlan, name: e.target.value } })
-                              }
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.vlan?.name ?? iface.vlan.name ?? suggestedVlanName(iface.vlan.baseIface || iface.ethernet.name || iface.bond.name, iface.vlan.id)}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.vlan) return prev;
+                                  updated[index].additionalInterfaces[ifaceIndex].vlan.name = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== (iface.vlan.name || "")) {
+                                  updateAdditionalInterface(index, ifaceIndex, { vlan: { ...iface.vlan, name: newValue } });
+                                }
+                              }}
                             />
                           </label>
                         </>
@@ -1209,16 +1649,42 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             IPv4 Address/CIDR
                             <input
-                              value={iface.ipv4Cidr}
-                              onChange={(e) => updateAdditionalInterface(index, ifaceIndex, { ipv4Cidr: e.target.value })}
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.ipv4Cidr ?? iface.ipv4Cidr}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.additionalInterfaces?.[ifaceIndex]) return prev;
+                                  updated[index].additionalInterfaces[ifaceIndex].ipv4Cidr = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== iface.ipv4Cidr) {
+                                  updateAdditionalInterface(index, ifaceIndex, { ipv4Cidr: newValue });
+                                }
+                              }}
                             />
                           </label>
                           {showIpv6 ? (
                             <label>
                               IPv6 Address/CIDR
                               <input
-                                value={iface.ipv6Cidr}
-                                onChange={(e) => updateAdditionalInterface(index, ifaceIndex, { ipv6Cidr: e.target.value })}
+                                value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.ipv6Cidr ?? iface.ipv6Cidr}
+                                onChange={(e) => {
+                                  setLocalNodeFields(prev => {
+                                    const updated = { ...prev };
+                                    if (!updated[index]?.additionalInterfaces?.[ifaceIndex]) return prev;
+                                    updated[index].additionalInterfaces[ifaceIndex].ipv6Cidr = e.target.value;
+                                    return updated;
+                                  });
+                                }}
+                                onBlur={(e) => {
+                                  const newValue = e.target.value.trim();
+                                  if (newValue !== iface.ipv6Cidr) {
+                                    updateAdditionalInterface(index, ifaceIndex, { ipv6Cidr: newValue });
+                                  }
+                                }}
                               />
                             </label>
                           ) : null}
@@ -1241,12 +1707,23 @@ wipefs -a /dev/sdX</pre>
                         <label>
                           MTU (optional)
                           <input
-                            value={iface.advanced?.mtu || ""}
-                            onChange={(e) =>
-                              updateAdditionalInterface(index, ifaceIndex, {
-                                advanced: { ...iface.advanced, mtu: e.target.value }
-                              })
-                            }
+                            value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.mtu ?? iface.advanced?.mtu ?? ""}
+                            onChange={(e) => {
+                              setLocalNodeFields(prev => {
+                                const updated = { ...prev };
+                                if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.advanced) return prev;
+                                updated[index].additionalInterfaces[ifaceIndex].advanced.mtu = e.target.value;
+                                return updated;
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const newValue = e.target.value.trim();
+                              if (newValue !== (iface.advanced?.mtu || "")) {
+                                updateAdditionalInterface(index, ifaceIndex, {
+                                  advanced: { ...iface.advanced, mtu: newValue }
+                                });
+                              }
+                            }}
                             placeholder="1500"
                           />
                         </label>
@@ -1269,15 +1746,26 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             SR-IOV Total VFs
                             <input
-                              value={iface.advanced?.sriov?.totalVfs || ""}
-                              onChange={(e) =>
-                                updateAdditionalInterface(index, ifaceIndex, {
-                                  advanced: {
-                                    ...iface.advanced,
-                                    sriov: { ...iface.advanced?.sriov, totalVfs: e.target.value }
-                                  }
-                                })
-                              }
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.sriov?.totalVfs ?? iface.advanced?.sriov?.totalVfs ?? ""}
+                              onChange={(e) => {
+                                setLocalNodeFields(prev => {
+                                  const updated = { ...prev };
+                                  if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.sriov) return prev;
+                                  updated[index].additionalInterfaces[ifaceIndex].advanced.sriov.totalVfs = e.target.value;
+                                  return updated;
+                                });
+                              }}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== (iface.advanced?.sriov?.totalVfs || "")) {
+                                  updateAdditionalInterface(index, ifaceIndex, {
+                                    advanced: {
+                                      ...iface.advanced,
+                                      sriov: { ...iface.advanced?.sriov, totalVfs: newValue }
+                                    }
+                                  });
+                                }
+                              }}
                               placeholder="8"
                             />
                           </label>
@@ -1302,34 +1790,67 @@ wipefs -a /dev/sdX</pre>
                             <label>
                               VRF Name
                               <input
-                                value={iface.advanced?.vrf?.name || "vrf0"}
-                                onChange={(e) =>
-                                  updateAdditionalInterface(index, ifaceIndex, {
-                                    advanced: { ...iface.advanced, vrf: { ...iface.advanced?.vrf, name: e.target.value } }
-                                  })
-                                }
+                                value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.vrf?.name ?? iface.advanced?.vrf?.name ?? "vrf0"}
+                                onChange={(e) => {
+                                  setLocalNodeFields(prev => {
+                                    const updated = { ...prev };
+                                    if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.vrf) return prev;
+                                    updated[index].additionalInterfaces[ifaceIndex].advanced.vrf.name = e.target.value;
+                                    return updated;
+                                  });
+                                }}
+                                onBlur={(e) => {
+                                  const newValue = e.target.value.trim();
+                                  if (newValue !== (iface.advanced?.vrf?.name || "vrf0")) {
+                                    updateAdditionalInterface(index, ifaceIndex, {
+                                      advanced: { ...iface.advanced, vrf: { ...iface.advanced?.vrf, name: newValue } }
+                                    });
+                                  }
+                                }}
                               />
                             </label>
                             <label>
                               VRF Table ID
                               <input
-                                value={iface.advanced?.vrf?.tableId || "100"}
-                                onChange={(e) =>
-                                  updateAdditionalInterface(index, ifaceIndex, {
-                                    advanced: { ...iface.advanced, vrf: { ...iface.advanced?.vrf, tableId: e.target.value } }
-                                  })
-                                }
+                                value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.vrf?.tableId ?? iface.advanced?.vrf?.tableId ?? "100"}
+                                onChange={(e) => {
+                                  setLocalNodeFields(prev => {
+                                    const updated = { ...prev };
+                                    if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.vrf) return prev;
+                                    updated[index].additionalInterfaces[ifaceIndex].advanced.vrf.tableId = e.target.value;
+                                    return updated;
+                                  });
+                                }}
+                                onBlur={(e) => {
+                                  const newValue = e.target.value.trim();
+                                  if (newValue !== (iface.advanced?.vrf?.tableId || "100")) {
+                                    updateAdditionalInterface(index, ifaceIndex, {
+                                      advanced: { ...iface.advanced, vrf: { ...iface.advanced?.vrf, tableId: newValue } }
+                                    });
+                                  }
+                                }}
                               />
                             </label>
                             <label>
                               VRF Ports (comma-separated)
                               <input
-                                value={iface.advanced?.vrf?.ports || ""}
-                                onChange={(e) =>
-                                  updateAdditionalInterface(index, ifaceIndex, {
-                                    advanced: { ...iface.advanced, vrf: { ...iface.advanced?.vrf, ports: e.target.value } }
-                                  })
-                                }
+                                value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.vrf?.ports ?? iface.advanced?.vrf?.ports ?? ""}
+                                onChange={(e) => {
+                                  setLocalNodeFields(prev => {
+                                    const updated = { ...prev };
+                                    if (!updated[index]?.additionalInterfaces?.[ifaceIndex]?.advanced?.vrf) return prev;
+                                    updated[index].additionalInterfaces[ifaceIndex].advanced.vrf.ports = e.target.value;
+                                    return updated;
+                                  });
+                                }}
+                                onBlur={(e) => {
+                                  const newValue = e.target.value.trim();
+                                  if (newValue !== (iface.advanced?.vrf?.ports || "")) {
+                                    updateAdditionalInterface(index, ifaceIndex, {
+                                      advanced: { ...iface.advanced, vrf: { ...iface.advanced?.vrf, ports: newValue } }
+                                    });
+                                  }
+                                }}
                               />
                             </label>
                           </>

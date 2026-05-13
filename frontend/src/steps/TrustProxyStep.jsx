@@ -69,7 +69,7 @@ const summarizeReason = (code) => {
   }
 };
 
-function PemField({ label, required, value, onChange, onFiles, error, placeholder, hint }) {
+function PemField({ label, required, value, onChange, onBlur, onFiles, error, placeholder, hint }) {
   if (hint) {
     // Use FieldLabelWithInfo when hint is provided
     return (
@@ -78,6 +78,7 @@ function PemField({ label, required, value, onChange, onFiles, error, placeholde
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onBlur={onBlur}
             rows={3}
             placeholder={placeholder}
             onDragOver={(e) => e.preventDefault()}
@@ -108,6 +109,7 @@ function PemField({ label, required, value, onChange, onFiles, error, placeholde
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           rows={3}
           placeholder={placeholder}
           onDragOver={(e) => e.preventDefault()}
@@ -147,6 +149,36 @@ export default function TrustProxyStep({ highlightErrors }) {
   const [certSearch, setCertSearch] = React.useState("");
   const [certFilter, setCertFilter] = React.useState("selected");
   const previousInvalidationKeyRef = React.useRef(null);
+
+  // Local state for onBlur pattern (proxy fields)
+  const [localHttpProxy, setLocalHttpProxy] = React.useState("");
+  const [localHttpsProxy, setLocalHttpsProxy] = React.useState("");
+  const [localNoProxy, setLocalNoProxy] = React.useState("");
+
+  // Local state for onBlur pattern (PEM fields - no trim)
+  const [localMirrorCaPem, setLocalMirrorCaPem] = React.useState("");
+  const [localProxyCaPem, setLocalProxyCaPem] = React.useState("");
+
+  // Sync local state with store
+  React.useEffect(() => {
+    setLocalHttpProxy(proxies.httpProxy || "");
+  }, [proxies.httpProxy]);
+
+  React.useEffect(() => {
+    setLocalHttpsProxy(proxies.httpsProxy || "");
+  }, [proxies.httpsProxy]);
+
+  React.useEffect(() => {
+    setLocalNoProxy(proxies.noProxy || "");
+  }, [proxies.noProxy]);
+
+  React.useEffect(() => {
+    setLocalMirrorCaPem(trust.mirrorRegistryCaPem || "");
+  }, [trust.mirrorRegistryCaPem]);
+
+  React.useEffect(() => {
+    setLocalProxyCaPem(trust.proxyCaPem || "");
+  }, [trust.proxyCaPem]);
 
   const updateStrategy = (patch) => updateState({ globalStrategy: { ...strategy, ...patch } });
   const updateProxy = (field, value) =>
@@ -248,9 +280,18 @@ export default function TrustProxyStep({ highlightErrors }) {
     validatePemInput(text, setProxyCaError);
   };
 
+  const handleProxyCaBlur = () => {
+    // Update store on blur if value changed (no trim for PEM)
+    if (localProxyCaPem !== (trust.proxyCaPem || "")) {
+      handleProxyCaText(localProxyCaPem);
+    }
+  };
+
   const handleProxyCaFiles = async (files) => {
     const texts = await Promise.all(Array.from(files).map((file) => file.text()));
-    handleProxyCaText(texts.join("\n"));
+    const combined = texts.join("\n");
+    setLocalProxyCaPem(combined);
+    handleProxyCaText(combined);
   };
 
   const handleMirrorCaText = (text) => {
@@ -258,9 +299,18 @@ export default function TrustProxyStep({ highlightErrors }) {
     validatePemInput(text, setMirrorCaError);
   };
 
+  const handleMirrorCaBlur = () => {
+    // Update store on blur if value changed (no trim for PEM)
+    if (localMirrorCaPem !== (trust.mirrorRegistryCaPem || "")) {
+      handleMirrorCaText(localMirrorCaPem);
+    }
+  };
+
   const handleMirrorCaFiles = async (files) => {
     const texts = await Promise.all(Array.from(files).map((file) => file.text()));
-    handleMirrorCaText(texts.join("\n"));
+    const combined = texts.join("\n");
+    setLocalMirrorCaPem(combined);
+    handleMirrorCaText(combined);
   };
 
   const trustPolicySyncRef = React.useRef(null);
@@ -594,8 +644,14 @@ http://proxy.corp:8080`}
                   >
                     <textarea
                       className={`proxy-field-input proxy-field-textarea${proxyErrors.httpProxy ? " input-error" : ""}`}
-                      value={proxies.httpProxy || ""}
-                      onChange={(e) => updateProxy("httpProxy", e.target.value.replace(/\n/g, " ").trim())}
+                      value={localHttpProxy}
+                      onChange={(e) => setLocalHttpProxy(e.target.value)}
+                      onBlur={() => {
+                        const trimmed = localHttpProxy.replace(/\n/g, " ").trim();
+                        if (trimmed !== (proxies.httpProxy || "")) {
+                          updateProxy("httpProxy", trimmed);
+                        }
+                      }}
                       placeholder="http://proxy.corp:8080"
                       rows={4}
                       spellCheck={false}
@@ -625,8 +681,14 @@ https://proxy.corp:8443 (if your proxy supports TLS)`}
                   >
                     <textarea
                       className={`proxy-field-input proxy-field-textarea${proxyErrors.httpsProxy ? " input-error" : ""}`}
-                      value={proxies.httpsProxy || ""}
-                      onChange={(e) => updateProxy("httpsProxy", e.target.value.replace(/\n/g, " ").trim())}
+                      value={localHttpsProxy}
+                      onChange={(e) => setLocalHttpsProxy(e.target.value)}
+                      onBlur={() => {
+                        const trimmed = localHttpsProxy.replace(/\n/g, " ").trim();
+                        if (trimmed !== (proxies.httpsProxy || "")) {
+                          updateProxy("httpsProxy", trimmed);
+                        }
+                      }}
                       placeholder="https://proxy.corp:8443 or http:// if proxy only supports HTTP"
                       rows={4}
                       spellCheck={false}
@@ -659,8 +721,14 @@ Internal cluster networks, service CIDRs, localhost
                   >
                     <textarea
                       className="proxy-field-input proxy-field-textarea"
-                      value={proxies.noProxy || ""}
-                      onChange={(e) => updateProxy("noProxy", e.target.value.replace(/\n/g, " ").trim())}
+                      value={localNoProxy}
+                      onChange={(e) => setLocalNoProxy(e.target.value)}
+                      onBlur={() => {
+                        const trimmed = localNoProxy.replace(/\n/g, " ").trim();
+                        if (trimmed !== (proxies.noProxy || "")) {
+                          updateProxy("noProxy", trimmed);
+                        }
+                      }}
                       placeholder=".cluster.local,.svc,10.128.0.0/14,127.0.0.1"
                       rows={4}
                       spellCheck={false}
@@ -709,8 +777,9 @@ Internal cluster networks, service CIDRs, localhost
                 <PemField
                   label="Mirror registry CA bundle"
                   required={trust.mirrorRegistryUsesPrivateCa}
-                  value={trust.mirrorRegistryCaPem || ""}
-                  onChange={handleMirrorCaText}
+                  value={localMirrorCaPem}
+                  onChange={setLocalMirrorCaPem}
+                  onBlur={handleMirrorCaBlur}
                   onFiles={handleMirrorCaFiles}
                   error={mirrorCaError}
                   placeholder="Paste or drop .pem/.crt here"
@@ -761,8 +830,9 @@ MIIDXTCCAkWgAwIBAgIJAKL0UG+mRKfzMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
                 <PemField
                   label="Proxy CA bundle"
                   required={isRequired("additionalTrustBundle")}
-                  value={trust.proxyCaPem || ""}
-                  onChange={handleProxyCaText}
+                  value={localProxyCaPem}
+                  onChange={setLocalProxyCaPem}
+                  onBlur={handleProxyCaBlur}
                   onFiles={handleProxyCaFiles}
                   error={proxyCaError}
                   placeholder="Paste or drop .pem/.crt here"

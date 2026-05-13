@@ -63,6 +63,18 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
     email: ""
   });
 
+  // Local state for text inputs (onBlur pattern)
+  const [clusterNameLocal, setClusterNameLocal] = React.useState(() => state.blueprint?.clusterName ?? "");
+  const [baseDomainLocal, setBaseDomainLocal] = React.useState(() => state.blueprint?.baseDomain ?? "");
+
+  // Sync local state when store changes
+  React.useEffect(() => {
+    setClusterNameLocal(state.blueprint?.clusterName ?? "");
+  }, [state.blueprint?.clusterName]);
+  React.useEffect(() => {
+    setBaseDomainLocal(state.blueprint?.baseDomain ?? "");
+  }, [state.blueprint?.baseDomain]);
+
   React.useEffect(() => {
     if (!allowedConnectivity.includes(state.docs?.connectivity || "")) {
       updateState({ docs: { ...state.docs, connectivity: "fully-disconnected" } });
@@ -116,7 +128,6 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
     if (!same) setNtpInput(nextStr);
   }, [strategy.ntpServers, ntpInput]);
   const updateNtpServers = (value) => {
-    setNtpInput(value);
     updateStrategy({
       ntpServers: value
         .split(",")
@@ -427,16 +438,18 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
             <label>
               Cluster Name
               <input
-                value={state.blueprint?.clusterName ?? ""}
-                onChange={(e) => updateState({ blueprint: { ...state.blueprint, clusterName: e.target.value } })}
+                value={clusterNameLocal}
+                onChange={(e) => setClusterNameLocal(e.target.value)}
+                onBlur={(e) => updateState({ blueprint: { ...state.blueprint, clusterName: e.target.value } })}
                 placeholder="airgap-cluster"
               />
             </label>
             <label>
               Base Domain
               <input
-                value={state.blueprint?.baseDomain ?? ""}
-                onChange={(e) => updateState({ blueprint: { ...state.blueprint, baseDomain: e.target.value } })}
+                value={baseDomainLocal}
+                onChange={(e) => setBaseDomainLocal(e.target.value)}
+                onBlur={(e) => updateState({ blueprint: { ...state.blueprint, baseDomain: e.target.value } })}
                 placeholder="example.com"
               />
             </label>
@@ -873,7 +886,8 @@ time.corp.local,10.90.0.10`}
             >
               <input
                 value={ntpInput}
-                onChange={(e) => updateNtpServers(e.target.value)}
+                onChange={(e) => setNtpInput(e.target.value)}
+                onBlur={(e) => updateNtpServers(e.target.value)}
                 placeholder="time.corp.local,10.90.0.10"
               />
             </FieldLabelWithInfo>

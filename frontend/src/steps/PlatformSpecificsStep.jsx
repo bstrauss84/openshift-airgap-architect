@@ -53,6 +53,67 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const [showVspherePassword, setShowVspherePassword] = useState(false);
   const [showNutanixPassword, setShowNutanixPassword] = useState(false);
 
+  // Local state for text inputs (onBlur pattern) - AWS
+  const [localAwsAmiId, setLocalAwsAmiId] = useState(platformConfig.aws?.amiId || "");
+  const [localAwsHostedZone, setLocalAwsHostedZone] = useState(platformConfig.aws?.hostedZone || "");
+  const [localAwsHostedZoneRole, setLocalAwsHostedZoneRole] = useState(platformConfig.aws?.hostedZoneRole || "");
+  const [localAwsControlPlaneInstanceType, setLocalAwsControlPlaneInstanceType] = useState(platformConfig.aws?.controlPlaneInstanceType || "");
+  const [localAwsWorkerInstanceType, setLocalAwsWorkerInstanceType] = useState(platformConfig.aws?.workerInstanceType || "");
+  const [localAwsRootVolumeSize, setLocalAwsRootVolumeSize] = useState(platformConfig.aws?.rootVolumeSize || "");
+  const [localAwsRootVolumeType, setLocalAwsRootVolumeType] = useState(platformConfig.aws?.rootVolumeType || "");
+
+  // Local state for text inputs (onBlur pattern) - Azure
+  const [localAzureRegion, setLocalAzureRegion] = useState(platformConfig.azure?.region || "");
+  const [localAzureResourceGroupName, setLocalAzureResourceGroupName] = useState(platformConfig.azure?.resourceGroupName || "");
+  const [localAzureBaseDomainResourceGroupName, setLocalAzureBaseDomainResourceGroupName] = useState(platformConfig.azure?.baseDomainResourceGroupName || "");
+
+  // Local state for text inputs (onBlur pattern) - IBM Cloud
+  const [localIbmRegion, setLocalIbmRegion] = useState(platformConfig.ibmcloud?.region || "");
+  const [localIbmResourceGroupName, setLocalIbmResourceGroupName] = useState(platformConfig.ibmcloud?.resourceGroupName || "");
+  const [localIbmType, setLocalIbmType] = useState(platformConfig.ibmcloud?.type || "");
+  const [localIbmNetworkResourceGroupName, setLocalIbmNetworkResourceGroupName] = useState(platformConfig.ibmcloud?.networkResourceGroupName || "");
+  const [localIbmVpcName, setLocalIbmVpcName] = useState(platformConfig.ibmcloud?.vpcName || "");
+  const [localIbmControlPlaneSubnets, setLocalIbmControlPlaneSubnets] = useState(platformConfig.ibmcloud?.controlPlaneSubnets || "");
+  const [localIbmComputeSubnets, setLocalIbmComputeSubnets] = useState(platformConfig.ibmcloud?.computeSubnets || "");
+  const [localIbmDedicatedHostsProfile, setLocalIbmDedicatedHostsProfile] = useState(platformConfig.ibmcloud?.dedicatedHostsProfile || "");
+  const [localIbmDedicatedHostsName, setLocalIbmDedicatedHostsName] = useState(platformConfig.ibmcloud?.dedicatedHostsName || "");
+  const [localIbmServiceEndpoints, setLocalIbmServiceEndpoints] = useState(platformConfig.ibmcloud?.serviceEndpoints || "");
+  const [localIbmDefaultMachineBootVolumeEncryptionKey, setLocalIbmDefaultMachineBootVolumeEncryptionKey] = useState(platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey || "");
+  const [localIbmControlPlaneBootVolumeEncryptionKey, setLocalIbmControlPlaneBootVolumeEncryptionKey] = useState(platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey || "");
+  const [localIbmComputeBootVolumeEncryptionKey, setLocalIbmComputeBootVolumeEncryptionKey] = useState(platformConfig.ibmcloud?.computeBootVolumeEncryptionKey || "");
+
+  // Local state for text inputs (onBlur pattern) - Nutanix
+  const [localNutanixEndpoint, setLocalNutanixEndpoint] = useState(platformConfig.nutanix?.endpoint || "");
+  const [localNutanixPort, setLocalNutanixPort] = useState(platformConfig.nutanix?.port || "");
+  const [localNutanixUsername, setLocalNutanixUsername] = useState(platformConfig.nutanix?.username || "");
+  const [localNutanixPassword, setLocalNutanixPassword] = useState(platformConfig.nutanix?.password || "");
+  const [localNutanixSubnet, setLocalNutanixSubnet] = useState(platformConfig.nutanix?.subnet || "");
+  const [localNutanixCluster, setLocalNutanixCluster] = useState(platformConfig.nutanix?.cluster || "");
+  const [localNutanixStorageContainer, setLocalNutanixStorageContainer] = useState(platformConfig.nutanix?.storageContainer || "");
+
+  // Local state for text inputs (onBlur pattern) - vSphere
+  const [localVsphereVcenter, setLocalVsphereVcenter] = useState(platformConfig.vsphere?.vcenter || "");
+  const [localVsphereUsername, setLocalVsphereUsername] = useState(platformConfig.vsphere?.username || "");
+  const [localVspherePassword, setLocalVspherePassword] = useState(platformConfig.vsphere?.password || "");
+  const [localVsphereDatacenter, setLocalVsphereDatacenter] = useState(platformConfig.vsphere?.datacenter || "");
+  const [localVsphereDefaultDatastore, setLocalVsphereDefaultDatastore] = useState(platformConfig.vsphere?.defaultDatastore || "");
+  const [localVsphereFolder, setLocalVsphereFolder] = useState(platformConfig.vsphere?.folder || "");
+  const [localVsphereResourcePool, setLocalVsphereResourcePool] = useState(platformConfig.vsphere?.resourcePool || "");
+  const [localVsphereCluster, setLocalVsphereCluster] = useState(platformConfig.vsphere?.cluster || "");
+
+  // Local state for text inputs (onBlur pattern) - Bare Metal Provisioning Network
+  const [localProvisioningNetworkCIDR, setLocalProvisioningNetworkCIDR] = useState(inventory.provisioningNetworkCIDR || "");
+  const [localProvisioningNetworkInterface, setLocalProvisioningNetworkInterface] = useState(inventory.provisioningNetworkInterface || "");
+  const [localProvisioningDHCPRange, setLocalProvisioningDHCPRange] = useState(inventory.provisioningDHCPRange || "");
+  const [localClusterProvisioningIP, setLocalClusterProvisioningIP] = useState(inventory.clusterProvisioningIP || "");
+  const [localProvisioningMACAddress, setLocalProvisioningMACAddress] = useState(inventory.provisioningMACAddress || "");
+
+  // Local state for text inputs (onBlur pattern) - Agent Options
+  const [localBootArtifactsBaseURL, setLocalBootArtifactsBaseURL] = useState(inventory.bootArtifactsBaseURL || "");
+  const [localAdditionalEnabledCapabilities, setLocalAdditionalEnabledCapabilities] = useState(
+    Array.isArray(platformConfig.additionalEnabledCapabilities) ? platformConfig.additionalEnabledCapabilities.join(", ") : ""
+  );
+
   const showAwsAmiLookup =
     showAwsGovcloudSection &&
     Boolean(versionConfirmed) &&
@@ -70,6 +131,69 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
       .then((data) => setAwsRegions(data.regions || []))
       .catch(() => setAwsRegions([]));
   }, [showAwsAmiLookup, selectedVersion, arch]);
+
+  // Sync local state when store values change (for imports/loads) - AWS
+  useEffect(() => { setLocalAwsAmiId(platformConfig.aws?.amiId || ""); }, [platformConfig.aws?.amiId]);
+  useEffect(() => { setLocalAwsHostedZone(platformConfig.aws?.hostedZone || ""); }, [platformConfig.aws?.hostedZone]);
+  useEffect(() => { setLocalAwsHostedZoneRole(platformConfig.aws?.hostedZoneRole || ""); }, [platformConfig.aws?.hostedZoneRole]);
+  useEffect(() => { setLocalAwsControlPlaneInstanceType(platformConfig.aws?.controlPlaneInstanceType || ""); }, [platformConfig.aws?.controlPlaneInstanceType]);
+  useEffect(() => { setLocalAwsWorkerInstanceType(platformConfig.aws?.workerInstanceType || ""); }, [platformConfig.aws?.workerInstanceType]);
+  useEffect(() => { setLocalAwsRootVolumeSize(platformConfig.aws?.rootVolumeSize || ""); }, [platformConfig.aws?.rootVolumeSize]);
+  useEffect(() => { setLocalAwsRootVolumeType(platformConfig.aws?.rootVolumeType || ""); }, [platformConfig.aws?.rootVolumeType]);
+
+  // Sync local state when store values change (for imports/loads) - Azure
+  useEffect(() => { setLocalAzureRegion(platformConfig.azure?.region || ""); }, [platformConfig.azure?.region]);
+  useEffect(() => { setLocalAzureResourceGroupName(platformConfig.azure?.resourceGroupName || ""); }, [platformConfig.azure?.resourceGroupName]);
+  useEffect(() => { setLocalAzureBaseDomainResourceGroupName(platformConfig.azure?.baseDomainResourceGroupName || ""); }, [platformConfig.azure?.baseDomainResourceGroupName]);
+
+  // Sync local state when store values change (for imports/loads) - IBM Cloud
+  useEffect(() => { setLocalIbmRegion(platformConfig.ibmcloud?.region || ""); }, [platformConfig.ibmcloud?.region]);
+  useEffect(() => { setLocalIbmResourceGroupName(platformConfig.ibmcloud?.resourceGroupName || ""); }, [platformConfig.ibmcloud?.resourceGroupName]);
+  useEffect(() => { setLocalIbmType(platformConfig.ibmcloud?.type || ""); }, [platformConfig.ibmcloud?.type]);
+  useEffect(() => { setLocalIbmNetworkResourceGroupName(platformConfig.ibmcloud?.networkResourceGroupName || ""); }, [platformConfig.ibmcloud?.networkResourceGroupName]);
+  useEffect(() => { setLocalIbmVpcName(platformConfig.ibmcloud?.vpcName || ""); }, [platformConfig.ibmcloud?.vpcName]);
+  useEffect(() => { setLocalIbmControlPlaneSubnets(platformConfig.ibmcloud?.controlPlaneSubnets || ""); }, [platformConfig.ibmcloud?.controlPlaneSubnets]);
+  useEffect(() => { setLocalIbmComputeSubnets(platformConfig.ibmcloud?.computeSubnets || ""); }, [platformConfig.ibmcloud?.computeSubnets]);
+  useEffect(() => { setLocalIbmDedicatedHostsProfile(platformConfig.ibmcloud?.dedicatedHostsProfile || ""); }, [platformConfig.ibmcloud?.dedicatedHostsProfile]);
+  useEffect(() => { setLocalIbmDedicatedHostsName(platformConfig.ibmcloud?.dedicatedHostsName || ""); }, [platformConfig.ibmcloud?.dedicatedHostsName]);
+  useEffect(() => { setLocalIbmServiceEndpoints(platformConfig.ibmcloud?.serviceEndpoints || ""); }, [platformConfig.ibmcloud?.serviceEndpoints]);
+  useEffect(() => { setLocalIbmDefaultMachineBootVolumeEncryptionKey(platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey || ""); }, [platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey]);
+  useEffect(() => { setLocalIbmControlPlaneBootVolumeEncryptionKey(platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey || ""); }, [platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey]);
+  useEffect(() => { setLocalIbmComputeBootVolumeEncryptionKey(platformConfig.ibmcloud?.computeBootVolumeEncryptionKey || ""); }, [platformConfig.ibmcloud?.computeBootVolumeEncryptionKey]);
+
+  // Sync local state when store values change (for imports/loads) - Nutanix
+  useEffect(() => { setLocalNutanixEndpoint(platformConfig.nutanix?.endpoint || ""); }, [platformConfig.nutanix?.endpoint]);
+  useEffect(() => { setLocalNutanixPort(platformConfig.nutanix?.port || ""); }, [platformConfig.nutanix?.port]);
+  useEffect(() => { setLocalNutanixUsername(platformConfig.nutanix?.username || ""); }, [platformConfig.nutanix?.username]);
+  useEffect(() => { setLocalNutanixPassword(platformConfig.nutanix?.password || ""); }, [platformConfig.nutanix?.password]);
+  useEffect(() => { setLocalNutanixSubnet(platformConfig.nutanix?.subnet || ""); }, [platformConfig.nutanix?.subnet]);
+  useEffect(() => { setLocalNutanixCluster(platformConfig.nutanix?.cluster || ""); }, [platformConfig.nutanix?.cluster]);
+  useEffect(() => { setLocalNutanixStorageContainer(platformConfig.nutanix?.storageContainer || ""); }, [platformConfig.nutanix?.storageContainer]);
+
+  // Sync local state when store values change (for imports/loads) - vSphere
+  useEffect(() => { setLocalVsphereVcenter(platformConfig.vsphere?.vcenter || ""); }, [platformConfig.vsphere?.vcenter]);
+  useEffect(() => { setLocalVsphereUsername(platformConfig.vsphere?.username || ""); }, [platformConfig.vsphere?.username]);
+  useEffect(() => { setLocalVspherePassword(platformConfig.vsphere?.password || ""); }, [platformConfig.vsphere?.password]);
+  useEffect(() => { setLocalVsphereDatacenter(platformConfig.vsphere?.datacenter || ""); }, [platformConfig.vsphere?.datacenter]);
+  useEffect(() => { setLocalVsphereDefaultDatastore(platformConfig.vsphere?.defaultDatastore || ""); }, [platformConfig.vsphere?.defaultDatastore]);
+  useEffect(() => { setLocalVsphereFolder(platformConfig.vsphere?.folder || ""); }, [platformConfig.vsphere?.folder]);
+  useEffect(() => { setLocalVsphereResourcePool(platformConfig.vsphere?.resourcePool || ""); }, [platformConfig.vsphere?.resourcePool]);
+  useEffect(() => { setLocalVsphereCluster(platformConfig.vsphere?.cluster || ""); }, [platformConfig.vsphere?.cluster]);
+
+  // Sync local state when store values change (for imports/loads) - Bare Metal Provisioning Network
+  useEffect(() => { setLocalProvisioningNetworkCIDR(inventory.provisioningNetworkCIDR || ""); }, [inventory.provisioningNetworkCIDR]);
+  useEffect(() => { setLocalProvisioningNetworkInterface(inventory.provisioningNetworkInterface || ""); }, [inventory.provisioningNetworkInterface]);
+  useEffect(() => { setLocalProvisioningDHCPRange(inventory.provisioningDHCPRange || ""); }, [inventory.provisioningDHCPRange]);
+  useEffect(() => { setLocalClusterProvisioningIP(inventory.clusterProvisioningIP || ""); }, [inventory.clusterProvisioningIP]);
+  useEffect(() => { setLocalProvisioningMACAddress(inventory.provisioningMACAddress || ""); }, [inventory.provisioningMACAddress]);
+
+  // Sync local state when store values change (for imports/loads) - Agent Options
+  useEffect(() => { setLocalBootArtifactsBaseURL(inventory.bootArtifactsBaseURL || ""); }, [inventory.bootArtifactsBaseURL]);
+  useEffect(() => {
+    setLocalAdditionalEnabledCapabilities(
+      Array.isArray(platformConfig.additionalEnabledCapabilities) ? platformConfig.additionalEnabledCapabilities.join(", ") : ""
+    );
+  }, [platformConfig.additionalEnabledCapabilities]);
 
   const updateInventory = (patch) => updateState({ hostInventory: { ...inventory, ...patch } });
   const updatePlatformConfig = (patch) => updateState({ platformConfig: { ...platformConfig, ...patch } });
@@ -158,19 +282,25 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   );
   const ibmVpcMode = platformConfig.ibmcloud?.vpcMode || "existing-vpc";
   const isIbmExistingVpcMode = ibmVpcMode === "existing-vpc";
-  const setIbmDedicatedHostsProfile = (value) => {
-    const next = (value || "").trim();
+  const handleIbmDedicatedHostsProfileBlur = () => {
+    const next = (localIbmDedicatedHostsProfile || "").trim();
     updateIbmCloud({
-      dedicatedHostsProfile: value,
+      dedicatedHostsProfile: localIbmDedicatedHostsProfile,
       ...(next ? { dedicatedHostsName: "" } : {})
     });
+    if (next) {
+      setLocalIbmDedicatedHostsName("");
+    }
   };
-  const setIbmDedicatedHostsName = (value) => {
-    const next = (value || "").trim();
+  const handleIbmDedicatedHostsNameBlur = () => {
+    const next = (localIbmDedicatedHostsName || "").trim();
     updateIbmCloud({
-      dedicatedHostsName: value,
+      dedicatedHostsName: localIbmDedicatedHostsName,
       ...(next ? { dedicatedHostsProfile: "" } : {})
     });
+    if (next) {
+      setLocalIbmDedicatedHostsProfile("");
+    }
   };
 
   /** Nutanix IPI: show when catalog has platform.nutanix params. */
@@ -387,8 +517,9 @@ ami-0a1b2c3d4e5f6g7h8 (but use Refresh button instead of guessing)`}
                     <div className="platform-specifics-ami-inline">
                       <input
                         className="platform-specifics-ami-input-wide"
-                        value={platformConfig.aws?.amiId || ""}
-                        onChange={(e) => updateAws({ amiId: e.target.value, amiAutoFilled: false })}
+                        value={localAwsAmiId}
+                        onChange={(e) => setLocalAwsAmiId(e.target.value)}
+                        onBlur={() => updateAws({ amiId: localAwsAmiId, amiAutoFilled: false })}
                         placeholder={platformConfig.aws?.region ? "ami-xxxxxxxx" : "Select region first"}
                         disabled={amiLookup.loading}
                       />
@@ -545,8 +676,9 @@ subnet-0def456abc789 (us-east-1b)`}
 **Example:** 'Z1234567890ABC' (but use your actual hosted zone ID). Most installer-managed VPC installs should leave this blank.`}
                   >
                     <input
-                      value={platformConfig.aws?.hostedZone || ""}
-                      onChange={(e) => updateAws({ hostedZone: e.target.value })}
+                      value={localAwsHostedZone}
+                      onChange={(e) => setLocalAwsHostedZone(e.target.value)}
+                      onBlur={() => updateAws({ hostedZone: localAwsHostedZone })}
                       placeholder="Z1234567890"
                       style={{ maxWidth: "280px" }}
                     />
@@ -578,8 +710,9 @@ subnet-0def456abc789 (us-east-1b)`}
 **Example:** 'arn:aws-us-gov:iam::999888777666:role/SharedVPC-Route53-Role'.`}
                     >
                       <input
-                        value={platformConfig.aws?.hostedZoneRole || ""}
-                        onChange={(e) => updateAws({ hostedZoneRole: e.target.value })}
+                        value={localAwsHostedZoneRole}
+                        onChange={(e) => setLocalAwsHostedZoneRole(e.target.value)}
+                        onBlur={() => updateAws({ hostedZoneRole: localAwsHostedZoneRole })}
                         placeholder="arn:aws-us-gov:iam::123:role/HostedZoneRole"
                         style={{ maxWidth: "400px" }}
                       />
@@ -640,8 +773,9 @@ subnet-0def456abc789 (us-east-1b)`}
 **Example:** 'm5.xlarge' for small/medium clusters (up to 100 nodes), 'm5.2xlarge' for large clusters (100-500 nodes), 'm5.4xlarge' for very large clusters (500+ nodes).`}
                       >
                         <input
-                          value={platformConfig.aws?.controlPlaneInstanceType || ""}
-                          onChange={(e) => updateAws({ controlPlaneInstanceType: e.target.value })}
+                          value={localAwsControlPlaneInstanceType}
+                          onChange={(e) => setLocalAwsControlPlaneInstanceType(e.target.value)}
+                          onBlur={() => updateAws({ controlPlaneInstanceType: localAwsControlPlaneInstanceType })}
                           placeholder="e.g. m5.xlarge"
                           style={{ maxWidth: "280px" }}
                         />
@@ -659,8 +793,9 @@ subnet-0def456abc789 (us-east-1b)`}
 **Example:** 'm5.large' for light workloads, 'm5.xlarge' for general production, 'c5.2xlarge' for compute-heavy batch jobs, 'r5.2xlarge' for databases/caching.`}
                       >
                         <input
-                          value={platformConfig.aws?.workerInstanceType || ""}
-                          onChange={(e) => updateAws({ workerInstanceType: e.target.value })}
+                          value={localAwsWorkerInstanceType}
+                          onChange={(e) => setLocalAwsWorkerInstanceType(e.target.value)}
+                          onBlur={() => updateAws({ workerInstanceType: localAwsWorkerInstanceType })}
                           placeholder="e.g. m5.large"
                           style={{ maxWidth: "280px" }}
                         />
@@ -686,8 +821,9 @@ subnet-0def456abc789 (us-east-1b)`}
                           type="number"
                           min={1}
                           max={9999}
-                          value={platformConfig.aws?.rootVolumeSize ?? ""}
-                          onChange={(e) => updateAws({ rootVolumeSize: e.target.value === "" ? undefined : Number(e.target.value) })}
+                          value={localAwsRootVolumeSize}
+                          onChange={(e) => setLocalAwsRootVolumeSize(e.target.value)}
+                          onBlur={() => updateAws({ rootVolumeSize: localAwsRootVolumeSize === "" ? undefined : Number(localAwsRootVolumeSize) })}
                           placeholder="omit"
                         />
                       </FieldLabelWithInfo>
@@ -703,8 +839,9 @@ subnet-0def456abc789 (us-east-1b)`}
                         className="field-medium"
                       >
                         <input
-                          value={platformConfig.aws?.rootVolumeType || ""}
-                          onChange={(e) => updateAws({ rootVolumeType: e.target.value || undefined })}
+                          value={localAwsRootVolumeType}
+                          onChange={(e) => setLocalAwsRootVolumeType(e.target.value)}
+                          onBlur={() => updateAws({ rootVolumeType: localAwsRootVolumeType || undefined })}
                           placeholder="e.g. gp3"
                         />
                       </FieldLabelWithInfo>
@@ -952,8 +1089,9 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                   required={metaAzureRegion?.required || isRequiredInstall("platform.azure.region")}
                 >
                   <input
-                    value={platformConfig.azure?.region || ""}
-                    onChange={(e) => updateAzure({ region: e.target.value })}
+                    value={localAzureRegion}
+                    onChange={(e) => setLocalAzureRegion(e.target.value)}
+                    onBlur={() => updateAzure({ region: localAzureRegion })}
                     placeholder="e.g. usgovvirginia"
                   />
                 </FieldLabelWithInfo>
@@ -971,8 +1109,9 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                   required={metaAzureResourceGroupName?.required || isRequiredInstall("platform.azure.resourceGroupName")}
                 >
                   <input
-                    value={platformConfig.azure?.resourceGroupName || ""}
-                    onChange={(e) => updateAzure({ resourceGroupName: e.target.value })}
+                    value={localAzureResourceGroupName}
+                    onChange={(e) => setLocalAzureResourceGroupName(e.target.value)}
+                    onBlur={() => updateAzure({ resourceGroupName: localAzureResourceGroupName })}
                     placeholder="Existing resource group for cluster"
                   />
                 </FieldLabelWithInfo>
@@ -998,8 +1137,9 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                   required={metaAzureBaseDomainResourceGroupName?.required || isRequiredInstall("platform.azure.baseDomainResourceGroupName")}
                 >
                   <input
-                    value={platformConfig.azure?.baseDomainResourceGroupName || ""}
-                    onChange={(e) => updateAzure({ baseDomainResourceGroupName: e.target.value })}
+                    value={localAzureBaseDomainResourceGroupName}
+                    onChange={(e) => setLocalAzureBaseDomainResourceGroupName(e.target.value)}
+                    onBlur={() => updateAzure({ baseDomainResourceGroupName: localAzureBaseDomainResourceGroupName })}
                     placeholder="Resource group containing DNS zone for base domain"
                   />
                 </FieldLabelWithInfo>
@@ -1217,8 +1357,9 @@ Each region is completely independent with separate API endpoints, resource name
                   required={metaIbmRegion?.required || isRequiredInstall("platform.ibmcloud.region")}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.region || ""}
-                    onChange={(e) => updateIbmCloud({ region: e.target.value })}
+                    value={localIbmRegion}
+                    onChange={(e) => setLocalIbmRegion(e.target.value)}
+                    onBlur={() => updateIbmCloud({ region: localIbmRegion })}
                     placeholder="e.g. us-east"
                     style={{ maxWidth: "280px" }}
                   />
@@ -1238,8 +1379,9 @@ Each region is completely independent with separate API endpoints, resource name
 **Example:** 'ocp-prod-cluster-rg' or 'openshift-dev-useast'. If left blank, the installer uses the account's default resource group (typically named 'Default'). You can find existing resource groups via IBM Cloud CLI: 'ibmcloud resource groups' or in the console → Manage → Account → Resource groups.`}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.resourceGroupName || ""}
-                    onChange={(e) => updateIbmCloud({ resourceGroupName: e.target.value })}
+                    value={localIbmResourceGroupName}
+                    onChange={(e) => setLocalIbmResourceGroupName(e.target.value)}
+                    onBlur={() => updateIbmCloud({ resourceGroupName: localIbmResourceGroupName })}
                     placeholder="cluster-resource-group"
                     style={{ maxWidth: "400px" }}
                   />
@@ -1259,8 +1401,9 @@ Each region is completely independent with separate API endpoints, resource name
 **Example:** 'bx2-8x32' for production control plane. You can override this default per-pool in the Machine Pools section if different node types need different sizing.`}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.type || ""}
-                    onChange={(e) => updateIbmCloud({ type: e.target.value })}
+                    value={localIbmType}
+                    onChange={(e) => setLocalIbmType(e.target.value)}
+                    onBlur={() => updateIbmCloud({ type: localIbmType })}
                     placeholder="e.g. bx2-8x32"
                     style={{ maxWidth: "280px" }}
                   />
@@ -1340,8 +1483,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                   required={true}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.networkResourceGroupName || ""}
-                    onChange={(e) => updateIbmCloud({ networkResourceGroupName: e.target.value })}
+                    value={localIbmNetworkResourceGroupName}
+                    onChange={(e) => setLocalIbmNetworkResourceGroupName(e.target.value)}
+                    onBlur={() => updateIbmCloud({ networkResourceGroupName: localIbmNetworkResourceGroupName })}
                     placeholder="existing-network-rg"
                     style={{ maxWidth: "400px" }}
                   />
@@ -1367,8 +1511,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                   required={true}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.vpcName || ""}
-                    onChange={(e) => updateIbmCloud({ vpcName: e.target.value })}
+                    value={localIbmVpcName}
+                    onChange={(e) => setLocalIbmVpcName(e.target.value)}
+                    onBlur={() => updateIbmCloud({ vpcName: localIbmVpcName })}
                     placeholder="existing-vpc-name"
                     style={{ maxWidth: "400px" }}
                   />
@@ -1396,8 +1541,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                   required={true}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.controlPlaneSubnets || ""}
-                    onChange={(e) => updateIbmCloud({ controlPlaneSubnets: e.target.value })}
+                    value={localIbmControlPlaneSubnets}
+                    onChange={(e) => setLocalIbmControlPlaneSubnets(e.target.value)}
+                    onBlur={() => updateIbmCloud({ controlPlaneSubnets: localIbmControlPlaneSubnets })}
                     placeholder="cp-subnet-a,cp-subnet-b,cp-subnet-c"
                     style={{ maxWidth: "400px" }}
                   />
@@ -1428,8 +1574,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                   required={true}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.computeSubnets || ""}
-                    onChange={(e) => updateIbmCloud({ computeSubnets: e.target.value })}
+                    value={localIbmComputeSubnets}
+                    onChange={(e) => setLocalIbmComputeSubnets(e.target.value)}
+                    onBlur={() => updateIbmCloud({ computeSubnets: localIbmComputeSubnets })}
                     placeholder="compute-subnet-a,compute-subnet-b,compute-subnet-c"
                     style={{ maxWidth: "400px" }}
                   />
@@ -1472,8 +1619,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Example:** 'bx2-host-100x200' for balanced workloads, 'cx2-host-152x304' for compute-intensive clusters. Available profiles vary by region - verify via 'ibmcloud is dedicated-host-profiles' CLI command or IBM Cloud console.`}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.dedicatedHostsProfile || ""}
-                    onChange={(e) => setIbmDedicatedHostsProfile(e.target.value)}
+                    value={localIbmDedicatedHostsProfile}
+                    onChange={(e) => setLocalIbmDedicatedHostsProfile(e.target.value)}
+                    onBlur={handleIbmDedicatedHostsProfileBlur}
                     placeholder="e.g. cx2-host-152x304"
                     style={{ maxWidth: "280px" }}
                   />
@@ -1502,8 +1650,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Example:** 'my-existing-dedicated-host' (must match exact name in IBM Cloud).`}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.dedicatedHostsName || ""}
-                    onChange={(e) => setIbmDedicatedHostsName(e.target.value)}
+                    value={localIbmDedicatedHostsName}
+                    onChange={(e) => setLocalIbmDedicatedHostsName(e.target.value)}
+                    onBlur={handleIbmDedicatedHostsNameBlur}
                     placeholder="existing-dedicated-host"
                     style={{ maxWidth: "400px" }}
                   />
@@ -1533,8 +1682,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
                   className="platform-specifics-field-full"
                 >
                   <textarea
-                    value={platformConfig.ibmcloud?.serviceEndpoints || ""}
-                    onChange={(e) => updateIbmCloud({ serviceEndpoints: e.target.value })}
+                    value={localIbmServiceEndpoints}
+                    onChange={(e) => setLocalIbmServiceEndpoints(e.target.value)}
+                    onBlur={() => updateIbmCloud({ serviceEndpoints: localIbmServiceEndpoints })}
                     rows={5}
                     placeholder={"IAM=https://private.us-east.iam.cloud.ibm.com\nVPC=https://us-east.private.iaas.cloud.ibm.com/v1"}
                   />
@@ -1564,8 +1714,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Example:** 'crn:v1:bluemix:public:kms:us-east:a/1234567890abcdef:key-instance-id:key-id'. You can find root key CRNs in IBM Cloud console → Key Protect/HPCS → Keys → Actions → Show CRN, or via CLI: 'ibmcloud kp keys'.`}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.defaultMachineBootVolumeEncryptionKey || ""}
-                    onChange={(e) => updateIbmCloud({ defaultMachineBootVolumeEncryptionKey: e.target.value })}
+                    value={localIbmDefaultMachineBootVolumeEncryptionKey}
+                    onChange={(e) => setLocalIbmDefaultMachineBootVolumeEncryptionKey(e.target.value)}
+                    onBlur={() => updateIbmCloud({ defaultMachineBootVolumeEncryptionKey: localIbmDefaultMachineBootVolumeEncryptionKey })}
                     placeholder="crn:v1:bluemix:public:kms:..."
                     style={{ maxWidth: "400px" }}
                   />
@@ -1587,8 +1738,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Example use case:** High-security cluster where control plane uses HPCS (higher security/compliance tier) while workers use standard Key Protect (cost-effective for less-sensitive workload nodes).`}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.controlPlaneBootVolumeEncryptionKey || ""}
-                    onChange={(e) => updateIbmCloud({ controlPlaneBootVolumeEncryptionKey: e.target.value })}
+                    value={localIbmControlPlaneBootVolumeEncryptionKey}
+                    onChange={(e) => setLocalIbmControlPlaneBootVolumeEncryptionKey(e.target.value)}
+                    onBlur={() => updateIbmCloud({ controlPlaneBootVolumeEncryptionKey: localIbmControlPlaneBootVolumeEncryptionKey })}
                     placeholder="crn:v1:bluemix:public:kms:..."
                     style={{ maxWidth: "400px" }}
                   />
@@ -1610,8 +1762,9 @@ Choose 'Installer-managed VPC' for quick dev clusters or proof-of-concepts. Choo
 **Example use case:** General-purpose cluster where compute nodes use standard Key Protect (cost-effective for ephemeral worker VMs) while control plane uses HPCS (critical infrastructure with higher security/auditability requirements).`}
                 >
                   <input
-                    value={platformConfig.ibmcloud?.computeBootVolumeEncryptionKey || ""}
-                    onChange={(e) => updateIbmCloud({ computeBootVolumeEncryptionKey: e.target.value })}
+                    value={localIbmComputeBootVolumeEncryptionKey}
+                    onChange={(e) => setLocalIbmComputeBootVolumeEncryptionKey(e.target.value)}
+                    onBlur={() => updateIbmCloud({ computeBootVolumeEncryptionKey: localIbmComputeBootVolumeEncryptionKey })}
                     placeholder="crn:v1:bluemix:public:kms:..."
                     style={{ maxWidth: "400px" }}
                   />
@@ -1775,8 +1928,9 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                   style={{ maxWidth: "400px" }}
                 >
                   <input
-                    value={platformConfig.nutanix?.endpoint || ""}
-                    onChange={(e) => updateNutanix({ endpoint: e.target.value })}
+                    value={localNutanixEndpoint}
+                    onChange={(e) => setLocalNutanixEndpoint(e.target.value)}
+                    onBlur={() => updateNutanix({ endpoint: localNutanixEndpoint })}
                     placeholder="prism.example.com"
                   />
                 </FieldLabelWithInfo>
@@ -1786,8 +1940,9 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                 >
                   <input
                     type="number"
-                    value={platformConfig.nutanix?.port ?? ""}
-                    onChange={(e) => updateNutanix({ port: e.target.value || undefined })}
+                    value={localNutanixPort}
+                    onChange={(e) => setLocalNutanixPort(e.target.value)}
+                    onBlur={() => updateNutanix({ port: localNutanixPort || undefined })}
                     placeholder="9440"
                     style={{ maxWidth: 120 }}
                   />
@@ -1804,8 +1959,9 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                   className="field-medium"
                 >
                   <input
-                    value={platformConfig.nutanix?.username || ""}
-                    onChange={(e) => updateNutanix({ username: e.target.value })}
+                    value={localNutanixUsername}
+                    onChange={(e) => setLocalNutanixUsername(e.target.value)}
+                    onBlur={() => updateNutanix({ username: localNutanixUsername })}
                     placeholder="admin"
                     autoComplete="username"
                     data-form-type="other"
@@ -1826,8 +1982,9 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck={false}
-                      value={platformConfig.nutanix?.password || ""}
-                      onChange={(e) => updateNutanix({ password: e.target.value })}
+                      value={localNutanixPassword}
+                      onChange={(e) => setLocalNutanixPassword(e.target.value)}
+                      onBlur={() => updateNutanix({ password: localNutanixPassword })}
                       placeholder="••••••••"
                       style={{ flex: "1 1 auto", minWidth: 0 }}
                     />
@@ -1878,8 +2035,9 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                   required={metaNutanixSubnet?.required || isRequiredInstall("platform.nutanix.subnet")}
                 >
                   <input
-                    value={platformConfig.nutanix?.subnet || ""}
-                    onChange={(e) => updateNutanix({ subnet: e.target.value })}
+                    value={localNutanixSubnet}
+                    onChange={(e) => setLocalNutanixSubnet(e.target.value)}
+                    onBlur={() => updateNutanix({ subnet: localNutanixSubnet })}
                     placeholder="subnet-uuid or uuid1,uuid2"
                   />
                 </FieldLabelWithInfo>
@@ -1888,8 +2046,9 @@ For multi-subnet deployments, provide comma-separated UUIDs: uuid1,uuid2,uuid3
                   hint={"Name of the Nutanix Prism Element (PE) cluster where OpenShift virtual machines will be deployed. Leave blank to let the installer choose automatically (most common).\n\n**What is this:** Nutanix uses a two-tier management model - Prism Central (PC) manages multiple Prism Element clusters. Each PE cluster is a group of Nutanix nodes (hyperconverged servers) that form a storage/compute pool. This field specifies which PE cluster hosts your OpenShift VMs.\n\n**Why specify one:** Set a cluster name when you have multiple PE clusters managed by your Prism Central and want to pin OpenShift to a specific cluster (e.g., for capacity isolation, SLA tiers, or licensing/billing separation). If left blank, the installer selects a PE cluster automatically based on available resources.\n\n**Important:** This field expects the CLUSTER NAME (human-readable string like 'Production-Cluster-01'), NOT the cluster UUID. You can find cluster names in Prism Central → Compute & Storage → Clusters. The cluster must be registered with the Prism Central endpoint you specified above, and must have sufficient resources (CPU, memory, storage) for your control plane and worker node requirements. The cluster must also be running compatible Nutanix AOS/AHV versions (consult OpenShift documentation for version compatibility matrix).\n\n**Example:** 'Production-Cluster-01' or 'NX-3060-Cluster'. Most single-cluster Nutanix deployments leave this blank."}
                 >
                   <input
-                    value={platformConfig.nutanix?.cluster || ""}
-                    onChange={(e) => updateNutanix({ cluster: e.target.value })}
+                    value={localNutanixCluster}
+                    onChange={(e) => setLocalNutanixCluster(e.target.value)}
+                    onBlur={() => updateNutanix({ cluster: localNutanixCluster })}
                     placeholder="my-nutanix-cluster"
                   />
                 </FieldLabelWithInfo>
@@ -1928,8 +2087,9 @@ openshift-storage
 ssd-container`}
                 >
                   <input
-                    value={platformConfig.nutanix?.storageContainer || ""}
-                    onChange={(e) => updateNutanix({ storageContainer: e.target.value })}
+                    value={localNutanixStorageContainer}
+                    onChange={(e) => setLocalNutanixStorageContainer(e.target.value)}
+                    onBlur={() => updateNutanix({ storageContainer: localNutanixStorageContainer })}
                     placeholder="default-container"
                   />
                 </FieldLabelWithInfo>
@@ -2115,8 +2275,9 @@ This account must have **Administrator** privileges or at minimum these permissi
 Included in install-config only when you choose to include credentials in export`}
                 >
                   <input
-                    value={platformConfig.vsphere?.username || ""}
-                    onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, username: e.target.value } })}
+                    value={localVsphereUsername}
+                    onChange={(e) => setLocalVsphereUsername(e.target.value)}
+                    onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, username: localVsphereUsername } })}
                     placeholder="administrator@vsphere.local"
                     autoComplete="username"
                     data-form-type="other"
@@ -2147,8 +2308,9 @@ The password is included in generated install-config.yaml **only when** you choo
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck={false}
-                      value={platformConfig.vsphere?.password || ""}
-                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: e.target.value } })}
+                      value={localVspherePassword}
+                      onChange={(e) => setLocalVspherePassword(e.target.value)}
+                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: localVspherePassword } })}
                       placeholder="••••••••"
                       aria-label="vCenter password (optional)"
                       style={{ flex: 1, minWidth: 0 }}
@@ -2223,8 +2385,9 @@ vcenter.example.com (production)
                     required={true}
                   >
                     <input
-                      value={platformConfig.vsphere?.vcenter || ""}
-                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: e.target.value } })}
+                      value={localVsphereVcenter}
+                      onChange={(e) => setLocalVsphereVcenter(e.target.value)}
+                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: localVsphereVcenter } })}
                       placeholder="vcenter.example.com"
                     />
                   </FieldLabelWithInfo>
@@ -2249,8 +2412,9 @@ Datacenter-Production (descriptive naming)`}
                     required={true}
                   >
                     <input
-                      value={platformConfig.vsphere?.datacenter || ""}
-                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: e.target.value } })}
+                      value={localVsphereDatacenter}
+                      onChange={(e) => setLocalVsphereDatacenter(e.target.value)}
+                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: localVsphereDatacenter } })}
                       placeholder="Datacenter name"
                     />
                   </FieldLabelWithInfo>
@@ -2279,8 +2443,9 @@ Production-SAN-01 (descriptive naming)`}
                     required={metaVsphereDefaultDatastore?.required || isRequiredInstall("platform.vsphere.defaultDatastore")}
                   >
                     <input
-                      value={platformConfig.vsphere?.datastore || ""}
-                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: e.target.value } })}
+                      value={localVsphereDefaultDatastore}
+                      onChange={(e) => setLocalVsphereDefaultDatastore(e.target.value)}
+                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: localVsphereDefaultDatastore } })}
                       placeholder="Datastore name"
                     />
                   </FieldLabelWithInfo>
@@ -2308,8 +2473,9 @@ Cluster-Production-01
 Compute-Zone-A`}
                   >
                     <input
-                      value={platformConfig.vsphere?.cluster || ""}
-                      onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: e.target.value } })}
+                      value={localVsphereCluster}
+                      onChange={(e) => setLocalVsphereCluster(e.target.value)}
+                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: localVsphereCluster } })}
                       placeholder="e.g. Cluster1"
                     />
                   </FieldLabelWithInfo>
@@ -3327,8 +3493,9 @@ Value in MB (use multiples of 1024 for clean GB values):
                       : "CIDR (Classless Inter-Domain Routing) notation for the provisioning network's IP address range. Defines the subnet where the OpenShift installer runs provisioning services and assigns temporary IPs to nodes during bootstrap.\n\n**What is this:**\nIPv4 or IPv6 network range in CIDR format (e.g., 172.22.0.0/24) that defines the provisioning network's address space. The installer uses this subnet for DHCP assignments, bootstrap services, and node imaging.\n\n**Format:**\nNetwork address / prefix length\n• IPv4 example: 172.22.0.0/24 (256 addresses)\n• IPv6 example: fd00::/64\n\n**When to set:**\n• **Managed mode:** Optional but recommended - defines the provisioning subnet for DHCP and services\n• **Unmanaged mode:** Optional - documents your existing provisioning network CIDR\n• **Disabled mode:** Omit, or set to bare-metal network CIDR if provisioning services run on that network\n\n**Default behavior:**\nIf omitted in Managed mode, installer may use a default range (consult OpenShift docs for version-specific defaults)\n\n**Sizing guidelines:**\n• /24 (256 addresses) - Standard for small-medium clusters (up to 50 nodes)\n• /23 (512 addresses) - Large clusters or future expansion\n• /25 (128 addresses) - Small clusters (under 20 nodes)\n\n**Requirements:**\n• Must not overlap with Machine network, Cluster network, or Service network CIDRs (from Networking tab)\n• Must be routable only on the provisioning network segment (isolated from production traffic)\n• Enough addresses for all nodes + bootstrap + DHCP overhead (nodes × 2 recommended)\n\n**Relationship to other fields:**\n• **provisioningDHCPRange:** DHCP range must be within this CIDR\n• **clusterProvisioningIP:** Provisioning services IP must be within this CIDR\n\n**Example:**\n172.22.0.0/24 (common choice for isolated provisioning network)"}
                   >
                     <input
-                      value={inventory.provisioningNetworkCIDR || ""}
-                      onChange={(e) => updateInventory({ provisioningNetworkCIDR: e.target.value.trim() })}
+                      value={localProvisioningNetworkCIDR}
+                      onChange={(e) => setLocalProvisioningNetworkCIDR(e.target.value)}
+                      onBlur={() => updateInventory({ provisioningNetworkCIDR: localProvisioningNetworkCIDR.trim() })}
                       placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : "e.g. 172.22.0.0/24"}
                     />
                   </FieldLabelWithInfo>
@@ -3339,8 +3506,9 @@ Value in MB (use multiples of 1024 for clean GB values):
                       : "Name of the network interface on the bootstrap/provisioning host that connects to the provisioning network. Identifies which NIC the installer binds provisioning services (DHCP, TFTP, HTTP) to.\n\n**What is this:**\nLinux network interface name (e.g., 'eth0', 'ens192', 'enp1s0') on the machine where you run openshift-install. The installer uses this interface to communicate with bare metal nodes during provisioning.\n\n**When to set:**\n• **Required when:** Bootstrap host has multiple network interfaces and you need to specify which one faces the provisioning network\n• **Optional when:** Single NIC system - installer auto-detects\n• **Not used when:** provisioningNetwork = 'Disabled'\n\n**How to find interface name:**\nOn the host where you'll run openshift-install:\n• Linux: `ip link show` or `ip addr show` (lists all interfaces)\n• Look for the interface connected to your provisioning VLAN/network\n\n**Common interface naming:**\n• **Predictable naming (systemd):** ens192, eno1, enp1s0\n• **Traditional naming:** eth0, eth1, eth2\n• **Bond interfaces:** bond0, bond1\n• **VLAN interfaces:** eth0.100, ens192.200\n\n**Requirements:**\n• Interface must be UP (enabled) before running openshift-install\n• Interface should have an IP address in the provisioning network CIDR\n• Interface must be physically connected to the same network segment as bare metal node BMCs and provisioning NICs\n\n**Relationship to provisioningMACAddress:**\nYou can specify interface by name (this field) OR by MAC address (provisioningMACAddress field) - either works, name is more human-readable\n\n**Example:**\neth1 (second NIC on traditional naming)\nens192 (typical VMware VM interface)\nenp2s0 (PCIe slot 2, port 0)"}
                   >
                     <input
-                      value={inventory.provisioningNetworkInterface || ""}
-                      onChange={(e) => updateInventory({ provisioningNetworkInterface: e.target.value })}
+                      value={localProvisioningNetworkInterface}
+                      onChange={(e) => setLocalProvisioningNetworkInterface(e.target.value)}
+                      onBlur={() => updateInventory({ provisioningNetworkInterface: localProvisioningNetworkInterface })}
                       placeholder={provisioningMode === "Disabled" ? "omit" : "e.g. eth1"}
                     />
                   </FieldLabelWithInfo>
@@ -3380,8 +3548,9 @@ Start IP, end IP (comma-separated, no spaces after comma)
 172.22.0.50,172.22.0.80 (31 addresses for smaller clusters)`}
                     >
                       <input
-                        value={inventory.provisioningDHCPRange || ""}
-                        onChange={(e) => updateInventory({ provisioningDHCPRange: e.target.value })}
+                        value={localProvisioningDHCPRange}
+                        onChange={(e) => setLocalProvisioningDHCPRange(e.target.value)}
+                        onBlur={() => updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange })}
                         placeholder="e.g. 172.22.0.10,172.22.0.254"
                       />
                     </FieldLabelWithInfo>
@@ -3393,8 +3562,9 @@ Start IP, end IP (comma-separated, no spaces after comma)
                       : "IPv4 or IPv6 address assigned to the provisioning host's interface where OpenShift installer provisioning services (DHCP, TFTP, HTTP) listen. This is the IP nodes contact to fetch boot images and configuration during installation.\n\n**What is this:**\nStatic IP address on the provisioning network that the installer binds its services to. Bare metal nodes PXE boot and download images from this IP during the bootstrap process.\n\n**Default behavior:**\nIf omitted, the installer typically uses the **third IP** of the provisioning subnet (catalog default). For example, if provisioningNetworkCIDR is 172.22.0.0/24, default might be 172.22.0.3.\n\n**When to set explicitly:**\n• When you need a specific IP for firewall rules or DNS entries\n• When the third IP of the subnet is already in use\n• When integrating with existing provisioning infrastructure that expects a particular IP\n\n**Requirements:**\n• **Managed/Unmanaged modes:** Must be within provisioningNetworkCIDR\n• **Disabled mode:** Must be on the bare-metal network (Machine network CIDR)\n• Must NOT conflict with provisioningDHCPRange\n• Must be statically assigned (not in DHCP dynamic range)\n• Must be reachable from bare metal node BMCs and boot interfaces\n\n**Provisioning mode specifics:**\n\n**Managed:** \nInstaller runs DHCP/TFTP on this IP on the provisioning network. Nodes receive this IP via DHCP options as their boot server.\n\n**Unmanaged:**\nYou run DHCP elsewhere, but installer HTTP/image services still bind to this IP. Configure your DHCP server to point nodes to this IP for image downloads.\n\n**Disabled:**\nNo dedicated provisioning network - installer services run on the bare-metal network. This IP is one of two IPs needed on the bare-metal network for provisioning (the other for bootstrap services).\n\n**How nodes use this IP:**\n• PXE boot: Fetch kernel/initrd via TFTP from this IP\n• Image download: Pull RHCOS images via HTTP from this IP\n• Ignition config: Retrieve bootstrap configuration from this IP\n\n**Example:**\n172.22.0.10 (Managed mode, within 172.22.0.0/24)\n10.0.0.100 (Disabled mode, on bare-metal network 10.0.0.0/24)"}
                   >
                     <input
-                      value={inventory.clusterProvisioningIP || ""}
-                      onChange={(e) => updateInventory({ clusterProvisioningIP: e.target.value.trim() })}
+                      value={localClusterProvisioningIP}
+                      onChange={(e) => setLocalClusterProvisioningIP(e.target.value)}
+                      onBlur={() => updateInventory({ clusterProvisioningIP: localClusterProvisioningIP.trim() })}
                       placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : "IP within provisioning subnet"}
                     />
                   </FieldLabelWithInfo>
@@ -3434,8 +3604,9 @@ On the host where you'll run openshift-install:
 00:1a:2b:3c:4d:5e (physical NIC MAC)`}
                   >
                     <input
-                      value={inventory.provisioningMACAddress || ""}
-                      onChange={(e) => updateInventory({ provisioningMACAddress: formatMACAsYouType(e.target.value) })}
+                      value={localProvisioningMACAddress}
+                      onChange={(e) => setLocalProvisioningMACAddress(formatMACAsYouType(e.target.value))}
+                      onBlur={() => updateInventory({ provisioningMACAddress: localProvisioningMACAddress })}
                       placeholder="MAC where provisioning services run"
                     />
                   </FieldLabelWithInfo>
@@ -3484,8 +3655,9 @@ Switch to 'Use failure domains (recommended)' radio button above and set Topolog
 **When to use legacy mode:**
 Only when you cannot use failure domains (e.g., single cluster deployment with no zone separation needs).`}>
                         <input
-                          value={platformConfig.vsphere?.folder || ""}
-                          onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, folder: e.target.value } })}
+                          value={localVsphereFolder}
+                          onChange={(e) => setLocalVsphereFolder(e.target.value)}
+                          onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, folder: localVsphereFolder } })}
                           placeholder="VM folder path"
                         />
                       </FieldLabelWithInfo>
@@ -3520,8 +3692,9 @@ Switch to 'Use failure domains (recommended)' radio button above and set Topolog
 **When to use legacy mode:**
 Only when you cannot use failure domains and need basic resource pool assignment for all cluster VMs in a single pool.`}>
                         <input
-                          value={platformConfig.vsphere?.resourcePool || ""}
-                          onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, resourcePool: e.target.value } })}
+                          value={localVsphereResourcePool}
+                          onChange={(e) => setLocalVsphereResourcePool(e.target.value)}
+                          onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, resourcePool: localVsphereResourcePool } })}
                           placeholder="Resource pool path"
                         />
                       </FieldLabelWithInfo>
@@ -3569,8 +3742,9 @@ https://mirror.internal.example.com/ocp-4.14/agent-boot`}
                       required={metaBootArtifacts?.required || isRequiredAgent("bootArtifactsBaseURL")}
                     >
                       <input
-                        value={inventory.bootArtifactsBaseURL || ""}
-                        onChange={(e) => updateInventory({ bootArtifactsBaseURL: e.target.value })}
+                        value={localBootArtifactsBaseURL}
+                        onChange={(e) => setLocalBootArtifactsBaseURL(e.target.value)}
+                        onBlur={() => updateInventory({ bootArtifactsBaseURL: localBootArtifactsBaseURL })}
                         placeholder="https://example.com/agent-artifacts or leave empty"
                       />
                     </FieldLabelWithInfo>
@@ -3778,9 +3952,10 @@ Console, Ingress (minimal cluster with UI and routing)
 Console, Marketplace, Insights (minimal + marketplace)`}
                       >
                         <input
-                          value={Array.isArray(platformConfig.additionalEnabledCapabilities) ? platformConfig.additionalEnabledCapabilities.join(", ") : (typeof platformConfig.additionalEnabledCapabilities === "string" ? platformConfig.additionalEnabledCapabilities : "")}
-                          onChange={(e) => {
-                            const raw = e.target.value.trim();
+                          value={localAdditionalEnabledCapabilities}
+                          onChange={(e) => setLocalAdditionalEnabledCapabilities(e.target.value)}
+                          onBlur={() => {
+                            const raw = localAdditionalEnabledCapabilities.trim();
                             const arr = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
                             updatePlatformConfig({ additionalEnabledCapabilities: arr });
                           }}

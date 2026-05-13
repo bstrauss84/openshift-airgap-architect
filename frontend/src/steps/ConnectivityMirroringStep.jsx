@@ -104,7 +104,6 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
     if (!same) setNtpInput(nextStr);
   }, [strategy.ntpServers, ntpInput]);
   const updateNtpServers = (value) => {
-    setNtpInput(value);
     updateStrategy({
       ntpServers: value
         .split(",")
@@ -201,11 +200,24 @@ registry.corp.local:5000`}
                         next[idx] = { ...next[idx], source: e.target.value };
                         updateMirroring({ sources: next });
                       }}
+                      onBlur={(e) => {
+                        const next = [...sources];
+                        next[idx] = { ...next[idx], source: e.target.value };
+                        updateMirroring({ sources: next });
+                      }}
                       placeholder="quay.io/openshift-release-dev/ocp-release"
                     />
                     <input
                       value={(source.mirrors || []).join(",")}
                       onChange={(e) => {
+                        const next = [...sources];
+                        next[idx] = {
+                          ...next[idx],
+                          mirrors: e.target.value.split(",").map((m) => m.trim())
+                        };
+                        updateMirroring({ sources: next });
+                      }}
+                      onBlur={(e) => {
                         const next = [...sources];
                         next[idx] = {
                           ...next[idx],
@@ -277,7 +289,8 @@ time.corp.local,10.90.0.10`}
             >
               <input
                 value={ntpInput}
-                onChange={(e) => updateNtpServers(e.target.value)}
+                onChange={(e) => setNtpInput(e.target.value)}
+                onBlur={(e) => updateNtpServers(e.target.value)}
                 placeholder="time.corp.local,10.90.0.10"
               />
             </FieldLabelWithInfo>

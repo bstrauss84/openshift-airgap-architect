@@ -104,6 +104,19 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const [browseMissingNotice, setBrowseMissingNotice] = React.useState(null);
   const preflightResultsRef = React.useRef(null);
 
+  // Local state for text inputs (onBlur pattern)
+  const [localConfigPath, setLocalConfigPath] = React.useState(configPath);
+  const [localArchivePath, setLocalArchivePath] = React.useState(archivePath);
+  const [localWorkspacePath, setLocalWorkspacePath] = React.useState(workspacePath);
+  const [localCachePath, setLocalCachePath] = React.useState(cachePath);
+  const [localRegistryUrl, setLocalRegistryUrl] = React.useState(registryUrl);
+  const [localParallelImages, setLocalParallelImages] = React.useState(String(parallelImages));
+  const [localParallelLayers, setLocalParallelLayers] = React.useState(String(parallelLayers));
+  const [localImageTimeout, setLocalImageTimeout] = React.useState(imageTimeout);
+  const [localRetryTimes, setLocalRetryTimes] = React.useState(String(retryTimes));
+  const [localRetryDelay, setLocalRetryDelay] = React.useState(retryDelay);
+  const [localSince, setLocalSince] = React.useState(since);
+
   const updateMirrorWorkflow = useCallback(
     (patch) => updateState({ mirrorWorkflow: { ...mw, ...patch } }),
     [updateState, mw]
@@ -112,6 +125,19 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const resetPaths = () => {
     updateMirrorWorkflow({ archivePath: DEFAULT_ARCHIVE_PATH, workspacePath: DEFAULT_WORKSPACE_PATH, cachePath: DEFAULT_CACHE_PATH });
   };
+
+  // Sync local state when store values change
+  useEffect(() => { setLocalConfigPath(configPath); }, [configPath]);
+  useEffect(() => { setLocalArchivePath(archivePath); }, [archivePath]);
+  useEffect(() => { setLocalWorkspacePath(workspacePath); }, [workspacePath]);
+  useEffect(() => { setLocalCachePath(cachePath); }, [cachePath]);
+  useEffect(() => { setLocalRegistryUrl(registryUrl); }, [registryUrl]);
+  useEffect(() => { setLocalParallelImages(String(parallelImages)); }, [parallelImages]);
+  useEffect(() => { setLocalParallelLayers(String(parallelLayers)); }, [parallelLayers]);
+  useEffect(() => { setLocalImageTimeout(imageTimeout); }, [imageTimeout]);
+  useEffect(() => { setLocalRetryTimes(String(retryTimes)); }, [retryTimes]);
+  useEffect(() => { setLocalRetryDelay(retryDelay); }, [retryDelay]);
+  useEffect(() => { setLocalSince(since); }, [since]);
 
   const openBrowse = async (target, currentPath) => {
     const startPath = currentPath || "/";
@@ -530,8 +556,9 @@ Opens a file browser showing files in /data - easier than typing paths manually.
                   <div className="path-input-row">
                     <input
                       type="text"
-                      value={configPath}
-                      onChange={(e) => updateMirrorWorkflow({ configPath: e.target.value })}
+                      value={localConfigPath}
+                      onChange={(e) => setLocalConfigPath(e.target.value)}
+                      onBlur={(e) => updateMirrorWorkflow({ configPath: e.target.value })}
                       placeholder="/data/my-imageset-config.yaml"
                     />
                     <Button variant="secondary" onClick={() => openBrowse("imageset-config", configPath || "/data/")}>
@@ -638,8 +665,9 @@ Keep archives after a successful run — they are the input for disk-to-mirror
                   <div className="path-input-row">
                     <input
                       type="text"
-                      value={archivePath}
-                      onChange={(e) => updateMirrorWorkflow({ archivePath: e.target.value })}
+                      value={localArchivePath}
+                      onChange={(e) => setLocalArchivePath(e.target.value)}
+                      onBlur={(e) => updateMirrorWorkflow({ archivePath: e.target.value })}
                       placeholder={DEFAULT_ARCHIVE_PATH}
                     />
                     <Button variant="secondary" onClick={() => openBrowse("archive", archivePath || DEFAULT_ARCHIVE_PATH)}>
@@ -680,8 +708,9 @@ Do not delete the workspace between mirror runs if you want incremental mirrorin
                   <div className="path-input-row">
                     <input
                       type="text"
-                      value={workspacePath}
-                      onChange={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
+                      value={localWorkspacePath}
+                      onChange={(e) => setLocalWorkspacePath(e.target.value)}
+                      onBlur={(e) => updateMirrorWorkflow({ workspacePath: e.target.value })}
                       placeholder={DEFAULT_WORKSPACE_PATH}
                     />
                     <Button variant="secondary" onClick={() => openBrowse("workspace", workspacePath || DEFAULT_WORKSPACE_PATH)}>
@@ -719,8 +748,9 @@ In mirror-to-mirror, oc-mirror pulls directly from source registry and pushes to
                   <div className="path-input-row">
                     <input
                       type="text"
-                      value={cachePath}
-                      onChange={(e) => updateMirrorWorkflow({ cachePath: e.target.value })}
+                      value={localCachePath}
+                      onChange={(e) => setLocalCachePath(e.target.value)}
+                      onBlur={(e) => updateMirrorWorkflow({ cachePath: e.target.value })}
                       placeholder={DEFAULT_CACHE_PATH}
                     />
                     <Button variant="secondary" onClick={() => openBrowse("cache", cachePath || DEFAULT_CACHE_PATH)}>
@@ -768,8 +798,9 @@ docker://registry.internal.corp:5000`}
                 >
                   <input
                     type="text"
-                    value={registryUrl}
-                    onChange={(e) => updateMirrorWorkflow({ registryUrl: e.target.value })}
+                    value={localRegistryUrl}
+                    onChange={(e) => setLocalRegistryUrl(e.target.value)}
+                    onBlur={(e) => updateMirrorWorkflow({ registryUrl: e.target.value })}
                     placeholder="docker://registry.local:5000"
                   />
                 </FieldLabelWithInfo>
@@ -1223,8 +1254,9 @@ Set to 8 for fast networks, 2 for slow connections`}
                 type="number"
                 min={1}
                 max={32}
-                value={parallelImages}
-                onChange={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
+                value={localParallelImages}
+                onChange={(e) => setLocalParallelImages(e.target.value)}
+                onBlur={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
               />
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
@@ -1256,8 +1288,9 @@ Set to 8 for very fast networks with large images, keep at 5 for most cases`}
                 type="number"
                 min={1}
                 max={32}
-                value={parallelLayers}
-                onChange={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
+                value={localParallelLayers}
+                onChange={(e) => setLocalParallelLayers(e.target.value)}
+                onBlur={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
               />
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
@@ -1287,8 +1320,9 @@ This timeout is per-image, not total mirror time
             >
               <input
                 type="text"
-                value={imageTimeout}
-                onChange={(e) => updateMirrorWorkflow({ imageTimeout: e.target.value })}
+                value={localImageTimeout}
+                onChange={(e) => setLocalImageTimeout(e.target.value)}
+                onBlur={(e) => updateMirrorWorkflow({ imageTimeout: e.target.value })}
                 placeholder="10m"
               />
             </FieldLabelWithInfo>
@@ -1321,8 +1355,9 @@ Set to 4 for unstable networks, keep at 2 for stable connections`}
                 type="number"
                 min={0}
                 max={10}
-                value={retryTimes}
-                onChange={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
+                value={localRetryTimes}
+                onChange={(e) => setLocalRetryTimes(e.target.value)}
+                onBlur={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
               />
             </FieldLabelWithInfo>
             <FieldLabelWithInfo
@@ -1352,8 +1387,9 @@ Set to '10s' for registries with rate limits, keep at '1s' for fast networks`}
             >
               <input
                 type="text"
-                value={retryDelay}
-                onChange={(e) => updateMirrorWorkflow({ retryDelay: e.target.value })}
+                value={localRetryDelay}
+                onChange={(e) => setLocalRetryDelay(e.target.value)}
+                onBlur={(e) => updateMirrorWorkflow({ retryDelay: e.target.value })}
                 placeholder="1s"
               />
             </FieldLabelWithInfo>
@@ -1381,8 +1417,9 @@ This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value
               >
                 <input
                   type="text"
-                  value={since}
-                  onChange={(e) => updateMirrorWorkflow({ since: e.target.value })}
+                  value={localSince}
+                  onChange={(e) => setLocalSince(e.target.value)}
+                  onBlur={(e) => updateMirrorWorkflow({ since: e.target.value })}
                   placeholder=""
                 />
               </FieldLabelWithInfo>
