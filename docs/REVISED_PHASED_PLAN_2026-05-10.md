@@ -96,6 +96,14 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
   - Syntax highlighting, download buttons, mobile responsive
   - Commits: 3858d60, 9475242, 377f9a2, ee686b2, f29e70c, db4bfdc
 
+- ✅ **YAML Drawer Bug Fixes** — verified_done 2026-05-13
+  - **Critical Fix:** Removed showPreview guard that blocked YAML generation during imports (App.jsx:556)
+  - **Race Condition Fix:** Added request ID tracking and AbortController to ReviewStep.jsx
+  - **Debugging Protocol:** Added comprehensive debugging guidelines to CLAUDE.md
+  - **Evidence:** Commits 459e7bc, 022c43c
+  - **Verification:** All 4 test scenarios passing (initial load, import, methodology change, hide/show)
+  - **Lessons Learned:** Documented in `.research/POSTMORTEM_WHY_I_FAILED.md`
+
 #### 2B: Preview & Summary Enhancements ✅ **COMPLETE** (verified 2026-05-11)
 
 - ✅ **DOC-057:** Preview panels always display (incomplete warnings) — verified_done 2026-05-10
