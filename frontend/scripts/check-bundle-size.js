@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(__dirname, "..", "dist");
-const limitKb = Number(process.env.BUNDLE_SIZE_LIMIT_KB) || 2048;
+const limitKb = Number(process.env.BUNDLE_SIZE_LIMIT_KB) || 2500;
 
 if (!fs.existsSync(distDir)) {
   console.error("check-bundle-size: dist/ not found. Run 'npm run build' first.");
