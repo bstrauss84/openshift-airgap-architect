@@ -6355,3 +6355,15 @@ body[data-theme="dark"] .yaml-config-pane::-webkit-scrollbar-thumb {
 body[data-theme="dark"] .yaml-config-pane::-webkit-scrollbar-thumb:hover {
   background: rgb(107, 114, 128);
 }
+
+/* oc-mirror Advanced options: consistent field widths */
+.ocmirror-advanced-options input[type="number"],
+.ocmirror-advanced-options input[type="text"],
+.ocmirror-advanced-options select {
+  max-width: none;
+  width: 100%;
+}
+
+.ocmirror-advanced-options .field-with-info-row > div:not(.field-title-line) {
+  width: 100%;
+}

@@ -1200,7 +1200,7 @@ oc-mirror uses these credentials to authenticate when pushing mirrored images to
             </OptionRow>
           )}
           {/* Advanced options grid with better organization */}
-          <div style={{ marginTop: 16 }}>
+          <div className="ocmirror-advanced-options" style={{ marginTop: 16 }}>
             <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>Performance & Parallelization</h4>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: 20 }}>
               <FieldLabelWithInfo
