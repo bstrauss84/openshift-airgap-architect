@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-05-14
+
+### Added
+
+- **Granular export inclusion controls** (ReviewStep.jsx UI integration - highside phase 2)
+  - Per-class credential inclusion controls replacing legacy includeCredentials checkbox:
+    - Pull secret (install-config pullSecret)
+    - Platform credentials (vSphere/Nutanix)
+    - Mirror registry credentials
+    - BMC credentials (for bare metal hosts)
+    - Trust bundles and certificate material
+    - SSH public key
+    - Proxy values
+  - Runtime package export option (includeHighSideRuntimePackage) - Bundle OCI-archive container images and docker-compose for disconnected deployment
+  - Collapsible "Per-class inclusion controls" section for better UX organization
+  - Integration with canonicalizeExportOptions and resolveSecretInclusion from v1.1.1 core modules
+
+### Changed
+
+- **Export Options UI redesign** - Replaced simple "Include credentials in export" and "Include certificates in export" toggles with granular per-class controls
+- **State management** - Updated refresh() dependencies to track individual inclusion flags (pullSecret, mirrorRegistryCredentials, platformCredentials, bmcCredentials)
+- **Pull secret preview logic** - Now checks inclusion.pullSecret instead of legacy includeCredentials flag
+
+### Removed
+
+- Legacy includeCredentials and includeCertificates checkboxes (replaced by granular controls)
+- handleCredentialsToggle function (no longer needed with per-class UI)
+
+### Notes
+
+- Completes v1.1.1 phased highside integration (phase 2: UI layer)
+- All v1.1.0 features preserved (YAML drawer, tooltips, scenario summary)
+- Test suite: 927/927 passing (682 frontend, 245 backend)
+
 ## [1.1.1] - 2026-05-14
 
 ### Added
@@ -109,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker and Podman container support
 - Comprehensive test suite (927 tests: 682 frontend, 245 backend)
 
+[1.1.2]: https://github.com/bstrauss84/openshift-airgap-architect/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/bstrauss84/openshift-airgap-architect/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/bstrauss84/openshift-airgap-architect/compare/release/1.0...v1.1.0
 [1.0.0]: https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v1.0.0
