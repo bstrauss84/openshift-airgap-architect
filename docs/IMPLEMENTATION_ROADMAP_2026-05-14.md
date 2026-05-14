@@ -3,7 +3,7 @@
 **Created:** 2026-05-14  
 **Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md  
 **Replaces:** docs/REVISED_PHASED_PLAN_2026-05-10.md (as active roadmap)  
-**Current Version:** 1.1.2 (released 2026-05-14)
+**Current Version:** 1.1.3 (released 2026-05-14)
 
 ---
 
@@ -19,7 +19,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ## Semantic Versioning Strategy
 
-**Current:** 1.1.2 (released 2026-05-14)
+**Current:** 1.1.3 (released 2026-05-14)
 
 ### Version Bump Guidelines
 
@@ -133,6 +133,32 @@ This document organizes remaining backlog work by semantic versioning to provide
 **Phase 1 (v1.1.1):** Core infrastructure modules  
 **Phase 2 (v1.1.2):** ReviewStep.jsx UI layer  
 **Status:** Highside integration fully complete
+
+---
+
+### v1.1.3 (Patch) - ✅ **RELEASED** (2026-05-14)
+
+**Released:** 2026-05-14 (same day as v1.1.2)  
+**Purpose:** Critical hotfix for v1.1.2 runtime error
+
+#### Issue Fixed
+
+**Critical runtime error in ReviewStep.jsx:**
+- Error: `ReferenceError: includeCredentials is not defined` (line 372)
+- Broke Assets & Guide tab completely
+- Missed one variable reference during v1.1.2 refactor
+
+#### Fix Applied
+
+- ✅ Replaced `includeCredentials` with `inclusion.pullSecret` in installConfigDisplay logic
+- ✅ All tests passing: 927/927 (682 frontend, 245 backend)
+- ✅ No regressions
+
+#### Notes
+
+- **Critical hotfix:** All users on v1.1.2 should upgrade immediately
+- v1.1.2 was broken in production for ~1 hour before hotfix
+- Proper semver: patch release for bug fix
 
 ---
 
