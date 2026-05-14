@@ -130,3 +130,8 @@ docs/*_FEATURE_ANALYSIS_*.md
 *.backup
 **/*.backup
 official-*.txt
+
+# Chat history and session transcripts (added 2026-05-14)
+claude_chat_history.txt
+*_chat_history.txt
+*.chat.txt
