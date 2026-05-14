@@ -373,23 +373,23 @@ const BlueprintStep = () => {
         <section className="card">
           <div className="card-header" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <h3 style={{ margin: 0 }}>OpenShift release</h3>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: "150px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
               <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
                 Update
               </button>
-              <span
-                className="subtle"
-                style={{
-                  fontSize: "0.8125rem",
-                  lineHeight: 1.25,
-                  minHeight: "1.25rem",
-                  visibility: ((refreshing && refreshNote) || updatedMessage) ? "visible" : "hidden"
-                }}
-              >
-                {(refreshing && refreshNote) || updatedMessage
-                  ? (refreshing && refreshNote ? refreshNote : "Channels updated.")
-                  : " "}
-              </span>
+              {((refreshing && refreshNote) || updatedMessage) && (
+                <span
+                  className="subtle"
+                  style={{
+                    fontSize: "0.8125rem",
+                    lineHeight: 1.25,
+                    textAlign: "right",
+                    maxWidth: "300px"
+                  }}
+                >
+                  {refreshing && refreshNote ? refreshNote : "Channels updated."}
+                </span>
+              )}
             </div>
           </div>
           {refreshError ? (
