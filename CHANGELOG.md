@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-05-14
+
+### Fixed
+
+- **Critical runtime error in ReviewStep.jsx** - Removed remaining `includeCredentials` variable reference
+  - Error: `ReferenceError: includeCredentials is not defined` (line 372)
+  - Replaced with `inclusion.pullSecret` in installConfigDisplay logic
+  - Missed during v1.1.2 refactor from legacy checkboxes to granular controls
+  - Tests: 682/682 frontend passing
+
 ## [1.1.2] - 2026-05-14
 
 ### Added
@@ -143,6 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker and Podman container support
 - Comprehensive test suite (927 tests: 682 frontend, 245 backend)
 
+[1.1.3]: https://github.com/bstrauss84/openshift-airgap-architect/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/bstrauss84/openshift-airgap-architect/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/bstrauss84/openshift-airgap-architect/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/bstrauss84/openshift-airgap-architect/compare/release/1.0...v1.1.0
