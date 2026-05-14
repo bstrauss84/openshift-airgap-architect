@@ -369,7 +369,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const installConfigContent = files["install-config.yaml"];
   const installConfigDisplay = (() => {
     if (!installConfigContent) return installConfigContent;
-    if (!includeCredentials) {
+    if (!inclusion.pullSecret) {
       return replacePullSecretInYaml(installConfigContent, PULLSECRET_PLACEHOLDER_LINE);
     }
     if (!showPullSecretInPreview) {
