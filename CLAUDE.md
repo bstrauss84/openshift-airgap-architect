@@ -55,7 +55,7 @@
 
 **Current focus:** Finish Phase 0 (3 remaining items), then start Phase 2A (YAML Drawer)
 
-### 3. Historical Work Plan: `/COMPREHENSIVE_MASTER_PLAN.md`
+### 3. Historical Work Plan: `/docs/COMPREHENSIVE_MASTER_PLAN.md`
 
 **Authority:** Detailed historical phase/batch tracking (Phases 1-2 tooltip work)  
 **Status:** Phases 1-2 COMPLETE (100% tooltip coverage)  
@@ -89,7 +89,7 @@ For any status update to BACKLOG_STATUS.md:
 
 **Example row:**
 ```markdown
-| DOC-049 | Comprehensive Tooltip Expansion | verified_done | p1 | `COMPREHENSIVE_MASTER_PLAN.md` | Commits 0e3fe69-596fc2a, `frontend/tests/hint-syntax.test.js` passing | Tooltip expansion complete. |
+| DOC-049 | Comprehensive Tooltip Expansion | verified_done | p1 | `docs/COMPREHENSIVE_MASTER_PLAN.md` | Commits 0e3fe69-596fc2a, `frontend/tests/hint-syntax.test.js` passing | Tooltip expansion complete. |
 ```
 
 ---
@@ -98,12 +98,12 @@ For any status update to BACKLOG_STATUS.md:
 
 ### At End of Work Session
 
-1. **Update COMPREHENSIVE_MASTER_PLAN.md progress**
+1. **Update docs/COMPREHENSIVE_MASTER_PLAN.md progress (if tooltip work)**
    - Mark completed phases/batches
    - Update completion percentages
    - Add completion dates
 
-2. **Add completed items to BACKLOG_STATUS.md with evidence**
+2. **Add completed items to docs/BACKLOG_STATUS.md with evidence**
    - Follow canonical status vocabulary
    - Provide commit SHAs or file paths
    - Link to tests if applicable
@@ -169,12 +169,12 @@ Concrete real-world example values.`}
 ### Keep (Living Documents)
 - `docs/BACKLOG_STATUS.md` - Canonical status registry (single source of truth)
 - `docs/REVISED_PHASED_PLAN_2026-05-10.md` - **ACTIVE execution plan** (current work roadmap)
-- `COMPREHENSIVE_MASTER_PLAN.md` - Historical plan (Phases 1-2 tooltip work, quality standards)
+- `docs/COMPREHENSIVE_MASTER_PLAN.md` - Historical plan (Phases 1-2 tooltip work, quality standards)
 - `LOCAL_BACKLOG.md` - User's personal backlog (not committed)
-- `TOOLTIP_EXPANSION_MASTER_PLAN.md` - Tooltip audit data reference
-- `SETUP_COMPLETE.md` - Catalog sync reference guide
+- `docs/TOOLTIP_EXPANSION_MASTER_PLAN.md` - Tooltip audit data reference
+- `docs/SETUP_COMPLETE.md` - Catalog sync reference guide
 - `UI_STANDARDS.md` - UI design and implementation standards
-- `CATALOG_SYNC_GUIDE.md` - Catalog synchronization procedures
+- `docs/CATALOG_SYNC_GUIDE.md` - Catalog synchronization procedures
 - `docs/BACKLOG_REVIEW_2026-05-10.md` - Review summary that led to revised plan
 
 ### Archive (Session Notes)
@@ -258,11 +258,11 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
    - Good: `verified_done`, `done_pending_verification`, `active`
 
 3. **Don't duplicate status claims across multiple docs**
-   - Canonical status lives in BACKLOG_STATUS.md only
+   - Canonical status lives in docs/BACKLOG_STATUS.md only
    - Other docs reference it: "See DOC-049"
 
 4. **Don't archive or delete living documents**
-   - COMPREHENSIVE_MASTER_PLAN.md is living, not session notes
+   - docs/COMPREHENSIVE_MASTER_PLAN.md is living historical reference, not session notes
    - Check this file before archiving anything
 
 5. **Don't skip evidence when updating status**
@@ -281,7 +281,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
    - Learn the 4 priority levels
    - Use them everywhere
 
-3. **Keep BACKLOG_STATUS.md as single source of truth**
+3. **Keep docs/BACKLOG_STATUS.md as single source of truth**
    - Update it when work completes
    - Reference it from other docs
    - Check it before making claims
