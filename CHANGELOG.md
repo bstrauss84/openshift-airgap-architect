@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-05-14
+
+### Added
+
+- **Highside infrastructure foundation** - Core backend/frontend modules for future airgap deployment workflows
+  - Runtime package export system (backend/src/runtimePackage.js) - OCI-archive container image bundling for disconnected environments
+  - Export inclusion framework (backend/src/exportInclusion.js, frontend/src/exportInclusion.js) - Granular credential and certificate inclusion controls
+  - Placeholder engine (backend/src/placeholderEngine.js, frontend/src/placeholderEngine.js) - Safe deterministic placeholders for environment-specific fields
+  - Integrated from feat/highside-lowside-packaging-foundation branch via selective cherry-pick
+
+### Changed
+
+- **Versioned implementation roadmap** - Created IMPLEMENTATION_ROADMAP_2026-05-14.md
+  - Organizes backlog by semantic versioning (1.1.x patch, 1.x.0 minor, x.0.0 major)
+  - Adds missing backlog items from BACKLOG_STATUS.md (PHX-* items)
+  - Includes upgrade/mirror-only landing page flows (PHX-029) in v3.0.0 exploratory phase
+  - Replaces REVISED_PHASED_PLAN_2026-05-10.md as active roadmap
+
+- **Backlog status updates**
+  - PROD-001 marked verified_done (all 927 tests passing)
+  - DOC-063 marked verified_done (operator quick picks complete: Platform Plus, App Dev Suite, Quay, ODF)
+
+### Notes
+
+- v1.1.1 uses phased integration approach: core infrastructure only, UI integration deferred to v1.1.2
+- All v1.1.0 features preserved (YAML drawer, tooltips, scenario summary, Cincinnati, proxy support)
+- Test suite: 927/927 passing (682 frontend, 245 backend)
+
 ## [1.1.0] - 2026-05-14
 
 ### Added
@@ -81,5 +109,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker and Podman container support
 - Comprehensive test suite (927 tests: 682 frontend, 245 backend)
 
-[1.1.0]: https://github.com/bstrauss84/openshift-airgap-architect/compare/release/1.0...merge-test/main-into-develop
+[1.1.1]: https://github.com/bstrauss84/openshift-airgap-architect/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/bstrauss84/openshift-airgap-architect/compare/release/1.0...v1.1.0
 [1.0.0]: https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v1.0.0
