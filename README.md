@@ -30,6 +30,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   - [Screenshots](#screenshots)
   - [Architecture](#architecture)
   - [Install-config references (4.20)](#install-config-references-420)
+  - [Release notes](#release-notes)
   - [License and contributing](#license-and-contributing)
   - [Documentation and governance map](#documentation-and-governance-map)
 
@@ -740,6 +741,13 @@ Use these official docs to validate `install-config.yaml` for supported platform
 - [Agent-based Installer](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent)
 
 Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, Nutanix, and bare metal agent-based installs, see the platform-specific docs for required and optional fields.
+
+<a id="release-notes"></a>
+## Release notes
+
+See [CHANGELOG.md](CHANGELOG.md) for version history, new features, bug fixes, and breaking changes.
+
+Current version: **1.1.0**
 
 <a id="license-and-contributing"></a>
 ## License and contributing
