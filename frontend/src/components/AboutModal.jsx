@@ -32,7 +32,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
 
   if (!isOpen) return null;
 
-  const version = appVersion || "1.0.0";
+  const version = appVersion || "1.1.0";
   const sha = gitSha ? gitSha.slice(0, 7) : "dev";
   const buildDate = buildTime ? new Date(buildTime).toLocaleDateString() : "unknown";
 
