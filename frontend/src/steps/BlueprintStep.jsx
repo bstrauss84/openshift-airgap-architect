@@ -371,23 +371,25 @@ const BlueprintStep = () => {
         </section>
 
         <section className="card">
-          <div className="card-header" style={{ marginBottom: 12 }}>
+          <div className="card-header" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <h3 style={{ margin: 0 }}>OpenShift release</h3>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: "120px" }}>
-              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing} style={{ alignSelf: "flex-end" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: "150px" }}>
+              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
                 Update
               </button>
-              {((refreshing && refreshNote) || updatedMessage) && (
-                <span
-                  className="subtle"
-                  style={{
-                    fontSize: "0.8125rem",
-                    lineHeight: 1.25
-                  }}
-                >
-                  {refreshing && refreshNote ? refreshNote : "Channels updated."}
-                </span>
-              )}
+              <span
+                className="subtle"
+                style={{
+                  fontSize: "0.8125rem",
+                  lineHeight: 1.25,
+                  minHeight: "1.25rem",
+                  visibility: ((refreshing && refreshNote) || updatedMessage) ? "visible" : "hidden"
+                }}
+              >
+                {(refreshing && refreshNote) || updatedMessage
+                  ? (refreshing && refreshNote ? refreshNote : "Channels updated.")
+                  : " "}
+              </span>
             </div>
           </div>
           {refreshError ? (

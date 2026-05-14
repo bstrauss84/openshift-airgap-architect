@@ -1202,7 +1202,7 @@ oc-mirror uses these credentials to authenticate when pushing mirrored images to
           {/* Advanced options grid with better organization */}
           <div style={{ marginTop: 16 }}>
             <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>Performance & Parallelization</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: 20 }}>
               <FieldLabelWithInfo
                 label="Parallel images"
                 hint={`Maximum number of container images to download/mirror simultaneously (1-32).
@@ -1274,7 +1274,7 @@ Set to 8 for very fast networks with large images, keep at 5 for most cases`}
             </div>
 
             <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>Timeouts & Retries</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginBottom: 20 }}>
               <FieldLabelWithInfo
                 label="Image timeout"
                 hint={`Maximum time allowed to download a single container image before timing out.
@@ -1378,7 +1378,7 @@ Set to '10s' for registries with rate limits, keep at '1s' for fast networks`}
             </div>
 
             <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>General Settings</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" }}>
               <FieldLabelWithInfo
                 label="Log level"
                 hint={`Verbosity level for oc-mirror command output.
