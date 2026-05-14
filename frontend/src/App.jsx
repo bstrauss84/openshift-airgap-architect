@@ -467,13 +467,15 @@ const AppShell = () => {
     }
   }, [visibleSteps.length, active]);
 
-  // Route guard: before lock, only Blueprint is allowed. Redirect any other route to Blueprint.
+  // Route guard: before lock, only Blueprint and Operations are allowed (Operations for Cincinnati job logs).
   useEffect(() => {
     if (showLanding || !state?.ui) return;
     if (foundationalLocked) return;
     const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
     if (blueprintIndex < 0) return;
-    if (active !== blueprintIndex) {
+    const currentId = visibleSteps[active]?.id;
+    const allowedPreLock = currentId === "blueprint" || currentId === "operations";
+    if (!allowedPreLock) {
       setActive(blueprintIndex);
       updateState({ ui: { ...state.ui, activeStepId: "blueprint" } });
       setLockToast("Lock your foundational selections to continue.");
@@ -731,7 +733,7 @@ metadata:
     const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
 
     if (!foundationalLocked) {
-      if (targetStepId !== "blueprint") {
+      if (targetStepId !== "blueprint" && targetStepId !== "operations") {
         setLockToast("Lock your foundational selections to continue.");
         setTimeout(() => setLockToast(""), 4000);
         if (active !== blueprintIndex) setActive(blueprintIndex);
@@ -745,7 +747,7 @@ metadata:
       return;
     }
     const currentStep = visibleSteps[active]?.id;
-    if (currentStep === "blueprint" && !foundationalLocked) {
+    if (currentStep === "blueprint" && !foundationalLocked && targetStepId !== "operations") {
       setPendingNavIndex(index);
       setShowCoreLockWarning(true);
       return;
@@ -1231,7 +1233,15 @@ metadata:
             )}
           </div>
           <footer className="footer">
-            {visibleSteps[active]?.id !== "operations" ? (
+            {visibleSteps[active]?.id === "operations" && !foundationalLocked ? (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => attemptNavigate(visibleSteps.findIndex((s) => s.id === "blueprint"))}
+              >
+                Back to Blueprint
+              </button>
+            ) : visibleSteps[active]?.id !== "operations" ? (
               <button type="button" className="ghost" onClick={back}>
                 {active === 0 ? "Return to Landing Page" : "Back"}
               </button>
@@ -1266,7 +1276,8 @@ metadata:
                 }}
                 disabled={
                   !canProceed ||
-                  (visibleSteps[active]?.id === "blueprint" && (!blueprintReady || !releaseReady))
+                  (visibleSteps[active]?.id === "blueprint" && (!blueprintReady || !releaseReady)) ||
+                  (!foundationalLocked && visibleSteps[active]?.id === "operations")
                 }
               >
                 {active === visibleSteps.length - 1

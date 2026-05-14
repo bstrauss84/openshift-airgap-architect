@@ -42,6 +42,16 @@ After systematic backlog review (see `docs/BACKLOG_REVIEW_2026-05-10.md`):
 - ✅ **DOC-068:** Validation error tooltips on alert icons (verified_done 2026-05-12)
 - ✅ **LOCAL #5:** Frontend/backend logs expansion (verified_done 2026-05-12)
 
+#### Post-Phase 0 Regression Fixes
+
+- ✅ **DOC-070:** Fix Blueprint ↔ Operations navigation regression (verified_done 2026-05-14)
+  - Regression from main→develop merge (commit d2034f8 navigation logic not fully carried over)
+  - Users blocked from accessing Operations tab before Blueprint lock-in
+  - Critical for debugging Cincinnati "Update" failures (proxy issues, network errors)
+  - Fixed 4 locations in App.jsx: route guard, attemptNavigate, footer button, Next button disable
+  - Cincinnati refresh jobs already log to Operations (highlightJobId set on failure)
+  - All 682 frontend tests pass after fix
+
 #### Success Criteria
 
 - ✅ 12/12 Phase 0 items marked verified_done
