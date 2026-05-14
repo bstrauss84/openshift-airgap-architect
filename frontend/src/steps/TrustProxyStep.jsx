@@ -937,6 +937,7 @@ additionalTrustBundlePolicy: Always
                       onChange={(e) => updateTrust({ additionalTrustBundlePolicy: e.target.value })}
                       disabled={!trustPolicyOptions.length}
                       className="trust-policy-select"
+                      style={{ maxWidth: "250px" }}
                     >
                       <optgroup label="Policy">
                         {trustPolicyOptions.length

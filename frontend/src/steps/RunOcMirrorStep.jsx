@@ -1199,35 +1199,13 @@ oc-mirror uses these credentials to authenticate when pushing mirrored images to
               <Switch checked={strictArchive} onChange={(v) => updateMirrorWorkflow({ strictArchive: v })} />
             </OptionRow>
           )}
-          {/* Advanced options grid with responsive layout */}
-          <div className="field-grid" style={{ marginTop: 12 }}>
-            <FieldLabelWithInfo
-              label="Log level"
-              hint={`Verbosity level for oc-mirror command output.
-
-**Default:**
-'info' shows progress and important messages - good for normal operation
-
-**Debug mode:**
-'debug' shows detailed diagnostic information including HTTP requests, registry operations, and internal state - useful when troubleshooting mirror failures or investigating unexpected behavior
-
-**Important:**
-Debug logs can be very verbose (100s of MB for large mirrors), so use it only when diagnosing issues. Logs are saved to the Operations tab regardless of level.
-
-**Example:**
-Set to 'debug' when troubleshooting mirror failures or connection issues`}
-            >
-              <select
-                value={logLevel}
-                onChange={(e) => updateMirrorWorkflow({ logLevel: e.target.value })}
-              >
-                <option value="info">info</option>
-                <option value="debug">debug</option>
-              </select>
-            </FieldLabelWithInfo>
-            <FieldLabelWithInfo
-              label="Parallel images"
-              hint={`Maximum number of container images to download/mirror simultaneously (1-32).
+          {/* Advanced options grid with better organization */}
+          <div style={{ marginTop: 16 }}>
+            <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>Performance & Parallelization</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: 20 }}>
+              <FieldLabelWithInfo
+                label="Parallel images"
+                hint={`Maximum number of container images to download/mirror simultaneously (1-32).
 
 **Default:**
 4 concurrent images
@@ -1249,19 +1227,19 @@ If you see out-of-memory errors or registry throttling, reduce this value
 
 **Example:**
 Set to 8 for fast networks, 2 for slow connections`}
-            >
-              <input
-                type="number"
-                min={1}
-                max={32}
-                value={localParallelImages}
-                onChange={(e) => setLocalParallelImages(e.target.value)}
-                onBlur={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
-              />
-            </FieldLabelWithInfo>
-            <FieldLabelWithInfo
-              label="Parallel layers"
-              hint={`Maximum number of image layers to download concurrently (1-32).
+              >
+                <input
+                  type="number"
+                  min={1}
+                  max={32}
+                  value={localParallelImages}
+                  onChange={(e) => setLocalParallelImages(e.target.value)}
+                  onBlur={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
+                />
+              </FieldLabelWithInfo>
+              <FieldLabelWithInfo
+                label="Parallel layers"
+                hint={`Maximum number of image layers to download concurrently (1-32).
 
 **Default:**
 5 concurrent layers
@@ -1283,19 +1261,23 @@ Both settings affect overall mirror performance - tune them together
 
 **Example:**
 Set to 8 for very fast networks with large images, keep at 5 for most cases`}
-            >
-              <input
-                type="number"
-                min={1}
-                max={32}
-                value={localParallelLayers}
-                onChange={(e) => setLocalParallelLayers(e.target.value)}
-                onBlur={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
-              />
-            </FieldLabelWithInfo>
-            <FieldLabelWithInfo
-              label="Image timeout"
-              hint={`Maximum time allowed to download a single container image before timing out.
+              >
+                <input
+                  type="number"
+                  min={1}
+                  max={32}
+                  value={localParallelLayers}
+                  onChange={(e) => setLocalParallelLayers(e.target.value)}
+                  onBlur={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
+                />
+              </FieldLabelWithInfo>
+            </div>
+
+            <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>Timeouts & Retries</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: 20 }}>
+              <FieldLabelWithInfo
+                label="Image timeout"
+                hint={`Maximum time allowed to download a single container image before timing out.
 
 **Default:**
 10m (10 minutes)
@@ -1317,18 +1299,18 @@ This timeout is per-image, not total mirror time
 
 **Example:**
 '5m' for fast networks, '30m' for slow connections or large images`}
-            >
-              <input
-                type="text"
-                value={localImageTimeout}
-                onChange={(e) => setLocalImageTimeout(e.target.value)}
-                onBlur={(e) => updateMirrorWorkflow({ imageTimeout: e.target.value })}
-                placeholder="10m"
-              />
-            </FieldLabelWithInfo>
-            <FieldLabelWithInfo
-              label="Retry times"
-              hint={`Number of automatic retry attempts when an image pull/push fails (0-10).
+              >
+                <input
+                  type="text"
+                  value={localImageTimeout}
+                  onChange={(e) => setLocalImageTimeout(e.target.value)}
+                  onBlur={(e) => updateMirrorWorkflow({ imageTimeout: e.target.value })}
+                  placeholder="10m"
+                />
+              </FieldLabelWithInfo>
+              <FieldLabelWithInfo
+                label="Retry times"
+                hint={`Number of automatic retry attempts when an image pull/push fails (0-10).
 
 **Default:**
 2 retries
@@ -1350,19 +1332,19 @@ Each retry waits according to the 'Retry delay' setting below
 
 **Example:**
 Set to 4 for unstable networks, keep at 2 for stable connections`}
-            >
-              <input
-                type="number"
-                min={0}
-                max={10}
-                value={localRetryTimes}
-                onChange={(e) => setLocalRetryTimes(e.target.value)}
-                onBlur={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
-              />
-            </FieldLabelWithInfo>
-            <FieldLabelWithInfo
-              label="Retry delay"
-              hint={`Time to wait between retry attempts.
+              >
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={localRetryTimes}
+                  onChange={(e) => setLocalRetryTimes(e.target.value)}
+                  onBlur={(e) => updateMirrorWorkflow({ retryTimes: Number(e.target.value) ?? 2 })}
+                />
+              </FieldLabelWithInfo>
+              <FieldLabelWithInfo
+                label="Retry delay"
+                hint={`Time to wait between retry attempts.
 
 **Default:**
 1s (1 second)
@@ -1384,14 +1366,42 @@ Too short (less than 1s) might trigger rate limiting; too long (minutes) wastes 
 
 **Example:**
 Set to '10s' for registries with rate limits, keep at '1s' for fast networks`}
+              >
+                <input
+                  type="text"
+                  value={localRetryDelay}
+                  onChange={(e) => setLocalRetryDelay(e.target.value)}
+                  onBlur={(e) => updateMirrorWorkflow({ retryDelay: e.target.value })}
+                  placeholder="1s"
+                />
+              </FieldLabelWithInfo>
+            </div>
+
+            <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>General Settings</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+              <FieldLabelWithInfo
+                label="Log level"
+                hint={`Verbosity level for oc-mirror command output.
+
+**Default:**
+'info' shows progress and important messages - good for normal operation
+
+**Debug mode:**
+'debug' shows detailed diagnostic information including HTTP requests, registry operations, and internal state - useful when troubleshooting mirror failures or investigating unexpected behavior
+
+**Important:**
+Debug logs can be very verbose (100s of MB for large mirrors), so use it only when diagnosing issues. Logs are saved to the Operations tab regardless of level.
+
+**Example:**
+Set to 'debug' when troubleshooting mirror failures or connection issues`}
             >
-              <input
-                type="text"
-                value={localRetryDelay}
-                onChange={(e) => setLocalRetryDelay(e.target.value)}
-                onBlur={(e) => updateMirrorWorkflow({ retryDelay: e.target.value })}
-                placeholder="1s"
-              />
+              <select
+                value={logLevel}
+                onChange={(e) => updateMirrorWorkflow({ logLevel: e.target.value })}
+              >
+                <option value="info">info</option>
+                <option value="debug">debug</option>
+              </select>
             </FieldLabelWithInfo>
             {mode === "mirrorToDisk" && (
               <FieldLabelWithInfo
@@ -1424,6 +1434,7 @@ This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value
                 />
               </FieldLabelWithInfo>
             )}
+          </div>
           </div>
         </CollapsibleSection>
 

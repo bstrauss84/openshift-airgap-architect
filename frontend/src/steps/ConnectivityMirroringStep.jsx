@@ -97,12 +97,21 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
 
   const ntpServersArray = Array.isArray(strategy.ntpServers) ? strategy.ntpServers : (typeof strategy.ntpServers === "string" ? strategy.ntpServers.split(",").map((s) => s.trim()).filter(Boolean) : []);
   const [ntpInput, setNtpInput] = React.useState(() => ntpServersArray.join(", "));
+  const ntpInputRef = React.useRef(ntpInput);
+
+  // Keep ref updated
+  React.useEffect(() => {
+    ntpInputRef.current = ntpInput;
+  }, [ntpInput]);
+
+  // Sync from store only when not actively editing
   React.useEffect(() => {
     const nextStr = ntpServersArray.join(", ");
-    const parsed = (typeof ntpInput === "string" ? ntpInput : "").split(",").map((s) => s.trim()).filter(Boolean);
-    const same = parsed.length === ntpServersArray.length && parsed.every((s, i) => ntpServersArray[i] === s);
-    if (!same) setNtpInput(nextStr);
-  }, [strategy.ntpServers, ntpInput]);
+    if (nextStr !== ntpInputRef.current) {
+      setNtpInput(nextStr);
+    }
+  }, [ntpServersArray.join(",")]);
+
   const updateNtpServers = (value) => {
     updateStrategy({
       ntpServers: value
