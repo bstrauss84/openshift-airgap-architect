@@ -20,6 +20,7 @@ import OptionRow from "../components/OptionRow.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
+import { canonicalizeExportOptions, resolveSecretInclusion } from "../exportInclusion.js";
 
 const DEFAULT_PREVIEW_HEIGHT = 320;
 const MIN_PREVIEW_HEIGHT = 120;
@@ -186,7 +187,8 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   // This matches the pattern used in App.jsx for YamlDrawer (line 197)
   const refreshRequestIdRef = useRef(0);
 
-  const exportOptions = state.exportOptions || {};
+  const exportOptions = canonicalizeExportOptions(state.exportOptions || {});
+  const inclusion = resolveSecretInclusion(exportOptions);
   const [files, setFiles] = useState({});
   const [loading, setLoading] = useState(false);
   const [docsUpdating, setDocsUpdating] = useState(false);
@@ -211,10 +213,14 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const blocked = validation.errors?.length > 0;
   const hasWarnings = (validation.warnings || []).length > 0;
 
+  const updateExportOptions = (nextExportOptions) => {
+    updateState({ exportOptions: canonicalizeExportOptions(nextExportOptions || {}) });
+  };
+
   useEffect(() => {
     const nextDraft = !blocked && hasWarnings;
     if (exportOptions.draftMode !== nextDraft) {
-      updateState({ exportOptions: { ...exportOptions, draftMode: nextDraft } });
+      updateExportOptions({ ...exportOptions, draftMode: nextDraft });
     }
   }, [blocked, hasWarnings]);
 
@@ -286,7 +292,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [state.release?.patchVersion, state.operators?.selected?.length, blocked, exportOptions.includeCredentials]);
+  }, [state.release?.patchVersion, state.operators?.selected?.length, blocked, inclusion.pullSecret, inclusion.mirrorRegistryCredentials, inclusion.platformCredentials, inclusion.bmcCredentials]);
 
   const downloadAll = async () => {
     if (blocked) {
@@ -346,32 +352,13 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     setState(data.state);
   };
 
-  const handleCredentialsToggle = (checked) => {
-    if (checked && !credentialsConfirmedThisSession) {
-      setShowCredentialsConfirm(true);
-    } else {
-      updateState({ exportOptions: { ...exportOptions, includeCredentials: checked } });
-    }
-  };
-
-  const confirmCredentialsInclude = () => {
-    setCredentialsConfirmedThisSession(true);
-    setShowCredentialsConfirm(false);
-    updateState({ exportOptions: { ...exportOptions, includeCredentials: true } });
-  };
-
-  const cancelCredentialsInclude = () => {
-    setShowCredentialsConfirm(false);
-  };
-
-  const includeCredentials = exportOptions.includeCredentials || false;
-  const includeCertificates = exportOptions.includeCertificates !== false;
+  const includeHighSideRuntimePackage = Boolean(exportOptions.includeHighSideRuntimePackage);
   const [showPullSecretInPreview, setShowPullSecretInPreview] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState({ runtimeArch: null, localBinaryArch: null });
 
   useEffect(() => {
-    if (!includeCredentials) setShowPullSecretInPreview(false);
-  }, [includeCredentials]);
+    if (!inclusion.pullSecret) setShowPullSecretInPreview(false);
+  }, [inclusion.pullSecret]);
 
   useEffect(() => {
     apiFetch("/api/runtime-info")
@@ -460,32 +447,77 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       <div className="step-body">
         <div className="card">
           <h3>Export Options</h3>
-          <OptionRow
-            title="Include credentials in export"
-            description="Embed pull secrets in generated files. Off by default."
-            warning={includeCredentials ? (
-              <span>This will embed pull secrets in generated files. Treat the bundle as sensitive.</span>
-            ) : null}
-          >
-            <Switch
-              checked={includeCredentials}
-              onChange={handleCredentialsToggle}
-              aria-label="Include credentials in export"
-            />
-          </OptionRow>
-          <OptionRow
-            title="Include certificates in export"
-            description="Add trust bundles and PEMs to the bundle."
-            note="Certificates can expose internal hostnames; treat exports as sensitive."
-          >
-            <Switch
-              checked={includeCertificates}
-              onChange={(checked) =>
-                updateState({ exportOptions: { ...exportOptions, includeCertificates: checked } })
-              }
-              aria-label="Include certificates in export"
-            />
-          </OptionRow>
+          <CollapsibleSection title="Per-class inclusion controls" defaultCollapsed={false}>
+            <OptionRow
+              title="Pull secret"
+              description="Include install-config pullSecret."
+              warning={inclusion.pullSecret ? (
+                <span>This will embed pull secrets in generated files. Treat the bundle as sensitive.</span>
+              ) : null}
+            >
+              <Switch
+                checked={inclusion.pullSecret}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, pullSecret: checked } })
+                }
+                aria-label="Include pull secret"
+              />
+            </OptionRow>
+            <OptionRow title="Platform credentials" description="Include vSphere/Nutanix platform credentials if set.">
+              <Switch
+                checked={inclusion.platformCredentials}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, platformCredentials: checked } })
+                }
+                aria-label="Include platform credentials"
+              />
+            </OptionRow>
+            <OptionRow title="Mirror registry credentials" description="Include mirror-registry pull secret JSON.">
+              <Switch
+                checked={inclusion.mirrorRegistryCredentials}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, mirrorRegistryCredentials: checked } })
+                }
+                aria-label="Include mirror registry credentials"
+              />
+            </OptionRow>
+            <OptionRow title="BMC credentials" description="Include BMC usernames/passwords in generated host specs.">
+              <Switch
+                checked={inclusion.bmcCredentials}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, bmcCredentials: checked } })
+                }
+                aria-label="Include BMC credentials"
+              />
+            </OptionRow>
+            <OptionRow title="Trust bundles / cert material" description="Include trust bundle PEM content and policy.">
+              <Switch
+                checked={inclusion.trustBundleAndCertificates}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, trustBundleAndCertificates: checked } })
+                }
+                aria-label="Include trust bundle and certificates"
+              />
+            </OptionRow>
+            <OptionRow title="SSH public key" description="Include install-config sshKey.">
+              <Switch
+                checked={inclusion.sshPublicKey}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, sshPublicKey: checked } })
+                }
+                aria-label="Include SSH public key"
+              />
+            </OptionRow>
+            <OptionRow title="Proxy values" description="Include proxy endpoints in generated files/guides.">
+              <Switch
+                checked={inclusion.proxyValues}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, proxyValues: checked } })
+                }
+                aria-label="Include proxy values"
+              />
+            </OptionRow>
+          </CollapsibleSection>
           <CollapsibleSection title="Advanced / Tools" defaultCollapsed={true}>
             <OptionRow
               title="Include oc and oc-mirror binaries"
@@ -571,6 +603,18 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 </select>
               </OptionRow>
             ) : null}
+            <OptionRow
+              title="Include high-side runtime package artifacts"
+              description="Bundle OCI-archive container images and docker-compose for disconnected deployment."
+            >
+              <Switch
+                checked={includeHighSideRuntimePackage}
+                onChange={(checked) =>
+                  updateExportOptions({ ...exportOptions, includeHighSideRuntimePackage: checked })
+                }
+                aria-label="Include high-side runtime package artifacts"
+              />
+            </OptionRow>
           </CollapsibleSection>
         </div>
         {needsReview ? (
@@ -624,7 +668,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <h3 style={{ margin: 0 }}>install-config.yaml</h3>
-            {includeCredentials && installConfigContent ? (
+            {inclusion.pullSecret && installConfigContent ? (
               <button
                 type="button"
                 className="ghost"
