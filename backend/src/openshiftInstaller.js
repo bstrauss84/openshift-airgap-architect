@@ -18,10 +18,17 @@ const toolsDir = path.join(dataDir, "tools");
 
 /**
  * Run a command and return stdout/stderr
+ * Inherits environment to support HTTP_PROXY, HTTPS_PROXY, etc.
  */
 const runCmd = (cmd, args, options = {}) =>
   new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { ...options });
+    // Inherit environment variables (especially proxy settings)
+    const spawnOptions = {
+      env: { ...process.env },
+      ...options
+    };
+
+    const child = spawn(cmd, args, spawnOptions);
     let stdout = "";
     let stderr = "";
     if (child.stdout) {
@@ -34,12 +41,19 @@ const runCmd = (cmd, args, options = {}) =>
         stderr += data.toString();
       });
     }
-    child.on("error", reject);
+    child.on("error", (err) => {
+      // Include command context in error
+      const cmdStr = `${cmd} ${args.join(' ')}`;
+      err.message = `Command failed: ${cmdStr}\nError: ${err.message}`;
+      reject(err);
+    });
     child.on("close", (code) => {
       if (code === 0) {
         resolve({ stdout, stderr });
       } else {
-        reject(new Error(stderr || stdout || `${cmd} failed with code ${code}`));
+        const cmdStr = `${cmd} ${args.join(' ')}`;
+        const errMsg = stderr || stdout || `Exit code ${code}`;
+        reject(new Error(`Command failed: ${cmdStr}\n${errMsg}`));
       }
     });
   });
@@ -150,12 +164,31 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
     return cachePath;
   }
 
+  // Verify tools directory exists and is writable before attempting download
+  try {
+    await fs.promises.mkdir(toolsDir, { recursive: true });
+    await fs.promises.access(toolsDir, fs.constants.W_OK);
+  } catch (err) {
+    throw new Error(`Tools directory not writable: ${toolsDir}\nError: ${err.message}\nCheck permissions and DATA_DIR environment variable.`);
+  }
+
   // Download from mirror (try multiple URL patterns)
   const urls = getInstallerUrls(version, platform, arch, useFips);
   const attemptedUrls = [];
+  const errorDetails = [];
 
   console.log(`[openshiftInstaller] Downloading ${variantKey}`);
+  console.log(`[openshiftInstaller] Tools directory: ${toolsDir}`);
   console.log(`[openshiftInstaller] Will try ${urls.length} URL pattern(s)`);
+
+  // Log proxy configuration for debugging
+  const proxyVars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy'];
+  const activeProxies = proxyVars.filter(v => process.env[v]);
+  if (activeProxies.length > 0) {
+    console.log(`[openshiftInstaller] Proxy configuration detected: ${activeProxies.join(', ')}`);
+  } else {
+    console.log(`[openshiftInstaller] No proxy configuration detected`);
+  }
 
   for (const url of urls) {
     try {
@@ -221,18 +254,32 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
       return cachePath;
 
     } catch (err) {
+      const errorDetail = `URL: ${url}\nError: ${err.message}`;
+      errorDetails.push(errorDetail);
       console.error(`[openshiftInstaller] Failed: ${err.message}`);
       // Try next URL pattern
     }
   }
 
-  // All URLs failed
+  // All URLs failed - build comprehensive error message
   const errorMsg = [
     `Failed to download openshift-install for ${variantKey}.`,
-    `Attempted URLs:`,
+    ``,
+    `Attempted URLs (${attemptedUrls.length}):`,
     ...attemptedUrls.map(u => `  - ${u}`),
+    ``,
+    `Error details:`,
+    ...errorDetails.map(d => `  ${d.split('\n').join('\n  ')}`),
+    ``,
     `Mirror structure: https://mirror.openshift.com/pub/openshift-v4/{arch}/clients/ocp/{version}/`,
-    `Expected path arch: ${arch}, filename arch: ${getFilenameArch(arch)}`
+    `Expected path arch: ${arch}, filename arch: ${getFilenameArch(arch)}`,
+    `Tools directory: ${toolsDir}`,
+    ``,
+    `Troubleshooting:`,
+    `  1. Check network connectivity to mirror.openshift.com`,
+    `  2. Verify HTTP_PROXY and HTTPS_PROXY environment variables if behind proxy`,
+    `  3. Check ${toolsDir} exists and is writable`,
+    `  4. Try downloading manually: curl -fsSL "${attemptedUrls[0]}" -o test.tar.gz`
   ].join('\n');
 
   throw new Error(errorMsg);
