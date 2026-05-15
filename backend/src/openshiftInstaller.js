@@ -195,55 +195,33 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
       console.log(`[openshiftInstaller] Attempting: ${url}`);
       attemptedUrls.push(url);
 
-      const tarPath = path.join(toolsDir, `tmp-installer-${Date.now()}.tar.gz`);
-      const extractDir = path.join(toolsDir, `extract-installer-${Date.now()}`);
+      // Use simple paths like installer.js does (no temp directories with timestamps)
+      const tarPath = path.join(toolsDir, `installer-${variantKey}.tar.gz`);
 
-      // Ensure tools directory exists
-      await fs.promises.mkdir(toolsDir, { recursive: true });
+      // Download tar.gz (match installer.js pattern exactly)
+      console.log(`[openshiftInstaller] Downloading to ${tarPath}`);
+      await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
 
-      // Download tar.gz with verbose error reporting
-      try {
-        await runCmd("curl", ["-fsSL", "--max-time", "300", url, "-o", tarPath]);
-      } catch (curlErr) {
-        throw new Error(`Download failed: ${curlErr.message}`);
-      }
-
-      // Verify download succeeded and file exists
-      if (!fs.existsSync(tarPath)) {
-        throw new Error('Downloaded file not found on disk');
-      }
-
-      const downloadStats = await fs.promises.stat(tarPath);
-      if (downloadStats.size < 1024) {
-        throw new Error(`Downloaded file too small (${downloadStats.size} bytes), likely an error page`);
-      }
-
-      console.log(`[openshiftInstaller] Downloaded ${(downloadStats.size / 1024 / 1024).toFixed(2)} MB`);
-
-      // Extract
-      await fs.promises.mkdir(extractDir, { recursive: true });
-      try {
-        await runCmd("tar", ["-xzf", tarPath, "-C", extractDir]);
-      } catch (tarErr) {
-        throw new Error(`Extraction failed: ${tarErr.message}`);
-      }
-
-      // Find openshift-install binary in extracted files
-      const binaryPath = path.join(extractDir, 'openshift-install');
-      if (!fs.existsSync(binaryPath)) {
-        // List what was actually extracted
-        const extractedFiles = await fs.promises.readdir(extractDir);
-        throw new Error(`Binary not found in archive. Extracted files: ${extractedFiles.join(', ')}`);
-      }
-
-      // Move to cache location
+      // Extract directly to cacheDir (match installer.js pattern)
+      console.log(`[openshiftInstaller] Extracting to ${cacheDir}`);
       await fs.promises.mkdir(cacheDir, { recursive: true });
-      await fs.promises.copyFile(binaryPath, cachePath);
+      await runCmd("tar", ["-xzf", tarPath, "-C", cacheDir]);
+
+      // Find extracted binary (should be at cacheDir/openshift-install)
+      const extractedBinary = path.join(cacheDir, 'openshift-install');
+      if (!fs.existsSync(extractedBinary)) {
+        // List what was actually extracted
+        const extractedFiles = await fs.promises.readdir(cacheDir);
+        throw new Error(`Binary not found after extraction. Files in ${cacheDir}: ${extractedFiles.join(', ')}`);
+      }
+
+      // Rename to final cache path
+      console.log(`[openshiftInstaller] Moving binary to ${cachePath}`);
+      await fs.promises.rename(extractedBinary, cachePath);
       await runCmd("chmod", ["+x", cachePath]);
 
-      // Cleanup temp files
+      // Cleanup tar file
       await fs.promises.unlink(tarPath);
-      await fs.promises.rm(extractDir, { recursive: true, force: true });
 
       console.log(`[openshiftInstaller] Successfully cached: ${variantKey}`);
 
