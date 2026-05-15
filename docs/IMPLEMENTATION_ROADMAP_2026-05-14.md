@@ -356,11 +356,27 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 **Purpose:** UI consistency and comparative enrichment
 
-#### Phase 5 Continued: UI Consistency (2-3 weeks)
+#### Phase 6: UPI Enhancements & Comparative Enrichment (2-3 weeks, can parallelize)
+
+**Items (2):**
+
+1. **DOC-071:** Expand Day 1 Kubernetes manifest generation for UPI scenarios
+   - Priority: P2
+   - **Current:** App generates only NTP MachineConfig manifests (99-chrony-ntp-master.yaml, 99-chrony-ntp-worker.yaml)
+   - **Goal:** Expand to common Day 1 cluster configurations where app already has config data
+   - **Scope:**
+     - Proxy configuration MachineConfigs (when proxy enabled)
+     - Custom CA trust MachineConfigs (for self-signed cert scenarios)
+     - ImageContentSourcePolicy/ImageDigestMirrorSet manifests (disconnected mirror registry)
+     - Optional: Manifest customization UI (upload/paste custom manifests, validate YAML syntax, include in bundle)
+   - **Constraints:** Must not over-assume infrastructure (maintain DOC-040 "where feasible" boundary)
+   - **Dependencies:** DOC-040 (complete ✅)
+
+#### Phase 7: UI Consistency (2-3 weeks)
 
 **Items (1):**
 
-1. **DOC-032 (merged with COMP Phase 7):** Cross-scenario aesthetics + uniformity audit
+2. **DOC-032 (merged with COMP Phase 7):** Cross-scenario aesthetics + uniformity audit
    - Priority: P2
    - Define reusable layout contract
    - Audit typography, spacing, layout, components, dark mode

@@ -472,32 +472,9 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     docs.push(...docsIndex.scenarios[scenarioId].docs);
   }
 
-  // UPI Preparation Guide (add at top of resources for UPI scenarios)
-  if (method === 'UPI') {
-    const upiPrepGuides = {
-      'bare-metal-upi': {
-        title: 'Bare Metal UPI Preparation Guide',
-        url: 'docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md'
-      },
-      'vsphere-upi': {
-        title: 'vSphere UPI Preparation Guide',
-        url: 'docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md'
-      },
-      'aws-govcloud-upi': {
-        title: 'AWS GovCloud UPI Preparation Guide',
-        url: 'docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md'
-      },
-      'azure-government-upi': {
-        title: 'Azure Government UPI Preparation Guide',
-        url: 'docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md'
-      }
-    };
-
-    if (scenarioId && upiPrepGuides[scenarioId]) {
-      // Add UPI prep guide at the beginning (top of resources)
-      docs.unshift(upiPrepGuides[scenarioId]);
-    }
-  }
+  // Note: UPI Preparation Guides exist in docs/UPI_PREP_GUIDES/ but are not linked here
+  // because they cannot be served by the frontend without additional backend routes or
+  // external hosting. Users can access them directly in the repository.
 
   // Conditional docs based on confirmed configuration
 

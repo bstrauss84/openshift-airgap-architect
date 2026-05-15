@@ -1400,7 +1400,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hos
   assert.strictEqual(out3.platform?.aws?.hostedZoneRole, "arn:aws-us-gov:iam::123:role/HzRole", "hostedZoneRole emitted when hostedZone + hostedZoneSharedVpc set");
 });
 
-test("buildInstallConfig for aws-govcloud-ipi emits rootVolume when rootVolumeSize/rootVolumeType set", () => {
+test("buildInstallConfig for aws-govcloud-ipi emits rootVolume when rootVolumeSize/rootVolumeType/rootVolumeIops/rootVolumeKmsKeyArn set", () => {
   const state = {
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
@@ -1409,17 +1409,139 @@ test("buildInstallConfig for aws-govcloud-ipi emits rootVolume when rootVolumeSi
         region: "us-gov-west-1",
         controlPlaneInstanceType: "m5.xlarge",
         workerInstanceType: "m5.large",
-        rootVolumeSize: 100,
-        rootVolumeType: "gp3"
+        rootVolumeSize: 200,
+        rootVolumeType: "io2",
+        rootVolumeIops: 15000,
+        rootVolumeKmsKeyArn: "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/12345678-1234-1234-1234-123456789012"
       }
     }
   };
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.strictEqual(out.controlPlane?.platform?.aws?.type, "m5.xlarge");
-  assert.deepStrictEqual(out.controlPlane?.platform?.aws?.rootVolume, { size: 100, type: "gp3" });
+  assert.deepStrictEqual(out.controlPlane?.platform?.aws?.rootVolume, {
+    size: 200,
+    type: "io2",
+    iops: 15000,
+    kmsKeyARN: "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+  });
   assert.strictEqual(out.compute?.[0]?.platform?.aws?.type, "m5.large");
-  assert.deepStrictEqual(out.compute?.[0]?.platform?.aws?.rootVolume, { size: 100, type: "gp3" });
+  assert.deepStrictEqual(out.compute?.[0]?.platform?.aws?.rootVolume, {
+    size: 200,
+    type: "io2",
+    iops: 15000,
+    kmsKeyARN: "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+  });
+});
+
+test("buildInstallConfig for aws-govcloud-ipi emits rootVolume with io2 type and IOPS only (no size)", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: {
+      aws: {
+        region: "us-gov-west-1",
+        rootVolumeType: "io2",
+        rootVolumeIops: 10000
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.controlPlane?.platform?.aws?.rootVolume, { type: "io2", iops: 10000 });
+  assert.deepStrictEqual(out.compute?.[0]?.platform?.aws?.rootVolume, { type: "io2", iops: 10000 });
+});
+
+test("buildInstallConfig for aws-govcloud-ipi emits rootVolume with KMS key ARN only", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: {
+      aws: {
+        region: "us-gov-west-1",
+        rootVolumeKmsKeyArn: "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/abcdef12-3456-7890-abcd-ef1234567890"
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.deepStrictEqual(out.controlPlane?.platform?.aws?.rootVolume, {
+    kmsKeyARN: "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/abcdef12-3456-7890-abcd-ef1234567890"
+  });
+  assert.deepStrictEqual(out.compute?.[0]?.platform?.aws?.rootVolume, {
+    kmsKeyARN: "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/abcdef12-3456-7890-abcd-ef1234567890"
+  });
+});
+
+test("buildInstallConfig for aws-govcloud-ipi emits platform.aws.serviceEndpoints when set", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: {
+      aws: {
+        region: "us-gov-west-1",
+        serviceEndpoints: [
+          { name: "ec2", url: "https://ec2.us-gov-west-1.vpce.amazonaws.com" },
+          { name: "elasticloadbalancing", url: "https://elasticloadbalancing.us-gov-west-1.vpce.amazonaws.com" },
+          { name: "s3", url: "https://s3.us-gov-west-1.vpce.amazonaws.com" }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.aws?.serviceEndpoints, "serviceEndpoints should be present");
+  assert.strictEqual(out.platform.aws.serviceEndpoints.length, 3);
+  assert.deepStrictEqual(out.platform.aws.serviceEndpoints[0], { name: "ec2", url: "https://ec2.us-gov-west-1.vpce.amazonaws.com" });
+  assert.deepStrictEqual(out.platform.aws.serviceEndpoints[1], { name: "elasticloadbalancing", url: "https://elasticloadbalancing.us-gov-west-1.vpce.amazonaws.com" });
+  assert.deepStrictEqual(out.platform.aws.serviceEndpoints[2], { name: "s3", url: "https://s3.us-gov-west-1.vpce.amazonaws.com" });
+});
+
+test("buildInstallConfig for aws-govcloud-upi emits platform.aws.serviceEndpoints (UPI support)", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-upi" },
+    methodology: { method: "UPI" },
+    platformConfig: {
+      controlPlaneReplicas: 3,
+      computeReplicas: 3,
+      aws: {
+        region: "us-gov-west-1",
+        serviceEndpoints: [
+          { name: "ec2", url: "https://ec2.us-gov-west-1.vpce.amazonaws.com" },
+          { name: "s3", url: "https://s3.us-gov-west-1.vpce.amazonaws.com" }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.aws?.serviceEndpoints, "serviceEndpoints should be present for UPI");
+  assert.strictEqual(out.platform.aws.serviceEndpoints.length, 2);
+  assert.deepStrictEqual(out.platform.aws.serviceEndpoints[0], { name: "ec2", url: "https://ec2.us-gov-west-1.vpce.amazonaws.com" });
+  assert.deepStrictEqual(out.platform.aws.serviceEndpoints[1], { name: "s3", url: "https://s3.us-gov-west-1.vpce.amazonaws.com" });
+});
+
+test("buildInstallConfig for aws-govcloud-ipi filters out empty serviceEndpoints entries", () => {
+  const state = {
+    blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
+    methodology: { method: "IPI" },
+    platformConfig: {
+      aws: {
+        region: "us-gov-west-1",
+        serviceEndpoints: [
+          { name: "ec2", url: "https://ec2.us-gov-west-1.vpce.amazonaws.com" },
+          { name: "", url: "" },
+          { name: "s3", url: "" },
+          { name: "", url: "https://invalid.example.com" }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.ok(out.platform?.aws?.serviceEndpoints, "serviceEndpoints should be present with valid entry");
+  assert.strictEqual(out.platform.aws.serviceEndpoints.length, 1, "should filter out empty entries");
+  assert.deepStrictEqual(out.platform.aws.serviceEndpoints[0], { name: "ec2", url: "https://ec2.us-gov-west-1.vpce.amazonaws.com" });
 });
 
 test("buildInstallConfig for azure-government-ipi emits platform.azure with cloudName, region, resourceGroupName, baseDomainResourceGroupName (Prompt J)", () => {

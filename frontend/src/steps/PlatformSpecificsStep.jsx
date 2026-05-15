@@ -30,6 +30,34 @@ const AWS_GOVCLOUD_ARCHIVED_REGIONS = ["us-gov-east-1", "us-gov-west-1"];
 /** Allowed subnet roles for AWS GovCloud platform configurations. */
 const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
 
+/** Common AWS EC2 instance types for autocomplete suggestions. */
+const AWS_INSTANCE_TYPES = [
+  { value: "m5.large", label: "m5.large (General Purpose, 2 vCPU, 8 GB)" },
+  { value: "m5.xlarge", label: "m5.xlarge (General Purpose, 4 vCPU, 16 GB)" },
+  { value: "m5.2xlarge", label: "m5.2xlarge (General Purpose, 8 vCPU, 32 GB)" },
+  { value: "m5.4xlarge", label: "m5.4xlarge (General Purpose, 16 vCPU, 64 GB)" },
+  { value: "m6i.large", label: "m6i.large (General Purpose, 2 vCPU, 8 GB)" },
+  { value: "m6i.xlarge", label: "m6i.xlarge (General Purpose, 4 vCPU, 16 GB)" },
+  { value: "m6i.2xlarge", label: "m6i.2xlarge (General Purpose, 8 vCPU, 32 GB)" },
+  { value: "m6i.4xlarge", label: "m6i.4xlarge (General Purpose, 16 vCPU, 64 GB)" },
+  { value: "m6a.xlarge", label: "m6a.xlarge (General Purpose AMD, 4 vCPU, 16 GB)" },
+  { value: "c5.large", label: "c5.large (Compute Optimized, 2 vCPU, 4 GB)" },
+  { value: "c5.xlarge", label: "c5.xlarge (Compute Optimized, 4 vCPU, 8 GB)" },
+  { value: "c5.2xlarge", label: "c5.2xlarge (Compute Optimized, 8 vCPU, 16 GB)" },
+  { value: "c6i.xlarge", label: "c6i.xlarge (Compute Optimized, 4 vCPU, 8 GB)" },
+  { value: "c6i.2xlarge", label: "c6i.2xlarge (Compute Optimized, 8 vCPU, 16 GB)" },
+  { value: "r5.large", label: "r5.large (Memory Optimized, 2 vCPU, 16 GB)" },
+  { value: "r5.xlarge", label: "r5.xlarge (Memory Optimized, 4 vCPU, 32 GB)" },
+  { value: "r5.2xlarge", label: "r5.2xlarge (Memory Optimized, 8 vCPU, 64 GB)" },
+  { value: "r6i.xlarge", label: "r6i.xlarge (Memory Optimized, 4 vCPU, 32 GB)" },
+  { value: "r6i.2xlarge", label: "r6i.2xlarge (Memory Optimized, 8 vCPU, 64 GB)" },
+  { value: "t3.medium", label: "t3.medium (Burstable, 2 vCPU, 4 GB - not for prod)" },
+  { value: "t3.large", label: "t3.large (Burstable, 2 vCPU, 8 GB - not for prod)" },
+  { value: "t3.xlarge", label: "t3.xlarge (Burstable, 4 vCPU, 16 GB - not for prod)" },
+  { value: "m5n.xlarge", label: "m5n.xlarge (Network Optimized, 4 vCPU, 16 GB)" },
+  { value: "c5n.xlarge", label: "c5n.xlarge (Network Optimized, 4 vCPU, 10.5 GB)" },
+];
+
 const hasParam = (catalogParams, path, outputFile) =>
   catalogParams.some((p) => p.path === path && p.outputFile === outputFile);
 
@@ -61,6 +89,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const [localAwsWorkerInstanceType, setLocalAwsWorkerInstanceType] = useState(platformConfig.aws?.workerInstanceType || "");
   const [localAwsRootVolumeSize, setLocalAwsRootVolumeSize] = useState(platformConfig.aws?.rootVolumeSize || "");
   const [localAwsRootVolumeType, setLocalAwsRootVolumeType] = useState(platformConfig.aws?.rootVolumeType || "");
+  const [localAwsRootVolumeIops, setLocalAwsRootVolumeIops] = useState(platformConfig.aws?.rootVolumeIops || "");
+  const [localAwsRootVolumeKmsKeyArn, setLocalAwsRootVolumeKmsKeyArn] = useState(platformConfig.aws?.rootVolumeKmsKeyArn || "");
 
   // Local state for text inputs (onBlur pattern) - Azure
   const [localAzureRegion, setLocalAzureRegion] = useState(platformConfig.azure?.region || "");
@@ -140,6 +170,8 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   useEffect(() => { setLocalAwsWorkerInstanceType(platformConfig.aws?.workerInstanceType || ""); }, [platformConfig.aws?.workerInstanceType]);
   useEffect(() => { setLocalAwsRootVolumeSize(platformConfig.aws?.rootVolumeSize || ""); }, [platformConfig.aws?.rootVolumeSize]);
   useEffect(() => { setLocalAwsRootVolumeType(platformConfig.aws?.rootVolumeType || ""); }, [platformConfig.aws?.rootVolumeType]);
+  useEffect(() => { setLocalAwsRootVolumeIops(platformConfig.aws?.rootVolumeIops || ""); }, [platformConfig.aws?.rootVolumeIops]);
+  useEffect(() => { setLocalAwsRootVolumeKmsKeyArn(platformConfig.aws?.rootVolumeKmsKeyArn || ""); }, [platformConfig.aws?.rootVolumeKmsKeyArn]);
 
   // Sync local state when store values change (for imports/loads) - Azure
   useEffect(() => { setLocalAzureRegion(platformConfig.azure?.region || ""); }, [platformConfig.azure?.region]);
@@ -423,6 +455,19 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
             setAwsSubnetEntries(next);
           };
           const removeAwsSubnetAt = (index) => setAwsSubnetEntries(awsSubnetList.filter((_, i) => i !== index));
+
+          // Service endpoints state and helpers
+          const awsServiceEndpoints = Array.isArray(platformConfig.aws?.serviceEndpoints)
+            ? platformConfig.aws.serviceEndpoints
+            : [];
+          const setAwsServiceEndpoints = (endpoints) => updateAws({ serviceEndpoints: endpoints });
+          const addAwsServiceEndpoint = () => setAwsServiceEndpoints([...awsServiceEndpoints, { name: "", url: "" }]);
+          const updateAwsServiceEndpointAt = (index, patch) => {
+            const next = awsServiceEndpoints.map((e, i) => i === index ? { ...e, ...patch } : e);
+            setAwsServiceEndpoints(next);
+          };
+          const removeAwsServiceEndpointAt = (index) => setAwsServiceEndpoints(awsServiceEndpoints.filter((_, i) => i !== index));
+
           return (
             <section className="card">
               <div className="card-header">
@@ -776,6 +821,7 @@ subnet-0def456abc789 (us-east-1b)`}
                           value={localAwsControlPlaneInstanceType}
                           onChange={(e) => setLocalAwsControlPlaneInstanceType(e.target.value)}
                           onBlur={() => updateAws({ controlPlaneInstanceType: localAwsControlPlaneInstanceType })}
+                          list="aws-govcloud-instance-types"
                           placeholder="e.g. m5.xlarge"
                           style={{ maxWidth: "280px" }}
                         />
@@ -796,6 +842,7 @@ subnet-0def456abc789 (us-east-1b)`}
                           value={localAwsWorkerInstanceType}
                           onChange={(e) => setLocalAwsWorkerInstanceType(e.target.value)}
                           onBlur={() => updateAws({ workerInstanceType: localAwsWorkerInstanceType })}
+                          list="aws-govcloud-instance-types"
                           placeholder="e.g. m5.large"
                           style={{ maxWidth: "280px" }}
                         />
@@ -843,6 +890,81 @@ subnet-0def456abc789 (us-east-1b)`}
                           onChange={(e) => setLocalAwsRootVolumeType(e.target.value)}
                           onBlur={() => updateAws({ rootVolumeType: localAwsRootVolumeType || undefined })}
                           placeholder="e.g. gp3"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Root volume IOPS (optional)"
+                        hint={`Provisioned IOPS (Input/Output Operations Per Second) for EBS root volumes. Only applicable to certain volume types - leave blank for most installations.
+
+**What is this:**
+IOPS defines the maximum number of I/O operations per second the EBS volume can sustain. Higher IOPS = better disk performance for I/O-intensive workloads (etcd, databases).
+
+**When needed:**
+• **io1/io2 volume types:** IOPS is REQUIRED when using io1 or io2. You must specify between 100-64,000 IOPS for io1, or 100-256,000 IOPS for io2.
+• **gp3 volumes:** IOPS is optional. Default is 3,000 IOPS (sufficient for most workloads). You can provision up to 16,000 IOPS if needed.
+• **gp2, st1, sc1:** Custom IOPS is NOT supported - these types have IOPS based on volume size. Leave this field blank.
+
+**Format:**
+Number between 100 and 256,000. Higher values = higher AWS costs.
+
+**How it's used:**
+Emitted to \`controlPlane.platform.aws.rootVolume.iops\` and \`compute[].platform.aws.rootVolume.iops\` in install-config.yaml. Applied to all cluster nodes (control plane and workers).
+
+**Important:**
+⚠️ **Cost impact:** Higher IOPS significantly increases EBS costs. Only provision IOPS beyond gp3 defaults when you have specific performance requirements.
+⚠️ **Control plane etcd:** For very large clusters (500+ nodes), high IOPS (10,000+) on io2 volumes can improve etcd performance, but gp3 is sufficient for most clusters.
+⚠️ **Type compatibility:** Verify your volume type supports custom IOPS before setting this value.
+
+**Example:**
+5000 for tuned gp3 (better than default 3,000), 10000 for io2 control plane in large clusters, 15000 for io2 workers running high-IOPS databases.`}
+                        className="field-short"
+                      >
+                        <input
+                          type="number"
+                          min={100}
+                          max={256000}
+                          value={localAwsRootVolumeIops}
+                          onChange={(e) => setLocalAwsRootVolumeIops(e.target.value)}
+                          onBlur={() => updateAws({ rootVolumeIops: localAwsRootVolumeIops === "" ? undefined : Number(localAwsRootVolumeIops) })}
+                          placeholder="omit"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Root volume KMS Key ARN (optional)"
+                        hint={`AWS KMS (Key Management Service) Customer Master Key ARN for encrypting EBS root volumes. Leave blank to use AWS-managed default encryption.
+
+**What is this:**
+KMS encryption allows you to use customer-managed encryption keys instead of AWS-managed keys for EBS volume encryption. This provides additional control over encryption keys, key policies, and audit trails.
+
+**When needed:**
+• **Compliance requirements:** FedRAMP, HIPAA, DoD Impact Level 4+, or other regulations requiring customer-managed encryption keys
+• **Cross-account access:** When cluster nodes are in a different AWS account than the KMS key (requires key policy configuration)
+• **Custom key policies:** When you need fine-grained IAM permissions for who can encrypt/decrypt volumes
+• **Audit requirements:** When you need CloudTrail logs of all encryption key usage for compliance auditing
+
+**Format:**
+Full ARN of the KMS key. For AWS GovCloud: \`arn:aws-us-gov:kms:REGION:ACCOUNT-ID:key/KEY-ID\`
+For standard AWS: \`arn:aws:kms:REGION:ACCOUNT-ID:key/KEY-ID\`
+
+**How it's used:**
+Emitted to \`controlPlane.platform.aws.rootVolume.kmsKeyARN\` and \`compute[].platform.aws.rootVolume.kmsKeyARN\` in install-config.yaml. Applied to all cluster nodes (control plane and workers).
+
+**Important:**
+⚠️ **Required IAM permissions:** The AWS credentials used for installation must have \`kms:Encrypt\`, \`kms:Decrypt\`, \`kms:CreateGrant\`, and \`kms:GenerateDataKey\` permissions on the specified KMS key. Installation will FAIL if permissions are missing.
+⚠️ **Key policy:** The KMS key policy must allow the AWS account/role creating the cluster to use the key. Cross-account usage requires explicit key policy grants.
+⚠️ **Cost:** Customer-managed KMS keys cost approximately $1/month per key, plus ~$0.03 per 10,000 encryption/decryption requests.
+⚠️ **Cannot be changed** after installation without recreating all EBS volumes (complex, requires node replacement).
+
+**Example:**
+arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/12345678-1234-1234-1234-123456789012`}
+                        className="field-long"
+                      >
+                        <input
+                          value={localAwsRootVolumeKmsKeyArn}
+                          onChange={(e) => setLocalAwsRootVolumeKmsKeyArn(e.target.value)}
+                          onBlur={() => updateAws({ rootVolumeKmsKeyArn: localAwsRootVolumeKmsKeyArn || undefined })}
+                          placeholder="arn:aws-us-gov:kms:region:account:key/key-id"
+                          style={{ maxWidth: "500px" }}
                         />
                       </FieldLabelWithInfo>
                     </div>
@@ -963,6 +1085,15 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                   </>
                 ) : null}
 
+                {/* Datalist for instance type autocomplete */}
+                <datalist id="aws-govcloud-instance-types">
+                  {AWS_INSTANCE_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </datalist>
+
                 <h4 className="platform-specifics-subsection">Publish &amp; credentials</h4>
                 <div className="field-grid">
                   <FieldLabelWithInfo
@@ -1030,6 +1161,76 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                       <option value="Manual">Manual</option>
                     </select>
                   </FieldLabelWithInfo>
+                </div>
+
+                <h4 className="platform-specifics-subsection">Service endpoints (optional)</h4>
+                <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                  Custom VPC endpoint URLs for AWS services when public AWS API endpoints are not reachable (airgap, restricted regions, PrivateLink-only access). Leave empty for standard AWS API connectivity.
+                </p>
+                <div style={{ marginTop: 12 }}>
+                  <FieldLabelWithInfo
+                    label="Custom service endpoints"
+                    hint={`Custom VPC endpoint URLs for AWS services when public AWS API endpoints are not reachable. Use when deploying in restricted AWS regions (secret/top-secret partitions), fully disconnected VPCs, or PrivateLink-only environments.
+
+**What is this:**
+Service endpoints define custom URLs for AWS API services (EC2, ELB, S3, etc.) instead of the public AWS endpoint URLs. This is required when deploying in AWS VPCs that do not have internet access or are in restricted AWS partitions where standard AWS endpoints are not available.
+
+**When needed:**
+• **Airgap/disconnected deployments:** When your VPC has no internet gateway and cannot reach public AWS APIs (*.amazonaws.com)
+• **AWS GovCloud Secret/Top Secret regions:** Restricted partitions with different endpoint URLs
+• **PrivateLink-only access:** When all AWS service access must go through VPC endpoints (compliance requirement)
+• **Custom AWS installations:** When using AWS Outposts, AWS Local Zones, or custom AWS regions with non-standard endpoints
+
+**Format:**
+Each endpoint has a service name (e.g., "ec2", "elasticloadbalancing", "s3") and a custom URL. URL format is typically \`https://SERVICE.REGION.vpce.amazonaws.com\` for VPC endpoints, or custom endpoint FQDNs for restricted regions.
+
+**Common service names:**
+• **ec2:** EC2 instance management (required for IPI instance creation)
+• **elasticloadbalancing:** ELB/ALB/NLB management (required for load balancer creation)
+• **s3:** S3 storage access (required for ignition configs, image registry)
+• **sts:** Security Token Service (required for STS credential mode)
+• **route53:** DNS management (if using Route 53)
+• **tagging:** Resource tagging (for cost allocation, compliance)
+
+**How it's used:**
+Emitted to \`platform.aws.serviceEndpoints[]\` in install-config.yaml. Each entry has \`name\` (service) and \`url\` (custom endpoint). The installer uses these URLs instead of public AWS endpoints during cluster provisioning.
+
+**Important:**
+⚠️ **Only needed when public AWS endpoints are NOT reachable** - most installations should leave this empty
+⚠️ **VPC endpoint prerequisites:** VPC endpoints must be created BEFORE installation and must allow traffic from cluster subnets
+⚠️ **DNS resolution:** Custom endpoint URLs must be resolvable from cluster nodes (either via VPC DNS or custom DNS configuration)
+⚠️ **Permissions:** IAM credentials must have permissions on the custom endpoints, not just the public AWS APIs
+
+**Example:**
+Service name: ec2, URL: https://ec2.us-gov-west-1.vpce.amazonaws.com
+Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
+                  />
+                  <div className="list" style={{ marginTop: 6 }}>
+                    {(awsServiceEndpoints.length ? awsServiceEndpoints : [{ name: "", url: "" }]).map((entry, idx) => {
+                      const nameVal = entry?.name ?? "";
+                      const urlVal = entry?.url ?? "";
+                      return (
+                        <div key={idx} className="list-item" style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          <input
+                            value={nameVal}
+                            onChange={(e) => updateAwsServiceEndpointAt(idx, { name: e.target.value, url: urlVal })}
+                            placeholder="e.g. ec2"
+                            style={{ flex: "0 1 200px", minWidth: 120 }}
+                            aria-label="Service name"
+                          />
+                          <input
+                            value={urlVal}
+                            onChange={(e) => updateAwsServiceEndpointAt(idx, { name: nameVal, url: e.target.value })}
+                            placeholder="https://service.region.vpce.amazonaws.com"
+                            style={{ flex: "1 1 400px", minWidth: 200 }}
+                            aria-label="Service endpoint URL"
+                          />
+                          <button type="button" className="ghost" onClick={() => removeAwsServiceEndpointAt(idx)} aria-label="Remove endpoint">Remove</button>
+                        </div>
+                      );
+                    })}
+                    <button type="button" className="ghost" onClick={addAwsServiceEndpoint} style={{ marginTop: 4 }}>Add endpoint</button>
+                  </div>
                 </div>
               </div>
             </section>

@@ -414,31 +414,47 @@ const buildInstallConfig = (state) => {
       }
     }
     if (platformConfig.aws?.amiId) aws.amiID = platformConfig.aws.amiId;
+    // serviceEndpoints: array of {name, url} for custom VPC endpoints (airgap/restricted regions)
+    if (Array.isArray(platformConfig.aws?.serviceEndpoints) && platformConfig.aws.serviceEndpoints.length > 0) {
+      const validEndpoints = platformConfig.aws.serviceEndpoints.filter(
+        (e) => (e?.name || "").trim() && (e?.url || "").trim()
+      );
+      if (validEndpoints.length > 0) {
+        aws.serviceEndpoints = validEndpoints.map((e) => ({
+          name: (e.name || "").trim(),
+          url: (e.url || "").trim()
+        }));
+      }
+    }
     if (Object.keys(aws).length) {
       installConfig.platform.aws = aws;
     }
-    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType)) {
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn)) {
       const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null
         ? { ...installConfig.controlPlane.platform } : {};
       cpPlatform.aws = { ...(cpPlatform.aws || {}) };
       if (platformConfig.aws.controlPlaneInstanceType) cpPlatform.aws.type = platformConfig.aws.controlPlaneInstanceType;
-      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType) {
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn) {
         cpPlatform.aws.rootVolume = {};
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) cpPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) cpPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
+        if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) cpPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
+        if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) cpPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(cpPlatform.aws.rootVolume).length === 0) delete cpPlatform.aws.rootVolume;
       }
       installConfig.controlPlane.platform = cpPlatform;
     }
-    if (state.methodology?.method === "IPI" && (platformConfig.aws?.workerInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType)) {
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.workerInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn)) {
       const compPlatform = typeof installConfig.compute[0].platform === "object" && installConfig.compute[0].platform !== null
         ? { ...installConfig.compute[0].platform } : {};
       compPlatform.aws = { ...(compPlatform.aws || {}) };
       if (platformConfig.aws.workerInstanceType) compPlatform.aws.type = platformConfig.aws.workerInstanceType;
-      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType) {
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn) {
         compPlatform.aws.rootVolume = {};
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) compPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) compPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
+        if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) compPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
+        if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) compPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(compPlatform.aws.rootVolume).length === 0) delete compPlatform.aws.rootVolume;
       }
       installConfig.compute[0].platform = compPlatform;
