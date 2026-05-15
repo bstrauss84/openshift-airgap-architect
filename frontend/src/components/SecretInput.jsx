@@ -108,10 +108,17 @@ function SecretInput({
     e.target.value = "";
   };
 
-  const handleBlur = (e) => {
-    const newValue = e.target.value.trim ? e.target.value.trim() : e.target.value;
+  const handleBlur = () => {
+    const newValue = localValue.trim ? localValue.trim() : localValue;
     if (newValue !== value) {
       onChange(newValue); // Update parent state only on blur if changed
+    }
+  };
+
+  const handleFocus = () => {
+    // Auto-show field when focused if there's an error (helps users fix invalid secrets)
+    if (errorMessage && !showSecret) {
+      setShowSecret(true);
     }
   };
 
@@ -177,6 +184,7 @@ function SecretInput({
           aria-describedby={hasError ? `${id}-error` : undefined}
           value={displayValue}
           onChange={(e) => setLocalValue(e.target.value)} // Always update local state
+          onFocus={handleFocus} // Auto-show if there's an error
           onBlur={handleBlur} // Update parent state on blur
           onPaste={handlePaste}
           placeholder=""
