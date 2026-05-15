@@ -2504,7 +2504,9 @@ const buildBundleZip = async (state, res) => {
       const installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
 
       if (fs.existsSync(installerPath)) {
-        archive.file(installerPath, { name: "tools/openshift-install" });
+        // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
+        const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
+        archive.file(installerPath, { name: `tools/${binaryName}` });
       } else {
         throw new Error("Binary not found after download");
       }

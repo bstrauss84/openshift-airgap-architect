@@ -156,7 +156,10 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
   // Build cache key (e.g., "openshift-install-4.20.18-linux-amd64-fips")
   const variantKey = [version, platform, arch, useFips ? 'fips' : 'standard'].join('-');
   const cacheDir = path.join(toolsDir, `export-${variantKey}`);
-  const cachePath = path.join(cacheDir, 'openshift-install');
+
+  // Preserve original binary name (openshift-install-fips for FIPS, openshift-install for standard)
+  const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
+  const cachePath = path.join(cacheDir, binaryName);
 
   // Check if already cached
   if (fs.existsSync(cachePath)) {
