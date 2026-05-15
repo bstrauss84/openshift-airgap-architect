@@ -82,6 +82,7 @@ It does not replace deep working docs; it centralizes navigation and validation 
 - `docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md`
 - `docs/MIRRORING_SECTION_GATING.md`
 - `docs/PLACEHOLDER_VALUES_DEFERRED.md`
+- [`docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md`](PLATFORM_NONE_SUPPORT_BOUNDARIES.md) - Platform: none usage (required for Bare Metal UPI all topologies, Agent-Based SNO only)
 
 
 

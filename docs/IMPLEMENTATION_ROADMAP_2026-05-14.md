@@ -180,14 +180,20 @@ This document organizes remaining backlog work by semantic versioning to provide
    - ✅ Linked from `docs/SCENARIOS_GUIDE.md`
    - ✅ **Unblocked:** DOC-035, DOC-040
 
-2. **DOC-035:** Platform: none research and implementation (NEXT - unblocked)
+2. ✅ **DOC-035:** Platform: none research and implementation - **COMPLETE (2026-05-15)**
    - Priority: P1
-   - Research valid `platform: none` paths per OCP 4.20 docs
-   - Document support boundaries
-   - Implement scenario gating + generation + validation
+   - ✅ `docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md` created
+   - ✅ All valid platform: none paths documented (Bare Metal UPI all topologies, Agent SNO)
+   - ✅ All invalid paths documented with correct alternatives (IPI all platforms, cloud UPI, Agent multi-node)
+   - ✅ Params JSON vs. backend generation distinction explained
+   - ✅ Implementation audit shows current code correct per OCP 4.20 docs
+   - ✅ Validation rules already enforced (backend/src/generate.js:216-224, 315-318)
+   - ✅ Params JSON curation process documented (4.20 docs + binary dissection)
+   - ✅ Linked from SCENARIOS_BARE_METAL_FAMILY.md and SCENARIOS_VSPHERE_FAMILY.md
+   - **Result:** Documentation-only task - no code changes needed, implementation already correct
    - **Dependencies:** ✅ DOC-031 (complete)
 
-3. **DOC-040:** UPI support expansion (UNBLOCKED)
+3. **DOC-040:** UPI support expansion (NEXT - fully unblocked)
    - Priority: P1
    - Identify repeatable UPI prep tasks
    - Add standardized helpers/templates

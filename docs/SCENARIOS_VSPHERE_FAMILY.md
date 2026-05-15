@@ -8,6 +8,7 @@ It centralizes the large vSphere doc set without deleting any detail docs.
 
 - [Scope](#scope)
 - [Canonical sources](#canonical-sources)
+- [Cross-cutting technical notes](#cross-cutting-technical-notes)
 - [Scenario map](#scenario-map)
 - [Scenario truth sections](#scenario-truth-sections)
 - [Deep working docs (authoritative for detail)](#deep-working-docs-authoritative-for-detail)
@@ -30,6 +31,10 @@ It centralizes the large vSphere doc set without deleting any detail docs.
 - `docs/PARAMS_CATALOG_RULES.md`
 - `docs/BACKLOG_STATUS.md`
 - `docs/SCENARIOS_GUIDE.md`
+
+## Cross-cutting technical notes
+
+- [`docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md`](PLATFORM_NONE_SUPPORT_BOUNDARIES.md) - Platform: none usage (required for vSphere Agent-Based SNO only; multi-node uses platform.vsphere)
 
 <a id="scenario-map"></a>
 ## Scenario map
