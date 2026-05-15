@@ -47,19 +47,29 @@ const runCmd = (cmd, args, options = {}) =>
 /**
  * Normalize Node.js process.arch to mirror path conventions
  * Node reports: x64, arm64
- * Mirror uses: x86_64, amd64, aarch64, arm64, ppc64le, s390x
+ * Mirror uses: x86_64 (preferred), arm64, ppc64le, s390x for paths
+ * Filenames use: amd64, arm64, ppc64le, s390x
  */
 function normalizeInstallerArch(arch) {
   const map = {
-    'x64': 'amd64',
-    'amd64': 'amd64',
-    'x86_64': 'amd64',
-    'arm64': 'arm64',
-    'aarch64': 'arm64',
-    'ppc64le': 'ppc64le',
-    's390x': 's390x'
+    'x64': 'x86_64',      // Node.js x64 -> mirror x86_64 path
+    'amd64': 'x86_64',    // Common alias -> mirror x86_64 path
+    'x86_64': 'x86_64',   // Already correct
+    'arm64': 'arm64',     // Already correct
+    'aarch64': 'arm64',   // ARM alias -> arm64
+    'ppc64le': 'ppc64le', // Already correct
+    's390x': 's390x'      // Already correct
   };
   return map[arch] || arch;
+}
+
+/**
+ * Get filename architecture (different from path architecture for x86_64/amd64)
+ */
+function getFilenameArch(pathArch) {
+  // Filenames use 'amd64' but paths use 'x86_64'
+  if (pathArch === 'x86_64') return 'amd64';
+  return pathArch;
 }
 
 /**
@@ -74,30 +84,34 @@ function parseInstallerPlatformArch(platformArch) {
 /**
  * Build download URLs for different binary variants
  * Returns array of URLs to try (fallback order)
+ *
+ * Mirror structure:
+ * - Path uses: x86_64, arm64, ppc64le, s390x
+ * - Filename uses: amd64 (for x86_64), arm64, ppc64le, s390x
  */
 function getInstallerUrls(version, platform, arch, useFips) {
-  // Note: Mirror uses arch in the base path (e.g., /pub/openshift-v4/amd64/clients/...)
+  // Note: Mirror uses arch in the base path (e.g., /pub/openshift-v4/x86_64/clients/...)
   const base = `https://mirror.openshift.com/pub/openshift-v4/${arch}/clients/ocp/${version}`;
+  const fileArch = getFilenameArch(arch);
 
   if (useFips) {
     // FIPS RHEL 9 variant (Linux only)
+    // Only arch-specific filenames exist for FIPS
     return [
-      `${base}/openshift-install-rhel9-${arch}.tar.gz`,
-      `${base}/openshift-install-rhel9-${arch}-${version}.tar.gz` // Try with version suffix
+      `${base}/openshift-install-rhel9-${fileArch}.tar.gz`
     ];
   } else if (platform === 'mac') {
     // macOS variants
+    // Generic mac binary works for both Intel (x86_64) and ARM64
+    // Arch-specific binaries exist for arm64 but NOT for amd64/x86_64
     return [
-      `${base}/openshift-install-mac-${arch}.tar.gz`,
-      `${base}/openshift-install-mac-${arch}-${version}.tar.gz`,
-      `${base}/openshift-install-mac.tar.gz` // Generic fallback
+      `${base}/openshift-install-mac.tar.gz`, // Generic (works for all mac)
+      `${base}/openshift-install-mac-${fileArch}.tar.gz` // Arch-specific (arm64 only)
     ];
   } else {
     // Linux standard variants
     return [
-      `${base}/openshift-install-linux.tar.gz`, // Generic (most common)
-      `${base}/openshift-install-linux-${arch}.tar.gz`,
-      `${base}/openshift-install-linux-${arch}-${version}.tar.gz`
+      `${base}/openshift-install-linux.tar.gz` // Generic (most common, works for all arch)
     ];
   }
 }
@@ -138,24 +152,55 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
 
   // Download from mirror (try multiple URL patterns)
   const urls = getInstallerUrls(version, platform, arch, useFips);
+  const attemptedUrls = [];
+
+  console.log(`[openshiftInstaller] Downloading ${variantKey}`);
+  console.log(`[openshiftInstaller] Will try ${urls.length} URL pattern(s)`);
 
   for (const url of urls) {
     try {
-      console.log(`[openshiftInstaller] Attempting download: ${url}`);
+      console.log(`[openshiftInstaller] Attempting: ${url}`);
+      attemptedUrls.push(url);
+
       const tarPath = path.join(toolsDir, `tmp-installer-${Date.now()}.tar.gz`);
       const extractDir = path.join(toolsDir, `extract-installer-${Date.now()}`);
 
-      // Download tar.gz
-      await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
+      // Ensure tools directory exists
+      await fs.promises.mkdir(toolsDir, { recursive: true });
+
+      // Download tar.gz with verbose error reporting
+      try {
+        await runCmd("curl", ["-fsSL", "--max-time", "300", url, "-o", tarPath]);
+      } catch (curlErr) {
+        throw new Error(`Download failed: ${curlErr.message}`);
+      }
+
+      // Verify download succeeded and file exists
+      if (!fs.existsSync(tarPath)) {
+        throw new Error('Downloaded file not found on disk');
+      }
+
+      const downloadStats = await fs.promises.stat(tarPath);
+      if (downloadStats.size < 1024) {
+        throw new Error(`Downloaded file too small (${downloadStats.size} bytes), likely an error page`);
+      }
+
+      console.log(`[openshiftInstaller] Downloaded ${(downloadStats.size / 1024 / 1024).toFixed(2)} MB`);
 
       // Extract
       await fs.promises.mkdir(extractDir, { recursive: true });
-      await runCmd("tar", ["-xzf", tarPath, "-C", extractDir]);
+      try {
+        await runCmd("tar", ["-xzf", tarPath, "-C", extractDir]);
+      } catch (tarErr) {
+        throw new Error(`Extraction failed: ${tarErr.message}`);
+      }
 
       // Find openshift-install binary in extracted files
       const binaryPath = path.join(extractDir, 'openshift-install');
       if (!fs.existsSync(binaryPath)) {
-        throw new Error('openshift-install binary not found in archive');
+        // List what was actually extracted
+        const extractedFiles = await fs.promises.readdir(extractDir);
+        throw new Error(`Binary not found in archive. Extracted files: ${extractedFiles.join(', ')}`);
       }
 
       // Move to cache location
@@ -167,7 +212,7 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
       await fs.promises.unlink(tarPath);
       await fs.promises.rm(extractDir, { recursive: true, force: true });
 
-      console.log(`[openshiftInstaller] Downloaded and cached: ${variantKey}`);
+      console.log(`[openshiftInstaller] Successfully cached: ${variantKey}`);
 
       // Clean up old cached binaries (keep last 2 versions)
       // Run async without waiting (fire-and-forget)
@@ -176,12 +221,21 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
       return cachePath;
 
     } catch (err) {
-      console.log(`[openshiftInstaller] Failed to download from ${url}: ${err.message}`);
+      console.error(`[openshiftInstaller] Failed: ${err.message}`);
       // Try next URL pattern
     }
   }
 
-  throw new Error(`Failed to download openshift-install for ${variantKey} from any URL pattern`);
+  // All URLs failed
+  const errorMsg = [
+    `Failed to download openshift-install for ${variantKey}.`,
+    `Attempted URLs:`,
+    ...attemptedUrls.map(u => `  - ${u}`),
+    `Mirror structure: https://mirror.openshift.com/pub/openshift-v4/{arch}/clients/ocp/{version}/`,
+    `Expected path arch: ${arch}, filename arch: ${getFilenameArch(arch)}`
+  ].join('\n');
+
+  throw new Error(errorMsg);
 }
 
 /**
