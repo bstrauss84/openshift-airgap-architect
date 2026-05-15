@@ -207,13 +207,21 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
       await fs.promises.mkdir(cacheDir, { recursive: true });
       await runCmd("tar", ["-xzf", tarPath, "-C", cacheDir]);
 
-      // Find extracted binary (should be at cacheDir/openshift-install)
-      const extractedBinary = path.join(cacheDir, 'openshift-install');
+      // Find extracted binary
+      // FIPS binaries are named 'openshift-install-fips', standard are 'openshift-install'
+      let extractedBinary = path.join(cacheDir, 'openshift-install');
+      if (!fs.existsSync(extractedBinary)) {
+        // Try FIPS naming
+        extractedBinary = path.join(cacheDir, 'openshift-install-fips');
+      }
+
       if (!fs.existsSync(extractedBinary)) {
         // List what was actually extracted
         const extractedFiles = await fs.promises.readdir(cacheDir);
         throw new Error(`Binary not found after extraction. Files in ${cacheDir}: ${extractedFiles.join(', ')}`);
       }
+
+      console.log(`[openshiftInstaller] Found binary: ${path.basename(extractedBinary)}`);
 
       // Rename to final cache path
       console.log(`[openshiftInstaller] Moving binary to ${cachePath}`);
