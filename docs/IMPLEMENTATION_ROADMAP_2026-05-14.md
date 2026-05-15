@@ -170,25 +170,28 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 **Items (4):**
 
-1. **DOC-031:** Disconnected scenario support audit ⭐ **FOUNDATIONAL**
+1. ✅ **DOC-031:** Disconnected scenario support audit ⭐ **FOUNDATIONAL** - **COMPLETE (2026-05-15)**
    - Priority: P1
-   - Produce scenario-by-scenario disconnected support matrix
-   - Document gaps with priority
-   - Output: `docs/DISCONNECTED_SCENARIO_MATRIX.md`
-   - **Blocks:** DOC-035, DOC-040
+   - ✅ `docs/DISCONNECTED_SCENARIO_MATRIX.md` created
+   - ✅ All 12 scenarios documented with disconnected deployment capabilities
+   - ✅ Common requirements, tool support matrix, validation methods documented
+   - ✅ No P1 blockers identified
+   - ✅ P2/P3 enhancement opportunities documented with estimates
+   - ✅ Linked from `docs/SCENARIOS_GUIDE.md`
+   - ✅ **Unblocked:** DOC-035, DOC-040
 
-2. **DOC-035:** Platform: none research and implementation
+2. **DOC-035:** Platform: none research and implementation (NEXT - unblocked)
    - Priority: P1
    - Research valid `platform: none` paths per OCP 4.20 docs
    - Document support boundaries
    - Implement scenario gating + generation + validation
-   - **Dependencies:** DOC-031
+   - **Dependencies:** ✅ DOC-031 (complete)
 
-3. **DOC-040:** UPI support expansion
+3. **DOC-040:** UPI support expansion (UNBLOCKED)
    - Priority: P1
    - Identify repeatable UPI prep tasks
    - Add standardized helpers/templates
-   - **Dependencies:** DOC-031, DOC-039 (when unblocked)
+   - **Dependencies:** ✅ DOC-031 (complete), DOC-039 (when unblocked)
 
 4. **PHX-043:** Verify CI docs host rules completeness
    - Priority: P1

@@ -13,6 +13,7 @@ Scope: tracked repository docs only. Local and archived docs are triaged through
 - [Supported scenario map](#supported-scenario-map)
 - [Family deep docs](#family-deep-docs)
 - [Cross-scenario rules and references](#cross-scenario-rules-and-references)
+- [Disconnected deployment support](#disconnected-deployment-support)
 - [Historical and non-canonical materials](#historical-and-non-canonical-materials)
 - [When to create a new scenario doc](#when-to-create-a-new-scenario-doc)
 
@@ -74,6 +75,20 @@ Scope: tracked repository docs only. Local and archived docs are triaged through
 - `docs/e2e-examples/README.md`
 - `docs/e2e-examples/INVENTORY.md`
 - `docs/e2e-examples/REFERENCE.md`
+
+<a id="disconnected-deployment-support"></a>
+## Disconnected Deployment Support
+
+All scenarios support disconnected (air-gapped) deployments. See [`docs/DISCONNECTED_SCENARIO_MATRIX.md`](DISCONNECTED_SCENARIO_MATRIX.md) for detailed requirements, workflows, and validation status.
+
+**Quick links:**
+- [Disconnected deployment modes](DISCONNECTED_SCENARIO_MATRIX.md#disconnected-deployment-modes) - Full air-gapped vs restricted network
+- [Common requirements](DISCONNECTED_SCENARIO_MATRIX.md#common-requirements-across-all-scenarios) - Infrastructure, configuration, and optional components
+- [Scenario-by-scenario matrix](DISCONNECTED_SCENARIO_MATRIX.md#scenario-by-scenario-matrix) - Detailed breakdown of all 12 scenarios
+- [Existing tool support](DISCONNECTED_SCENARIO_MATRIX.md#existing-tool-support-matrix) - Mock mode, runtime packages, trust bundles, proxy, mirror registry, oc-mirror
+- [Priority gaps](DISCONNECTED_SCENARIO_MATRIX.md#priority-gaps-and-recommendations) - Enhancement opportunities (P2/P3)
+
+**Status:** ✅ All scenarios production-ready for disconnected deployment (no P1 blockers)
 
 <a id="historical-and-non-canonical-materials"></a>
 ## Historical and non-canonical materials
