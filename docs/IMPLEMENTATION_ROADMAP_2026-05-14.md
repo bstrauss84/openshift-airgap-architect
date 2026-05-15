@@ -237,11 +237,15 @@ This document organizes remaining backlog work by semantic versioning to provide
      - Per-pool params: amiID, iamProfile, iamRole, zones
      - Root volume: iops, kmsKeyARN
 
-6. **LOCAL #4:** FIPS vs regular installer binary
+6. ✅ **LOCAL #4:** FIPS vs regular installer binary - **COMPLETE (2026-05-15)**
    - Priority: P1
-   - Backend pulls both `openshift-install` binaries (FIPS + regular)
-   - Assets bundle includes correct one based on FIPS checkbox
-   - Auto-detection logic for which binary to include
+   - ✅ Multi-variant binary download (`backend/src/openshiftInstaller.js`)
+   - ✅ FIPS toggle in ReviewStep (auto-enables with FIPS mode)
+   - ✅ Platform/architecture dropdown (Linux, macOS, all archs)
+   - ✅ Binary caching with automatic cleanup (keeps last 2 versions)
+   - ✅ FIPS binaries preserve `-fips` suffix
+   - ✅ 11 tests validating binary URLs (OpenShift 4.21.15)
+   - **Commits:** c024d58, 5eb47f1, f7af71f, 14a1b9c, 1ddbb41, f4f640d
 
 #### Phase 2B: Operator Quick Picks & Polish (parallel)
 
@@ -259,10 +263,10 @@ This document organizes remaining backlog work by semantic versioning to provide
 - ✅ UPI helper framework established (DOC-040)
 - ✅ CI docs host rules verified complete (PHX-043)
 
-#### Phase 3 Success Criteria (remaining)
+#### Phase 3 Success Criteria
 
-- ⬜ AWS Platform Specifics 100% complete (no deferred params)
-- ⬜ FIPS binary selection working
+- ⬜ AWS Platform Specifics 100% complete (no deferred params) - **IN PROGRESS** (partial: serviceEndpoints, root volume IOPS/KMS)
+- ✅ **FIPS binary selection working** - **COMPLETE** (2026-05-15)
 - ⬜ Node drawer reorder applied
 
 ---

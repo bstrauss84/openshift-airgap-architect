@@ -5,6 +5,187 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-05-15
+
+### Added
+
+**FIPS Binary Selection (LOCAL #4 - v1.2.0 Phase 3 Complete)**
+- Multi-variant `openshift-install` binary support with architecture selection
+  - Linux standard, Linux FIPS RHEL 9, macOS (Intel + ARM64)
+  - Supports x86_64, arm64, ppc64le, s390x architectures
+- FIPS installer toggle in ReviewStep Advanced/Tools section
+  - Auto-enables when FIPS mode enabled on Identity & Access tab
+  - Auto-disables when FIPS mode disabled (respects user override)
+- Platform/architecture dropdown with conditional options:
+  - FIPS ON: Linux RHEL 9 FIPS variants only (amd64, arm64, ppc64le, s390x)
+  - FIPS OFF: All standard variants (Linux + macOS Intel/ARM64)
+- Binary caching by variant key: `export-{version}-{platform}-{arch}-{fips|standard}/`
+- Automatic cleanup: Keeps last 2 versions, runs after successful download
+- FIPS binaries preserve `-fips` suffix: `openshift-install-fips` vs `openshift-install`
+- Comprehensive test suite: 11 tests validating binary URLs (OpenShift 4.21.15)
+  - Partial downloads (first 6 MB) to verify accessibility
+  - All variants tested: Linux FIPS (4 archs), Linux standard, macOS (2 variants)
+
+**UI Enhancements**
+- Option subgroup styling (`.option-subgroup`) for hierarchical/nested options
+  - Left border (3px) + indentation (0.5rem) for visual hierarchy
+  - Subtle background to group related controls
+  - Dark mode support with appropriate color adjustments
+  - Applied to FIPS toggle + platform/arch dropdown grouping
+
+**AWS Platform Specifics (Partial - LOCAL #41/42)**
+- Service endpoints configuration for custom VPC endpoints
+  - Support for airgap/restricted AWS regions (GovCloud, Secret, Top Secret)
+  - Name + URL pairs with validation
+- Root volume advanced settings:
+  - IOPS configuration for provisioned IOPS volumes
+  - KMS key ARN for encryption-at-rest
+- Enhanced tooltips for AWS-specific fields
+
+### Fixed
+
+**Critical: XDG_RUNTIME_DIR Template Literal Escape**
+- Fixed `ReferenceError: XDG_RUNTIME_DIR is not defined` crash in RunOcMirrorStep
+- Escaped `${XDG_RUNTIME_DIR}` shell variables in bash code examples
+  - Affected lines: 1067, 1139 in `frontend/src/steps/RunOcMirrorStep.jsx`
+  - Pattern: Shell variables in JSX template literals must use `\${VAR}` not `${VAR}`
+- Added 5 regression tests (`frontend/tests/template-literal-escape-bug.test.jsx`)
+  - Tests all steps with code examples
+  - Documents correct escape pattern for shell variables in JSX
+  - Lists 10 common shell variables that need escaping (XDG_RUNTIME_DIR, HOME, PATH, etc.)
+
+**Critical: FIPS Binary Download (5 iterative fixes)**
+1. **Corrected architecture normalization**: `x64 → x86_64` (not `amd64`) for mirror paths
+   - Mirror structure: Path uses `x86_64`, filename uses `amd64`
+   - URL: `https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/{version}/openshift-install-rhel9-amd64.tar.gz`
+2. **Fixed binary naming in archives**: FIPS binaries named `openshift-install-fips`, not `openshift-install`
+   - Code now checks for both filenames after extraction
+3. **Simplified download/extraction** to match proven `installer.js` pattern
+   - Removed complex temp directory logic
+   - Extract directly to cacheDir like oc/oc-mirror downloads
+4. **Enhanced error diagnostics**:
+   - Shows all attempted URLs on failure
+   - Includes exact curl command, exit code, stderr output
+   - Logs proxy configuration status
+   - Provides troubleshooting checklist
+5. **Environment variable inheritance**:
+   - Subprocess now inherits HTTP_PROXY, HTTPS_PROXY, NO_PROXY
+   - Critical for corporate proxy environments
+
+**Lessons Learned (documented in CLAUDE.md handoff)**
+- Binary archives can have different filenames than expected (e.g., `openshift-install-fips`)
+- Mirror path conventions differ from filename conventions (x86_64 vs amd64)
+- Always match proven patterns from working code (installer.js) before innovating
+- Iterative debugging with enhanced error messages reveals root causes faster
+- Test partial downloads (6 MB) to validate URLs without downloading full binaries
+
+**UPI Prep Guide Links**
+- Removed broken UPI prep guide links from scenario summary dropdown
+  - Guides exist in `docs/UPI_PREP_GUIDES/` but cannot be served by frontend
+  - Would require additional backend routes or external hosting
+  - Comment added noting guides accessible in repository
+- Prevents 404 errors in documentation dropdown
+
+### Changed
+
+- Merged main hotfix (v1.1.4) into develop to sync branches (commit daf2fef)
+  - Resolves "1 commit behind main" status on GitHub
+  - Preserves all develop features while incorporating hotfix
+- Simplified binary download logic to match `installer.js` pattern (proven working)
+- Enhanced error messages with comprehensive troubleshooting information
+
+### Technical Details
+
+**Backend**
+- New module: `backend/src/openshiftInstaller.js` (266 lines)
+  - Multi-variant installer binary management
+  - Architecture normalization and URL building
+  - Download with fallback, caching, cleanup
+- New test suite: `backend/test/openshiftInstaller.test.js` (11 tests, ~4.4s)
+  - Tests all binary variants for OpenShift 4.21.15
+  - Partial downloads (first 6 MB) verify accessibility
+- Enhanced: `backend/src/index.js` runtime-info endpoint
+  - Added `detectedPlatform` and `detectedInstallerVariant`
+- Backend tests: **261 passing** (11 new for installer)
+
+**Frontend**
+- Modified: `frontend/src/steps/ReviewStep.jsx` (lines 559-630)
+  - FIPS toggle with auto-sync useEffect
+  - Platform/architecture dropdown with conditional options
+  - Option subgroup wrapper for visual grouping
+- Modified: `frontend/src/steps/RunOcMirrorStep.jsx`
+  - XDG_RUNTIME_DIR escaping (lines 1067, 1139)
+- Modified: `frontend/src/styles.css`
+  - Added `.option-subgroup` class (lines 5983-5996)
+- New test: `frontend/tests/template-literal-escape-bug.test.jsx` (5 tests)
+- Frontend tests: **697 passing** (5 new for template literal regression)
+
+**State Schema Changes**
+```javascript
+exportOptions: {
+  includeInstaller: boolean,
+  installerUseFips: boolean,      // NEW: Use FIPS RHEL 9 variant
+  installerPlatformArch: string   // NEW: "linux-amd64", "mac-arm64", "" = default
+}
+```
+
+### Commits (in order)
+
+1. `c024d58` Add FIPS binary selection + fix XDG_RUNTIME_DIR bug + UI grouping
+2. `596afb9` AWS Platform Specifics + UPI prep guide cleanup + doc updates
+3. `daf2fef` Merge main hotfix into develop to sync branches
+4. `5eb47f1` CRITICAL FIX: Correct openshift-install binary download URLs
+5. `f7af71f` Enhance openshift-install download error diagnostics
+6. `14a1b9c` Simplify binary download/extraction to match working installer.js pattern
+7. `1ddbb41` FIX: FIPS binary named 'openshift-install-fips' in archive
+8. `f4f640d` Preserve FIPS binary name (openshift-install-fips) in cache and export
+
+### Known Issues
+
+None
+
+### Migration Notes
+
+- FIPS binaries now exported as `tools/openshift-install-fips` (not `tools/openshift-install`)
+- Standard binaries exported as `tools/openshift-install`
+- Cache directory structure: `export-{version}-{platform}-{arch}-{fips|standard}/`
+- Old cached binaries auto-cleaned (keeps last 2 versions only)
+
+### Documentation Updates
+
+- Updated `docs/IMPLEMENTATION_ROADMAP_2026-05-14.md`: Marked LOCAL #4 complete
+- Updated `docs/BACKLOG_STATUS.md`: DOC-LOCAL-004 marked verified_done
+- Updated `docs/CLAUDE.md`: Added FIPS binary implementation lessons learned
+- Updated `LOCAL_BACKLOG.md`: Marked #4 complete with implementation details
+
+---
+
+## [1.1.4] - 2026-05-15
+
+### Fixed
+
+**Critical: XDG_RUNTIME_DIR Template Literal Escape (Hotfix to main)**
+- Fixed `ReferenceError: XDG_RUNTIME_DIR is not defined` crash in RunOcMirrorStep
+- Escaped `${XDG_RUNTIME_DIR}` shell variables in bash code examples
+  - Affected lines: 1067, 1139 in `frontend/src/steps/RunOcMirrorStep.jsx`
+  - Changed `${XDG_RUNTIME_DIR}` to `\${XDG_RUNTIME_DIR}` in template literals
+- Pattern: Shell variables in JSX template literals must use `\${VAR}` to prevent JavaScript interpolation
+- Added 5 regression tests to prevent similar bugs (`frontend/tests/template-literal-escape-bug.test.jsx`)
+  - Tests all steps with code examples (identity-access, connectivity-mirroring, trust-proxy, run-oc-mirror)
+  - Documents correct escape pattern
+  - Lists common shell variables that need escaping
+
+### Technical Details
+
+- Frontend tests: **696 passing** (5 new regression tests)
+- Hotfix applied to **main branch** only (merged into develop as part of v1.2.0)
+
+### Commits
+
+- `6b9d4fc` CRITICAL FIX: Escape ${XDG_RUNTIME_DIR} template literal in bash examples
+
+---
+
 ## [1.1.3] - 2026-05-14
 
 ### Fixed
