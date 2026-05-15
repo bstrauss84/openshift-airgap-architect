@@ -472,6 +472,33 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     docs.push(...docsIndex.scenarios[scenarioId].docs);
   }
 
+  // UPI Preparation Guide (add at top of resources for UPI scenarios)
+  if (method === 'UPI') {
+    const upiPrepGuides = {
+      'bare-metal-upi': {
+        title: 'Bare Metal UPI Preparation Guide',
+        url: 'docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md'
+      },
+      'vsphere-upi': {
+        title: 'vSphere UPI Preparation Guide',
+        url: 'docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md'
+      },
+      'aws-govcloud-upi': {
+        title: 'AWS GovCloud UPI Preparation Guide',
+        url: 'docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md'
+      },
+      'azure-government-upi': {
+        title: 'Azure Government UPI Preparation Guide',
+        url: 'docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md'
+      }
+    };
+
+    if (scenarioId && upiPrepGuides[scenarioId]) {
+      // Add UPI prep guide at the beginning (top of resources)
+      docs.unshift(upiPrepGuides[scenarioId]);
+    }
+  }
+
   // Conditional docs based on confirmed configuration
 
   if (confirmedTabs.includes('identity-access')) {
@@ -479,7 +506,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (state.globalStrategy?.fips) {
       docs.push({
         title: 'Enabling FIPS mode',
-        url: 'https://docs.openshift.com/container-platform/4.20/installing/installing-fips.html'
+        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-fips'
       });
     }
   }
@@ -489,7 +516,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (isDualStack(state)) {
       docs.push({
         title: 'Configuring dual-stack networking',
-        url: 'https://docs.openshift.com/container-platform/4.20/installing/installing_bare_metal_ipi/ipi-install-installation-workflow.html#configuring-dual-stack-networking_ipi-install-installation-workflow'
+        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#configuring-dual-stack-networking_ipi-install-installation-workflow'
       });
     }
   }
@@ -499,7 +526,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (state.credentials?.usingMirrorRegistry) {
       docs.push({
         title: 'Mirroring images for a disconnected installation',
-        url: 'https://docs.openshift.com/container-platform/4.20/installing/disconnected_install/installing-mirroring-installation-images.html'
+        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/disconnected-installation-mirroring'
       });
     }
 
@@ -516,7 +543,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (hasNtp) {
       docs.push({
         title: 'Configuring NTP servers for disconnected clusters',
-        url: 'https://docs.openshift.com/container-platform/4.20/installing/install_config/installing-customizing.html'
+        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/customizing-installation-configuration#installing-customizing'
       });
     }
   }
@@ -526,7 +553,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (state.globalStrategy?.proxyEnabled) {
       docs.push({
         title: 'Configuring corporate proxy for disconnected clusters',
-        url: 'https://docs.openshift.com/container-platform/4.20/installing/install_config/configuring-firewall.html'
+        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/customizing-installation-configuration#configuring-firewall'
       });
     }
 
@@ -534,7 +561,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (state.trust?.mirrorRegistryCaPem || state.trust?.proxyCaPem || state.trust?.additionalTrustBundle) {
       docs.push({
         title: 'Configuring additional trust bundles',
-        url: 'https://docs.openshift.com/container-platform/4.20/networking/configuring-a-custom-pki.html'
+        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/networking/configuring-a-custom-pki'
       });
     }
   }
@@ -544,7 +571,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (state.operators?.selected?.length > 0) {
       docs.push({
         title: 'Installing Operators in disconnected environments',
-        url: 'https://docs.openshift.com/container-platform/4.20/operators/admin/olm-restricted-networks.html'
+        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operators/administrator-tasks#olm-restricted-networks'
       });
     }
   }

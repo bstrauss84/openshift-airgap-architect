@@ -40,8 +40,9 @@ It is canonical for cloud scenario navigation and coverage framing.
 | Scenario ID | Method | Deep tracked doc | Current truth location |
 |---|---|---|---|
 | `aws-govcloud-ipi` | IPI | no standalone deep doc | docs-index + params + app behavior |
-| `aws-govcloud-upi` | UPI | no standalone deep doc | docs-index + params + app behavior |
+| `aws-govcloud-upi` | UPI | no standalone deep doc | docs-index + params + app behavior + UPI prep guide |
 | `azure-government-ipi` | IPI | no standalone deep doc | docs-index + params + app behavior |
+| `azure-government-upi` | UPI | no standalone deep doc | docs-index + params + app behavior + UPI prep guide |
 | `ibm-cloud-ipi` | IPI | no standalone deep doc | docs-index + params + app behavior |
 
 <a id="scenario-truth-sections"></a>
@@ -53,13 +54,15 @@ It is canonical for cloud scenario navigation and coverage framing.
 - `publish` and `credentialsMode` behavior should stay aligned with cloud-specific platform sections and validations.
 - Networking and mirroring constraints are shared with global rules in `docs/PARAMS_CATALOG_RULES.md`.
 - Required-region validation and publish-related constraints are enforced in tracked validation logic.
+- **UPI preparation guide:** [`docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md`](UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md) - VPC, IAM, Route53, NLB, EC2 provisioning
 
-### Azure Government (`azure-government-ipi`)
+### Azure Government (`azure-government-ipi`, `azure-government-upi`)
 
 - Primary truth is catalog/docs-index plus Azure platform-specific sections in the app.
 - Cloud name/region/resource-group and publish/credentials behavior are treated as cloud family truth.
 - Any scenario-specific caveat not covered by shared cloud rules belongs in this family guide section first.
 - Required Azure field validation is implemented in tracked validation rules for this scenario.
+- **UPI preparation guide:** [`docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md`](UPI_PREP_GUIDES/azure-government-upi-prep-guide.md) - VNET, service principal, Azure DNS, Standard Load Balancer, VM provisioning
 
 ### IBM Cloud (`ibm-cloud-ipi`)
 

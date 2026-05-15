@@ -34,6 +34,7 @@ It centralizes the large vSphere doc set without deleting any detail docs.
 
 ## Cross-cutting technical notes
 
+- [`docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md`](UPI_PREP_GUIDES/vsphere-upi-prep-guide.md) - UPI preparation guide (vCenter, OVA templates, VM cloning, load balancers)
 - [`docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md`](PLATFORM_NONE_SUPPORT_BOUNDARIES.md) - Platform: none usage (required for vSphere Agent-Based SNO only; multi-node uses platform.vsphere)
 
 <a id="scenario-map"></a>

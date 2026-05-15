@@ -62,6 +62,8 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   const [keygenAlgorithm, setKeygenAlgorithm] = useState("ed25519");
   const [keygenLoading, setKeygenLoading] = useState(false);
   const [keygenError, setKeygenError] = useState("");
+  const [keySaved, setKeySaved] = useState(false);
+  const [showKeygenCloseWarning, setShowKeygenCloseWarning] = useState(false);
   const [showMirrorSecretHelper, setShowMirrorSecretHelper] = useState(false);
   const [mirrorSecretBackup, setMirrorSecretBackup] = useState("");
   const [mirrorHelper, setMirrorHelper] = useState({
@@ -180,6 +182,45 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
     privA.download = `id_${ext}.pem`;
     privA.click();
     URL.revokeObjectURL(privUrl);
+
+    // Mark keys as saved
+    setKeySaved(true);
+  };
+
+  const handleKeygenClose = () => {
+    // If keys generated but not saved, show warning
+    if (keypair && !keySaved) {
+      setShowKeygenCloseWarning(true);
+    } else {
+      // Safe to close - either no keys generated or keys were saved
+      setShowKeygen(false);
+      setKeypair(null);
+      setUseGeneratedKey(false);
+      setShowPrivateKey(false);
+      setKeygenError("");
+      setKeySaved(false);
+    }
+  };
+
+  const confirmKeygenClose = () => {
+    setShowKeygenCloseWarning(false);
+    setShowKeygen(false);
+    setKeypair(null);
+    setUseGeneratedKey(false);
+    setShowPrivateKey(false);
+    setKeygenError("");
+    setKeySaved(false);
+  };
+
+  const copyPrivateKey = () => {
+    navigator.clipboard.writeText(keypair.privateKey);
+    setKeySaved(true);
+  };
+
+  const copyPublicKey = () => {
+    navigator.clipboard.writeText(keypair.publicKey);
+    // Only mark as saved if they copy the private key too
+    // (public key alone is not sufficient)
   };
 
   return (
@@ -672,7 +713,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
       </div>
 
       {showKeygen ? (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowKeygen(false)}>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={handleKeygenClose}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Generate SSH keypair</h3>
             <div className="note warning">
@@ -742,12 +783,38 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
             <div className="actions" style={{ marginTop: "1.5rem" }}>
               {!keygenLoading && keypair ? (
                 <>
-                  <button type="button" className="ghost" onClick={() => navigator.clipboard.writeText(keypair.publicKey)}>Copy public key</button>
-                  <button type="button" className="ghost" onClick={() => navigator.clipboard.writeText(keypair.privateKey)}>Copy private key</button>
+                  <button type="button" className="ghost" onClick={copyPublicKey}>Copy public key</button>
+                  <button type="button" className="ghost" onClick={copyPrivateKey}>Copy private key</button>
                   <button type="button" className="ghost" onClick={() => downloadKeypairSeparate(keypair.publicKey, keypair.privateKey)}>Download keys (.pub and .pem)</button>
                 </>
               ) : null}
-              <button type="button" className="ghost" onClick={() => setShowKeygen(false)}>Close</button>
+              <button type="button" className="ghost" onClick={handleKeygenClose}>Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showKeygenCloseWarning ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" style={{ zIndex: 10001 }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+            <h3>Warning: Keys not saved</h3>
+            <div className="note warning" style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>
+              <strong>You have generated SSH keys but have not downloaded or copied them.</strong>
+              <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>
+                The <strong>private key</strong> will be lost permanently if you close this window without saving it.
+                You will not be able to retrieve it later.
+              </p>
+            </div>
+            <p style={{ marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
+              Please download the keys (.pub and .pem) or copy the private key before closing.
+            </p>
+            <div className="actions">
+              <button type="button" className="ghost" onClick={() => setShowKeygenCloseWarning(false)}>
+                Go back and save keys
+              </button>
+              <button type="button" className="danger" onClick={confirmKeygenClose}>
+                Close anyway (keys will be lost)
+              </button>
             </div>
           </div>
         </div>

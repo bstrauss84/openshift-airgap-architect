@@ -1577,24 +1577,33 @@ Destination: 10.0.0.0/24, Next Hop: 192.168.1.1`} /></h4>
             <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default. Arbiter nodes are excluded from targets.</p>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
-                <h4>Settings to copy</h4>
-                {REPLICATE_OPTIONS.filter((opt) => (opt.key === "bmc" ? showBmc || showAgentDay2InstallConfigBmc : true)).map((opt) => (
-                  <label key={opt.key} className="toggle-row">
-                    <input
-                      type="checkbox"
-                      disabled={arbiterTargetsSelected && (opt.key === "rootDevice" || opt.key === "primary.advanced")}
-                      checked={replicateSelectedFields.has(opt.key)}
-                      onChange={(e) => setReplicateSelectedFields((prev) => { const next = new Set(prev); if (e.target.checked) next.add(opt.key); else next.delete(opt.key); return next; })}
-                    />
-                    <span>{opt.label}</span>
-                  </label>
-                ))}
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>Settings to copy</h4>
+                {REPLICATE_OPTIONS.filter((opt) => (opt.key === "bmc" ? showBmc || showAgentDay2InstallConfigBmc : true)).map((opt) => {
+                  const inputId = `replicate-field-${opt.key}`;
+                  const isDisabled = arbiterTargetsSelected && (opt.key === "rootDevice" || opt.key === "primary.advanced");
+                  return (
+                    <div key={opt.key} style={{ marginBottom: "0.5rem", padding: "0.625rem 0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem", opacity: isDisabled ? 0.5 : 1 }}>
+                      <input
+                        type="checkbox"
+                        id={inputId}
+                        disabled={isDisabled}
+                        checked={replicateSelectedFields.has(opt.key)}
+                        onChange={(e) => setReplicateSelectedFields((prev) => { const next = new Set(prev); if (e.target.checked) next.add(opt.key); else next.delete(opt.key); return next; })}
+                        style={{ margin: 0, cursor: isDisabled ? "not-allowed" : "pointer" }}
+                      />
+                      <label htmlFor={inputId} style={{ margin: 0, cursor: isDisabled ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: 500, flex: 1 }}>
+                        {opt.label}
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
               <div className="list">
-                <h4>Apply to nodes</h4>
-                <label className="toggle-row" style={{ marginBottom: 8 }}>
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>Apply to nodes</h4>
+                <div style={{ marginBottom: "0.75rem", padding: "0.625rem 0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <input
                     type="checkbox"
+                    id="replicate-all-nodes"
                     checked={
                       selectedIndex != null &&
                       replicateEligibleTargetIndices.length > 0 &&
@@ -1608,23 +1617,32 @@ Destination: 10.0.0.0/24, Next Hop: 192.168.1.1`} /></h4>
                         setReplicateTargetIndices(new Set());
                       }
                     }}
+                    style={{ margin: 0, cursor: "pointer" }}
                   />
-                  <span>Apply to all other eligible nodes</span>
-                </label>
-                {nodes.map((node, idx) => (
-                  <label key={idx} className="toggle-row">
-                    <input
-                      type="checkbox"
-                      disabled={idx === selectedIndex || (node.role || "").trim() === "arbiter"}
-                      checked={replicateTargetIndices.has(idx)}
-                      onChange={(e) => setReplicateTargetIndices((prev) => { const next = new Set(prev); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })}
-                    />
-                    <span>
-                      {effectiveHostname(node) || `Node ${idx + 1}`} ({node.role}
-                      {(node.role || "").trim() === "arbiter" ? "; not eligible for bulk copy" : ""})
-                    </span>
+                  <label htmlFor="replicate-all-nodes" style={{ margin: 0, cursor: "pointer", fontSize: "0.875rem", fontWeight: 500, flex: 1 }}>
+                    Apply to all other eligible nodes
                   </label>
-                ))}
+                </div>
+                {nodes.map((node, idx) => {
+                  const inputId = `replicate-node-${idx}`;
+                  const isDisabled = idx === selectedIndex || (node.role || "").trim() === "arbiter";
+                  return (
+                    <div key={idx} style={{ marginBottom: "0.5rem", padding: "0.625rem 0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem", opacity: isDisabled ? 0.5 : 1 }}>
+                      <input
+                        type="checkbox"
+                        id={inputId}
+                        disabled={isDisabled}
+                        checked={replicateTargetIndices.has(idx)}
+                        onChange={(e) => setReplicateTargetIndices((prev) => { const next = new Set(prev); if (e.target.checked) next.add(idx); else next.delete(idx); return next; })}
+                        style={{ margin: 0, cursor: isDisabled ? "not-allowed" : "pointer" }}
+                      />
+                      <label htmlFor={inputId} style={{ margin: 0, cursor: isDisabled ? "not-allowed" : "pointer", fontSize: "0.875rem", fontWeight: 500, flex: 1 }}>
+                        {effectiveHostname(node) || `Node ${idx + 1}`} ({node.role}
+                        {(node.role || "").trim() === "arbiter" ? "; not eligible for bulk copy" : ""})
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <div className="actions">

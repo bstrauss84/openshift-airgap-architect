@@ -86,6 +86,7 @@ export function getScenarioId(platform, method) {
   }
   if (platform === "Azure Government") {
     if (method === "IPI") return "azure-government-ipi";
+    if (method === "UPI") return "azure-government-upi";
     return null;
   }
   if (platform === "IBM Cloud") {

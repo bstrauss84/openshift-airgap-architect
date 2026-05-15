@@ -79,6 +79,7 @@ It does not replace deep working docs; it centralizes navigation and validation 
 
 ## Cross-cutting technical notes
 
+- [`docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md`](UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md) - UPI preparation guide (infrastructure, DNS, load balancers, validation)
 - `docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md`
 - `docs/MIRRORING_SECTION_GATING.md`
 - `docs/PLACEHOLDER_VALUES_DEFERRED.md`

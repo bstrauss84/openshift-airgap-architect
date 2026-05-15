@@ -33,27 +33,29 @@
 - `p2`: normal planned work
 - `p3`: low-priority improvement
 
-### 2. Active Execution Plan: `/docs/REVISED_PHASED_PLAN_2026-05-10.md`
+### 2. Active Execution Plan: `/docs/IMPLEMENTATION_ROADMAP_2026-05-14.md`
 
-**Authority:** Current phased implementation roadmap  
-**Created:** 2026-05-10 (after systematic backlog review)  
-**Current Phase:** Phase 0 (Quick Wins & Foundation) - 75% complete  
-**Purpose:** Clean, actionable phases based on verified backlog status and user priorities
+**Authority:** Current phased implementation roadmap (semantic versioning)  
+**Created:** 2026-05-14 (replaces REVISED_PHASED_PLAN_2026-05-10.md)  
+**Current Version:** v1.1.3 (released 2026-05-14)  
+**Current Phase:** v1.2.0 Phase 1 - ✅ **100% COMPLETE** (4/4 items done)  
+**Purpose:** Semantic versioning roadmap with release history and phased features
 
 **What it contains:**
-- 8 phases with clear sequencing (Phase 0 through Phase 7 + exploratory)
-- Dependencies and parallelization opportunities
-- Estimated timelines (5-8 months total)
+- Semantic versioning strategy (patch/minor/major)
+- Release history (v1.1.0 through v1.1.3)
+- Phased roadmap (v1.2.0 through v2.0.0)
 - Success criteria per phase
-- Risk mitigation strategies
+- Dependency tracking
 
 **When to update:**
-- Mark items complete as they finish (with dates + commit evidence)
+- Mark items complete with dates + commit evidence
 - Update phase completion percentages
-- Track remaining items in each phase
+- Track version bumps and releases
 - Cross-reference BACKLOG_STATUS.md for detailed status
 
-**Current focus:** Finish Phase 0 (3 remaining items), then start Phase 2A (YAML Drawer)
+**Current focus:** v1.2.0 Phase 3 (AWS Platform Specifics, FIPS binary selection)  
+**Next phase:** v1.3.0 (Testing & Validation)
 
 ### 3. Historical Work Plan: `/docs/COMPREHENSIVE_MASTER_PLAN.md`
 
@@ -168,14 +170,18 @@ Concrete real-world example values.`}
 
 ### Keep (Living Documents)
 - `docs/BACKLOG_STATUS.md` - Canonical status registry (single source of truth)
-- `docs/REVISED_PHASED_PLAN_2026-05-10.md` - **ACTIVE execution plan** (current work roadmap)
+- `docs/IMPLEMENTATION_ROADMAP_2026-05-14.md` - **ACTIVE execution plan** (replaces REVISED_PHASED_PLAN)
+- `docs/HANDOFF_PACKET.md` - Handoff packet for new Claude sessions (quick reference)
 - `docs/COMPREHENSIVE_MASTER_PLAN.md` - Historical plan (Phases 1-2 tooltip work, quality standards)
+- `docs/DISCONNECTED_SCENARIO_MATRIX.md` - Disconnected deployment support (all 12 scenarios)
+- `docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md` - Platform: none usage rules
+- `docs/UPI_PREP_GUIDES/` - UPI preparation guides (bare-metal, vSphere, AWS, Azure)
+- `docs/HIGH_SIDE_FEATURES_BACKLOG.md` - High-side feature roadmap
 - `LOCAL_BACKLOG.md` - User's personal backlog (not committed)
 - `docs/TOOLTIP_EXPANSION_MASTER_PLAN.md` - Tooltip audit data reference
 - `docs/SETUP_COMPLETE.md` - Catalog sync reference guide
 - `UI_STANDARDS.md` - UI design and implementation standards
 - `docs/CATALOG_SYNC_GUIDE.md` - Catalog synchronization procedures
-- `docs/BACKLOG_REVIEW_2026-05-10.md` - Review summary that led to revised plan
 
 ### Archive (Session Notes)
 Create `.archive/session-notes-YYYY-MM-DD/` directories for:
@@ -388,6 +394,108 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
+## Critical Bug History (Learn from These)
+
+### Pull Secret Field Bug (v1.1.3 Hotfix - 2026-05-14)
+
+**Issue:** Pull secret field showed "Pull secret must be valid JSON" and wouldn't accept input.
+
+**Root Cause:**
+- `SecretInput.jsx` handleBlur used `e.target.value` to get field value
+- When field is masked (hidden), `e.target.value` contains dots ("••••••••") not actual value
+- Blur event sent dots to parent onChange, corrupting the pull secret
+
+**Fix:**
+- Changed handleBlur to use `localValue` instead of `e.target.value`
+- `localValue` state always contains actual secret value regardless of show/hide
+- Added auto-show on focus when error present
+
+**Files:**
+- `frontend/src/components/SecretInput.jsx`
+- `frontend/tests/secret-input-blur-bug.test.jsx` (7 regression tests)
+
+**Lesson:** When working with masked input fields, **NEVER** trust `e.target.value` - use state instead.
+
+**Why This Matters:**
+This broke the ENTIRE wizard on main branch. Users couldn't enter pull secrets on Blueprint step.
+If you see similar "field won't accept input" bugs, check if component uses masked/hidden values.
+
+### Test Deletion Anti-Pattern (2026-05-15)
+
+**What Happened:** Created tests for SSH keygen warning feature, tests failed due to navigation issues, deleted tests instead of fixing them.
+
+**Why It's Wrong:**
+- Marks feature as "tested" when it's only manually verified
+- Removes regression protection
+- Hides implementation complexity
+- Future developers assume tests exist
+
+**Correct Approaches:**
+1. **Fix the tests** - Proper mocks, navigation, state setup
+2. **Create documentation tests** - With manual verification checklist
+3. **Never delete failing tests** without replacing them
+
+**Resolution:**
+Created documentation tests in `frontend/tests/ssh-keygen-close-warning.test.jsx` with:
+- Feature documentation (what/why/how)
+- Implementation details (state, handlers, button wiring)
+- 13-step manual verification checklist
+- Related bug pattern notes (e.target.value on masked fields)
+
+**Lesson:** Failing tests reveal problems. Fix the problem (test OR code), don't delete the evidence.
+
+---
+
+## High-Side Integration (v1.1.1 - v1.1.3)
+
+The app supports **high-side (disconnected) deployments** where the tool runs on an air-gapped network.
+
+### Architecture (added v1.1.1)
+
+**Backend Modules:**
+- `backend/src/runtimePackage.js` - Packages Node.js runtime for target OS/arch (~50-100MB)
+- `backend/src/exportInclusion.js` - Controls what gets included in exports
+- `backend/src/placeholderEngine.js` - Replaces sensitive values with placeholders
+
+**Frontend Modules:**
+- `frontend/src/exportInclusion.js` - Export inclusion UI logic
+- `frontend/src/placeholderEngine.js` - Client-side placeholder handling
+
+### UI Integration (added v1.1.2)
+
+**ReviewStep.jsx Changes:**
+- Export inclusion checkboxes (7 credential/certificate categories)
+- `includeHighSideRuntimePackage` toggle for bundling Node.js runtime
+- Per-class credential inclusion: pullSecret, mirrorRegistryPullSecret, sshKey, certificates, etc.
+
+**Export Categories:**
+1. Pull secrets (Red Hat, mirror registry, operators)
+2. SSH keys (public + private)
+3. Certificates (mirror registry CA, proxy CA)
+4. Mirror registry credentials
+5. Proxy credentials
+6. vCenter/BMC credentials
+7. Platform-specific credentials
+
+### Critical Rules
+
+**DO NOT:**
+- Modify export inclusion logic without understanding placeholder system
+- Assume placeholders are reversible (they're ONE-WAY)
+- Change ReviewStep.jsx without testing all export options
+
+**Important Files:**
+- `frontend/src/steps/ReviewStep.jsx` - Main export UI
+- `backend/src/generate.js` - Uses placeholder engine during generation
+- `backend/src/exportInclusion.js` - Defines what can be excluded
+
+**Testing:**
+- High-side integration is core functionality, not optional
+- Changes to ReviewStep require testing all 7 export option categories
+- Runtime package size varies by platform (Node.js binary + dependencies)
+
+---
+
 ## Questions?
 
 If you're unsure about:
@@ -404,5 +512,5 @@ If you're unsure about:
 
 ---
 
-**Last Updated:** 2026-05-13  
-**Revision:** Added Debugging Protocol section based on YAML bug postmortem, systematic debugging over guesswork
+**Last Updated:** 2026-05-15  
+**Revision:** Major handoff update - added Critical Bug History (pull secret, test deletion anti-pattern), High-Side Integration architecture, updated roadmap reference (IMPLEMENTATION_ROADMAP replaces REVISED_PHASED_PLAN), added new doc systems (UPI prep guides, disconnected matrix, platform: none boundaries), updated current phase (v1.2.0 Phase 1 complete)

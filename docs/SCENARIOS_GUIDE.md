@@ -14,6 +14,7 @@ Scope: tracked repository docs only. Local and archived docs are triaged through
 - [Family deep docs](#family-deep-docs)
 - [Cross-scenario rules and references](#cross-scenario-rules-and-references)
 - [Disconnected deployment support](#disconnected-deployment-support)
+- [UPI preparation guides](#upi-preparation-guides)
 - [Historical and non-canonical materials](#historical-and-non-canonical-materials)
 - [When to create a new scenario doc](#when-to-create-a-new-scenario-doc)
 
@@ -89,6 +90,27 @@ All scenarios support disconnected (air-gapped) deployments. See [`docs/DISCONNE
 - [Priority gaps](DISCONNECTED_SCENARIO_MATRIX.md#priority-gaps-and-recommendations) - Enhancement opportunities (P2/P3)
 
 **Status:** ✅ All scenarios production-ready for disconnected deployment (no P1 blockers)
+
+## UPI Preparation Guides
+
+User-Provisioned Infrastructure (UPI) scenarios require manual infrastructure provisioning before running the OpenShift installer. Comprehensive preparation guides provide reusable templates, checklists, and validation commands to accelerate UPI deployments.
+
+**Available guides:**
+- [`docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md`](UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md) - Bare Metal UPI (physical hardware, PXE boot, external load balancers)
+- [`docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md`](UPI_PREP_GUIDES/vsphere-upi-prep-guide.md) - vSphere UPI (vCenter, OVA templates, VM cloning)
+- [`docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md`](UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md) - AWS GovCloud UPI (VPC, IAM, Route53, NLB, EC2)
+- [`docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md`](UPI_PREP_GUIDES/azure-government-upi-prep-guide.md) - Azure Government UPI (VNET, service principal, Azure DNS, Standard Load Balancer)
+
+**What guides provide:**
+- Infrastructure prerequisites checklists
+- DNS configuration templates
+- Load balancer configuration examples (HAProxy, nginx, CloudFormation, ARM)
+- Mirror registry checklists (for disconnected deployments)
+- Trust bundle and pull secret preparation
+- Network CIDR planning worksheets
+- Validation commands (DNS, load balancer, registry connectivity)
+
+**Integration:** See [`docs/UPI_PREP_GUIDES/README.md`](UPI_PREP_GUIDES/README.md) for overview and detailed usage instructions.
 
 <a id="historical-and-non-canonical-materials"></a>
 ## Historical and non-canonical materials
