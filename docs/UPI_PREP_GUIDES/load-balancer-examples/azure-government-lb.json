@@ -1,0 +1,457 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Azure Standard Load Balancer for OpenShift UPI on Azure Government",
+    "important": "This is an EXAMPLE template only. You MUST customize: resource IDs, IP addresses, cluster name, subnet references, and VM references to match your Azure environment. DO NOT use this template verbatim in production without customization."
+  },
+  "parameters": {
+    "clusterName": {
+      "type": "string",
+      "defaultValue": "ocp-prod",
+      "metadata": {
+        "description": "OpenShift cluster name"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for resources (e.g., usgovvirginia, usgovarizona)"
+      }
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of existing virtual network"
+      }
+    },
+    "subnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of subnet where load balancer will be deployed"
+      }
+    },
+    "bootstrapVmName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of bootstrap VM (leave empty if already removed)"
+      }
+    },
+    "controlPlane1VmName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of control plane VM 1"
+      }
+    },
+    "controlPlane2VmName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of control plane VM 2"
+      }
+    },
+    "controlPlane3VmName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of control plane VM 3"
+      }
+    },
+    "worker1VmName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of worker VM 1 (leave empty if using control plane for ingress)"
+      }
+    },
+    "worker2VmName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of worker VM 2 (leave empty if using control plane for ingress)"
+      }
+    }
+  },
+  "variables": {
+    "apiPublicIpName": "[concat(parameters('clusterName'), '-api-pip')]",
+    "ingressPublicIpName": "[concat(parameters('clusterName'), '-ingress-pip')]",
+    "apiLbName": "[concat(parameters('clusterName'), '-api-lb')]",
+    "ingressLbName": "[concat(parameters('clusterName'), '-ingress-lb')]",
+    "apiBackendPoolName": "[concat(parameters('clusterName'), '-api-backend')]",
+    "mcsBackendPoolName": "[concat(parameters('clusterName'), '-mcs-backend')]",
+    "ingressHttpBackendPoolName": "[concat(parameters('clusterName'), '-http-backend')]",
+    "ingressHttpsBackendPoolName": "[concat(parameters('clusterName'), '-https-backend')]",
+    "hasBootstrap": "[not(empty(parameters('bootstrapVmName')))]",
+    "hasWorker1": "[not(empty(parameters('worker1VmName')))]",
+    "hasWorker2": "[not(empty(parameters('worker2VmName')))]",
+    "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+    "subnetId": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2021-02-01",
+      "name": "[variables('apiPublicIpName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "dnsSettings": {
+          "domainNameLabel": "[concat(parameters('clusterName'), '-api')]"
+        }
+      },
+      "tags": {
+        "displayName": "API Public IP",
+        "cluster": "[parameters('clusterName')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2021-02-01",
+      "name": "[variables('ingressPublicIpName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "dnsSettings": {
+          "domainNameLabel": "[concat(parameters('clusterName'), '-ingress')]"
+        }
+      },
+      "tags": {
+        "displayName": "Ingress Public IP",
+        "cluster": "[parameters('clusterName')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/loadBalancers",
+      "apiVersion": "2021-02-01",
+      "name": "[variables('apiLbName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('apiPublicIpName'))]"
+      ],
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "apiPublicFrontend",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('apiPublicIpName'))]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[variables('apiBackendPoolName')]"
+          },
+          {
+            "name": "[variables('mcsBackendPoolName')]"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "apiRule",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/frontendIPConfigurations/apiPublicFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/backendAddressPools/', variables('apiBackendPoolName'))]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 6443,
+              "backendPort": 6443,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 10,
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/probes/apiProbe')]"
+              }
+            }
+          },
+          {
+            "name": "mcsRule",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/frontendIPConfigurations/apiPublicFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/backendAddressPools/', variables('mcsBackendPoolName'))]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 22623,
+              "backendPort": 22623,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 10,
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/probes/mcsProbe')]"
+              }
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "apiProbe",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 6443,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            }
+          },
+          {
+            "name": "mcsProbe",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 22623,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            }
+          }
+        ]
+      },
+      "tags": {
+        "displayName": "API and MCS Load Balancer",
+        "cluster": "[parameters('clusterName')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/loadBalancers",
+      "apiVersion": "2021-02-01",
+      "name": "[variables('ingressLbName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('ingressPublicIpName'))]"
+      ],
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "ingressPublicFrontend",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('ingressPublicIpName'))]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[variables('ingressHttpBackendPoolName')]"
+          },
+          {
+            "name": "[variables('ingressHttpsBackendPoolName')]"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "httpRule",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/frontendIPConfigurations/ingressPublicFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/backendAddressPools/', variables('ingressHttpBackendPoolName'))]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 80,
+              "backendPort": 80,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 10,
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/probes/httpProbe')]"
+              }
+            }
+          },
+          {
+            "name": "httpsRule",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/frontendIPConfigurations/ingressPublicFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/backendAddressPools/', variables('ingressHttpsBackendPoolName'))]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 443,
+              "backendPort": 443,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 10,
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/probes/httpsProbe')]"
+              }
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "httpProbe",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 80,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            }
+          },
+          {
+            "name": "httpsProbe",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 443,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            }
+          }
+        ]
+      },
+      "tags": {
+        "displayName": "Ingress Load Balancer",
+        "cluster": "[parameters('clusterName')]"
+      }
+    }
+  ],
+  "outputs": {
+    "apiPublicIpAddress": {
+      "type": "string",
+      "value": "[reference(variables('apiPublicIpName')).ipAddress]",
+      "metadata": {
+        "description": "API load balancer public IP address (use for DNS A records)"
+      }
+    },
+    "apiPublicIpFqdn": {
+      "type": "string",
+      "value": "[reference(variables('apiPublicIpName')).dnsSettings.fqdn]",
+      "metadata": {
+        "description": "API load balancer FQDN (Azure-provided DNS name)"
+      }
+    },
+    "ingressPublicIpAddress": {
+      "type": "string",
+      "value": "[reference(variables('ingressPublicIpName')).ipAddress]",
+      "metadata": {
+        "description": "Ingress load balancer public IP address (use for DNS A records)"
+      }
+    },
+    "ingressPublicIpFqdn": {
+      "type": "string",
+      "value": "[reference(variables('ingressPublicIpName')).dnsSettings.fqdn]",
+      "metadata": {
+        "description": "Ingress load balancer FQDN (Azure-provided DNS name)"
+      }
+    },
+    "apiBackendPoolId": {
+      "type": "string",
+      "value": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/backendAddressPools/', variables('apiBackendPoolName'))]",
+      "metadata": {
+        "description": "API backend pool resource ID (attach VM NICs to this pool)"
+      }
+    },
+    "mcsBackendPoolId": {
+      "type": "string",
+      "value": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('apiLbName')), '/backendAddressPools/', variables('mcsBackendPoolName'))]",
+      "metadata": {
+        "description": "MCS backend pool resource ID (attach VM NICs to this pool)"
+      }
+    },
+    "ingressHttpBackendPoolId": {
+      "type": "string",
+      "value": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/backendAddressPools/', variables('ingressHttpBackendPoolName'))]",
+      "metadata": {
+        "description": "Ingress HTTP backend pool resource ID (attach worker VM NICs to this pool)"
+      }
+    },
+    "ingressHttpsBackendPoolId": {
+      "type": "string",
+      "value": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ingressLbName')), '/backendAddressPools/', variables('ingressHttpsBackendPoolName'))]",
+      "metadata": {
+        "description": "Ingress HTTPS backend pool resource ID (attach worker VM NICs to this pool)"
+      }
+    }
+  },
+  "comments": {
+    "usage": [
+      "USAGE INSTRUCTIONS:",
+      "",
+      "1. Create VMs for bootstrap, control plane, and worker nodes first",
+      "",
+      "2. Deploy this template:",
+      "   az deployment group create \\",
+      "     --resource-group ocp-prod-rg \\",
+      "     --template-file azure-government-lb.json \\",
+      "     --parameters \\",
+      "       clusterName=ocp-prod \\",
+      "       vnetName=ocp-vnet \\",
+      "       subnetName=ocp-subnet \\",
+      "       bootstrapVmName=bootstrap \\",
+      "       controlPlane1VmName=master-0 \\",
+      "       controlPlane2VmName=master-1 \\",
+      "       controlPlane3VmName=master-2 \\",
+      "       worker1VmName=worker-0 \\",
+      "       worker2VmName=worker-1",
+      "",
+      "3. Attach VM NICs to backend pools:",
+      "   API_POOL_ID=$(az deployment group show -g ocp-prod-rg -n <deployment-name> --query properties.outputs.apiBackendPoolId.value -o tsv)",
+      "   MCS_POOL_ID=$(az deployment group show -g ocp-prod-rg -n <deployment-name> --query properties.outputs.mcsBackendPoolId.value -o tsv)",
+      "   HTTP_POOL_ID=$(az deployment group show -g ocp-prod-rg -n <deployment-name> --query properties.outputs.ingressHttpBackendPoolId.value -o tsv)",
+      "   HTTPS_POOL_ID=$(az deployment group show -g ocp-prod-rg -n <deployment-name> --query properties.outputs.ingressHttpsBackendPoolId.value -o tsv)",
+      "",
+      "   # Attach bootstrap NIC to API and MCS pools",
+      "   az network nic ip-config address-pool add --nic-name bootstrap-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-api-lb --address-pool ocp-prod-api-backend",
+      "   az network nic ip-config address-pool add --nic-name bootstrap-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-api-lb --address-pool ocp-prod-mcs-backend",
+      "",
+      "   # Attach control plane NICs to API and MCS pools (repeat for each master)",
+      "   az network nic ip-config address-pool add --nic-name master-0-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-api-lb --address-pool ocp-prod-api-backend",
+      "   az network nic ip-config address-pool add --nic-name master-0-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-api-lb --address-pool ocp-prod-mcs-backend",
+      "",
+      "   # Attach worker NICs to ingress pools (repeat for each worker)",
+      "   az network nic ip-config address-pool add --nic-name worker-0-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-ingress-lb --address-pool ocp-prod-http-backend",
+      "   az network nic ip-config address-pool add --nic-name worker-0-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-ingress-lb --address-pool ocp-prod-https-backend",
+      "",
+      "4. Get public IPs for DNS records:",
+      "   az deployment group show -g ocp-prod-rg -n <deployment-name> --query properties.outputs",
+      "",
+      "5. Create Azure DNS records (see dns-examples/azure-dns-terraform.tf)",
+      "",
+      "6. After bootstrap completes (openshift-install wait-for bootstrap-complete):",
+      "   - Remove bootstrap NIC from backend pools:",
+      "     az network nic ip-config address-pool remove --nic-name bootstrap-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-api-lb --address-pool ocp-prod-api-backend",
+      "     az network nic ip-config address-pool remove --nic-name bootstrap-nic --resource-group ocp-prod-rg --ip-config-name ipconfig1 --lb-name ocp-prod-api-lb --address-pool ocp-prod-mcs-backend",
+      "   - Delete bootstrap VM and NIC if no longer needed",
+      "",
+      "7. Verify backend pool health:",
+      "   az network lb show -g ocp-prod-rg -n ocp-prod-api-lb --query 'backendAddressPools'",
+      "",
+      "POST-INSTALLATION NOTES:",
+      "",
+      "- Public IP addresses are static (safe to use in DNS A records)",
+      "- Health probes monitor TCP connectivity on each port",
+      "- Unhealthy VMs are automatically removed from rotation",
+      "- Add more worker nodes by attaching their NICs to ingress backend pools",
+      "- Consider enabling Azure Monitor for load balancer metrics:",
+      "  https://learn.microsoft.com/en-us/azure/load-balancer/monitor-load-balancer",
+      "",
+      "SECURITY NOTES:",
+      "",
+      "- API load balancer (6443, 22623) should have NSG rules allowing access from installation host",
+      "- Ingress load balancer (80, 443) should have NSG rules allowing internet access",
+      "- Consider using Azure Private Link for private API access",
+      "- Review NSG rules on VMs to ensure traffic from load balancer is allowed",
+      "",
+      "AZURE GOVERNMENT NOTES:",
+      "",
+      "- Use Azure Government cloud: az cloud set --name AzureUSGovernment",
+      "- Supported regions: usgovvirginia, usgovtexas, usgovarizona",
+      "- Load balancers in Azure Government work identically to commercial Azure",
+      "- Ensure compliance with government security requirements (FedRAMP, CJIS, etc.)"
+    ]
+  }
+}

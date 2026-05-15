@@ -1,0 +1,434 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  AWS Network Load Balancer (NLB) for OpenShift UPI on AWS GovCloud
+
+  IMPORTANT: This is an EXAMPLE template only. You MUST customize:
+  - VPC ID and subnet IDs to match your AWS environment
+  - Target instance IDs for bootstrap, control plane, and worker nodes
+  - Security group rules per your organization's policies
+  - Cluster name and base domain to match your install-config.yaml
+
+  DO NOT use this template verbatim in production without customization.
+
+  VARIABLE PLACEHOLDERS (replace these in Parameters section):
+  - VpcId: Your VPC ID (e.g., vpc-0abc1234567890def)
+  - PublicSubnetIds: Comma-separated list of public subnet IDs
+  - PrivateSubnetIds: Comma-separated list of private subnet IDs (for targets)
+  - BootstrapInstanceId: EC2 instance ID of bootstrap node
+  - ControlPlaneInstanceIds: EC2 instance IDs of 3 control plane nodes
+  - WorkerInstanceIds: EC2 instance IDs of worker nodes
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: OpenShift cluster name
+    Default: ocp-prod
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where OpenShift cluster will be deployed
+
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Public subnets for NLB (must be in different AZs)
+
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnets where OpenShift nodes are deployed
+
+  BootstrapInstanceId:
+    Type: String
+    Description: EC2 instance ID of bootstrap node (will be removed after installation)
+    Default: ""
+
+  ControlPlaneInstanceId1:
+    Type: String
+    Description: EC2 instance ID of control plane node 1
+
+  ControlPlaneInstanceId2:
+    Type: String
+    Description: EC2 instance ID of control plane node 2
+
+  ControlPlaneInstanceId3:
+    Type: String
+    Description: EC2 instance ID of control plane node 3
+
+  WorkerInstanceId1:
+    Type: String
+    Description: EC2 instance ID of worker node 1
+    Default: ""
+
+  WorkerInstanceId2:
+    Type: String
+    Description: EC2 instance ID of worker node 2
+    Default: ""
+
+Conditions:
+  HasBootstrap: !Not [!Equals [!Ref BootstrapInstanceId, ""]]
+  HasWorker1: !Not [!Equals [!Ref WorkerInstanceId1, ""]]
+  HasWorker2: !Not [!Equals [!Ref WorkerInstanceId2, ""]]
+
+Resources:
+  #-----------------------------------------------------------------
+  # API Load Balancer (TCP 6443)
+  # Used by: kubectl, oc, openshift-install
+  # Backends: Bootstrap (during install only), Control plane nodes
+  #-----------------------------------------------------------------
+  ApiNetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${ClusterName}-api-nlb"
+      Type: network
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnetIds
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-api-nlb"
+        - Key: kubernetes.io/cluster/${ClusterName}
+          Value: owned
+
+  ApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ClusterName}-api-tg"
+      Port: 6443
+      Protocol: TCP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: TCP
+      HealthCheckPort: 6443
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-api-tg"
+
+  ApiListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApiNetworkLoadBalancer
+      Port: 6443
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApiTargetGroup
+
+  # Register bootstrap node (remove after installation completes)
+  ApiTargetBootstrap:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Condition: HasBootstrap
+    Properties:
+      TargetGroupArn: !Ref ApiTargetGroup
+      TargetId: !Ref BootstrapInstanceId
+      Port: 6443
+
+  # Register control plane nodes
+  ApiTargetMaster1:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref ApiTargetGroup
+      TargetId: !Ref ControlPlaneInstanceId1
+      Port: 6443
+
+  ApiTargetMaster2:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref ApiTargetGroup
+      TargetId: !Ref ControlPlaneInstanceId2
+      Port: 6443
+
+  ApiTargetMaster3:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref ApiTargetGroup
+      TargetId: !Ref ControlPlaneInstanceId3
+      Port: 6443
+
+  #-----------------------------------------------------------------
+  # Machine Config Server Load Balancer (TCP 22623)
+  # Used by: Nodes to fetch ignition configs during boot
+  # Backends: Bootstrap (during install only), Control plane nodes
+  # NOTE: This can be internal-only (scheme: internal)
+  #-----------------------------------------------------------------
+  McsNetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${ClusterName}-mcs-nlb"
+      Type: network
+      Scheme: internal
+      Subnets: !Ref PrivateSubnetIds
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-mcs-nlb"
+        - Key: kubernetes.io/cluster/${ClusterName}
+          Value: owned
+
+  McsTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ClusterName}-mcs-tg"
+      Port: 22623
+      Protocol: TCP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: TCP
+      HealthCheckPort: 22623
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-mcs-tg"
+
+  McsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref McsNetworkLoadBalancer
+      Port: 22623
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref McsTargetGroup
+
+  # Register bootstrap node (remove after installation completes)
+  McsTargetBootstrap:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Condition: HasBootstrap
+    Properties:
+      TargetGroupArn: !Ref McsTargetGroup
+      TargetId: !Ref BootstrapInstanceId
+      Port: 22623
+
+  # Register control plane nodes
+  McsTargetMaster1:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref McsTargetGroup
+      TargetId: !Ref ControlPlaneInstanceId1
+      Port: 22623
+
+  McsTargetMaster2:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref McsTargetGroup
+      TargetId: !Ref ControlPlaneInstanceId2
+      Port: 22623
+
+  McsTargetMaster3:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref McsTargetGroup
+      TargetId: !Ref ControlPlaneInstanceId3
+      Port: 22623
+
+  #-----------------------------------------------------------------
+  # Ingress Load Balancer (TCP 80, TCP 443)
+  # Used by: Application routes, console, oauth
+  # Backends: Worker nodes (or control plane if no workers)
+  #-----------------------------------------------------------------
+  IngressNetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${ClusterName}-ingress-nlb"
+      Type: network
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnetIds
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-ingress-nlb"
+        - Key: kubernetes.io/cluster/${ClusterName}
+          Value: owned
+
+  # HTTP Target Group (port 80)
+  IngressHttpTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ClusterName}-http-tg"
+      Port: 80
+      Protocol: TCP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: TCP
+      HealthCheckPort: 80
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-http-tg"
+
+  IngressHttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref IngressNetworkLoadBalancer
+      Port: 80
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref IngressHttpTargetGroup
+
+  # HTTPS Target Group (port 443)
+  IngressHttpsTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ClusterName}-https-tg"
+      Port: 443
+      Protocol: TCP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: TCP
+      HealthCheckPort: 443
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-https-tg"
+
+  IngressHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref IngressNetworkLoadBalancer
+      Port: 443
+      Protocol: TCP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref IngressHttpsTargetGroup
+
+  # Register worker nodes (HTTP)
+  IngressHttpTargetWorker1:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Condition: HasWorker1
+    Properties:
+      TargetGroupArn: !Ref IngressHttpTargetGroup
+      TargetId: !Ref WorkerInstanceId1
+      Port: 80
+
+  IngressHttpTargetWorker2:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Condition: HasWorker2
+    Properties:
+      TargetGroupArn: !Ref IngressHttpTargetGroup
+      TargetId: !Ref WorkerInstanceId2
+      Port: 80
+
+  # Register worker nodes (HTTPS)
+  IngressHttpsTargetWorker1:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Condition: HasWorker1
+    Properties:
+      TargetGroupArn: !Ref IngressHttpsTargetGroup
+      TargetId: !Ref WorkerInstanceId1
+      Port: 443
+
+  IngressHttpsTargetWorker2:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Condition: HasWorker2
+    Properties:
+      TargetGroupArn: !Ref IngressHttpsTargetGroup
+      TargetId: !Ref WorkerInstanceId2
+      Port: 443
+
+Outputs:
+  ApiNlbDnsName:
+    Description: API Network Load Balancer DNS name (use for Route53 CNAME)
+    Value: !GetAtt ApiNetworkLoadBalancer.DNSName
+    Export:
+      Name: !Sub "${ClusterName}-api-nlb-dns"
+
+  McsNlbDnsName:
+    Description: Machine Config Server NLB DNS name (internal only)
+    Value: !GetAtt McsNetworkLoadBalancer.DNSName
+    Export:
+      Name: !Sub "${ClusterName}-mcs-nlb-dns"
+
+  IngressNlbDnsName:
+    Description: Ingress Network Load Balancer DNS name (use for Route53 CNAME)
+    Value: !GetAtt IngressNetworkLoadBalancer.DNSName
+    Export:
+      Name: !Sub "${ClusterName}-ingress-nlb-dns"
+
+  ApiTargetGroupArn:
+    Description: API Target Group ARN
+    Value: !Ref ApiTargetGroup
+
+  McsTargetGroupArn:
+    Description: Machine Config Server Target Group ARN
+    Value: !Ref McsTargetGroup
+
+  IngressHttpTargetGroupArn:
+    Description: Ingress HTTP Target Group ARN
+    Value: !Ref IngressHttpTargetGroup
+
+  IngressHttpsTargetGroupArn:
+    Description: Ingress HTTPS Target Group ARN
+    Value: !Ref IngressHttpsTargetGroup
+
+# USAGE INSTRUCTIONS:
+#
+# 1. Create EC2 instances for bootstrap, control plane, and worker nodes first
+#
+# 2. Deploy this stack:
+#    aws cloudformation create-stack \
+#      --stack-name ocp-prod-load-balancers \
+#      --template-body file://aws-govcloud-nlb.yaml \
+#      --parameters \
+#        ParameterKey=ClusterName,ParameterValue=ocp-prod \
+#        ParameterKey=VpcId,ParameterValue=vpc-0abc1234567890def \
+#        ParameterKey=PublicSubnetIds,ParameterValue="subnet-11111111,subnet-22222222" \
+#        ParameterKey=PrivateSubnetIds,ParameterValue="subnet-33333333,subnet-44444444" \
+#        ParameterKey=BootstrapInstanceId,ParameterValue=i-bootstrap123 \
+#        ParameterKey=ControlPlaneInstanceId1,ParameterValue=i-master1 \
+#        ParameterKey=ControlPlaneInstanceId2,ParameterValue=i-master2 \
+#        ParameterKey=ControlPlaneInstanceId3,ParameterValue=i-master3 \
+#        ParameterKey=WorkerInstanceId1,ParameterValue=i-worker1 \
+#        ParameterKey=WorkerInstanceId2,ParameterValue=i-worker2
+#
+# 3. Wait for stack creation:
+#    aws cloudformation wait stack-create-complete \
+#      --stack-name ocp-prod-load-balancers
+#
+# 4. Get NLB DNS names for Route53:
+#    aws cloudformation describe-stacks \
+#      --stack-name ocp-prod-load-balancers \
+#      --query 'Stacks[0].Outputs'
+#
+# 5. Create Route53 records pointing to NLB DNS names (see dns-examples/route53-terraform.tf)
+#
+# 6. After bootstrap completes (openshift-install wait-for bootstrap-complete):
+#    - Update stack to remove bootstrap node:
+#      aws cloudformation update-stack \
+#        --stack-name ocp-prod-load-balancers \
+#        --use-previous-template \
+#        --parameters \
+#          ParameterKey=ClusterName,UsePreviousValue=true \
+#          ParameterKey=VpcId,UsePreviousValue=true \
+#          ParameterKey=PublicSubnetIds,UsePreviousValue=true \
+#          ParameterKey=PrivateSubnetIds,UsePreviousValue=true \
+#          ParameterKey=BootstrapInstanceId,ParameterValue="" \
+#          ParameterKey=ControlPlaneInstanceId1,UsePreviousValue=true \
+#          ParameterKey=ControlPlaneInstanceId2,UsePreviousValue=true \
+#          ParameterKey=ControlPlaneInstanceId3,UsePreviousValue=true \
+#          ParameterKey=WorkerInstanceId1,UsePreviousValue=true \
+#          ParameterKey=WorkerInstanceId2,UsePreviousValue=true
+#
+# 7. Verify target health:
+#    aws elbv2 describe-target-health --target-group-arn <api-target-group-arn>
+#
+# POST-INSTALLATION NOTES:
+#
+# - NLB DNS names are stable (use in Route53, not IP addresses)
+# - Target health checks monitor TCP connectivity on each port
+# - Unhealthy targets are automatically removed from rotation
+# - Add more worker nodes by updating stack with additional WorkerInstanceId parameters
+# - Consider enabling NLB access logs for troubleshooting:
+#   https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-access-logs.html
+#
+# SECURITY NOTES:
+#
+# - API NLB (6443) must be accessible from installation host and end users
+# - MCS NLB (22623) should be internal-only (scheme: internal)
+# - Ingress NLB (80/443) must be internet-facing for application access
+# - Ensure security groups allow traffic from NLB to target instances
+# - Consider using AWS PrivateLink for private API access

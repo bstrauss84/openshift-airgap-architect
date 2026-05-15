@@ -1,0 +1,72 @@
+; BIND DNS Zone File Template for OpenShift UPI
+;
+; IMPORTANT: This is an EXAMPLE template only. You MUST customize:
+; - Cluster name and base domain to match your install-config.yaml
+; - IP addresses for your load balancer(s)
+; - Serial number for zone versioning
+; - SOA record details (nameserver, admin email)
+;
+; DO NOT use this template verbatim in production without customization.
+;
+; VARIABLE PLACEHOLDERS (replace these):
+; {{CLUSTER_NAME}} - Your cluster name (e.g., "ocp-prod")
+; {{BASE_DOMAIN}} - Your base domain (e.g., "example.com")
+; {{LB_API_IP}} - Load balancer IP for Kubernetes API (port 6443)
+; {{LB_INGRESS_IP}} - Load balancer IP for application ingress (ports 80/443)
+
+$TTL 3600
+@   IN  SOA ns1.{{BASE_DOMAIN}}. admin.{{BASE_DOMAIN}}. (
+        2026051501 ; serial (YYYYMMDDNN format - increment on each change)
+        3600       ; refresh (1 hour)
+        1800       ; retry (30 minutes)
+        604800     ; expire (1 week)
+        86400 )    ; minimum TTL (1 day)
+
+; Nameserver records (update to match your DNS infrastructure)
+@       IN  NS  ns1.{{BASE_DOMAIN}}.
+
+; Kubernetes API endpoints
+; api.{{CLUSTER_NAME}}.{{BASE_DOMAIN}} - External API endpoint (used by oc, kubectl, openshift-install)
+; api-int.{{CLUSTER_NAME}}.{{BASE_DOMAIN}} - Internal API endpoint (used by cluster components)
+api.{{CLUSTER_NAME}}        IN  A   {{LB_API_IP}}
+api-int.{{CLUSTER_NAME}}    IN  A   {{LB_API_IP}}
+
+; Application ingress wildcard
+; *.apps.{{CLUSTER_NAME}}.{{BASE_DOMAIN}} - All application routes (console, oauth, user apps)
+*.apps.{{CLUSTER_NAME}}     IN  A   {{LB_INGRESS_IP}}
+
+; OPTIONAL: Individual node records (not required for UPI, but helpful for debugging)
+; bootstrap.{{CLUSTER_NAME}}  IN  A   {{BOOTSTRAP_IP}}
+; master-0.{{CLUSTER_NAME}}   IN  A   {{CONTROL_PLANE_IP_1}}
+; master-1.{{CLUSTER_NAME}}   IN  A   {{CONTROL_PLANE_IP_2}}
+; master-2.{{CLUSTER_NAME}}   IN  A   {{CONTROL_PLANE_IP_3}}
+; worker-0.{{CLUSTER_NAME}}   IN  A   {{WORKER_IP_1}}
+; worker-1.{{CLUSTER_NAME}}   IN  A   {{WORKER_IP_2}}
+
+; OPTIONAL: PTR (reverse DNS) records
+; Not required for OpenShift installation, but recommended for proper DNS hygiene
+; Configure in reverse zone file (e.g., 1.168.192.in-addr.arpa)
+
+; VALIDATION COMMANDS:
+;
+; 1. Test zone file syntax:
+;    named-checkzone {{BASE_DOMAIN}} /path/to/this/zone/file
+;
+; 2. Query API records after loading zone:
+;    dig @<nameserver-ip> api.{{CLUSTER_NAME}}.{{BASE_DOMAIN}}
+;    dig @<nameserver-ip> api-int.{{CLUSTER_NAME}}.{{BASE_DOMAIN}}
+;
+; 3. Query wildcard ingress:
+;    dig @<nameserver-ip> test.apps.{{CLUSTER_NAME}}.{{BASE_DOMAIN}}
+;    dig @<nameserver-ip> console-openshift-console.apps.{{CLUSTER_NAME}}.{{BASE_DOMAIN}}
+;
+; 4. Verify from installation host:
+;    dig api.{{CLUSTER_NAME}}.{{BASE_DOMAIN}}
+;    curl -k https://api.{{CLUSTER_NAME}}.{{BASE_DOMAIN}}:6443/healthz
+;
+; POST-INSTALLATION CLEANUP:
+;
+; After bootstrap completes (openshift-install wait-for bootstrap-complete):
+; - You can remove bootstrap node A record (if added)
+; - Reload zone: rndc reload {{BASE_DOMAIN}}
+; - No DNS changes required for API/ingress records (already pointing to load balancer)

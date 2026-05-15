@@ -166,7 +166,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 **Purpose:** Platform completeness + foundational audits
 
-#### Phase 1: Critical Audits & Research (2-3 weeks)
+#### Phase 1: Critical Audits & Research (2-3 weeks) - ✅ **100% COMPLETE (4/4)**
 
 **Items (4):**
 
@@ -193,17 +193,35 @@ This document organizes remaining backlog work by semantic versioning to provide
    - **Result:** Documentation-only task - no code changes needed, implementation already correct
    - **Dependencies:** ✅ DOC-031 (complete)
 
-3. **DOC-040:** UPI support expansion (NEXT - fully unblocked)
+3. ✅ **DOC-040:** UPI support expansion - **COMPLETE (2026-05-15)**
    - Priority: P1
-   - Identify repeatable UPI prep tasks
-   - Add standardized helpers/templates
-   - **Dependencies:** ✅ DOC-031 (complete), DOC-039 (when unblocked)
+   - ✅ `docs/UPI_PREP_GUIDES/` directory created with 4 comprehensive guides
+   - ✅ Infrastructure prerequisites checklists (per scenario)
+   - ✅ DNS configuration templates and validation commands:
+     - `dns-examples/bind-zone-template.zone` (BIND zone file)
+     - `dns-examples/route53-terraform.tf` (AWS Route53 Terraform)
+     - `dns-examples/azure-dns-terraform.tf` (Azure DNS Terraform)
+   - ✅ Load balancer examples (HAProxy, nginx, CloudFormation, ARM):
+     - `load-balancer-examples/bare-metal-haproxy.cfg` (HAProxy config)
+     - `load-balancer-examples/bare-metal-nginx.conf` (nginx stream config)
+     - `load-balancer-examples/aws-govcloud-nlb.yaml` (CloudFormation NLB template)
+     - `load-balancer-examples/azure-government-lb.json` (ARM template)
+   - ✅ Mirror registry checklists for disconnected deployments
+   - ✅ Trust bundle and pull secret preparation steps
+   - ✅ Network CIDR planning worksheets
+   - ✅ Updated SCENARIOS_BARE_METAL_FAMILY.md, SCENARIOS_VSPHERE_FAMILY.md, SCENARIOS_CLOUD_FAMILY.md
+   - ✅ Added UPI Preparation Guides section to SCENARIOS_GUIDE.md
+   - **Result:** Comprehensive UPI prep assistance with 7 template files without over-assuming infrastructure specifics
+   - **Dependencies:** ✅ DOC-031 (complete), DOC-035 (complete)
 
-4. **PHX-043:** Verify CI docs host rules completeness
+4. ✅ **PHX-043:** Verify CI docs host rules completeness - **COMPLETE (2026-05-15)**
    - Priority: P1
-   - Verify all remaining host normalization complete (DOC-001 marked verified_done)
-   - Check CI/rules for hard host assumptions
-   - Either mark as verified_done or implement remaining work
+   - ✅ Updated 7 hardcoded docs.openshift.com URLs to docs.redhat.com in scenarioSummaryHelpers.js
+   - ✅ Verified docs-index validation script passes
+   - ✅ Verified DOC_INDEX_RULES.md enforces docs.redhat.com policy
+   - ✅ Confirmed no hardcoded doc hosts remain in codebase
+   - ✅ 47/48 URLs in docs-index use docs.redhat.com (1 valid external nmstate.io reference)
+   - **Result:** All doc URLs normalized, host assumptions eliminated
 
 #### Phase 3: Platform Completeness (2-3 weeks, can parallelize)
 
@@ -234,15 +252,18 @@ This document organizes remaining backlog work by semantic versioning to provide
    - Move "Advanced" section above "Additional Interfaces" in host node drawer
    - **Dependency:** DOC-034 (YAML drawer) complete ✅
 
-#### Success Criteria
+#### Phase 1 Success Criteria - ✅ **ALL COMPLETE**
 
 - ✅ Disconnected scenario matrix complete (DOC-031)
 - ✅ Platform: none support boundaries documented and implemented (DOC-035)
 - ✅ UPI helper framework established (DOC-040)
 - ✅ CI docs host rules verified complete (PHX-043)
-- ✅ AWS Platform Specifics 100% complete (no deferred params)
-- ✅ FIPS binary selection working
-- ✅ Node drawer reorder applied
+
+#### Phase 3 Success Criteria (remaining)
+
+- ⬜ AWS Platform Specifics 100% complete (no deferred params)
+- ⬜ FIPS binary selection working
+- ⬜ Node drawer reorder applied
 
 ---
 
