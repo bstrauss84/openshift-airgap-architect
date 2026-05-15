@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-05-15
+
+### Changed
+
+**Node Drawer Comprehensive Redesign (LOCAL #33 + #55)**
+- Extracted Agent/IPI drawer content into separate components
+  - New: `frontend/src/components/NodeDrawerAgentContent.jsx` (578 lines)
+  - New: `frontend/src/components/NodeDrawerIpiContent.jsx` (215 lines)
+  - Reduced `HostInventoryV2Step.jsx` from 1662 to 940 lines (-43% / -722 lines)
+- Added visual grouping for like-configurations using Run oc-mirror mirror strategy pattern:
+  - Root Device Hints (8 fields) in `.workflow-group`
+  - Ethernet/Bond/VLAN configs in `.option-subgroup` (conditional on interface type)
+  - Static IP Configuration in `.workflow-group` (conditional on mode=static)
+  - DNS Configuration in `.workflow-group`
+  - BMC Configuration in `.workflow-group` (conditional)
+  - Advanced section in `.workflow-group` (collapsible)
+- Reordered sections: **Advanced now appears above Additional Interfaces**
+  - Fixes LOCAL #33 JSX parse error blocking section reorder
+  - Eliminated problematic nested ternary structure
+- Applied consistent visual hierarchy and spacing:
+  - Top-level sections use `.workflow-group` (border, header, description)
+  - Nested/conditional sections use `.option-subgroup` (left-border accent)
+  - Dividers between major sections
+- Responsive across drawer width range (400-800px resizable)
+- Dark mode support for all new groups (existing CSS)
+- Preserves all existing functionality:
+  - Validation, handlers, conditional rendering (arbiter, type-based, mode-based)
+  - Bond member styling, additional interfaces cards, advanced routes
+
+### Added
+
+- Comprehensive test suite: `frontend/tests/node-drawer-redesign.test.jsx`
+  - Component extraction tests (Agent/IPI content renders without errors)
+  - Visual grouping tests (8 logical sections wrapped correctly)
+  - Section order tests (Advanced before Additional Interfaces)
+  - Conditional rendering tests (arbiter nodes, interface types, IP modes)
+  - Responsive behavior tests
+
+### Technical Details
+
+**Frontend**
+- New components: `NodeDrawerAgentContent.jsx`, `NodeDrawerIpiContent.jsx`
+- Modified: `frontend/src/steps/HostInventoryV2Step.jsx` (refactored to use components)
+- New test: `frontend/tests/node-drawer-redesign.test.jsx`
+- No new CSS required (reused `.workflow-group` and `.option-subgroup` from Run oc-mirror)
+
+**Benefits**
+- Improved visual scannability with clear section boundaries
+- Easier maintenance (smaller component files vs 1600+ line monolith)
+- Consistent with app-wide grouping patterns
+- Better user experience: like-configs grouped together regardless of drawer width
+
+### Commits
+
+1. `<pending>` Node drawer comprehensive redesign (LOCAL #33 + #55)
+
+---
+
 ## [1.2.0] - 2026-05-15
 
 ### Added
