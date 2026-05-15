@@ -1064,7 +1064,7 @@ Same JSON structure as Red Hat pull secret, but with your mirror registry hostna
 podman login registry.corp.local:5000
 cat ~/.docker/config.json
 # or
-cat ${XDG_RUNTIME_DIR}/containers/auth.json
+cat \${XDG_RUNTIME_DIR}/containers/auth.json
 \`\`\`
 
 **Option 2: Manual base64 encoding**
@@ -1136,7 +1136,7 @@ Same JSON structure as Red Hat pull secret, but with your mirror registry hostna
 podman login registry.corp.local:5000
 cat ~/.docker/config.json
 # or
-cat ${XDG_RUNTIME_DIR}/containers/auth.json
+cat \${XDG_RUNTIME_DIR}/containers/auth.json
 \`\`\`
 
 **Option 2: Manual base64 encoding**

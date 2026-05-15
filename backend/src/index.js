@@ -23,6 +23,7 @@ import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.
 import { resolveOcMirrorBinary, getRuntimeArch, getLocalBinaryArch, getBinariesForExportArch } from "./ocMirrorRuntime.js";
 import { db, dataDir } from "./db.js";
 import { ensureInstaller, getAwsAmi, getAwsRegions, installerPathFor, warmInstallerStream } from "./installer.js";
+import { ensureOpenshiftInstaller } from "./openshiftInstaller.js";
 import {
   getState,
   setState,
@@ -437,6 +438,8 @@ const defaultState = () => ({
     includeCertificates: true,
     includeClientTools: false,
     includeInstaller: false,
+    installerUseFips: false,        // Use FIPS RHEL 9 variant for openshift-install
+    installerPlatformArch: "",       // Platform+arch for openshift-install ("" = default)
     exportBinaryArch: null,
     draftMode: false
   },
@@ -1422,9 +1425,24 @@ app.get("/api/runtime-info", async (req, res) => {
     if (process.env.DEBUG) console.error("oc-mirror binary resolution failed:", e);
     // ignore; we still return arch info
   }
+
+  // Detect platform (Linux, Mac, Windows)
+  let detectedPlatform = 'linux';
+  if (process.platform === 'darwin') {
+    detectedPlatform = 'mac';
+  } else if (process.platform === 'win32') {
+    detectedPlatform = 'windows';
+  }
+
+  // Normalize architecture for installer URLs (x64 -> amd64, arm64 -> arm64, etc.)
+  const { normalizeInstallerArch } = await import('./openshiftInstaller.js');
+  const normalizedArch = normalizeInstallerArch(process.arch);
+
   res.json({
     runtimeArch: getRuntimeArch(),
-    localBinaryArch: getLocalBinaryArch()
+    localBinaryArch: getLocalBinaryArch(),
+    detectedPlatform: detectedPlatform,
+    detectedInstallerVariant: `${detectedPlatform}-${normalizedArch}` // e.g., "linux-amd64"
   });
 });
 
@@ -2478,10 +2496,17 @@ const buildBundleZip = async (state, res) => {
       if (!version) {
         throw new Error("Version not selected.");
       }
-      await ensureInstaller(version);
-      const installerPath = installerPathFor(version);
+
+      const useFips = state.exportOptions?.installerUseFips || false;
+      const platformArch = state.exportOptions?.installerPlatformArch || ""; // "" means default
+
+      // Download (or retrieve from cache) the requested binary variant
+      const installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
+
       if (fs.existsSync(installerPath)) {
         archive.file(installerPath, { name: "tools/openshift-install" });
+      } else {
+        throw new Error("Binary not found after download");
       }
     } catch (error) {
       archive.append(

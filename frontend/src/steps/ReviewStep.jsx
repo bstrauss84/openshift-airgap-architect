@@ -366,6 +366,14 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       .catch(() => setRuntimeInfo({ runtimeArch: null, localBinaryArch: null }));
   }, []);
 
+  // Auto-sync FIPS installer toggle with Identity & Access FIPS mode
+  useEffect(() => {
+    const fipsEnabled = state.globalStrategy?.fips ?? false;
+    if (fipsEnabled && !exportOptions.installerUseFips) {
+      updateState({ exportOptions: { ...exportOptions, installerUseFips: true } });
+    }
+  }, [state.globalStrategy?.fips]);
+
   const installConfigContent = files["install-config.yaml"];
   const installConfigDisplay = (() => {
     if (!installConfigContent) return installConfigContent;
@@ -568,6 +576,56 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include version-specific openshift-install"
               />
             </OptionRow>
+            {exportOptions.includeInstaller ? (
+              <div className="option-subgroup">
+                <OptionRow
+                  title="Include FIPS-enabled (RHEL 9) installer"
+                  description={`Use the FIPS-validated RHEL 9 version of openshift-install. Required when FIPS mode is enabled.${state.globalStrategy?.fips ? ' (Auto-enabled based on FIPS mode)' : ''}`}
+                >
+                  <Switch
+                    checked={exportOptions.installerUseFips || false}
+                    onChange={(checked) =>
+                      updateState({ exportOptions: { ...exportOptions, installerUseFips: checked } })
+                    }
+                    aria-label="Include FIPS-enabled installer"
+                  />
+                </OptionRow>
+                <OptionRow
+                  title="Target platform/architecture for openshift-install"
+                  description={`Backend default: ${runtimeInfo.detectedInstallerVariant ? runtimeInfo.detectedInstallerVariant.replace('-', ' ').toUpperCase().replace('MAC', 'macOS').replace('LINUX', 'Linux') : 'detecting...'}. Choose another to download that variant for the bundle.${exportOptions.installerUseFips ? ' (FIPS RHEL 9 only available on Linux)' : ''}`}
+                >
+                  <select
+                    value={exportOptions.installerPlatformArch || ""}
+                    onChange={(e) =>
+                      updateState({ exportOptions: { ...exportOptions, installerPlatformArch: e.target.value } })
+                    }
+                    style={{ maxWidth: "280px" }}
+                    aria-label="Target platform/architecture for openshift-install"
+                  >
+                    <option value="">Default (match backend)</option>
+                    {exportOptions.installerUseFips ? (
+                      // FIPS variants (Linux RHEL 9 only)
+                      <>
+                        <option value="linux-amd64">Linux x86_64 (RHEL 9 FIPS)</option>
+                        <option value="linux-arm64">Linux ARM64 (RHEL 9 FIPS)</option>
+                        <option value="linux-ppc64le">Linux PPC64LE (RHEL 9 FIPS)</option>
+                        <option value="linux-s390x">Linux s390x (RHEL 9 FIPS)</option>
+                      </>
+                    ) : (
+                      // Standard variants (Linux + macOS)
+                      <>
+                        <option value="linux-amd64">Linux x86_64</option>
+                        <option value="linux-arm64">Linux ARM64</option>
+                        <option value="linux-ppc64le">Linux PPC64LE</option>
+                        <option value="linux-s390x">Linux s390x</option>
+                        <option value="mac-amd64">macOS Intel (x86_64)</option>
+                        <option value="mac-arm64">macOS ARM64 (Apple Silicon)</option>
+                      </>
+                    )}
+                  </select>
+                </OptionRow>
+              </div>
+            ) : null}
             <OptionRow
               title="Include mirror-registry binary"
               description="Add latest mirror-registry to the bundle under tools/. Download from mirror.openshift.com at export time."
