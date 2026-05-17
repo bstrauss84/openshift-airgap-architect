@@ -169,6 +169,31 @@ export const vsphereAgentPrereqs = {
   ],
 };
 
+export const vsphereAgentMethodologyContext = {
+  id: "vsphere-agent-methodology-context",
+  version: "4.20",
+  title: "Why Agent-Based Installer for Disconnected vSphere",
+  order: 15,
+  conditions: {
+    platforms: ["VMware vSphere"],
+    methodologies: ["Agent-Based Installer"],
+    connectivity: ["disconnected", "fully-disconnected"],
+  },
+  docRefs: [
+    { label: "vSphere SDK constraints documentation", url: "file://./docs/VSPHERE_SDK_DISCONNECTED_CONSTRAINTS.md" },
+  ],
+  items: [
+    { text: "You selected **Agent-Based Installer** for disconnected vSphere deployment. This is the recommended methodology for air-gapped vSphere environments." },
+    { text: "**Why Agent-Based Installer is best for disconnected vSphere:**\n\n- **No vCenter API calls during bootstrap:** ISO boots nodes directly without vCenter SDK interaction\n- **Works with network segmentation:** Installation succeeds even if bootstrap node cannot reach vCenter API\n- **Ideal for NSX-T firewall restrictions:** vCenter on isolated management network does not block installation\n- **Declarative configuration:** agent-config.yaml provides full control over network/storage without API calls" },
+    { text: "**Alternative: IPI (Installer-Provisioned Infrastructure)**\n\n- Requires vCenter API reachable from bootstrap node during installation\n- Works if vCenter itself is air-gapped (no internet) but bootstrap can still reach vCenter\n- Fails if network isolation prevents bootstrap → vCenter traffic (NSX-T firewall, management network segmentation)\n- **When to use IPI:** Flat network where bootstrap node and vCenter are on same segment, no firewall restrictions" },
+    { text: "**Alternative: UPI (User-Provisioned Infrastructure)**\n\n- Full manual VM provisioning (vCenter UI, Terraform, Ansible)\n- No OpenShift installer → vCenter API calls (user handles all provisioning)\n- Best for strict security policies prohibiting automated vCenter API access\n- **When to use UPI:** Maximum manual control required, custom VM provisioning workflow, policy restrictions" },
+    { text: "**vCenter API connectivity requirements:**\n\n- IPI: Bootstrap node **MUST** reach vCenter API (https://{{vcenter}}:443)\n- Agent: Bootstrap node does **NOT** need vCenter API access (ISO boots nodes directly)\n- UPI: User provisions VMs manually (no installer → vCenter API calls)", cmd: "# Test vCenter API reachability from bootstrap network:\ncurl -k https://{{vcenter}}/rest/com/vmware/cis/session\n# If this fails, IPI will not work - use Agent-Based Installer instead" },
+    { text: "**Network segmentation scenarios where Agent wins:**\n\n- vCenter on management network (10.0.0.0/24), cluster nodes on workload network (10.1.0.0/24)\n- NSX-T distributed firewall blocks workload → management traffic\n- DMZ deployment where vCenter is behind corporate firewall\n- Security policy requires all vCenter API access to be logged/audited (automated provisioning not allowed)" },
+    { text: "**Post-installation vCenter integration:**\n\nWhile OpenShift installation does not require vCenter API access with Agent-Based Installer, if you want vSphere CSI (persistent storage) or cloud provider integration post-install, cluster nodes will need vCenter API access **after** the cluster is running. This is separate from the installation API requirement.", cmd: "# Post-install: verify vSphere cloud provider (if configured):\noc get pods -n openshift-cloud-controller-manager\n# Post-install: verify vSphere CSI driver:\noc get csidriver" },
+    { text: "**See also:** `docs/VSPHERE_SDK_DISCONNECTED_CONSTRAINTS.md` for full decision matrix and troubleshooting guide." },
+  ],
+};
+
 export const vsphereAgentInstall = {
   id: "vsphere-agent-install",
   version: "4.20",
