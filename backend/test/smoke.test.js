@@ -11,14 +11,10 @@ import assert from "node:assert";
 import yaml from "js-yaml";
 import { buildInstallConfig, buildAgentConfig, buildFieldManual } from "../src/generate.js";
 import { getTrustBundlePolicies } from "../src/versionPolicy.js";
+import { baseStates, builders } from "./fixtures/index.js";
 
 test("buildInstallConfig returns install config shape", () => {
-  const state = {
-    blueprint: { baseDomain: "example.com", clusterName: "test-cluster" },
-    globalStrategy: { networking: {} },
-    credentials: {},
-    hostInventory: { nodes: [] }
-  };
+  const state = baseStates.minimal();
   const raw = buildInstallConfig(state);
   assert.strictEqual(typeof raw, "string");
   const out = yaml.load(raw);
@@ -36,11 +32,7 @@ test("buildInstallConfig handles minimal state", () => {
 });
 
 test("buildInstallConfig emits BMC disableCertificateVerification when true (Phase 4.4)", () => {
-  const state = {
-    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
-    methodology: { method: "IPI" },
-    globalStrategy: { networking: {} },
-    credentials: {},
+  const state = baseStates.bareMetalIpi({
     hostInventory: {
       nodes: [
         {
@@ -50,7 +42,7 @@ test("buildInstallConfig emits BMC disableCertificateVerification when true (Pha
         }
       ]
     }
-  };
+  });
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.ok(out.platform?.baremetal?.hosts?.length === 1);
@@ -60,39 +52,38 @@ test("buildInstallConfig emits BMC disableCertificateVerification when true (Pha
 test("buildInstallConfig only emits imageDigestSources when mirroring is in use", () => {
   const sources = [{ source: "quay.io/openshift-release-dev/ocp-release", mirrors: ["registry.local:5000/ocp-release"] }];
 
-  const baseState = {
-    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
-    methodology: { method: "Agent-Based Installer" },
-    globalStrategy: { networking: {}, mirroring: { registryFqdn: "registry.local:5000", sources } },
+  // Test without mirroring enabled
+  const stateNoMirror = baseStates.bareMetalAgent({
+    globalStrategy: {
+      mirroring: { registryFqdn: "registry.local:5000", sources }
+    },
     credentials: {
       usingMirrorRegistry: false,
       pullSecretPlaceholder: '{"auths":{"quay.io":{}}}',
       mirrorRegistryPullSecret: '{"auths":{"mirror.local:5000":{}}}',
       mirrorRegistryUnauthenticated: false
     },
-    hostInventory: { nodes: [], apiVip: "10.90.0.1", ingressVip: "10.90.0.2", enableIpv6: false },
     exportOptions: { includeCredentials: false }
-  };
+  });
 
-  const out1 = yaml.load(buildInstallConfig(baseState));
+  const out1 = yaml.load(buildInstallConfig(stateNoMirror));
   assert.strictEqual(out1.imageDigestSources, undefined);
 
-  const out2 = yaml.load(buildInstallConfig({
-    ...baseState,
-    credentials: { ...baseState.credentials, usingMirrorRegistry: true }
-  }));
+  // Test with mirroring enabled
+  const stateWithMirror = builders.withMirroring(baseStates.bareMetalAgent(), {
+    registryFqdn: "registry.local:5000",
+    sources,
+    pullSecret: '{"auths":{"mirror.local:5000":{}}}'
+  });
+
+  const out2 = yaml.load(buildInstallConfig(stateWithMirror));
   assert.ok(Array.isArray(out2.imageDigestSources), "expected imageDigestSources when usingMirrorRegistry is enabled");
   assert.strictEqual(out2.imageDigestSources.length, sources.length);
 });
 
 test("buildInstallConfig for bare-metal-ipi emits provisioning network params when set (Prompt J)", () => {
-  const state = {
-    blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
-    methodology: { method: "IPI" },
-    globalStrategy: { networking: {} },
-    credentials: {},
+  const state = baseStates.bareMetalIpi({
     hostInventory: {
-      nodes: [{ hostname: "master-0", role: "master", bmc: {} }],
       provisioningNetwork: "Unmanaged",
       provisioningNetworkCIDR: "172.22.0.0/24",
       provisioningNetworkInterface: "eth1",
@@ -100,7 +91,7 @@ test("buildInstallConfig for bare-metal-ipi emits provisioning network params wh
       clusterProvisioningIP: "172.22.0.3",
       provisioningMACAddress: "52:54:00:00:00:01"
     }
-  };
+  });
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.strictEqual(out.platform?.baremetal?.provisioningNetwork, "Unmanaged");
@@ -1838,29 +1829,18 @@ test("buildFieldManual (vsphere-ipi+mirror) includes expected sections in correc
 });
 
 test("buildFieldManual (bm-agent+proxy, no mirror) includes proxy and bare-metal sections, omits mirror sections", () => {
-  const state = {
-    blueprint: { platform: "Bare Metal", clusterName: "bm-cluster", baseDomain: "gov.local" },
-    release: { patchVersion: "4.20.3", channel: "4.20" },
-    methodology: { method: "Agent-Based Installer" },
-    globalStrategy: {
-      fips: false,
-      proxyEnabled: true,
-      proxies: { httpProxy: "http://proxy.gov.local:3128", httpsProxy: "http://proxy.gov.local:3128", noProxy: "localhost,.gov.local" },
-      ntpServers: [],
-      networking: {},
-      mirroring: { registryFqdn: "" },
-    },
-    credentials: {
-      usingMirrorRegistry: false,
-      pullSecretPlaceholder: '{"auths":{"quay.io":{}}}',
-      mirrorRegistryPullSecret: '{"auths":{}}',
-    },
-    hostInventory: { apiVip: "10.0.0.10", ingressVip: "10.0.0.11", nodes: [] },
-    docs: { connectivity: "fully-disconnected" },
-    mirrorWorkflow: {},
-    operators: { selected: [] },
-    trust: {},
-  };
+  const state = builders.withProxy(
+    baseStates.bareMetalAgent({
+      blueprint: { clusterName: "bm-cluster", baseDomain: "gov.local" },
+      release: { patchVersion: "4.20.3", channel: "4.20" },
+      hostInventory: { apiVip: "10.0.0.10", ingressVip: "10.0.0.11" },
+      docs: { connectivity: "fully-disconnected" },
+      mirrorWorkflow: {},
+      operators: { selected: [] },
+      trust: {}
+    }),
+    { httpProxy: "http://proxy.gov.local:3128", httpsProxy: "http://proxy.gov.local:3128", noProxy: "localhost,.gov.local" }
+  );
   const raw = buildFieldManual(state, []);
   assert.strictEqual(typeof raw, "string");
   // Proxy section present
