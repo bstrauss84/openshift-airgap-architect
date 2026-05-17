@@ -34,6 +34,7 @@ import {
   vsphereUpiPrereqs,
   vsphereUpiInstall,
   vsphereAgentPrereqs,
+  vsphereAgentMethodologyContext,
   vsphereAgentInstall,
 } from "./vsphere.js";
 
@@ -90,6 +91,7 @@ const compartments_v420 = [
   vsphereUpiPrereqs,
   vsphereUpiInstall,
   vsphereAgentPrereqs,
+  vsphereAgentMethodologyContext,
   vsphereAgentInstall,
   // Bare Metal
   bmAgentPrereqs,

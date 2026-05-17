@@ -10,6 +10,7 @@
  */
 import { compartments_v420 } from "./v4.20/index.js";
 import { render } from "./template.js";
+import { getTroubleshootingRules } from "./troubleshootingRules.js";
 
 /**
  * Returns the compartment list for a given OCP minor version.
@@ -179,10 +180,99 @@ const renderGuide = (state, ctx, docsLinks) => {
   lines.push("---");
   lines.push("");
 
-  // Compartment sections
-  selected.forEach((compartment, i) => {
-    renderCompartment(compartment, i + 1, total, ctx).forEach((l) => lines.push(l));
+  // Compartment sections grouped by phase
+  const phases = {
+    "pre-install": [],
+    "install": [],
+    "post-install": [],
+    "other": []
+  };
+
+  // Group compartments by phase
+  selected.forEach((compartment) => {
+    const phase = compartment.phase || "other";
+    if (phases[phase]) {
+      phases[phase].push(compartment);
+    } else {
+      phases.other.push(compartment);
+    }
   });
+
+  let sectionNum = 0;
+
+  // Render pre-install phase
+  if (phases["pre-install"].length > 0) {
+    lines.push("# Phase 1: Pre-Installation");
+    lines.push("");
+    lines.push("These steps must be completed before running the OpenShift installer.");
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+
+    phases["pre-install"].forEach((compartment) => {
+      sectionNum++;
+      renderCompartment(compartment, sectionNum, total, ctx).forEach((l) => lines.push(l));
+    });
+  }
+
+  // Render install phase
+  if (phases["install"].length > 0) {
+    lines.push("# Phase 2: Installation");
+    lines.push("");
+    lines.push("Execute these steps to install the OpenShift cluster.");
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+
+    phases["install"].forEach((compartment) => {
+      sectionNum++;
+      renderCompartment(compartment, sectionNum, total, ctx).forEach((l) => lines.push(l));
+    });
+  }
+
+  // Render post-install phase
+  if (phases["post-install"].length > 0) {
+    lines.push("# Phase 3: Post-Installation");
+    lines.push("");
+    lines.push("Verification and validation steps after cluster is operational.");
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+
+    phases["post-install"].forEach((compartment) => {
+      sectionNum++;
+      renderCompartment(compartment, sectionNum, total, ctx).forEach((l) => lines.push(l));
+    });
+  }
+
+  // Render other compartments (no phase specified)
+  if (phases.other.length > 0) {
+    phases.other.forEach((compartment) => {
+      sectionNum++;
+      renderCompartment(compartment, sectionNum, total, ctx).forEach((l) => lines.push(l));
+    });
+  }
+
+  // Dynamic troubleshooting section
+  const troubleshootingRules = getTroubleshootingRules(ctx);
+  if (troubleshootingRules.length > 0) {
+    lines.push("---");
+    lines.push("");
+    lines.push("# Configuration-Specific Troubleshooting");
+    lines.push("");
+    lines.push("This section contains troubleshooting guidance tailored to your specific configuration.");
+    lines.push("");
+
+    troubleshootingRules.forEach((rule) => {
+      const emoji = rule.severity === "error" ? "❌" : rule.severity === "warning" ? "⚠️" : "ℹ️";
+      lines.push(`## ${emoji} ${rule.title}`);
+      lines.push("");
+      lines.push(rule.guidance.trim());
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    });
+  }
 
   // Sources section
   const allDocs = mergeDocLinks(selected, docsLinks);
