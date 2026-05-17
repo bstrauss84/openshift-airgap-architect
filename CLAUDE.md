@@ -488,6 +488,89 @@ Helper: `getVipPlaceholders(machineNetworkCidr)`
 - If adding a new platform that uses VIPs, add it to `validateVipsInMachineNetwork`
 - If changing machine network field location, update `getVipPlaceholders` usage
 
+**Error Display Pattern (v1.2.2):**
+
+Validation errors must be visible inline, not just in hover tooltips.
+
+**Pattern:**
+```jsx
+<FieldLabelWithInfo label="API VIP" /* ... */>
+  <input
+    className={fieldErrors.apiVip ? "input-error" : ""}
+    title={fieldErrors.apiVip || ""}
+    /* ... */
+  />
+</FieldLabelWithInfo>
+{fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
+```
+
+**Why:**
+- Title attribute errors only visible on hover
+- Inline spans immediately visible (matches overlap warning pattern)
+- Red text with yellow background for high visibility
+
+**When to use:**
+- Any field with validation logic in `validation.js` that sets `fieldErrors[fieldKey]`
+- Pattern matches existing overlap warnings (e.g., NetworkingV2Step lines 380, 383)
+
+---
+
+## UI Patterns (v1.2.2)
+
+### Tooltip Gold Standard
+
+All FieldLabelWithInfo tooltips should follow this comprehensive format:
+
+**Required Sections:**
+1. **One-line description** - Brief summary at top
+2. **What is this:** - Concept explanation
+3. **When needed:** - Required/optional context, scenarios where applicable
+4. **Format:** - Expected input format, constraints, validation rules
+5. **How it's used:** - Where written in config files, how OpenShift uses it
+6. **Important:** - ⚠️ Warnings about failures, immutability, security
+7. **Example:** - Real-world concrete examples
+
+**Example (from NodeDrawerAgentContent.jsx):**
+```jsx
+<FieldLabelWithInfo
+  label="Ethernet MAC"
+  hint={`Hardware MAC address of the physical network interface.
+
+**What is this:**
+The unique 48-bit hardware identifier burned into the NIC...
+
+**When needed:**
+Always required when configuring ethernet interfaces...
+
+**Format:**
+Six colon-separated hexadecimal pairs...
+
+**How it's used:**
+Written to agent-config.yaml interfaces section with 'macAddress:' key...
+
+**Important:**
+⚠️ Wrong MAC address = network configuration applied to wrong NIC...
+
+**Example:**
+Dell R640 eno1 MAC from BIOS → 52:54:00:6b:34:56`}
+>
+```
+
+**Why this format:**
+- Beginner-friendly: explains WHY not just WHAT
+- Production-ready: includes failure modes and best practices
+- Hardware-specific: real server models, actual interface names
+- Comprehensive: user doesn't need to search docs
+
+**When to use:**
+- All new tooltips
+- When updating existing basic tooltips
+- When user reports confusion about a field
+
+**Quality reference:**
+- NetworkingV2Step.jsx: Machine Network field (lines 344-359)
+- NodeDrawerAgentContent.jsx: Enhanced tooltips (v1.2.2)
+
 ---
 
 ## High-Side Integration (v1.1.1 - v1.1.3)

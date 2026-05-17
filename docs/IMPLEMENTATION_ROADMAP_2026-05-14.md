@@ -300,6 +300,90 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
+### v1.2.1 (Patch) - ✅ **RELEASED** (2026-05-17)
+
+**Released:** 2026-05-17  
+**Purpose:** Node drawer alignment fixes + VIP validation enhancements
+
+#### Items Completed (3/3)
+
+1. ✅ **Node drawer field alignment fixes (LOCAL #56)**
+   - Priority: P2
+   - Fixed visual misalignment in Primary Network section
+   - Converted 4 plain `<label>` fields to `FieldLabelWithInfo` for consistent spacing
+   - Added tooltips to previously unlabeled fields (Primary Interface Type, IP assignment, Bond name, Bond mode, Ethernet interface, Ethernet MAC)
+   - Files: `frontend/src/components/NodeDrawerAgentContent.jsx`
+   - Tests: `frontend/tests/node-drawer-redesign.test.jsx` (10/10 passing)
+
+2. ✅ **VIP validation for bare-metal-agent (LOCAL #57)**
+   - Priority: P1
+   - Extended `validateVipsInMachineNetwork` to include bare-metal-agent scenarios
+   - API VIP and Ingress VIP must now be within machine network CIDR for all platforms
+   - Files: `frontend/src/validation.js`
+   - Tests: `frontend/tests/networking-v2-step.test.jsx` (16/16 passing)
+
+3. ✅ **Dynamic VIP placeholders (LOCAL #58)**
+   - Priority: P2
+   - VIP input placeholders now dynamically reflect machine network CIDR
+   - Created `getVipPlaceholders(cidr)` helper function
+   - Example: 192.168.1.0/24 → API VIP "e.g. 192.168.1.2", Ingress VIP "e.g. 192.168.1.3"
+   - Files: `frontend/src/steps/NetworkingV2Step.jsx`
+   - Tests: Updated placeholder expectations in networking tests
+
+#### Success Criteria - ALL MET ✅
+
+- ✅ Node drawer field alignment fixed (all fields in same row use FieldLabelWithInfo)
+- ✅ VIP validation extended to bare-metal-agent scenarios
+- ✅ Dynamic VIP placeholders working across all platforms
+- ✅ All 707 frontend tests passing
+- ✅ All 261 backend tests passing
+- ✅ CHANGELOG.md updated
+- ✅ VERSION file updated to 1.2.1
+- ✅ Git tag v1.2.1 created
+
+---
+
+### v1.2.2 (Patch) - ✅ **RELEASED** (2026-05-17)
+
+**Released:** 2026-05-17  
+**Purpose:** VIP validation error display + tooltip quality enhancement
+
+#### Items Completed (2/2)
+
+1. ✅ **VIP validation error display (DOC-072)**
+   - Priority: P1
+   - Added visible inline error messages for VIP validation failures
+   - 18 inline warning spans added across all VIP fields
+   - Pattern matches existing overlap warnings (red text, immediately visible)
+   - Added missing error className/title to vSphere IPI VIP inputs
+   - Coverage: bare-metal-agent/ipi, vsphere-agent/ipi, nutanix-ipi (IPv4 + IPv6)
+   - Files: `frontend/src/steps/NetworkingV2Step.jsx`
+   - Tests: `frontend/tests/networking-v2-step.test.jsx` (16/16 passing)
+
+2. ✅ **Node drawer tooltip enhancement to gold standard (DOC-073)**
+   - Priority: P2
+   - Upgraded 6 tooltips to comprehensive gold standard format
+   - Enhanced tooltips: Primary Interface Type, IP assignment, Ethernet interface, Ethernet MAC, Bond name, Bond mode
+   - Gold standard sections: What is this, When needed, Format, How it's used, Important warnings, Real-world examples
+   - Quality now matches NetworkingV2Step subnet field tooltips
+   - Fixed syntax errors (backticks → single quotes in template literals)
+   - Files: `frontend/src/components/NodeDrawerAgentContent.jsx`
+   - Tests: `frontend/tests/node-drawer-redesign.test.jsx` (10/10 passing)
+
+#### Success Criteria - ALL MET ✅
+
+- ✅ VIP validation errors visible inline (not just hover tooltips)
+- ✅ 6 node drawer tooltips enhanced to gold standard format
+- ✅ All 707 frontend tests passing
+- ✅ All 261 backend tests passing
+- ✅ CHANGELOG.md updated with v1.2.2 entry
+- ✅ CLAUDE.md updated with UI Patterns and error display pattern
+- ✅ BACKLOG_STATUS.md updated (DOC-072, DOC-073)
+- ✅ VERSION file updated to 1.2.2
+- ✅ Git tag v1.2.2 created
+
+---
+
 ### v1.3.0 (Minor) - 1-2 weeks
 
 **Purpose:** Polish and deferred items
