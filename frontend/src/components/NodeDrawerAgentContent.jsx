@@ -326,18 +326,31 @@ Ensure OS is installed on SSD, not spinning disks`}
           <div className="field-grid">
             <FieldLabelWithInfo
               label="Primary Interface Type"
-              hint={`Network interface configuration used for installation and cluster networking.
+              hint={`Network interface type for cluster primary communication.
 
 **What is this:**
-The network that carries cluster control plane and pod traffic
+The primary interface carries cluster traffic (API, pod networking, node-to-node communication). This is the most critical network connection for the node.
 
 **Options:**
-• Single NIC ethernet (most common)
-• Bond (LACP or active-backup for redundancy)
-• VLAN on ethernet or bond (for network isolation)
+• **Ethernet** - Single physical NIC (most common for small deployments)
+• **Bond** - LACP or active-backup bonding for redundancy (recommended for production)
+• **VLAN (on ethernet)** - 802.1Q VLAN tagging on single NIC for network isolation
+• **VLAN (on bond)** - VLAN tagging on bonded interfaces (combines redundancy + isolation)
+
+**When to use each:**
+• Ethernet: Lab/dev environments, single network path available
+• Bond: Production clusters requiring high availability (eliminates single NIC failure)
+• VLAN: Network segmentation required, shared physical infrastructure
+• VLAN on bond: Production + network isolation requirements
+
+**How it's used:**
+Written to agent-config.yaml interfaces section. Installer configures NetworkManager on RHCOS nodes during bootstrap.
 
 **Important:**
-This network must be reachable by all cluster nodes`}
+⚠️ All cluster nodes must be reachable on this network. Choose the same interface type across control plane nodes for consistency.
+
+**Example:**
+Bare metal with dual NICs for redundancy → Bond (mode 802.3ad or active-backup)`}
             >
               <select
                 value={selectedNode.primary?.type || "ethernet"}
@@ -351,13 +364,34 @@ This network must be reachable by all cluster nodes`}
 
             <FieldLabelWithInfo
               label="IP assignment"
-              hint={`How the primary interface gets its IP address.
+              hint={`How the primary interface obtains its IP address.
 
-**DHCP:**
-Automatic IP assignment from network DHCP server
+**What is this:**
+The method used to assign an IP address to this node's primary network interface.
 
-**Static:**
-Manual IP configuration (requires IPv4/IPv6 CIDR, gateway)`}
+**Options:**
+• **DHCP** - Automatic IP assignment from network DHCP server (easier management, requires DHCP infrastructure)
+• **Static** - Manual IP configuration (more control, no DHCP dependency)
+
+**When to use DHCP:**
+• DHCP server available and properly configured
+• IP reservations configured for cluster nodes (recommended)
+• Dynamic network environments
+
+**When to use Static:**
+• No DHCP server available
+• Policy requires static IPs for servers
+• Network team provides fixed IP allocations
+
+**Requirements for Static:**
+Must configure: IPv4/IPv6 CIDR, gateway, DNS servers
+
+**How it's used:**
+Written to agent-config.yaml. NetworkManager applies configuration during RHCOS first boot.
+
+**Example:**
+Production cluster with IP reservations → DHCP (with MAC-based reservations)
+Air-gapped environment, no DHCP → Static`}
             >
               <select
                 value={selectedNode.primary?.mode || "dhcp"}
@@ -375,13 +409,32 @@ Manual IP configuration (requires IPv4/IPv6 CIDR, gateway)`}
               <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Ethernet interface"
-                  hint={`Physical network interface name.
+                  hint={`Physical network interface name on this node.
+
+**What is this:**
+The Linux device name for the physical NIC that will carry cluster traffic. RHCOS uses predictable network interface names.
+
+**When needed:**
+Required when using Ethernet or VLAN-on-Ethernet primary interface types.
 
 **Format:**
-Standard Linux interface naming (e.g., enoN, enpNsN, ethN)
+Standard Linux interface naming conventions:
+• **enoN** - Onboard device index (e.g., eno1, eno2)
+• **enpNsM** - PCI slot/function (e.g., enp0s3, enp3s0f1)
+• **ethN** - Legacy kernel naming (rare on modern systems)
+
+**How to find it:**
+Boot node to rescue/live OS, run 'ip link show' or check BIOS/iDRAC NIC labels.
+
+**How it's used:**
+Written to agent-config.yaml interfaces section. NetworkManager binds configuration to this specific interface during RHCOS boot.
+
+**Important:**
+⚠️ Interface names vary by hardware. Verify actual interface names on your nodes before ISO creation. Wrong names = network failure during bootstrap.
 
 **Example:**
-eno1, enp0s3`}
+Dell R640 onboard NIC 1 → eno1
+HPE DL360 PCIe NIC → enp3s0f0`}
                 >
                   <input
                     value={selectedNode.primary?.ethernet?.name || ""}
@@ -391,16 +444,34 @@ eno1, enp0s3`}
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Ethernet MAC"
-                  hint={`Hardware MAC address of the physical interface.
+                  hint={`Hardware MAC address of the physical network interface.
+
+**What is this:**
+The unique 48-bit hardware identifier burned into the NIC. Used by OpenShift Agent installer to match interface configuration to the correct physical port.
+
+**When needed:**
+Always required when configuring ethernet interfaces. NetworkManager uses MAC address as the definitive way to identify which physical NIC gets which configuration.
 
 **Format:**
-Six colon-separated hex pairs (case-insensitive)
+Six colon-separated hexadecimal pairs (case-insensitive):
+• Valid: 52:54:00:aa:11:01
+• Valid: 52:54:00:AA:11:01 (case doesn't matter)
+• Invalid: 52-54-00-aa-11-01 (dash-separated not accepted)
+• Invalid: 525400aa1101 (no separators not accepted)
+
+**How to find it:**
+• BIOS/iDRAC: Check NIC inventory or boot screens
+• Live OS: Run 'ip link show' or 'cat /sys/class/net/eno1/address'
+• Physical label: Check NIC port or server label (often printed on chassis)
+
+**How it's used:**
+Written to agent-config.yaml interfaces section with 'macAddress:' key. During RHCOS boot, NetworkManager scans all NICs, finds the one matching this MAC, and applies the interface name and IP configuration to it.
+
+**Important:**
+⚠️ Wrong MAC address = network configuration applied to wrong NIC or not applied at all = cluster bootstrap failure. Double-check MAC addresses before creating agent ISO.
 
 **Example:**
-52:54:00:aa:11:01
-
-**Required:**
-Yes (for interface identification)`}
+Dell R640 eno1 MAC from BIOS → 52:54:00:6b:34:56`}
                 >
                   <input
                     value={selectedNode.primary?.ethernet?.macAddress || ""}
@@ -423,13 +494,30 @@ Yes (for interface identification)`}
               <div className="field-grid">
                 <FieldLabelWithInfo
                   label="Bond name"
-                  hint={`Linux bond interface name.
+                  hint={`Linux bond (virtual) interface name.
+
+**What is this:**
+The name of the bonded interface that will be created by NetworkManager. This virtual interface combines multiple physical NICs into one logical interface for redundancy or increased bandwidth.
+
+**When needed:**
+Required when using Bond or VLAN-on-Bond primary interface types.
 
 **Format:**
-bondN (where N is a number)
+Must follow Linux bonding interface naming convention: **bondN** where N is a number (0-9).
+• Valid: bond0, bond1, bond2
+• Invalid: bond, bondA, eth0, team0
+
+**How it's used:**
+Written to agent-config.yaml interfaces section. NetworkManager creates the bond interface during RHCOS boot and enslaves the member NICs to it.
+
+**Recommended:**
+Use **bond0** for primary cluster traffic (convention). Use bond1, bond2 for additional bonds if configuring secondary interfaces later.
+
+**Important:**
+⚠️ The bond name must be unique per node. Don't reuse bond0 for multiple different bonds on the same node.
 
 **Example:**
-bond0, bond1`}
+Primary cluster network with dual NICs → bond0`}
                 >
                   <input
                     value={selectedNode.primary?.bond?.name || ""}
@@ -439,17 +527,39 @@ bond0, bond1`}
                 </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Bond mode"
-                  hint={`Network bonding mode for redundancy.
+                  hint={`Network bonding mode determining how traffic is distributed across member NICs.
+
+**What is this:**
+The Linux kernel bonding mode controls how multiple physical NICs work together as one logical interface. Different modes provide different levels of redundancy and bandwidth aggregation.
 
 **Requirements:**
-At least **2 bond members** required
+At least **2 bond members (slave interfaces)** required for any bond mode to function. Add member NICs in the section below.
 
 **Modes:**
-• active-backup: one active, others standby
-• 802.3ad (LACP): link aggregation (requires switch support)
+• **active-backup** - One NIC active, others standby. Simple failover, no switch configuration needed. Use when LACP not available.
+• **802.3ad (LACP)** - Link Aggregation Control Protocol. All NICs active, traffic distributed. Requires switch-side LACP port channel configuration.
 
-**How to configure:**
-Add or remove bond member interfaces below as needed`}
+**When to use active-backup:**
+• Switch doesn't support LACP
+• Network team unable to configure port channels
+• Simple failover sufficient (no bandwidth aggregation needed)
+• Quick setup without switch coordination
+
+**When to use 802.3ad (LACP):**
+• Switch supports LACP (most enterprise switches do)
+• Want bandwidth aggregation + failover
+• Production cluster requiring maximum throughput
+• Network team can configure matching LACP port channel on switch
+
+**How it's used:**
+Written to agent-config.yaml bond options. NetworkManager configures bonding module parameters during RHCOS boot.
+
+**Important:**
+⚠️ LACP requires switch configuration. If switch port channel not configured, bond will not come up = network failure = bootstrap failure. Verify switch config before using 802.3ad.
+
+**Example:**
+Production with Cisco switch LACP configured → 802.3ad
+Lab environment, simple failover → active-backup`}
                 >
                   <select
                     className="bond-mode-select"

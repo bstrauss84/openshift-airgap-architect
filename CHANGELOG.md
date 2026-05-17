@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-05-17
+
+### Fixed
+
+**VIP Validation Error Display**
+- Added visible inline error messages for VIP validation failures
+- VIP fields now show validation errors as inline warning spans (not just hover tooltips)
+- Pattern matches overlap warnings: `<span className="note warning inline">{fieldErrors.apiVip}</span>`
+- Covers all VIP fields across scenarios:
+  - bare-metal-agent/ipi: API VIP, Ingress VIP (IPv4 + IPv6 when dual-stack enabled)
+  - vsphere-agent/ipi: API VIPs, Ingress VIPs (IPv4 + IPv6 when dual-stack enabled)
+  - nutanix-ipi: API VIP, Ingress VIP (IPv4 + IPv6 when dual-stack enabled)
+- Added missing error className and title attributes to vSphere IPI VIP inputs
+
+**Node Drawer Tooltips Enhanced to Gold Standard**
+- Upgraded 6 tooltips in NodeDrawerAgentContent.jsx to gold standard format:
+  - Primary Interface Type
+  - IP assignment
+  - Ethernet interface
+  - Ethernet MAC
+  - Bond name
+  - Bond mode
+- Each tooltip now includes comprehensive sections:
+  - **What is this:** Concept explanation
+  - **When needed:** Required/optional context
+  - **Format:** Expected input format and constraints
+  - **How it's used:** Where written in agent-config.yaml, how NetworkManager uses it
+  - **Important:** Warnings about failures, misconfiguration consequences
+  - **Example:** Real-world concrete examples
+- Tooltips now match quality standard of NetworkingV2Step subnet fields
+- Fixed syntax errors (backticks inside template literals replaced with single quotes)
+
+### Technical Notes
+- VIP validation logic unchanged (from v1.2.1), only error display improved
+- Tooltip content focuses on bare metal/Agent-based installer patterns
+- All 707 frontend tests passing
+
 ## [1.2.1] - 2026-05-17
 
 ### Changed
