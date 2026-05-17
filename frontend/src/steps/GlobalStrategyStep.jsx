@@ -1056,17 +1056,20 @@ registry.corp.local:5000`}
             </div>
           ) : platform === "VMware vSphere" && method === "IPI" ? (
             <div className="field-grid">
-              <label>
-                Publish strategy
-                <select
-                  value={(platformConfig.publish || "External") === "Internal" ? "External" : (platformConfig.publish || "External")}
-                  onChange={(e) => updatePlatformConfig({ publish: e.target.value })}
-                  aria-label="Publish strategy (vSphere: External only)"
-                >
-                  <option value="External">External</option>
-                </select>
-                <div className="note">Internal is not supported on non-cloud platforms (vSphere). See BZ#1953035.</div>
-              </label>
+              <FieldLabelWithInfo
+                label="Publish strategy"
+                hint={`How the cluster API and ingress endpoints are published.
+
+**vSphere Limitation:**
+Internal publish strategy is not supported on non-cloud platforms (vSphere IPI).
+See Red Hat BZ#1953035 for details.
+
+**What "External" means:**
+Cluster API and ingress endpoints are accessible from outside the vCenter network.`}
+              >
+                <span className="badge">External</span>
+                <div className="note">Internal publish strategy not supported on vSphere (BZ#1953035)</div>
+              </FieldLabelWithInfo>
             </div>
           ) : (
             <div className="note">
