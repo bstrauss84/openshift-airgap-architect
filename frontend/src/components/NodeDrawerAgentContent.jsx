@@ -349,8 +349,16 @@ This network must be reachable by all cluster nodes`}
               </select>
             </FieldLabelWithInfo>
 
-            <label>
-              IP assignment
+            <FieldLabelWithInfo
+              label="IP assignment"
+              hint={`How the primary interface gets its IP address.
+
+**DHCP:**
+Automatic IP assignment from network DHCP server
+
+**Static:**
+Manual IP configuration (requires IPv4/IPv6 CIDR, gateway)`}
+            >
               <select
                 value={selectedNode.primary?.mode || "dhcp"}
                 onChange={(e) => updatePrimary(selectedIndex, { mode: e.target.value })}
@@ -358,23 +366,42 @@ This network must be reachable by all cluster nodes`}
                 <option value="dhcp">DHCP</option>
                 <option value="static">Static</option>
               </select>
-            </label>
+            </FieldLabelWithInfo>
           </div>
 
           {/* Ethernet Config */}
           {(selectedNode.primary?.type === "ethernet" || selectedNode.primary?.type === "vlan-on-ethernet") && (
             <div className="option-subgroup">
               <div className="field-grid">
-                <label>
-                  Ethernet interface{" "}
+                <FieldLabelWithInfo
+                  label="Ethernet interface"
+                  hint={`Physical network interface name.
+
+**Format:**
+Standard Linux interface naming (e.g., enoN, enpNsN, ethN)
+
+**Example:**
+eno1, enp0s3`}
+                >
                   <input
                     value={selectedNode.primary?.ethernet?.name || ""}
                     onChange={(e) => updatePrimaryEthernet(selectedIndex, { name: e.target.value })}
                     placeholder="eno0"
                   />
-                </label>
-                <label>
-                  Ethernet MAC{" "}
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Ethernet MAC"
+                  hint={`Hardware MAC address of the physical interface.
+
+**Format:**
+Six colon-separated hex pairs (case-insensitive)
+
+**Example:**
+52:54:00:aa:11:01
+
+**Required:**
+Yes (for interface identification)`}
+                >
                   <input
                     value={selectedNode.primary?.ethernet?.macAddress || ""}
                     onChange={(e) => updatePrimaryEthernet(selectedIndex, { macAddress: formatMACAsYouType(e.target.value) })}
@@ -385,7 +412,7 @@ This network must be reachable by all cluster nodes`}
                     placeholder="52:54:00:aa:11:01"
                     aria-required="true"
                   />
-                </label>
+                </FieldLabelWithInfo>
               </div>
             </div>
           )}
@@ -394,14 +421,22 @@ This network must be reachable by all cluster nodes`}
           {(selectedNode.primary?.type === "bond" || selectedNode.primary?.type === "vlan-on-bond") && (
             <div className="option-subgroup">
               <div className="field-grid">
-                <label>
-                  Bond name{" "}
+                <FieldLabelWithInfo
+                  label="Bond name"
+                  hint={`Linux bond interface name.
+
+**Format:**
+bondN (where N is a number)
+
+**Example:**
+bond0, bond1`}
+                >
                   <input
                     value={selectedNode.primary?.bond?.name || ""}
                     onChange={(e) => updatePrimaryBond(selectedIndex, { name: e.target.value })}
                     placeholder="bond0"
                   />
-                </label>
+                </FieldLabelWithInfo>
                 <FieldLabelWithInfo
                   label="Bond mode"
                   hint={`Network bonding mode for redundancy.

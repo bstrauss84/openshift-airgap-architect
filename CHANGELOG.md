@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.1] - 2026-05-15
+## [1.2.1] - 2026-05-17
 
 ### Changed
 
-**Node Drawer Comprehensive Redesign (LOCAL #33 + #55)**
+**Node Drawer Comprehensive Redesign (LOCAL #33 + #55 + #56)**
 - Extracted Agent/IPI drawer content into separate components
   - New: `frontend/src/components/NodeDrawerAgentContent.jsx` (578 lines)
   - New: `frontend/src/components/NodeDrawerIpiContent.jsx` (215 lines)
@@ -33,6 +33,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserves all existing functionality:
   - Validation, handlers, conditional rendering (arbiter, type-based, mode-based)
   - Bond member styling, additional interfaces cards, advanced routes
+- **Field alignment fixes (LOCAL #56):**
+  - Fixed visual misalignment in Primary Network section
+  - Converted fields to use `FieldLabelWithInfo` consistently (Primary Interface Type + IP assignment, Bond name + Bond mode, Ethernet interface + MAC)
+  - Added tooltips to previously unlabeled fields (IP assignment, Bond name, Ethernet interface, Ethernet MAC)
+
+**VIP Validation & Dynamic Placeholders (LOCAL #57 + #58)**
+- **Added VIP validation for bare-metal-agent** (LOCAL #57):
+  - Extended `validateVipsInMachineNetwork` to include bare-metal-agent scenarios
+  - API VIP and Ingress VIP must now be within machine network CIDR for all platforms (bare-metal-ipi/agent, vsphere-ipi/agent, nutanix-ipi)
+  - Validation error: "API VIPs must be within the machine network (e.g. 10.90.0.0/24)"
+- **Dynamic VIP placeholders** (LOCAL #58):
+  - VIP input placeholders now dynamically reflect machine network CIDR
+  - Example: If machine network is 192.168.1.0/24 → API VIP placeholder shows "e.g. 192.168.1.2", Ingress VIP shows "e.g. 192.168.1.3"
+  - Created `getVipPlaceholders(cidr)` helper function (suggests start+2 for API, start+3 for Ingress)
+  - Defaults to "e.g. 10.90.0.2" and "e.g. 10.90.0.3" if machine network not configured
+  - Updated all VIP fields in NetworkingV2Step (bare-metal, vsphere, nutanix)
 
 ### Added
 
@@ -48,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Frontend**
 - New components: `NodeDrawerAgentContent.jsx`, `NodeDrawerIpiContent.jsx`
 - Modified: `frontend/src/steps/HostInventoryV2Step.jsx` (refactored to use components)
+- Modified: `frontend/src/components/NodeDrawerAgentContent.jsx` (field alignment fixes)
+- Modified: `frontend/src/steps/NetworkingV2Step.jsx` (dynamic VIP placeholders, `getVipPlaceholders` helper)
+- Modified: `frontend/src/validation.js` (bare-metal-agent VIP validation)
 - New test: `frontend/tests/node-drawer-redesign.test.jsx`
 - No new CSS required (reused `.workflow-group` and `.option-subgroup` from Run oc-mirror)
 
@@ -56,10 +75,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Easier maintenance (smaller component files vs 1600+ line monolith)
 - Consistent with app-wide grouping patterns
 - Better user experience: like-configs grouped together regardless of drawer width
+- Better VIP validation: catches configuration errors early (VIPs outside machine network)
+- Better UX: dynamic placeholders provide contextually relevant examples
+
+**Roadmap Updates**
+- Phase 4 (Testing & Validation) deferred to v2.0.0 (post version-aware system)
+- Reasoning: ~180 fields × 5 OCP versions = 900+ test cases; better to test after app structure stabilizes with version-aware work
+- Current 707 frontend + 261 backend unit tests provide adequate safety net for v1.3.0
 
 ### Commits
 
-1. `<pending>` Node drawer comprehensive redesign (LOCAL #33 + #55)
+1. `<pending>` Node drawer comprehensive redesign + VIP validation + alignment fixes (LOCAL #33 + #55 + #56 + #57 + #58)
 
 ---
 

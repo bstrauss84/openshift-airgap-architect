@@ -198,7 +198,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       </AppContext.Provider>
     );
 
-    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.2").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByPlaceholderText("e.g. fd00::1").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/separate IPv4 and IPv6 fields/i)).toBeInTheDocument();
     expect(within(container).queryByText(/comma-separated/i)).toBeNull();
@@ -217,7 +217,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       </AppContext.Provider>
     );
 
-    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.2").length).toBeGreaterThanOrEqual(1);
     expect(within(container).queryByText(/comma-separated/i)).toBeNull();
   });
 
@@ -439,7 +439,8 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       </AppContext.Provider>
     );
     expect(screen.getAllByText(/Nutanix IPI/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByPlaceholderText("e.g. 10.0.0.5")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("e.g. 10.0.0.6")).toBeInTheDocument();
+    // VIP placeholders are now dynamic based on machine network (defaults to 10.90.0.2/3 if not set)
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.2").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.3").length).toBeGreaterThanOrEqual(1);
   });
 });

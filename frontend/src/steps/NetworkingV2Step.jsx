@@ -41,6 +41,38 @@ const cidrOverlaps = (cidrA, cidrB) => {
   return a.start <= b.end && b.start <= a.end;
 };
 
+/** Generate example VIP placeholders from machine network CIDR */
+const getVipPlaceholders = (machineNetworkCidr) => {
+  if (!machineNetworkCidr) {
+    return { apiVip: "e.g. 10.90.0.2", ingressVip: "e.g. 10.90.0.3" };
+  }
+
+  const range = cidrToRange(machineNetworkCidr);
+  if (!range) {
+    return { apiVip: "e.g. 10.90.0.2", ingressVip: "e.g. 10.90.0.3" };
+  }
+
+  // Convert int to IP string
+  const intToIp = (num) => {
+    return [
+      (num >>> 24) & 255,
+      (num >>> 16) & 255,
+      (num >>> 8) & 255,
+      num & 255
+    ].join(".");
+  };
+
+  // Suggest start+2 for API VIP, start+3 for Ingress VIP
+  // (avoid .0 network address and .1 gateway)
+  const apiIp = intToIp(range.start + 2);
+  const ingressIp = intToIp(range.start + 3);
+
+  return {
+    apiVip: `e.g. ${apiIp}`,
+    ingressVip: `e.g. ${ingressIp}`
+  };
+};
+
 export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
@@ -154,6 +186,10 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const nodes = hostInventory.nodes || [];
   const masterCount = nodes.filter((n) => n.role === "master").length;
   const workerCount = nodes.filter((n) => n.role === "worker").length;
+
+  // Generate dynamic VIP placeholders from machine network CIDR
+  const vipPlaceholders = getVipPlaceholders(localMachineNetworkV4);
+
   const isAgentSno =
     (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
   const vipsRequiredForBareMetalAgent = !isAgentSno;
@@ -692,7 +728,7 @@ If machine network is 192.168.1.0/24, use 192.168.1.10`}
                                 updateNutanix({ apiVIP: newValue });
                               }
                             }}
-                            placeholder="e.g. 10.0.0.5"
+                            placeholder={vipPlaceholders.apiVip}
                           />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo label="IPv6" hint={`Second API VIP for dual-stack (IPv4 + IPv6).
@@ -756,7 +792,7 @@ If machine network is 192.168.1.0/24, use 192.168.1.11`}
                                 updateNutanix({ ingressVIP: newValue });
                               }
                             }}
-                            placeholder="e.g. 10.0.0.6"
+                            placeholder={vipPlaceholders.ingressVip}
                           />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo label="IPv6" hint={`Second Ingress VIP for dual-stack (IPv4 + IPv6).
@@ -812,7 +848,7 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                               updateNutanix({ apiVIP: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.0.0.5"
+                          placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
@@ -840,7 +876,7 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                               updateNutanix({ ingressVIP: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.0.0.6"
+                          placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
                     </>
@@ -930,7 +966,7 @@ Orders VIPs to match machine networks (IPv4 first, then IPv6)
                                 updateHostInventory({ apiVip: newValue });
                               }
                             }}
-                            placeholder="e.g. 10.90.0.1"
+                            placeholder={vipPlaceholders.apiVip}
                           />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary API VIP for dual-stack (IPv6).
@@ -985,7 +1021,7 @@ Set IPv6 below for dual-stack deployments
                                 updateHostInventory({ ingressVip: newValue });
                               }
                             }}
-                            placeholder="e.g. 10.90.0.2"
+                            placeholder={vipPlaceholders.ingressVip}
                           />
                         </FieldLabelWithInfo>
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary Ingress VIP for dual-stack (IPv6).
@@ -1032,7 +1068,7 @@ fd00::2`}>
                               updateHostInventory({ apiVip: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.90.0.1"
+                          placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
@@ -1051,7 +1087,7 @@ fd00::2`}>
                               updateHostInventory({ ingressVip: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.90.0.2"
+                          placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
                     </>
@@ -1086,7 +1122,7 @@ Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
                               updateHostInventory({ apiVip: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.90.0.1"
+                          placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
@@ -1147,7 +1183,7 @@ Emitted ingressVIPs order is IPv4 then IPv6
                               updateHostInventory({ ingressVip: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.90.0.2"
+                          placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
@@ -1206,7 +1242,7 @@ Single IPv4 address (not comma-separated)
                               updateHostInventory({ apiVip: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.90.0.1"
+                          placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
@@ -1234,7 +1270,7 @@ Single IPv4 address (not comma-separated)
                               updateHostInventory({ ingressVip: newValue });
                             }
                           }}
-                          placeholder="e.g. 10.90.0.2"
+                          placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
                     </>

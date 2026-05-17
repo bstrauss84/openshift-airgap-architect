@@ -446,6 +446,50 @@ Created documentation tests in `frontend/tests/ssh-keygen-close-warning.test.jsx
 
 ---
 
+## Validation Patterns (v1.2.1 - 2026-05-17)
+
+### VIP Validation (API VIP + Ingress VIP)
+
+**Requirement:** API VIP and Ingress VIP must be within the machine network CIDR.
+
+**Why:** OpenShift documentation states: "The VIPs, apiVIP and ingressVIP, must come from the same networking.machineNetwork segment."
+
+**Implementation:**
+
+File: `frontend/src/validation.js`  
+Function: `validateVipsInMachineNetwork(state)`
+
+**Platforms validated:**
+- ✅ bare-metal-ipi
+- ✅ bare-metal-agent (added v1.2.1)
+- ✅ vsphere-ipi
+- ✅ vsphere-agent
+- ✅ nutanix-ipi
+
+**How it works:**
+1. Parse machine network CIDR (e.g., 10.90.0.0/24)
+2. Calculate IP range (start: 10.90.0.0, end: 10.90.0.255)
+3. Check if each VIP is within range
+4. Error if VIP is outside: "API VIPs must be within the machine network (e.g. 10.90.0.0/24)"
+
+**Dynamic VIP Placeholders:**
+
+File: `frontend/src/steps/NetworkingV2Step.jsx`  
+Helper: `getVipPlaceholders(machineNetworkCidr)`
+
+**Behavior:**
+- If machine network is 10.90.0.0/24 → suggests API VIP: 10.90.0.2, Ingress VIP: 10.90.0.3
+- If machine network is 192.168.1.0/24 → suggests API VIP: 192.168.1.2, Ingress VIP: 192.168.1.3
+- Uses start+2 for API (avoids .0 network address and .1 gateway)
+- Uses start+3 for Ingress
+- Defaults to "e.g. 10.90.0.2" if machine network not configured
+
+**When to update:**
+- If adding a new platform that uses VIPs, add it to `validateVipsInMachineNetwork`
+- If changing machine network field location, update `getVipPlaceholders` usage
+
+---
+
 ## High-Side Integration (v1.1.1 - v1.1.3)
 
 The app supports **high-side (disconnected) deployments** where the tool runs on an air-gapped network.

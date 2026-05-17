@@ -300,39 +300,19 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
-### v1.3.0 (Minor) - 3-4 weeks
+### v1.3.0 (Minor) - 1-2 weeks
 
-**Purpose:** Testing, validation, and polish
+**Purpose:** Polish and deferred items
 
-#### Phase 4: Testing & Validation (2 weeks)
+**Note:** Phase 4 (Testing & Validation) **DEFERRED to v2.0.0** (post version-aware system)
 
-**Items (2 MASSIVE):**
-
-1. **COMP Phase 9:** Comprehensive Testing
-   - Priority: P1 (before ANY release)
-   - Visual regression testing:
-     - All resolutions (1920x1080, 1366x768, 1280x720)
-     - All zoom levels (100%, 125%, 150%)
-     - Light + dark themes
-   - Responsive behavior testing:
-     - Tablet (768px), mobile (375px)
-   - End-to-end functional testing:
-     - Happy path for each scenario (12+ scenarios)
-     - Import/export workflows
-     - oc-mirror workflows (mirror-to-disk, disk-to-mirror, mirror-to-mirror)
-   - Accessibility testing:
-     - Keyboard navigation (Tab, Shift+Tab, Enter, Escape)
-     - Screen reader compatibility (NVDA, JAWS)
-     - ARIA attributes correctness
-     - Color contrast (WCAG AA compliance)
-
-2. **COMP Phase 10:** Systematic Scenario Validation
-   - Priority: P1 (before ANY release)
-   - Validate ALL 12+ scenarios against comprehensive checklist:
-     - **Per field:** tooltip present, validation correct, defaults sensible, allowed values documented
-     - **Per section:** structure consistent, spacing uniform, conditional logic correct
-     - **Per tab:** navigation smooth, state persistence working, progress indicators accurate
-     - **Per scenario:** generated YAMLs valid, Field Guide accurate, export bundle complete
+**Reasoning:** 
+- App has ~180+ fields (not 87) across all scenarios and tabs
+- Version-aware work (v2.0.0) will add OCP version conditionals (4.17-4.21)
+- Test matrix would be: 180 fields × 5 OCP versions = 900+ test cases
+- Current 707 unit tests + 261 backend tests provide adequate safety net
+- Better to invest in comprehensive testing AFTER app structure stabilizes
+- Manual smoke testing (2-3 critical scenarios) sufficient for v1.3.0
 
 #### Phase 5: Polish & Deferred Items (1-2 weeks, can parallelize)
 
@@ -639,6 +619,46 @@ This document organizes remaining backlog work by semantic versioning to provide
 - ✅ Field Guide compartments defined
 - ✅ Version update pipeline documented and proven
 - ✅ Can add new OCP version (4.22) in <2 weeks
+
+#### Phase 4: Testing & Validation (Deferred from v1.3.0) - 4-6 weeks
+
+**Prerequisite:** Complete after version-aware system stabilizes
+
+**Items (2 MASSIVE):**
+
+1. **COMP Phase 9:** Comprehensive Testing
+   - Priority: P1
+   - Visual regression testing (all resolutions, zoom levels, light/dark themes)
+   - Responsive behavior (tablet 768px, mobile 375px)
+   - E2E functional testing (happy path for 12 scenarios × 5 OCP versions)
+   - Accessibility testing (keyboard nav, screen readers, ARIA, WCAG AA)
+
+2. **COMP Phase 10:** Systematic Scenario Validation
+   - Priority: P1
+   - Validate ALL 12 scenarios × 5 OCP versions against checklist
+   - **Per field (180+):** tooltip present, validation correct, defaults sensible, allowed values documented
+   - **Per section:** structure consistent, spacing uniform, conditional logic correct (version-aware)
+   - **Per tab:** navigation smooth, state persistence working, progress indicators accurate
+   - **Per scenario:** generated YAMLs valid (per OCP version), Field Guide accurate, export bundle complete
+
+**Tooling Stack:**
+- Playwright for E2E (browser automation)
+- axe-core for accessibility (WCAG AA compliance)
+- Playwright screenshots for visual regression (baseline images)
+- Vitest coverage reporting (target >70% statement coverage)
+
+**Success Criteria:**
+- ✅ E2E tests: 12 scenarios × 5 OCP versions = 60+ tests passing
+- ✅ Visual regression: 160+ baseline images captured, <5% false positives
+- ✅ Accessibility: 0 critical violations, keyboard nav 100% functional
+- ✅ Systematic validation: 180+ fields × 5 versions validated
+- ✅ Coverage: Frontend >70%, backend >75%
+
+**Why After v2.0.0:**
+- Version-aware work will invalidate most tests written before it
+- 180 fields × 5 OCP versions = 900+ validation cases
+- Better ROI to test AFTER app structure stabilizes
+- Current unit tests (707 frontend + 261 backend) provide adequate coverage
 
 ---
 

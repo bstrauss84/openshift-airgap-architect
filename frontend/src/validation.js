@@ -938,8 +938,8 @@ const validateVipsInMachineNetwork = (state) => {
     if (ingNx) checkVips([ingNx], "Nutanix Ingress VIP", "nutanixIngressVIP");
     // IPv6 VIPs validated separately in validateVipsInMachineNetworkV6
   }
-  // Bare Metal UPI: no API/Ingress VIPs in install-config (platform.none only per 4.20 doc); user configures LB/DNS externally. Only validate for bare-metal-ipi.
-  if (scenarioId === "bare-metal-ipi") {
+  // Bare Metal UPI: no API/Ingress VIPs in install-config (platform.none only per 4.20 doc); user configures LB/DNS externally. Only validate for bare-metal-ipi and bare-metal-agent.
+  if (scenarioId === "bare-metal-ipi" || scenarioId === "bare-metal-agent") {
     const hi = state.hostInventory || {};
     const parseList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
     checkVips(parseList(hi.apiVip), "API VIPs", "apiVip");

@@ -7,11 +7,9 @@
  * @author Bill Strauss
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import { describe, it, beforeEach } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect, beforeEach } from "vitest";
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import "@testing-library/jest-dom";
 import { NodeDrawerAgentContent } from "../src/components/NodeDrawerAgentContent.jsx";
 import { NodeDrawerIpiContent } from "../src/components/NodeDrawerIpiContent.jsx";
 
@@ -157,7 +155,7 @@ describe("Node Drawer Redesign - Component Extraction", () => {
         suggestedVlanName={() => ""}
       />
     );
-    assert.ok(container);
+    expect(container).toBeTruthy();
   });
 
   it("NodeDrawerIpiContent renders without errors", () => {
@@ -176,7 +174,7 @@ describe("Node Drawer Redesign - Component Extraction", () => {
         nodes={[mockIpiNode]}
       />
     );
-    assert.ok(container);
+    expect(container).toBeTruthy();
   });
 });
 
@@ -305,10 +303,10 @@ describe("Node Drawer Redesign - Visual Grouping", () => {
       />
     );
     const workflowGroups = container.querySelectorAll(".workflow-group");
-    assert.ok(workflowGroups.length > 0, "Expected workflow-group classes for sections");
+    expect(workflowGroups.length).toBeGreaterThan(0);
     // Root Device Hints should be one of the workflow-groups
     const groupTitles = Array.from(container.querySelectorAll(".workflow-group-title")).map(el => el.textContent);
-    assert.ok(groupTitles.includes("Root Device Hints"), "Root Device Hints should be in a workflow-group");
+    expect(groupTitles).toContain("Root Device Hints");
   });
 
   it("DNS Configuration wrapped in workflow-group (Agent)", () => {
@@ -378,7 +376,7 @@ describe("Node Drawer Redesign - Visual Grouping", () => {
       />
     );
     const groupTitles = Array.from(container.querySelectorAll(".workflow-group-title")).map(el => el.textContent);
-    assert.ok(groupTitles.includes("DNS Configuration"), "DNS Configuration should be in a workflow-group");
+    expect(groupTitles).toContain("DNS Configuration");
   });
 
   it("Static IP Configuration wrapped in workflow-group when mode is static (Agent)", () => {
@@ -448,7 +446,7 @@ describe("Node Drawer Redesign - Visual Grouping", () => {
       />
     );
     const groupTitles = Array.from(container.querySelectorAll(".workflow-group-title")).map(el => el.textContent);
-    assert.ok(groupTitles.includes("Static IP Configuration"), "Static IP Configuration should be in a workflow-group when mode is static");
+    expect(groupTitles).toContain("Static IP Configuration");
   });
 
   it("Ethernet Config wrapped in option-subgroup (Agent)", () => {
@@ -518,7 +516,7 @@ describe("Node Drawer Redesign - Visual Grouping", () => {
       />
     );
     const optionSubgroups = container.querySelectorAll(".option-subgroup");
-    assert.ok(optionSubgroups.length > 0, "Expected option-subgroup classes for nested sections");
+    expect(optionSubgroups.length).toBeGreaterThan(0);
   });
 
   it("Root Device Hints wrapped in workflow-group (IPI)", () => {
@@ -553,7 +551,7 @@ describe("Node Drawer Redesign - Visual Grouping", () => {
       />
     );
     const groupTitles = Array.from(container.querySelectorAll(".workflow-group-title")).map(el => el.textContent);
-    assert.ok(groupTitles.includes("Root Device Hints"), "Root Device Hints should be in a workflow-group (IPI)");
+    expect(groupTitles).toContain("Root Device Hints");
   });
 
   it("BMC Configuration wrapped in workflow-group (IPI)", () => {
@@ -588,7 +586,7 @@ describe("Node Drawer Redesign - Visual Grouping", () => {
       />
     );
     const groupTitles = Array.from(container.querySelectorAll(".workflow-group-title")).map(el => el.textContent);
-    assert.ok(groupTitles.some(title => title.includes("BMC")), "BMC Configuration should be in a workflow-group (IPI)");
+    expect(groupTitles.some(title => title.includes("BMC"))).toBe(true);
   });
 });
 
@@ -596,7 +594,8 @@ describe("Node Drawer Redesign - Section Order", () => {
   it("Advanced section appears before Additional Interfaces (Agent)", () => {
     // This test verifies the reordering: Advanced moved above Additional Interfaces
     // In the actual component, this is now structurally enforced by the component order
-    assert.ok(true, "Section order enforced by component structure");
+    // Section order is enforced by component structure
+    expect(true).toBe(true);
   });
 });
 
@@ -718,6 +717,6 @@ describe("Node Drawer Redesign - Conditional Rendering", () => {
       />
     );
     const groupTitles = Array.from(container.querySelectorAll(".workflow-group-title")).map(el => el.textContent);
-    assert.ok(!groupTitles.includes("Root Device Hints"), "Root Device Hints should be hidden for arbiter nodes");
+    expect(groupTitles).not.toContain("Root Device Hints");
   });
 });
