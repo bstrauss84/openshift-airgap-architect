@@ -239,7 +239,9 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     certified: Array.isArray(data?.certified) ? data.certified : data?.certified?.results || [],
     community: Array.isArray(data?.community) ? data.community : data?.community?.results || []
   });
-  const catalogs = normalizeCatalogs(state.operators?.catalogs || {});
+  // Only use cached catalogs if version matches; prevents showing operators from wrong version after import
+  const catalogsData = (state.operators?.version === version) ? (state.operators?.catalogs || {}) : {};
+  const catalogs = normalizeCatalogs(catalogsData);
   const selected = state.operators?.selected || [];
   const scenarioSelections = state.operators?.scenarios || {};
   const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
@@ -613,6 +615,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const removeOperator = (id) => {
     setState((prev) => {
       const prevSelected = prev.operators?.selected || [];
+      const removedOp = prevSelected.find((op) => op.id === id);
       const next = prevSelected.filter((op) => op.id !== id);
       const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
       const scenarioStates = { ...(prev.operators?.scenarios || {}) };
@@ -642,6 +645,28 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       // Clean up scenarioAdded tracking for this operator
       delete scenarioAdded[id];
 
+      // Add removed operator to catalogs if not already present (e.g., operator from imported run with no cached catalog data)
+      let updatedCatalogs = prev.operators?.catalogs ? { ...prev.operators.catalogs } : {};
+      if (removedOp) {
+        const catalogId = removedOp.catalog; // 'redhat', 'certified', or 'community'
+        if (catalogId && updatedCatalogs[catalogId]) {
+          const catalogList = Array.isArray(updatedCatalogs[catalogId])
+            ? updatedCatalogs[catalogId]
+            : (updatedCatalogs[catalogId]?.results || []);
+          const exists = catalogList.some((op) => op.id === id);
+          if (!exists) {
+            // Add to catalog so it appears in available operators
+            const updatedList = [...catalogList, removedOp];
+            updatedCatalogs[catalogId] = Array.isArray(updatedCatalogs[catalogId])
+              ? updatedList
+              : { ...updatedCatalogs[catalogId], results: updatedList };
+          }
+        } else if (catalogId) {
+          // Catalog doesn't exist at all, create it
+          updatedCatalogs[catalogId] = [removedOp];
+        }
+      }
+
       return {
         ...prev,
         operators: {
@@ -649,6 +674,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           selected: next,
           scenarios: scenarioStates,
           scenarioAdded,
+          catalogs: updatedCatalogs,
           version
         }
       };

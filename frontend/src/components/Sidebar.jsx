@@ -21,6 +21,7 @@ const Sidebar = ({
   errorFlags,
   completeFlags,
   visitedSteps,
+  isImported = false,
   operationsCount = 0,
   foundationalLocked = true,
   lockToast,
@@ -72,7 +73,7 @@ const Sidebar = ({
                 </span>
                 {!isOperationalTab(step.id) &&
                 activeStepId !== step.id &&
-                visitedSteps?.[step.id] &&
+                (visitedSteps?.[step.id] || isImported) &&
                 !completeFlags?.[step.id] &&
                 (reviewFlags?.[step.id] || errorFlags?.[step.id]) ? (
                   <span className="badge warning">Needs review</span>

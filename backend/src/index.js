@@ -2321,14 +2321,26 @@ const buildPreviewFiles = (state) => {
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
-  const installConfig = buildInstallConfig(state);
+
+  // CRITICAL: Force includeCredentials=true for preview so "Show sensitive values" toggle works
+  // Without this, pullSecret and other credentials are replaced with "{\"auths\":{}}" placeholders
+  // even before reaching the YamlDrawer obfuscation layer
+  const previewState = {
+    ...state,
+    exportOptions: {
+      ...(state.exportOptions || {}),
+      includeCredentials: true
+    }
+  };
+
+  const installConfig = buildInstallConfig(previewState);
   const wantsAgentConfig =
-    state.methodology?.method === "Agent-Based Installer" &&
-    (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere");
-  const agentConfig = wantsAgentConfig ? buildAgentConfig(state) : null;
-  const imageSetConfig = buildImageSetConfig(state);
-  const ntpMachineConfigs = buildNtpMachineConfigs(state);
-  const fieldManual = buildFieldManual(state, links);
+    previewState.methodology?.method === "Agent-Based Installer" &&
+    (previewState.blueprint?.platform === "Bare Metal" || previewState.blueprint?.platform === "VMware vSphere");
+  const agentConfig = wantsAgentConfig ? buildAgentConfig(previewState) : null;
+  const imageSetConfig = buildImageSetConfig(previewState);
+  const ntpMachineConfigs = buildNtpMachineConfigs(previewState);
+  const fieldManual = buildFieldManual(previewState, links);
   return {
     "install-config.yaml": installConfig,
     "agent-config.yaml": agentConfig,

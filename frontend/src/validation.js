@@ -1515,15 +1515,23 @@ const validateStep = (state, stepId) => {
  * @returns {object} next reviewFlags object
  */
 export function reconcileReviewFlagsForImportedState(state, visibleStepIds) {
-  const next = { ...(state?.reviewFlags || {}) };
+  const next = {};
   const ids = Array.isArray(visibleStepIds) ? visibleStepIds : [];
   for (const id of ids) {
     const res = validateStep(state, id);
-    if (!(res.errors || []).length && next[id]) next[id] = false;
+    if ((res.errors || []).length > 0) {
+      next[id] = true;
+    } else {
+      next[id] = false;
+    }
   }
   if (ids.includes("hosts-inventory")) {
     const res = validateStep(state, "hosts-inventory");
-    if (!(res.errors || []).length && next.inventory) next.inventory = false;
+    if ((res.errors || []).length > 0) {
+      next.inventory = true;
+    } else {
+      next.inventory = false;
+    }
   }
   return next;
 }

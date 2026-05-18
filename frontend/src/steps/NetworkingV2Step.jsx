@@ -917,7 +917,6 @@ Comma-separated if multiple (rare)
                         placeholder="e.g. 192.168.1.10"
                       />
                     </FieldLabelWithInfo>
-                    {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                     <FieldLabelWithInfo
                       label="Ingress VIPs (comma-separated)"
                       hint={`Virtual IP address(es) for the default Ingress controller load balancer.
@@ -946,7 +945,6 @@ Comma-separated if multiple (rare)
                         placeholder="e.g. 192.168.1.11"
                       />
                     </FieldLabelWithInfo>
-                    {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                   </>
                 ) : showVsphereAgentVips ? (
                   showIpv6ForPlatform ? (
@@ -981,7 +979,6 @@ Orders VIPs to match machine networks (IPv4 first, then IPv6)
                             placeholder={vipPlaceholders.apiVip}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary API VIP for dual-stack (IPv6).
 
 **When to set:**
@@ -1006,7 +1003,6 @@ fd00::1`}>
                             placeholder="e.g. fd00::1"
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                       </div>
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
@@ -1038,7 +1034,6 @@ Set IPv6 below for dual-stack deployments
                             placeholder={vipPlaceholders.ingressVip}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary Ingress VIP for dual-stack (IPv6).
 
 **When to set:**
@@ -1063,7 +1058,6 @@ fd00::2`}>
                             placeholder="e.g. fd00::2"
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                       </div>
                     </>
                   ) : (
@@ -1087,7 +1081,6 @@ fd00::2`}>
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                       <FieldLabelWithInfo
                         label="Ingress VIPs"
                         hint={metaIngressVipsVsphere?.description || "One IPv4 address for single-stack. Enable IPv6 above for a separate IPv6 Ingress VIP field."}
@@ -1107,7 +1100,6 @@ fd00::2`}>
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                     </>
                   )
                 ) : showBareMetalVips ? (
@@ -1143,7 +1135,6 @@ Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                       <FieldLabelWithInfo
                         label="IPv6"
                         hint={`Second API VIP for dual-stack (IPv6).
@@ -1174,7 +1165,6 @@ fd00::1`}
                           placeholder="e.g. fd00::1"
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                     </div>
                     <div className="vip-group">
                       <h5 className="vip-group-header">Ingress Virtual IP</h5>
@@ -1206,7 +1196,6 @@ Emitted ingressVIPs order is IPv4 then IPv6
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                       <FieldLabelWithInfo
                         label="IPv6"
                         hint={`Second Ingress VIP for dual-stack (IPv6).
@@ -1234,7 +1223,6 @@ fd00::2`}
                           placeholder="e.g. fd00::2"
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                     </div>
                     </>
                   ) : (
@@ -1267,7 +1255,6 @@ Single IPv4 address (not comma-separated)
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                       <FieldLabelWithInfo
                         label="Ingress VIP (IPv4)"
                         hint={`Primary Ingress VIP for bare metal (IPv4).
@@ -1296,7 +1283,6 @@ Single IPv4 address (not comma-separated)
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                     </>
                   )
                 ) : null}

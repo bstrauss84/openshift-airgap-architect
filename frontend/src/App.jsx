@@ -985,7 +985,8 @@ metadata:
     const nextUi = {
       ...importedUi,
       activeStepId: targetStepId,
-      visitedSteps: { ...(importedUi.visitedSteps || {}), [targetStepId]: true }
+      visitedSteps: { [targetStepId]: true },
+      isImported: true
     };
 
     // Mark import in progress to trigger delay in YAML generation
@@ -1166,6 +1167,7 @@ metadata:
             errorFlags={errorFlags}
             completeFlags={completeFlags}
             visitedSteps={state.ui?.visitedSteps || {}}
+            isImported={Boolean(state.ui?.isImported)}
             operationsCount={jobsCount}
             foundationalLocked={foundationalLocked}
             lockToast={lockToast}
