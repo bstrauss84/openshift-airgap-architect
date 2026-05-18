@@ -1717,33 +1717,49 @@ This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value
                 </div>
               ) : browseEntries.length === 0 ? (
                 <div style={{ padding: 16, color: "var(--text-subtle)" }}>Empty directory</div>
-              ) : browseEntries.map((entry) => (
-                <div
-                  key={entry.name}
-                  style={{
-                    padding: "6px 12px", cursor: entry.type === "dir" ? "pointer" : "default",
-                    color: entry.type === "dir" ? "inherit" : "var(--text-subtle)",
-                    display: "flex", alignItems: "center", gap: 8,
-                    borderBottom: "1px solid var(--border-color)"
-                  }}
-                  onClick={() => { if (entry.type === "dir") navigateBrowse(browsePath.replace(/\/$/, "") + "/" + entry.name); }}
-                >
-                  <span style={{ fontSize: "0.9rem" }}>{entry.type === "dir" ? "📁" : "📄"}</span>
-                  <span style={{ flex: 1 }}>{entry.name}</span>
-                  {entry.type === "file" && entry.size != null ? (
-                    <span style={{ fontSize: "0.78rem", color: "var(--text-subtle)" }}>
-                      {entry.size > 1073741824 ? `${(entry.size / 1073741824).toFixed(1)} GB`
-                        : entry.size > 1048576 ? `${(entry.size / 1048576).toFixed(1)} MB`
-                        : entry.size > 1024 ? `${(entry.size / 1024).toFixed(1)} KB`
-                        : `${entry.size} B`}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
+              ) : browseEntries.map((entry) => {
+                const isFileMode = browseTarget === "imageset-config";
+                const isClickable = isFileMode ? entry.type === "file" : entry.type === "dir";
+                const isHighlighted = isFileMode && entry.type === "file" && browsePath.endsWith("/" + entry.name);
+                return (
+                  <div
+                    key={entry.name}
+                    style={{
+                      padding: "6px 12px",
+                      cursor: isClickable || entry.type === "dir" ? "pointer" : "default",
+                      color: isClickable ? "inherit" : "var(--text-subtle)",
+                      display: "flex", alignItems: "center", gap: 8,
+                      borderBottom: "1px solid var(--border-color)",
+                      backgroundColor: isHighlighted ? "var(--bg-highlight)" : "transparent"
+                    }}
+                    onClick={() => {
+                      if (entry.type === "dir") {
+                        navigateBrowse(browsePath.replace(/\/$/, "") + "/" + entry.name);
+                      } else if (isFileMode && entry.type === "file") {
+                        // File mode: set browsePath to the file path
+                        setBrowsePath(browsePath.replace(/\/$/, "") + "/" + entry.name);
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: "0.9rem" }}>{entry.type === "dir" ? "📁" : "📄"}</span>
+                    <span style={{ flex: 1 }}>{entry.name}</span>
+                    {entry.type === "file" && entry.size != null ? (
+                      <span style={{ fontSize: "0.78rem", color: "var(--text-subtle)" }}>
+                        {entry.size > 1073741824 ? `${(entry.size / 1073741824).toFixed(1)} GB`
+                          : entry.size > 1048576 ? `${(entry.size / 1048576).toFixed(1)} MB`
+                          : entry.size > 1024 ? `${(entry.size / 1024).toFixed(1)} KB`
+                          : `${entry.size} B`}
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
               <Button variant="ghost" onClick={() => setBrowseOpen(false)}>Cancel</Button>
-              <Button variant="primary" onClick={selectBrowsePath}>Select this directory</Button>
+              <Button variant="primary" onClick={selectBrowsePath}>
+                {browseTarget === "imageset-config" ? "Select" : "Select this directory"}
+              </Button>
             </div>
           </div>
         </div>
