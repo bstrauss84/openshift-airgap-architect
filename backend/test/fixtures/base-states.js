@@ -76,7 +76,7 @@ export const bareMetalAgent = (overrides = {}) => ({
     apiVip: "10.90.0.2",
     ingressVip: "10.90.0.3",
     machineNetworkCidr: "10.90.0.0/24",
-    enableIpv6: false,
+    ipStackMode: 'ipv4',
     ...overrides.hostInventory
   }
 });
@@ -209,7 +209,7 @@ export const vsphereAgent = (overrides = {}) => ({
     apiVip: "10.0.0.10",
     ingressVip: "10.0.0.11",
     machineNetworkCidr: "10.0.0.0/24",
-    enableIpv6: false,
+    ipStackMode: 'ipv4',
     ...overrides.hostInventory
   }
 });

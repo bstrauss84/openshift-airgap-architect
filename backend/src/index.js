@@ -384,8 +384,8 @@ const defaultState = () => ({
     apiVip: "",
     ingressVip: "",
     provisioningNetwork: "Managed",
-    schemaVersion: 2,
-    enableIpv6: false,
+    schemaVersion: 3,
+    ipStackMode: 'ipv4',
     nodes: [],
     bootArtifactsBaseURL: ""
   },
@@ -1185,6 +1185,20 @@ app.post("/api/run/import", (req, res) => {
     : payload.state;
   if (!migrated.runId) migrated.runId = nanoid();
   if (!migrated.exportOptions) migrated.exportOptions = defaultState().exportOptions;
+
+  // Schema v3: Migrate enableIpv6 → ipStackMode
+  if (migrated.hostInventory) {
+    const hiSchemaVersion = migrated.hostInventory.schemaVersion || 1;
+    if (hiSchemaVersion < 3 && !migrated.hostInventory.ipStackMode) {
+      if (migrated.hostInventory.hasOwnProperty('enableIpv6')) {
+        migrated.hostInventory.ipStackMode = migrated.hostInventory.enableIpv6 ? 'dual-stack' : 'ipv4';
+        delete migrated.hostInventory.enableIpv6;
+      } else {
+        migrated.hostInventory.ipStackMode = 'ipv4';
+      }
+      migrated.hostInventory.schemaVersion = 3;
+    }
+  }
   if (migrated.operators) {
     const expectedVersion = getOpenShiftMinorFromState(migrated) || migrated.release?.channel || null;
     if (migrated.operators.version && migrated.operators.version !== expectedVersion) {

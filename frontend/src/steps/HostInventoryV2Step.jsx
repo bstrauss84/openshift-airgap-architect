@@ -124,7 +124,8 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     scenarioId === "bare-metal-agent" && !isBareMetalAgentSnoTopology && !!inventory.includeBareMetalDay2InInstallConfig;
   const supported = isScenarioSupported(platform, method);
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
-  const enableIpv6 = !!inventory.enableIpv6;
+  const ipStackMode = inventory.ipStackMode || 'ipv4';
+  const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
 
   const sectionOrder = useMemo(
     () => getSectionOrderForRender(true, scenarioId),

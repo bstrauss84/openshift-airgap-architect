@@ -599,10 +599,10 @@ https://proxy.corp:8443 (if your proxy supports TLS)`}
             <label className="toggle-row" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <input
                 type="checkbox"
-                checked={Boolean(state.hostInventory?.enableIpv6)}
+                checked={Boolean(state.hostInventory?.ipStackMode === 'dual-stack' || state.hostInventory?.ipStackMode === 'ipv6')}
                 onChange={(e) =>
                   updateState({
-                    hostInventory: { ...(state.hostInventory || {}), enableIpv6: e.target.checked }
+                    hostInventory: { ...(state.hostInventory || {}), ipStackMode: e.target.checked ? 'dual-stack' : 'ipv4' }
                   })
                 }
               />
@@ -623,7 +623,7 @@ IPv6 addresses and networks are included in install-config and agent-config
 Dual-stack or IPv6-only deployments`}
               />
             </label>
-            {state.hostInventory?.enableIpv6 ? (
+            {(state.hostInventory?.ipStackMode === 'dual-stack' || state.hostInventory?.ipStackMode === 'ipv6') ? (
               <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
                 IPv6 machine, cluster, and service fields show together when enabled (same behavior as the Networking step in the segmented flow). Install-config order is still IPv4 then IPv6 machine networks when both are set.
               </p>
@@ -666,7 +666,7 @@ Typically safe: cluster and service networks (below) use OpenShift defaults
               {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr)
                 ? <div className="note warning">Overlaps with service network.</div>
                 : null}
-              {state.hostInventory?.enableIpv6 ? (
+              {(state.hostInventory?.ipStackMode === 'dual-stack' || state.hostInventory?.ipStackMode === 'ipv6') ? (
                 <FieldLabelWithInfo
                   label="Machine Network (IPv6 CIDR)"
                   hint={`IPv6 network range where cluster nodes live (dual-stack only).
@@ -745,7 +745,7 @@ Each node gets a /hostPrefix slice of the cluster network CIDR
                   max="28"
                 />
               </FieldLabelWithInfo>
-              {state.hostInventory?.enableIpv6 ? (
+              {(state.hostInventory?.ipStackMode === 'dual-stack' || state.hostInventory?.ipStackMode === 'ipv6') ? (
                 <>
                   <FieldLabelWithInfo
                     label="Cluster Network IPv6 CIDR (optional)"
@@ -835,7 +835,7 @@ Only if this range conflicts with existing corporate networks
               {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr)
                 ? <div className="note warning">Overlaps with cluster network.</div>
                 : null}
-              {state.hostInventory?.enableIpv6 ? (
+              {(state.hostInventory?.ipStackMode === 'dual-stack' || state.hostInventory?.ipStackMode === 'ipv6') ? (
                 <FieldLabelWithInfo
                   label="Service Network IPv6 CIDR (optional)"
                   hint={`IPv6 network range for Kubernetes ClusterIP services.

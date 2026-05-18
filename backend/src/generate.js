@@ -50,12 +50,25 @@ const buildRootDeviceHints = (node) => {
   return Object.keys(hints).length > 0 ? hints : undefined;
 };
 
-/** Dual-stack: clusterNetwork must have IPv4 then IPv6 entries when machineNetworkV6 is set (4.20 doc). */
-const buildClusterNetwork = (networkingState, dualStack) => {
-  if (!dualStack) {
+/**
+ * Builds clusterNetwork array based on IP stack mode.
+ * IPv4-only: single IPv4 entry
+ * IPv6-only: single IPv6 entry
+ * Dual-stack: IPv4 then IPv6 entries (4.20 doc)
+ */
+const buildClusterNetwork = (networkingState, ipStackMode) => {
+  if (ipStackMode === 'ipv4') {
     if (!networkingState.clusterNetworkCidr) return null;
     return [{ cidr: networkingState.clusterNetworkCidr, hostPrefix: Number(networkingState.clusterNetworkHostPrefix || 23) }];
   }
+
+  if (ipStackMode === 'ipv6') {
+    const ipv6Cidr = networkingState.clusterNetworkCidrV6 || "fd01::/48";
+    const ipv6Prefix = Number(networkingState.clusterNetworkHostPrefixV6 ?? 64);
+    return [{ cidr: ipv6Cidr, hostPrefix: ipv6Prefix }];
+  }
+
+  // dual-stack: IPv4 first, then IPv6
   const ipv4Cidr = networkingState.clusterNetworkCidr || "10.128.0.0/14";
   const ipv4Prefix = Number(networkingState.clusterNetworkHostPrefix || 23);
   const ipv6Cidr = networkingState.clusterNetworkCidrV6 || "fd01::/48";
@@ -66,11 +79,23 @@ const buildClusterNetwork = (networkingState, dualStack) => {
   ];
 };
 
-/** Dual-stack: serviceNetwork must have IPv4 then IPv6 entries when machineNetworkV6 is set (4.20 doc). */
-const buildServiceNetwork = (networkingState, dualStack) => {
-  if (!dualStack) {
+/**
+ * Builds serviceNetwork array based on IP stack mode.
+ * IPv4-only: single IPv4 entry
+ * IPv6-only: single IPv6 entry
+ * Dual-stack: IPv4 then IPv6 entries (4.20 doc)
+ */
+const buildServiceNetwork = (networkingState, ipStackMode) => {
+  if (ipStackMode === 'ipv4') {
     return networkingState.serviceNetworkCidr ? [networkingState.serviceNetworkCidr] : null;
   }
+
+  if (ipStackMode === 'ipv6') {
+    const ipv6 = networkingState.serviceNetworkCidrV6 || "fd02::/112";
+    return [ipv6];
+  }
+
+  // dual-stack: IPv4 first, then IPv6
   const ipv4 = networkingState.serviceNetworkCidr || "172.30.0.0/16";
   const ipv6 = networkingState.serviceNetworkCidrV6 || "fd02::/112";
   return [ipv4, ipv6];
@@ -138,11 +163,30 @@ const buildInstallConfig = (state) => {
   const networkingState = state.globalStrategy?.networking || {};
   const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
   const isIbmCloudIpi = state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI";
-  /** AWS install-config supports IPv4 only (4.20); do not emit dual-stack for AWS. */
-  const dualStack = !isAwsGovCloud && !isIbmCloudIpi && Boolean(networkingState.machineNetworkV6);
-  const machineNetworks = dualStack
-    ? [networkingState.machineNetworkV4, networkingState.machineNetworkV6].filter(Boolean).map((cidr) => ({ cidr }))
-    : [networkingState.machineNetworkV4].filter(Boolean).map((cidr) => ({ cidr }));
+
+  // Determine IP stack mode from state (default to ipv4)
+  // Backward compatibility: if ipStackMode not set but IPv6 networks exist, treat as dual-stack
+  let ipStackMode = state.hostInventory?.ipStackMode;
+  if (!ipStackMode) {
+    const hasIpv6Network = Boolean(networkingState.machineNetworkV6);
+    ipStackMode = hasIpv6Network ? 'dual-stack' : 'ipv4';
+  }
+  // AWS GovCloud and IBM Cloud only support IPv4
+  const effectiveIpStackMode = (isAwsGovCloud || isIbmCloudIpi) ? 'ipv4' : ipStackMode;
+
+  const ipv4Only = effectiveIpStackMode === 'ipv4';
+  const ipv6Only = effectiveIpStackMode === 'ipv6';
+  const dualStack = effectiveIpStackMode === 'dual-stack';
+
+  const machineNetworks = (() => {
+    if (ipv6Only) {
+      return [networkingState.machineNetworkV6].filter(Boolean).map((cidr) => ({ cidr }));
+    }
+    if (dualStack) {
+      return [networkingState.machineNetworkV4, networkingState.machineNetworkV6].filter(Boolean).map((cidr) => ({ cidr }));
+    }
+    return [networkingState.machineNetworkV4].filter(Boolean).map((cidr) => ({ cidr }));
+  })();
 
   const includeCredentials = Boolean(state.exportOptions?.includeCredentials);
   const creds = state.credentials || {};
@@ -176,8 +220,8 @@ const buildInstallConfig = (state) => {
   };
   const platformKey = normalizePlatformKey(state.blueprint?.platform);
 
-  const clusterNetwork = buildClusterNetwork(networkingState, dualStack);
-  const serviceNetwork = buildServiceNetwork(networkingState, dualStack);
+  const clusterNetwork = buildClusterNetwork(networkingState, effectiveIpStackMode);
+  const serviceNetwork = buildServiceNetwork(networkingState, effectiveIpStackMode);
 
   // K follow-up: controlPlane.platform and compute[].platform are optional per 4.20 params. Emit only when
   // required: (1) bare-metal UPI → "none"; (2) AWS GovCloud IPI → object with aws.type when instance types set.
@@ -227,13 +271,17 @@ const buildInstallConfig = (state) => {
       // only when user enables includeBareMetalDay2InInstallConfig (doc: not used during initial provisioning).
       const hi = state.hostInventory || {};
       const parseVipList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
-      const useDualStackVips = Boolean(hi.enableIpv6);
-      const apiVips = useDualStackVips
-        ? [hi.apiVip, hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean)
-        : parseVipList(hi.apiVip);
-      const ingressVips = useDualStackVips
-        ? [hi.ingressVip, hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean)
-        : parseVipList(hi.ingressVip);
+      const vipIpStackMode = hi.ipStackMode || 'ipv4';
+      const apiVips = (() => {
+        if (vipIpStackMode === 'ipv4') return parseVipList(hi.apiVip);
+        if (vipIpStackMode === 'ipv6') return [hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean);
+        return [hi.apiVip, hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean);
+      })();
+      const ingressVips = (() => {
+        if (vipIpStackMode === 'ipv4') return parseVipList(hi.ingressVip);
+        if (vipIpStackMode === 'ipv6') return [hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean);
+        return [hi.ingressVip, hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean);
+      })();
       const baremetal = {};
       if (apiVips.length) baremetal.apiVIPs = apiVips;
       if (ingressVips.length) baremetal.ingressVIPs = ingressVips;
@@ -608,13 +656,17 @@ const buildInstallConfig = (state) => {
     if (isVsphereAgent) {
       const hi = state.hostInventory || {};
       const parseVipListVs = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
-      const useDualStackVipsVs = Boolean(hi.enableIpv6);
-      const apiFromHi = useDualStackVipsVs
-        ? [hi.apiVip, hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean)
-        : parseVipListVs(hi.apiVip);
-      const ingressFromHi = useDualStackVipsVs
-        ? [hi.ingressVip, hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean)
-        : parseVipListVs(hi.ingressVip);
+      const vsVipIpStackMode = hi.ipStackMode || 'ipv4';
+      const apiFromHi = (() => {
+        if (vsVipIpStackMode === 'ipv4') return parseVipListVs(hi.apiVip);
+        if (vsVipIpStackMode === 'ipv6') return [hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean);
+        return [hi.apiVip, hi.apiVipV6].map((s) => (s || "").trim()).filter(Boolean);
+      })();
+      const ingressFromHi = (() => {
+        if (vsVipIpStackMode === 'ipv4') return parseVipListVs(hi.ingressVip);
+        if (vsVipIpStackMode === 'ipv6') return [hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean);
+        return [hi.ingressVip, hi.ingressVipV6].map((s) => (s || "").trim()).filter(Boolean);
+      })();
       if (apiFromHi.length) vsphere.apiVIPs = apiFromHi;
       if (ingressFromHi.length) vsphere.ingressVIPs = ingressFromHi;
     } else if (isVsphereIpi) {
@@ -854,7 +906,7 @@ const buildAgentConfig = (state) => {
   const sortedNodes = sortNodes(state.hostInventory?.nodes || []);
   const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
   const hosts = sortedNodes.map((node) => {
-    const nmState = buildNmState({ ...node, inventoryEnableIpv6: state.hostInventory?.enableIpv6 });
+    const nmState = buildNmState({ ...node, inventoryIpStackMode: state.hostInventory?.ipStackMode });
     const interfaces = collectPhysicalInterfaces(node);
     return {
       hostname: effectiveHostname(node, baseDomain),
@@ -1021,7 +1073,9 @@ function rewriteAdditionalTrustBundleToLiteralBlock(yamlString, trustBundle) {
 }
 
 const buildNmState = (node) => {
-  const enableIpv6 = Boolean(node?.enableIpv6 || node?.inventoryEnableIpv6);
+  const ipStackMode = node?.ipStackMode || node?.inventoryIpStackMode || 'ipv4';
+  const enableIpv4 = ipStackMode === 'ipv4' || ipStackMode === 'dual-stack';
+  const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
   const config = {
     interfaces: [],
     routes: { config: [] },
@@ -1047,13 +1101,20 @@ const buildNmState = (node) => {
   };
 
   const addIpConfig = (iface, mode, addrV4, prefixV4, addrV6, prefixV6) => {
-    if (mode === "dhcp") {
-      iface.ipv4 = { enabled: true, dhcp: true };
-    } else if (addrV4) {
-      iface.ipv4 = { enabled: true, dhcp: false, address: [{ ip: addrV4, "prefix-length": prefixV4 }] };
+    // IPv4 configuration
+    if (enableIpv4) {
+      if (mode === "dhcp") {
+        iface.ipv4 = { enabled: true, dhcp: true };
+      } else if (addrV4) {
+        iface.ipv4 = { enabled: true, dhcp: false, address: [{ ip: addrV4, "prefix-length": prefixV4 }] };
+      } else {
+        iface.ipv4 = { enabled: false };
+      }
     } else {
       iface.ipv4 = { enabled: false };
     }
+
+    // IPv6 configuration
     if (enableIpv6 && addrV6) {
       iface.ipv6 = { enabled: true, dhcp: false, address: [{ ip: addrV6, "prefix-length": prefixV6 }] };
     } else {
@@ -1068,7 +1129,7 @@ const buildNmState = (node) => {
   const primaryIpv6 = primary.ipv6Cidr?.split("/")?.[0];
   const primaryIpv6Prefix = Number(primary.ipv6Cidr?.split("/")?.[1] || 64);
 
-  if (primary.mode === "static" && primary.ipv4Gateway) {
+  if (enableIpv4 && primary.mode === "static" && primary.ipv4Gateway) {
     config.routes.config.push({
       destination: "0.0.0.0/0",
       "next-hop-address": primary.ipv4Gateway,

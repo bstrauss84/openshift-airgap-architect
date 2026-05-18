@@ -51,7 +51,8 @@ function placeholderVipV6(kind) {
 
 export function applyPlaceholderValuesToHostInventory(hostInventory, { platform, method }) {
   const hi = hostInventory || {};
-  const enableIpv6 = Boolean(hi.enableIpv6);
+  const ipStackMode = hi.ipStackMode || 'ipv4';
+  const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
 
   const nextNodes = (hi.nodes || []).map((node, idx) => {
     const n = { ...node };

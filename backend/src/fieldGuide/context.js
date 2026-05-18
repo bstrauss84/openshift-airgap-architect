@@ -125,6 +125,13 @@ const buildContext = (state) => {
 
   const scenarioId = `${platformSlug}-${methodSlug}`;
 
+  // IP stack mode
+  const ipStackMode = hostInventory.ipStackMode || 'ipv4';
+  const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
+
+  // Host nodes for troubleshooting rules
+  const nodes = hostInventory.nodes || [];
+
   return {
     version,
     versionMajorMinor,
@@ -167,6 +174,10 @@ const buildContext = (state) => {
     operatorList,
     installDir,
     draftMode: Boolean(state.exportOptions?.draftMode),
+    enableIpv6,
+    nodes,
+    ipStackMode,
+    trustBundleProvided: trustBundle,
   };
 };
 

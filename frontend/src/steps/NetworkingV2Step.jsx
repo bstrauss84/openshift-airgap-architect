@@ -248,12 +248,23 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
-  const enableIpv6 = Boolean(hostInventory.enableIpv6);
+  const ipStackMode = hostInventory.ipStackMode || 'ipv4';
+  const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
   const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
   const isIbmCloudIpi = scenarioId === "ibm-cloud-ipi";
   /** AWS GovCloud and IBM Cloud install-config support IPv4-only in 4.20. */
   const isIpv4OnlyScenario = isAwsGovCloud || isIbmCloudIpi;
   const showIpv6ForPlatform = enableIpv6 && !isIpv4OnlyScenario;
+
+  /** IPv6-only mode supported on: bare-metal (all methods), vSphere (all methods) */
+  const ipv6OnlySupported = [
+    'bare-metal-ipi',
+    'bare-metal-agent',
+    'bare-metal-upi',
+    'vsphere-ipi',
+    'vsphere-agent',
+    'vsphere-upi'
+  ].includes(scenarioId);
 
   const clusterCardHasErrors = Boolean(
     highlightErrors &&
@@ -320,18 +331,27 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             ) : (
               <>
                 <OptionRow
-                  title="Enable IPv6 (cluster-wide)"
-                  description="Show IPv6 machine and optional cluster/service fields for dual-stack."
+                  title="IP Stack Mode"
+                  description="Choose network stack configuration for the cluster."
                 >
-                  <Switch
-                    checked={enableIpv6}
-                    onChange={(checked) => updateHostInventory({ enableIpv6: checked })}
-                    aria-label="Enable IPv6"
-                  />
+                  <select
+                    value={ipStackMode}
+                    onChange={(e) => updateHostInventory({ ipStackMode: e.target.value })}
+                    className="form-select"
+                    aria-label="IP Stack Mode"
+                  >
+                    <option value="ipv4">IPv4 only</option>
+                    {ipv6OnlySupported && <option value="ipv6">IPv6 only</option>}
+                    <option value="dual-stack">Dual-stack (IPv4 + IPv6)</option>
+                  </select>
                 </OptionRow>
-                {enableIpv6 ? (
+                {ipStackMode === 'ipv6' ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    When IPv6 is enabled, IPv6 fields for machine, cluster, and service networks appear together. OpenShift 4.20 documents IPv4, IPv6, and dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set an IPv6 machine CIDR and IPv6 API/Ingress VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
+                    IPv6-only mode: Only IPv6 networks and VIPs will be configured. OpenShift 4.20 supports IPv6-only deployments on bare metal and vSphere platforms (Agent, IPI, and UPI methods). All cluster components will use IPv6 addressing exclusively.
+                  </p>
+                ) : ipStackMode === 'dual-stack' ? (
+                  <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
+                    Dual-stack mode: Both IPv4 and IPv6 fields for machine, cluster, and service networks appear together. OpenShift 4.20 documents dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set both IPv4 and IPv6 machine CIDRs and VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
                   </p>
                 ) : null}
               </>
@@ -341,8 +361,9 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
             <div className="networking-group">
               <h4 className="networking-group-title">Machine network</h4>
               <div className="field-grid">
+                {(ipStackMode === 'ipv4' || ipStackMode === 'dual-stack') && (
                 <FieldLabelWithInfo
-                  label="Machine Network (IPv4 CIDR)"
+                  label={ipStackMode === 'dual-stack' ? "Machine Network (IPv4 CIDR)" : "Machine Network (IPv4 CIDR)"}
                   hint={`IPv4 network range where cluster nodes live.
 
 **What is this:**
@@ -358,7 +379,6 @@ This is often the **main network you customize** - other networks (cluster/servi
 **Example:**
 192.168.1.0/24 or 10.0.0.0/16`}
                   required={isRequired("networking.machineNetwork[].cidr")}
-                  className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
                 >
                   <input
                     className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
@@ -376,16 +396,17 @@ This is often the **main network you customize** - other networks (cluster/servi
                     aria-invalid={fieldErrors.machineNetworkV4 ? "true" : "false"}
                   />
                 </FieldLabelWithInfo>
-                {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
+                )}
+                {(ipStackMode === 'ipv4' || ipStackMode === 'dual-stack') && cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
                   <span className="note warning inline">Overlaps with cluster network.</span>
                 ) : null}
-                {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
+                {(ipStackMode === 'ipv4' || ipStackMode === 'dual-stack') && cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
                   <span className="note warning inline">Overlaps with service network.</span>
                 ) : null}
-                {showIpv6ForPlatform ? (
+                {(ipStackMode === 'ipv6' || ipStackMode === 'dual-stack') && (
                   <FieldLabelWithInfo
                     label="Machine Network (IPv6 CIDR)"
-                    hint={`IPv6 network range where cluster nodes live (dual-stack only).
+                    hint={`IPv6 network range where cluster nodes live.
 
 **When is this required:**
 Only for dual-stack deployments (IPv4 + IPv6)
@@ -395,7 +416,6 @@ IPv4-only clusters
 
 **Example:**
 fd10:90::/64`}
-                    className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
                   >
                     <input
                       className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
@@ -411,7 +431,7 @@ fd10:90::/64`}
                       placeholder="fd10:90::/64"
                     />
                   </FieldLabelWithInfo>
-                ) : null}
+                )}
               </div>
             </div>
             ) : null}
@@ -420,9 +440,11 @@ fd10:90::/64`}
             <div className="networking-group">
               <h4 className="networking-group-title">Cluster-level</h4>
               <div className="field-grid">
-                <FieldLabelWithInfo
-                  label="Cluster Network CIDR"
-                  hint={`IPv4 network range for pod-to-pod communication.
+                {(ipStackMode === 'ipv4' || ipStackMode === 'dual-stack') && (
+                <>
+                  <FieldLabelWithInfo
+                    label="Cluster Network CIDR"
+                    hint={`IPv4 network range for pod-to-pod communication.
 
 **What is this:**
 Software-defined network (SDN) for containers running in the cluster
@@ -441,34 +463,33 @@ Cluster network is **completely isolated** from external networks - pods communi
 
 **Example:**
 If your datacenter uses 10.x.x.x, change to 172.30.0.0/16`}
-                  required={isRequired("networking.clusterNetwork[].cidr")}
-                  className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
-                >
-                  <input
-                    className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
-                      title={fieldErrors.clusterNetworkCidr || ""}
-                    value={localClusterNetworkCidr}
-                    onChange={(e) => setLocalClusterNetworkCidr(e.target.value)}
-                    onBlur={(e) => {
-                      const formatted = formatIpv4Cidr(e.target.value.trim());
-                      if (formatted !== networking.clusterNetworkCidr) {
-                        updateNetworking({ clusterNetworkCidr: formatted });
-                      }
-                    }}
-                    placeholder="10.128.0.0/14"
-                    aria-required={isRequired("networking.clusterNetwork[].cidr") ? "true" : "false"}
-                    aria-invalid={fieldErrors.clusterNetworkCidr ? "true" : "false"}
-                  />
-                </FieldLabelWithInfo>
-                {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
-                  <span className="note warning inline">Overlaps with service network.</span>
-                ) : null}
-                {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
-                  <span className="note warning inline">Overlaps with machine network.</span>
-                ) : null}
-                <FieldLabelWithInfo
-                  label="Cluster Network Host Prefix"
-                  hint={`Subnet prefix length for per-node pod IP allocation.
+                    required={isRequired("networking.clusterNetwork[].cidr")}
+                  >
+                    <input
+                      className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
+                        title={fieldErrors.clusterNetworkCidr || ""}
+                      value={localClusterNetworkCidr}
+                      onChange={(e) => setLocalClusterNetworkCidr(e.target.value)}
+                      onBlur={(e) => {
+                        const formatted = formatIpv4Cidr(e.target.value.trim());
+                        if (formatted !== networking.clusterNetworkCidr) {
+                          updateNetworking({ clusterNetworkCidr: formatted });
+                        }
+                      }}
+                      placeholder="10.128.0.0/14"
+                      aria-required={isRequired("networking.clusterNetwork[].cidr") ? "true" : "false"}
+                      aria-invalid={fieldErrors.clusterNetworkCidr ? "true" : "false"}
+                    />
+                  </FieldLabelWithInfo>
+                  {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
+                    <span className="note warning inline">Overlaps with service network.</span>
+                  ) : null}
+                  {cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr) ? (
+                    <span className="note warning inline">Overlaps with machine network.</span>
+                  ) : null}
+                  <FieldLabelWithInfo
+                    label="Cluster Network Host Prefix"
+                    hint={`Subnet prefix length for per-node pod IP allocation.
 
 **What this controls:**
 How many pods each node can run
@@ -489,22 +510,24 @@ How many pods each node can run
 
 **Valid range:**
 /16 (65k pods/node) to /28 (16 pods/node)`}
-                  required={isRequired("networking.clusterNetwork[].hostPrefix")}
-                >
-                  <input
-                    type="number"
-                    value={networking.clusterNetworkHostPrefix ?? 23}
-                    onChange={(e) =>
-                      updateNetworking({ clusterNetworkHostPrefix: Number(e.target.value) })
-                    }
-                    min={16}
-                    max={28}
-                  />
-                </FieldLabelWithInfo>
-                {showIpv6ForPlatform ? (
+                    required={isRequired("networking.clusterNetwork[].hostPrefix")}
+                  >
+                    <input
+                      type="number"
+                      value={networking.clusterNetworkHostPrefix ?? 23}
+                      onChange={(e) =>
+                        updateNetworking({ clusterNetworkHostPrefix: Number(e.target.value) })
+                      }
+                      min={16}
+                      max={28}
+                    />
+                  </FieldLabelWithInfo>
+                </>
+                )}
+                {(ipStackMode === 'ipv6' || ipStackMode === 'dual-stack') && (
                   <>
                     <FieldLabelWithInfo
-                      label="Cluster Network IPv6 CIDR (optional)"
+                      label={ipStackMode === 'ipv6' ? "Cluster Network CIDR (optional)" : "Cluster Network IPv6 CIDR (optional)"}
                       hint={`IPv6 network range for pod-to-pod communication.
 
 **Use case:**
@@ -515,7 +538,6 @@ If left blank, defaults to fd01::/48
 
 **Example:**
 fd01::/48`}
-                      className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                     >
                       <input
                         className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
@@ -533,7 +555,32 @@ fd01::/48`}
                         aria-invalid={fieldErrors.clusterNetworkCidrV6 ? "true" : "false"}
                       />
                     </FieldLabelWithInfo>
-                    <FieldLabelWithInfo label="Cluster Network IPv6 Host Prefix (optional)">
+                    <FieldLabelWithInfo
+                      label="Cluster Network IPv6 Host Prefix (optional)"
+                      hint={`Subnet prefix length for per-node IPv6 pod IP allocation.
+
+**What this controls:**
+How many IPv6 addresses each node gets for pod networking
+
+**Default:**
+/64 = 18 quintillion pod IPs per node (IPv6's abundance makes this practical)
+
+**Tradeoff:**
+• Lower numbers (e.g. /56) = more IPs per node, fewer total nodes supported
+• Higher numbers (e.g. /80) = fewer IPs per node, more total nodes supported
+
+**IPv6 vs IPv4:**
+IPv6 uses larger prefixes than IPv4 due to address abundance - /64 is standard
+
+**Example calculation:**
+/64 with /48 cluster CIDR supports ~65,000 nodes with 18 quintillion pods each
+
+**When to adjust:**
+Rarely needed - /64 is standard and supports massive pod counts per node
+
+**Valid range:**
+/48 (huge per-node allocation) to /128 (single IP per node)`}
+                    >
                       <input
                         type="number"
                         value={networking.clusterNetworkHostPrefixV6 ?? 64}
@@ -548,7 +595,7 @@ fd01::/48`}
                       />
                     </FieldLabelWithInfo>
                   </>
-                ) : null}
+                )}
               </div>
             </div>
             ) : null}
@@ -557,9 +604,11 @@ fd01::/48`}
             <div className="networking-group">
               <h4 className="networking-group-title">Service network</h4>
               <div className="field-grid">
-                <FieldLabelWithInfo
-                  label="Service Network CIDR"
-                  hint={`IPv4 network range for Kubernetes ClusterIP services.
+                {(ipStackMode === 'ipv4' || ipStackMode === 'dual-stack') && (
+                <>
+                  <FieldLabelWithInfo
+                    label="Service Network CIDR"
+                    hint={`IPv4 network range for Kubernetes ClusterIP services.
 
 **What is this:**
 Virtual IP addresses for stable service endpoints
@@ -578,34 +627,35 @@ Only if this range conflicts with existing infrastructure networks
 
 **Example:**
 If datacenter uses 172.x.x.x, change to 10.96.0.0/12`}
-                  required={isRequired("networking.serviceNetwork")}
-                  className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
-                >
-                  <input
-                    className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
-                      title={fieldErrors.serviceNetworkCidr || ""}
-                    value={localServiceNetworkCidr}
-                    onChange={(e) => setLocalServiceNetworkCidr(e.target.value)}
-                    onBlur={(e) => {
-                      const formatted = formatIpv4Cidr(e.target.value.trim());
-                      if (formatted !== networking.serviceNetworkCidr) {
-                        updateNetworking({ serviceNetworkCidr: formatted });
-                      }
-                    }}
-                    placeholder="172.30.0.0/16"
-                    aria-required={isRequired("networking.serviceNetwork") ? "true" : "false"}
-                    aria-invalid={fieldErrors.serviceNetworkCidr ? "true" : "false"}
-                  />
-                </FieldLabelWithInfo>
-                {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
-                  <span className="note warning inline">Overlaps with machine network.</span>
-                ) : null}
-                {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
-                  <span className="note warning inline">Overlaps with cluster network.</span>
-                ) : null}
-                {showIpv6ForPlatform ? (
+                    required={isRequired("networking.serviceNetwork")}
+                  >
+                    <input
+                      className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
+                        title={fieldErrors.serviceNetworkCidr || ""}
+                      value={localServiceNetworkCidr}
+                      onChange={(e) => setLocalServiceNetworkCidr(e.target.value)}
+                      onBlur={(e) => {
+                        const formatted = formatIpv4Cidr(e.target.value.trim());
+                        if (formatted !== networking.serviceNetworkCidr) {
+                          updateNetworking({ serviceNetworkCidr: formatted });
+                        }
+                      }}
+                      placeholder="172.30.0.0/16"
+                      aria-required={isRequired("networking.serviceNetwork") ? "true" : "false"}
+                      aria-invalid={fieldErrors.serviceNetworkCidr ? "true" : "false"}
+                    />
+                  </FieldLabelWithInfo>
+                  {cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
+                    <span className="note warning inline">Overlaps with machine network.</span>
+                  ) : null}
+                  {cidrOverlaps(networking.clusterNetworkCidr, networking.serviceNetworkCidr) ? (
+                    <span className="note warning inline">Overlaps with cluster network.</span>
+                  ) : null}
+                </>
+                )}
+                {(ipStackMode === 'ipv6' || ipStackMode === 'dual-stack') && (
                   <FieldLabelWithInfo
-                    label="Service Network IPv6 CIDR (optional)"
+                    label={ipStackMode === 'ipv6' ? "Service Network CIDR (optional)" : "Service Network IPv6 CIDR (optional)"}
                     hint={`IPv6 network range for Kubernetes ClusterIP services.
 
 **Use case:**
@@ -616,7 +666,6 @@ If left blank, defaults to fd02::/112
 
 **Example:**
 fd02::/112`}
-                    className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                   >
                     <input
                       className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
@@ -634,7 +683,7 @@ fd02::/112`}
                       aria-invalid={fieldErrors.serviceNetworkCidrV6 ? "true" : "false"}
                     />
                   </FieldLabelWithInfo>
-                ) : null}
+                )}
               </div>
             </div>
             ) : null}
@@ -1103,7 +1152,7 @@ fd00::2`}>
                     </>
                   )
                 ) : showBareMetalVips ? (
-                  showIpv6ForPlatform ? (
+                  ipStackMode === 'dual-stack' ? (
                     <>
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
@@ -1225,14 +1274,73 @@ fd00::2`}
                       </FieldLabelWithInfo>
                     </div>
                     </>
+                  ) : ipStackMode === 'ipv6' ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP"
+                        hint={`Virtual IP address for the Kubernetes API server load balancer (IPv6-only).
+
+**What is this:**
+The IPv6 address clients use to communicate with the cluster API
+
+**Format:**
+Single IPv6 address
+
+**Example:**
+fd00::1`}
+                        required={vipsRequiredForBareMetalAgent && (metaApiVips?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                          title={fieldErrors.apiVipV6 || ""}
+                          value={localApiVipV6}
+                          onChange={(e) => setLocalApiVipV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== (hostInventory.apiVipV6 ?? "")) {
+                              updateHostInventory({ apiVipV6: newValue });
+                            }
+                          }}
+                          placeholder="e.g. fd00::1"
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP"
+                        hint={`Virtual IP address for the default ingress router load balancer (IPv6-only).
+
+**What is this:**
+The IPv6 address where external HTTP/HTTPS traffic enters the cluster
+
+**Format:**
+Single IPv6 address
+
+**Example:**
+fd00::2`}
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVips?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                          title={fieldErrors.ingressVipV6 || ""}
+                          value={localIngressVipV6}
+                          onChange={(e) => setLocalIngressVipV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== (hostInventory.ingressVipV6 ?? "")) {
+                              updateHostInventory({ ingressVipV6: newValue });
+                            }
+                          }}
+                          placeholder="e.g. fd00::2"
+                        />
+                      </FieldLabelWithInfo>
+                    </>
                   ) : (
                     <>
                       <FieldLabelWithInfo
-                        label="API VIP (IPv4)"
-                        hint={`Primary API VIP for bare metal (IPv4).
+                        label="API VIP"
+                        hint={`Virtual IP address for the Kubernetes API server load balancer.
 
 **What is this:**
-Virtual IP address for the Kubernetes API server load balancer
+The IP address clients use to communicate with the cluster API
 
 **Format:**
 Single IPv4 address (not comma-separated)
@@ -1256,11 +1364,11 @@ Single IPv4 address (not comma-separated)
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
-                        label="Ingress VIP (IPv4)"
-                        hint={`Primary Ingress VIP for bare metal (IPv4).
+                        label="Ingress VIP"
+                        hint={`Virtual IP address for the default ingress router load balancer.
 
 **What is this:**
-Virtual IP address for the default ingress router load balancer
+The IP address where external HTTP/HTTPS traffic enters the cluster
 
 **Format:**
 Single IPv4 address (not comma-separated)

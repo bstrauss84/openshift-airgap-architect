@@ -46,7 +46,7 @@ export const withDualStack = (state) => ({
   ...state,
   hostInventory: {
     ...state.hostInventory,
-    enableIpv6: true,
+    ipStackMode: 'dual-stack',
     machineNetworkV6Cidr: "fd00::/48",
     apiVipV6: "fd00::10",
     ingressVipV6: "fd00::11"
@@ -193,15 +193,20 @@ export const withBondNode = (state, nodeIndex = 0, config = {}) => {
     ...nodes[nodeIndex],
     primary: {
       type: "bond",
-      name: config.name || "bond0",
-      mode: config.mode || "802.3ad",
-      slaves: config.slaves || [
-        { name: "eno1", macAddress: "52:54:00:aa:bb:01" },
-        { name: "eno2", macAddress: "52:54:00:aa:bb:02" }
-      ],
-      mtu: config.mtu,
-      ipv4: config.ipv4,
-      ipv6: config.ipv6
+      bond: {
+        name: config.name || "bond0",
+        mode: config.mode || "802.3ad",
+        slaves: config.slaves || [
+          { name: "eno1", macAddress: "52:54:00:aa:bb:01" },
+          { name: "eno2", macAddress: "52:54:00:aa:bb:02" }
+        ]
+      },
+      mode: config.ipv4?.mode || config.ipv6?.mode || "static",
+      ipv4Cidr: config.ipv4?.cidr,
+      ipv4Gateway: config.ipv4?.gateway,
+      ipv6Cidr: config.ipv6?.cidr,
+      ipv6Gateway: config.ipv6?.gateway,
+      advanced: config.mtu ? { mtu: config.mtu } : undefined
     }
   };
 
@@ -235,8 +240,11 @@ export const withVlanNode = (state, nodeIndex = 0, config = {}) => {
         name: config.vlanName || "vlan100"
       },
       [config.onBond ? "bond" : "ethernet"]: baseIface,
-      ipv4: config.ipv4,
-      ipv6: config.ipv6
+      mode: config.ipv4?.mode || config.ipv6?.mode || "static",
+      ipv4Cidr: config.ipv4?.cidr,
+      ipv4Gateway: config.ipv4?.gateway,
+      ipv6Cidr: config.ipv6?.cidr,
+      ipv6Gateway: config.ipv6?.gateway
     }
   };
 

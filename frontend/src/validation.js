@@ -514,7 +514,8 @@ const validateHostInventory = (state) => {
   const warnings = [];
   const perNode = [];
   const inventory = state.hostInventory || {};
-  const enableIpv6 = Boolean(inventory.enableIpv6);
+  const ipStackMode = inventory.ipStackMode || 'ipv4';
+  const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
 
   // API/Ingress VIPs are validated on the Networking step (or Global Strategy); not on Hosts page.
@@ -896,6 +897,104 @@ const validateNetworkingFormat = (state) => {
   return { errors, warnings: [] };
 };
 
+/**
+ * Validate IP stack mode requirements (IPv4-only, IPv6-only, dual-stack)
+ * Ensures required networks and VIPs are present based on the selected mode.
+ */
+const validateIpStackModeRequirements = (state) => {
+  const errors = [];
+  const fieldErrors = {};
+  const hostInventory = state.hostInventory || {};
+  const networking = state.globalStrategy?.networking || {};
+  const ipStackMode = hostInventory.ipStackMode || 'ipv4';
+
+  // Get scenario to check if VIPs are required
+  const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+  const vipScenarios = [
+    'bare-metal-ipi', 'bare-metal-agent',
+    'vsphere-ipi', 'vsphere-agent',
+    'nutanix-ipi'
+  ];
+  const requiresVips = vipScenarios.includes(scenarioId);
+
+  if (ipStackMode === 'ipv4') {
+    // IPv4-only mode: require IPv4 machine network
+    const machineV4 = (networking.machineNetworkV4 || "").trim();
+    if (!machineV4) {
+      errors.push("Machine Network (IPv4) is required for IPv4-only mode.");
+      fieldErrors.machineNetworkV4 = "Required for IPv4-only mode";
+    }
+
+    // IPv4-only VIPs required for applicable scenarios
+    if (requiresVips) {
+      const apiVip = (hostInventory.apiVip || "").trim();
+      const ingressVip = (hostInventory.ingressVip || "").trim();
+      if (!apiVip) {
+        errors.push("API VIP (IPv4) is required for IPv4-only mode.");
+        fieldErrors.apiVip = "Required for IPv4-only mode";
+      }
+      if (!ingressVip) {
+        errors.push("Ingress VIP (IPv4) is required for IPv4-only mode.");
+        fieldErrors.ingressVip = "Required for IPv4-only mode";
+      }
+    }
+  } else if (ipStackMode === 'ipv6') {
+    // IPv6-only mode: require IPv6 machine network
+    const machineV6 = (networking.machineNetworkV6 || "").trim();
+    if (!machineV6) {
+      errors.push("Machine Network (IPv6) is required for IPv6-only mode.");
+      fieldErrors.machineNetworkV6 = "Required for IPv6-only mode";
+    }
+
+    // IPv6-only VIPs required for applicable scenarios
+    if (requiresVips) {
+      const apiVipV6 = (hostInventory.apiVipV6 || "").trim();
+      const ingressVipV6 = (hostInventory.ingressVipV6 || "").trim();
+      if (!apiVipV6) {
+        errors.push("API VIP (IPv6) is required for IPv6-only mode.");
+        fieldErrors.apiVipV6 = "Required for IPv6-only mode";
+      }
+      if (!ingressVipV6) {
+        errors.push("Ingress VIP (IPv6) is required for IPv6-only mode.");
+        fieldErrors.ingressVipV6 = "Required for IPv6-only mode";
+      }
+    }
+  } else if (ipStackMode === 'dual-stack') {
+    // Dual-stack mode: require both IPv4 and IPv6 machine networks
+    const machineV4 = (networking.machineNetworkV4 || "").trim();
+    const machineV6 = (networking.machineNetworkV6 || "").trim();
+    if (!machineV4) {
+      errors.push("Machine Network (IPv4) is required for dual-stack mode.");
+      fieldErrors.machineNetworkV4 = "Required for dual-stack mode";
+    }
+    if (!machineV6) {
+      errors.push("Machine Network (IPv6) is required for dual-stack mode.");
+      fieldErrors.machineNetworkV6 = "Required for dual-stack mode";
+    }
+
+    // Dual-stack VIPs: require at least one set (IPv4 or IPv6)
+    if (requiresVips) {
+      const apiVip = (hostInventory.apiVip || "").trim();
+      const apiVipV6 = (hostInventory.apiVipV6 || "").trim();
+      const ingressVip = (hostInventory.ingressVip || "").trim();
+      const ingressVipV6 = (hostInventory.ingressVipV6 || "").trim();
+
+      if (!apiVip && !apiVipV6) {
+        errors.push("At least one API VIP (IPv4 or IPv6) is required for dual-stack mode.");
+        fieldErrors.apiVip = "At least one API VIP required";
+        fieldErrors.apiVipV6 = "At least one API VIP required";
+      }
+      if (!ingressVip && !ingressVipV6) {
+        errors.push("At least one Ingress VIP (IPv4 or IPv6) is required for dual-stack mode.");
+        fieldErrors.ingressVip = "At least one Ingress VIP required";
+        fieldErrors.ingressVipV6 = "At least one Ingress VIP required";
+      }
+    }
+  }
+
+  return { errors, warnings: [], fieldErrors };
+};
+
 /** VIPs must be within machine network(s). Doc: "The VIPs, apiVIP and ingressVIP, must come from the same networking.machineNetwork segment." Applies to vSphere IPI, where API/Ingress VIPs live under platform.vsphere; vSphere UPI uses top-level networking VIPs instead. */
 const validateVipsInMachineNetwork = (state) => {
   const errors = [];
@@ -1064,11 +1163,12 @@ const validateStep = (state, stepId) => {
     const proxy = validateProxy(state);
     const platform = validatePlatformConfig(state);
     const format = validateNetworkingFormat(state);
+    const ipStackMode = validateIpStackModeRequirements(state);
     const networking = validateNetworkingOverlaps(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     return {
-      errors: [...proxy.errors, ...platform.errors, ...format.errors, ...networking.errors, ...credentials.errors, ...mirrorSecret.errors],
+      errors: [...proxy.errors, ...platform.errors, ...format.errors, ...ipStackMode.errors, ...networking.errors, ...credentials.errors, ...mirrorSecret.errors],
       warnings: [...platform.warnings, ...networking.warnings, ...credentials.warnings, ...mirrorSecret.warnings]
     };
   }
@@ -1076,11 +1176,12 @@ const validateStep = (state, stepId) => {
     const proxy = validateProxy(state);
     const platform = validatePlatformConfig(state);
     const format = validateNetworkingFormat(state);
+    const ipStackMode = validateIpStackModeRequirements(state);
     const networking = validateNetworkingOverlaps(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     return {
-      errors: [...proxy.errors, ...platform.errors, ...format.errors, ...networking.errors, ...credentials.errors, ...mirrorSecret.errors],
+      errors: [...proxy.errors, ...platform.errors, ...format.errors, ...ipStackMode.errors, ...networking.errors, ...credentials.errors, ...mirrorSecret.errors],
       warnings: [...platform.warnings, ...networking.warnings, ...credentials.warnings, ...mirrorSecret.warnings]
     };
   }
@@ -1091,6 +1192,7 @@ const validateStep = (state, stepId) => {
     const proxy = validateProxy(state);
     const platform = validatePlatformConfig(state);
     const format = validateNetworkingFormat(state);
+    const ipStackMode = validateIpStackModeRequirements(state);
     const networking = validateNetworkingOverlaps(state);
     const vipsInMachine = validateVipsInMachineNetwork(state);
     const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
@@ -1104,6 +1206,7 @@ const validateStep = (state, stepId) => {
         ...proxy.errors,
         ...platform.errors,
         ...format.errors,
+        ...ipStackMode.errors,
         ...networking.errors,
         ...vipsInMachine.errors,
         ...vipsInMachineV6.errors,
@@ -1192,6 +1295,7 @@ const validateStep = (state, stepId) => {
     const proxy = validateProxy(state);
     const platform = validatePlatformConfig(state);
     const format = validateNetworkingFormat(state);
+    const ipStackMode = validateIpStackModeRequirements(state);
     const networking = validateNetworkingOverlaps(state);
     const vipsInMachine = validateVipsInMachineNetwork(state);
     const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
@@ -1205,6 +1309,7 @@ const validateStep = (state, stepId) => {
         ...proxy.errors,
         ...platform.errors,
         ...format.errors,
+        ...ipStackMode.errors,
         ...networking.errors,
         ...vipsInMachine.errors,
         ...vipsInMachineV6.errors,
@@ -1247,6 +1352,7 @@ const validateStep = (state, stepId) => {
   }
   if (stepId === "networking-v2") {
     const format = validateNetworkingFormat(state);
+    const ipStackMode = validateIpStackModeRequirements(state);
     const networking = validateNetworkingOverlaps(state);
     const vipsInMachine = validateVipsInMachineNetwork(state);
     const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
@@ -1269,6 +1375,7 @@ const validateStep = (state, stepId) => {
     });
     Object.assign(fieldErrors, vipsInMachine.fieldErrors);
     Object.assign(fieldErrors, vipsInMachineV6.fieldErrors);
+    Object.assign(fieldErrors, ipStackMode.fieldErrors);
     // Catalog-driven requiredness (bare-metal-agent): apiVIPs/ingressVIPs required for multi-node Agent-based
     // (doc: validation checks before agent ISO creation). SNO (1 control plane, 0 workers) uses platform.none and does not require VIPs.
     const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
@@ -1311,7 +1418,7 @@ const validateStep = (state, stepId) => {
       }
     }
     return {
-      errors: [...format.errors, ...networking.errors, ...vipsInMachine.errors, ...vipsInMachineV6.errors],
+      errors: [...format.errors, ...ipStackMode.errors, ...networking.errors, ...vipsInMachine.errors, ...vipsInMachineV6.errors],
       warnings: networking.warnings || [],
       fieldErrors
     };

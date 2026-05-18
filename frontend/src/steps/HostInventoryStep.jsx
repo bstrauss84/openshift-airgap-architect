@@ -97,7 +97,8 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
     const baseOffset = role === "master" ? 20 : 30;
     return `${toIp(networkHints.base + baseOffset + index)}/${machineCidr.split("/")[1]}`;
   };
-  const enableIpv6 = !!inventory.enableIpv6;
+  const ipStackMode = inventory.ipStackMode || 'ipv4';
+  const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
   const [showHostInfo, setShowHostInfo] = React.useState(false);
   const [copiedCommand, setCopiedCommand] = React.useState("");
   const [showReplicate, setShowReplicate] = React.useState(false);
@@ -411,7 +412,10 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
         additionalInterfaces: []
       };
     });
-    return { ...inv, schemaVersion: 2, enableIpv6: Boolean(inv.enableIpv6), nodes };
+    const nextIpStackMode = inv.hasOwnProperty('ipStackMode')
+      ? inv.ipStackMode
+      : (inv.enableIpv6 ? 'dual-stack' : 'ipv4');
+    return { ...inv, schemaVersion: 3, ipStackMode: nextIpStackMode, nodes };
   };
 
   React.useEffect(() => {
