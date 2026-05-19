@@ -1319,6 +1319,26 @@
       ]
     },
     {
+      "path": "platform.baremetal.hosts[].networkConfig",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "NMState YAML configuration object for static network addressing",
+      "default": "not specified - DHCP used if not provided",
+      "required": false,
+      "description": "Optional NMState configuration for static IP addressing on cluster nodes. Defines interfaces, IP addresses, DNS servers, routes, VLANs, and bonding. Use when DHCP is not available or static IPs are required by policy. If not provided, nodes use DHCP for network configuration.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "ocp-4.20-baremetal-ipi",
+          "docTitle": "Installing OpenShift Container Platform 4.20 on bare metal (IPI)",
+          "sectionHeading": "3.3.13.2 Additional install-config parameters - Hosts parameter (Table 3.10)",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/"
+        }
+      ]
+    },
+    {
       "path": "platform.baremetal.ingressVIP",
       "outputFile": "install-config.yaml",
       "type": "string",

@@ -333,6 +333,106 @@ Allows OpenShift installer to remotely boot and provision bare metal nodes`}
           </div>
         </div>
       </div>
+
+      {/* Network Configuration Group */}
+      <div className="divider" />
+      <div className="workflow-group">
+        <div className="workflow-group-header">
+          <div className="workflow-group-title">
+            <FieldLabelWithInfo
+              label="Network Configuration (Static IP)"
+              hint={`Optional static network configuration using NMState format.
+
+**What is this:**
+Defines static IP addresses, DNS servers, and routes for this node
+
+**When needed:**
+Required when DHCP is not available or static IPs are mandated by policy
+
+**Alternative:**
+Leave blank to use DHCP (simpler, recommended if available)
+
+**Important:**
+⚠️ Incorrect network config will prevent node from communicating`}
+            />
+          </div>
+          <div className="workflow-group-description">
+            Configure static IP addressing (optional)
+          </div>
+        </div>
+
+        <div className="workflow-group-modes">
+          <div className="field-grid">
+            <label>
+              Interface name
+              <input
+                value={node.networkConfig?.primaryInterface?.name || ""}
+                onChange={(e) => updateNode(selectedIndex, {
+                  networkConfig: {
+                    ...node.networkConfig,
+                    primaryInterface: {
+                      ...node.networkConfig?.primaryInterface,
+                      name: e.target.value
+                    }
+                  }
+                })}
+                placeholder="enp1s0"
+              />
+            </label>
+
+            <label>
+              IP Address (CIDR)
+              <input
+                value={node.networkConfig?.primaryInterface?.ip || ""}
+                onChange={(e) => updateNode(selectedIndex, {
+                  networkConfig: {
+                    ...node.networkConfig,
+                    primaryInterface: {
+                      ...node.networkConfig?.primaryInterface,
+                      ip: e.target.value
+                    }
+                  }
+                })}
+                placeholder="192.168.1.10/24"
+              />
+            </label>
+
+            <label>
+              Gateway
+              <input
+                value={node.networkConfig?.primaryInterface?.gateway || ""}
+                onChange={(e) => updateNode(selectedIndex, {
+                  networkConfig: {
+                    ...node.networkConfig,
+                    primaryInterface: {
+                      ...node.networkConfig?.primaryInterface,
+                      gateway: e.target.value
+                    }
+                  }
+                })}
+                placeholder="192.168.1.1"
+              />
+            </label>
+
+            <label>
+              DNS Servers (comma-separated)
+              <input
+                value={node.networkConfig?.primaryInterface?.dns || ""}
+                onChange={(e) => updateNode(selectedIndex, {
+                  networkConfig: {
+                    ...node.networkConfig,
+                    primaryInterface: {
+                      ...node.networkConfig?.primaryInterface,
+                      dns: e.target.value
+                    }
+                  }
+                })}
+                placeholder="8.8.8.8, 8.8.4.4"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

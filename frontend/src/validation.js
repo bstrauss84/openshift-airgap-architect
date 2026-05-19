@@ -405,6 +405,32 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     if (!node.bmc?.bootMACAddress) addError("bmc.bootMACAddress", "Boot MAC address is required for bare metal IPI.");
   }
 
+  // IPI networkConfig validation
+  if (method === "Installer-Provisioned" && node.networkConfig) {
+    const nc = node.networkConfig.primaryInterface;
+
+    if (nc?.ip) {
+      // Validate IP/CIDR format
+      const ipCidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+      if (!ipCidrRegex.test(nc.ip)) {
+        addError("networkConfig.primaryInterface.ip", "IP address must be in CIDR format (e.g., 192.168.1.10/24)");
+      }
+
+      // If IP provided, require interface name
+      if (!nc.name) {
+        addError("networkConfig.primaryInterface.name", "Interface name required when IP address specified");
+      }
+
+      // Validate gateway if provided
+      if (nc.gateway) {
+        const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+        if (!ipRegex.test(nc.gateway)) {
+          addError("networkConfig.primaryInterface.gateway", "Gateway must be valid IPv4 address");
+        }
+      }
+    }
+  }
+
   // Primary and additional interface validation applies ONLY to Agent-based installs.
   // Bare-metal IPI uses bootMACAddress (above) in install-config platform.baremetal.hosts[], not agent-config interfaces[].
   // Other IPI scenarios (vSphere, AWS, etc.) also do not use agent-config interface definitions.

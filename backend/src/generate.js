@@ -352,6 +352,54 @@ const buildInstallConfig = (state) => {
         if ((node.bmc?.bootMACAddress || "").trim()) host.bootMACAddress = (node.bmc.bootMACAddress || "").trim();
         const rdh256 = buildRootDeviceHints(node);
         if (rdh256) host.rootDeviceHints = rdh256;
+
+        // Add networkConfig if present (simplified UI to NMState conversion)
+        if (node.networkConfig?.primaryInterface) {
+          const nc = node.networkConfig.primaryInterface;
+          if (nc.name || nc.ip) {
+            const nmState = { interfaces: [] };
+            const iface = {
+              name: nc.name || "enp1s0",
+              type: "ethernet",
+              state: "up"
+            };
+
+            // Parse IP/CIDR and add IPv4 config
+            if (nc.ip) {
+              const [ip, prefixStr] = nc.ip.split("/");
+              const prefixLength = prefixStr ? parseInt(prefixStr, 10) : 24;
+              iface.ipv4 = {
+                enabled: true,
+                address: [{ ip, "prefix-length": prefixLength }]
+              };
+            }
+
+            // Add DNS if provided
+            if (nc.dns) {
+              const dnsServers = nc.dns.split(",").map(s => s.trim()).filter(Boolean);
+              if (dnsServers.length > 0) {
+                nmState["dns-resolver"] = {
+                  config: { server: dnsServers }
+                };
+              }
+            }
+
+            // Add default route if gateway provided
+            if (nc.gateway && nc.name) {
+              nmState.routes = {
+                config: [{
+                  destination: "0.0.0.0/0",
+                  "next-hop-address": nc.gateway,
+                  "next-hop-interface": nc.name
+                }]
+              };
+            }
+
+            nmState.interfaces.push(iface);
+            host.networkConfig = nmState;
+          }
+        }
+
         return host;
       });
       baremetal.hosts = hosts;
