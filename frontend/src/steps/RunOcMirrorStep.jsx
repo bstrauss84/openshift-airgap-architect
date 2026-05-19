@@ -117,6 +117,11 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const [localRetryDelay, setLocalRetryDelay] = React.useState(retryDelay);
   const [localSince, setLocalSince] = React.useState(since);
 
+  // Signature verification options (safe defaults: verify all signatures)
+  const disableCertified = Boolean(mw.disableCertified);
+  const disableCommunity = Boolean(mw.disableCommunity);
+  const removeSignatures = Boolean(mw.removeSignatures);
+
   const updateMirrorWorkflow = useCallback(
     (patch) => updateState({ mirrorWorkflow: { ...mw, ...patch } }),
     [updateState, mw]
@@ -275,7 +280,12 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
           retryTimes,
           retryDelay,
           since: since || undefined,
-          strictArchive
+          strictArchive,
+          signatureOptions: {
+            disableCertified,
+            disableCommunity
+          },
+          removeSignatures
         }
       };
       const result = await apiFetch("/api/ocmirror/preflight", { method: "POST", body: JSON.stringify(body) });
@@ -377,7 +387,12 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
         retryTimes,
         retryDelay,
         since: since || undefined,
-        strictArchive
+        strictArchive,
+        signatureOptions: {
+          disableCertified,
+          disableCommunity
+        },
+        removeSignatures
       }
     };
     try {
@@ -1182,7 +1197,59 @@ oc-mirror uses these credentials to authenticate when pushing mirrored images to
           </div>
         </section>
 
-        {/* 6. Advanced */}
+        {/* 6. Signature Verification */}
+        <CollapsibleSection title="Signature Verification" defaultCollapsed={true}>
+          <div className="note" style={{ marginBottom: "1rem", fontSize: "0.875rem" }}>
+            <strong>Background:</strong> Some certified and community operators have missing signature files (.sig) in their registries,
+            causing oc-mirror to fail even though the images themselves are valid. This section lets you selectively disable
+            signature verification for problematic registries while keeping it enabled for Red Hat operators (where signatures are consistently available).
+          </div>
+
+          <OptionRow
+            title="Disable signature verification for certified operators"
+            description="registry.connect.redhat.com — Recommended for certified operators like NetApp Trident that have missing signature files. Preserves Red Hat operator signatures."
+          >
+            <Switch
+              checked={disableCertified}
+              onChange={(v) => updateMirrorWorkflow({ disableCertified: v })}
+              aria-label="Disable signature verification for certified operators"
+            />
+          </OptionRow>
+
+          <OptionRow
+            title="Disable signature verification for community operators"
+            description="quay.io/operatorhubio — Recommended as community operators rarely provide signatures. Preserves Red Hat operator signatures."
+          >
+            <Switch
+              checked={disableCommunity}
+              onChange={(v) => updateMirrorWorkflow({ disableCommunity: v })}
+              aria-label="Disable signature verification for community operators"
+            />
+          </OptionRow>
+
+          <div className="divider" style={{ margin: "1rem 0" }} />
+
+          <OptionRow
+            title="Remove ALL signatures (emergency fallback)"
+            description="Passes --remove-signatures flag to oc-mirror. Disables signature verification for ALL registries including Red Hat operators. Only use if registries.d approach above fails."
+            warning={removeSignatures ? "⚠️ This disables signature verification for ALL operators including Red Hat operators. Use selective options above instead when possible." : null}
+          >
+            <Switch
+              checked={removeSignatures}
+              onChange={(v) => updateMirrorWorkflow({ removeSignatures: v })}
+              aria-label="Remove all signatures (emergency fallback)"
+            />
+          </OptionRow>
+
+          {!removeSignatures && !disableCertified && !disableCommunity && (
+            <div className="note subtle" style={{ marginTop: "1rem", fontSize: "0.8125rem" }}>
+              ℹ️ Signature verification enabled for all registries. If you encounter signature errors with certified or community operators,
+              enable the options above to selectively disable verification for those registry types.
+            </div>
+          )}
+        </CollapsibleSection>
+
+        {/* 7. Advanced */}
         <CollapsibleSection title="Advanced options" defaultCollapsed={true}>
           {/* Toggle rows span full width */}
           <OptionRow
@@ -1612,6 +1679,28 @@ This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value
                         {meta.failedImages.map((img) => <li key={img}><code>{img}</code></li>)}
                       </ul>
                       <p style={{ marginTop: 6, marginBottom: 0 }}>These operators will be missing from your mirror. Re-run to retry, increase Image timeout in Advanced options, or remove them from your imageset config.</p>
+                    </div>
+                  )}
+                  {partial && meta?.signatureFailures?.length > 0 && (
+                    <div className="note warning" style={{ marginTop: 12, fontSize: "0.82rem" }}>
+                      <strong>Signature Verification Failures Detected</strong>
+                      <p style={{ marginTop: 4, marginBottom: 4 }}>
+                        {meta.signatureFailures.length} image(s) failed signature verification due to missing .sig files:
+                      </p>
+                      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                        {meta.signatureFailures.map((path, idx) => (
+                          <li key={idx}><code>{path}</code></li>
+                        ))}
+                      </ul>
+                      {meta.retriedAs ? (
+                        <div style={{ marginTop: 8, padding: 8, background: "#e8f4f8", borderRadius: 4, color: "#047857" }}>
+                          ✅ Auto-retry launched with per-image signature disabling (Job #{meta.retriedAs})
+                        </div>
+                      ) : (
+                        <p style={{ marginTop: 6, marginBottom: 0 }}>
+                          ℹ️ Smart retry recommended: Re-run with per-image signature disabling for these paths only.
+                        </p>
+                      )}
                     </div>
                   )}
                   {!partial && meta?.mode === "mirrorToDisk" && meta?.archiveDir && (

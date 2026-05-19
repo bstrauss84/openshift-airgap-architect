@@ -97,6 +97,22 @@ export const ocMirrorPreflightSchema = z.object({
   mirrorAuthSource: z.enum(["reuse", "inline"]).optional(),
   mirrorPullSecret: pullSecretSchema.optional(),
   minBytes: z.number().nonnegative().optional(),
+  advanced: z.object({
+    logLevel: z.enum(["info", "debug"]).optional(),
+    parallelImages: z.number().int().min(1).max(32).optional(),
+    parallelLayers: z.number().int().min(1).max(32).optional(),
+    imageTimeout: z.string().optional(),
+    retryTimes: z.number().int().min(0).max(10).optional(),
+    retryDelay: z.string().optional(),
+    since: z.string().optional(),
+    strictArchive: z.boolean().optional(),
+    signatureOptions: z.object({
+      disableCertified: z.boolean().optional(),
+      disableCommunity: z.boolean().optional(),
+      customRegistries: z.array(z.string()).optional()
+    }).optional(),
+    removeSignatures: z.boolean().optional()
+  }).optional()
 }).passthrough(); // Allow additional fields for flexibility
 
 // ===================================================================
@@ -116,6 +132,22 @@ export const ocMirrorRunSchema = z.object({
   mirrorAuthSource: z.enum(["reuse", "inline"]).optional(),
   mirrorPullSecret: pullSecretSchema.optional(),
   configContent: z.string().optional(),
+  advanced: z.object({
+    logLevel: z.enum(["info", "debug"]).optional(),
+    parallelImages: z.number().int().min(1).max(32).optional(),
+    parallelLayers: z.number().int().min(1).max(32).optional(),
+    imageTimeout: z.string().optional(),
+    retryTimes: z.number().int().min(0).max(10).optional(),
+    retryDelay: z.string().optional(),
+    since: z.string().optional(),
+    strictArchive: z.boolean().optional(),
+    signatureOptions: z.object({
+      disableCertified: z.boolean().optional(),
+      disableCommunity: z.boolean().optional(),
+      customRegistries: z.array(z.string()).optional()
+    }).optional(),
+    removeSignatures: z.boolean().optional()
+  }).optional()
 }).passthrough(); // Allow additional fields
 
 // ===================================================================

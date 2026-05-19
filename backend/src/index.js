@@ -1961,12 +1961,30 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
     }
   }
 
+  // Add signature verification warnings (reuse existing 'advanced' variable from line 1878)
+  const signatureOptions = advanced.signatureOptions || null;
+  const removeSignatures = Boolean(advanced.removeSignatures);
+
+  if (removeSignatures) {
+    warnings.push("Signature verification disabled globally (--remove-signatures flag). All operator signatures will be skipped, including Red Hat operators. Only use for testing or when registries.d config fails.");
+  } else if (signatureOptions) {
+    if (signatureOptions.disableCertified) {
+      warnings.push("Signature verification disabled for certified operators (registry.connect.redhat.com). This is recommended for operators with missing signatures but reduces security verification.");
+    }
+    if (signatureOptions.disableCommunity) {
+      warnings.push("Signature verification disabled for community operators (quay.io/operatorhubio). Recommended for community operators as signatures are not guaranteed.");
+    }
+    if (signatureOptions.customRegistries?.length > 0) {
+      warnings.push(`Signature verification disabled for custom registries: ${signatureOptions.customRegistries.join(", ")}`);
+    }
+  }
+
   const ok = blockers.length === 0;
   res.json({ ok, blockers, warnings, checks, fieldErrors });
 });
 
 /** Build oc-mirror CLI args for v1 modes (contract §2B). */
-function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePath, registryUrl, dryRun, advanced, authFile) {
+function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePath, registryUrl, dryRun, advanced, authFile, removeSignatures) {
   const args = ["--config", configPath, "--v2"];
   if (authFile) args.push("--authfile", authFile);
   const adv = advanced || {};
@@ -1978,6 +1996,7 @@ function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePa
   if (adv.retryDelay) args.push("--retry-delay", String(adv.retryDelay));
   if (adv.since) args.push("--since", String(adv.since));
   if (adv.strictArchive) args.push("--strict-archive");
+  if (removeSignatures) args.push("--remove-signatures");
   if (mode === "mirrorToMirror" && workspacePath) args.push("--workspace", `file://${path.resolve(workspacePath)}`);
   if (cachePath && (mode === "mirrorToDisk" || mode === "diskToMirror")) {
     args.push("--cache-dir", path.resolve(cachePath));
@@ -1992,6 +2011,333 @@ function buildOcMirrorArgs(mode, configPath, archivePath, workspacePath, cachePa
     args.push(registryUrl.startsWith("docker://") ? registryUrl : `docker://${registryUrl}`);
   }
   return args;
+}
+
+/**
+ * Map registry categories to hostnames for signature disabling.
+ * Returns array of registry hostnames to disable signatures for.
+ */
+function getRegistryHostnamesForSignatureDisabling(signatureOptions) {
+  const hostnames = [];
+
+  if (signatureOptions?.disableCertified) {
+    hostnames.push("registry.connect.redhat.com");
+    hostnames.push("registry.marketplace.redhat.com");
+  }
+
+  if (signatureOptions?.disableCommunity) {
+    hostnames.push("quay.io/operatorhubio");
+  }
+
+  if (signatureOptions?.customRegistries && Array.isArray(signatureOptions.customRegistries)) {
+    hostnames.push(...signatureOptions.customRegistries.filter(h => h && typeof h === "string"));
+  }
+
+  return hostnames;
+}
+
+/**
+ * Generate registries.d YAML config file to disable signature verification
+ * for specified registry hostnames.
+ *
+ * Format per Red Hat documentation and containers/image library:
+ * docker:
+ *   <hostname>:
+ *     use-sigstore-attachments: false
+ *
+ * Setting use-sigstore-attachments to false disables cosign/sigstore signature verification.
+ * This is the correct field for oc-mirror v2 which added OCI artifact signature support.
+ */
+function generateRegistriesDConfig(hostname) {
+  return `docker:
+  ${hostname}:
+    use-sigstore-attachments: false
+`;
+}
+
+/**
+ * Write registries.d config files to temp directory.
+ * Returns path to registries.d directory, or null if no configs needed.
+ */
+function writeRegistriesDConfigs(signatureOptions) {
+  if (!signatureOptions) return null;
+
+  const hostnames = getRegistryHostnamesForSignatureDisabling(signatureOptions);
+  if (hostnames.length === 0) return null;
+
+  const tmpDir = path.join(dataDir, "tmp");
+  const registriesDDir = path.join(tmpDir, `registries.d-${nanoid()}`);
+
+  try {
+    fs.mkdirSync(registriesDDir, { recursive: true });
+
+    for (const hostname of hostnames) {
+      // Sanitize hostname for filename (replace : and / with -)
+      const safeFilename = hostname.replace(/[/:]/g, "-") + ".yaml";
+      const configPath = path.join(registriesDDir, safeFilename);
+      const configContent = generateRegistriesDConfig(hostname);
+      fs.writeFileSync(configPath, configContent, "utf8");
+    }
+
+    return registriesDDir;
+  } catch (err) {
+    console.error("Failed to write registries.d configs:", err);
+    return null;
+  }
+}
+
+/**
+ * Cleanup registries.d directory.
+ */
+function cleanupRegistriesDDir(registriesDDir) {
+  if (!registriesDDir) return;
+  try {
+    fs.rmSync(registriesDDir, { recursive: true, force: true });
+  } catch (err) {
+    console.error("Failed to cleanup registries.d directory:", err);
+  }
+}
+
+/**
+ * Parse oc-mirror logs for signature verification errors.
+ * Returns array of failing image registry paths.
+ *
+ * Error pattern example:
+ * error mirroring image docker://REGISTRY/PATH@sha256:... error: reading signatures:
+ * reading manifest sha256-*.sig in REGISTRY/PATH: name unknown: Image not found
+ */
+function parseSignatureErrors(output) {
+  const failedImages = [];
+  // Regex to extract registry path from signature errors
+  const sigErrorRegex = /error mirroring image docker:\/\/([^@\s]+)@sha256:[^\s]+.*error: reading signatures.*name unknown: Image not found/g;
+
+  let match;
+  while ((match = sigErrorRegex.exec(output)) !== null) {
+    const imagePath = match[1]; // e.g., "registry.connect.redhat.com/netapp/trident-operator"
+    if (!failedImages.includes(imagePath)) {
+      failedImages.push(imagePath);
+    }
+  }
+
+  return failedImages;
+}
+
+/**
+ * Write per-image registries.d configs for failed images.
+ * More granular than writeRegistriesDConfigs (which is per-registry hostname).
+ *
+ * Generates one YAML file per failing image path with format:
+ * docker:
+ *   <image-path>:
+ *     use-sigstore-attachments: false
+ */
+function writePerImageRegistriesDConfigs(imagePathsArray) {
+  if (!imagePathsArray || imagePathsArray.length === 0) return null;
+
+  const tmpDir = path.join(dataDir, "tmp");
+  const registriesDDir = path.join(tmpDir, `registries.d-retry-${nanoid()}`);
+
+  try {
+    fs.mkdirSync(registriesDDir, { recursive: true });
+
+    for (const imagePath of imagePathsArray) {
+      // Sanitize image path for filename
+      // e.g., "registry.connect.redhat.com/netapp/trident-operator" ->
+      //       "registry.connect.redhat.com-netapp-trident-operator.yaml"
+      const safeFilename = imagePath.replace(/[/:]/g, "-") + ".yaml";
+      const configPath = path.join(registriesDDir, safeFilename);
+
+      // Generate per-image config (NOT per-registry)
+      const configContent = `docker:
+  ${imagePath}:
+    use-sigstore-attachments: false
+`;
+      fs.writeFileSync(configPath, configContent, "utf8");
+    }
+
+    console.log(`[Smart Retry] Generated ${imagePathsArray.length} per-image registries.d configs at ${registriesDDir}`);
+    return registriesDDir;
+  } catch (err) {
+    console.error("Failed to write per-image registries.d configs:", err);
+    return null;
+  }
+}
+
+/**
+ * Automatically retry oc-mirror with per-image signature disabling.
+ * Called when signature errors detected in completed_with_warnings job.
+ *
+ * @param originalJobId - Job ID of the failed run
+ * @param signatureFailures - Array of image paths that failed signature verification
+ * @param originalBody - Original request body from /api/ocmirror/run
+ */
+async function retryWithPerImageSignatureDisable(originalJobId, signatureFailures, originalBody) {
+  console.log(`[Smart Retry] Starting auto-retry for job ${originalJobId} with ${signatureFailures.length} signature failures`);
+
+  // Generate per-image registries.d configs
+  const registriesDDir = writePerImageRegistriesDConfigs(signatureFailures);
+
+  if (!registriesDDir) {
+    console.error("[Smart Retry] Failed to generate registries.d configs");
+    return null;
+  }
+
+  // Create new job for retry
+  const retryJobId = createJob("oc-mirror-run", `Auto-retry (signature errors from job ${originalJobId})`);
+
+  // Extract parameters from original body
+  const mode = originalBody.mode || "mirrorToDisk";
+  const dryRun = originalBody.dryRun ?? false;
+  const archivePath = originalBody.archivePath;
+  const workspacePath = originalBody.workspacePath;
+  const cachePath = originalBody.cachePath;
+  const registryUrl = originalBody.registryUrl;
+  const advanced = originalBody.advanced || {};
+
+  // Get config path (either from original configPath or use the one from metadata)
+  const originalMetadata = getJob(originalJobId)?.metadata || {};
+  const configPathToUse = originalBody.configPath || originalMetadata.configPath;
+
+  if (!configPathToUse) {
+    console.error("[Smart Retry] Cannot retry: no config path available");
+    updateJob(retryJobId, { status: "failed", message: "Cannot retry: no config path available" });
+    cleanupRegistriesDDir(registriesDDir);
+    return null;
+  }
+
+  // Update metadata to link to original job
+  updateJobMetadata(retryJobId, {
+    mode,
+    dryRun,
+    archiveDir: archivePath || "",
+    workspaceDir: workspacePath,
+    cacheDir: cachePath || "",
+    registryUrl: registryUrl || "",
+    configPath: configPathToUse,
+    startedAt: Date.now(),
+    retryOf: originalJobId,
+    signatureFailures,
+    retryReason: "automatic signature error retry"
+  });
+
+  // Build same args but ensure removeSignatures is false (use registries.d instead)
+  const authFile = originalMetadata.authFile || null;
+  const args = buildOcMirrorArgs(
+    mode,
+    configPathToUse,
+    archivePath,
+    workspacePath,
+    cachePath,
+    registryUrl,
+    dryRun,
+    advanced,
+    authFile,
+    false // removeSignatures = false (use registries.d instead)
+  );
+
+  // Resolve oc-mirror binary
+  const resolved = await resolveOcMirrorBinary(dataDir);
+  if (resolved.error) {
+    updateJob(retryJobId, {
+      status: "failed",
+      progress: 100,
+      message: resolved.error,
+      output: resolved.rawStderr || resolved.error
+    });
+    cleanupRegistriesDDir(registriesDDir);
+    return null;
+  }
+
+  // Set environment variable for registries.d
+  const { REGISTRY_AUTH_FILE: _drop, ...envWithoutRegistryAuthFile } = process.env;
+  const envVars = {
+    ...envWithoutRegistryAuthFile,
+    CONTAINERS_REGISTRIES_D: registriesDDir
+  };
+
+  console.log(`[Smart Retry] Launching retry job ${retryJobId} with per-image configs at ${registriesDDir}`);
+
+  // Spawn oc-mirror retry
+  const child = spawn(resolved.path, args, { env: envVars });
+  activeProcesses.set(retryJobId, child);
+  updateJob(retryJobId, { status: "running", progress: 0, message: "oc-mirror retry running with per-image signature configs." });
+
+  child.stdout.on("data", (data) => appendJobOutput(retryJobId, data.toString()));
+  child.stderr.on("data", (data) => appendJobOutput(retryJobId, data.toString()));
+
+  child.on("error", (err) => {
+    appendJobOutput(retryJobId, `\n${String(err)}\n`);
+    updateJob(retryJobId, { status: "failed", message: "oc-mirror retry failed to start." });
+    activeProcesses.delete(retryJobId);
+    cleanupRegistriesDDir(registriesDDir);
+  });
+
+  child.on("close", (code) => {
+    const finishedAt = Date.now();
+    const artifactsBaseDir = resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath);
+    const clusterResourcesPath = artifactsBaseDir
+      ? path.join(artifactsBaseDir, "working-dir", "cluster-resources")
+      : "";
+    const dryRunMappingPath = dryRun
+      ? (artifactsBaseDir ? path.join(artifactsBaseDir, "working-dir", "dry-run", "mapping.txt") : "")
+      : "";
+    const dryRunMissingPath = dryRun
+      ? (artifactsBaseDir ? path.join(artifactsBaseDir, "working-dir", "dry-run", "missing.txt") : "")
+      : "";
+
+    const output = getJob(retryJobId)?.output || "";
+    const releaseMatch = output.match(/[✓✗]\s+(\d+)\s*\/\s*(\d+)\s+release images mirrored/);
+    const operatorMatch = output.match(/[✓✗]\s+(\d+)\s*\/\s*(\d+)\s+operator images mirrored/);
+    const releaseResult = releaseMatch
+      ? { succeeded: parseInt(releaseMatch[1], 10), total: parseInt(releaseMatch[2], 10) }
+      : null;
+    const operatorResult = operatorMatch
+      ? { succeeded: parseInt(operatorMatch[1], 10), total: parseInt(operatorMatch[2], 10) }
+      : null;
+
+    const failedImages = [];
+    const failRe = /\[ERROR\].*?\[Worker\] error mirroring image\s+(\S+)/g;
+    let fm;
+    while ((fm = failRe.exec(output)) !== null) {
+      if (!failedImages.includes(fm[1])) failedImages.push(fm[1]);
+    }
+
+    let status;
+    if (code === 0) {
+      status = "completed";
+    } else if (
+      releaseResult && releaseResult.succeeded === releaseResult.total &&
+      operatorResult && operatorResult.total > 0
+    ) {
+      status = "completed_with_warnings";
+    } else {
+      status = "failed";
+    }
+
+    const duration = finishedAt - (getJob(retryJobId)?.metadata?.startedAt || finishedAt);
+    const durationMinutes = (duration / 1000 / 60).toFixed(1);
+    let message = `oc-mirror retry ${status} in ${durationMinutes} minutes.`;
+    if (releaseResult) message += ` Release: ${releaseResult.succeeded}/${releaseResult.total}.`;
+    if (operatorResult) message += ` Operators: ${operatorResult.succeeded}/${operatorResult.total}.`;
+
+    updateJob(retryJobId, { status, progress: 100, message });
+    updateJobMetadata(retryJobId, {
+      ...getJob(retryJobId)?.metadata,
+      finishedAt,
+      duration,
+      releaseResult,
+      operatorResult,
+      failedImages,
+      clusterResourcesPath,
+      dryRunMappingPath,
+      dryRunMissingPath
+    });
+
+    activeProcesses.delete(retryJobId);
+    cleanupRegistriesDDir(registriesDDir);
+  });
+
+  return retryJobId;
 }
 
 /** Safely resolve the directory that owns working-dir outputs for a run mode. */
@@ -2025,6 +2371,10 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const mirrorAuthSource = body.mirrorAuthSource || "reuse";
   const mirrorPullSecretRaw = body.mirrorPullSecret;
   const advanced = body.advanced && typeof body.advanced === "object" ? body.advanced : {};
+
+  // Extract signature options from advanced
+  const signatureOptions = advanced.signatureOptions || null;
+  const removeSignatures = Boolean(advanced.removeSignatures);
 
   if (!["mirrorToDisk", "diskToMirror", "mirrorToMirror"].includes(mode)) {
     return res.status(400).json({ error: "Invalid mode." });
@@ -2098,6 +2448,12 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     return res.json({ jobId });
   }
 
+  // Generate registries.d configs if signature options provided
+  let registriesDDir = null;
+  if (signatureOptions && !removeSignatures) {
+    registriesDDir = writeRegistriesDConfigs(signatureOptions);
+  }
+
   const resolved = await resolveOcMirrorBinary(dataDir);
   if (resolved.error) {
     updateJob(jobId, {
@@ -2132,7 +2488,9 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     registryUrl: registryUrl || "",
     configSourceType,
     configPath: configPathExternal || "",
-    startedAt
+    startedAt,
+    requestBody: body, // Store entire request for potential retry
+    authFile // Store authFile path for retry
   };
   updateJobMetadata(jobId, meta);
 
@@ -2145,7 +2503,8 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     registryUrl,
     dryRun,
     advanced,
-    authFile
+    authFile,
+    removeSignatures
   );
   const fullCommand = `${resolved.path} ${args.join(" ")}`;
   updateJobMetadata(jobId, { ...meta, fullCommand });
@@ -2154,7 +2513,15 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   // path (not an OCI auth JSON), causing a startup panic.  Auth is supplied via
   // --authfile flag instead.
   const { REGISTRY_AUTH_FILE: _drop, ...envWithoutRegistryAuthFile } = process.env;
-  const child = spawn(resolved.path, args, { env: envWithoutRegistryAuthFile });
+
+  // Set CONTAINERS_REGISTRIES_D environment variable if registries.d configs generated
+  const envVars = { ...envWithoutRegistryAuthFile };
+  if (registriesDDir) {
+    envVars.CONTAINERS_REGISTRIES_D = registriesDDir;
+    console.log(`[oc-mirror] Using registries.d configs from: ${registriesDDir}`);
+  }
+
+  const child = spawn(resolved.path, args, { env: envVars });
   activeProcesses.set(jobId, child);
   updateJob(jobId, { status: "running", progress: 0, message: "oc-mirror running." });
   child.stdout.on("data", (data) => appendJobOutput(jobId, data.toString()));
@@ -2163,6 +2530,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     appendJobOutput(jobId, `\n${String(err)}\n`);
     updateJob(jobId, { status: "failed", message: "oc-mirror failed to start." });
     activeProcesses.delete(jobId);
+    if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
     safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
@@ -2216,6 +2584,9 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       status = "failed";
     }
 
+    // Parse signature errors for smart retry
+    const signatureFailures = parseSignatureErrors(output);
+
     updateJobMetadata(jobId, {
       exitCode: code,
       finishedAt,
@@ -2224,7 +2595,9 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       dryRunMissingPath,
       releaseResult,
       operatorResult,
-      failedImages: failedImages.length ? failedImages : undefined
+      failedImages: failedImages.length ? failedImages : undefined,
+      signatureFailures: signatureFailures.length ? signatureFailures : undefined,
+      retryRecommended: (status === "completed_with_warnings" && signatureFailures.length > 0) || undefined
     });
 
     let message;
@@ -2242,7 +2615,42 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       progress: status === "completed" ? 100 : status === "completed_with_warnings" ? 100 : 0,
       message
     });
+
+    // Trigger smart retry if signature failures detected
+    if (status === "completed_with_warnings" && signatureFailures.length > 0) {
+      const currentMetadata = getJob(jobId)?.metadata || {};
+      const originalRequestBody = currentMetadata.requestBody;
+
+      if (originalRequestBody) {
+        console.log(`[Smart Retry] Detected ${signatureFailures.length} signature failures in job ${jobId}`);
+        // Launch retry asynchronously (don't await)
+        retryWithPerImageSignatureDisable(jobId, signatureFailures, originalRequestBody)
+          .then((retryJobId) => {
+            if (retryJobId) {
+              // Update original job to reference retry
+              updateJobMetadata(jobId, {
+                ...currentMetadata,
+                retriedAs: retryJobId
+              });
+
+              // Update message to inform user about auto-retry
+              const opFailed = operatorResult ? operatorResult.total - operatorResult.succeeded : "?";
+              updateJob(jobId, {
+                message: `oc-mirror completed with ${opFailed} operator image(s) failed (${signatureFailures.length} signature error(s)). Auto-retry launched (job ${retryJobId}).`
+              });
+              console.log(`[Smart Retry] Launched retry job ${retryJobId} for original job ${jobId}`);
+            }
+          })
+          .catch((err) => {
+            console.error(`[Smart Retry] Failed to launch retry for job ${jobId}:`, err);
+          });
+      } else {
+        console.warn(`[Smart Retry] Cannot retry job ${jobId}: no request body in metadata`);
+      }
+    }
+
     activeProcesses.delete(jobId);
+    if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
     safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
@@ -2807,4 +3215,10 @@ function clearUpdateInfoCache() {
   updateInfoCache = null;
 }
 
-export { app, clearUpdateInfoCache, resolveOcMirrorArtifactsBaseDir };
+export {
+  app,
+  clearUpdateInfoCache,
+  resolveOcMirrorArtifactsBaseDir,
+  parseSignatureErrors,
+  writePerImageRegistriesDConfigs
+};
