@@ -405,105 +405,110 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     if (!node.bmc?.bootMACAddress) addError("bmc.bootMACAddress", "Boot MAC address is required for bare metal IPI.");
   }
 
-  const primary = node.primary || {};
-  if (!primary.type) addError("primary.type", "Primary interface type is required.");
-  if (!primary.mode) addError("primary.mode", "Primary interface IP assignment is required.");
+  // Primary and additional interface validation applies ONLY to Agent-based installs.
+  // Bare-metal IPI uses bootMACAddress (above) in install-config platform.baremetal.hosts[], not agent-config interfaces[].
+  // Other IPI scenarios (vSphere, AWS, etc.) also do not use agent-config interface definitions.
+  if (method === "Agent-Based Installer") {
+    const primary = node.primary || {};
+    if (!primary.type) addError("primary.type", "Primary interface type is required.");
+    if (!primary.mode) addError("primary.mode", "Primary interface IP assignment is required.");
 
-  // Primary interface: ethernet/bond/vlan shape and MAC; static mode requires IPv4 CIDR/gateway.
-  const requireEthernet = primary.type === "ethernet" || primary.type === "vlan-on-ethernet";
-  const requireBond = primary.type === "bond" || primary.type === "vlan-on-bond";
-  if (requireEthernet) {
-    if (!primary.ethernet?.name) addError("primary.ethernet.name", "Ethernet interface name is required.");
-    if (!primary.ethernet?.macAddress) {
-      addError("primary.ethernet.macAddress", "Ethernet MAC address is required.");
-    } else if (!isValidMac(primary.ethernet.macAddress)) {
-      addError("primary.ethernet.macAddress", "Ethernet MAC address format is invalid.");
-    }
-  }
-  if (requireBond) {
-    if (!primary.bond?.name) addError("primary.bond.name", "Bond name is required.");
-    if (!primary.bond?.mode) addError("primary.bond.mode", "Bond mode is required.");
-    const slaves = primary.bond?.slaves || [];
-    if (slaves.length < 2) addError("primary.bond.slaves", "Bond requires at least 2 member interfaces.");
-    slaves.forEach((slave, idx) => {
-      if (!slave.name) addError(`primary.bond.slaves.${idx}.name`, "Bond member interface name is required.");
-      if (!slave.macAddress) {
-        addError(`primary.bond.slaves.${idx}.macAddress`, "Bond member MAC address is required.");
-      } else if (!isValidMac(slave.macAddress)) {
-        addError(`primary.bond.slaves.${idx}.macAddress`, "Bond member MAC address format is invalid.");
-      }
-    });
-  }
-
-  const requireVlan = primary.type === "vlan-on-ethernet" || primary.type === "vlan-on-bond";
-  if (requireVlan) {
-    if (!primary.vlan?.id) addError("primary.vlan.id", "VLAN ID is required.");
-    const derivedBase =
-      primary.vlan?.baseIface
-      || (primary.type === "vlan-on-bond" ? primary.bond?.name : primary.ethernet?.name);
-    if (!derivedBase) addError("primary.vlan.baseIface", "VLAN base interface is required.");
-  }
-
-  if (primary.mode === "static") {
-    if (!primary.ipv4Cidr) addError("primary.ipv4Cidr", "IPv4 address/CIDR is required for static mode.");
-    if (primary.ipv4Cidr && !isValidIpv4AddressWithPrefix(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
-    if (!primary.ipv4Gateway) addError("primary.ipv4Gateway", "IPv4 default gateway is required.");
-    if (primary.ipv4Gateway && !isValidIpv4(primary.ipv4Gateway)) addError("primary.ipv4Gateway", "IPv4 gateway must be a valid IPv4 address.");
-    if (primary.ipv4Cidr && machineCidr && !ipInCidr(primary.ipv4Cidr, machineCidr)) {
-      addWarning("primary.ipv4Cidr", `IPv4 is outside machine network (${machineCidr}).`);
-    }
-    if (enableIpv6 && primary.ipv6Cidr && !isValidIpv6Cidr(primary.ipv6Cidr)) {
-      addError("primary.ipv6Cidr", "IPv6 CIDR is invalid.");
-    }
-    if (enableIpv6 && primary.ipv6Gateway && !primary.ipv6Cidr) {
-      addError("primary.ipv6Cidr", "IPv6 CIDR is required when IPv6 gateway is provided.");
-    }
-  }
-
-  // Arbiter hosts use a reduced inventory surface in the UI; do not validate additional interfaces for arbiter.
-  const additional = (node.role || "").trim() === "arbiter" ? [] : node.additionalInterfaces || [];
-  additional.forEach((iface, idx) => {
-    const prefix = `additional.${idx}`;
-    const requireEthernet = iface.type === "ethernet" || iface.type === "vlan-on-ethernet";
-    const requireBond = iface.type === "bond" || iface.type === "vlan-on-bond";
+    // Primary interface: ethernet/bond/vlan shape and MAC; static mode requires IPv4 CIDR/gateway.
+    const requireEthernet = primary.type === "ethernet" || primary.type === "vlan-on-ethernet";
+    const requireBond = primary.type === "bond" || primary.type === "vlan-on-bond";
     if (requireEthernet) {
-      if (!iface.ethernet?.name) addError(`${prefix}.ethernet.name`, "Additional ethernet interface name is required.");
-      if (!iface.ethernet?.macAddress) {
-        addError(`${prefix}.ethernet.macAddress`, "Additional ethernet MAC address is required.");
-      } else if (!isValidMac(iface.ethernet.macAddress)) {
-        addError(`${prefix}.ethernet.macAddress`, "Additional ethernet MAC address format is invalid.");
+      if (!primary.ethernet?.name) addError("primary.ethernet.name", "Ethernet interface name is required.");
+      if (!primary.ethernet?.macAddress) {
+        addError("primary.ethernet.macAddress", "Ethernet MAC address is required.");
+      } else if (!isValidMac(primary.ethernet.macAddress)) {
+        addError("primary.ethernet.macAddress", "Ethernet MAC address format is invalid.");
       }
     }
     if (requireBond) {
-      if (!iface.bond?.name) addError(`${prefix}.bond.name`, "Additional bond name is required.");
-      if (!iface.bond?.mode) addError(`${prefix}.bond.mode`, "Additional bond mode is required.");
-      const slaves = iface.bond?.slaves || [];
-      if (slaves.length < 2) addError(`${prefix}.bond.slaves`, "Additional bond requires at least 2 member interfaces.");
-      slaves.forEach((slave, sidx) => {
-        if (!slave.name) addError(`${prefix}.bond.slaves.${sidx}.name`, "Additional bond member name is required.");
+      if (!primary.bond?.name) addError("primary.bond.name", "Bond name is required.");
+      if (!primary.bond?.mode) addError("primary.bond.mode", "Bond mode is required.");
+      const slaves = primary.bond?.slaves || [];
+      if (slaves.length < 2) addError("primary.bond.slaves", "Bond requires at least 2 member interfaces.");
+      slaves.forEach((slave, idx) => {
+        if (!slave.name) addError(`primary.bond.slaves.${idx}.name`, "Bond member interface name is required.");
         if (!slave.macAddress) {
-          addError(`${prefix}.bond.slaves.${sidx}.macAddress`, "Additional bond member MAC address is required.");
+          addError(`primary.bond.slaves.${idx}.macAddress`, "Bond member MAC address is required.");
         } else if (!isValidMac(slave.macAddress)) {
-          addError(`${prefix}.bond.slaves.${sidx}.macAddress`, "Additional bond member MAC address format is invalid.");
+          addError(`primary.bond.slaves.${idx}.macAddress`, "Bond member MAC address format is invalid.");
         }
       });
     }
-    const requireVlan = iface.type === "vlan-on-ethernet" || iface.type === "vlan-on-bond";
+
+    const requireVlan = primary.type === "vlan-on-ethernet" || primary.type === "vlan-on-bond";
     if (requireVlan) {
-      if (!iface.vlan?.id) addError(`${prefix}.vlan.id`, "Additional VLAN ID is required.");
+      if (!primary.vlan?.id) addError("primary.vlan.id", "VLAN ID is required.");
       const derivedBase =
-        iface.vlan?.baseIface
-        || (iface.type === "vlan-on-bond" ? iface.bond?.name : iface.ethernet?.name);
-      if (!derivedBase) addError(`${prefix}.vlan.baseIface`, "Additional VLAN base interface is required.");
+        primary.vlan?.baseIface
+        || (primary.type === "vlan-on-bond" ? primary.bond?.name : primary.ethernet?.name);
+      if (!derivedBase) addError("primary.vlan.baseIface", "VLAN base interface is required.");
     }
-    if (iface.mode === "static") {
-      if (!iface.ipv4Cidr) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 address/CIDR is required for static mode.");
-      if (iface.ipv4Cidr && !isValidIpv4AddressWithPrefix(iface.ipv4Cidr)) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
-      if (enableIpv6 && iface.ipv6Cidr && !isValidIpv6Cidr(iface.ipv6Cidr)) {
-        addError(`${prefix}.ipv6Cidr`, "Additional IPv6 CIDR is invalid.");
+
+    if (primary.mode === "static") {
+      if (!primary.ipv4Cidr) addError("primary.ipv4Cidr", "IPv4 address/CIDR is required for static mode.");
+      if (primary.ipv4Cidr && !isValidIpv4AddressWithPrefix(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
+      if (!primary.ipv4Gateway) addError("primary.ipv4Gateway", "IPv4 default gateway is required.");
+      if (primary.ipv4Gateway && !isValidIpv4(primary.ipv4Gateway)) addError("primary.ipv4Gateway", "IPv4 gateway must be a valid IPv4 address.");
+      if (primary.ipv4Cidr && machineCidr && !ipInCidr(primary.ipv4Cidr, machineCidr)) {
+        addWarning("primary.ipv4Cidr", `IPv4 is outside machine network (${machineCidr}).`);
+      }
+      if (enableIpv6 && primary.ipv6Cidr && !isValidIpv6Cidr(primary.ipv6Cidr)) {
+        addError("primary.ipv6Cidr", "IPv6 CIDR is invalid.");
+      }
+      if (enableIpv6 && primary.ipv6Gateway && !primary.ipv6Cidr) {
+        addError("primary.ipv6Cidr", "IPv6 CIDR is required when IPv6 gateway is provided.");
       }
     }
-  });
+
+    // Arbiter hosts use a reduced inventory surface in the UI; do not validate additional interfaces for arbiter.
+    const additional = (node.role || "").trim() === "arbiter" ? [] : node.additionalInterfaces || [];
+    additional.forEach((iface, idx) => {
+      const prefix = `additional.${idx}`;
+      const requireEthernet = iface.type === "ethernet" || iface.type === "vlan-on-ethernet";
+      const requireBond = iface.type === "bond" || iface.type === "vlan-on-bond";
+      if (requireEthernet) {
+        if (!iface.ethernet?.name) addError(`${prefix}.ethernet.name`, "Additional ethernet interface name is required.");
+        if (!iface.ethernet?.macAddress) {
+          addError(`${prefix}.ethernet.macAddress`, "Additional ethernet MAC address is required.");
+        } else if (!isValidMac(iface.ethernet.macAddress)) {
+          addError(`${prefix}.ethernet.macAddress`, "Additional ethernet MAC address format is invalid.");
+        }
+      }
+      if (requireBond) {
+        if (!iface.bond?.name) addError(`${prefix}.bond.name`, "Additional bond name is required.");
+        if (!iface.bond?.mode) addError(`${prefix}.bond.mode`, "Additional bond mode is required.");
+        const slaves = iface.bond?.slaves || [];
+        if (slaves.length < 2) addError(`${prefix}.bond.slaves`, "Additional bond requires at least 2 member interfaces.");
+        slaves.forEach((slave, sidx) => {
+          if (!slave.name) addError(`${prefix}.bond.slaves.${sidx}.name`, "Additional bond member name is required.");
+          if (!slave.macAddress) {
+            addError(`${prefix}.bond.slaves.${sidx}.macAddress`, "Additional bond member MAC address is required.");
+          } else if (!isValidMac(slave.macAddress)) {
+            addError(`${prefix}.bond.slaves.${sidx}.macAddress`, "Additional bond member MAC address format is invalid.");
+          }
+        });
+      }
+      const requireVlan = iface.type === "vlan-on-ethernet" || iface.type === "vlan-on-bond";
+      if (requireVlan) {
+        if (!iface.vlan?.id) addError(`${prefix}.vlan.id`, "Additional VLAN ID is required.");
+        const derivedBase =
+          iface.vlan?.baseIface
+          || (iface.type === "vlan-on-bond" ? iface.bond?.name : iface.ethernet?.name);
+        if (!derivedBase) addError(`${prefix}.vlan.baseIface`, "Additional VLAN base interface is required.");
+      }
+      if (iface.mode === "static") {
+        if (!iface.ipv4Cidr) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 address/CIDR is required for static mode.");
+        if (iface.ipv4Cidr && !isValidIpv4AddressWithPrefix(iface.ipv4Cidr)) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
+        if (enableIpv6 && iface.ipv6Cidr && !isValidIpv6Cidr(iface.ipv6Cidr)) {
+          addError(`${prefix}.ipv6Cidr`, "Additional IPv6 CIDR is invalid.");
+        }
+      }
+    });
+  }
 
   return { errors, warnings, fieldErrors };
 };
