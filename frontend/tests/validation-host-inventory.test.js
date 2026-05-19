@@ -1177,7 +1177,7 @@ describe("validateHostInventory - Full host inventory validation", () => {
 
   it("should propagate enableIpv6 flag to node validation", () => {
     const state = createValidState();
-    state.hostInventory.enableIpv6 = true;
+    state.hostInventory.ipStackMode = "dual-stack"; // enableIpv6 is now derived from ipStackMode
     state.hostInventory.nodes = [
       {
         hostname: "node-01",
