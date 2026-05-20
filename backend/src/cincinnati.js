@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { getCache, setCache } from "./utils.js";
+import logger from "./logger.js";
 
 const CHANNELS_CACHE_KEY = "cincinnati_channels_v1";
 const PATCH_CACHE_PREFIX = "cincinnati_patches_v1:";
@@ -68,7 +69,7 @@ const fetchChannels = async (force = false) => {
       const mock = JSON.parse(fs.readFileSync(mockPath("channels.json"), "utf8"));
       return mock.channels || [];
     } catch (err) {
-      console.error("Failed to parse mock channels.json:", err);
+      logger.error({ err }, "Failed to parse mock channels.json");
       throw new Error(`Mock data error: ${err.message}`);
     }
   }
@@ -87,7 +88,7 @@ const fetchStableFile = async (channel) => {
       const mock = JSON.parse(fs.readFileSync(mockPath(`stable-${channel}.json`), "utf8"));
       return mock.versions;
     } catch (err) {
-      console.error(`Failed to parse mock stable-${channel}.json:`, err);
+      logger.error({ err, channel }, "Failed to parse mock stable channel file");
       throw new Error(`Mock data error for channel ${channel}: ${err.message}`);
     }
   }
@@ -110,7 +111,7 @@ const fetchPatchesForChannel = async (channel, force = false) => {
       const mock = JSON.parse(fs.readFileSync(mockPath(`stable-${channel}.json`), "utf8"));
       return mock.versions;
     } catch (err) {
-      console.error(`Failed to parse mock stable-${channel}.json:`, err);
+      logger.error({ err, channel }, "Failed to parse mock stable channel file");
       throw new Error(`Mock data error for channel ${channel}: ${err.message}`);
     }
   }

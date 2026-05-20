@@ -1,0 +1,21 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: airgap-architect-backend
+  labels:
+    app: airgap-architect
+    component: backend
+    app.kubernetes.io/name: airgap-architect-backend
+    app.kubernetes.io/part-of: airgap-architect
+    app.kubernetes.io/component: backend
+spec:
+  to:
+    kind: Service
+    name: airgap-architect-backend
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

@@ -623,6 +623,123 @@ The app supports **high-side (disconnected) deployments** where the tool runs on
 
 ---
 
+## PROD Phase 1: Production Readiness (v1.6.0 - Complete)
+
+**Completion Date:** 2026-05-20  
+**Status:** All 6 critical items verified_done  
+**Version:** Implemented in v1.6.0 release
+
+### Implementation Summary
+
+PROD Phase 1 addresses 6 critical blockers required before ANY production deployment:
+
+1. **PROD-002: Structured Logging Framework** ✅
+   - Pino logging library with JSON output for production
+   - AsyncLocalStorage-based request correlation
+   - Error ID generation for client-to-server correlation
+   - 87 console statements replaced across 5 backend files
+   - Files: `backend/src/logger.js`, `backend/src/middleware/logging.js`
+   - Tests: `backend/test/logger.test.js` (14 tests passing)
+
+2. **PROD-003: Kubernetes/OpenShift Deployment Manifests** ✅
+   - 13 manifest files: Deployments, Services, PVC, ConfigMap, Secret, Routes
+   - Kustomize structure for environment overlays
+   - Restricted-v2 SCC compatible (UID 1001, non-root)
+   - Files: `manifests/base/*.yaml`, `manifests/openshift/*.yaml`
+   - Documentation: `manifests/README.md`
+
+3. **PROD-004: Resource Limits and Capacity Planning** ✅
+   - Backend: 500m-2000m CPU, 1-4Gi RAM
+   - Frontend: 100m-500m CPU, 256-512Mi RAM
+   - Load test script: `scripts/load-test.sh` (5 test scenarios)
+   - Documentation: `docs/CAPACITY_PLANNING.md` (40KB, 13 sections)
+
+4. **PROD-005: SQLite Backup/Restore Procedures** ✅
+   - Comprehensive backup/restore documentation (703 lines)
+   - 4 executable scripts: backup, verify, restore, test
+   - Online backup using SQLite VACUUM INTO
+   - Documentation: `docs/BACKUP_RESTORE.md`
+   - Scripts: `scripts/backup-sqlite.sh`, `scripts/verify-backup.sh`, `scripts/restore-sqlite.sh`, `scripts/test-backup-restore.sh`
+
+5. **PROD-006: Enhanced Health Probes** ✅
+   - Liveness probe: `/api/health` (process health only)
+   - Readiness probe: `/api/ready` (DB read + write checks)
+   - K8s probe configurations in deployment manifests
+   - Documentation: `docs/HEALTH_PROBES.md` (400+ lines)
+   - Tests: `backend/test/health-probes.test.js` (13 tests passing)
+
+6. **PROD-007: Backend Request Schema Validation** ✅
+   - 12 new Zod schemas for previously unvalidated routes
+   - Enhanced validateBody middleware with error IDs
+   - Applied to all 22 POST routes
+   - Documentation: `docs/API_SCHEMA.md`
+   - Tests: `backend/test/validation.test.js` (63 tests passing)
+
+### Testing Status
+
+- **Backend:** 373 tests passing (90 new tests from PROD Phase 1)
+- **Frontend:** 707 tests passing (no changes)
+- **Total:** 1080 tests passing
+
+**Pre-existing failures (not related to PROD Phase 1):**
+- `backend/test/openshiftInstaller.test.js`: 1 failure (Node.js test runner serialization issue)
+- `frontend/tests/placeholderValuesHelpers.test.js`: 1 failure (IPv6 placeholder values)
+- `frontend/tests/networking-v2-step.test.jsx`: 3 failures (dual-stack IPv6 VIP placeholders)
+
+### Critical Files Added
+
+**Backend:**
+- `backend/src/logger.js` - Pino logger utility
+- `backend/src/middleware/logging.js` - Request correlation middleware
+- `backend/test/logger.test.js` - Logger tests (14 tests)
+- `backend/test/health-probes.test.js` - Health probe tests (13 tests)
+- `backend/test/validation.test.js` - Schema validation tests (63 tests)
+
+**Kubernetes Manifests:**
+- `manifests/base/backend-deployment.yaml`
+- `manifests/base/backend-service.yaml`
+- `manifests/base/frontend-deployment.yaml`
+- `manifests/base/frontend-service.yaml`
+- `manifests/base/pvc.yaml`
+- `manifests/base/configmap.yaml`
+- `manifests/base/secret.yaml`
+- `manifests/openshift/route-backend.yaml`
+- `manifests/openshift/route-frontend.yaml`
+- `manifests/kustomization.yaml`
+- `manifests/README.md`
+
+**Scripts:**
+- `scripts/backup-sqlite.sh` - Automated SQLite backup
+- `scripts/verify-backup.sh` - Backup integrity validation
+- `scripts/restore-sqlite.sh` - Safe restore with prompts
+- `scripts/test-backup-restore.sh` - Backup/restore test suite
+- `scripts/load-test.sh` - Load testing script
+
+**Documentation:**
+- `docs/BACKUP_RESTORE.md` - SQLite backup and disaster recovery (703 lines)
+- `docs/HEALTH_PROBES.md` - K8s health probe configuration (400+ lines)
+- `docs/API_SCHEMA.md` - API contract and validation rules
+- `docs/CAPACITY_PLANNING.md` - Resource requirements and scaling (40KB)
+
+### Critical Dependencies Added
+
+**Backend (`backend/package.json`):**
+- `pino ^10.3.1` - Production logging library
+- `pino-pretty ^13.1.3` - Development pretty-printing
+
+### Next Steps
+
+After v1.6.0 release, PROD Phase 2 items become active:
+- PROD-008: Prometheus metrics and instrumentation
+- PROD-009: Formal database migration system
+- PROD-010: End-to-end tests for critical workflows
+- PROD-011: Load testing with documented results
+- PROD-012: Automated job cleanup/retention policy
+- PROD-013: Capacity planning validation
+- PROD-014: Establish versioning and changelog maintenance
+
+---
+
 ## Questions?
 
 If you're unsure about:
@@ -640,4 +757,4 @@ If you're unsure about:
 ---
 
 **Last Updated:** 2026-05-20  
-**Revision:** Doc consolidation update - updated HANDOFF_PACKET.md with v1.2.1-v1.5.0 release history + networkConfig implementation (DOC-081), added DOC-081 to BACKLOG_STATUS.md (bare-metal IPI static IP support), added networkConfig completion to IMPLEMENTATION_ROADMAP additional work section, all key docs now current through 2026-05-20
+**Revision:** PROD Phase 1 completion (v1.6.0) - Added PROD Phase 1 section documenting completion of 6 critical production readiness items (structured logging, K8s manifests, resource limits, backup/restore procedures, health probes, schema validation), updated BACKLOG_STATUS.md to mark PROD-002 through PROD-007 as verified_done with implementation evidence

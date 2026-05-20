@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import logger from "./logger.js";
 
 const dataDir = process.env.DATA_DIR || "/data";
 const toolsDir = path.join(dataDir, "tools");
@@ -163,7 +164,7 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
 
   // Check if already cached
   if (fs.existsSync(cachePath)) {
-    console.log(`[openshiftInstaller] Using cached binary: ${variantKey}`);
+    logger.info({ tag: "openshiftInstaller", variantKey }, "Using cached binary");
     return cachePath;
   }
 
@@ -180,33 +181,31 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
   const attemptedUrls = [];
   const errorDetails = [];
 
-  console.log(`[openshiftInstaller] Downloading ${variantKey}`);
-  console.log(`[openshiftInstaller] Tools directory: ${toolsDir}`);
-  console.log(`[openshiftInstaller] Will try ${urls.length} URL pattern(s)`);
+  logger.info({ tag: "openshiftInstaller", variantKey, toolsDir, urlCount: urls.length }, "Downloading installer binary");
 
   // Log proxy configuration for debugging
   const proxyVars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'NO_PROXY', 'no_proxy'];
   const activeProxies = proxyVars.filter(v => process.env[v]);
   if (activeProxies.length > 0) {
-    console.log(`[openshiftInstaller] Proxy configuration detected: ${activeProxies.join(', ')}`);
+    logger.info({ tag: "openshiftInstaller", proxies: activeProxies }, "Proxy configuration detected");
   } else {
-    console.log(`[openshiftInstaller] No proxy configuration detected`);
+    logger.debug({ tag: "openshiftInstaller" }, "No proxy configuration detected");
   }
 
   for (const url of urls) {
     try {
-      console.log(`[openshiftInstaller] Attempting: ${url}`);
+      logger.debug({ tag: "openshiftInstaller", url }, "Attempting URL");
       attemptedUrls.push(url);
 
       // Use simple paths like installer.js does (no temp directories with timestamps)
       const tarPath = path.join(toolsDir, `installer-${variantKey}.tar.gz`);
 
       // Download tar.gz (match installer.js pattern exactly)
-      console.log(`[openshiftInstaller] Downloading to ${tarPath}`);
+      logger.debug({ tag: "openshiftInstaller", tarPath }, "Downloading tarball");
       await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
 
       // Extract directly to cacheDir (match installer.js pattern)
-      console.log(`[openshiftInstaller] Extracting to ${cacheDir}`);
+      logger.debug({ tag: "openshiftInstaller", cacheDir }, "Extracting tarball");
       await fs.promises.mkdir(cacheDir, { recursive: true });
       await runCmd("tar", ["-xzf", tarPath, "-C", cacheDir]);
 
@@ -224,17 +223,17 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
         throw new Error(`Binary not found after extraction. Files in ${cacheDir}: ${extractedFiles.join(', ')}`);
       }
 
-      console.log(`[openshiftInstaller] Found binary: ${path.basename(extractedBinary)}`);
+      logger.debug({ tag: "openshiftInstaller", binary: path.basename(extractedBinary) }, "Found binary");
 
       // Rename to final cache path
-      console.log(`[openshiftInstaller] Moving binary to ${cachePath}`);
+      logger.debug({ tag: "openshiftInstaller", cachePath }, "Moving binary to cache");
       await fs.promises.rename(extractedBinary, cachePath);
       await runCmd("chmod", ["+x", cachePath]);
 
       // Cleanup tar file
       await fs.promises.unlink(tarPath);
 
-      console.log(`[openshiftInstaller] Successfully cached: ${variantKey}`);
+      logger.info({ tag: "openshiftInstaller", variantKey }, "Successfully cached installer binary");
 
       // Clean up old cached binaries (keep last 2 versions)
       // Run async without waiting (fire-and-forget)
@@ -245,7 +244,7 @@ async function ensureOpenshiftInstaller(version, platformArch, useFips, dataDir)
     } catch (err) {
       const errorDetail = `URL: ${url}\nError: ${err.message}`;
       errorDetails.push(errorDetail);
-      console.error(`[openshiftInstaller] Failed: ${err.message}`);
+      logger.error({ tag: "openshiftInstaller", err: { message: err.message }, url }, "Download attempt failed");
       // Try next URL pattern
     }
   }
@@ -333,21 +332,21 @@ async function cleanupOldInstallerBinaries(dataDir, keepLastN = 2) {
       return; // Nothing to delete
     }
 
-    console.log(`[openshiftInstaller] Cleaning up old cached binaries (keeping last ${keepLastN} versions: ${sortedVersions.slice(0, keepLastN).join(', ')})`);
+    logger.info({ tag: "openshiftInstaller", keepLastN, keepVersions: sortedVersions.slice(0, keepLastN) }, "Cleaning up old cached binaries");
 
     for (const version of versionsToDelete) {
       const dirsForVersion = versionMap.get(version);
       for (const dir of dirsForVersion) {
         try {
           await fs.promises.rm(dir.path, { recursive: true, force: true });
-          console.log(`[openshiftInstaller] Deleted old cache: ${dir.name}`);
+          logger.info({ tag: "openshiftInstaller", dirName: dir.name }, "Deleted old cache");
         } catch (err) {
-          console.log(`[openshiftInstaller] Failed to delete ${dir.name}: ${err.message}`);
+          logger.warn({ tag: "openshiftInstaller", dirName: dir.name, err: { message: err.message } }, "Failed to delete old cache");
         }
       }
     }
   } catch (err) {
-    console.log(`[openshiftInstaller] Cleanup failed: ${err.message}`);
+    logger.warn({ tag: "openshiftInstaller", err: { message: err.message } }, "Cleanup failed");
     // Don't throw - cleanup is non-critical
   }
 }

@@ -249,6 +249,202 @@ When users reach the app through a **different hostname** than the one the front
 
 4. **Security note:** Only add hostnames you control and that users are supposed to use. Leaving `VITE_ALLOWED_HOSTS` unset is safe for local use (localhost remains allowed). For production-like deployments behind a proxy or Route, setting it to your actual hostname(s) is the intended approach.
 
+<a id="production-deployment"></a>
+## Production Deployment (Kubernetes/OpenShift)
+
+For production deployment to Kubernetes or OpenShift clusters, comprehensive manifests and documentation are provided in the `manifests/` directory.
+
+### Quick Start
+
+Deploy to an existing Kubernetes or OpenShift cluster:
+
+```bash
+# 1. Review and customize manifests (see manifests/README.md)
+cd manifests/
+
+# 2. Create namespace (optional)
+kubectl create namespace airgap-architect
+
+# 3. Apply manifests using Kustomize
+kubectl apply -k . -n airgap-architect
+
+# 4. Verify deployment
+kubectl get pods -n airgap-architect
+kubectl get routes -n airgap-architect  # OpenShift only
+```
+
+### What's Included
+
+The `manifests/` directory contains:
+
+- **Base manifests** (`manifests/base/`):
+  - `backend-deployment.yaml` - Backend Deployment (1 replica, SQLite single-writer limitation)
+  - `frontend-deployment.yaml` - Frontend Deployment (2+ replicas, horizontally scalable)
+  - `backend-service.yaml` / `frontend-service.yaml` - ClusterIP Services
+  - `pvc.yaml` - PersistentVolumeClaim (250Gi for SQLite database + oc-mirror archives)
+  - `configmap.yaml` - Environment variables (PORT, DATA_DIR, LOG_LEVEL, etc.)
+  - `secret.yaml` - Template for pull secrets (user must populate)
+
+- **OpenShift-specific** (`manifests/openshift/`):
+  - `route-backend.yaml` / `route-frontend.yaml` - TLS edge Routes
+
+- **Kustomize** (`manifests/kustomization.yaml`) - Root configuration for environment overlays
+
+### Key Features
+
+✅ **Production-ready** (v1.6.0):
+- Structured logging with JSON output (Pino)
+- Health probes (liveness: `/api/health`, readiness: `/api/ready` with DB checks)
+- Resource requests and limits defined (backend: 500m-2000m CPU / 1-4Gi RAM, frontend: 100m-500m CPU / 256-512Mi RAM)
+- Request correlation with X-Request-ID propagation
+- Backend schema validation for all API endpoints (Zod)
+- Restricted-v2 SCC compatible (UID 1001, non-root execution)
+
+### Resource Requirements
+
+**Backend:**
+- Replicas: 1 (required - SQLite single-writer limitation)
+- CPU: 500m requests, 2000m limits
+- Memory: 1Gi requests, 4Gi limits
+- Storage: 250Gi PVC (50GB database + 200GB oc-mirror archives)
+
+**Frontend:**
+- Replicas: 2+ (horizontally scalable)
+- CPU: 100m requests, 500m limits
+- Memory: 256Mi requests, 512Mi limits
+
+See `docs/CAPACITY_PLANNING.md` for detailed sizing, monitoring, and tuning guidance.
+
+### Backup and Disaster Recovery
+
+SQLite database backup procedures are documented in `docs/BACKUP_RESTORE.md`:
+
+**Quick backup:**
+```bash
+# Automated backup script (uses SQLite VACUUM INTO)
+./scripts/backup-sqlite.sh <namespace> <backup-dir>
+
+# Verify backup integrity
+./scripts/verify-backup.sh /path/to/backup.db
+```
+
+**Backup methods:**
+1. Online backup (VACUUM INTO) - no downtime, consistent snapshot
+2. Kubernetes VolumeSnapshot - fast, storage-layer snapshots
+3. File copy with WAL checkpoint - simple, requires brief pause
+
+**Restore procedures:**
+See `docs/BACKUP_RESTORE.md` for complete disaster recovery procedures, RTO/RPO guidance, and restore testing.
+
+### Monitoring and Observability
+
+**Structured Logging:**
+- JSON logs in production (`LOG_LEVEL=info` default)
+- Request correlation with X-Request-ID headers
+- Error IDs for client-to-server log correlation
+
+**Health Endpoints:**
+- `/api/health` - Liveness probe (process health)
+- `/api/ready` - Readiness probe (DB read + write checks)
+
+**Logs:**
+```bash
+# View backend logs
+kubectl logs -f deployment/airgap-architect-backend -n airgap-architect
+
+# View frontend logs
+kubectl logs -f deployment/airgap-architect-frontend -n airgap-architect
+```
+
+See `docs/HEALTH_PROBES.md` for probe configuration and troubleshooting.
+
+### Configuration
+
+All configuration is via ConfigMap and Secret. Common settings:
+
+**Environment variables** (ConfigMap):
+- `LOG_LEVEL` - Logging verbosity (trace, debug, info, warn, error; default: info)
+- `LOG_FORMAT` - Log format (json or pretty; default: json in production)
+- `DATA_DIR` - SQLite database location (default: /data)
+- `VITE_API_BASE` - Frontend API URL (e.g., http://airgap-architect-backend:4000)
+- `FEEDBACK_MODE` - Feedback submission mode (github, offline, disabled; default: github)
+- `CHECK_UPDATES` - Update check on About page (true/false; default: true)
+
+**Secrets** (Secret):
+- Pull secret content (base64 encoded)
+- Mirror registry credentials (base64 encoded)
+
+See `manifests/README.md` for complete configuration reference.
+
+### Scaling Considerations
+
+**Backend scaling:**
+- ⚠️ Backend CANNOT scale horizontally (SQLite single-writer limitation)
+- Scale vertically by increasing resource limits
+- Consider external oc-mirror storage for large deployments
+
+**Frontend scaling:**
+- ✅ Frontend CAN scale horizontally (stateless)
+- Increase replicas for high availability and load distribution
+- Example: `kubectl scale deployment airgap-architect-frontend --replicas=3`
+
+### Security
+
+**Container security:**
+- UBI 9 base images (Red Hat Universal Base Image)
+- Non-root execution (UID 1001, fsGroup 1001)
+- Restricted-v2 SCC compatible (OpenShift)
+- No privileged escalation required
+
+**Network security:**
+- TLS edge termination on Routes (OpenShift)
+- ClusterIP Services (not exposed externally by default)
+- Configure Ingress or Routes for external access
+
+**Secrets management:**
+- Store pull secrets in Kubernetes/OpenShift Secrets
+- Mount secrets as files (not environment variables)
+- See `manifests/base/secret.yaml` for template
+
+### Troubleshooting
+
+**Common issues:**
+
+| Issue | Solution |
+|-------|----------|
+| Backend pods stuck in CrashLoopBackOff | Check PVC is bound and writable by UID 1001. See logs: `kubectl logs <pod>` |
+| Frontend can't reach backend | Verify VITE_API_BASE points to backend Service URL (e.g., http://airgap-architect-backend:4000) |
+| Database connection errors | Check /api/ready endpoint returns 200. Verify PVC is mounted and SQLite file exists |
+| Resource limits too low (OOMKilled) | Increase memory limits in Deployment. See `docs/CAPACITY_PLANNING.md` for sizing guidance |
+| No external access to UI | Create Ingress (Kubernetes) or Route (OpenShift) for frontend Service |
+
+**Debug commands:**
+```bash
+# Check pod status
+kubectl get pods -n airgap-architect
+
+# View pod logs
+kubectl logs <pod-name> -n airgap-architect
+
+# Describe pod for events
+kubectl describe pod <pod-name> -n airgap-architect
+
+# Check PVC status
+kubectl get pvc -n airgap-architect
+
+# Test readiness probe manually
+kubectl exec <backend-pod> -n airgap-architect -- curl http://localhost:4000/api/ready
+```
+
+### Complete Documentation
+
+For comprehensive deployment guidance, see:
+- `manifests/README.md` - Deployment guide with prerequisites, customization, troubleshooting
+- `docs/CAPACITY_PLANNING.md` - Resource sizing, monitoring alerts, performance tuning
+- `docs/BACKUP_RESTORE.md` - Backup strategies, disaster recovery, restore procedures
+- `docs/HEALTH_PROBES.md` - Health probe configuration, failure scenarios, tuning
+- `docs/API_SCHEMA.md` - API contract, request/response schemas, validation rules
+
 <a id="updating-the-app"></a>
 ## Updating the app
 

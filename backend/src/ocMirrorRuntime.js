@@ -309,7 +309,7 @@ async function getBinariesForExportArch(exportArch, dataDir) {
         // try next candidate
       } finally {
         if (workDir) {
-          try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {}
+          try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* Intentionally suppressed - best-effort cleanup */ }
         }
       }
     }

@@ -17,6 +17,8 @@ import path from "node:path";
 import archiver from "archiver";
 import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
+import logger, { generateErrorId } from "./logger.js";
+import { loggingMiddleware } from "./middleware/logging.js";
 import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
 import { runCincinnatiBackgroundJob } from "./cincinnatiJob.js";
 import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
@@ -54,6 +56,20 @@ import {
   pathCheckSchema,
   feedbackSubmitSchema,
   cincinnatiPatchesUpdateSchema,
+  cincinnatiRefreshSchema,
+  operatorConfirmSchema,
+  startOverSchema,
+  bundlePrepareSchema,
+  runImportSchema,
+  runDuplicateSchema,
+  cincinnatiUpdateSchema,
+  operatorsPrefetchSchema,
+  jobStopSchema,
+  docsUpdateSchema,
+  awsWarmInstallerSchema,
+  trustAnalyzeSchema,
+  bundleZipSchema,
+  generateSchema,
 } from "./schemas.js";
 import {
   buildFeedbackIssueDraft,
@@ -77,42 +93,9 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// Request logging middleware (skip in test mode)
+// Structured request logging middleware (skip in test mode)
 if (process.env.NODE_ENV !== "test") {
-  app.use((req, res, next) => {
-    const requestId = req.headers["x-request-id"] || `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    const startTime = Date.now();
-
-    // Attach request ID to request for potential later use
-    req.requestId = requestId;
-
-    // Log request completion
-    res.on("finish", () => {
-      const duration = Date.now() - startTime;
-      const logLevel = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
-
-      // Skip logging for health/status endpoints to reduce noise
-      if (req.path === "/api/health" || req.path === "/api/jobs/count") return;
-
-      const logData = {
-        requestId,
-        method: req.method,
-        path: req.path,
-        status: res.statusCode,
-        duration: `${duration}ms`
-      };
-
-      if (logLevel === "error") {
-        console.error("[request]", logData);
-      } else if (logLevel === "warn") {
-        console.warn("[request]", logData);
-      } else {
-        console.log("[request]", logData);
-      }
-    });
-
-    next();
-  });
+  app.use(loggingMiddleware);
 }
 
 markStaleJobs();
@@ -174,7 +157,7 @@ const warmCincinnatiCache = async () => {
   try {
     await fetchChannels(false);
   } catch (err) {
-    if (process.env.DEBUG) console.error("Cincinnati cache warm failed:", err);
+    logger.debug({ err }, "Cincinnati cache warm failed");
     // ignore warm cache errors
   }
 };
@@ -242,11 +225,11 @@ function detectMountedPullSecret() {
       const validation = validateRhPullSecret(raw);
       if (validation.valid) {
         mountedRhPullSecret = raw;
-        console.log(`[startup] Mounted Red Hat pull secret detected at: ${p}`);
+        logger.info({ tag: "startup", path: p }, "Mounted Red Hat pull secret detected");
         return;
       }
     } catch (err) {
-      if (process.env.DEBUG) console.error(`Pull secret check failed for ${p}:`, err);
+      logger.debug({ err, path: p }, "Pull secret check failed");
       /* continue */
     }
   }
@@ -257,16 +240,13 @@ function logFeedbackStartupStatus() {
   const config = resolveFeedbackConfig();
   if (config.mode === "disabled") {
     if (config.selectedMode && config.selectedMode !== "disabled") {
-      console.warn("[startup] Feedback disabled due to configuration:", {
-        selectedMode: config.selectedMode,
-        reason: config.reason
-      });
+      logger.warn({ tag: "startup", selectedMode: config.selectedMode, reason: config.reason }, "Feedback disabled due to configuration");
       return;
     }
-    console.log("[startup] Feedback mode disabled.");
+    logger.info({ tag: "startup" }, "Feedback mode disabled");
     return;
   }
-  console.log("[startup] Feedback mode enabled:", { mode: config.mode });
+  logger.info({ tag: "startup", mode: config.mode }, "Feedback mode enabled");
 }
 if (process.env.NODE_ENV !== "test") {
   logFeedbackStartupStatus();
@@ -664,7 +644,7 @@ const checkPath = async (targetPath) => {
     fs.accessSync(parent, fs.constants.W_OK);
     writable = true;
   } catch (err) {
-    if (process.env.DEBUG) console.error(`Write access check failed for ${parent}:`, err);
+    logger.debug({ err, path: parent }, "Write access check failed");
     writable = false;
   }
   const output = await runDf(parent);
@@ -764,15 +744,50 @@ const dbPrepareMockStore = (version, catalogId, results) => {
   ).run(version, catalogId, JSON.stringify(results), Date.now());
 };
 
-app.get("/api/health", (req, res) => res.json({ ok: true }));
+// Liveness probe: Check process health only (no dependencies)
+// Returns uptime for diagnostic purposes
+app.get("/api/health", (req, res) => {
+  const uptime = process.uptime();
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: uptime
+  });
+});
 
-// Readiness: DB must be readable (and writable at startup). Use for smoke checks after container start.
-app.get("/api/ready", (req, res) => {
+// Readiness probe: Check DB read and write operations
+// Tests both read (getState) and write (cache table) to verify DB health
+app.get("/api/ready", async (req, res) => {
+  const checks = {
+    database_read: "unknown",
+    database_write: "unknown"
+  };
+
   try {
+    // Check 1: Read from database
     getState();
-    res.json({ ready: true });
+    checks.database_read = "ok";
+
+    // Check 2: Write test (insert into cache, then delete)
+    const testKey = `readiness-probe-${Date.now()}`;
+    db.prepare("INSERT INTO cache (key, value, updated_at) VALUES (?, ?, ?)")
+      .run(testKey, "test", Date.now());
+    db.prepare("DELETE FROM cache WHERE key = ?").run(testKey);
+    checks.database_write = "ok";
+
+    res.status(200).json({
+      ready: true,
+      checks: checks,
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
-    res.status(503).json({ ready: false, error: String(err?.message || err) });
+    logger.error({ err, checks }, "Readiness probe failed");
+    res.status(503).json({
+      ready: false,
+      checks: checks,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -814,7 +829,7 @@ app.get("/api/feedback/challenge", (req, res, next) => currentChallengeLimiter()
   });
 });
 
-app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req, res, next), async (req, res) => {
+app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req, res, next), validateBody(feedbackSubmitSchema), async (req, res) => {
   const config = resolveFeedbackConfig();
   if (!config.enabled) {
     return res.status(403).json({ error: config.reason || "Feedback is unavailable." });
@@ -852,11 +867,7 @@ app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req,
   };
   // Keep logs metadata-only and never include feedback text.
   if (process.env.NODE_ENV !== "test") {
-    console.log("Feedback accepted", {
-      submissionId,
-      mode: config.mode,
-      githubIssueUrlReady: Boolean(issueDraft.githubIssueUrl)
-    });
+    logger.info({ tag: "feedback", submissionId, mode: config.mode, githubIssueUrlReady: Boolean(issueDraft.githubIssueUrl) }, "Feedback accepted");
   }
   return res.json({
     ok: true,
@@ -1089,7 +1100,7 @@ app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
   res.json({ pullSecret: mountedRhPullSecret });
 });
 
-app.post("/api/start-over", (req, res) => {
+app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
   const cancelRunningOcMirror = req.body?.cancelRunningOcMirror !== false;
   if (cancelRunningOcMirror) {
     const runningOcMirrorJobs = listJobsByType("oc-mirror-run").filter((job) => job.status === "running");
@@ -1099,7 +1110,7 @@ app.post("/api/start-over", (req, res) => {
         try {
           proc.kill("SIGTERM");
         } catch (err) {
-          if (process.env.DEBUG) console.error(`Failed to kill process ${job.id}:`, err);
+          logger.debug({ err, jobId: job.id }, "Failed to kill process during start-over");
           // Best-effort cancellation; mark cancelled either way.
         }
       }
@@ -1133,11 +1144,11 @@ app.post("/api/start-over", (req, res) => {
         const realPath = fs.realpathSync(fullPath); // Resolve symlinks
         if (realPath.startsWith(tmpDir)) { // Ensure within tmpDir
           safeUnlink(realPath);
-        } else if (process.env.DEBUG) {
-          console.error(`Skipping file outside tmpDir: ${realPath}`);
+        } else {
+          logger.debug({ realPath, tmpDir }, "Skipping file outside tmpDir");
         }
       } catch (err) {
-        if (process.env.DEBUG) console.error(`Failed to clean temp file ${fullPath}:`, err);
+        logger.debug({ err, path: fullPath }, "Failed to clean temp file");
       }
     });
   }
@@ -1149,7 +1160,7 @@ app.get("/api/run/export", (req, res) => {
   const options = state.exportOptions || {};
   const sanitized = sanitizeStateForExport(state, { ...options, includeCredentials: false });
   if (process.env.NODE_ENV !== "test") {
-    console.log("Run exported", { runId: state.runId });
+    logger.info({ tag: "run:export", runId: state.runId }, "Run exported");
   }
   res.json({
     schemaVersion: 2,
@@ -1159,7 +1170,7 @@ app.get("/api/run/export", (req, res) => {
   });
 });
 
-app.post("/api/run/import", (req, res) => {
+app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
   const payload = req.body || {};
   const schemaVersion = payload.schemaVersion || 1;
   if (!payload.state || typeof payload.state !== "object") {
@@ -1210,7 +1221,7 @@ app.post("/api/run/import", (req, res) => {
   res.json({ ok: true, state: sanitized });
 });
 
-app.post("/api/run/duplicate", (req, res) => {
+app.post("/api/run/duplicate", validateBody(runDuplicateSchema), (req, res) => {
   const state = ensureState();
   const clone = JSON.parse(JSON.stringify(state));
   clone.runId = nanoid();
@@ -1227,7 +1238,7 @@ app.get("/api/cincinnati/channels", async (req, res) => {
   }
 });
 
-app.post("/api/cincinnati/update", async (req, res) => {
+app.post("/api/cincinnati/update", validateBody(cincinnatiUpdateSchema), async (req, res) => {
   try {
     const channels = await fetchChannels(true);
     res.json({ channels });
@@ -1257,7 +1268,7 @@ app.post("/api/cincinnati/patches/update", validateBody(cincinnatiPatchesUpdateS
 });
 
 /** Async Cincinnati refresh for Operations visibility; Blueprint Update uses this + poll. */
-app.post("/api/cincinnati/refresh-job", (req, res) => {
+app.post("/api/cincinnati/refresh-job", validateBody(cincinnatiRefreshSchema), (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const preferredChannel =
     typeof body.preferredChannel === "string" && body.preferredChannel.trim()
@@ -1280,7 +1291,7 @@ app.get("/api/operators/credentials", (req, res) => {
   res.json({ available: authAvailable() });
 });
 
-app.post("/api/operators/confirm", (req, res) => {
+app.post("/api/operators/confirm", validateBody(operatorConfirmSchema), (req, res) => {
   const state = ensureState();
   const release = { ...state.release, confirmed: true };
   const version = {
@@ -1333,12 +1344,7 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
   }
 
   if (process.env.NODE_ENV !== "test") {
-    console.log("[operator-scan:start]", {
-      requestId: req.requestId,
-      version: catalogMinor,
-      catalogCount: getCatalogs().length,
-      authMethod: tempAuthFile ? "pull-secret" : "mounted"
-    });
+    logger.info({ tag: "operator-scan:start", requestId: req.requestId, version: catalogMinor, catalogCount: getCatalogs().length, authMethod: tempAuthFile ? "pull-secret" : "mounted" }, "Operator scan started");
   }
 
   const resolved = await resolveOcMirrorBinary(dataDir);
@@ -1368,18 +1374,13 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
     jobs[catalog.id] = jobId;
 
     if (process.env.NODE_ENV !== "test") {
-      console.log("[operator-scan:job-created]", {
-        requestId: req.requestId,
-        jobId,
-        catalogId: catalog.id,
-        version: catalogMinor
-      });
+      logger.info({ tag: "operator-scan:job-created", requestId: req.requestId, jobId, catalogId: catalog.id, version: catalogMinor }, "Operator scan job created");
     }
   }
   res.json({ jobs });
 });
 
-app.post("/api/operators/prefetch", async (req, res) => {
+app.post("/api/operators/prefetch", validateBody(operatorsPrefetchSchema), async (req, res) => {
   const state = ensureState();
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
@@ -1436,7 +1437,7 @@ app.get("/api/runtime-info", async (req, res) => {
   try {
     await resolveOcMirrorBinary(dataDir);
   } catch (e) {
-    if (process.env.DEBUG) console.error("oc-mirror binary resolution failed:", e);
+    logger.debug({ err: e }, "oc-mirror binary resolution failed");
     // ignore; we still return arch info
   }
 
@@ -1514,7 +1515,7 @@ app.get("/api/jobs/:id/stream", (req, res) => {
   req.on("close", () => clearInterval(interval));
 });
 
-app.post("/api/jobs/:id/stop", (req, res) => {
+app.post("/api/jobs/:id/stop", validateBody(jobStopSchema), (req, res) => {
   const jobId = req.params.id;
   const proc = activeProcesses.get(jobId);
   if (!proc) return res.status(404).json({ error: "Job not running." });
@@ -1564,7 +1565,7 @@ function checkD2mArchiveStructure(archivePath) {
     if (entries.some((e) => e.endsWith(".tar"))) return "ok";
     return "invalid";
   } catch (err) {
-    if (process.env.DEBUG) console.error(`Archive structure check failed:`, err);
+    logger.debug({ err }, "Archive structure check failed");
     return "invalid";
   }
 }
@@ -1712,7 +1713,7 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
         freeBytes = parentInfo.freeBytes;
         creatable = parentInfo.writable;
       } catch (err) {
-        if (process.env.DEBUG) console.error(`Path check failed for ${parent}:`, err);
+        logger.debug({ err, path: parent }, "Path check failed");
       }
       if (!info.exists && !creatable) {
         const msg = "Workspace path is not creatable or writable.";
@@ -1772,7 +1773,7 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
         writable = parentInfo.writable;
         creatable = parentInfo.writable;
       } catch (err) {
-        if (process.env.DEBUG) console.error("Parent path check failed:", err);
+        logger.debug({ err }, "Parent path check failed");
       }
       if (!info.exists && !creatable) {
         const msg = "Cache path is not creatable or writable.";
@@ -1814,6 +1815,7 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
         fieldErrors.configPath = { severity: "blocker", message: msg };
       }
     } catch {
+      // Intentionally suppressed - fs error treated same as missing config
       checks.config = "missing";
       const msg = "Config file not found.";
       blockers.push(msg);
@@ -1845,6 +1847,7 @@ app.post("/api/ocmirror/preflight", validateBody(ocMirrorPreflightSchema), async
           JSON.parse(secret);
           mirrorSecretPresent = true;
         } catch {
+          // Intentionally suppressed - JSON.parse failure is the expected error case
           const msg = "Mirror registry credentials in Identity & Access do not appear to be valid JSON.";
           blockers.push(msg);
           fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
@@ -2081,7 +2084,7 @@ function writeRegistriesDConfigs(signatureOptions) {
 
     return registriesDDir;
   } catch (err) {
-    console.error("Failed to write registries.d configs:", err);
+    logger.error({ err }, "Failed to write registries.d configs");
     return null;
   }
 }
@@ -2094,7 +2097,7 @@ function cleanupRegistriesDDir(registriesDDir) {
   try {
     fs.rmSync(registriesDDir, { recursive: true, force: true });
   } catch (err) {
-    console.error("Failed to cleanup registries.d directory:", err);
+    logger.error({ err }, "Failed to cleanup registries.d directory");
   }
 }
 
@@ -2155,10 +2158,10 @@ function writePerImageRegistriesDConfigs(imagePathsArray) {
       fs.writeFileSync(configPath, configContent, "utf8");
     }
 
-    console.log(`[Smart Retry] Generated ${imagePathsArray.length} per-image registries.d configs at ${registriesDDir}`);
+    logger.info({ tag: "smart-retry", count: imagePathsArray.length, registriesDDir }, "Generated per-image registries.d configs");
     return registriesDDir;
   } catch (err) {
-    console.error("Failed to write per-image registries.d configs:", err);
+    logger.error({ err }, "Failed to write per-image registries.d configs");
     return null;
   }
 }
@@ -2172,13 +2175,13 @@ function writePerImageRegistriesDConfigs(imagePathsArray) {
  * @param originalBody - Original request body from /api/ocmirror/run
  */
 async function retryWithPerImageSignatureDisable(originalJobId, signatureFailures, originalBody) {
-  console.log(`[Smart Retry] Starting auto-retry for job ${originalJobId} with ${signatureFailures.length} signature failures`);
+  logger.info({ tag: "smart-retry", originalJobId, signatureFailureCount: signatureFailures.length }, "Starting auto-retry for signature failures");
 
   // Generate per-image registries.d configs
   const registriesDDir = writePerImageRegistriesDConfigs(signatureFailures);
 
   if (!registriesDDir) {
-    console.error("[Smart Retry] Failed to generate registries.d configs");
+    logger.error({ tag: "smart-retry" }, "Failed to generate registries.d configs");
     return null;
   }
 
@@ -2199,7 +2202,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
   const configPathToUse = originalBody.configPath || originalMetadata.configPath;
 
   if (!configPathToUse) {
-    console.error("[Smart Retry] Cannot retry: no config path available");
+    logger.error({ tag: "smart-retry", retryJobId }, "Cannot retry: no config path available");
     updateJob(retryJobId, { status: "failed", message: "Cannot retry: no config path available" });
     cleanupRegistriesDDir(registriesDDir);
     return null;
@@ -2255,7 +2258,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
     CONTAINERS_REGISTRIES_D: registriesDDir
   };
 
-  console.log(`[Smart Retry] Launching retry job ${retryJobId} with per-image configs at ${registriesDDir}`);
+  logger.info({ tag: "smart-retry", retryJobId, registriesDDir }, "Launching retry job with per-image configs");
 
   // Spawn oc-mirror retry
   const child = spawn(resolved.path, args, { env: envVars });
@@ -2347,6 +2350,7 @@ function resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath) {
   try {
     return path.resolve(raw);
   } catch {
+    // Intentionally suppressed - invalid path resolves to empty string
     return "";
   }
 }
@@ -2518,7 +2522,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const envVars = { ...envWithoutRegistryAuthFile };
   if (registriesDDir) {
     envVars.CONTAINERS_REGISTRIES_D = registriesDDir;
-    console.log(`[oc-mirror] Using registries.d configs from: ${registriesDDir}`);
+    logger.info({ tag: "oc-mirror", registriesDDir }, "Using registries.d configs");
   }
 
   const child = spawn(resolved.path, args, { env: envVars });
@@ -2622,7 +2626,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       const originalRequestBody = currentMetadata.requestBody;
 
       if (originalRequestBody) {
-        console.log(`[Smart Retry] Detected ${signatureFailures.length} signature failures in job ${jobId}`);
+        logger.info({ tag: "smart-retry", jobId, signatureFailureCount: signatureFailures.length }, "Detected signature failures");
         // Launch retry asynchronously (don't await)
         retryWithPerImageSignatureDisable(jobId, signatureFailures, originalRequestBody)
           .then((retryJobId) => {
@@ -2638,14 +2642,14 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
               updateJob(jobId, {
                 message: `oc-mirror completed with ${opFailed} operator image(s) failed (${signatureFailures.length} signature error(s)). Auto-retry launched (job ${retryJobId}).`
               });
-              console.log(`[Smart Retry] Launched retry job ${retryJobId} for original job ${jobId}`);
+              logger.info({ tag: "smart-retry", retryJobId, originalJobId: jobId }, "Launched retry job");
             }
           })
           .catch((err) => {
-            console.error(`[Smart Retry] Failed to launch retry for job ${jobId}:`, err);
+            logger.error({ tag: "smart-retry", err, jobId }, "Failed to launch retry");
           });
       } else {
-        console.warn(`[Smart Retry] Cannot retry job ${jobId}: no request body in metadata`);
+        logger.warn({ tag: "smart-retry", jobId }, "Cannot retry job: no request body in metadata");
       }
     }
 
@@ -2665,7 +2669,7 @@ app.get("/api/docs", (req, res) => {
   res.json({ cached });
 });
 
-app.post("/api/docs/update", async (req, res) => {
+app.post("/api/docs/update", validateBody(docsUpdateSchema), async (req, res) => {
   const state = ensureState();
   const version = getOpenShiftMinorFromState(state) || "4.0";
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
@@ -2683,7 +2687,7 @@ app.post("/api/docs/update", async (req, res) => {
   res.json({ jobId: job.jobId, links: job.validated });
 });
 
-app.post("/api/aws/warm-installer", (req, res) => {
+app.post("/api/aws/warm-installer", validateBody(awsWarmInstallerSchema), (req, res) => {
   const version = req.body?.version || req.query.version;
   if (!version) {
     return res.status(400).json({ error: "Version is required." });
@@ -2772,7 +2776,7 @@ const buildPreviewFiles = (state) => {
   };
 };
 
-app.post("/api/trust/analyze", (req, res) => {
+app.post("/api/trust/analyze", validateBody(trustAnalyzeSchema), (req, res) => {
   const bodyState = req.body?.state;
   const state = bodyState && typeof bodyState === "object" ? bodyState : ensureState();
   try {
@@ -2813,7 +2817,7 @@ app.get("/api/generate", (req, res) => {
   }
 });
 
-app.post("/api/generate", (req, res) => {
+app.post("/api/generate", validateBody(generateSchema), (req, res) => {
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   try {
@@ -2851,13 +2855,7 @@ const buildBundleZip = async (state, res) => {
   const version = getOpenShiftMinorFromState(state) || "4.0";
 
   if (process.env.NODE_ENV !== "test") {
-    console.log("[bundle:start]", {
-      version,
-      platform: state.blueprint?.platform,
-      method: state.methodology?.method,
-      includeClientTools: Boolean(state.exportOptions?.includeClientTools),
-      draftMode: Boolean(state.exportOptions?.draftMode)
-    });
+    logger.info({ tag: "bundle:start", version, platform: state.blueprint?.platform, method: state.methodology?.method, includeClientTools: Boolean(state.exportOptions?.includeClientTools), draftMode: Boolean(state.exportOptions?.draftMode) }, "Bundle build started");
   }
 
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
@@ -2982,9 +2980,7 @@ const buildBundleZip = async (state, res) => {
           throw new Error("Downloaded file is 0 bytes (download failed)");
         }
 
-        if (process.env.NODE_ENV !== "production") {
-          console.log(`[Mirror Registry] Downloaded ${mirrorRegistryFilename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)`);
-        }
+        logger.info({ tag: "mirror-registry", filename: mirrorRegistryFilename, sizeMB: (stat.size / 1024 / 1024).toFixed(2) }, "Mirror registry downloaded");
       }
 
       if (fs.existsSync(mirrorRegistryPath)) {
@@ -3067,7 +3063,7 @@ app.get("/api/fs/ls", (req, res) => {
         if (type === "file") entry.size = stat.size;
         entries.push(entry);
       } catch (err) {
-        if (process.env.DEBUG) console.error(`Stat failed for ${item.name}:`, err);
+        logger.debug({ err, name: item.name }, "Stat failed for directory entry");
         // skip entries with permission errors
       }
     }
@@ -3106,7 +3102,7 @@ const handleBundleZipError = (res, error) => {
   return res.status(500).json({ error: String(error?.message || error) });
 };
 
-app.post("/api/bundle.prepare", (req, res) => {
+app.post("/api/bundle.prepare", validateBody(bundlePrepareSchema), (req, res) => {
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   const state = parsed.state;
@@ -3151,7 +3147,7 @@ app.get("/api/bundle.zip", async (req, res) => {
   }
 });
 
-app.post("/api/bundle.zip", async (req, res) => {
+app.post("/api/bundle.zip", validateBody(bundleZipSchema), async (req, res) => {
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   try {
@@ -3164,39 +3160,46 @@ app.post("/api/bundle.zip", async (req, res) => {
 let server;
 if (process.env.NODE_ENV !== "test") {
   server = app.listen(port, () => {
-    console.log("");
-    console.log("╔═══════════════════════════════════════════════════════════════════╗");
-    console.log("║                                                                   ║");
-    console.log("║          OpenShift Airgap Architect - Backend Server             ║");
-    console.log("║                                                                   ║");
-    console.log("╚═══════════════════════════════════════════════════════════════════╝");
-    console.log("");
-    console.log(`  Server:        http://localhost:${port}`);
-    console.log(`  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`);
-    console.log(`  Data Dir:      ${process.env.DATA_DIR || "/data"}`);
     // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
     const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
     const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
+    const bannerLines = [
+      "",
+      "╔═══════════════════════════════════════════════════════════════════╗",
+      "║                                                                   ║",
+      "║          OpenShift Airgap Architect - Backend Server             ║",
+      "║                                                                   ║",
+      "╚═══════════════════════════════════════════════════════════════════╝",
+      "",
+      `  Server:        http://localhost:${port}`,
+      `  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`,
+      `  Data Dir:      ${process.env.DATA_DIR || "/data"}`,
+    ];
     if (bannerSha || bannerTime) {
-      console.log(`  Build:         ${bannerSha ? String(bannerSha).slice(0, 7) : "dev"} • ${bannerTime || "unknown"}`);
+      bannerLines.push(`  Build:         ${bannerSha ? String(bannerSha).slice(0, 7) : "dev"} • ${bannerTime || "unknown"}`);
     }
-    console.log("");
-    console.log("  Developed by:  Bill Strauss");
-    console.log("  AI Assistance: Claude (Anthropic) • Cursor AI");
-    console.log("  License:       MIT");
-    console.log("  Repository:    https://github.com/billstrauss/openshift-airgap-architect");
-    console.log("");
-    console.log("───────────────────────────────────────────────────────────────────");
-    console.log("");
+    bannerLines.push(
+      "",
+      "  Developed by:  Bill Strauss",
+      "  AI Assistance: Claude (Anthropic) • Cursor AI",
+      "  License:       MIT",
+      "  Repository:    https://github.com/billstrauss/openshift-airgap-architect",
+      "",
+      "───────────────────────────────────────────────────────────────────",
+      "",
+    );
+    // Use process.stdout.write for startup banner (visual output, not a log event)
+    process.stdout.write(bannerLines.join("\n") + "\n");
+    logger.info({ tag: "startup", port, mode: process.env.MOCK_MODE === "true" ? "MOCK" : "Production", dataDir: process.env.DATA_DIR || "/data" }, "Server started");
   });
   const shutdown = (signal) => {
-    console.log(`Received ${signal}, shutting down...`);
+    logger.info({ tag: "shutdown", signal }, "Shutting down");
     // Kill any active child processes (oc-mirror runs, scan jobs).
     for (const [, child] of activeProcesses.entries()) {
       try {
         child.kill("SIGTERM");
       } catch (err) {
-        if (process.env.DEBUG) console.error("Kill child process failed:", err);
+        logger.debug({ err }, "Kill child process failed during shutdown");
       }
     }
     activeProcesses.clear();

@@ -12,6 +12,7 @@
 import { spawn } from "node:child_process";
 import { db } from "./db.js";
 import { appendJobOutput, createJob, updateJob, safeUnlink } from "./utils.js";
+import logger from "./logger.js";
 
 const catalogs = [
   { id: "redhat", image: (v) => `registry.redhat.io/redhat/redhat-operator-index:v${v}` },
@@ -67,6 +68,7 @@ const authAvailable = () => {
   try {
     return !!file && !!require("node:fs").existsSync(file);
   } catch {
+    // Intentionally suppressed - auth file check failure means auth unavailable
     return false;
   }
 };
@@ -75,13 +77,7 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
   const jobId = createJob(jobType, message || `Scanning ${catalogId} operators...`);
 
   if (process.env.NODE_ENV !== "test") {
-    console.log("[operator-scan:start]", {
-      jobId,
-      catalogId,
-      catalogImage,
-      version,
-      authProvided: !!authFile
-    });
+    logger.info({ tag: "operator-scan:start", jobId, catalogId, catalogImage, version, authProvided: !!authFile }, "Operator scan started");
   }
 
   updateJob(jobId, { status: "running", progress: 5 });
@@ -104,7 +100,7 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
     if (!downloadStarted && (s.includes("Pulling") || s.includes("Downloading") || s.includes("copying"))) {
       downloadStarted = true;
       if (process.env.NODE_ENV !== "test") {
-        console.log("[operator-scan:download]", { jobId, catalogId, event: "catalog_download_started" });
+        logger.info({ tag: "operator-scan:download", jobId, catalogId, event: "catalog_download_started" }, "Catalog download started");
       }
       updateJob(jobId, { progress: 20, message: `Downloading ${catalogId} catalog...` });
     }
@@ -139,12 +135,7 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
         : `oc-mirror failed (${catalogId}).`;
 
       if (process.env.NODE_ENV !== "test") {
-        console.log("[operator-scan:failed]", {
-          jobId,
-          catalogId,
-          exitCode: code,
-          archMismatch: isArchMismatch(error)
-        });
+        logger.warn({ tag: "operator-scan:failed", jobId, catalogId, exitCode: code, archMismatch: isArchMismatch(error) }, "Operator scan failed");
       }
 
       updateJob(jobId, {
@@ -157,32 +148,21 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
     }
 
     if (process.env.NODE_ENV !== "test") {
-      console.log("[operator-scan:parsing]", { jobId, catalogId, event: "parsing_operator_table" });
+      logger.info({ tag: "operator-scan:parsing", jobId, catalogId, event: "parsing_operator_table" }, "Parsing operator table");
     }
     updateJob(jobId, { progress: 80, message: `Parsing ${catalogId} operators...` });
 
     const parsed = parseOperatorTable(output, catalogId);
 
     if (process.env.NODE_ENV !== "test") {
-      console.log("[operator-scan:caching]", {
-        jobId,
-        catalogId,
-        version,
-        operatorCount: parsed.length,
-        event: "storing_to_cache"
-      });
+      logger.info({ tag: "operator-scan:caching", jobId, catalogId, version, operatorCount: parsed.length, event: "storing_to_cache" }, "Caching operator results");
     }
     updateJob(jobId, { progress: 95, message: `Caching ${parsed.length} ${catalogId} operators...` });
 
     storeResults(version, catalogId, parsed);
 
     if (process.env.NODE_ENV !== "test") {
-      console.log("[operator-scan:complete]", {
-        jobId,
-        catalogId,
-        version,
-        operatorCount: parsed.length
-      });
+      logger.info({ tag: "operator-scan:complete", jobId, catalogId, version, operatorCount: parsed.length }, "Operator scan completed");
     }
 
     updateJob(jobId, {
