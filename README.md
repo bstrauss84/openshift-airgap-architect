@@ -748,7 +748,7 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 
 See [CHANGELOG.md](CHANGELOG.md) for version history, new features, bug fixes, and breaking changes.
 
-Current version: **1.1.0**
+Current version: **1.5.0**
 
 <a id="license-and-contributing"></a>
 ## License and contributing
