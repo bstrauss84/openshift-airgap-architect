@@ -5,6 +5,247 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-05-19
+
+### Added
+
+**Smart Signature Retry for oc-mirror Operator Images (DOC-079)**
+- Automatic per-image signature retry when oc-mirror fails on missing signature manifests
+- Addresses production issue with certified/community operators (e.g., NetApp Trident)
+- Three-tier signature strategy implementation:
+  - **Tier 1 (Per-image, automatic):** Smart retry disables signatures only for failing images
+  - **Tier 2 (Per-registry, manual):** UI toggles for certified/community registries
+  - **Tier 3 (Global, emergency):** `--remove-signatures` flag (all signatures disabled)
+- Smart retry workflow:
+  - Detects `completed_with_warnings` status + signature failures in job output
+  - Parses failing image paths with regex: `/error mirroring image docker:\/\/([^@\s]+)@sha256:[^\s]+.*error: reading signatures.*name unknown: Image not found/g`
+  - Generates per-image registries.d configs: `docker: <image-path>: use-sigstore-attachments: false`
+  - Auto-retries oc-mirror with same config + per-image signature disable
+  - UI displays signature failures + retry status
+- **Security benefit:** Example - NetApp Trident 11 images, 1 fails signature → retry disables 1 image only, 10 keep verification (91% security retained)
+
+### Technical Details
+
+**Backend**
+- New functions in `backend/src/index.js` (lines 2101-2283, 2481-2494, 2585-2650):
+  - `parseSignatureErrors()` - Extract failing image registry paths from logs
+  - `writePerImageRegistriesDConfigs()` - Generate per-image registries.d configs
+  - `retryWithPerImageSignatureDisable()` - Trigger auto-retry with signature disable
+  - Smart retry trigger in job close handler (detects warnings + signature errors)
+  - Request body storage for retry capability
+- New test suite: `backend/test/signature-smart-retry.test.js` (10 unit tests passing)
+  - Tests regex parsing, YAML generation, deduplication, edge cases
+
+**Frontend**
+- Modified: `frontend/src/steps/RunOcMirrorStep.jsx` (lines 1684-1707)
+  - Signature failure UI (displays failed images, retry status)
+- Signature verification toggles (from v1.4.0, lines 118-126, 1200-1257):
+  - Per-registry manual toggles for certified/community operators
+  - Generates registries.d configs per registry hostname
+  - Sets CONTAINERS_REGISTRIES_D env var
+
+**Documentation**
+- New: `docs/FIELD_MANUAL_SIGNATURE_VERIFICATION.md`
+  - Smart retry explanation and workflow
+  - Three-tier strategy comparison
+  - Troubleshooting guide
+  - Security considerations
+  - Version history
+
+**Test Results**
+- 10 new unit tests passing (signature parsing, config generation)
+- 968 total tests passing (707 frontend + 261 backend)
+
+### References
+- Red Hat Solution Article 7139982 (per-image signature disable approach)
+- oc-mirror developer guidance
+- containers registries.d documentation
+
+---
+
+## [1.4.0] - 2026-05-19
+
+### Added
+
+**Per-Registry Signature Toggles for oc-mirror (DOC-079 Phase 1)**
+- Manual signature verification toggles for oc-mirror operator mirroring
+- UI toggles for certified/community operator registries
+- Addresses signature verification failures for operators with missing signature manifests
+- Three-tier signature strategy (Tier 2 implementation):
+  - **Tier 2 (Per-registry, manual):** UI toggles generate per-registry registries.d configs
+  - Certified operators: `registry.connect.redhat.com` toggle
+  - Community operators: `registry.community.openshift.com` toggle
+- Backend generates registries.d configs with `use-sigstore-attachments: false` per registry
+- Sets CONTAINERS_REGISTRIES_D environment variable for oc-mirror execution
+- Automatic cleanup on job completion
+
+### Technical Details
+
+**Backend**
+- New functions in `backend/src/index.js` (lines 2016-2099):
+  - Per-registry registries.d config generation
+  - CONTAINERS_REGISTRIES_D environment variable handling
+  - Cleanup on job completion
+- Validation schema: `backend/src/schemas.js` (lines 87-119)
+
+**Frontend**
+- Modified: `frontend/src/steps/RunOcMirrorStep.jsx` (lines 118-126, 1200-1257)
+  - Added signature verification toggles for certified/community registries
+  - CollapsibleSection for signature options
+  - State tracking for registry-level signature disable
+
+**State Schema Changes**
+```javascript
+operatorMirrorSettings: {
+  disableSignatureCertified: boolean,   // NEW: Disable signatures for certified operators
+  disableSignatureCommunity: boolean    // NEW: Disable signatures for community operators
+}
+```
+
+### Notes
+- All signatures verified by default (safe)
+- Manual toggles provide per-registry granularity
+- Superseded by v1.5.0 automatic per-image retry (recommended approach)
+
+---
+
+## [1.3.0] - 2026-05-18
+
+### Added
+
+**IPv6-Only Single-Stack Support (DOC-074) - BREAKING CHANGE**
+- IPv6-only single-stack network configuration support
+- Platform support verified:
+  - ✅ Bare Metal (Agent/IPI/UPI) - all methods supported
+  - ✅ vSphere (Agent/IPI/UPI) - all methods supported
+  - ❌ AWS GovCloud - IPv4-only enforced
+  - ❌ IBM Cloud IPI - IPv4-only enforced
+- IP stack mode selector (dropdown): IPv4 only / IPv6 only / Dual-stack
+- Conditional field visibility:
+  - IPv6-only mode: hides IPv4 fields (machine/cluster/service networks, VIPs)
+  - Dual-stack mode: shows both IPv4 and IPv6 fields with (IPv4)/(IPv6) labels
+  - IPv4-only mode: shows only IPv4 fields (legacy behavior)
+- Backend generation handles IPv6-only configurations:
+  - Single IPv6 network entries in install-config.yaml
+  - No IPv4 networks when IPv6-only selected
+  - VIP handling: IPv6-only uses apiVipV6/ingressVipV6 only
+  - nmstate generation: IPv4 disabled, IPv6 enabled for IPv6-only nodes
+  - Platform-specific VIP emission (bare metal, vSphere, Nutanix)
+- Mode-specific validation:
+  - IPv4-only: requires IPv4 machine network, cluster/service CIDRs, VIPs
+  - IPv6-only: requires IPv6 machine network, cluster/service CIDRs, VIPs
+  - Dual-stack: requires both IPv4 and IPv6 networks
+  - Per-node validation: static mode requires address matching IP stack mode
+
+**State Schema v3 Migration - BREAKING CHANGE**
+- Replaced `hostInventory.enableIpv6` boolean with `ipStackMode` enum ('ipv4', 'ipv6', 'dual-stack')
+- Automatic migration logic:
+  - `enableIpv6=true` → `ipStackMode='dual-stack'`
+  - `enableIpv6=false` → `ipStackMode='ipv4'`
+- Backward compatibility: auto-detect dual-stack from IPv6 network presence
+
+**Platform Support Matrix Documentation**
+- New: `docs/IPV6_PLATFORM_SUPPORT_MATRIX.md`
+- Documents IPv6-only support per platform and installation method
+- Includes platform-specific limitations and requirements
+
+### Fixed
+
+**Critical: Pull Secret Not Showing in YAML Preview (DOC-075)**
+- Fixed pull secret displaying as `{"auths":{}}` in YAML preview drawer
+- Root cause: `buildPreviewFiles()` generated preview YAML without forcing `includeCredentials=true`
+- Fix: Modified `buildPreviewFiles` to create previewState with `exportOptions.includeCredentials` forced to true
+- Impact: Users can now verify pull secrets in preview before export
+- File: `backend/src/index.js` (lines 2317-2339)
+
+**VIP Validation UX Improvements (DOC-076)**
+- Removed inline VIP error spans (too intrusive), kept hover-only tooltips
+- Improved "needs review" badge logic after import:
+  - Added `state.ui.isImported` flag when importing runs
+  - Cleared `visitedSteps` on import (only track current session)
+  - Modified Sidebar badge logic: show "needs review" if (visitedSteps[stepId] OR isImported) AND (reviewFlags OR errorFlags)
+  - Enhanced `reconcileReviewFlagsForImportedState` to SET flags for errors AND clear flags for valid steps
+- Better distinction between current session and imported state
+- Files: `frontend/src/App.jsx`, `frontend/src/components/Sidebar.jsx`, `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
+
+**Operator Catalog Version Mismatch After Import (DOC-077)**
+- Fixed operator catalog showing wrong version after import (e.g., 4.18 import showed 4.21 operators)
+- Root cause: catalogs computed from cached state without version check
+- Fix: Added version match check - only use cached catalogs if `state.operators.version === current version`
+- Enhanced `removeOperator` to add removed operator to catalogs if missing (ensures unselected operators appear in available list)
+- File: `frontend/src/steps/OperatorsStep.jsx` (lines 242-244, 615-667)
+
+**Imageset Config Browse Button (DOC-078)**
+- Fixed browse button in Run oc-mirror "Use external file" option (was directory-only, needed file selection)
+- Root cause: Browse dialog hardcoded for directory selection - files visible but not clickable
+- Fix: Added file mode detection: `isFileMode = browseTarget === "imageset-config"`
+  - File mode: files clickable, selected file highlighted, button text "Select"
+  - Directory mode: existing behavior unchanged
+- Impact: Users can now select imageset config files from browse dialog (previously had to type full paths manually)
+- File: `frontend/src/steps/RunOcMirrorStep.jsx` (lines 1718-1750)
+
+### Changed
+
+**Networking UI**
+- NetworkingV2Step: IP stack mode selector with conditional field visibility
+- Added comprehensive tooltip for Cluster Network IPv6 Host Prefix
+- Fixed validation error display: removed className from FieldLabelWithInfo wrappers (prevented double red borders)
+
+**Validation**
+- New: `validateIpStackModeRequirements()` function enforces mode-specific network requirements
+- Per-node validation: static mode requires address matching IP stack mode
+
+### Technical Details
+
+**Backend**
+- Modified: `backend/src/index.js` (schema v3 migration logic)
+- Modified: `backend/src/generate.js` (IPv6-only YAML generation)
+  - `buildInstallConfig` / `buildAgentConfig` handle IPv6-only mode (single IPv6 entries, no IPv4)
+  - `buildClusterNetwork` / `buildServiceNetwork` mode-specific CIDR generation
+  - VIP handling per mode (IPv6-only, dual-stack, IPv4-only)
+  - nmstate generation: IPv4 disabled, IPv6 enabled for IPv6-only
+- Modified: `backend/src/fieldGuide/context.js` (added ipStackMode)
+- Modified: `backend/test/fixtures/builders.js`, `backend/test/fixtures/base-states.js` (ipStackMode defaults)
+- New test: `backend/test/nic-bond-vlan-ipv6.test.js` (IPv6-only cluster generation test)
+
+**Frontend**
+- Modified: `frontend/src/steps/NetworkingV2Step.jsx` (IP stack mode selector, conditional fields)
+- Modified: `frontend/src/steps/GlobalStrategyStep.jsx`, `frontend/src/steps/HostInventoryV2Step.jsx`, `frontend/src/steps/HostInventoryStep.jsx`
+- Modified: `frontend/src/validation.js` (mode validation)
+- Modified: `frontend/src/placeholderValuesHelpers.js`
+
+**State Schema Changes**
+```javascript
+// BEFORE (schema v2):
+hostInventory: {
+  enableIpv6: boolean
+}
+
+// AFTER (schema v3):
+hostInventory: {
+  ipStackMode: 'ipv4' | 'ipv6' | 'dual-stack'
+}
+```
+
+**Test Results**
+- All 232 backend tests passing
+- Updated test fixtures: withDualStack uses ipStackMode, bond/VLAN node structures fixed
+- Added IPv6-only cluster generation test (3-node HA, single IPv6 entries, nmstate IPv4 disabled)
+
+**Migration Notes**
+- State schema v3 migration runs automatically on app load
+- Old states with `enableIpv6` boolean auto-converted to `ipStackMode` enum
+- Dual-stack auto-detected from presence of IPv6 networks in imported states
+
+### Commits
+- `70a4433` IPv6-only single-stack support (state schema v3, ipStackMode enum, conditional UI)
+- `5db9ba9` Critical bug fixes (pull secret preview, VIP validation UX, operator catalog version mismatch, imageset browse)
+
+### Known Issues
+- None
+
+---
+
 ## [1.2.2] - 2026-05-17
 
 ### Fixed

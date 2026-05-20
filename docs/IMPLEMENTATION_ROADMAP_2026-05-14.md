@@ -449,6 +449,67 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
+### Additional Work (Completed Outside Phased Roadmap)
+
+#### DOC-081: networkConfig Support for Bare-Metal IPI - ✅ **COMPLETE (2026-05-20)**
+
+**Context:** User's colleague needed static IP configuration for IPI bare-metal nodes when DHCP unavailable (common in airgap/secure environments). Params files were missing `platform.baremetal.hosts[].networkConfig` parameter despite being documented in official Red Hat 4.20 bare-metal IPI guide (pages 382-383, 404-405).
+
+**Implementation:**
+
+1. **Params files updated** (both locations):
+   - Added networkConfig parameter to `data/params/4.20/bare-metal-ipi.json`
+   - Synced to `frontend/src/data/catalogs/bare-metal-ipi.json`
+   - Complete metadata with citations to official docs
+
+2. **Backend generation** (`backend/src/generate.js` lines 357-387):
+   - Converts simplified UI format (4 fields) → full NMState YAML structure
+   - Handles: interface name, IP/CIDR, gateway, DNS servers, default route
+   - Only emits when fields populated
+
+3. **Frontend UI** (`frontend/src/components/NodeDrawerIpiContent.jsx` lines 337-435):
+   - Network Configuration section with workflow-group pattern
+   - 4 fields: Interface name, IP Address (CIDR), Gateway, DNS Servers
+   - FieldLabelWithInfo tooltips (WHAT/WHEN/WHY/IMPORTANT)
+
+4. **Validation** (`frontend/src/validation.js` lines 408-431):
+   - IP/CIDR format validation: `/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/`
+   - Requires interface name when IP specified
+   - Validates gateway IPv4 format if provided
+   - Only runs for `method === "Installer-Provisioned"`
+
+5. **Tests** (`frontend/tests/ipi-networkconfig-validation.test.js`):
+   - 10 comprehensive test cases
+   - Valid configs, invalid formats, required/optional fields, edge cases
+   - All 10/10 passing
+
+**Official Validation:**
+- NMState structure matches Red Hat 4.20 bare-metal IPI docs exactly
+- Pages 382-383: networkConfig parameter definition
+- Pages 404-405: Usage in install-config hosts array
+
+**Impact:**
+- Enables static IP configuration for IPI bare-metal deployments
+- Critical for airgap/secure environments where DHCP unavailable
+- Unblocks user's colleague production requirement
+
+**Test Results:**
+- New tests: 10/10 passing
+- Regression tests: 56/56 validation tests passing  
+- Overall: 738/745 total suite passing (5 pre-existing failures unrelated)
+
+**Commit:** 103dc32 (pushed to main + develop, 2026-05-20)
+
+**Files:**
+- `data/params/4.20/bare-metal-ipi.json`
+- `frontend/src/data/catalogs/bare-metal-ipi.json`
+- `backend/src/generate.js`
+- `frontend/src/components/NodeDrawerIpiContent.jsx`
+- `frontend/src/validation.js`
+- `frontend/tests/ipi-networkconfig-validation.test.js`
+
+---
+
 ### v1.4.0 (Minor) - OPTIONAL
 
 **Purpose:** UI consistency and comparative enrichment

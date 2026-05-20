@@ -639,5 +639,5 @@ If you're unsure about:
 
 ---
 
-**Last Updated:** 2026-05-15  
-**Revision:** Major handoff update - added Critical Bug History (pull secret, test deletion anti-pattern), High-Side Integration architecture, updated roadmap reference (IMPLEMENTATION_ROADMAP replaces REVISED_PHASED_PLAN), added new doc systems (UPI prep guides, disconnected matrix, platform: none boundaries), updated current phase (v1.2.0 Phase 1 complete)
+**Last Updated:** 2026-05-20  
+**Revision:** Doc consolidation update - updated HANDOFF_PACKET.md with v1.2.1-v1.5.0 release history + networkConfig implementation (DOC-081), added DOC-081 to BACKLOG_STATUS.md (bare-metal IPI static IP support), added networkConfig completion to IMPLEMENTATION_ROADMAP additional work section, all key docs now current through 2026-05-20
