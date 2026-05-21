@@ -135,3 +135,5 @@ official-*.txt
 claude_chat_history.txt
 *_chat_history.txt
 *.chat.txt
+/local-docs/
+backend/tmp-installer-test/
