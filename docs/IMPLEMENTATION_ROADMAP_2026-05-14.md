@@ -510,6 +510,101 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
+#### DOC-082: Parameter Canonicalization & Validation Audit (Phase 2) - ✅ **COMPLETE (2026-05-21)**
+
+**Context:** Comprehensive audit of entire parameter metadata system across 12 scenarios to validate ALL parameter definitions against authoritative sources (OpenShift 4.20 documentation, installer source code, installer binaries, oc-mirror v2 specs) before merging develop to main.
+
+**Scope:** Extract and validate 867+ parameters across install-config.yaml, agent-config.yaml, and imageset-config.yaml (oc-mirror v2) using installer source code as primary authority.
+
+**Phase 2 Deliverables:**
+
+1. **InstallConfig/AgentConfig Parameter Extraction** (502 parameters):
+   - Parsed installer Go source code (github.com/openshift/installer release-4.20)
+   - Recursive struct parser: `local-docs/ocp-4.20/scripts/parse-go-structs.js` (~650 lines)
+   - Agent config parser: `local-docs/ocp-4.20/scripts/parse-agent-config-structs.js` (~350 lines)
+   - Handles: embedded pointer fields (*Networking), arrays, qualified types, validation annotations
+   - Output: `local-docs/ocp-4.20/analysis/installer-source-params.json` (502 KB, 477 InstallConfig params)
+   - Output: `local-docs/ocp-4.20/analysis/agent-config-params.json` (29 KB, 25 AgentConfig params)
+
+2. **oc-mirror v2 Parameter Extraction** (51 parameters, 45 in catalog):
+   - Extracted ImageSetConfiguration parameters from OpenShift 4.20 Disconnected Environments documentation
+   - Manual extraction (PDF table parsing unreliable due to two-column layout)
+   - Script: `local-docs/ocp-4.20/scripts/extract-oc-mirror-params-manual.js` (~200 lines)
+   - Output: `local-docs/ocp-4.20/analysis/oc-mirror-v2-params.json` (12 KB, 51 params)
+   - Excluded 6 deprecated storageConfig.* parameters (v1alpha2 → v2alpha1 API change)
+
+3. **Source-to-Catalog Comparison** (baseline coverage: 27%):
+   - Path normalization comparison (remove `[]` array notation)
+   - Scripts: `compare-source-vs-catalogs.js`, `normalize-and-compare.js` (~750 lines combined)
+   - Output: `local-docs/ocp-4.20/analysis/normalized-comparison.json` (184 KB)
+   - Results: 136 matches (27% coverage), 366 missing (73% gap), 60 metadata discrepancies
+
+4. **oc-mirror v2 Catalog Creation** (complete):
+   - Created `/data/params/4.20/oc-mirror-v2.json` (43 KB, 45 params)
+   - Synchronized to `/frontend/src/data/catalogs/oc-mirror-v2.json`
+   - MD5 verified identical: e9de2dd94fc4e0dab82d8f3199952972
+   - Commit: 30a86e4 (pushed to develop)
+
+5. **Comprehensive Documentation**:
+   - `local-docs/ocp-4.20/PHASE_1_COMPLETION.md` - Documentation collection summary
+   - `local-docs/ocp-4.20/PHASE_2_COMPLETE.md` - Full Phase 2 technical details
+   - `local-docs/ocp-4.20/PHASE_2_FINDINGS.md` - Comprehensive analysis (40 KB)
+   - `local-docs/ocp-4.20/PHASE_2.4_COMPLETE.md` - oc-mirror extraction details
+   - `local-docs/ocp-4.20/OC-MIRROR_CATALOG_COMPLETE.md` - oc-mirror catalog creation
+   - `local-docs/ocp-4.20/PHASE_2_EXECUTIVE_SUMMARY.md` - Final comprehensive summary with prioritized recommendations
+
+**Key Findings:**
+
+- **Coverage Gap:** 366 parameters (73%) in installer source not in catalogs
+- **Metadata Issues:** 60 discrepancies (type mismatches, required flag errors, default value issues)
+- **Catalog-Only Parameters:** 59 parameters in catalogs not in source (3 system fields, 2 arbiter, 35 NMState external, 8 compute false positives, 11 variants needing review)
+- **oc-mirror Separation Confirmed:** ImageSetConfiguration is separate resource (imageset-config.yaml), NOT mixed into install-config/agent-config catalogs (correct behavior)
+
+**Prioritized Recommendations:**
+
+- **Priority 0:** Fix 15 required flag mismatches + add 10 critical REQUIRED parameters (6-9 hours)
+- **Priority 1:** Add 100-150 user-configurable parameters + fix 35 type mismatches (50-70 hours)
+- **Priority 2:** Document installer-managed parameters, standardize path notation (30-40 hours)
+- **Priority 3:** Backend validation layer, frontend coverage analysis, automation guide (70-100 hours)
+
+**Reusable Automation:**
+
+7 scripts created for future OpenShift releases:
+- `parse-go-structs.js` - InstallConfig parser
+- `parse-agent-config-structs.js` - AgentConfig parser
+- `extract-oc-mirror-params-manual.js` - oc-mirror extractor
+- `compare-source-vs-catalogs.js` - Raw comparison
+- `normalize-and-compare.js` - Path-normalized comparison
+- `download-docs.sh` - PDF documentation download
+- `extract-params.sh` - Documentation extraction automation
+
+**Impact:**
+
+- Evidence-based foundation for parameter catalog improvements
+- oc-mirror v2 catalog complete and ready for UI integration
+- Automation framework established for OCP 4.21+ releases
+- Comprehensive discrepancy report enables prioritized remediation
+
+**Next Steps:**
+
+User decision on implementation:
+- Start Priority 0 fixes (6-9 hours for quick wins)
+- Plan major catalog overhaul (Priority 1-2)
+- Defer all fixes and use audit as reference
+- Tackle parameters incrementally as needed
+
+**Verification:**
+
+- All 7 scripts tested and working
+- oc-mirror catalog MD5 verified (backend/frontend identical)
+- 8 analysis output files generated
+- 6 completion documents created
+- Committed to develop: oc-mirror-v2.json (commit 30a86e4)
+
+**Completed:** 2026-05-21
+
+---
+
 ### v1.4.0 (Minor) - OPTIONAL
 
 **Purpose:** UI consistency and comparative enrichment

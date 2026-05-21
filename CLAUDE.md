@@ -54,7 +54,8 @@
 - Track version bumps and releases
 - Cross-reference BACKLOG_STATUS.md for detailed status
 
-**Current focus:** v1.2.0 Phase 3 (AWS Platform Specifics, FIPS binary selection)  
+**Current focus:** v1.2.0 Phase 3 COMPLETE (AWS Platform Specifics, FIPS binary selection, Node drawer redesign)  
+**Additional work complete:** DOC-082 Parameter Canonicalization Audit (Phase 2, outside roadmap, 2026-05-21)  
 **Next phase:** v1.3.0 (Testing & Validation)
 
 ### 3. Historical Work Plan: `/docs/COMPREHENSIVE_MASTER_PLAN.md`
