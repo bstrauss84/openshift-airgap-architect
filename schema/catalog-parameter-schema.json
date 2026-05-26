@@ -1,0 +1,242 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenShift Airgap Architect Parameter Catalog Schema",
+  "description": "JSON Schema for parameter catalog files in data/params/4.20/*.json",
+  "version": "1.1.0",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-05-01",
+      "changes": "Initial schema with path, outputFile, type, allowed, default, required, description, citations, applies_to"
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-05-26",
+      "changes": "Added deprecation support: deprecated, deprecatedReason, replacementPath, removalVersion fields"
+    }
+  ],
+  "type": "object",
+  "required": ["scenarioId", "version", "parameters"],
+  "properties": {
+    "scenarioId": {
+      "type": "string",
+      "description": "Unique scenario identifier (e.g., 'bare-metal-ipi', 'vsphere-agent')",
+      "examples": ["bare-metal-ipi", "vsphere-agent", "aws-govcloud-ipi"]
+    },
+    "version": {
+      "type": "string",
+      "description": "OpenShift minor version this catalog covers",
+      "pattern": "^4\\.\\d+$",
+      "examples": ["4.20", "4.21"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional human-readable scenario description"
+    },
+    "parameters": {
+      "type": "array",
+      "description": "Array of parameter definitions",
+      "items": {
+        "type": "object",
+        "required": ["path", "outputFile", "type", "required", "description"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Dot-notation path in YAML structure (e.g., 'baseDomain', 'platform.baremetal.apiVIPs', 'networking.machineNetwork[0].cidr')",
+            "examples": [
+              "baseDomain",
+              "platform.baremetal.apiVIPs",
+              "networking.machineNetwork[0].cidr",
+              "platform.vsphere.failureDomains[].topology.datacenter"
+            ]
+          },
+          "outputFile": {
+            "type": "string",
+            "description": "Target YAML file where this parameter is written",
+            "enum": ["install-config.yaml", "agent-config.yaml", "imageset-config.yaml"],
+            "examples": ["install-config.yaml", "agent-config.yaml"]
+          },
+          "type": {
+            "type": "string",
+            "description": "Data type of the parameter value",
+            "enum": ["string", "integer", "boolean", "array", "object", "cidr", "ipv4", "ipv6"],
+            "examples": ["string", "integer", "boolean", "array"]
+          },
+          "allowed": {
+            "description": "Enum values (array) or free-form description (string). Empty array if no enum constraint.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Array of allowed enum values"
+              },
+              {
+                "type": "string",
+                "description": "Free-form description of allowed values when not strict enum"
+              }
+            ],
+            "examples": [
+              ["OVNKubernetes", "OpenShiftSDN"],
+              "Array of channel objects with name, minVersion, maxVersion",
+              []
+            ]
+          },
+          "default": {
+            "description": "Default value if not provided by user. Null if no default.",
+            "oneOf": [
+              { "type": "string" },
+              { "type": "number" },
+              { "type": "boolean" },
+              { "type": "null" }
+            ],
+            "examples": ["OVNKubernetes", 443, true, null]
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether parameter is required for the scenario. Conditional requirements should be false with conditions noted in description."
+          },
+          "description": {
+            "type": "string",
+            "description": "Comprehensive parameter description following gold standard tooltip format (What/When/Format/How/Important/Example sections)"
+          },
+          "citations": {
+            "type": "array",
+            "description": "Documentation references for this parameter",
+            "items": {
+              "type": "object",
+              "required": ["docId", "docTitle", "sectionHeading", "url"],
+              "properties": {
+                "docId": {
+                  "type": "string",
+                  "description": "Document identifier slug",
+                  "examples": ["installation-config-parameters-agent", "bare-metal-ipi"]
+                },
+                "docTitle": {
+                  "type": "string",
+                  "description": "Full document title"
+                },
+                "sectionHeading": {
+                  "type": "string",
+                  "description": "Section or heading within document"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "Full URL to documentation page"
+                }
+              }
+            }
+          },
+          "applies_to": {
+            "type": "array",
+            "description": "Optional list of scenario IDs this parameter applies to. If omitted, applies to current scenario only.",
+            "items": { "type": "string" },
+            "examples": [["bare-metal-ipi", "bare-metal-agent"], ["all"]]
+          },
+          "conditionals": {
+            "type": "object",
+            "description": "Optional conditional logic (mutual exclusivity, visibility constraints)",
+            "properties": {
+              "mutuallyExclusive": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "List of parameter paths that cannot coexist with this parameter"
+              },
+              "visibleWhen": {
+                "type": "object",
+                "description": "Conditions under which this parameter should be visible in UI"
+              }
+            }
+          },
+          "deprecated": {
+            "type": "boolean",
+            "description": "⭐ NEW v1.1.0: Marks parameter as deprecated. Shows orange 'Deprecated' badge in UI, adds warning to tooltip.",
+            "default": false
+          },
+          "deprecatedReason": {
+            "type": "string",
+            "description": "⭐ NEW v1.1.0: Brief explanation of why parameter is deprecated and what to use instead. Shown in UI warning tooltip.",
+            "examples": [
+              "Legacy single-zone field. Use failureDomains for multi-zone support.",
+              "Use imageDigestSources for IDMS-based mirroring instead of ICSP."
+            ]
+          },
+          "replacementPath": {
+            "type": "string",
+            "description": "⭐ NEW v1.1.0: Canonical parameter path that replaces this deprecated field. Shown in UI tooltip as migration guidance.",
+            "examples": [
+              "platform.vsphere.failureDomains[].topology.datacenter",
+              "imageDigestSources"
+            ]
+          },
+          "removalVersion": {
+            "type": "string",
+            "description": "⭐ NEW v1.1.0: OpenShift major version when this field will be removed (e.g., '5.0'). Helps users plan migration timeline.",
+            "pattern": "^\\d+\\.\\d+$",
+            "examples": ["5.0", "6.0"]
+          }
+        },
+        "if": {
+          "properties": { "deprecated": { "const": true } }
+        },
+        "then": {
+          "required": ["deprecatedReason", "replacementPath"]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "scenarioId": "vsphere-ipi",
+      "version": "4.20",
+      "parameters": [
+        {
+          "path": "baseDomain",
+          "outputFile": "install-config.yaml",
+          "type": "string",
+          "allowed": [],
+          "default": null,
+          "required": true,
+          "description": "Base DNS domain for the cluster.",
+          "citations": [
+            {
+              "docId": "installation-config-parameters",
+              "docTitle": "Installation configuration parameters",
+              "sectionHeading": "Required configuration parameters",
+              "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installation-configuration#installation-configuration-parameters"
+            }
+          ]
+        },
+        {
+          "path": "platform.vsphere.datacenter",
+          "outputFile": "install-config.yaml",
+          "type": "string",
+          "allowed": [],
+          "default": null,
+          "required": false,
+          "description": "⚠️ DEPRECATED: Legacy single-zone vSphere datacenter name. Use failureDomains[].topology.datacenter for multi-zone deployments.",
+          "deprecated": true,
+          "deprecatedReason": "Legacy single-zone field. Use failureDomains for multi-zone support.",
+          "replacementPath": "platform.vsphere.failureDomains[].topology.datacenter",
+          "removalVersion": "5.0",
+          "citations": [
+            {
+              "docId": "vsphere-installation-config",
+              "docTitle": "vSphere installation configuration",
+              "sectionHeading": "Platform configuration",
+              "url": "https://docs.redhat.com/..."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "This schema documents the structure of parameter catalog files used by the OpenShift Airgap Architect application.",
+    "Catalog files are located in data/params/4.20/ (backend) and synchronized to frontend/src/data/catalogs/.",
+    "The 'deprecated' family of fields (v1.1.0) enables gradual migration from legacy fields to canonical replacements.",
+    "UI components (FieldLabelWithInfo) render deprecated parameters with orange badges and warning tooltips.",
+    "Backend validation (yamlValidator.js) logs warnings when deprecated fields are used in generated YAML.",
+    "Deprecation follows OpenShift semantic versioning: deprecate in minor version (4.20), remove in major version (5.0+)."
+  ]
+}

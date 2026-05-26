@@ -66,46 +66,6 @@
       ]
     },
     {
-      "path": "arbiter.name",
-      "outputFile": "install-config.yaml",
-      "type": "string",
-      "allowed": "e.g. arbiter",
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Name for arbiter nodes.",
-      "applies_to": [
-        "azure-government-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
-        }
-      ]
-    },
-    {
-      "path": "arbiter.replicas",
-      "outputFile": "install-config.yaml",
-      "type": "int",
-      "allowed": 1,
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Number of arbiter nodes. Cannot be greater than 1.",
-      "applies_to": [
-        "azure-government-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
-        }
-      ]
-    },
-    {
       "path": "baseDomain",
       "outputFile": "install-config.yaml",
       "type": "string",
@@ -460,6 +420,46 @@
       ]
     },
     {
+      "path": "controlPlane.diskSetup",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of Disk objects (etcd, swap, user-defined)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Disk partitioning and setup configuration for control plane machines. Configures dedicated disks for etcd data, swap space, or custom user-defined partitions. Applied via MachineConfigs during installation.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.platform.azure",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "azure.MachinePool object with type, osDisk, zones, etc.",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Azure-specific configuration for control plane machines. Use for per-pool overrides (VM size, OS disk, availability zones). Overrides global platform.azure settings for control plane only.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.Azure",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
       "path": "cpuPartitioningMode",
       "outputFile": "install-config.yaml",
       "type": "string",
@@ -528,6 +528,26 @@
       ]
     },
     {
+      "path": "featureGates",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of strings in format 'FeatureGateName=true|false'",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Custom feature gate configuration for enabling/disabling specific cluster features. Only valid when featureSet is 'CustomNoUpgrade'. Each entry is 'FeatureGateName=true' to enable or 'FeatureGateName=false' to disable. Example: ['ExperimentalFeature=true', 'OldFeature=false']. Clusters with custom feature gates cannot upgrade.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
       "path": "fips",
       "outputFile": "install-config.yaml",
       "type": "bool",
@@ -538,26 +558,6 @@
       "default": false,
       "required": false,
       "description": "Enable or disable FIPS mode. RHCOS uses FIPS-validated crypto when true.",
-      "applies_to": [
-        "azure-government-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installation-config-parameters-agent",
-          "docTitle": "Installation configuration parameters for the Agent-based Installer",
-          "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
-        }
-      ]
-    },
-    {
-      "path": "imageContentSources",
-      "outputFile": "install-config.yaml",
-      "type": "array",
-      "allowed": "objects with source and mirrors",
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Sources and repositories for release-image content (disconnected mirroring).",
       "applies_to": [
         "azure-government-ipi"
       ],
@@ -831,6 +831,26 @@
       ]
     },
     {
+      "path": "networking.ovnKubernetesConfig",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "OVNKubernetesConfig object with ipv4, ipv6, policyAuditConfig fields",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for OVN-Kubernetes CNI plugin (default network plugin for OpenShift 4.20). Only applies when networking.networkType is OVNKubernetes.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
       "path": "networking.networkType",
       "outputFile": "install-config.yaml",
       "type": "string",
@@ -911,6 +931,32 @@
       ]
     },
     {
+      "path": "platform.azure",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "azure.Platform object with region, baseDomainResourceGroupName, cloudName, etc.",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Azure platform configuration for installer-provisioned infrastructure. Includes cloud name (AzureUSGovernmentCloud), region, resource groups, networking, and other Azure-specific settings. Required when platform.type is 'azure'.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Platform.Azure",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        },
+        {
+          "docId": "installing-azure-government-ipi",
+          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
+          "sectionHeading": "Azure Government install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installing-azure-government-ipi"
+        }
+      ]
+    },
+    {
       "path": "platform.azure.cloudName",
       "outputFile": "install-config.yaml",
       "type": "string",
@@ -918,7 +964,7 @@
         "AzureUSGovernmentCloud"
       ],
       "default": "AzureUSGovernmentCloud",
-      "required": true,
+      "required": false,
       "description": "Azure cloud name for Government; must be AzureUSGovernmentCloud.",
       "applies_to": [
         "azure-government-ipi"
@@ -978,7 +1024,7 @@
       "type": "string",
       "allowed": "not specified in docs",
       "default": "not specified in docs",
-      "required": true,
+      "required": false,
       "description": "Resource group containing the DNS zone for the base domain. Required for public clusters; optional for private clusters.",
       "applies_to": [
         "azure-government-ipi"
@@ -989,6 +1035,52 @@
           "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
           "sectionHeading": "Azure Government install-config parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi"
+        }
+      ]
+    },
+    {
+      "path": "operatorPublishingStrategy",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "OperatorPublishingStrategy object with ingress, apiserver fields",
+      "default": "External for both ingress and apiserver",
+      "required": false,
+      "description": "Controls visibility of DNS resources for ingress controller and API server (Azure-specific). Only valid when publish mode is 'Mixed'. Use to configure split-horizon DNS where API server and ingress have different visibility (internal vs external). Defaults to External (public) for both.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.OperatorPublishingStrategy",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "proxy",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "Proxy object with httpProxy, httpsProxy, noProxy fields",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cluster-wide proxy configuration for external HTTP/HTTPS connections. Configure if cluster nodes access Red Hat services, container registries, or external resources through a proxy server. If unset, cluster does not use a proxy.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        },
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ]
     },
@@ -1016,6 +1108,30 @@
       ]
     },
     {
+      "path": "operatorPublishingStrategy.apiserver",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "External",
+        "Internal",
+        ""
+      ],
+      "default": "External",
+      "required": false,
+      "description": "Visibility of Kubernetes API server load balancers (Azure-specific). External (default) = API accessible from internet (with authentication). Internal = API only accessible from within VNet. Use Internal for fully private clusters. Only valid with publish: Mixed.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - OperatorPublishingStrategy.APIServer",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
       "path": "proxy.httpProxy",
       "outputFile": "install-config.yaml",
       "type": "string",
@@ -1032,6 +1148,30 @@
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "operatorPublishingStrategy.ingress",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "External",
+        "Internal",
+        ""
+      ],
+      "default": "External",
+      "required": false,
+      "description": "Visibility of ingress controller DNS resources and load balancers (Azure-specific). External (default) = publicly accessible ingress. Internal = private ingress, only accessible from within VNet. Only valid with publish: Mixed.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - OperatorPublishingStrategy.Ingress",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ]
     },
