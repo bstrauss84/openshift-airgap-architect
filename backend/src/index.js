@@ -86,6 +86,8 @@ import {
   TrustSelectionHardLimitError,
   analyzeTrustState
 } from "./trustAnalysis/index.js";
+import { validateAllFiles } from "./yamlValidator.js";
+import { detectScenarioId } from "./catalogValidator.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -2823,6 +2825,33 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
   try {
     const files = buildPreviewFiles(parsed.state);
     if (!files) return res.status(400).json({ error: "Version not confirmed." });
+
+    // Validate generated YAML against parameter catalogs (advisory, non-blocking)
+    const scenarioId = detectScenarioId(parsed.state);
+    if (scenarioId) {
+      const validation = validateAllFiles(files, scenarioId);
+      if (!validation.valid) {
+        logger.warn({
+          requestId: req.requestId,
+          scenarioId,
+          totalErrors: validation.totalErrors,
+          fileErrors: Object.keys(validation.fileErrors).reduce((acc, filename) => {
+            acc[filename] = validation.fileErrors[filename].totalErrors;
+            return acc;
+          }, {}),
+        }, "Generated YAML validation warnings (non-blocking)");
+        // Note: Validation warnings are logged but do not block generation.
+        // This allows minimal test fixtures and incomplete states while still
+        // providing visibility into potential configuration issues.
+      } else {
+        logger.debug({
+          requestId: req.requestId,
+          scenarioId,
+          filesValidated: Object.keys(files).filter(f => f.endsWith('.yaml')),
+        }, "Generated YAML validation passed");
+      }
+    }
+
     res.json({ files });
   } catch (error) {
     if (error instanceof TrustAnalysisHashMismatchError) {
