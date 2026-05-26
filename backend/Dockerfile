@@ -41,6 +41,7 @@ ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY src ./src
 COPY mock-data ./mock-data
+COPY ../data ./data
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh && chown -R 1001:0 /app \
     && useradd -r -u 1001 -g 0 -o -M -d /app appuser 2>/dev/null || true
