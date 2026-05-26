@@ -404,19 +404,23 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const showControlPlaneHyperthreading = hasParam(catalogParams, "controlPlane[].hyperthreading", INSTALL_CONFIG);
   const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
+  const showFeatureSet = hasParam(catalogParams, "featureSet", INSTALL_CONFIG);
   const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
-  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
+  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showFeatureSet || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
 
   const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG);
   const metaControlPlaneHyperthreading = getParamMeta(scenarioId, "controlPlane[].hyperthreading", INSTALL_CONFIG);
   const metaBaselineCapability = getParamMeta(scenarioId, "capabilities.baselineCapabilitySet", INSTALL_CONFIG);
   const metaAdditionalCapabilities = getParamMeta(scenarioId, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const metaCpuPartitioningMode = getParamMeta(scenarioId, "cpuPartitioningMode", INSTALL_CONFIG);
+  const metaFeatureSet = getParamMeta(scenarioId, "featureSet", INSTALL_CONFIG);
+  const metaFeatureGates = getParamMeta(scenarioId, "featureGates", INSTALL_CONFIG);
   const metaMinimalISO = getParamMeta(scenarioId, "minimalISO", AGENT_CONFIG);
 
   const hyperthreadingOptions = ["Enabled", "Disabled"];
+  const featureSetOptions = ["TechPreviewNoUpgrade", "CustomNoUpgrade", "LatencyMitigating"];
   const baselineCapabilityOptions = Array.isArray(metaBaselineCapability?.allowed) ? metaBaselineCapability.allowed : ["None", "v4.11", "v4.12", "v4.20", "vCurrent"];
   const cpuPartitioningOptions = Array.isArray(metaCpuPartitioningMode?.allowed) ? metaCpuPartitioningMode.allowed : ["None", "AllNodes"];
 
@@ -4222,6 +4226,114 @@ Leave 'None' for general clusters`}
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
+                    </FieldLabelWithInfo>
+                  )}
+                  {showFeatureSet && (
+                    <FieldLabelWithInfo
+                      label="Feature set (optional)"
+                      hint={`Enables pre-packaged feature gate sets for tech preview or latency-sensitive workloads.
+
+**Default:**
+Leave as 'Not set' for standard production clusters
+
+**What is a feature set:**
+OpenShift feature gates control access to features not enabled by default. Feature sets bundle multiple related feature gates for specific use cases without manually configuring each gate.
+
+**When needed:**
+• **Technology previews:** Test upcoming features in non-production environments
+• **Custom features:** Enable/disable specific gates for specialized use cases
+• **Latency mitigation:** Optimize for real-time workloads (telco, 5G, industrial)
+
+**Options:**
+
+**TechPreviewNoUpgrade:**
+Enables all Technology Preview features. Useful for testing new capabilities before general availability.
+⚠️ Cannot upgrade clusters with this set - requires clean reinstall when upgrading OpenShift
+⚠️ Not supported in production
+
+**CustomNoUpgrade:**
+Allows manual selection of individual feature gates via 'featureGates' field (shows below when selected).
+Use for enabling/disabling specific experimental or deprecated features.
+⚠️ Cannot upgrade clusters with custom gates - requires clean reinstall
+
+**LatencyMitigating:**
+Optimizes cluster for low-latency workloads by reducing kubelet update frequency and API server coordination overhead.
+Designed for telco/edge deployments (5G RAN, MEC) where consistent sub-millisecond latency matters.
+✅ Supports cluster upgrades (unlike tech preview/custom sets)
+
+**How it's used:**
+Written to install-config.yaml as 'featureSet: TechPreviewNoUpgrade'. Controls which feature gates are enabled cluster-wide at installation time.
+
+**Important:**
+⚠️ TechPreview and Custom feature sets prevent upgrades - cluster must be reinstalled to upgrade OpenShift
+⚠️ Tech preview features may be unstable, incomplete, or removed in future releases
+⚠️ LatencyMitigating is production-supported but only needed for latency-critical use cases
+
+**Example:**
+Set 'TechPreviewNoUpgrade' to test upcoming features in lab environment
+Set 'LatencyMitigating' for telco vRAN Single-Node OpenShift with real-time workloads
+Leave 'Not set' for standard production clusters`}
+                    >
+                      <select
+                        value={platformConfig.featureSet || ""}
+                        onChange={(e) => updatePlatformConfig({ featureSet: e.target.value || undefined })}
+                      >
+                        <option value="">Not set</option>
+                        {featureSetOptions.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </FieldLabelWithInfo>
+                  )}
+                  {showFeatureSet && platformConfig.featureSet === "CustomNoUpgrade" && (
+                    <FieldLabelWithInfo
+                      label="Feature gates (required when CustomNoUpgrade)"
+                      hint={`Individual feature gate overrides when using CustomNoUpgrade feature set.
+
+**What are feature gates:**
+Feature gates are boolean flags that enable or disable specific OpenShift features at the cluster level. Gates control access to experimental, deprecated, or opt-in features not enabled by default.
+
+**When needed:**
+ONLY when featureSet is 'CustomNoUpgrade'. Specifies which gates to enable (true) or disable (false).
+
+**Format:**
+One per line in format: FeatureGateName=true or FeatureGateName=false
+
+**How it's used:**
+Written to install-config.yaml as array:
+featureGates:
+  - ExperimentalFeature=true
+  - DeprecatedFeature=false
+
+Controls cluster-wide feature availability at installation time.
+
+**Important:**
+⚠️ Clusters with custom feature gates CANNOT upgrade - requires clean reinstall to change OpenShift version
+⚠️ Incorrect gate names are silently ignored - verify against OpenShift documentation
+⚠️ Enabling experimental gates may cause instability
+⚠️ This is ADVANCED configuration - only use if you understand specific gates needed
+
+**Common feature gates:**
+• **ExternalCloudProvider=true** - Use out-of-tree cloud provider (required for some platforms in 4.13+)
+• **RotateKubeletServerCertificate=true** - Enable kubelet cert rotation
+• **CSIMigration<Provider>=true** - Migrate volumes from in-tree to CSI drivers
+
+**Example:**
+ExternalCloudProvider=true
+CSIMigrationAWS=true
+TechPreviewFeature=false
+
+**Reference:**
+See OpenShift 4.20 documentation for full list of available feature gates and their effects.`}
+                      required={platformConfig.featureSet === "CustomNoUpgrade"}
+                    >
+                      <textarea
+                        value={platformConfig.featureGates || ""}
+                        onChange={(e) => updatePlatformConfig({ featureGates: e.target.value || undefined })}
+                        placeholder="ExternalCloudProvider=true&#10;CSIMigrationAWS=true"
+                        rows="4"
+                        style={{ width: "100%", fontFamily: "monospace", fontSize: "0.9rem" }}
+                      />
                     </FieldLabelWithInfo>
                   )}
                 </div>
