@@ -2946,7 +2946,7 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
       return res.status(409).json({
         error: error.message,
         code: error.code,
-        analysisHashMismatchError: true,
+        analysisHashMismatch: true,
         details: error.details || {}
       });
     }
