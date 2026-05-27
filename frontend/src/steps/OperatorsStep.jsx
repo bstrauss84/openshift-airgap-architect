@@ -715,6 +715,11 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       </div>
 
       <div className="step-body">
+        {state?.docs?.connectivity === "connected" && (
+          <Banner variant="info" style={{ marginBottom: "1.5rem" }}>
+            ✓ Connected Mode - Scanning live catalogs from Red Hat registries
+          </Banner>
+        )}
         {needsReview ? (
           <Banner variant="warning">
             Version or upstream selections changed. Operator selections and scan results may be stale.
