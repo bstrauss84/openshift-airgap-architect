@@ -247,6 +247,26 @@ function detectMountedPullSecret() {
 }
 detectMountedPullSecret();
 
+function isOperatorManaged() {
+  const managed = process.env.OPENSHIFT_OPERATOR_MANAGED;
+  return managed === "true" || managed === "1";
+}
+
+function validateOperatorRequirements() {
+  if (!isOperatorManaged()) return;
+
+  if (!mountedRhPullSecret) {
+    console.error("[startup] FATAL: Running in operator-managed mode but pull secret not found.");
+    console.error("[startup] Expected pull secret at: /run/secrets/pull-secret");
+    console.error("[startup] Set PULL_SECRET_FILE to override location.");
+    process.exit(1);
+  }
+
+  console.log("[startup] Operator-managed mode: Pull secret validation passed.");
+}
+
+validateOperatorRequirements();
+
 function logFeedbackStartupStatus() {
   const config = resolveFeedbackConfig();
   if (config.mode === "disabled") {
@@ -1134,7 +1154,20 @@ app.get("/api/secrets/rh-pull-secret", (req, res) => {
 
 app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
   if (!mountedRhPullSecret) return res.status(404).json({ error: "No mounted pull secret." });
+
+  // In operator-managed mode, never expose the pull secret to frontend
+  if (isOperatorManaged()) {
+    return res.status(403).json({ error: "Pull secret access restricted in operator-managed mode." });
+  }
+
   res.json({ pullSecret: mountedRhPullSecret });
+});
+
+app.get("/api/runtime/operator-managed", (_req, res) => {
+  res.json({
+    operatorManaged: isOperatorManaged(),
+    pullSecretMounted: !!mountedRhPullSecret
+  });
 });
 
 app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
@@ -1325,7 +1358,7 @@ app.post("/api/cincinnati/refresh-job", validateBody(cincinnatiRefreshSchema), (
 });
 
 app.get("/api/operators/credentials", (req, res) => {
-  res.json({ available: authAvailable() });
+  res.json({ available: authAvailable(mountedRhPullSecret) });
 });
 
 app.post("/api/operators/confirm", validateBody(operatorConfirmSchema), (req, res) => {
@@ -1349,7 +1382,7 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
-  if (!authAvailable() && !req.body?.pullSecret && String(process.env.MOCK_MODE).toLowerCase() !== "true") {
+  if (!authAvailable(mountedRhPullSecret) && !req.body?.pullSecret && String(process.env.MOCK_MODE).toLowerCase() !== "true") {
     return res.status(400).json({ error: "Registry auth not configured." });
   }
   if (String(process.env.MOCK_MODE).toLowerCase() === "true") {
@@ -1368,8 +1401,10 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
     return res.json({ jobs });
   }
   let tempAuthFile = null;
-  if (req.body?.pullSecret) {
-    const normalized = normalizePullSecret(req.body.pullSecret);
+  const pullSecretSource = req.body?.pullSecret || mountedRhPullSecret;
+
+  if (pullSecretSource) {
+    const normalized = normalizePullSecret(pullSecretSource);
     tempAuthFile = writeTempAuth(normalized);
   }
   const catalogMinor = getOpenShiftMinorFromState(state);
@@ -1422,7 +1457,7 @@ app.post("/api/operators/prefetch", validateBody(operatorsPrefetchSchema), async
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
-  if (!authAvailable()) {
+  if (!authAvailable(mountedRhPullSecret)) {
     return res.status(400).json({ error: "Registry auth not configured." });
   }
   const catalogMinor = getOpenShiftMinorFromState(state);
@@ -2408,7 +2443,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const registryUrl = body.registryUrl?.trim() || (registryFqdn ? `docker://${registryFqdn}` : "");
   const configSourceType = body.configSourceType || "generated";
   const configPathExternal = body.configPath?.trim();
-  const rhPullSecretRaw = body.rhAuthSource === "mounted" ? mountedRhPullSecret : body.rhPullSecret;
+  const rhPullSecretRaw = body.rhAuthSource === "mounted" ? mountedRhPullSecret : (body.rhPullSecret || mountedRhPullSecret);
   const mirrorAuthSource = body.mirrorAuthSource || "reuse";
   const mirrorPullSecretRaw = body.mirrorPullSecret;
   const advanced = body.advanced && typeof body.advanced === "object" ? body.advanced : {};
