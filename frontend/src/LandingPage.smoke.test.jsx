@@ -11,9 +11,10 @@ import { render, screen } from "@testing-library/react";
 import LandingPage from "./LandingPage.jsx";
 
 describe("LandingPage smoke", () => {
-  it("renders landing heading and Install card", () => {
+  it("renders landing heading and mode selection cards", () => {
     render(<LandingPage hasProgress={false} onStartInstall={() => {}} />);
     expect(screen.getByText(/What would you like to do\?/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Install/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Generate ImageSet Configuration/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Build Disconnected Cluster/i })).toBeInTheDocument();
   });
 });

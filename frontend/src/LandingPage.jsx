@@ -12,7 +12,9 @@ import React from "react";
 import { useApp } from "./store.jsx";
 
 const LandingPage = ({ hasProgress, onStartInstall }) => {
-  const { runtimeInfo, updateState } = useApp();
+  const context = useApp();
+  const runtimeInfo = context?.runtimeInfo || {};
+  const updateState = context?.updateState || (() => {});
   const operatorManaged = runtimeInfo?.operatorManaged || false;
   const pullSecretMounted = runtimeInfo?.pullSecretMounted || false;
 
