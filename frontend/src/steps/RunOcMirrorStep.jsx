@@ -583,7 +583,25 @@ Opens a file browser showing files in /data - easier than typing paths manually.
                 </FieldLabelWithInfo>
                 {renderFieldError("configPath")}
               </div>
-            ) : null}
+            ) : (
+              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border-subtle)" }}>
+                <OptionRow
+                  title="Include KubeVirt containers"
+                  description="Include images from the HyperShift KubeVirt CoreOS container. Enable this if you plan to run virtualization workloads or HyperShift deployments with KubeVirt provider."
+                >
+                  <Switch
+                    checked={Boolean(state.imagesetConfig?.kubeVirtContainer)}
+                    onChange={(v) => updateState({
+                      imagesetConfig: {
+                        ...(state.imagesetConfig || {}),
+                        kubeVirtContainer: v
+                      }
+                    })}
+                    aria-label="Include KubeVirt containers"
+                  />
+                </OptionRow>
+              </div>
+            )}
           </div>
         </section>
 

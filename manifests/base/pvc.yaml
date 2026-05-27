@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airgap-architect-data
+  labels:
+    app: airgap-architect
+    app.kubernetes.io/name: airgap-architect-data
+    app.kubernetes.io/part-of: airgap-architect
+spec:
+  accessModes:
+  # ReadWriteOnce: SQLite is single-writer, only one pod mounts at a time.
+  - ReadWriteOnce
+  resources:
+    requests:
+      # 50 GB for the SQLite database + 200 GB for oc-mirror workspace.
+      # Adjust based on the number of OCP releases and operators you mirror.
+      storage: 250Gi
+  # Uncomment and set to your cluster's storage class if the default is not suitable.
+  # storageClassName: gp3-csi

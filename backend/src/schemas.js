@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import logger, { generateErrorId } from "./logger.js";
 
 // ===================================================================
 // COMMON SCHEMAS - Reusable building blocks
@@ -163,11 +164,16 @@ export const pathCheckSchema = z.object({
 // ===================================================================
 
 export const feedbackSubmitSchema = z.object({
-  feedbackText: z.string().min(1).max(10000),
-  email: z.string().email().optional(),
-  appState: z.string().max(500000).optional(), // JSON-stringified state
-  includeState: z.boolean().optional(),
-});
+  category: z.string().max(100).optional(),
+  severity: z.string().max(100).optional(),
+  summary: z.string().max(5000).optional(),
+  details: z.string().max(50000).optional(),
+  contactRequested: z.boolean().optional(),
+  contactHandle: z.string().max(500).optional(),
+  challengeToken: z.string().max(1024).optional(),
+  uiContext: z.string().max(200).optional(),
+  honeypot: z.string().max(500).optional(),
+}).passthrough();
 
 // ===================================================================
 // /api/generate - YAML Generation Schema
@@ -188,41 +194,128 @@ export const cincinnatiPatchesUpdateSchema = z.object({
 // ===================================================================
 
 export const cincinnatiRefreshSchema = z.object({
-  preferredChannel: z.string().optional(),
-  channel: z.string().optional(),
+  preferredChannel: z.string().nullable().optional(),
+  channel: z.string().nullable().optional(),
 }).passthrough();
 
 // ===================================================================
 // /api/operators/confirm - Operator Confirmation Schema
 // ===================================================================
 
-export const operatorConfirmSchema = z.object({
-  operators: z.array(z.object({
-    catalog: z.string(),
-    name: z.string(),
-    defaultChannel: z.string().optional(),
-    selectedChannel: z.string().optional(),
-    minVersion: z.string().optional(),
-    maxVersion: z.string().optional(),
-  })),
-});
+/**
+ * POST /api/operators/confirm reads from server state.
+ * Frontend sends no body. Accept empty or any object for compatibility.
+ */
+export const operatorConfirmSchema = z.object({}).passthrough();
 
 // ===================================================================
 // /api/start-over - Start Over Schema
 // ===================================================================
 
 export const startOverSchema = z.object({
-  // No body required, but accept empty object
+  cancelRunningOcMirror: z.boolean().optional(),
 }).passthrough();
 
 // ===================================================================
 // /api/bundle.prepare - Bundle Preparation Schema
 // ===================================================================
 
+/**
+ * POST /api/bundle.prepare accepts optional client state.
+ * Uses parseOptionalClientState for deep validation.
+ */
 export const bundlePrepareSchema = z.object({
-  includeDocs: z.boolean().default(true),
-  includeTools: z.boolean().default(true),
-  includeFieldGuide: z.boolean().default(true),
+  state: z.object({}).catchall(z.unknown()).optional().nullable(),
+}).passthrough();
+
+// ===================================================================
+// /api/run/import - Run Import Schema
+// ===================================================================
+
+export const runImportSchema = z.object({
+  schemaVersion: z.number().int().min(1).max(2).optional(),
+  state: z.object({}).catchall(z.unknown()),
+  exportedAt: z.string().optional(),
+  runId: z.string().optional(),
+}).passthrough();
+
+// ===================================================================
+// /api/run/duplicate - Run Duplicate Schema
+// ===================================================================
+
+/**
+ * POST /api/run/duplicate reads entirely from server state.
+ * Body is unused but accepted as empty for compatibility.
+ */
+export const runDuplicateSchema = z.object({}).passthrough();
+
+// ===================================================================
+// /api/cincinnati/update - Cincinnati Update Schema
+// ===================================================================
+
+/**
+ * POST /api/cincinnati/update forces a channel refresh.
+ * No body fields are used but accepted as empty for compatibility.
+ */
+export const cincinnatiUpdateSchema = z.object({}).passthrough();
+
+// ===================================================================
+// /api/operators/prefetch - Operator Prefetch Schema
+// ===================================================================
+
+/**
+ * POST /api/operators/prefetch reads from server state.
+ * No body fields are used but accepted as empty for compatibility.
+ */
+export const operatorsPrefetchSchema = z.object({}).passthrough();
+
+// ===================================================================
+// /api/jobs/:id/stop - Job Stop Schema
+// ===================================================================
+
+/**
+ * POST /api/jobs/:id/stop uses job ID from URL param only.
+ * No body fields are used but accepted as empty for compatibility.
+ */
+export const jobStopSchema = z.object({}).passthrough();
+
+// ===================================================================
+// /api/docs/update - Docs Update Schema
+// ===================================================================
+
+/**
+ * POST /api/docs/update reads entirely from server state.
+ * No body fields are used but accepted as empty for compatibility.
+ */
+export const docsUpdateSchema = z.object({}).passthrough();
+
+// ===================================================================
+// /api/aws/warm-installer - AWS Warm Installer Schema
+// ===================================================================
+
+export const awsWarmInstallerSchema = z.object({
+  version: z.string().min(1, "Version is required").max(100).optional(),
+  arch: z.string().max(50).optional(),
+}).passthrough();
+
+// ===================================================================
+// /api/trust/analyze - Trust Analysis Schema
+// ===================================================================
+
+export const trustAnalyzeSchema = z.object({
+  state: z.object({}).catchall(z.unknown()).optional().nullable(),
+}).passthrough();
+
+// ===================================================================
+// /api/bundle.zip - Bundle Zip Schema
+// ===================================================================
+
+/**
+ * POST /api/bundle.zip accepts optional client state.
+ * Uses parseOptionalClientState for deep validation.
+ */
+export const bundleZipSchema = z.object({
+  state: z.object({}).catchall(z.unknown()).optional().nullable(),
 }).passthrough();
 
 // ===================================================================
@@ -250,19 +343,34 @@ export function validateBody(schema) {
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
+        const errorId = generateErrorId();
         // Format validation errors in a user-friendly way
         const errors = error.errors.map((err) => ({
           path: err.path.join("."),
           message: err.message,
         }));
+
+        // Log validation failure with structured logging
+        logger.warn({
+          errorId,
+          requestId: req.requestId,
+          errors,
+          path: req.path,
+          method: req.method,
+        }, "Validation failed");
+
         return res.status(400).json({
           error: "Validation failed",
+          errorId,
           details: errors,
         });
       }
-      // Unexpected error
+      // Unknown validation error
+      const errorId = generateErrorId();
+      logger.error({ errorId, err: error }, "Internal validation error");
       return res.status(500).json({
         error: "Internal validation error",
+        errorId,
       });
     }
   };

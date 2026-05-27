@@ -148,6 +148,70 @@ const isValidMac = (value) => {
   return normalized.length === 17 && /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(normalized);
 };
 
+/**
+ * BMC (Baseboard Management Controller) URL validation.
+ * Validates BMC addresses used in bare-metal deployments for out-of-band management.
+ * Supports metal3 BMC driver URL formats with various protocols.
+ *
+ * Valid formats:
+ * - redfish+http://host[:port]/path
+ * - redfish+https://host[:port]/path
+ * - redfish://host[:port]/path (HTTP by default)
+ * - redfish-virtualmedia+http://host[:port]/path
+ * - redfish-virtualmedia+https://host[:port]/path
+ * - idrac://host[:port]
+ * - idrac+http://host[:port]
+ * - idrac+https://host[:port]
+ * - idrac-virtualmedia://host[:port]
+ * - idrac-virtualmedia+http://host[:port]
+ * - idrac-virtualmedia+https://host[:port]
+ * - ipmi://host[:port]
+ * - ilo4-virtualmedia://host[:port]
+ * - ilo5-virtualmedia://host[:port]
+ *
+ * Host can be IPv4, IPv6 (in brackets), or hostname/FQDN.
+ * Port is optional, path is optional (depends on protocol).
+ *
+ * @param {string} value - BMC URL to validate
+ * @returns {boolean} true if valid BMC URL format, false otherwise
+ */
+const isValidBmcUrl = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed === "") return false;
+
+  // Supported BMC protocols per metal3 BMC driver
+  const protocols = [
+    "redfish\\+https?",      // redfish+http, redfish+https
+    "redfish",               // redfish (plain HTTP by default)
+    "redfish-virtualmedia\\+https?", // redfish-virtualmedia+http, redfish-virtualmedia+https
+    "idrac-virtualmedia\\+https?",   // idrac-virtualmedia+http, idrac-virtualmedia+https
+    "idrac-virtualmedia",    // idrac-virtualmedia (plain)
+    "idrac\\+https?",        // idrac+http, idrac+https
+    "idrac",                 // idrac (plain)
+    "ipmi",                  // ipmi
+    "ilo[45]-virtualmedia"   // ilo4-virtualmedia, ilo5-virtualmedia
+  ];
+
+  // Build regex pattern
+  // Format: <protocol>://<host>[:port][/path]
+  // Host can be: IPv4, [IPv6], or hostname
+  const protocolPattern = `(?:${protocols.join("|")})`;
+  const ipv4Pattern = "(?:\\d{1,3}\\.){3}\\d{1,3}";
+  const ipv6Pattern = "\\[[0-9a-fA-F:]+\\]"; // IPv6 in brackets
+  const hostnamePattern = "[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*";
+  const hostPattern = `(?:${ipv4Pattern}|${ipv6Pattern}|${hostnamePattern})`;
+  const portPattern = ":[0-9]{1,5}"; // Optional port
+  const pathPattern = "\\/[^\\s]*"; // Optional path (any non-whitespace after /)
+
+  const bmcUrlPattern = new RegExp(
+    `^${protocolPattern}://${hostPattern}(?:${portPattern})?(?:${pathPattern})?$`,
+    "i"
+  );
+
+  return bmcUrlPattern.test(trimmed);
+};
+
 const isValidSshPublicKey = (value) => {
   if (!value) return false;
   const trimmed = value.trim();
@@ -395,7 +459,11 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
   }
   // Bare-metal IPI: BMC address, credentials (error if includeCredentials; else warning), boot MAC required.
   if (platform === "Bare Metal" && method === "IPI") {
-    if (!node.bmc?.address) addError("bmc.address", "BMC address is required for bare metal IPI.");
+    if (!node.bmc?.address) {
+      addError("bmc.address", "BMC address is required for bare metal IPI.");
+    } else if (!isValidBmcUrl(node.bmc.address)) {
+      addError("bmc.address", "BMC address must be a valid URL (e.g., redfish+https://192.168.1.1/redfish/v1, ipmi://10.10.10.10)");
+    }
     if (!node.bmc?.username) {
       (includeCredentials ? addError : addWarning)("bmc.username", "BMC username is required for bare metal IPI.");
     }
@@ -403,6 +471,13 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
       (includeCredentials ? addError : addWarning)("bmc.password", "BMC password is required for bare metal IPI.");
     }
     if (!node.bmc?.bootMACAddress) addError("bmc.bootMACAddress", "Boot MAC address is required for bare metal IPI.");
+  }
+
+  // Agent-Based Installer: BMC address optional (Day-2 seed), but validate format if provided
+  if (platform === "Bare Metal" && method === "Agent-Based Installer") {
+    if (node.bmc?.address && !isValidBmcUrl(node.bmc.address)) {
+      addWarning("bmc.address", "BMC address format is invalid (e.g., redfish+https://192.168.1.1/redfish/v1, ipmi://10.10.10.10)");
+    }
   }
 
   // IPI networkConfig validation
@@ -429,6 +504,13 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
         }
       }
     }
+  }
+
+  // Validate primary.ethernet.macAddress format if present (regardless of method).
+  // This catches configuration errors even if the field shouldn't be used for this method.
+  const primary = node.primary || {};
+  if (primary.ethernet?.macAddress && !isValidMac(primary.ethernet.macAddress)) {
+    addError("primary.ethernet.macAddress", "Ethernet MAC address format is invalid.");
   }
 
   // Primary and additional interface validation applies ONLY to Agent-based installs.
@@ -723,12 +805,11 @@ const validatePlatformConfig = (state) => {
       }
     }
   }
-  if (method === "IPI" && platform === "Azure Government") {
-    if (!cfg.azure?.cloudName) errors.push("Azure cloud name is required for Azure Government IPI.");
-    if (!cfg.azure?.region) errors.push("Azure region is required for Azure Government IPI.");
-    if (!cfg.azure?.resourceGroupName) errors.push("Resource group name is required for Azure Government IPI.");
-    if (!cfg.azure?.baseDomainResourceGroupName) errors.push("Base domain resource group is required for Azure Government IPI.");
-  }
+  // Azure Government IPI validation moved to catalog-driven approach in platform-specifics step (DOC-082)
+  // cloudName: auto-filled to "AzureUSGovernmentCloud" (only valid value) - not user-provided
+  // region: required (validated in platform-specifics step via catalog)
+  // resourceGroupName: optional (installer creates it when not specified)
+  // baseDomainResourceGroupName: conditionally required (public clusters only), marked required:false in catalog
   if (method === "IPI" && platform === "IBM Cloud") {
     const vpcMode = cfg.ibmcloud?.vpcMode || "existing-vpc";
     const dedicatedHostsProfile = (cfg.ibmcloud?.dedicatedHostsProfile || "").trim();
@@ -819,6 +900,7 @@ const validateMirrorRegistrySecret = (state) => {
 /** Networking format: machine/cluster/service CIDRs, API/Ingress VIPs, provisioning CIDR and cluster provisioning IP must be valid IPv4/CIDR. */
 const validateNetworkingFormat = (state) => {
   const errors = [];
+  const fieldErrors = {};
   const scenarioIdNw = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
   const networking = state.globalStrategy?.networking || {};
   const hostInventory = state.hostInventory || {};
@@ -843,19 +925,31 @@ const validateNetworkingFormat = (state) => {
   const ingressVipList = parseVipList(ingressVip);
   if (apiVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("API VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
-  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) errors.push("Provisioning network CIDR must be a valid CIDR.");
-  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) errors.push("Cluster provisioning IP must be a valid IPv4 address.");
+  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) {
+    const msg = "Provisioning network CIDR must be a valid CIDR.";
+    errors.push(msg);
+    fieldErrors.provisioningNetworkCIDR = msg;
+  }
+  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) {
+    const msg = "Cluster provisioning IP must be a valid IPv4 address.";
+    errors.push(msg);
+    fieldErrors.clusterProvisioningIP = msg;
+  }
 
   // Provisioning network DHCP range validation (bare metal IPI only)
   const dhcpRange = (hostInventory.provisioningDHCPRange || "").trim();
   if (dhcpRange) {
     const parts = dhcpRange.split(",").map(p => p.trim());
     if (parts.length !== 2) {
-      errors.push("Provisioning DHCP range must be in format: start_ip,end_ip (e.g. 172.22.0.10,172.22.0.254)");
+      const msg = "Provisioning DHCP range must be in format: start_ip,end_ip (e.g. 172.22.0.10,172.22.0.254)";
+      errors.push(msg);
+      fieldErrors.provisioningDHCPRange = msg;
     } else {
       const [startIP, endIP] = parts;
       if (!isValidIpv4(startIP) || !isValidIpv4(endIP)) {
-        errors.push("Provisioning DHCP range: both start and end must be valid IPv4 addresses.");
+        const msg = "Provisioning DHCP range: both start and end must be valid IPv4 addresses.";
+        errors.push(msg);
+        fieldErrors.provisioningDHCPRange = msg;
       } else {
         // Convert IPs to integers for comparison
         const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
@@ -863,7 +957,9 @@ const validateNetworkingFormat = (state) => {
         const endInt = toInt(endIP);
 
         if (startInt > endInt) {
-          errors.push("Provisioning DHCP range: start IP must be less than or equal to end IP.");
+          const msg = "Provisioning DHCP range: start IP must be less than or equal to end IP.";
+          errors.push(msg);
+          fieldErrors.provisioningDHCPRange = msg;
         }
 
         // Validate both IPs are within provisioning CIDR
@@ -871,10 +967,14 @@ const validateNetworkingFormat = (state) => {
           const range = cidrToRange(provisioningCIDR);
           if (range) {
             if (startInt < range.start || startInt > range.end) {
-              errors.push(`Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+              const msg = `Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
+              errors.push(msg);
+              fieldErrors.provisioningDHCPRange = msg;
             }
             if (endInt < range.start || endInt > range.end) {
-              errors.push(`Provisioning DHCP end IP (${endIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+              const msg = `Provisioning DHCP end IP (${endIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
+              errors.push(msg);
+              fieldErrors.provisioningDHCPRange = msg;
             }
           }
         }
@@ -883,7 +983,11 @@ const validateNetworkingFormat = (state) => {
         if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP)) {
           const clusterInt = toInt(clusterProvisioningIP);
           if (clusterInt >= startInt && clusterInt <= endInt) {
-            errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`);
+            const msg = `Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`;
+            errors.push(msg);
+            // Add error to both fields since this is a cross-field validation
+            fieldErrors.provisioningDHCPRange = msg;
+            fieldErrors.clusterProvisioningIP = msg;
           }
         }
       }
@@ -897,7 +1001,9 @@ const validateNetworkingFormat = (state) => {
     if (range) {
       const ipInt = toInt(clusterProvisioningIP);
       if (ipInt < range.start || ipInt > range.end) {
-        errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+        const msg = `Cluster provisioning IP (${clusterProvisioningIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
+        errors.push(msg);
+        fieldErrors.clusterProvisioningIP = msg;
       }
     }
   }
@@ -925,7 +1031,7 @@ const validateNetworkingFormat = (state) => {
     if (api6 && !isValidIpv6(api6)) errors.push("Nutanix API VIP (IPv6) must be a valid IPv6 address.");
     if (ing6 && !isValidIpv6(ing6)) errors.push("Nutanix Ingress VIP (IPv6) must be a valid IPv6 address.");
   }
-  return { errors, warnings: [] };
+  return { errors, warnings: [], fieldErrors };
 };
 
 /**
@@ -1607,7 +1713,10 @@ const validateStep = (state, stepId) => {
       }
       return { errors, warnings: [] };
     }
-    return { errors: [], warnings: [] };
+    // For scenarios with provisioning network fields (bare-metal-ipi, bare-metal-agent),
+    // include field-level validation errors for provisioning network CIDR, DHCP range, and cluster provisioning IP
+    const format = validateNetworkingFormat(state);
+    return { errors: [], warnings: [], fieldErrors: format.fieldErrors || {} };
   }
   // hosts-inventory: scenarios listed in SCENARIO_IDS_WITH_HOST_INVENTORY (e.g. bare-metal-agent, vsphere-agent, bare-metal-ipi).
   if (stepId === "hosts-inventory") {

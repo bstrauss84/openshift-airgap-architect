@@ -5,6 +5,491 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-05-20
+
+### Added
+
+**PROD Phase 1: Production Readiness (6 Critical Items)**
+
+All items verified_done and tested. This release makes OpenShift Airgap Architect production-ready for deployment to Kubernetes and OpenShift clusters.
+
+#### **PROD-002: Structured Logging Framework**
+- Pino logging library (v10.3.1) with JSON output for log aggregation (ELK, Splunk, CloudWatch)
+- Request correlation using AsyncLocalStorage (X-Request-ID header propagation)
+- Error ID generation for client-to-server log correlation (`generateErrorId()`)
+- Log levels: trace, debug, info, warn, error, fatal
+- Environment-aware configuration: JSON in production, pretty-print in development
+- Automatic request/response logging with duration tracking
+- 87 console statements replaced across 5 backend files
+- New files:
+  - `backend/src/logger.js` - Pino logger utility with error ID generation
+  - `backend/src/middleware/logging.js` - Request correlation middleware with AsyncLocalStorage
+  - `backend/test/logger.test.js` - 14 tests (all passing)
+
+#### **PROD-003: Kubernetes/OpenShift Deployment Manifests**
+- Complete manifest set for production deployment (13 files)
+- Kustomize structure for environment overlays
+- Base manifests (`manifests/base/`):
+  - `backend-deployment.yaml` - 1 replica (SQLite single-writer), Recreate strategy, health probes, resource limits
+  - `frontend-deployment.yaml` - 2 replicas (horizontally scalable), RollingUpdate strategy
+  - `backend-service.yaml` / `frontend-service.yaml` - ClusterIP Services (ports 4000, 5173)
+  - `pvc.yaml` - 250Gi ReadWriteOnce storage for SQLite + oc-mirror archives
+  - `configmap.yaml` - All environment variables (LOG_LEVEL, DATA_DIR, VITE_API_BASE, etc.)
+  - `secret.yaml` - Template for pull secrets and mirror registry credentials
+- OpenShift-specific (`manifests/openshift/`):
+  - `route-backend.yaml` / `route-frontend.yaml` - TLS edge Routes for external access
+- Security: Restricted-v2 SCC compatible (UID 1001, fsGroup 1001, non-root execution)
+- Resource limits defined (see PROD-004)
+- Health probes configured (see PROD-006)
+- Comprehensive deployment guide: `manifests/README.md`
+- Validated with `kubectl kustomize manifests/`
+
+#### **PROD-004: Resource Limits and Capacity Planning**
+- Backend resource limits:
+  - Requests: 500m CPU, 1Gi RAM
+  - Limits: 2000m CPU, 4Gi RAM
+  - Rationale: Node.js event loop baseline + oc-mirror burst capacity
+- Frontend resource limits:
+  - Requests: 100m CPU, 256Mi RAM
+  - Limits: 500m CPU, 512Mi RAM
+  - Rationale: Vite dev server lightweight, minimal overhead
+- Load test script with 5 test scenarios: `scripts/load-test.sh`
+  - Scenarios: wizard completion, operator scan, YAML generation, export bundle, oc-mirror job
+  - Metrics: response time, memory usage, concurrent users, job duration
+- Comprehensive capacity planning documentation: `docs/CAPACITY_PLANNING.md` (40KB, 13 sections)
+  - Sizing tables for workload types (small/medium/large deployments)
+  - Monitoring alerts and thresholds (CPU, memory, disk, response time)
+  - Performance tuning recommendations
+  - Scaling guidance (backend vertical only, frontend horizontal)
+  - Storage requirements (50GB database + 200GB oc-mirror archives)
+
+#### **PROD-005: SQLite Backup/Restore Procedures**
+- Comprehensive backup/restore documentation: `docs/BACKUP_RESTORE.md` (703 lines)
+- Three backup methods documented:
+  1. **Online backup (VACUUM INTO)** - No downtime, consistent snapshot, single file
+  2. **Kubernetes VolumeSnapshot** - Fast, storage-layer snapshots
+  3. **File copy with WAL checkpoint** - Simple, requires brief pause
+- Four executable scripts:
+  - `scripts/backup-sqlite.sh` - Kubernetes-aware automated backup using VACUUM INTO
+  - `scripts/verify-backup.sh` - 6 integrity checks (PRAGMA integrity_check, table counts)
+  - `scripts/restore-sqlite.sh` - Safe restore with confirmation prompts, pod scaling
+  - `scripts/test-backup-restore.sh` - Backup/restore test suite (7/7 tests passing)
+- Disaster recovery procedures with RTO/RPO guidance:
+  - RTO (Recovery Time Objective): < 15 minutes
+  - RPO (Recovery Point Objective): Daily backups recommended
+- Retention policy recommendations (7 daily, 4 weekly, 12 monthly)
+- Backup validation and integrity checks
+- Quarterly restore testing procedure
+
+#### **PROD-006: Enhanced Health Probes**
+- Enhanced liveness probe (`/api/health`):
+  - Returns process health only (no dependencies checked)
+  - Response includes: status, timestamp, uptime
+  - 200 OK: process alive, 503: shutting down
+- Enhanced readiness probe (`/api/ready`):
+  - DB read check (getState())
+  - DB write check (cache table insert + delete)
+  - Response includes: ready boolean, checks object, timestamp
+  - 200 OK: all checks pass, 503: DB unavailable
+- Kubernetes probe configurations in deployment manifests:
+  - Liveness: initialDelaySeconds 10, periodSeconds 10, failureThreshold 3
+  - Readiness: initialDelaySeconds 5, periodSeconds 10, failureThreshold 3
+- Health probe documentation: `docs/HEALTH_PROBES.md` (400+ lines)
+  - Probe purpose and behavior
+  - Failure scenarios and K8s responses
+  - Tuning recommendations
+  - Troubleshooting guide
+- Test suite: `backend/test/health-probes.test.js` (13 tests passing)
+  - Tests for healthy state, DB unavailable, error handling
+
+#### **PROD-007: Backend Request Schema Validation**
+- 12 new Zod schemas for previously unvalidated routes:
+  - `operatorsConfirmSchema` - Operator confirmation with validation
+  - `bundlePrepareSchema` - Export bundle preparation options
+  - `bundleZipSchema` - Bundle zip request validation
+  - `startOverSchema` - Start over with explicit confirmation
+  - `runDuplicateSchema` - Run duplication with optional UUID
+  - `jobStopSchema` - Job stop request validation
+  - `docsUpdateSchema` - Docs update with version regex
+  - `cincinnatiUpdateSchema` - Cincinnati update with arch/channel
+  - `cincinnatiRefreshJobSchema` - Refresh job validation
+  - `awsWarmInstallerSchema` - AWS installer warming
+  - `trustAnalyzeSchema` - Trust bundle analysis
+  - `operatorsPrefetchSchema` - Operator prefetch validation
+- Enhanced `validateBody()` middleware:
+  - Error ID generation and logging
+  - Request correlation (requestId from logging middleware)
+  - Structured error responses: `{ error, errorId, details: [...] }`
+- Applied to all 22 POST routes in `backend/src/index.js`
+- API contract documentation: `docs/API_SCHEMA.md`
+  - All endpoints documented with request/response schemas
+  - Validation rules and constraints
+  - Error response formats
+  - Examples for each endpoint
+- Test suite: `backend/test/validation.test.js` (63 tests passing)
+  - Valid input tests for all schemas
+  - Invalid input tests (missing fields, wrong types, extra fields)
+  - Error response format validation
+  - Backward compatibility tests
+
+### Changed
+
+#### Logging
+- All console.log/error/warn statements replaced with structured Pino logging
+- Error responses now include correlation IDs for debugging
+- Request/response logging with automatic duration tracking
+- Log format: JSON in production (for aggregation), pretty-print in development
+
+#### Health Endpoints
+- `/api/health` enhanced with uptime and structured response
+- `/api/ready` enhanced with DB read + write verification
+- Both endpoints excluded from request logging to prevent log spam
+
+#### Error Handling
+- All API error responses include unique error IDs
+- Error IDs correlate client errors to server logs
+- Validation errors include detailed field-level feedback
+
+### Documentation
+
+#### New Documentation Files
+- `docs/CAPACITY_PLANNING.md` - Resource requirements, sizing tables, monitoring alerts, performance tuning (40KB, 13 sections)
+- `docs/BACKUP_RESTORE.md` - SQLite backup strategies, disaster recovery, restore procedures (703 lines)
+- `docs/HEALTH_PROBES.md` - Kubernetes probe configuration, failure scenarios, tuning guide (400+ lines)
+- `docs/API_SCHEMA.md` - API contract, request/response schemas, validation rules
+- `manifests/README.md` - Kubernetes/OpenShift deployment guide with prerequisites, customization, troubleshooting
+
+#### Updated Documentation Files
+- `CLAUDE.md` - Added PROD Phase 1 completion section with implementation summary, testing status, critical files
+- `docs/BACKLOG_STATUS.md` - Marked PROD-002 through PROD-007 as verified_done with implementation evidence and test results
+- `docs/IMPLEMENTATION_ROADMAP_2026-05-14.md` - Marked Production Readiness Phase 1 as complete (6/6 items, 100%)
+- `README.md` - Added "Production Deployment (Kubernetes/OpenShift)" section with quick start, features, configuration, troubleshooting
+
+### Tests
+
+#### Backend Tests
+- **New tests:** 90 tests added for PROD Phase 1 features
+  - `backend/test/logger.test.js` - 14 tests (logger utility, error IDs, middleware)
+  - `backend/test/health-probes.test.js` - 13 tests (liveness, readiness, DB failure scenarios)
+  - `backend/test/validation.test.js` - 63 tests (all 12 schemas, error handling, backwards compatibility)
+- **Total backend tests:** 373 passing (up from 283)
+
+#### Frontend Tests
+- No changes to frontend tests (707 passing, unchanged)
+
+#### Total Tests
+- **1080 tests passing** (373 backend + 707 frontend)
+
+#### Pre-existing Failures (not related to PROD Phase 1)
+- `backend/test/openshiftInstaller.test.js` - 1 failure (Node.js test runner serialization issue)
+- `frontend/tests/placeholderValuesHelpers.test.js` - 1 failure (IPv6 placeholder values)
+- `frontend/tests/networking-v2-step.test.jsx` - 3 failures (dual-stack IPv6 VIP placeholders)
+
+### Dependencies
+
+#### Added
+- **Backend:**
+  - `pino ^10.3.1` - Fast structured logging library
+  - `pino-pretty ^13.1.3` - Development pretty-printing
+
+### Infrastructure
+
+#### New Files (25 total)
+**Backend:**
+- `backend/src/logger.js` - Pino logger utility with error ID generation
+- `backend/src/middleware/logging.js` - AsyncLocalStorage request correlation
+- `backend/test/logger.test.js` - Logger test suite (14 tests)
+- `backend/test/health-probes.test.js` - Health probe test suite (13 tests)
+- `backend/test/validation.test.js` - Schema validation test suite (63 tests)
+
+**Kubernetes Manifests:**
+- `manifests/base/backend-deployment.yaml` - Backend Deployment with health probes, resource limits
+- `manifests/base/backend-service.yaml` - Backend ClusterIP Service (port 4000)
+- `manifests/base/frontend-deployment.yaml` - Frontend Deployment (2 replicas, horizontally scalable)
+- `manifests/base/frontend-service.yaml` - Frontend ClusterIP Service (port 5173)
+- `manifests/base/pvc.yaml` - 250Gi PersistentVolumeClaim for SQLite + archives
+- `manifests/base/configmap.yaml` - Environment variables configuration
+- `manifests/base/secret.yaml` - Template for pull secrets and credentials
+- `manifests/openshift/route-backend.yaml` - TLS edge Route for backend
+- `manifests/openshift/route-frontend.yaml` - TLS edge Route for frontend
+- `manifests/kustomization.yaml` - Root Kustomize configuration
+- `manifests/README.md` - Comprehensive deployment guide
+
+**Scripts:**
+- `scripts/backup-sqlite.sh` - Kubernetes-aware automated backup
+- `scripts/verify-backup.sh` - Backup integrity validation (6 checks)
+- `scripts/restore-sqlite.sh` - Safe restore with pod scaling
+- `scripts/test-backup-restore.sh` - Backup/restore test suite
+- `scripts/load-test.sh` - Load testing script (5 scenarios)
+
+**Documentation:**
+- `docs/BACKUP_RESTORE.md` - Backup/restore procedures (703 lines)
+- `docs/HEALTH_PROBES.md` - Health probe configuration (400+ lines)
+- `docs/API_SCHEMA.md` - API contract documentation
+- `docs/CAPACITY_PLANNING.md` - Resource sizing and performance tuning (40KB)
+
+### Breaking Changes
+
+None. All changes are backward compatible.
+
+### Migration Notes
+
+No migration required from v1.5.0 to v1.6.0. Existing deployments will continue to work. New Kubernetes/OpenShift manifests are optional for users deploying to K8s clusters.
+
+### Next Steps (PROD Phase 2)
+
+After v1.6.0, the following PROD Phase 2 items become active for first 30 days in production:
+- PROD-008: Prometheus metrics and instrumentation
+- PROD-009: Formal database migration system
+- PROD-010: End-to-end tests for critical workflows
+- PROD-011: Load testing with documented results
+- PROD-012: Automated job cleanup/retention policy
+- PROD-013: Capacity planning validation
+- PROD-014: Establish versioning and changelog maintenance
+
+---
+
+## [1.5.0] - 2026-05-19
+
+### Added
+
+**Smart Signature Retry for oc-mirror Operator Images (DOC-079)**
+- Automatic per-image signature retry when oc-mirror fails on missing signature manifests
+- Addresses production issue with certified/community operators (e.g., NetApp Trident)
+- Three-tier signature strategy implementation:
+  - **Tier 1 (Per-image, automatic):** Smart retry disables signatures only for failing images
+  - **Tier 2 (Per-registry, manual):** UI toggles for certified/community registries
+  - **Tier 3 (Global, emergency):** `--remove-signatures` flag (all signatures disabled)
+- Smart retry workflow:
+  - Detects `completed_with_warnings` status + signature failures in job output
+  - Parses failing image paths with regex: `/error mirroring image docker:\/\/([^@\s]+)@sha256:[^\s]+.*error: reading signatures.*name unknown: Image not found/g`
+  - Generates per-image registries.d configs: `docker: <image-path>: use-sigstore-attachments: false`
+  - Auto-retries oc-mirror with same config + per-image signature disable
+  - UI displays signature failures + retry status
+- **Security benefit:** Example - NetApp Trident 11 images, 1 fails signature → retry disables 1 image only, 10 keep verification (91% security retained)
+
+### Technical Details
+
+**Backend**
+- New functions in `backend/src/index.js` (lines 2101-2283, 2481-2494, 2585-2650):
+  - `parseSignatureErrors()` - Extract failing image registry paths from logs
+  - `writePerImageRegistriesDConfigs()` - Generate per-image registries.d configs
+  - `retryWithPerImageSignatureDisable()` - Trigger auto-retry with signature disable
+  - Smart retry trigger in job close handler (detects warnings + signature errors)
+  - Request body storage for retry capability
+- New test suite: `backend/test/signature-smart-retry.test.js` (10 unit tests passing)
+  - Tests regex parsing, YAML generation, deduplication, edge cases
+
+**Frontend**
+- Modified: `frontend/src/steps/RunOcMirrorStep.jsx` (lines 1684-1707)
+  - Signature failure UI (displays failed images, retry status)
+- Signature verification toggles (from v1.4.0, lines 118-126, 1200-1257):
+  - Per-registry manual toggles for certified/community operators
+  - Generates registries.d configs per registry hostname
+  - Sets CONTAINERS_REGISTRIES_D env var
+
+**Documentation**
+- New: `docs/FIELD_MANUAL_SIGNATURE_VERIFICATION.md`
+  - Smart retry explanation and workflow
+  - Three-tier strategy comparison
+  - Troubleshooting guide
+  - Security considerations
+  - Version history
+
+**Test Results**
+- 10 new unit tests passing (signature parsing, config generation)
+- 968 total tests passing (707 frontend + 261 backend)
+
+### References
+- Red Hat Solution Article 7139982 (per-image signature disable approach)
+- oc-mirror developer guidance
+- containers registries.d documentation
+
+---
+
+## [1.4.0] - 2026-05-19
+
+### Added
+
+**Per-Registry Signature Toggles for oc-mirror (DOC-079 Phase 1)**
+- Manual signature verification toggles for oc-mirror operator mirroring
+- UI toggles for certified/community operator registries
+- Addresses signature verification failures for operators with missing signature manifests
+- Three-tier signature strategy (Tier 2 implementation):
+  - **Tier 2 (Per-registry, manual):** UI toggles generate per-registry registries.d configs
+  - Certified operators: `registry.connect.redhat.com` toggle
+  - Community operators: `registry.community.openshift.com` toggle
+- Backend generates registries.d configs with `use-sigstore-attachments: false` per registry
+- Sets CONTAINERS_REGISTRIES_D environment variable for oc-mirror execution
+- Automatic cleanup on job completion
+
+### Technical Details
+
+**Backend**
+- New functions in `backend/src/index.js` (lines 2016-2099):
+  - Per-registry registries.d config generation
+  - CONTAINERS_REGISTRIES_D environment variable handling
+  - Cleanup on job completion
+- Validation schema: `backend/src/schemas.js` (lines 87-119)
+
+**Frontend**
+- Modified: `frontend/src/steps/RunOcMirrorStep.jsx` (lines 118-126, 1200-1257)
+  - Added signature verification toggles for certified/community registries
+  - CollapsibleSection for signature options
+  - State tracking for registry-level signature disable
+
+**State Schema Changes**
+```javascript
+operatorMirrorSettings: {
+  disableSignatureCertified: boolean,   // NEW: Disable signatures for certified operators
+  disableSignatureCommunity: boolean    // NEW: Disable signatures for community operators
+}
+```
+
+### Notes
+- All signatures verified by default (safe)
+- Manual toggles provide per-registry granularity
+- Superseded by v1.5.0 automatic per-image retry (recommended approach)
+
+---
+
+## [1.3.0] - 2026-05-18
+
+### Added
+
+**IPv6-Only Single-Stack Support (DOC-074) - BREAKING CHANGE**
+- IPv6-only single-stack network configuration support
+- Platform support verified:
+  - ✅ Bare Metal (Agent/IPI/UPI) - all methods supported
+  - ✅ vSphere (Agent/IPI/UPI) - all methods supported
+  - ❌ AWS GovCloud - IPv4-only enforced
+  - ❌ IBM Cloud IPI - IPv4-only enforced
+- IP stack mode selector (dropdown): IPv4 only / IPv6 only / Dual-stack
+- Conditional field visibility:
+  - IPv6-only mode: hides IPv4 fields (machine/cluster/service networks, VIPs)
+  - Dual-stack mode: shows both IPv4 and IPv6 fields with (IPv4)/(IPv6) labels
+  - IPv4-only mode: shows only IPv4 fields (legacy behavior)
+- Backend generation handles IPv6-only configurations:
+  - Single IPv6 network entries in install-config.yaml
+  - No IPv4 networks when IPv6-only selected
+  - VIP handling: IPv6-only uses apiVipV6/ingressVipV6 only
+  - nmstate generation: IPv4 disabled, IPv6 enabled for IPv6-only nodes
+  - Platform-specific VIP emission (bare metal, vSphere, Nutanix)
+- Mode-specific validation:
+  - IPv4-only: requires IPv4 machine network, cluster/service CIDRs, VIPs
+  - IPv6-only: requires IPv6 machine network, cluster/service CIDRs, VIPs
+  - Dual-stack: requires both IPv4 and IPv6 networks
+  - Per-node validation: static mode requires address matching IP stack mode
+
+**State Schema v3 Migration - BREAKING CHANGE**
+- Replaced `hostInventory.enableIpv6` boolean with `ipStackMode` enum ('ipv4', 'ipv6', 'dual-stack')
+- Automatic migration logic:
+  - `enableIpv6=true` → `ipStackMode='dual-stack'`
+  - `enableIpv6=false` → `ipStackMode='ipv4'`
+- Backward compatibility: auto-detect dual-stack from IPv6 network presence
+
+**Platform Support Matrix Documentation**
+- New: `docs/IPV6_PLATFORM_SUPPORT_MATRIX.md`
+- Documents IPv6-only support per platform and installation method
+- Includes platform-specific limitations and requirements
+
+### Fixed
+
+**Critical: Pull Secret Not Showing in YAML Preview (DOC-075)**
+- Fixed pull secret displaying as `{"auths":{}}` in YAML preview drawer
+- Root cause: `buildPreviewFiles()` generated preview YAML without forcing `includeCredentials=true`
+- Fix: Modified `buildPreviewFiles` to create previewState with `exportOptions.includeCredentials` forced to true
+- Impact: Users can now verify pull secrets in preview before export
+- File: `backend/src/index.js` (lines 2317-2339)
+
+**VIP Validation UX Improvements (DOC-076)**
+- Removed inline VIP error spans (too intrusive), kept hover-only tooltips
+- Improved "needs review" badge logic after import:
+  - Added `state.ui.isImported` flag when importing runs
+  - Cleared `visitedSteps` on import (only track current session)
+  - Modified Sidebar badge logic: show "needs review" if (visitedSteps[stepId] OR isImported) AND (reviewFlags OR errorFlags)
+  - Enhanced `reconcileReviewFlagsForImportedState` to SET flags for errors AND clear flags for valid steps
+- Better distinction between current session and imported state
+- Files: `frontend/src/App.jsx`, `frontend/src/components/Sidebar.jsx`, `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
+
+**Operator Catalog Version Mismatch After Import (DOC-077)**
+- Fixed operator catalog showing wrong version after import (e.g., 4.18 import showed 4.21 operators)
+- Root cause: catalogs computed from cached state without version check
+- Fix: Added version match check - only use cached catalogs if `state.operators.version === current version`
+- Enhanced `removeOperator` to add removed operator to catalogs if missing (ensures unselected operators appear in available list)
+- File: `frontend/src/steps/OperatorsStep.jsx` (lines 242-244, 615-667)
+
+**Imageset Config Browse Button (DOC-078)**
+- Fixed browse button in Run oc-mirror "Use external file" option (was directory-only, needed file selection)
+- Root cause: Browse dialog hardcoded for directory selection - files visible but not clickable
+- Fix: Added file mode detection: `isFileMode = browseTarget === "imageset-config"`
+  - File mode: files clickable, selected file highlighted, button text "Select"
+  - Directory mode: existing behavior unchanged
+- Impact: Users can now select imageset config files from browse dialog (previously had to type full paths manually)
+- File: `frontend/src/steps/RunOcMirrorStep.jsx` (lines 1718-1750)
+
+### Changed
+
+**Networking UI**
+- NetworkingV2Step: IP stack mode selector with conditional field visibility
+- Added comprehensive tooltip for Cluster Network IPv6 Host Prefix
+- Fixed validation error display: removed className from FieldLabelWithInfo wrappers (prevented double red borders)
+
+**Validation**
+- New: `validateIpStackModeRequirements()` function enforces mode-specific network requirements
+- Per-node validation: static mode requires address matching IP stack mode
+
+### Technical Details
+
+**Backend**
+- Modified: `backend/src/index.js` (schema v3 migration logic)
+- Modified: `backend/src/generate.js` (IPv6-only YAML generation)
+  - `buildInstallConfig` / `buildAgentConfig` handle IPv6-only mode (single IPv6 entries, no IPv4)
+  - `buildClusterNetwork` / `buildServiceNetwork` mode-specific CIDR generation
+  - VIP handling per mode (IPv6-only, dual-stack, IPv4-only)
+  - nmstate generation: IPv4 disabled, IPv6 enabled for IPv6-only
+- Modified: `backend/src/fieldGuide/context.js` (added ipStackMode)
+- Modified: `backend/test/fixtures/builders.js`, `backend/test/fixtures/base-states.js` (ipStackMode defaults)
+- New test: `backend/test/nic-bond-vlan-ipv6.test.js` (IPv6-only cluster generation test)
+
+**Frontend**
+- Modified: `frontend/src/steps/NetworkingV2Step.jsx` (IP stack mode selector, conditional fields)
+- Modified: `frontend/src/steps/GlobalStrategyStep.jsx`, `frontend/src/steps/HostInventoryV2Step.jsx`, `frontend/src/steps/HostInventoryStep.jsx`
+- Modified: `frontend/src/validation.js` (mode validation)
+- Modified: `frontend/src/placeholderValuesHelpers.js`
+
+**State Schema Changes**
+```javascript
+// BEFORE (schema v2):
+hostInventory: {
+  enableIpv6: boolean
+}
+
+// AFTER (schema v3):
+hostInventory: {
+  ipStackMode: 'ipv4' | 'ipv6' | 'dual-stack'
+}
+```
+
+**Test Results**
+- All 232 backend tests passing
+- Updated test fixtures: withDualStack uses ipStackMode, bond/VLAN node structures fixed
+- Added IPv6-only cluster generation test (3-node HA, single IPv6 entries, nmstate IPv4 disabled)
+
+**Migration Notes**
+- State schema v3 migration runs automatically on app load
+- Old states with `enableIpv6` boolean auto-converted to `ipStackMode` enum
+- Dual-stack auto-detected from presence of IPv6 networks in imported states
+
+### Commits
+- `70a4433` IPv6-only single-stack support (state schema v3, ipStackMode enum, conditional UI)
+- `5db9ba9` Critical bug fixes (pull secret preview, VIP validation UX, operator catalog version mismatch, imageset browse)
+
+### Known Issues
+- None
+
+---
+
 ## [1.2.2] - 2026-05-17
 
 ### Fixed

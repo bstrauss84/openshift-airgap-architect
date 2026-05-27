@@ -184,7 +184,7 @@ describe("validateNode - Host inventory node validation", () => {
     it("should pass validation with complete BMC configuration", () => {
       const node = createValidNode();
       node.bmc = {
-        address: "192.168.1.100",
+        address: "redfish+https://192.168.1.100/redfish/v1",
         username: "admin",
         password: "password",
         bootMACAddress: "00:11:22:33:44:66"

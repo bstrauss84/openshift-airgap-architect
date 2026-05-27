@@ -302,6 +302,46 @@
       ]
     },
     {
+      "path": "controlPlane.diskSetup",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of Disk objects (etcd, swap, user-defined)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Disk partitioning and setup configuration for control plane machines. Configures dedicated disks for etcd data, swap space, or custom user-defined partitions. Applied via MachineConfigs during installation.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.platform.nutanix",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "nutanix.MachinePool object",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Nutanix-specific configuration for control plane machines. Use for per-pool overrides. Overrides global platform.nutanix settings for control plane only.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.Nutanix",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
       "path": "controlPlane[].architecture",
       "outputFile": "install-config.yaml",
       "type": "string",
@@ -461,6 +501,26 @@
       ]
     },
     {
+      "path": "featureGates",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of strings in format 'FeatureGateName=true|false'",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Custom feature gate configuration for enabling/disabling specific cluster features. Only valid when featureSet is 'CustomNoUpgrade'. Each entry is 'FeatureGateName=true' to enable or 'FeatureGateName=false' to disable. Example: ['ExperimentalFeature=true', 'OldFeature=false']. Clusters with custom feature gates cannot upgrade.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
       "path": "featureSet",
       "outputFile": "install-config.yaml",
       "type": "string",
@@ -491,26 +551,6 @@
       "default": false,
       "required": false,
       "description": "Enable or disable FIPS mode. RHCOS uses FIPS-validated crypto when true.",
-      "applies_to": [
-        "nutanix-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installation-config-parameters-nutanix",
-          "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
-        }
-      ]
-    },
-    {
-      "path": "imageContentSources",
-      "outputFile": "install-config.yaml",
-      "type": "array",
-      "allowed": "objects with source and mirrors",
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Sources and repositories for release-image content (disconnected mirroring).",
       "applies_to": [
         "nutanix-ipi"
       ],
@@ -744,6 +784,26 @@
       ]
     },
     {
+      "path": "networking.clusterNetworkMTU",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": "not specified in docs",
+      "default": 8951,
+      "required": false,
+      "description": "MTU for cluster network (pod-to-pod traffic). Defaults to 8951 for OVN-Kubernetes (Geneve overhead), 1450 for OpenShiftSDN.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "missing-parameter-analysis",
+          "docTitle": "DOC-082 Missing Parameter Analysis",
+          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+        }
+      ]
+    },
+    {
       "path": "networking.machineNetwork",
       "outputFile": "install-config.yaml",
       "type": "array",
@@ -800,6 +860,26 @@
           "docTitle": "Installation configuration parameters for Nutanix",
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "networking.ovnKubernetesConfig",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "OVNKubernetesConfig object with ipv4, ipv6, policyAuditConfig fields",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for OVN-Kubernetes CNI plugin (default network plugin for OpenShift 4.20). Only applies when networking.networkType is OVNKubernetes.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ]
     },
@@ -864,6 +944,166 @@
       ]
     },
     {
+      "path": "platform.nutanix",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "nutanix.Platform object with prismCentral, prismElements, subnets, etc.",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Nutanix platform configuration for installer-provisioned infrastructure. Includes Prism Central connection details, Prism Elements, subnets, storage containers. Required when platform.type is 'nutanix'.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Platform.Nutanix",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.apiVIP",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 address",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "API virtual IP address for single-stack IPv4 deployments. For dual-stack, use apiVIPs instead.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.apiVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "API virtual IP addresses for dual-stack deployments. Single-stack: one element; dual-stack: two (IPv4 first, IPv6 second).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.clusterName",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional Nutanix cluster (Prism Element) name for VM placement.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-nutanix-ipi",
+          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.defaultMachinePlatform",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Default machine pool configuration for Nutanix (cores, memory MB, disk size GB, boot type).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "missing-parameter-analysis",
+          "docTitle": "DOC-082 Missing Parameter Analysis",
+          "sectionHeading": "OCP 4.20 Nutanix docs, machine pool section",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.failureDomains",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Nutanix failure domains for multi-cluster HA (name, prismElement, subnet UUIDs).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "missing-parameter-analysis",
+          "docTitle": "DOC-082 Missing Parameter Analysis",
+          "sectionHeading": "OCP 4.20 Nutanix docs, failure domain section",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.ingressVIP",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 address",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Ingress virtual IP address for single-stack IPv4 deployments. For dual-stack, use ingressVIPs instead.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.ingressVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Ingress virtual IP addresses for dual-stack deployments. Single-stack: one element; dual-stack: two (IPv4 first, IPv6 second).",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Nutanix install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+        }
+      ]
+    },
+    {
       "path": "platform.nutanix.prismCentral",
       "outputFile": "install-config.yaml",
       "type": "object",
@@ -880,6 +1120,26 @@
           "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
           "sectionHeading": "Nutanix install-config parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.prismCentral.endpoint",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "NutanixPrismEndpoint object with address, port",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Nutanix Prism Central endpoint configuration. Defines connection details for Prism Central API server: FQDN/IP address and port. Required for Nutanix platform to communicate with Prism Central for VM provisioning and management.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/nutanix/platform.go - PrismCentral.Endpoint",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/nutanix/platform.go"
         }
       ]
     },
@@ -930,49 +1190,17 @@
       ]
     },
     {
-      "path": "platform.nutanix.apiVIP",
+      "path": "platform.nutanix.prismCentral.password",
       "outputFile": "install-config.yaml",
       "type": "string",
-      "allowed": "IPv4 or IPv6 per machine network",
+      "allowed": "not specified in docs",
       "default": "not specified in docs",
-      "required": true,
-      "description": "Virtual IP for the Kubernetes API; must be on the machine network (OpenShift 4.20 Nutanix IPI install-config).",
+      "required": false,
+      "description": "Prism Central password. Emitted in install-config only when including credentials.",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
-        {
-          "docId": "installation-config-parameters-nutanix",
-          "docTitle": "Nutanix configuration parameters",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
-        },
-        {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
-        }
-      ]
-    },
-    {
-      "path": "platform.nutanix.ingressVIP",
-      "outputFile": "install-config.yaml",
-      "type": "string",
-      "allowed": "IPv4 or IPv6 per machine network",
-      "default": "not specified in docs",
-      "required": true,
-      "description": "Virtual IP for the default Ingress controller; must be on the machine network.",
-      "applies_to": [
-        "nutanix-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installation-config-parameters-nutanix",
-          "docTitle": "Nutanix configuration parameters",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
-        },
         {
           "docId": "installing-nutanix-ipi",
           "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
@@ -1002,42 +1230,22 @@
       ]
     },
     {
-      "path": "platform.nutanix.prismCentral.password",
+      "path": "platform.nutanix.prismElements",
       "outputFile": "install-config.yaml",
-      "type": "string",
+      "type": "array",
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Prism Central password. Emitted in install-config only when including credentials.",
+      "description": "Prism Element instances with endpoint, UUID, and name. Required for multi-cluster deployments.",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
-        }
-      ]
-    },
-    {
-      "path": "platform.nutanix.clusterName",
-      "outputFile": "install-config.yaml",
-      "type": "string",
-      "allowed": "not specified in docs",
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Optional Nutanix cluster (Prism Element) name for VM placement.",
-      "applies_to": [
-        "nutanix-ipi"
-      ],
-      "citations": [
-        {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+          "docId": "missing-parameter-analysis",
+          "docTitle": "DOC-082 Missing Parameter Analysis",
+          "sectionHeading": "OCP 4.20 Nutanix docs, Prism Element section",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ]
     },
@@ -1062,25 +1270,22 @@
       ]
     },
     {
-      "path": "publish",
+      "path": "proxy",
       "outputFile": "install-config.yaml",
-      "type": "string",
-      "allowed": [
-        "Internal",
-        "External"
-      ],
-      "default": "External",
+      "type": "object",
+      "allowed": "Proxy object with httpProxy, httpsProxy, noProxy fields",
+      "default": "not specified in docs",
       "required": false,
-      "description": "How to publish cluster endpoints. Internal is not supported on Nutanix IPI (validation error); the generator coerces Internal to External in install-config. Prefer External.",
+      "description": "Cluster-wide proxy configuration for external HTTP/HTTPS connections. Configure if cluster nodes access Red Hat services, container registries, or external resources through a proxy server. If unset, cluster does not use a proxy.",
       "applies_to": [
         "nutanix-ipi"
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-nutanix",
-          "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ]
     },
@@ -1141,6 +1346,29 @@
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ]
+    },
+    {
+      "path": "publish",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Internal",
+        "External"
+      ],
+      "default": "External",
+      "required": false,
+      "description": "How to publish cluster endpoints. Internal is not supported on Nutanix IPI (validation error); the generator coerces Internal to External in install-config. Prefer External.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "Optional install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ]
     },

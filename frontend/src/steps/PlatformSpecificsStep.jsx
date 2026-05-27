@@ -61,7 +61,7 @@ const AWS_INSTANCE_TYPES = [
 const hasParam = (catalogParams, path, outputFile) =>
   catalogParams.some((p) => p.path === path && p.outputFile === outputFile);
 
-export default function PlatformSpecificsStep({ highlightErrors }) {
+export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
   const inventory = state.hostInventory || {};
@@ -404,19 +404,23 @@ export default function PlatformSpecificsStep({ highlightErrors }) {
   const showControlPlaneHyperthreading = hasParam(catalogParams, "controlPlane[].hyperthreading", INSTALL_CONFIG);
   const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
+  const showFeatureSet = hasParam(catalogParams, "featureSet", INSTALL_CONFIG);
   const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
-  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
+  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showFeatureSet || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
 
   const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG);
   const metaControlPlaneHyperthreading = getParamMeta(scenarioId, "controlPlane[].hyperthreading", INSTALL_CONFIG);
   const metaBaselineCapability = getParamMeta(scenarioId, "capabilities.baselineCapabilitySet", INSTALL_CONFIG);
   const metaAdditionalCapabilities = getParamMeta(scenarioId, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const metaCpuPartitioningMode = getParamMeta(scenarioId, "cpuPartitioningMode", INSTALL_CONFIG);
+  const metaFeatureSet = getParamMeta(scenarioId, "featureSet", INSTALL_CONFIG);
+  const metaFeatureGates = getParamMeta(scenarioId, "featureGates", INSTALL_CONFIG);
   const metaMinimalISO = getParamMeta(scenarioId, "minimalISO", AGENT_CONFIG);
 
   const hyperthreadingOptions = ["Enabled", "Disabled"];
+  const featureSetOptions = ["TechPreviewNoUpgrade", "CustomNoUpgrade", "LatencyMitigating"];
   const baselineCapabilityOptions = Array.isArray(metaBaselineCapability?.allowed) ? metaBaselineCapability.allowed : ["None", "v4.11", "v4.12", "v4.20", "vCurrent"];
   const cpuPartitioningOptions = Array.isArray(metaCpuPartitioningMode?.allowed) ? metaCpuPartitioningMode.allowed : ["None", "AllNodes"];
 
@@ -3694,12 +3698,15 @@ Value in MB (use multiples of 1024 for clean GB values):
                       : "CIDR (Classless Inter-Domain Routing) notation for the provisioning network's IP address range. Defines the subnet where the OpenShift installer runs provisioning services and assigns temporary IPs to nodes during bootstrap.\n\n**What is this:**\nIPv4 or IPv6 network range in CIDR format (e.g., 172.22.0.0/24) that defines the provisioning network's address space. The installer uses this subnet for DHCP assignments, bootstrap services, and node imaging.\n\n**Format:**\nNetwork address / prefix length\n• IPv4 example: 172.22.0.0/24 (256 addresses)\n• IPv6 example: fd00::/64\n\n**When to set:**\n• **Managed mode:** Optional but recommended - defines the provisioning subnet for DHCP and services\n• **Unmanaged mode:** Optional - documents your existing provisioning network CIDR\n• **Disabled mode:** Omit, or set to bare-metal network CIDR if provisioning services run on that network\n\n**Default behavior:**\nIf omitted in Managed mode, installer may use a default range (consult OpenShift docs for version-specific defaults)\n\n**Sizing guidelines:**\n• /24 (256 addresses) - Standard for small-medium clusters (up to 50 nodes)\n• /23 (512 addresses) - Large clusters or future expansion\n• /25 (128 addresses) - Small clusters (under 20 nodes)\n\n**Requirements:**\n• Must not overlap with Machine network, Cluster network, or Service network CIDRs (from Networking tab)\n• Must be routable only on the provisioning network segment (isolated from production traffic)\n• Enough addresses for all nodes + bootstrap + DHCP overhead (nodes × 2 recommended)\n\n**Relationship to other fields:**\n• **provisioningDHCPRange:** DHCP range must be within this CIDR\n• **clusterProvisioningIP:** Provisioning services IP must be within this CIDR\n\n**Example:**\n172.22.0.0/24 (common choice for isolated provisioning network)"}
                   >
                     <input
+                      className={fieldErrors.provisioningNetworkCIDR ? "input-error" : ""}
+                      title={fieldErrors.provisioningNetworkCIDR || ""}
                       value={localProvisioningNetworkCIDR}
                       onChange={(e) => setLocalProvisioningNetworkCIDR(e.target.value)}
                       onBlur={() => updateInventory({ provisioningNetworkCIDR: localProvisioningNetworkCIDR.trim() })}
                       placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : "e.g. 172.22.0.0/24"}
                     />
                   </FieldLabelWithInfo>
+                  {fieldErrors.provisioningNetworkCIDR && <span className="note warning inline">{fieldErrors.provisioningNetworkCIDR}</span>}
                   <FieldLabelWithInfo
                     label="Provisioning network interface (optional)"
                     hint={provisioningMode === "Disabled"
@@ -3714,9 +3721,10 @@ Value in MB (use multiples of 1024 for clean GB values):
                     />
                   </FieldLabelWithInfo>
                   {showDhcpRange ? (
-                    <FieldLabelWithInfo
-                      label="Provisioning DHCP range (optional)"
-                      hint={`IP address range for DHCP assignments on the provisioning network during bare metal node bootstrapping. Specifies the pool of IP addresses the installer's DHCP server uses when provisioning nodes.
+                    <>
+                      <FieldLabelWithInfo
+                        label="Provisioning DHCP range (optional)"
+                        hint={`IP address range for DHCP assignments on the provisioning network during bare metal node bootstrapping. Specifies the pool of IP addresses the installer's DHCP server uses when provisioning nodes.
 
 **What this controls:**
 When provisioning network mode is Managed, the OpenShift installer runs a DHCP server on the provisioning network that assigns temporary IP addresses to bare metal nodes during the imaging/bootstrap process.
@@ -3747,14 +3755,18 @@ Start IP, end IP (comma-separated, no spaces after comma)
 **Example:**
 172.22.0.10,172.22.0.254 (245 addresses for large deployments)
 172.22.0.50,172.22.0.80 (31 addresses for smaller clusters)`}
-                    >
-                      <input
-                        value={localProvisioningDHCPRange}
-                        onChange={(e) => setLocalProvisioningDHCPRange(e.target.value)}
-                        onBlur={() => updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange })}
-                        placeholder="e.g. 172.22.0.10,172.22.0.254"
-                      />
-                    </FieldLabelWithInfo>
+                      >
+                        <input
+                          className={fieldErrors.provisioningDHCPRange ? "input-error" : ""}
+                          title={fieldErrors.provisioningDHCPRange || ""}
+                          value={localProvisioningDHCPRange}
+                          onChange={(e) => setLocalProvisioningDHCPRange(e.target.value)}
+                          onBlur={() => updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange })}
+                          placeholder="e.g. 172.22.0.10,172.22.0.254"
+                        />
+                      </FieldLabelWithInfo>
+                      {fieldErrors.provisioningDHCPRange && <span className="note warning inline">{fieldErrors.provisioningDHCPRange}</span>}
+                    </>
                   ) : null}
                   <FieldLabelWithInfo
                     label="Cluster provisioning IP (optional)"
@@ -3763,12 +3775,15 @@ Start IP, end IP (comma-separated, no spaces after comma)
                       : "IPv4 or IPv6 address assigned to the provisioning host's interface where OpenShift installer provisioning services (DHCP, TFTP, HTTP) listen. This is the IP nodes contact to fetch boot images and configuration during installation.\n\n**What is this:**\nStatic IP address on the provisioning network that the installer binds its services to. Bare metal nodes PXE boot and download images from this IP during the bootstrap process.\n\n**Default behavior:**\nIf omitted, the installer typically uses the **third IP** of the provisioning subnet (catalog default). For example, if provisioningNetworkCIDR is 172.22.0.0/24, default might be 172.22.0.3.\n\n**When to set explicitly:**\n• When you need a specific IP for firewall rules or DNS entries\n• When the third IP of the subnet is already in use\n• When integrating with existing provisioning infrastructure that expects a particular IP\n\n**Requirements:**\n• **Managed/Unmanaged modes:** Must be within provisioningNetworkCIDR\n• **Disabled mode:** Must be on the bare-metal network (Machine network CIDR)\n• Must NOT conflict with provisioningDHCPRange\n• Must be statically assigned (not in DHCP dynamic range)\n• Must be reachable from bare metal node BMCs and boot interfaces\n\n**Provisioning mode specifics:**\n\n**Managed:** \nInstaller runs DHCP/TFTP on this IP on the provisioning network. Nodes receive this IP via DHCP options as their boot server.\n\n**Unmanaged:**\nYou run DHCP elsewhere, but installer HTTP/image services still bind to this IP. Configure your DHCP server to point nodes to this IP for image downloads.\n\n**Disabled:**\nNo dedicated provisioning network - installer services run on the bare-metal network. This IP is one of two IPs needed on the bare-metal network for provisioning (the other for bootstrap services).\n\n**How nodes use this IP:**\n• PXE boot: Fetch kernel/initrd via TFTP from this IP\n• Image download: Pull RHCOS images via HTTP from this IP\n• Ignition config: Retrieve bootstrap configuration from this IP\n\n**Example:**\n172.22.0.10 (Managed mode, within 172.22.0.0/24)\n10.0.0.100 (Disabled mode, on bare-metal network 10.0.0.0/24)"}
                   >
                     <input
+                      className={fieldErrors.clusterProvisioningIP ? "input-error" : ""}
+                      title={fieldErrors.clusterProvisioningIP || ""}
                       value={localClusterProvisioningIP}
                       onChange={(e) => setLocalClusterProvisioningIP(e.target.value)}
                       onBlur={() => updateInventory({ clusterProvisioningIP: localClusterProvisioningIP.trim() })}
                       placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : "IP within provisioning subnet"}
                     />
                   </FieldLabelWithInfo>
+                  {fieldErrors.clusterProvisioningIP && <span className="note warning inline">{fieldErrors.clusterProvisioningIP}</span>}
                   <FieldLabelWithInfo
                     label="Provisioning MAC address (optional)"
                     hint={`MAC (hardware) address of the network interface on the bootstrap/provisioning host where the OpenShift installer runs provisioning services (DHCP, TFTP, HTTP) during bare metal installation.
@@ -4222,6 +4237,114 @@ Leave 'None' for general clusters`}
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
+                    </FieldLabelWithInfo>
+                  )}
+                  {showFeatureSet && (
+                    <FieldLabelWithInfo
+                      label="Feature set (optional)"
+                      hint={`Enables pre-packaged feature gate sets for tech preview or latency-sensitive workloads.
+
+**Default:**
+Leave as 'Not set' for standard production clusters
+
+**What is a feature set:**
+OpenShift feature gates control access to features not enabled by default. Feature sets bundle multiple related feature gates for specific use cases without manually configuring each gate.
+
+**When needed:**
+• **Technology previews:** Test upcoming features in non-production environments
+• **Custom features:** Enable/disable specific gates for specialized use cases
+• **Latency mitigation:** Optimize for real-time workloads (telco, 5G, industrial)
+
+**Options:**
+
+**TechPreviewNoUpgrade:**
+Enables all Technology Preview features. Useful for testing new capabilities before general availability.
+⚠️ Cannot upgrade clusters with this set - requires clean reinstall when upgrading OpenShift
+⚠️ Not supported in production
+
+**CustomNoUpgrade:**
+Allows manual selection of individual feature gates via 'featureGates' field (shows below when selected).
+Use for enabling/disabling specific experimental or deprecated features.
+⚠️ Cannot upgrade clusters with custom gates - requires clean reinstall
+
+**LatencyMitigating:**
+Optimizes cluster for low-latency workloads by reducing kubelet update frequency and API server coordination overhead.
+Designed for telco/edge deployments (5G RAN, MEC) where consistent sub-millisecond latency matters.
+✅ Supports cluster upgrades (unlike tech preview/custom sets)
+
+**How it's used:**
+Written to install-config.yaml as 'featureSet: TechPreviewNoUpgrade'. Controls which feature gates are enabled cluster-wide at installation time.
+
+**Important:**
+⚠️ TechPreview and Custom feature sets prevent upgrades - cluster must be reinstalled to upgrade OpenShift
+⚠️ Tech preview features may be unstable, incomplete, or removed in future releases
+⚠️ LatencyMitigating is production-supported but only needed for latency-critical use cases
+
+**Example:**
+Set 'TechPreviewNoUpgrade' to test upcoming features in lab environment
+Set 'LatencyMitigating' for telco vRAN Single-Node OpenShift with real-time workloads
+Leave 'Not set' for standard production clusters`}
+                    >
+                      <select
+                        value={platformConfig.featureSet || ""}
+                        onChange={(e) => updatePlatformConfig({ featureSet: e.target.value || undefined })}
+                      >
+                        <option value="">Not set</option>
+                        {featureSetOptions.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </FieldLabelWithInfo>
+                  )}
+                  {showFeatureSet && platformConfig.featureSet === "CustomNoUpgrade" && (
+                    <FieldLabelWithInfo
+                      label="Feature gates (required when CustomNoUpgrade)"
+                      hint={`Individual feature gate overrides when using CustomNoUpgrade feature set.
+
+**What are feature gates:**
+Feature gates are boolean flags that enable or disable specific OpenShift features at the cluster level. Gates control access to experimental, deprecated, or opt-in features not enabled by default.
+
+**When needed:**
+ONLY when featureSet is 'CustomNoUpgrade'. Specifies which gates to enable (true) or disable (false).
+
+**Format:**
+One per line in format: FeatureGateName=true or FeatureGateName=false
+
+**How it's used:**
+Written to install-config.yaml as array:
+featureGates:
+  - ExperimentalFeature=true
+  - DeprecatedFeature=false
+
+Controls cluster-wide feature availability at installation time.
+
+**Important:**
+⚠️ Clusters with custom feature gates CANNOT upgrade - requires clean reinstall to change OpenShift version
+⚠️ Incorrect gate names are silently ignored - verify against OpenShift documentation
+⚠️ Enabling experimental gates may cause instability
+⚠️ This is ADVANCED configuration - only use if you understand specific gates needed
+
+**Common feature gates:**
+• **ExternalCloudProvider=true** - Use out-of-tree cloud provider (required for some platforms in 4.13+)
+• **RotateKubeletServerCertificate=true** - Enable kubelet cert rotation
+• **CSIMigration<Provider>=true** - Migrate volumes from in-tree to CSI drivers
+
+**Example:**
+ExternalCloudProvider=true
+CSIMigrationAWS=true
+TechPreviewFeature=false
+
+**Reference:**
+See OpenShift 4.20 documentation for full list of available feature gates and their effects.`}
+                      required={platformConfig.featureSet === "CustomNoUpgrade"}
+                    >
+                      <textarea
+                        value={platformConfig.featureGates || ""}
+                        onChange={(e) => updatePlatformConfig({ featureGates: e.target.value || undefined })}
+                        placeholder="ExternalCloudProvider=true&#10;CSIMigrationAWS=true"
+                        rows="4"
+                        style={{ width: "100%", fontFamily: "monospace", fontSize: "0.9rem" }}
+                      />
                     </FieldLabelWithInfo>
                   )}
                 </div>

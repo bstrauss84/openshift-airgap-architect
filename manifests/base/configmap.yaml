@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airgap-architect-config
+  labels:
+    app: airgap-architect
+    app.kubernetes.io/name: airgap-architect-config
+    app.kubernetes.io/part-of: airgap-architect
+data:
+  # Backend listen port (must match containerPort in backend Deployment)
+  PORT: "4000"
+
+  # Node.js environment
+  NODE_ENV: "production"
+
+  # Log verbosity: trace, debug, info, warn, error, fatal
+  LOG_LEVEL: "info"
+
+  # Set to "true" to return mock data without real oc/oc-mirror calls (dev/demo only)
+  MOCK_MODE: "false"
+
+  # Feedback submission backend: "github" posts issues to APP_REPO
+  FEEDBACK_MODE: "github"
+
+  # Enable automatic update checks against the GitHub repo
+  CHECK_UPDATES: "true"
+
+  # GitHub repository for build-info and update checks
+  APP_REPO: "bstrauss84/openshift-airgap-architect"
+
+  # Git branch to check for updates
+  APP_BRANCH: "main"
+
+  # URL the frontend uses to reach the backend API.
+  # In-cluster: use the backend Service name.
+  # If using an Ingress/Route, update this to the external backend URL.
+  VITE_API_BASE: "http://airgap-architect-backend:4000"
+
+  # Comma-separated hostnames allowed by the Vite dev server.
+  # Set to the external hostname(s) used to reach the frontend (Route, Ingress, etc.).
+  # Leave empty to allow all hosts.
+  VITE_ALLOWED_HOSTS: ""

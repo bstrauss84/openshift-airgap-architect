@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airgap-architect-frontend
+  labels:
+    app: airgap-architect
+    component: frontend
+    app.kubernetes.io/name: airgap-architect-frontend
+    app.kubernetes.io/part-of: airgap-architect
+    app.kubernetes.io/component: frontend
+spec:
+  # Frontend is stateless and can scale horizontally.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: airgap-architect
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: airgap-architect
+        component: frontend
+        app.kubernetes.io/name: airgap-architect-frontend
+        app.kubernetes.io/part-of: airgap-architect
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: localhost/openshift-airgap-architect-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5173
+          name: http
+          protocol: TCP
+        env:
+        - name: VITE_API_BASE
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: VITE_API_BASE
+        - name: VITE_ALLOWED_HOSTS
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: VITE_ALLOWED_HOSTS
+              # Optional; empty string is fine
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5173
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5173
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        securityContext:
+          runAsUser: 1001
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL

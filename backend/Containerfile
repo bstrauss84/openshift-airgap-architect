@@ -50,6 +50,7 @@ ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY backend/src ./src
 COPY backend/mock-data ./mock-data
+COPY data ./data
 COPY backend/scripts/entrypoint.sh /app/entrypoint.sh
 COPY --from=build-info /tmp/build-env.sh /app/build-env.sh
 RUN chmod +x /app/entrypoint.sh && chown -R 1001:0 /app \

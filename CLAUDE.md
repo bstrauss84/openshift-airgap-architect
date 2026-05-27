@@ -54,7 +54,8 @@
 - Track version bumps and releases
 - Cross-reference BACKLOG_STATUS.md for detailed status
 
-**Current focus:** v1.2.0 Phase 3 (AWS Platform Specifics, FIPS binary selection)  
+**Current focus:** v1.2.0 Phase 3 COMPLETE (AWS Platform Specifics, FIPS binary selection, Node drawer redesign)  
+**Additional work complete:** DOC-082 Parameter Canonicalization Audit (Phase 2, outside roadmap, 2026-05-21)  
 **Next phase:** v1.3.0 (Testing & Validation)
 
 ### 3. Historical Work Plan: `/docs/COMPREHENSIVE_MASTER_PLAN.md`
@@ -623,6 +624,223 @@ The app supports **high-side (disconnected) deployments** where the tool runs on
 
 ---
 
+## PROD Phase 1: Production Readiness (v1.6.0 - Complete)
+
+**Completion Date:** 2026-05-20  
+**Status:** All 6 critical items verified_done  
+**Version:** Implemented in v1.6.0 release
+
+### Implementation Summary
+
+PROD Phase 1 addresses 6 critical blockers required before ANY production deployment:
+
+1. **PROD-002: Structured Logging Framework** ✅
+   - Pino logging library with JSON output for production
+   - AsyncLocalStorage-based request correlation
+   - Error ID generation for client-to-server correlation
+   - 87 console statements replaced across 5 backend files
+   - Files: `backend/src/logger.js`, `backend/src/middleware/logging.js`
+   - Tests: `backend/test/logger.test.js` (14 tests passing)
+
+2. **PROD-003: Kubernetes/OpenShift Deployment Manifests** ✅
+   - 13 manifest files: Deployments, Services, PVC, ConfigMap, Secret, Routes
+   - Kustomize structure for environment overlays
+   - Restricted-v2 SCC compatible (UID 1001, non-root)
+   - Files: `manifests/base/*.yaml`, `manifests/openshift/*.yaml`
+   - Documentation: `manifests/README.md`
+
+3. **PROD-004: Resource Limits and Capacity Planning** ✅
+   - Backend: 500m-2000m CPU, 1-4Gi RAM
+   - Frontend: 100m-500m CPU, 256-512Mi RAM
+   - Load test script: `scripts/load-test.sh` (5 test scenarios)
+   - Documentation: `docs/CAPACITY_PLANNING.md` (40KB, 13 sections)
+
+4. **PROD-005: SQLite Backup/Restore Procedures** ✅
+   - Comprehensive backup/restore documentation (703 lines)
+   - 4 executable scripts: backup, verify, restore, test
+   - Online backup using SQLite VACUUM INTO
+   - Documentation: `docs/BACKUP_RESTORE.md`
+   - Scripts: `scripts/backup-sqlite.sh`, `scripts/verify-backup.sh`, `scripts/restore-sqlite.sh`, `scripts/test-backup-restore.sh`
+
+5. **PROD-006: Enhanced Health Probes** ✅
+   - Liveness probe: `/api/health` (process health only)
+   - Readiness probe: `/api/ready` (DB read + write checks)
+   - K8s probe configurations in deployment manifests
+   - Documentation: `docs/HEALTH_PROBES.md` (400+ lines)
+   - Tests: `backend/test/health-probes.test.js` (13 tests passing)
+
+6. **PROD-007: Backend Request Schema Validation** ✅
+   - 12 new Zod schemas for previously unvalidated routes
+   - Enhanced validateBody middleware with error IDs
+   - Applied to all 22 POST routes
+   - Documentation: `docs/API_SCHEMA.md`
+   - Tests: `backend/test/validation.test.js` (63 tests passing)
+
+### Testing Status
+
+- **Backend:** 373 tests passing (90 new tests from PROD Phase 1)
+- **Frontend:** 707 tests passing (no changes)
+- **Total:** 1080 tests passing
+
+**Pre-existing failures (not related to PROD Phase 1):**
+- `backend/test/openshiftInstaller.test.js`: 1 failure (Node.js test runner serialization issue)
+- `frontend/tests/placeholderValuesHelpers.test.js`: 1 failure (IPv6 placeholder values)
+- `frontend/tests/networking-v2-step.test.jsx`: 3 failures (dual-stack IPv6 VIP placeholders)
+
+### Critical Files Added
+
+**Backend:**
+- `backend/src/logger.js` - Pino logger utility
+- `backend/src/middleware/logging.js` - Request correlation middleware
+- `backend/test/logger.test.js` - Logger tests (14 tests)
+- `backend/test/health-probes.test.js` - Health probe tests (13 tests)
+- `backend/test/validation.test.js` - Schema validation tests (63 tests)
+
+**Kubernetes Manifests:**
+- `manifests/base/backend-deployment.yaml`
+- `manifests/base/backend-service.yaml`
+- `manifests/base/frontend-deployment.yaml`
+- `manifests/base/frontend-service.yaml`
+- `manifests/base/pvc.yaml`
+- `manifests/base/configmap.yaml`
+- `manifests/base/secret.yaml`
+- `manifests/openshift/route-backend.yaml`
+- `manifests/openshift/route-frontend.yaml`
+- `manifests/kustomization.yaml`
+- `manifests/README.md`
+
+**Scripts:**
+- `scripts/backup-sqlite.sh` - Automated SQLite backup
+- `scripts/verify-backup.sh` - Backup integrity validation
+- `scripts/restore-sqlite.sh` - Safe restore with prompts
+- `scripts/test-backup-restore.sh` - Backup/restore test suite
+- `scripts/load-test.sh` - Load testing script
+
+**Documentation:**
+- `docs/BACKUP_RESTORE.md` - SQLite backup and disaster recovery (703 lines)
+- `docs/HEALTH_PROBES.md` - K8s health probe configuration (400+ lines)
+- `docs/API_SCHEMA.md` - API contract and validation rules
+- `docs/CAPACITY_PLANNING.md` - Resource requirements and scaling (40KB)
+
+### Critical Dependencies Added
+
+**Backend (`backend/package.json`):**
+- `pino ^10.3.1` - Production logging library
+- `pino-pretty ^13.1.3` - Development pretty-printing
+
+### Next Steps
+
+After v1.6.0 release, PROD Phase 2 items become active:
+- PROD-008: Prometheus metrics and instrumentation
+- PROD-009: Formal database migration system
+- PROD-010: End-to-end tests for critical workflows
+- PROD-011: Load testing with documented results
+- PROD-012: Automated job cleanup/retention policy
+- PROD-013: Capacity planning validation
+- PROD-014: Establish versioning and changelog maintenance
+
+---
+
+## Comprehensive Verification Protocol (2026-05-27)
+
+### When to Run Comprehensive Verification
+
+Run this verification protocol:
+- **Before major releases** (v1.x.0, v2.0.0)
+- **After significant refactoring** (parameter audits, catalog changes, generation logic updates)
+- **When user requests full bug check**
+- **Before production deployment**
+
+### Sequential Agent Approach (Memory-Safe)
+
+**CRITICAL:** Spawn agents ONE AT A TIME and record findings incrementally. Never spawn all agents in parallel - this causes memory issues and system crashes.
+
+**Process:**
+1. Spawn Agent 1, wait for completion
+2. Record findings in HANDOFF_PACKET.md
+3. Spawn Agent 2, wait for completion
+4. Record findings in HANDOFF_PACKET.md
+5. Continue until all verification areas complete
+
+### Verification Areas (6 Agents)
+
+**Agent 1: Test Suite Verification**
+- Run all frontend tests (`cd frontend && npm test`)
+- Run all backend tests (`cd backend && npm test`)
+- Record passing/failing counts, failure details
+- Classify failures: pre-existing, regression, needs investigation
+- **Output:** Test results summary with failure classification
+
+**Agent 2: Download & Export Verification**
+- Verify binary download functions (oc/oc-mirror, openshift-install, mirror-registry)
+- Check export bundle variations (all 4 inclusion options)
+- Verify error handling creates `.ERROR.txt` files
+- Check 7 credential toggle categories
+- Verify placeholder engine functionality
+- **Output:** Download/export functionality status
+
+**Agent 3: Parameter Coverage Verification**
+- Verify catalog synchronization (backend ↔ frontend, MD5 check)
+- Check backend generation approach (systematic vs hardcoded)
+- Verify frontend UI coverage percentage claim
+- Review missing parameter analysis
+- **Output:** Parameter flow verification (catalog → backend → frontend → output)
+
+**Agent 4: Frontend Field Workflow Verification**
+- Sample 15-20 key input fields across all steps
+- Trace field flow: frontend input → state update → backend generation → YAML output
+- Look for broken workflows (fields that don't flow through)
+- Verify recent DOC-082 additions are properly wired
+- **Output:** Field workflow status with sample traces
+
+**Agent 5: Test Failure Investigation**
+- Investigate non-pre-existing test failures from Agent 1
+- Read test code and implementation code
+- Classify: outdated test, real bug, needs fix
+- Provide recommended action for each failure
+- **Output:** Test failure root cause analysis
+
+**Agent 6: Tooltips & Background Tasks Verification**
+- Check FieldLabelWithInfo tooltip coverage
+- Sample 5-10 tooltips for gold standard format compliance
+- Verify oc-mirror job execution (job status tracking)
+- Verify operator scanning preflight
+- Verify Cincinnati version discovery
+- **Output:** Tooltip quality assessment, background task status
+
+### Recording Findings
+
+**Update HANDOFF_PACKET.md after EACH agent:**
+- Add verification results section
+- Record bugs found with evidence
+- Update status summary table
+- Document action items
+
+**Update BACKLOG_STATUS.md for new bugs:**
+- Create DOC-XXX items for real bugs
+- Use canonical status vocabulary
+- Provide code evidence
+- Set priority (p0/p1/p2/p3)
+
+### Post-Verification Actions
+
+1. **Fix Critical Bugs (p0/p1):** Address immediately before release
+2. **Update Tests:** Fix outdated test assertions
+3. **Document Known Issues:** Pre-existing failures in CLAUDE.md
+4. **Create Roadmap Items:** P2/P3 bugs deferred to future versions
+
+### Verification Checklist
+
+- [ ] All 6 agents completed successfully
+- [ ] Findings recorded in HANDOFF_PACKET.md
+- [ ] Bugs tracked in BACKLOG_STATUS.md
+- [ ] Test failures classified and documented
+- [ ] Critical bugs fixed or blockers created
+- [ ] CLAUDE.md updated with verification notes
+- [ ] User notified of findings and next steps
+
+---
+
 ## Questions?
 
 If you're unsure about:
@@ -639,5 +857,5 @@ If you're unsure about:
 
 ---
 
-**Last Updated:** 2026-05-15  
-**Revision:** Major handoff update - added Critical Bug History (pull secret, test deletion anti-pattern), High-Side Integration architecture, updated roadmap reference (IMPLEMENTATION_ROADMAP replaces REVISED_PHASED_PLAN), added new doc systems (UPI prep guides, disconnected matrix, platform: none boundaries), updated current phase (v1.2.0 Phase 1 complete)
+**Last Updated:** 2026-05-27  
+**Revision:** Comprehensive verification protocol (2026-05-27) - Added detailed verification protocol section documenting 6-agent sequential approach for comprehensive bug checks, parameter coverage verification, field workflow validation, and test failure investigation. Updated after DOC-083 creation (runtime package export not integrated) and comprehensive verification finding 3 real bugs (MAC validation, Nutanix IPI VIP, Azure validation).

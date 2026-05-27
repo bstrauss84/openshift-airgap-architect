@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airgap-architect-backend
+  labels:
+    app: airgap-architect
+    component: backend
+    app.kubernetes.io/name: airgap-architect-backend
+    app.kubernetes.io/part-of: airgap-architect
+    app.kubernetes.io/component: backend
+spec:
+  # SQLite is single-writer; do NOT scale beyond 1 replica.
+  replicas: 1
+  strategy:
+    type: Recreate  # Ensures only one pod accesses SQLite at a time
+  selector:
+    matchLabels:
+      app: airgap-architect
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: airgap-architect
+        component: backend
+        app.kubernetes.io/name: airgap-architect-backend
+        app.kubernetes.io/part-of: airgap-architect
+        app.kubernetes.io/component: backend
+    spec:
+      securityContext:
+        # fsGroup ensures the PVC is writable by UID 1001
+        fsGroup: 1001
+      containers:
+      - name: backend
+        image: localhost/openshift-airgap-architect-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 4000
+          name: http
+          protocol: TCP
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: PORT
+        - name: DATA_DIR
+          value: "/data"
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: NODE_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: LOG_LEVEL
+        - name: LOG_FORMAT
+          value: "json"
+        - name: MOCK_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: MOCK_MODE
+        - name: FEEDBACK_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: FEEDBACK_MODE
+        - name: CHECK_UPDATES
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: CHECK_UPDATES
+        - name: APP_REPO
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: APP_REPO
+        - name: APP_BRANCH
+          valueFrom:
+            configMapKeyRef:
+              name: airgap-architect-config
+              key: APP_BRANCH
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 4000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/ready
+            port: 4000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+        securityContext:
+          runAsUser: 1001
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: airgap-architect-data

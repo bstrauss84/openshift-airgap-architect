@@ -333,56 +333,54 @@ test("cincinnatiRefreshSchema: allows additional fields (passthrough)", () => {
 // feedbackSubmitSchema Tests
 // ===================================================================
 
-test("feedbackSubmitSchema: accepts valid feedback", () => {
+test("feedbackSubmitSchema: accepts valid feedback payload", () => {
   const valid = {
-    feedbackText: "This is test feedback",
-    email: "test@example.com",
-    includeState: true
+    category: "bug",
+    severity: "medium",
+    summary: "Something is broken",
+    details: "Detailed description of the issue",
+    challengeToken: "token123",
+    contactRequested: false
   };
   const result = feedbackSubmitSchema.safeParse(valid);
   assert.strictEqual(result.success, true);
 });
 
-test("feedbackSubmitSchema: rejects empty feedback text", () => {
-  const result = feedbackSubmitSchema.safeParse({ feedbackText: "" });
-  assert.strictEqual(result.success, false);
-});
-
-test("feedbackSubmitSchema: rejects feedback text over 10000 chars", () => {
-  const longText = "a".repeat(10001);
-  const result = feedbackSubmitSchema.safeParse({ feedbackText: longText });
-  assert.strictEqual(result.success, false);
-});
-
-test("feedbackSubmitSchema: accepts feedback at 10000 char limit", () => {
-  const text = "a".repeat(10000);
-  const result = feedbackSubmitSchema.safeParse({ feedbackText: text });
+test("feedbackSubmitSchema: accepts empty object (all fields optional)", () => {
+  const result = feedbackSubmitSchema.safeParse({});
   assert.strictEqual(result.success, true);
 });
 
-test("feedbackSubmitSchema: rejects invalid email format", () => {
-  const result = feedbackSubmitSchema.safeParse({
-    feedbackText: "Test",
-    email: "not-an-email"
-  });
+test("feedbackSubmitSchema: rejects summary over 5000 chars", () => {
+  const longSummary = "a".repeat(5001);
+  const result = feedbackSubmitSchema.safeParse({ summary: longSummary });
   assert.strictEqual(result.success, false);
 });
 
-test("feedbackSubmitSchema: accepts valid email", () => {
-  const result = feedbackSubmitSchema.safeParse({
-    feedbackText: "Test",
-    email: "user@example.com"
-  });
+test("feedbackSubmitSchema: accepts summary at 5000 char limit", () => {
+  const summary = "a".repeat(5000);
+  const result = feedbackSubmitSchema.safeParse({ summary });
   assert.strictEqual(result.success, true);
 });
 
-test("feedbackSubmitSchema: rejects appState over 500000 chars", () => {
-  const hugeState = "x".repeat(500001);
-  const result = feedbackSubmitSchema.safeParse({
-    feedbackText: "Test",
-    appState: hugeState
-  });
+test("feedbackSubmitSchema: rejects details over 50000 chars", () => {
+  const longDetails = "a".repeat(50001);
+  const result = feedbackSubmitSchema.safeParse({ details: longDetails });
   assert.strictEqual(result.success, false);
+});
+
+test("feedbackSubmitSchema: rejects challengeToken over 1024 chars", () => {
+  const longToken = "a".repeat(1025);
+  const result = feedbackSubmitSchema.safeParse({ challengeToken: longToken });
+  assert.strictEqual(result.success, false);
+});
+
+test("feedbackSubmitSchema: allows additional fields via passthrough", () => {
+  const result = feedbackSubmitSchema.safeParse({
+    category: "feature",
+    scenarioContext: { step: "blueprint" }
+  });
+  assert.strictEqual(result.success, true);
 });
 
 // ===================================================================
@@ -401,11 +399,11 @@ test("validateBody middleware: calls next() on valid data", () => {
   assert.strictEqual(req.body.algorithm, "ed25519");
 });
 
-test("validateBody middleware: returns 400 on invalid data", () => {
+test("validateBody middleware: returns 400 with errorId on invalid data", () => {
   let statusCode = null;
   let jsonData = null;
   const middleware = validateBody(sshKeypairSchema);
-  const req = { body: { algorithm: "invalid" } };
+  const req = { body: { algorithm: "invalid" }, path: "/api/ssh/keypair", method: "POST" };
   const res = {
     status: (code) => {
       statusCode = code;
@@ -420,9 +418,11 @@ test("validateBody middleware: returns 400 on invalid data", () => {
   assert.strictEqual(statusCode, 400);
   assert.strictEqual(jsonData.error, "Validation failed");
   assert.ok(Array.isArray(jsonData.details));
+  assert.ok(typeof jsonData.errorId === "string");
+  assert.ok(jsonData.errorId.startsWith("err_"));
 });
 
-test("validateBody middleware: formats multiple validation errors", () => {
+test("validateBody middleware: formats multiple validation errors with errorId", () => {
   const multiSchema = z.object({
     a: z.string().min(1, "a required"),
     b: z.number()
@@ -433,7 +433,9 @@ test("validateBody middleware: formats multiple validation errors", () => {
     body: {
       a: "",
       b: "not-a-number"
-    }
+    },
+    path: "/test",
+    method: "POST"
   };
   const res = {
     status: (code) => ({
@@ -444,6 +446,8 @@ test("validateBody middleware: formats multiple validation errors", () => {
 
   middleware(req, res, next);
   assert.strictEqual(jsonData.error, "Validation failed");
+  assert.ok(typeof jsonData.errorId === "string");
+  assert.ok(jsonData.errorId.startsWith("err_"));
   assert.ok(jsonData.details.length > 0);
-  assert.ok(jsonData.details.every(d => d.path && d.message));
+  assert.ok(jsonData.details.every(d => d.path !== undefined && d.message));
 });

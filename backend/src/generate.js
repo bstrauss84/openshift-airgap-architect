@@ -435,6 +435,16 @@ const buildInstallConfig = (state) => {
   if (platformConfig.cpuPartitioningMode === "None" || platformConfig.cpuPartitioningMode === "AllNodes") {
     installConfig.cpuPartitioningMode = platformConfig.cpuPartitioningMode;
   }
+  if (platformConfig.featureSet) {
+    installConfig.featureSet = platformConfig.featureSet;
+  }
+  if (platformConfig.featureGates && platformConfig.featureSet === "CustomNoUpgrade") {
+    // Parse newline-separated feature gates into array
+    const gatesArray = (platformConfig.featureGates || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    if (gatesArray.length > 0) {
+      installConfig.featureGates = gatesArray;
+    }
+  }
 
   // Agent-based 2 control plane + 1 arbiter (4.20 doc): controlPlane.replicas: 2, arbiter: { name: "arbiter", replicas: 1 }
   const isAgentBased = state.methodology?.method === "Agent-Based Installer";
@@ -1406,6 +1416,7 @@ const buildImageSetConfig = (state) => {
   const includeGraph = cfg.graph !== false;
   const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
   const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
+  const kubeVirtContainer = Boolean(cfg.kubeVirtContainer);
 
   const images = {
     apiVersion: "mirror.openshift.io/v2alpha1",
@@ -1423,7 +1434,8 @@ const buildImageSetConfig = (state) => {
         ...(includeGraph ? { graph: true } : {})
       },
       operators: [],
-      ...(additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {})
+      ...(additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {}),
+      ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
     }
   };
   const byCatalog = new Map();
@@ -1431,9 +1443,16 @@ const buildImageSetConfig = (state) => {
     if (!byCatalog.has(op.catalogImage)) {
       byCatalog.set(op.catalogImage, []);
     }
+    const channel = { name: op.defaultChannel };
+    // Add version constraints if specified
+    if (op.minVersion || op.maxVersion) {
+      channel.includeConfig = {};
+      if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
+      if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
+    }
     byCatalog.get(op.catalogImage).push({
       name: op.name,
-      channels: [{ name: op.defaultChannel }]
+      channels: [channel]
     });
   }
   for (const [catalog, packages] of byCatalog.entries()) {

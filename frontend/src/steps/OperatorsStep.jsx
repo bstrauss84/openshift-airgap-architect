@@ -1081,6 +1081,125 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
         )}
         </section>
 
+        {selected.length > 0 && (
+          <CollapsibleSection
+            title="Advanced: Version Constraints (Optional)"
+            className="card"
+            defaultOpen={false}
+          >
+            <p className="note">
+              Specify minimum and maximum operator versions to mirror. Leave blank to mirror all versions from the default channel.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
+              {selected.map((op) => (
+                <div key={op.id} style={{ padding: "1rem", border: "1px solid var(--border-subtle)", borderRadius: "4px" }}>
+                  <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>{op.name}</div>
+                  <div className="subtle" style={{ marginBottom: "1rem" }}>
+                    Channel: {op.defaultChannel || "unknown"}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <FieldLabelWithInfo
+                      label="Min version (optional)"
+                      hint={`Minimum operator version to mirror for ${op.name}.
+
+**What is this:**
+The lowest operator version number to include when mirroring this operator from its default channel. All versions >= minVersion and <= maxVersion will be mirrored.
+
+**When needed:**
+Optional. Use when you want to exclude older operator versions from your disconnected environment (e.g., only mirror versions 1.5.0 and newer).
+
+**Format:**
+Semantic version string: MAJOR.MINOR.PATCH (e.g., 1.5.0, 2.0.1, 0.9.12)
+
+**How it's used:**
+Written to imageset-config.yaml as:
+mirror.operators[].packages[].channels[].includeConfig.minVersion: "1.5.0"
+
+oc-mirror will only mirror operator bundles with version >= minVersion.
+
+**Important:**
+⚠️ Version must exist in the operator's channel - if no versions match the constraint, mirroring will fail
+⚠️ Versions are operator-specific, not OpenShift versions (e.g., OpenShift Virtualization uses versions like 4.15.0, not OpenShift 4.20)
+⚠️ Must be valid semver format - invalid format will cause oc-mirror errors
+
+**Example:**
+Operator: kubevirt-hyperconverged, Channel: stable
+Set minVersion: "4.15.0" to only mirror OpenShift Virtualization 4.15.0 and newer`}
+                    >
+                      <input
+                        type="text"
+                        value={op.minVersion || ""}
+                        onChange={(e) => {
+                          const value = e.target.value.trim();
+                          setState((prev) => ({
+                            ...prev,
+                            operators: {
+                              ...prev.operators,
+                              selected: prev.operators.selected.map((item) =>
+                                item.id === op.id ? { ...item, minVersion: value || undefined } : item
+                              )
+                            }
+                          }));
+                        }}
+                        placeholder="e.g. 1.5.0"
+                        style={{ width: "100%" }}
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Max version (optional)"
+                      hint={`Maximum operator version to mirror for ${op.name}.
+
+**What is this:**
+The highest operator version number to include when mirroring this operator from its default channel. All versions >= minVersion and <= maxVersion will be mirrored.
+
+**When needed:**
+Optional. Use when you want to exclude newer operator versions that may be untested or incompatible (e.g., cap at version 2.5.0 to avoid 3.x).
+
+**Format:**
+Semantic version string: MAJOR.MINOR.PATCH (e.g., 2.5.0, 3.0.1, 1.12.5)
+
+**How it's used:**
+Written to imageset-config.yaml as:
+mirror.operators[].packages[].channels[].includeConfig.maxVersion: "2.5.0"
+
+oc-mirror will only mirror operator bundles with version <= maxVersion.
+
+**Important:**
+⚠️ Version must exist in the operator's channel - if no versions match the constraint, mirroring will fail
+⚠️ Versions are operator-specific, not OpenShift versions
+⚠️ Must be valid semver format - invalid format will cause oc-mirror errors
+⚠️ maxVersion must be >= minVersion if both are specified
+
+**Example:**
+Operator: local-storage-operator, Channel: stable
+Set maxVersion: "4.14.5" to cap at version 4.14.5 (avoid 4.15+ until tested)`}
+                    >
+                      <input
+                        type="text"
+                        value={op.maxVersion || ""}
+                        onChange={(e) => {
+                          const value = e.target.value.trim();
+                          setState((prev) => ({
+                            ...prev,
+                            operators: {
+                              ...prev.operators,
+                              selected: prev.operators.selected.map((item) =>
+                                item.id === op.id ? { ...item, maxVersion: value || undefined } : item
+                              )
+                            }
+                          }));
+                        }}
+                        placeholder="e.g. 2.5.0"
+                        style={{ width: "100%" }}
+                      />
+                    </FieldLabelWithInfo>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CollapsibleSection>
+        )}
+
         <section className="card">
         <div className="tabs">
           {["redhat", "certified", "community"].map((tab) => (

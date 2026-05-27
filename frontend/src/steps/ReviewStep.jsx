@@ -352,7 +352,8 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     setState(data.state);
   };
 
-  const includeHighSideRuntimePackage = Boolean(exportOptions.includeHighSideRuntimePackage);
+  // DISABLED: Runtime package export feature not integrated in backend (see backlog)
+  // const includeHighSideRuntimePackage = Boolean(exportOptions.includeHighSideRuntimePackage);
   const [showPullSecretInPreview, setShowPullSecretInPreview] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState({ runtimeArch: null, localBinaryArch: null });
 
@@ -661,6 +662,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 </select>
               </OptionRow>
             ) : null}
+            {/* DISABLED: Runtime package export feature not integrated in backend
             <OptionRow
               title="Include high-side runtime package artifacts"
               description="Bundle OCI-archive container images and docker-compose for disconnected deployment."
@@ -673,6 +675,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include high-side runtime package artifacts"
               />
             </OptionRow>
+            */}
           </CollapsibleSection>
         </div>
         {needsReview ? (

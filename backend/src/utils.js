@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { nanoid } from "nanoid";
 import { db, dataDir } from "./db.js";
+import logger from "./logger.js";
 
 const now = () => Date.now();
 
@@ -56,7 +57,7 @@ const createJob = (type, message = "") => {
   ).run(id, type, "queued", 0, message, null, ts, ts, "");
 
   if (process.env.NODE_ENV !== "test") {
-    console.log("[job:create]", { jobId: id, type, message, status: "queued" });
+    logger.info({ tag: "job:create", jobId: id, type, message, status: "queued" }, "Job created");
   }
 
   return id;
@@ -100,14 +101,7 @@ const updateJob = (id, patch) => {
 
     if (statusChanged && (isTerminalState || isRunning)) {
       const duration = updated.updated_at - current.created_at;
-      console.log("[job:update]", {
-        jobId: id,
-        type: current.type,
-        status: updated.status,
-        progress: updated.progress,
-        message: updated.message,
-        duration: isTerminalState ? `${(duration / 1000).toFixed(1)}s` : undefined
-      });
+      logger.info({ tag: "job:update", jobId: id, type: current.type, status: updated.status, progress: updated.progress, message: updated.message, duration: isTerminalState ? `${(duration / 1000).toFixed(1)}s` : undefined }, "Job status changed");
     }
   }
 
@@ -122,7 +116,7 @@ const updateJobMetadata = (id, patch) => {
   try {
     if (row.metadata_json) meta = JSON.parse(row.metadata_json);
   } catch (err) {
-    if (process.env.DEBUG) console.error(`Job metadata JSON parse failed:`, err);
+    logger.debug({ err }, "Job metadata JSON parse failed");
   }
   const merged = { ...meta, ...patch };
   const str = JSON.stringify(merged);
@@ -186,8 +180,8 @@ const mergePullSecrets = (a, b) => {
 const safeUnlink = (filePath) => {
   try {
     fs.unlinkSync(filePath);
-  } catch (err) {
-    // ignore
+  } catch {
+    // Intentionally suppressed - best-effort cleanup; file may already be deleted
   }
 };
 
