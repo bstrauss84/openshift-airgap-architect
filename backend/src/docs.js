@@ -325,6 +325,24 @@ const mapping = {
           `${baseDocs(version)}/installing/installing-restricted-networks`
         ]
       }
+    ],
+    connected: (version) => [
+      {
+        id: "connected-operators",
+        label: "Managing custom catalogs for Operator Lifecycle Manager",
+        urls: [
+          `${baseDocs(version)}/operators/admin/olm-managing-custom-catalogs`,
+          `${baseDocs(version)}/operators/understanding/olm/olm-understanding-olm`
+        ]
+      },
+      {
+        id: "oc-mirror-basics",
+        label: "Mirroring images with oc-mirror",
+        urls: [
+          `${baseDocs(version)}/disconnected_environments/about-installing-oc-mirror-v2`,
+          `${baseDocs(version)}/disconnected_environments/mirroring-in-disconnected-environments`
+        ]
+      }
     ]
   }
 };

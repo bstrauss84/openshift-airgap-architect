@@ -2898,6 +2898,19 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   try {
+    const connectivity = parsed.state.docs?.connectivity;
+
+    // Connected mode: ONLY generate imageset-config
+    if (connectivity === "connected") {
+      const imagesetConfig = buildImageSetConfig(parsed.state);
+      return res.json({
+        files: {
+          "imageset-config.yaml": imagesetConfig
+        }
+      });
+    }
+
+    // Disconnected mode: generate all files
     const files = buildPreviewFiles(parsed.state);
     if (!files) return res.status(400).json({ error: "Version not confirmed." });
 
@@ -2933,7 +2946,7 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
       return res.status(409).json({
         error: error.message,
         code: error.code,
-        analysisHashMismatch: true,
+        analysisHashMismatchError: true,
         details: error.details || {}
       });
     }
