@@ -2438,6 +2438,11 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const tmpDir = path.join(dataDir, "tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
+  updateJobMetadata(jobId, {
+    mode,
+    workspaceDir: workspacePath || "",
+    startedAt: Date.now()
+  });
 
   if (configSourceType === "generated") {
     const configContents = buildImageSetConfig(state);
