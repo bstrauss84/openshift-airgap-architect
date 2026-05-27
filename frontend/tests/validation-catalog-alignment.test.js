@@ -80,7 +80,7 @@ describe("A1: validateNode MAC normalization", () => {
       enableIpv6: false,
       machineCidr: "192.168.1.0/24",
       platform: "Bare Metal",
-      method: "IPI",
+      method: "Agent-Based Installer",
       includeCredentials: false
     });
     expect(result.fieldErrors["primary.ethernet.macAddress"]).toBeDefined();
