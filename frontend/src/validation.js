@@ -1591,70 +1591,129 @@ const validateStep = (state, stepId) => {
     const aws = state.platformConfig?.aws || {};
     const azure = state.platformConfig?.azure || {};
     const ibmcloud = state.platformConfig?.ibmcloud || {};
+    const nutanix = state.platformConfig?.nutanix || {};
+    const platformConfig = state.platformConfig || {};
+
+    // v1.7.0: controlPlane.replicas validation (applies to all scenarios)
+    const cpReplicas = platformConfig.controlPlaneReplicas;
+    const errors = [];
+    if (cpReplicas !== undefined && cpReplicas !== null && cpReplicas !== "") {
+      const num = Number(cpReplicas);
+      if (!Number.isInteger(num) || num < 1) {
+        errors.push("Control plane replicas must be a positive integer.");
+      } else if (num > 1 && num % 2 === 0) {
+        errors.push("Control plane replicas must be an odd number (1, 3, 5, 7, or 9) for etcd quorum.");
+      } else if (num > 9) {
+        errors.push("Control plane replicas should not exceed 9 (etcd cluster size limits).");
+      }
+    }
+
     if (scenarioId === "azure-government-ipi") {
-      const errors = [];
+      const azureErrors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       // Note: cloudName is auto-filled to "AzureUSGovernmentCloud" in generation (only valid value)
       // so no validation needed - field not shown in UI
       if (requiredPaths.includes("platform.azure.region") && !(azure.region || "").trim()) {
-        errors.push("Azure region is required for Azure Government IPI.");
+        azureErrors.push("Azure region is required for Azure Government IPI.");
       }
       // Note: resourceGroupName is optional for IPI (installer creates it), so no validation
       if (requiredPaths.includes("platform.azure.baseDomainResourceGroupName") && !(azure.baseDomainResourceGroupName || "").trim()) {
-        errors.push("Base domain resource group is required for Azure Government IPI.");
+        azureErrors.push("Base domain resource group is required for Azure Government IPI.");
       }
-      return { errors, warnings: [] };
+
+      // v1.7.0: defaultMachinePlatform.zones validation
+      if (Array.isArray(azure.defaultMachinePlatformZones) && azure.defaultMachinePlatformZones.length > 0) {
+        const invalidZones = azure.defaultMachinePlatformZones.filter(z => !["1", "2", "3"].includes(String(z).trim()));
+        if (invalidZones.length > 0) {
+          azureErrors.push(`Azure zones must be 1, 2, or 3. Invalid: ${invalidZones.join(", ")}`);
+        }
+      }
+
+      // v1.7.0: defaultMachinePlatform.osDisk.diskSizeGB validation
+      const osDiskSize = azure.defaultMachinePlatformOsDiskSizeGB;
+      if (osDiskSize !== undefined && osDiskSize !== null && osDiskSize !== "") {
+        const size = Number(osDiskSize);
+        if (!Number.isInteger(size) || size < 16) {
+          azureErrors.push("Azure OS disk size must be at least 16 GB.");
+        } else if (size > 4095) {
+          azureErrors.push("Azure OS disk size cannot exceed 4095 GB.");
+        }
+      }
+
+      return { errors: [...errors, ...azureErrors], warnings: [] };
     }
     if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") {
-      const errors = [];
+      const vsphereErrors = [];
       const label =
         scenarioId === "vsphere-upi" ? "vSphere UPI" : scenarioId === "vsphere-agent" ? "vSphere Agent-based" : "vSphere IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const placementMode = vsphere.placementMode || "failureDomains";
       if (state.platformConfig?.publish === "Internal") {
-        errors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
+        vsphereErrors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
       }
       if (scenarioId === "vsphere-ipi") {
         const hasClusterOSImage = (vsphere.clusterOSImage || "").trim() !== "";
         const hasTemplateInFd = Array.isArray(vsphere.failureDomains) && vsphere.failureDomains.some((fd) => (fd.topology?.template || "").trim() !== "");
         if (hasClusterOSImage && hasTemplateInFd) {
-          errors.push("Use only one RHCOS image method: clusterOSImage URL or topology.template per failure domain, not both.");
+          vsphereErrors.push("Use only one RHCOS image method: clusterOSImage URL or topology.template per failure domain, not both.");
         }
       }
       // Legacy path: require only legacy-owned fields (vcenter, datacenter, defaultDatastore, cluster, network for single FD).
       if (placementMode === "legacy") {
-        if (!(vsphere.vcenter || "").trim()) errors.push(`vCenter server is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.datacenter || "").trim()) errors.push(`Datacenter is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.vcenter || "").trim()) vsphereErrors.push(`vCenter server is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.datacenter || "").trim()) vsphereErrors.push(`Datacenter is required for ${label} when using legacy single placement.`);
         if (requiredPaths.includes("platform.vsphere.defaultDatastore") && !(vsphere.datastore || "").trim()) {
-          errors.push(`Default datastore is required for ${label} when using legacy single placement.`);
+          vsphereErrors.push(`Default datastore is required for ${label} when using legacy single placement.`);
         }
-        if (!(vsphere.cluster || "").trim()) errors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.network || "").trim()) errors.push(`VM network is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.cluster || "").trim()) vsphereErrors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.network || "").trim()) vsphereErrors.push(`VM network is required for ${label} when using legacy single placement.`);
       } else {
         // Failure-domains path: require at least one valid FD for IPI and Agent-based multi-node (install-config platform.vsphere).
         if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-agent") {
           const fds = Array.isArray(vsphere.failureDomains) ? vsphere.failureDomains : [];
           const validFd = fds.some((fd) => (fd.server || "").trim() && (fd.topology?.datacenter || "").trim() && (fd.topology?.computeCluster || "").trim() && (fd.topology?.datastore || "").trim() && Array.isArray(fd.topology?.networks) && fd.topology.networks.length > 0);
           if (fds.length === 0 || !validFd) {
-            errors.push(`At least one failure domain with server, datacenter, compute cluster, datastore, and networks is required for ${label} when using failure domains.`);
+            vsphereErrors.push(`At least one failure domain with server, datacenter, compute cluster, datastore, and networks is required for ${label} when using failure domains.`);
           }
         }
       }
-      return { errors, warnings: [] };
+      return { errors: [...errors, ...vsphereErrors], warnings: [] };
     }
     if (scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi") {
-      const errors = [];
+      const awsErrors = [];
       const label = scenarioId === "aws-govcloud-upi" ? "AWS GovCloud UPI" : "AWS GovCloud IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       if (requiredPaths.includes("platform.aws.region") && !(aws.region || "").trim()) {
-        errors.push(`AWS GovCloud region is required for ${label}.`);
+        awsErrors.push(`AWS GovCloud region is required for ${label}.`);
+      }
+
+      // v1.7.0: defaultMachinePlatform.iamProfile validation (ARN format)
+      const iamProfile = aws.defaultMachinePlatformIamProfile;
+      if (iamProfile && iamProfile.trim()) {
+        const arnPattern = /^arn:aws(-us-gov|-cn)?:iam::\d{12}:instance-profile\/.+$/;
+        if (!arnPattern.test(iamProfile.trim())) {
+          awsErrors.push("IAM instance profile must be a valid ARN (arn:aws-us-gov:iam::account:instance-profile/name).");
+        }
+      }
+
+      // v1.7.0: defaultMachinePlatform.zones validation (AWS zone format)
+      if (Array.isArray(aws.defaultMachinePlatformZones) && aws.defaultMachinePlatformZones.length > 0) {
+        const region = aws.region || "";
+        const invalidZones = aws.defaultMachinePlatformZones.filter(z => {
+          const zone = String(z).trim();
+          // AWS zones are region + letter (e.g., us-gov-west-1a, us-gov-east-1b)
+          return !zone || (!region && !zone.match(/^[a-z]{2}-[a-z]+-\d[a-z]$/)) || (region && !zone.startsWith(region));
+        });
+        if (invalidZones.length > 0) {
+          awsErrors.push(`AWS zones must match region format (e.g., ${region || "us-gov-west-1"}a). Invalid: ${invalidZones.join(", ")}`);
+        }
       }
       if (aws.vpcMode === "existing") {
         const entries = Array.isArray(aws.subnetEntries) && aws.subnetEntries.length > 0
           ? aws.subnetEntries
           : (aws.subnets || "").split(",").map((s) => ({ id: s.trim(), roles: [] })).filter((e) => e.id);
         if (entries.length === 0) {
-          errors.push("At least one subnet is required when using existing VPC/subnets.");
+          awsErrors.push("At least one subnet is required when using existing VPC/subnets.");
         } else {
           const anyRoles = entries.some((e) => Array.isArray(e.roles) && e.roles.length > 0);
           if (anyRoles) {
@@ -1666,52 +1725,73 @@ const validateStep = (state, stepId) => {
               if (!(entries[i].id || "").trim()) continue;
               const roles = entries[i].roles || [];
               if (roles.length === 0) {
-                errors.push("When subnet roles are used, each subnet must have at least one role.");
+                awsErrors.push("When subnet roles are used, each subnet must have at least one role.");
                 break;
               }
             }
             const assigned = new Set(entries.flatMap((e) => e.roles || []));
             for (const r of requiredSet) {
               if (!assigned.has(r)) {
-                errors.push(`Subnet roles must include "${r}" on at least one subnet (4.20 doc).`);
+                awsErrors.push(`Subnet roles must include "${r}" on at least one subnet (4.20 doc).`);
                 break;
               }
             }
           }
         }
       }
-      return { errors, warnings: [] };
+      return { errors: [...errors, ...awsErrors], warnings: [] };
     }
     if (scenarioId === "nutanix-ipi") {
-      return validatePlatformConfig(state);
+      // v1.7.0: defaultMachinePlatform.bootType validation (dropdown handles enum, just document)
+      const nutanixBootType = nutanix.defaultMachinePlatformBootType;
+      if (nutanixBootType && !["Legacy", "UEFI", "SecureBoot"].includes(nutanixBootType)) {
+        errors.push("Nutanix boot type must be one of: Legacy, UEFI, SecureBoot.");
+      }
+
+      const platformErrors = validatePlatformConfig(state);
+      return { errors: [...errors, ...(platformErrors.errors || [])], warnings: platformErrors.warnings || [] };
     }
     if (scenarioId === "ibm-cloud-ipi") {
-      const errors = [];
+      const ibmErrors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const vpcMode = ibmcloud.vpcMode || "existing-vpc";
       const dedicatedHostsProfile = (ibmcloud.dedicatedHostsProfile || "").trim();
       const dedicatedHostsName = (ibmcloud.dedicatedHostsName || "").trim();
       if (requiredPaths.includes("platform.ibmcloud.region") && !(ibmcloud.region || "").trim()) {
-        errors.push("IBM Cloud region is required for IBM Cloud IPI.");
+        ibmErrors.push("IBM Cloud region is required for IBM Cloud IPI.");
       }
       if (vpcMode === "existing-vpc") {
         if (!(ibmcloud.networkResourceGroupName || "").trim()) {
-          errors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
         }
         if (!(ibmcloud.vpcName || "").trim()) {
-          errors.push("vpcName is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("vpcName is required when using an existing IBM Cloud VPC.");
         }
         if (!(ibmcloud.controlPlaneSubnets || "").trim()) {
-          errors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
         }
         if (!(ibmcloud.computeSubnets || "").trim()) {
-          errors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
         }
       }
       if (dedicatedHostsProfile && dedicatedHostsName) {
-        errors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
+        ibmErrors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
       }
-      return { errors, warnings: [] };
+
+      // v1.7.0: IBM Cloud defaultMachinePlatform.zones validation
+      if (Array.isArray(ibmcloud.defaultMachinePlatformZones) && ibmcloud.defaultMachinePlatformZones.length > 0) {
+        const region = ibmcloud.region || "";
+        const invalidZones = ibmcloud.defaultMachinePlatformZones.filter(z => {
+          const zone = String(z).trim();
+          // IBM Cloud zones are region + dash + number (e.g., us-east-1, us-south-2)
+          return !zone || (!region && !zone.match(/^[a-z]{2}-[a-z]+(-[a-z]+)?-\d$/)) || (region && !zone.startsWith(region + "-"));
+        });
+        if (invalidZones.length > 0) {
+          ibmErrors.push(`IBM Cloud zones must match region format (e.g., ${region || "us-east"}-1). Invalid: ${invalidZones.join(", ")}`);
+        }
+      }
+
+      return { errors: [...errors, ...ibmErrors], warnings: [] };
     }
     // For scenarios with provisioning network fields (bare-metal-ipi, bare-metal-agent),
     // include field-level validation errors for provisioning network CIDR, DHCP range, and cluster provisioning IP
