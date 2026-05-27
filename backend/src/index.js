@@ -2443,7 +2443,6 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     workspaceDir: workspacePath || "",
     startedAt: Date.now()
   });
-  updateJob(jobId, { message: "DEBUG_FIX_APPLIED " + JSON.stringify({ mode, workspaceDir: workspacePath || "" }) });
 
   if (configSourceType === "generated") {
     const configContents = buildImageSetConfig(state);
