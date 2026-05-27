@@ -25,12 +25,14 @@ import Switch from "../components/Switch.jsx";
  * Same state paths as legacy; pull/mirror secrets not persisted (store strips them).
  */
 export default function IdentityAccessStep({ previewControls, previewEnabled, highlightErrors, fieldErrors = {} }) {
-  const { state, updateState } = useApp();
+  const { state, updateState, runtimeInfo } = useApp();
   const platform = state.blueprint?.platform;
   const method = state.methodology?.method;
   const scenarioId = getScenarioId(platform, method);
   const strategy = state.globalStrategy || {};
   const mirroring = strategy.mirroring || {};
+  const operatorManaged = runtimeInfo?.operatorManaged || false;
+  const pullSecretMounted = runtimeInfo?.pullSecretMounted || false;
 
   const usingMirrorRegistry = state.credentials?.usingMirrorRegistry ?? false;
   const pullSecretPlaceholder = state.credentials?.pullSecretPlaceholder ?? "";
@@ -446,6 +448,20 @@ ocp.company.com`}
             </div>
 
             <div className="credentials-field-constrained">
+              {operatorManaged && pullSecretMounted && !usingMirrorRegistry ? (
+                <div style={{
+                  display: "inline-block",
+                  marginBottom: 10,
+                  padding: "8px 12px",
+                  borderRadius: 4,
+                  fontSize: "0.9rem",
+                  background: "var(--success-bg, #d4edda)",
+                  border: "1px solid var(--success-border, #c3e6cb)",
+                  color: "var(--success-text, #155724)"
+                }}>
+                  ✓ Pull secret loaded from OpenShift (operator-managed)
+                </div>
+              ) : null}
               {(() => {
                 const pullSecretError = fieldErrors.pullSecret || (!pullSecretCheck.valid ? pullSecretCheck.error : null);
                 return (
@@ -455,7 +471,11 @@ ocp.company.com`}
                         {pullSecretError}
                       </div>
                     ) : null}
-                    {!usingMirrorRegistry ? (
+                    {operatorManaged && pullSecretMounted && !usingMirrorRegistry ? (
+                      <p className="note" style={{ marginTop: 10 }}>
+                        This application is running in operator-managed mode. The Red Hat pull secret has been automatically mounted and will be used for install-config.yaml generation. No manual entry required.
+                      </p>
+                    ) : !usingMirrorRegistry ? (
                       <SecretInput
                         value={pullSecretPlaceholder}
                         onChange={(v) => updateCredentials({ pullSecretPlaceholder: v })}

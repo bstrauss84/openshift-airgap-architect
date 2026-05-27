@@ -46,6 +46,10 @@ const useAppProvider = () => {
     return saved ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(true);
+  const [runtimeInfo, setRuntimeInfo] = useState({
+    operatorManaged: false,
+    pullSecretMounted: false
+  });
 
   useEffect(() => {
     apiFetch("/api/state")
@@ -54,6 +58,18 @@ const useAppProvider = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(getStateForPersistence(data)));
       })
       .finally(() => setLoading(false));
+
+    // Fetch operator-managed status
+    apiFetch("/api/runtime/operator-managed")
+      .then((data) => {
+        setRuntimeInfo({
+          operatorManaged: data.operatorManaged || false,
+          pullSecretMounted: data.pullSecretMounted || false
+        });
+      })
+      .catch(() => {
+        // Silently fail if endpoint not available (backwards compatibility)
+      });
   }, []);
 
   useEffect(() => {
@@ -95,7 +111,7 @@ const useAppProvider = () => {
     return next;
   };
 
-  return { state, setState, updateState, loading, startOver };
+  return { state, setState, updateState, loading, startOver, runtimeInfo };
 };
 
 const AppProvider = ({ children }) => {
