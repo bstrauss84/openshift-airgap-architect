@@ -482,6 +482,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 - Machine pool configuration (all platforms)
 - OVN-Kubernetes advanced config
 - Control plane and compute platform overrides
+- DOC-083: High-side runtime package export integration (backend wiring, integration testing)
 
 **Phase 7 - Automation Documentation:** ✅ Complete (2026-05-27, commit f7a97fc)
 - Created `local-docs/AUDIT_AUTOMATION_GUIDE.md` (36KB, 800+ lines)
