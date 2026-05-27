@@ -306,9 +306,12 @@ const AppShell = () => {
     }));
   }, [state, stepMap]);
 
-  const foundationalLocked = Boolean(
-    state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed)
-  );
+  const connectivity = state?.docs?.connectivity;
+  const isConnectedMode = connectivity === "connected";
+
+  const foundationalLocked = isConnectedMode
+    ? Boolean(state?.version?.versionConfirmed ?? state?.release?.confirmed)
+    : Boolean(state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed));
 
   const sidebarSteps = useMemo(
     () => {
@@ -472,9 +475,29 @@ const AppShell = () => {
   }, [visibleSteps.length, active]);
 
   // Route guard: before lock, only Blueprint and Operations are allowed (Operations for Cincinnati job logs).
+  // In connected mode, only release-selection is the foundational step.
   useEffect(() => {
     if (showLanding || !state?.ui) return;
     if (foundationalLocked) return;
+
+    // Connected mode: allow release-selection and operations before lock
+    if (isConnectedMode) {
+      const currentId = visibleSteps[active]?.id;
+      const allowedPreLock = currentId === "release-selection" || currentId === "operations";
+      if (!allowedPreLock) {
+        const releaseIndex = visibleSteps.findIndex((s) => s.id === "release-selection");
+        if (releaseIndex >= 0) {
+          setActive(releaseIndex);
+          updateState({ ui: { ...state.ui, activeStepId: "release-selection" } });
+          setLockToast("Lock your release selection to continue.");
+          const t = setTimeout(() => setLockToast(""), 4000);
+          return () => clearTimeout(t);
+        }
+      }
+      return;
+    }
+
+    // Disconnected mode: only Blueprint and Operations allowed before lock
     const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
     if (blueprintIndex < 0) return;
     const currentId = visibleSteps[active]?.id;
@@ -486,7 +509,7 @@ const AppShell = () => {
       const t = setTimeout(() => setLockToast(""), 4000);
       return () => clearTimeout(t);
     }
-  }, [showLanding, state, foundationalLocked, active, visibleSteps, updateState]);
+  }, [showLanding, state, foundationalLocked, active, visibleSteps, updateState, isConnectedMode]);
 
   // Required-field highlighting (Workstream D): when landing on a step with errors, show highlights; clear when step has no errors.
   useEffect(() => {
@@ -734,27 +757,51 @@ metadata:
   const attemptNavigate = (nextIndex) => {
     const index = Math.max(0, Math.min(nextIndex, visibleSteps.length - 1));
     const targetStepId = visibleSteps[index]?.id;
-    const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
 
     if (!foundationalLocked) {
-      if (targetStepId !== "blueprint" && targetStepId !== "operations") {
-        setLockToast("Lock your foundational selections to continue.");
-        setTimeout(() => setLockToast(""), 4000);
-        if (active !== blueprintIndex) setActive(blueprintIndex);
-        return;
+      if (isConnectedMode) {
+        // Connected mode: only allow release-selection and operations before lock
+        if (targetStepId !== "release-selection" && targetStepId !== "operations") {
+          setLockToast("Lock your release selection to continue.");
+          setTimeout(() => setLockToast(""), 4000);
+          const releaseIndex = visibleSteps.findIndex((s) => s.id === "release-selection");
+          if (active !== releaseIndex && releaseIndex >= 0) setActive(releaseIndex);
+          return;
+        }
+        setLockToast("");
+      } else {
+        // Disconnected mode: only allow blueprint and operations before lock
+        const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
+        if (targetStepId !== "blueprint" && targetStepId !== "operations") {
+          setLockToast("Lock your foundational selections to continue.");
+          setTimeout(() => setLockToast(""), 4000);
+          if (active !== blueprintIndex && blueprintIndex >= 0) setActive(blueprintIndex);
+          return;
+        }
+        setLockToast("");
       }
-      setLockToast("");
     }
 
     if (index <= active) {
       setActiveStep(index);
       return;
     }
+
     const currentStep = visibleSteps[active]?.id;
-    if (currentStep === "blueprint" && !foundationalLocked && targetStepId !== "operations") {
-      setPendingNavIndex(index);
-      setShowCoreLockWarning(true);
-      return;
+
+    // Show lock warning when trying to navigate forward from foundational step
+    if (isConnectedMode) {
+      if (currentStep === "release-selection" && !foundationalLocked && targetStepId !== "operations") {
+        setPendingNavIndex(index);
+        setShowCoreLockWarning(true);
+        return;
+      }
+    } else {
+      if (currentStep === "blueprint" && !foundationalLocked && targetStepId !== "operations") {
+        setPendingNavIndex(index);
+        setShowCoreLockWarning(true);
+        return;
+      }
     }
     const result = validateStep(state, currentStep);
     const hasErrors = result.errors?.length > 0;
