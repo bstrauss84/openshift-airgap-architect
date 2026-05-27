@@ -28,11 +28,39 @@ jobs:
 
       - name: Backend install and test
         run: |
-          cd backend && npm ci && npm test
+          cd backend
+          echo "Installing backend dependencies..."
+          npm ci
+          echo "Running backend tests..."
+          npm test -- --reporter=spec 2>&1 | tee test-output.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::error::Backend tests failed. See test-output.log for details."
+            exit 1
+          fi
 
       - name: Frontend install, build, test
         run: |
-          cd frontend && npm ci && npm run build && npm run test
+          cd frontend
+          echo "Installing frontend dependencies..."
+          npm ci
+          echo "Building frontend..."
+          npm run build
+          echo "Running frontend tests..."
+          npm test 2>&1 | tee test-output.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "::error::Frontend tests failed. See test-output.log for details."
+            exit 1
+          fi
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            backend/test-output.log
+            frontend/test-output.log
+          retention-days: 7
 
       - name: Validate param catalog authority (docs index, catalogs, parity, NMState guards)
         run: node scripts/validate-param-authority.js
