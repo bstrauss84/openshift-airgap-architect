@@ -3,7 +3,7 @@
 FROM registry.access.redhat.com/ubi9/nodejs-20
 
 USER root
-RUN mkdir -p /app && chown -R 1001:0 /app
+RUN mkdir -p /app && chown -R 1001:0 /app && chmod -R g+rwX /app
 WORKDIR /app
 COPY --chown=1001:0 package.json package-lock.json* ./
 USER 1001
