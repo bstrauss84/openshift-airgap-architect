@@ -799,7 +799,18 @@ app.get("/api/build-info", (_req, res) => {
   const buildTime = (process.env.APP_BUILD_TIME || "unknown").trim();
   const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
   const branch = (process.env.APP_BRANCH || "main").trim();
-  res.json({ gitSha, buildTime, repo, branch });
+
+  // Read version from package.json
+  let version = "unknown";
+  try {
+    const packagePath = path.join(path.dirname(new URL(import.meta.url).pathname), "../package.json");
+    const packageData = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
+    version = packageData.version || "unknown";
+  } catch (err) {
+    logger.warn({ err }, "Failed to read backend package.json version");
+  }
+
+  res.json({ version, gitSha, buildTime, repo, branch });
 });
 
 app.get("/api/feedback/config", (_req, res) => {
