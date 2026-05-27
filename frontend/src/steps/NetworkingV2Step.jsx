@@ -248,7 +248,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
   const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
-  const ipStackMode = hostInventory.ipStackMode || 'ipv4';
+  // Support both ipStackMode (current) and enableIpv6 (legacy) for backward compatibility
+  const ipStackMode = hostInventory.ipStackMode || (hostInventory.enableIpv6 ? 'dual-stack' : 'ipv4');
   const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
   const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
   const isIbmCloudIpi = scenarioId === "ibm-cloud-ipi";
@@ -403,7 +404,7 @@ This is often the **main network you customize** - other networks (cluster/servi
                 {(ipStackMode === 'ipv4' || ipStackMode === 'dual-stack') && cidrOverlaps(networking.machineNetworkV4, networking.serviceNetworkCidr) ? (
                   <span className="note warning inline">Overlaps with service network.</span>
                 ) : null}
-                {(ipStackMode === 'ipv6' || ipStackMode === 'dual-stack') && (
+                {showIpv6ForPlatform && (
                   <FieldLabelWithInfo
                     label="Machine Network (IPv6 CIDR)"
                     hint={`IPv6 network range where cluster nodes live.
@@ -524,7 +525,7 @@ How many pods each node can run
                   </FieldLabelWithInfo>
                 </>
                 )}
-                {(ipStackMode === 'ipv6' || ipStackMode === 'dual-stack') && (
+                {showIpv6ForPlatform && (
                   <>
                     <FieldLabelWithInfo
                       label={ipStackMode === 'ipv6' ? "Cluster Network CIDR (optional)" : "Cluster Network IPv6 CIDR (optional)"}
@@ -653,7 +654,7 @@ If datacenter uses 172.x.x.x, change to 10.96.0.0/12`}
                   ) : null}
                 </>
                 )}
-                {(ipStackMode === 'ipv6' || ipStackMode === 'dual-stack') && (
+                {showIpv6ForPlatform && (
                   <FieldLabelWithInfo
                     label={ipStackMode === 'ipv6' ? "Service Network CIDR (optional)" : "Service Network IPv6 CIDR (optional)"}
                     hint={`IPv6 network range for Kubernetes ClusterIP services.
