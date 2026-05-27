@@ -337,7 +337,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
         platform: "IBM Cloud"
       },
       methodology: { method: "IPI" },
-      hostInventory: { ipStackMode: 'dual-stack' },
+      hostInventory: { ipStackMode: 'ipv4' },
       globalStrategy: {
         ...(stateForNetworkingStep().globalStrategy || {}),
         networking: {
