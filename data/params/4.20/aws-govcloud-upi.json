@@ -324,6 +324,23 @@
       ]
     },
     {
+      "path": "controlPlane.platform",
+      "type": "object",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ]
+    },
+    {
       "path": "controlPlane.platform.aws",
       "outputFile": "install-config.yaml",
       "type": "object",
@@ -340,6 +357,24 @@
           "docTitle": "OpenShift Installer 4.20 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.AWS",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.replicas",
+      "type": "integer",
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "default": 3,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
         }
       ]
     },
@@ -995,6 +1030,41 @@
           "docTitle": "Installing a cluster on AWS GovCloud with user-provisioned infrastructure",
           "sectionHeading": "AWS GovCloud UPI install-config parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi"
+        }
+      ]
+    },
+    {
+      "path": "platform.aws.defaultMachinePlatform.iamProfile",
+      "type": "string",
+      "required": false,
+      "description": "Default IAM instance profile for AWS machines (ARN).",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/aws/machinepool.go IAMProfile",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 AWS install-config reference"
+        }
+      ]
+    },
+    {
+      "path": "platform.aws.defaultMachinePlatform.zones",
+      "type": "array",
+      "required": false,
+      "description": "Default availability zones for AWS machines.",
+      "items_type": "string",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/aws/machinepool.go Zones",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 AWS install-config reference"
         }
       ]
     },
