@@ -1086,6 +1086,83 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                         />
                       </FieldLabelWithInfo>
                     </div>
+
+                    <h4 className="platform-specifics-subsection">Default machine platform (optional)</h4>
+                    <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                      Default platform-specific configuration applied to all machine pools unless overridden.
+                    </p>
+                    <div className="field-grid">
+                      <FieldLabelWithInfo
+                        label="Default IAM instance profile (optional)"
+                        hint={`IAM instance profile ARN to use for all machines by default.
+
+**What is this:**
+IAM instance profile that gets attached to EC2 instances for all control plane and worker nodes. Provides AWS API permissions to instances without embedding credentials.
+
+**When needed:**
+• Custom IAM policies for machine access (S3, Secrets Manager, etc.)
+• Least privilege security posture (replace broad installer credential)
+• Organizational compliance requiring specific IAM roles
+
+**Format:**
+Full ARN: arn:aws-us-gov:iam::123456789012:instance-profile/MyProfile
+
+**How it's used:**
+Written to install-config.yaml platform.aws.defaultMachinePlatform.iamProfile. Installer attaches this profile to all EC2 instances during provisioning.
+
+**Important:**
+⚠️ Profile must exist before installation starts (create via AWS IAM console or CLI)
+⚠️ Must have minimum permissions for cluster operation (consult OCP docs)
+⚠️ Applied to all machine pools (control plane + compute) unless overridden per-pool
+
+**Example:**
+arn:aws-us-gov:iam::123456789012:instance-profile/openshift-node-profile`}
+                      >
+                        <input
+                          value={platformConfig.aws?.defaultMachinePlatformIamProfile || ""}
+                          onChange={(e) => updateAws({ defaultMachinePlatformIamProfile: e.target.value || undefined })}
+                          placeholder="arn:aws-us-gov:iam::account:instance-profile/name"
+                          style={{ maxWidth: "500px" }}
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Default availability zones (optional)"
+                        hint={`Comma-separated list of AWS availability zones for machine placement.
+
+**What is this:**
+Default AZs where the installer places machines. Overrides automatic AZ selection for high availability.
+
+**When needed:**
+• Control exact AZ placement (subnet alignment, cost optimization)
+• Limit deployment to specific AZs (network/compliance requirements)
+• Override installer's automatic multi-AZ spread
+
+**Format:**
+Comma-separated zone names: us-gov-west-1a,us-gov-west-1b,us-gov-west-1c
+
+**How it's used:**
+Written to install-config.yaml platform.aws.defaultMachinePlatform.zones as array. Installer distributes machines across listed zones.
+
+**Important:**
+⚠️ Zones must exist in selected region (AWS GovCloud regions typically have 3 AZs)
+⚠️ For HA, specify at least 3 zones (installer spreads control plane across zones)
+⚠️ Zone names are region-specific (us-gov-west-1a only exists in us-gov-west-1)
+⚠️ Empty = installer auto-selects all available zones (recommended for most deployments)
+
+**Example:**
+us-gov-west-1a,us-gov-west-1b,us-gov-west-1c`}
+                      >
+                        <input
+                          value={(platformConfig.aws?.defaultMachinePlatformZones || []).join(",")}
+                          onChange={(e) => {
+                            const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                            updateAws({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
+                          }}
+                          placeholder="e.g. us-gov-west-1a,us-gov-west-1b,us-gov-west-1c"
+                          style={{ maxWidth: "500px" }}
+                        />
+                      </FieldLabelWithInfo>
+                    </div>
                   </>
                 ) : null}
 
@@ -1519,6 +1596,93 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                       const v = e.target.value === "" ? undefined : Number(e.target.value);
                       updatePlatformConfig({ computeReplicas: v });
                     }}
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
+              <h4 className="platform-specifics-subsection">Default machine platform (optional)</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Default platform-specific configuration applied to all machine pools unless overridden.
+              </p>
+              <div className="field-grid">
+                <FieldLabelWithInfo
+                  label="Default availability zones (optional)"
+                  hint={`Comma-separated list of Azure availability zones for machine placement.
+
+**What is this:**
+Default availability zones where the installer places VMs. Zones are physically separated datacenters within a region for fault isolation.
+
+**When needed:**
+• Control exact zone placement (align with existing infrastructure)
+• Limit deployment to specific zones (regulatory/compliance requirements)
+• Override installer's automatic zone selection
+
+**Format:**
+Comma-separated zone numbers: 1,2,3
+
+**How it's used:**
+Written to install-config.yaml platform.azure.defaultMachinePlatform.zones as array. Installer distributes machines across listed zones.
+
+**Important:**
+⚠️ Not all Azure Government regions support availability zones (check Azure docs for region capabilities)
+⚠️ For HA, specify all available zones in the region (typically 3 zones)
+⚠️ Zone numbers are region-specific (zone 1 in usgovvirginia ≠ zone 1 in usgovtexas)
+⚠️ Empty = installer uses region default (may or may not use zones depending on region capabilities)
+
+**Example:**
+1,2,3 (for regions with 3 availability zones)`}
+                >
+                  <input
+                    value={(platformConfig.azure?.defaultMachinePlatformZones || []).join(",")}
+                    onChange={(e) => {
+                      const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                      updateAzure({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
+                    }}
+                    placeholder="e.g. 1,2,3"
+                    style={{ maxWidth: "200px" }}
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Default OS disk size (GB, optional)"
+                  hint={`Default OS disk size in GB for all Azure VMs.
+
+**What is this:**
+Size of the OS disk (managed disk) attached to each VM for the operating system and container runtime storage.
+
+**When needed:**
+• Override default 128GB OS disk size
+• Larger disk for container images, logs, or local storage
+• Cost optimization (smaller disk if adequate for workload)
+
+**Format:**
+Integer number of gigabytes (minimum 16 GB, Azure requirement)
+
+**How it's used:**
+Written to install-config.yaml platform.azure.defaultMachinePlatform.osDisk.diskSizeGB. Installer creates all VM OS disks at this size.
+
+**Important:**
+⚠️ Minimum 16 GB (Azure enforced)
+⚠️ Default 128 GB is adequate for most deployments
+⚠️ Larger disk = higher Azure storage costs
+⚠️ Cannot be changed after installation without node replacement
+⚠️ Applied to all machine pools (control plane + workers) unless overridden per-pool
+
+**Default:** 128 GB
+
+**Example:**
+256 (for clusters with large container images or extensive local logging)`}
+                  className="field-short"
+                >
+                  <input
+                    type="number"
+                    min={16}
+                    max={4095}
+                    value={platformConfig.azure?.defaultMachinePlatformOsDiskSizeGB || ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? undefined : Number(e.target.value);
+                      updateAzure({ defaultMachinePlatformOsDiskSizeGB: v });
+                    }}
+                    placeholder="Default: 128"
                   />
                 </FieldLabelWithInfo>
               </div>
@@ -2109,6 +2273,91 @@ Use at least **2 workers** to ensure workload pods can be rescheduled if a worke
                 </FieldLabelWithInfo>
               </div>
 
+              <h4 className="platform-specifics-subsection">Default machine platform (optional)</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Default platform-specific configuration applied to all machine pools unless overridden.
+              </p>
+              <div className="field-grid">
+                <FieldLabelWithInfo
+                  label="Default instance profile (optional)"
+                  hint={`Default IBM Cloud VSI profile for all machine pools.
+
+**What is this:**
+IBM Cloud Virtual Server Instance profile defining CPU/memory configuration for all nodes unless overridden per-pool.
+
+**When needed:**
+• Set default sizing for both control plane and workers
+• Override installer defaults (simplifies configuration)
+• Standardize VM sizing across the cluster
+
+**Format:**
+Profile naming: <family>-<vcpu>x<memory_gb>
+• bx2-4x16 (Balanced 2nd gen, 4 vCPU, 16GB)
+• bx2-8x32 (8 vCPU, 32GB)
+• cx2-4x8 (Compute optimized)
+• mx2-8x64 (Memory optimized)
+
+**How it's used:**
+Written to install-config.yaml platform.ibmcloud.defaultMachinePlatform.profile. Installer applies this to all machine pools unless per-pool override specified.
+
+**Important:**
+⚠️ Minimum 4 vCPU, 16GB RAM for control plane (etcd/API intensive)
+⚠️ Profile must be available in selected region and zones
+⚠️ Larger profiles = higher hourly cost
+⚠️ Can be overridden per machine pool for heterogeneous sizing
+
+**Example:**
+bx2-8x32 (production standard)
+bx2-4x16 (development/test)`}
+                >
+                  <input
+                    value={platformConfig.ibmcloud?.defaultMachinePlatformProfile || ""}
+                    onChange={(e) => updateIbmCloud({ defaultMachinePlatformProfile: e.target.value || undefined })}
+                    placeholder="e.g. bx2-8x32"
+                    style={{ maxWidth: "250px" }}
+                  />
+                </FieldLabelWithInfo>
+                <FieldLabelWithInfo
+                  label="Default availability zones (optional)"
+                  hint={`Comma-separated list of IBM Cloud availability zones for machine placement.
+
+**What is this:**
+Default zones where the installer places VMs. Zones are physically separated datacenters within a region for fault isolation.
+
+**When needed:**
+• Control exact zone placement
+• Limit deployment to specific zones (capacity/compliance)
+• Override installer's automatic multi-zone distribution
+
+**Format:**
+Comma-separated zone names: us-east-1,us-east-2,us-east-3
+
+**How it's used:**
+Written to install-config.yaml platform.ibmcloud.defaultMachinePlatform.zones as array. Installer distributes machines across listed zones.
+
+**Important:**
+⚠️ Most IBM Cloud regions have 2-3 availability zones
+⚠️ For HA, specify all available zones (installer spreads control plane)
+⚠️ Zone names are region-specific (us-east-1 only in us-east region)
+⚠️ Empty = installer auto-selects all zones in region (recommended)
+⚠️ Zones must have capacity for selected instance profiles
+
+**Example:**
+us-east-1,us-east-2,us-east-3 (for us-east region with 3 zones)
+us-south-1,us-south-2 (for us-south region with 2 zones)`}
+                >
+                  <input
+                    value={(platformConfig.ibmcloud?.defaultMachinePlatformZones || []).join(",")}
+                    onChange={(e) => {
+                      const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                      updateIbmCloud({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
+                    }}
+                    placeholder="e.g. us-east-1,us-east-2,us-east-3"
+                    style={{ maxWidth: "400px" }}
+                  />
+                </FieldLabelWithInfo>
+              </div>
+
               <p className="note subtle" style={{ marginTop: 8, marginBottom: 0 }}>
                 Credentials mode is fixed to <code>Manual</code> for IBM Cloud IPI and is emitted automatically in generated assets.
               </p>
@@ -2433,6 +2682,53 @@ With Internal publishing, console.redhat.com cluster management and direct Red H
                   style={{ maxWidth: "320px" }}
                 >
                   <input readOnly value="External (required for Nutanix IPI)" aria-label="Publish (External, required for Nutanix IPI)" />
+                </FieldLabelWithInfo>
+              </div>
+
+              <h4 className="platform-specifics-subsection">Default machine platform (optional)</h4>
+              <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
+                Default platform-specific configuration applied to all machine pools unless overridden.
+              </p>
+              <div className="field-grid">
+                <FieldLabelWithInfo
+                  label="Default boot type (optional)"
+                  hint={`Boot firmware type for Nutanix VMs.
+
+**What is this:**
+Boot firmware mode that determines how VMs initialize: Legacy BIOS, UEFI, or SecureBoot.
+
+**When needed:**
+• Match hardware requirements (newer systems require UEFI)
+• Enable SecureBoot for compliance/security requirements
+• Compatibility with specific OS/kernel versions
+
+**Format:**
+Select from dropdown: Legacy, UEFI, or SecureBoot
+
+**How it's used:**
+Written to install-config.yaml platform.nutanix.defaultMachinePlatform.bootType. Installer configures all VMs with this boot mode.
+
+**Important:**
+⚠️ Legacy (BIOS) works with all hardware but is deprecated
+⚠️ UEFI recommended for modern deployments (better performance, GPT support)
+⚠️ SecureBoot requires UEFI + signed bootloaders (added security, some compatibility restrictions)
+⚠️ Cannot be changed after VM creation without recreating VMs
+
+**Default:** Legacy (for backward compatibility)
+
+**Recommendation:**
+Use UEFI for new deployments, SecureBoot for high-security environments`}
+                >
+                  <select
+                    value={platformConfig.nutanix?.defaultMachinePlatformBootType || ""}
+                    onChange={(e) => updateNutanix({ defaultMachinePlatformBootType: e.target.value || undefined })}
+                    style={{ maxWidth: "200px" }}
+                  >
+                    <option value="">Not set (default: Legacy)</option>
+                    <option value="Legacy">Legacy</option>
+                    <option value="UEFI">UEFI</option>
+                    <option value="SecureBoot">SecureBoot</option>
+                  </select>
                 </FieldLabelWithInfo>
               </div>
             </div>
@@ -3832,6 +4128,83 @@ On the host where you'll run openshift-install:
                     When Disabled, reserve two IPs on the bare-metal network for provisioning services; BMCs must be reachable on that network.
                   </p>
                 )}
+
+                <h4 className="platform-specifics-subsection">Advanced bare metal options (optional)</h4>
+                <div className="field-grid" style={{ marginTop: 8 }}>
+                  <FieldLabelWithInfo
+                    label="Libvirt URI (optional)"
+                    hint={`Libvirt connection URI for the bare metal provisioning host.
+
+**What is this:**
+Connection string for the libvirt virtualization API on the host where openshift-install runs. Used for managing the bootstrap VM during IPI installation.
+
+**When needed:**
+• Remote provisioning host (libvirt running on different machine than openshift-install)
+• Non-standard libvirt socket path
+• Custom libvirt authentication/TLS
+
+**Format:**
+Standard libvirt URI syntax:
+• qemu:///system (default local system connection)
+• qemu+ssh://user@host/system (remote over SSH)
+• qemu+tcp://host/system (remote over TCP)
+
+**How it's used:**
+Written to install-config.yaml platform.baremetal.libvirtURI. Installer connects to libvirt to create/manage the bootstrap VM.
+
+**Important:**
+⚠️ Default qemu:///system works for most deployments (omit this field)
+⚠️ Remote URIs require SSH keys or authentication setup before installation
+⚠️ Bootstrap VM is temporary (deleted after cluster bootstraps)
+
+**Default:** qemu:///system (local connection)
+
+**Example:**
+qemu+ssh://root@provisioner.example.com/system`}
+                  >
+                    <input
+                      value={inventory.libvirtURI || ""}
+                      onChange={(e) => updateInventory({ libvirtURI: e.target.value || undefined })}
+                      placeholder="qemu:///system (default)"
+                      style={{ maxWidth: "400px" }}
+                    />
+                  </FieldLabelWithInfo>
+                  <FieldLabelWithInfo
+                    label="External bridge (optional)"
+                    hint={`External network bridge name for the baremetal network.
+
+**What is this:**
+Linux bridge interface name on the provisioning host that connects to the bare-metal network (where cluster nodes communicate).
+
+**When needed:**
+• Non-standard bridge name (not baremetal or virbr0)
+• Custom network topology with specific bridge naming
+• Multiple bridges on provisioning host
+
+**Format:**
+Linux bridge interface name (e.g., br0, baremetal, external-br)
+
+**How it's used:**
+Written to install-config.yaml platform.baremetal.externalBridge. Installer attaches bootstrap VM to this bridge for bare-metal network access.
+
+**Important:**
+⚠️ Bridge must exist on provisioning host before installation
+⚠️ Bridge must be connected to the bare-metal network (where API VIP, Ingress VIP reside)
+⚠️ Default bridge name is typically 'baremetal' or 'virbr0' - only set if different
+
+**Example:**
+br0 (common custom bridge name)
+baremetal (typical default)
+external-br (descriptive name)`}
+                  >
+                    <input
+                      value={inventory.externalBridge || ""}
+                      onChange={(e) => updateInventory({ externalBridge: e.target.value || undefined })}
+                      placeholder="e.g. baremetal"
+                      style={{ maxWidth: "250px" }}
+                    />
+                  </FieldLabelWithInfo>
+                </div>
               </div>
             </section>
           );
