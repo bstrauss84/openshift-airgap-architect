@@ -574,26 +574,27 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
   });
 
-  it("when scenario is azure-government-ipi, getScenarioId returns azure-government-ipi and validation requires region, baseDomainResourceGroupName (Prompt J)", () => {
+  it("when scenario is azure-government-ipi, getScenarioId returns azure-government-ipi and validation requires region (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "Azure Government" },
       methodology: { method: "IPI" }
     });
     expect(getScenarioId(state)).toBe("azure-government-ipi");
     const resultEmpty = validateStep(state, "platform-specifics");
-    // Only validate fields shown in UI - cloudName is auto-filled (only one valid value), resourceGroupName is optional for IPI
+    // Only validate fields shown in UI - cloudName is auto-filled (only one valid value)
+    // baseDomainResourceGroupName is conditionally required (public clusters only), so marked required:false in catalog
+    // resourceGroupName is optional for IPI (installer creates it)
     expect(resultEmpty.errors).toContain("Azure region is required for Azure Government IPI.");
-    expect(resultEmpty.errors).toContain("Base domain resource group is required for Azure Government IPI.");
-    expect(resultEmpty.errors).toHaveLength(2);
+    expect(resultEmpty.errors).toHaveLength(1);
     const stateFilled = stateForPlatformSpecificsStep({
       blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "Azure Government" },
       methodology: { method: "IPI" },
       platformConfig: {
         azure: {
           // cloudName auto-filled in generation - not user-provided
-          region: "usgovvirginia",
-          baseDomainResourceGroupName: "dns-rg"
-          // resourceGroupName is optional
+          region: "usgovvirginia"
+          // baseDomainResourceGroupName is optional (conditionally required for public clusters)
+          // resourceGroupName is optional (installer creates it)
         }
       }
     });

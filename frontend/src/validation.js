@@ -730,12 +730,11 @@ const validatePlatformConfig = (state) => {
       }
     }
   }
-  if (method === "IPI" && platform === "Azure Government") {
-    if (!cfg.azure?.cloudName) errors.push("Azure cloud name is required for Azure Government IPI.");
-    if (!cfg.azure?.region) errors.push("Azure region is required for Azure Government IPI.");
-    if (!cfg.azure?.resourceGroupName) errors.push("Resource group name is required for Azure Government IPI.");
-    if (!cfg.azure?.baseDomainResourceGroupName) errors.push("Base domain resource group is required for Azure Government IPI.");
-  }
+  // Azure Government IPI validation moved to catalog-driven approach in platform-specifics step (DOC-082)
+  // cloudName: auto-filled to "AzureUSGovernmentCloud" (only valid value) - not user-provided
+  // region: required (validated in platform-specifics step via catalog)
+  // resourceGroupName: optional (installer creates it when not specified)
+  // baseDomainResourceGroupName: conditionally required (public clusters only), marked required:false in catalog
   if (method === "IPI" && platform === "IBM Cloud") {
     const vpcMode = cfg.ibmcloud?.vpcMode || "existing-vpc";
     const dedicatedHostsProfile = (cfg.ibmcloud?.dedicatedHostsProfile || "").trim();
