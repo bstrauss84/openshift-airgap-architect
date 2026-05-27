@@ -31,6 +31,8 @@ import ConnectivityMirroringStep from "./steps/ConnectivityMirroringStep.jsx";
 import TrustProxyStep from "./steps/TrustProxyStep.jsx";
 import PlatformSpecificsStep from "./steps/PlatformSpecificsStep.jsx";
 import HostsInventorySegmentStep from "./steps/HostsInventorySegmentStep.jsx";
+import ReleaseSelectionStep from "./steps/ReleaseSelectionStep.jsx";
+import ImageSetConfigStep from "./steps/ImageSetConfigStep.jsx";
 import ScenarioHeaderPanel from "./components/ScenarioHeaderPanel.jsx";
 import ToolsDrawer from "./components/ToolsDrawer.jsx";
 import FeedbackDrawer from "./components/FeedbackDrawer.jsx";
@@ -79,7 +81,9 @@ const COMPONENT_MAP = {
   "connectivity-mirroring": ConnectivityMirroringStep,
   "trust-proxy": TrustProxyStep,
   "platform-specifics": PlatformSpecificsStep,
-  "hosts-inventory": HostsInventorySegmentStep
+  "hosts-inventory": HostsInventorySegmentStep,
+  "release-selection": ReleaseSelectionStep,
+  "imageset-config": ImageSetConfigStep
 };
 
 const FALLBACK_WIZARD_STEPS = [

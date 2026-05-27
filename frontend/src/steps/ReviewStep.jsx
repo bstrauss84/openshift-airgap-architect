@@ -21,6 +21,7 @@ import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import { canonicalizeExportOptions, resolveSecretInclusion } from "../exportInclusion.js";
+import ConnectedReviewStep from "../components/ConnectedReviewStep.jsx";
 
 const DEFAULT_PREVIEW_HEIGHT = 320;
 const MIN_PREVIEW_HEIGHT = 120;
@@ -179,6 +180,14 @@ const downloadZip = async (stateForBundle) => {
 
 const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const { state, updateState, setState } = useApp();
+  const connectivity = state.docs?.connectivity;
+
+  // Connected mode: use simplified review component
+  if (connectivity === "connected") {
+    return <ConnectedReviewStep />;
+  }
+
+  // Disconnected mode: use full review component
   const importRef = useRef(null);
 
   // BUG FIX #2: Track request IDs to prevent race conditions

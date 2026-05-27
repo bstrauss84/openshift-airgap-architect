@@ -60,6 +60,19 @@ function buildWizardRowsFromMap(stepMap) {
  * @returns {{ id: string, label: string, subSteps: object[] }[]}
  */
 export function computeVisibleWizardRows(state, stepMap) {
+  const connectivity = state?.docs?.connectivity;
+
+  // Connected mode: simplified 4-step flow for imageset-config only
+  if (connectivity === "connected") {
+    return [
+      { id: "release-selection", label: "Release Selection", subSteps: [] },
+      { id: "operators", label: "Operators", subSteps: [] },
+      { id: "imageset-config", label: "ImageSet Configuration", subSteps: [] },
+      { id: "review", label: "Review & Download", subSteps: [] }
+    ];
+  }
+
+  // Disconnected mode: existing logic
   const map = stepMap || {};
   const segmentedFlowV1 = state?.ui?.segmentedFlowV1 === true;
   const hostInventoryV2Enabled = state?.ui?.hostInventoryV2 === true;
