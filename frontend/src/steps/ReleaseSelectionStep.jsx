@@ -52,12 +52,9 @@ const ReleaseSelectionStep = () => {
     setSelectedVersion("");
 
     const channelName = selectedChannel.replace("stable-", "");
-    apiFetch("/api/cincinnati/patches", {
-      method: "POST",
-      body: JSON.stringify({ channel: channelName })
-    })
+    apiFetch(`/api/cincinnati/patches?channel=${channelName}`)
       .then((data) => {
-        const versions = data.patches || [];
+        const versions = data.versions || [];
         setPatches(versions);
         // Auto-select latest version
         if (versions.length > 0) {
