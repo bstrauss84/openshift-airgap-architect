@@ -13,10 +13,13 @@
  * @author Bill Strauss
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AppProvider } from '../src/store.jsx';
 import App from '../src/App.jsx';
+import { apiFetch } from '../src/api.js';
+
+vi.mock('../src/api.js', () => ({ apiFetch: vi.fn().mockResolvedValue({}) }));
 
 /**
  * Render a step and check if it throws ReferenceError for undefined variables.
