@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [master, main]
 
+env:
+  QUAY_ORG: ${{ secrets.QUAY_ORG }}
+  FRONTEND_IMAGE: quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-frontend
+  BACKEND_IMAGE: quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-backend
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -64,6 +69,40 @@ jobs:
 
       - name: Validate param catalog authority (docs index, catalogs, parity, NMState guards)
         run: node scripts/validate-param-authority.js
+
+  build-and-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: frontend/Containerfile
+          push: true
+          tags: |
+            quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-frontend:latest
+            quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-frontend:${{ github.sha }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/Containerfile
+          push: true
+          tags: |
+            quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-backend:latest
+            quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-backend:${{ github.sha }}
 
   secrets:
     runs-on: ubuntu-latest
