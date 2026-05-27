@@ -148,6 +148,70 @@ const isValidMac = (value) => {
   return normalized.length === 17 && /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(normalized);
 };
 
+/**
+ * BMC (Baseboard Management Controller) URL validation.
+ * Validates BMC addresses used in bare-metal deployments for out-of-band management.
+ * Supports metal3 BMC driver URL formats with various protocols.
+ *
+ * Valid formats:
+ * - redfish+http://host[:port]/path
+ * - redfish+https://host[:port]/path
+ * - redfish://host[:port]/path (HTTP by default)
+ * - redfish-virtualmedia+http://host[:port]/path
+ * - redfish-virtualmedia+https://host[:port]/path
+ * - idrac://host[:port]
+ * - idrac+http://host[:port]
+ * - idrac+https://host[:port]
+ * - idrac-virtualmedia://host[:port]
+ * - idrac-virtualmedia+http://host[:port]
+ * - idrac-virtualmedia+https://host[:port]
+ * - ipmi://host[:port]
+ * - ilo4-virtualmedia://host[:port]
+ * - ilo5-virtualmedia://host[:port]
+ *
+ * Host can be IPv4, IPv6 (in brackets), or hostname/FQDN.
+ * Port is optional, path is optional (depends on protocol).
+ *
+ * @param {string} value - BMC URL to validate
+ * @returns {boolean} true if valid BMC URL format, false otherwise
+ */
+const isValidBmcUrl = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed === "") return false;
+
+  // Supported BMC protocols per metal3 BMC driver
+  const protocols = [
+    "redfish\\+https?",      // redfish+http, redfish+https
+    "redfish",               // redfish (plain HTTP by default)
+    "redfish-virtualmedia\\+https?", // redfish-virtualmedia+http, redfish-virtualmedia+https
+    "idrac-virtualmedia\\+https?",   // idrac-virtualmedia+http, idrac-virtualmedia+https
+    "idrac-virtualmedia",    // idrac-virtualmedia (plain)
+    "idrac\\+https?",        // idrac+http, idrac+https
+    "idrac",                 // idrac (plain)
+    "ipmi",                  // ipmi
+    "ilo[45]-virtualmedia"   // ilo4-virtualmedia, ilo5-virtualmedia
+  ];
+
+  // Build regex pattern
+  // Format: <protocol>://<host>[:port][/path]
+  // Host can be: IPv4, [IPv6], or hostname
+  const protocolPattern = `(?:${protocols.join("|")})`;
+  const ipv4Pattern = "(?:\\d{1,3}\\.){3}\\d{1,3}";
+  const ipv6Pattern = "\\[[0-9a-fA-F:]+\\]"; // IPv6 in brackets
+  const hostnamePattern = "[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*";
+  const hostPattern = `(?:${ipv4Pattern}|${ipv6Pattern}|${hostnamePattern})`;
+  const portPattern = ":[0-9]{1,5}"; // Optional port
+  const pathPattern = "\\/[^\\s]*"; // Optional path (any non-whitespace after /)
+
+  const bmcUrlPattern = new RegExp(
+    `^${protocolPattern}://${hostPattern}(?:${portPattern})?(?:${pathPattern})?$`,
+    "i"
+  );
+
+  return bmcUrlPattern.test(trimmed);
+};
+
 const isValidSshPublicKey = (value) => {
   if (!value) return false;
   const trimmed = value.trim();
@@ -395,7 +459,11 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
   }
   // Bare-metal IPI: BMC address, credentials (error if includeCredentials; else warning), boot MAC required.
   if (platform === "Bare Metal" && method === "IPI") {
-    if (!node.bmc?.address) addError("bmc.address", "BMC address is required for bare metal IPI.");
+    if (!node.bmc?.address) {
+      addError("bmc.address", "BMC address is required for bare metal IPI.");
+    } else if (!isValidBmcUrl(node.bmc.address)) {
+      addError("bmc.address", "BMC address must be a valid URL (e.g., redfish+https://192.168.1.1/redfish/v1, ipmi://10.10.10.10)");
+    }
     if (!node.bmc?.username) {
       (includeCredentials ? addError : addWarning)("bmc.username", "BMC username is required for bare metal IPI.");
     }
@@ -403,6 +471,13 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
       (includeCredentials ? addError : addWarning)("bmc.password", "BMC password is required for bare metal IPI.");
     }
     if (!node.bmc?.bootMACAddress) addError("bmc.bootMACAddress", "Boot MAC address is required for bare metal IPI.");
+  }
+
+  // Agent-Based Installer: BMC address optional (Day-2 seed), but validate format if provided
+  if (platform === "Bare Metal" && method === "Agent-Based Installer") {
+    if (node.bmc?.address && !isValidBmcUrl(node.bmc.address)) {
+      addWarning("bmc.address", "BMC address format is invalid (e.g., redfish+https://192.168.1.1/redfish/v1, ipmi://10.10.10.10)");
+    }
   }
 
   // IPI networkConfig validation
