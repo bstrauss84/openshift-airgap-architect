@@ -12,5 +12,8 @@ RUN mkdir -p /app/node_modules/.vite && chown -R 1001:0 /app/node_modules/.vite 
 COPY --chown=1001:0 . .
 USER 1001
 
+# Allow all hostnames by default for OpenShift routes (can be overridden at runtime)
+ENV VITE_ALLOWED_HOSTS=all
+
 EXPOSE 5173
 CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]
