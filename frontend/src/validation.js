@@ -431,6 +431,13 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     }
   }
 
+  // Validate primary.ethernet.macAddress format if present (regardless of method).
+  // This catches configuration errors even if the field shouldn't be used for this method.
+  const primary = node.primary || {};
+  if (primary.ethernet?.macAddress && !isValidMac(primary.ethernet.macAddress)) {
+    addError("primary.ethernet.macAddress", "Ethernet MAC address format is invalid.");
+  }
+
   // Primary and additional interface validation applies ONLY to Agent-based installs.
   // Bare-metal IPI uses bootMACAddress (above) in install-config platform.baremetal.hosts[], not agent-config interfaces[].
   // Other IPI scenarios (vSphere, AWS, etc.) also do not use agent-config interface definitions.
