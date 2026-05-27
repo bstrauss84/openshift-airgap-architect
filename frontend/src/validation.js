@@ -819,6 +819,7 @@ const validateMirrorRegistrySecret = (state) => {
 /** Networking format: machine/cluster/service CIDRs, API/Ingress VIPs, provisioning CIDR and cluster provisioning IP must be valid IPv4/CIDR. */
 const validateNetworkingFormat = (state) => {
   const errors = [];
+  const fieldErrors = {};
   const scenarioIdNw = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
   const networking = state.globalStrategy?.networking || {};
   const hostInventory = state.hostInventory || {};
@@ -843,19 +844,31 @@ const validateNetworkingFormat = (state) => {
   const ingressVipList = parseVipList(ingressVip);
   if (apiVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("API VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
-  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) errors.push("Provisioning network CIDR must be a valid CIDR.");
-  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) errors.push("Cluster provisioning IP must be a valid IPv4 address.");
+  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) {
+    const msg = "Provisioning network CIDR must be a valid CIDR.";
+    errors.push(msg);
+    fieldErrors.provisioningNetworkCIDR = msg;
+  }
+  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) {
+    const msg = "Cluster provisioning IP must be a valid IPv4 address.";
+    errors.push(msg);
+    fieldErrors.clusterProvisioningIP = msg;
+  }
 
   // Provisioning network DHCP range validation (bare metal IPI only)
   const dhcpRange = (hostInventory.provisioningDHCPRange || "").trim();
   if (dhcpRange) {
     const parts = dhcpRange.split(",").map(p => p.trim());
     if (parts.length !== 2) {
-      errors.push("Provisioning DHCP range must be in format: start_ip,end_ip (e.g. 172.22.0.10,172.22.0.254)");
+      const msg = "Provisioning DHCP range must be in format: start_ip,end_ip (e.g. 172.22.0.10,172.22.0.254)";
+      errors.push(msg);
+      fieldErrors.provisioningDHCPRange = msg;
     } else {
       const [startIP, endIP] = parts;
       if (!isValidIpv4(startIP) || !isValidIpv4(endIP)) {
-        errors.push("Provisioning DHCP range: both start and end must be valid IPv4 addresses.");
+        const msg = "Provisioning DHCP range: both start and end must be valid IPv4 addresses.";
+        errors.push(msg);
+        fieldErrors.provisioningDHCPRange = msg;
       } else {
         // Convert IPs to integers for comparison
         const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
@@ -863,7 +876,9 @@ const validateNetworkingFormat = (state) => {
         const endInt = toInt(endIP);
 
         if (startInt > endInt) {
-          errors.push("Provisioning DHCP range: start IP must be less than or equal to end IP.");
+          const msg = "Provisioning DHCP range: start IP must be less than or equal to end IP.";
+          errors.push(msg);
+          fieldErrors.provisioningDHCPRange = msg;
         }
 
         // Validate both IPs are within provisioning CIDR
@@ -871,10 +886,14 @@ const validateNetworkingFormat = (state) => {
           const range = cidrToRange(provisioningCIDR);
           if (range) {
             if (startInt < range.start || startInt > range.end) {
-              errors.push(`Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+              const msg = `Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
+              errors.push(msg);
+              fieldErrors.provisioningDHCPRange = msg;
             }
             if (endInt < range.start || endInt > range.end) {
-              errors.push(`Provisioning DHCP end IP (${endIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+              const msg = `Provisioning DHCP end IP (${endIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
+              errors.push(msg);
+              fieldErrors.provisioningDHCPRange = msg;
             }
           }
         }
@@ -883,7 +902,11 @@ const validateNetworkingFormat = (state) => {
         if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP)) {
           const clusterInt = toInt(clusterProvisioningIP);
           if (clusterInt >= startInt && clusterInt <= endInt) {
-            errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`);
+            const msg = `Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`;
+            errors.push(msg);
+            // Add error to both fields since this is a cross-field validation
+            fieldErrors.provisioningDHCPRange = msg;
+            fieldErrors.clusterProvisioningIP = msg;
           }
         }
       }
@@ -897,7 +920,9 @@ const validateNetworkingFormat = (state) => {
     if (range) {
       const ipInt = toInt(clusterProvisioningIP);
       if (ipInt < range.start || ipInt > range.end) {
-        errors.push(`Cluster provisioning IP (${clusterProvisioningIP}) is outside provisioning network CIDR (${provisioningCIDR}).`);
+        const msg = `Cluster provisioning IP (${clusterProvisioningIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
+        errors.push(msg);
+        fieldErrors.clusterProvisioningIP = msg;
       }
     }
   }
@@ -925,7 +950,7 @@ const validateNetworkingFormat = (state) => {
     if (api6 && !isValidIpv6(api6)) errors.push("Nutanix API VIP (IPv6) must be a valid IPv6 address.");
     if (ing6 && !isValidIpv6(ing6)) errors.push("Nutanix Ingress VIP (IPv6) must be a valid IPv6 address.");
   }
-  return { errors, warnings: [] };
+  return { errors, warnings: [], fieldErrors };
 };
 
 /**
@@ -1607,7 +1632,10 @@ const validateStep = (state, stepId) => {
       }
       return { errors, warnings: [] };
     }
-    return { errors: [], warnings: [] };
+    // For scenarios with provisioning network fields (bare-metal-ipi, bare-metal-agent),
+    // include field-level validation errors for provisioning network CIDR, DHCP range, and cluster provisioning IP
+    const format = validateNetworkingFormat(state);
+    return { errors: [], warnings: [], fieldErrors: format.fieldErrors || {} };
   }
   // hosts-inventory: scenarios listed in SCENARIO_IDS_WITH_HOST_INVENTORY (e.g. bare-metal-agent, vsphere-agent, bare-metal-ipi).
   if (stepId === "hosts-inventory") {
