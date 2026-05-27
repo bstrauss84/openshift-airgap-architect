@@ -741,6 +741,106 @@ After v1.6.0 release, PROD Phase 2 items become active:
 
 ---
 
+## Comprehensive Verification Protocol (2026-05-27)
+
+### When to Run Comprehensive Verification
+
+Run this verification protocol:
+- **Before major releases** (v1.x.0, v2.0.0)
+- **After significant refactoring** (parameter audits, catalog changes, generation logic updates)
+- **When user requests full bug check**
+- **Before production deployment**
+
+### Sequential Agent Approach (Memory-Safe)
+
+**CRITICAL:** Spawn agents ONE AT A TIME and record findings incrementally. Never spawn all agents in parallel - this causes memory issues and system crashes.
+
+**Process:**
+1. Spawn Agent 1, wait for completion
+2. Record findings in HANDOFF_PACKET.md
+3. Spawn Agent 2, wait for completion
+4. Record findings in HANDOFF_PACKET.md
+5. Continue until all verification areas complete
+
+### Verification Areas (6 Agents)
+
+**Agent 1: Test Suite Verification**
+- Run all frontend tests (`cd frontend && npm test`)
+- Run all backend tests (`cd backend && npm test`)
+- Record passing/failing counts, failure details
+- Classify failures: pre-existing, regression, needs investigation
+- **Output:** Test results summary with failure classification
+
+**Agent 2: Download & Export Verification**
+- Verify binary download functions (oc/oc-mirror, openshift-install, mirror-registry)
+- Check export bundle variations (all 4 inclusion options)
+- Verify error handling creates `.ERROR.txt` files
+- Check 7 credential toggle categories
+- Verify placeholder engine functionality
+- **Output:** Download/export functionality status
+
+**Agent 3: Parameter Coverage Verification**
+- Verify catalog synchronization (backend ↔ frontend, MD5 check)
+- Check backend generation approach (systematic vs hardcoded)
+- Verify frontend UI coverage percentage claim
+- Review missing parameter analysis
+- **Output:** Parameter flow verification (catalog → backend → frontend → output)
+
+**Agent 4: Frontend Field Workflow Verification**
+- Sample 15-20 key input fields across all steps
+- Trace field flow: frontend input → state update → backend generation → YAML output
+- Look for broken workflows (fields that don't flow through)
+- Verify recent DOC-082 additions are properly wired
+- **Output:** Field workflow status with sample traces
+
+**Agent 5: Test Failure Investigation**
+- Investigate non-pre-existing test failures from Agent 1
+- Read test code and implementation code
+- Classify: outdated test, real bug, needs fix
+- Provide recommended action for each failure
+- **Output:** Test failure root cause analysis
+
+**Agent 6: Tooltips & Background Tasks Verification**
+- Check FieldLabelWithInfo tooltip coverage
+- Sample 5-10 tooltips for gold standard format compliance
+- Verify oc-mirror job execution (job status tracking)
+- Verify operator scanning preflight
+- Verify Cincinnati version discovery
+- **Output:** Tooltip quality assessment, background task status
+
+### Recording Findings
+
+**Update HANDOFF_PACKET.md after EACH agent:**
+- Add verification results section
+- Record bugs found with evidence
+- Update status summary table
+- Document action items
+
+**Update BACKLOG_STATUS.md for new bugs:**
+- Create DOC-XXX items for real bugs
+- Use canonical status vocabulary
+- Provide code evidence
+- Set priority (p0/p1/p2/p3)
+
+### Post-Verification Actions
+
+1. **Fix Critical Bugs (p0/p1):** Address immediately before release
+2. **Update Tests:** Fix outdated test assertions
+3. **Document Known Issues:** Pre-existing failures in CLAUDE.md
+4. **Create Roadmap Items:** P2/P3 bugs deferred to future versions
+
+### Verification Checklist
+
+- [ ] All 6 agents completed successfully
+- [ ] Findings recorded in HANDOFF_PACKET.md
+- [ ] Bugs tracked in BACKLOG_STATUS.md
+- [ ] Test failures classified and documented
+- [ ] Critical bugs fixed or blockers created
+- [ ] CLAUDE.md updated with verification notes
+- [ ] User notified of findings and next steps
+
+---
+
 ## Questions?
 
 If you're unsure about:
@@ -757,5 +857,5 @@ If you're unsure about:
 
 ---
 
-**Last Updated:** 2026-05-20  
-**Revision:** PROD Phase 1 completion (v1.6.0) - Added PROD Phase 1 section documenting completion of 6 critical production readiness items (structured logging, K8s manifests, resource limits, backup/restore procedures, health probes, schema validation), updated BACKLOG_STATUS.md to mark PROD-002 through PROD-007 as verified_done with implementation evidence
+**Last Updated:** 2026-05-27  
+**Revision:** Comprehensive verification protocol (2026-05-27) - Added detailed verification protocol section documenting 6-agent sequential approach for comprehensive bug checks, parameter coverage verification, field workflow validation, and test failure investigation. Updated after DOC-083 creation (runtime package export not integrated) and comprehensive verification finding 3 real bugs (MAC validation, Nutanix IPI VIP, Azure validation).
