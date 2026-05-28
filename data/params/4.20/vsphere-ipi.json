@@ -1699,16 +1699,25 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Legacy single-zone network name. Use failureDomains[].topology.network for multi-zone.",
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.networks[]",
+      "description": "Legacy single-zone network name. Deprecated in 4.13+; prefer failureDomains[].topology.networks[] for multi-zone deployments; still supported for legacy single placement.",
       "applies_to": [
         "vsphere-ipi"
       ],
+      "conditionals": {
+        "placementPath": "legacy",
+        "mutuallyExclusiveWith": [
+          "platform.vsphere.failureDomains"
+        ],
+        "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
+      },
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 vSphere docs, network section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },
