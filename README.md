@@ -22,6 +22,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   - [Operations](#operations)
   - [Mock mode (offline demo)](#mock-mode-offline-demo)
   - [End-to-End (E2E) testing](#e2e-testing)
+  - [Load testing](#load-testing)
 - **Platform, Security, and Operations**
   - [Platform and architecture (multi-arch / Apple Silicon)](#platform-and-architecture-multi-arch--apple-silicon)
   - [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret)
@@ -845,6 +846,47 @@ npm run test:e2e:debug
 - **Operations** - Job history, Cincinnati refresh, log viewing, job status tracking
 
 **12 E2E tests across 3 test suites.** See `e2e/README.md` for detailed test documentation, debugging tips, and CI integration guide.
+
+<a id="load-testing"></a>
+## Load Testing
+
+Validate application performance and capacity planning under concurrent user load.
+
+**Load test script:** `scripts/load-test.sh`
+
+**Run load tests:**
+```bash
+# Default (10 concurrent users, 30 minutes)
+./scripts/load-test.sh
+
+# Custom configuration
+./scripts/load-test.sh http://localhost:4000 25 60  # 25 users, 60 minutes
+```
+
+**Test scenarios:**
+- **Health check baseline** - 1000 rapid-fire requests to establish minimum latency
+- **Cincinnati channels** - 500 version discovery requests to test external API caching
+- **State operations** - 500 save + 500 load to validate SQLite performance
+- **Concurrent users** - Realistic wizard workflow with configurable users and duration
+- **YAML generation** - 100 generation requests to test computational overhead
+
+**Performance targets:**
+- Health check: P95 <50ms
+- State save/load: P95 <200ms
+- Cincinnati: P95 <2s
+- YAML generation: P95 <1s
+- Failure rate: <1%
+
+**Resource monitoring:**
+```bash
+# Docker Compose
+docker stats
+
+# Kubernetes
+kubectl top pod -l app=airgap-architect
+```
+
+**Results:** Automatically generates timestamped results directory with latency percentiles (P50, P95, P99), request counts, failure rates, and per-user summaries. See `docs/LOAD_TESTING.md` for detailed analysis guide, optimization recommendations, and production deployment checklist.
 
 <a id="platform-and-architecture-multi-arch--apple-silicon"></a>
 ## Platform and architecture (multi-arch / Apple Silicon)
