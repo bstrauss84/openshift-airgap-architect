@@ -109,6 +109,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Affected fields: vCenter password (vSphere IPI), Prism Central password (Nutanix IPI)
 - Files: `frontend/src/styles.css`, `frontend/src/steps/PlatformSpecificsStep.jsx`
 
+#### **File Upload Button Styling Inconsistency**
+- Fixed "Upload file" button in pull secret fields having different styling than "Browse..." buttons
+- Root cause: SecretInput component used `<button className="ghost pull-secret-upload">` with custom padding (8px 14px)
+- Other file selection buttons used `<Button variant="secondary">` component with standard padding (10px 20px)
+- Inconsistent padding made buttons appear visually different despite same ghost styling
+- Fix: Replaced raw button element with Button component in SecretInput
+- All file upload/browse buttons now use `<Button variant="secondary">` for consistent styling
+- Affected buttons: "Upload file" (pull secret fields), "Browse..." (oc-mirror paths), "Import Run" (tools drawer)
+- Files: `frontend/src/components/SecretInput.jsx`
+
 #### **VIP IP Address Validation**
 - Added comprehensive VIP IP address validation for all scenarios
 - Validates IPv4 addresses (octets 0-255, proper format)
