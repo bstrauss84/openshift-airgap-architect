@@ -73,6 +73,107 @@ const getVipPlaceholders = (machineNetworkCidr) => {
   };
 };
 
+/** Generate example IPv6 VIP placeholders from machine network IPv6 CIDR */
+const getVipPlaceholdersV6 = (machineNetworkCidrV6) => {
+  if (!machineNetworkCidrV6 || !machineNetworkCidrV6.includes("/")) {
+    return { apiVipV6: "e.g. fd00::2", ingressVipV6: "e.g. fd00::3" };
+  }
+
+  // Parse IPv6 CIDR (e.g., "fd10:90::/64")
+  const [ipv6Base] = machineNetworkCidrV6.split("/");
+
+  // Expand abbreviated IPv6 to full form for manipulation
+  const expandIpv6 = (ip) => {
+    if (!ip.includes("::")) {
+      const parts = ip.split(":");
+      return parts.map(p => p.padStart(4, "0")).join(":");
+    }
+
+    const [left, right] = ip.split("::");
+    const leftParts = left ? left.split(":") : [];
+    const rightParts = right ? right.split(":") : [];
+    const missingParts = 8 - leftParts.length - rightParts.length;
+
+    const expanded = [
+      ...leftParts.map(p => p.padStart(4, "0")),
+      ...Array(missingParts).fill("0000"),
+      ...rightParts.map(p => p.padStart(4, "0"))
+    ];
+
+    return expanded.join(":");
+  };
+
+  // Compress IPv6 by removing leading zeros and using :: for longest zero run
+  const compressIpv6 = (expanded) => {
+    // Remove leading zeros from each segment
+    const parts = expanded.split(":").map(p => p.replace(/^0+/, "") || "0");
+
+    // Find longest consecutive run of "0" segments
+    let maxZeroStart = -1;
+    let maxZeroLen = 0;
+    let currentZeroStart = -1;
+    let currentZeroLen = 0;
+
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i] === "0") {
+        if (currentZeroStart === -1) {
+          currentZeroStart = i;
+          currentZeroLen = 1;
+        } else {
+          currentZeroLen++;
+        }
+      } else {
+        if (currentZeroLen > maxZeroLen) {
+          maxZeroStart = currentZeroStart;
+          maxZeroLen = currentZeroLen;
+        }
+        currentZeroStart = -1;
+        currentZeroLen = 0;
+      }
+    }
+
+    // Check final run
+    if (currentZeroLen > maxZeroLen) {
+      maxZeroStart = currentZeroStart;
+      maxZeroLen = currentZeroLen;
+    }
+
+    // Replace longest zero run with ::
+    if (maxZeroLen > 1) {
+      const before = parts.slice(0, maxZeroStart);
+      const after = parts.slice(maxZeroStart + maxZeroLen);
+
+      if (before.length === 0 && after.length === 0) {
+        return "::";
+      } else if (before.length === 0) {
+        return "::" + after.join(":");
+      } else if (after.length === 0) {
+        return before.join(":") + "::";
+      } else {
+        return before.join(":") + "::" + after.join(":");
+      }
+    }
+
+    return parts.join(":");
+  };
+
+  const expanded = expandIpv6(ipv6Base);
+  const parts = expanded.split(":");
+
+  // Increment last segment by 2 for API VIP, 3 for Ingress VIP
+  const getVipFromBase = (increment) => {
+    const lastSegment = parseInt(parts[7], 16) + increment;
+    const newParts = [...parts.slice(0, 7), lastSegment.toString(16).padStart(4, "0")];
+    const newExpanded = newParts.join(":");
+    return compressIpv6(newExpanded);
+  };
+
+  return {
+    apiVipV6: `e.g. ${getVipFromBase(2)}`,
+    ingressVipV6: `e.g. ${getVipFromBase(3)}`
+  };
+};
+
 export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
@@ -187,8 +288,9 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const masterCount = nodes.filter((n) => n.role === "master").length;
   const workerCount = nodes.filter((n) => n.role === "worker").length;
 
-  // Generate dynamic VIP placeholders from machine network CIDR
+  // Generate dynamic VIP placeholders from machine network CIDRs
   const vipPlaceholders = getVipPlaceholders(localMachineNetworkV4);
+  const vipPlaceholdersV6 = getVipPlaceholdersV6(localMachineNetworkV6);
 
   const isAgentSno =
     (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
@@ -803,7 +905,7 @@ fd00::5`}>
                                 updateNutanix({ apiVIPV6: newValue });
                               }
                             }}
-                            placeholder="e.g. fd00::5"
+                            placeholder={vipPlaceholdersV6.apiVipV6}
                           />
                         </FieldLabelWithInfo>
                         {fieldErrors.nutanixApiVIPV6 && <span className="note warning inline">{fieldErrors.nutanixApiVIPV6}</span>}
@@ -869,7 +971,7 @@ fd00::6`}>
                                 updateNutanix({ ingressVIPV6: newValue });
                               }
                             }}
-                            placeholder="e.g. fd00::6"
+                            placeholder={vipPlaceholdersV6.ingressVipV6}
                           />
                         </FieldLabelWithInfo>
                         {fieldErrors.nutanixIngressVIPV6 && <span className="note warning inline">{fieldErrors.nutanixIngressVIPV6}</span>}
@@ -938,10 +1040,108 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                     </>
                   )
                 ) : showVsphereIpiVips ? (
-                  <>
-                    <FieldLabelWithInfo
-                      label="API VIPs (comma-separated)"
-                      hint={`Virtual IP address(es) for the Kubernetes API load balancer.
+                  showIpv6ForPlatform ? (
+                    <>
+                      <div className="vip-group">
+                        <h5 className="vip-group-header">API Virtual IP</h5>
+                        <FieldLabelWithInfo
+                          label="IPv4"
+                          hint={`API VIP for vSphere IPI (IPv4).
+
+**When required:**
+Required when **not using an external load balancer**
+
+**Dual-stack:**
+Set IPv6 below for dual-stack deployments
+
+**Example:**
+10.90.0.2`}
+                        >
+                          <input
+                            className={fieldErrors.apiVip ? "input-error" : ""}
+                            title={fieldErrors.apiVip || ""}
+                            value={localVsphereApiVIPs}
+                            onChange={(e) => setLocalVsphereApiVIPs(e.target.value)}
+                            onBlur={(e) => {
+                              const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                              const currentArray = platformConfig.vsphere?.apiVIPs || [];
+                              if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                                updateVsphere({ apiVIPs: newArray });
+                              }
+                            }}
+                            placeholder={vipPlaceholders.apiVip}
+                          />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo
+                          label="IPv6"
+                          hint={`Second API VIP for dual-stack (IPv6).
+
+**When to set:**
+Only for dual-stack deployments (IPv4 + IPv6)
+
+**Example:**
+fd00::2`}
+                        >
+                          <input
+                            value={localVsphereApiVIPs}
+                            onChange={(e) => setLocalVsphereApiVIPs(e.target.value)}
+                            placeholder={vipPlaceholdersV6.apiVipV6}
+                          />
+                        </FieldLabelWithInfo>
+                      </div>
+                      <div className="vip-group">
+                        <h5 className="vip-group-header">Ingress Virtual IP</h5>
+                        <FieldLabelWithInfo
+                          label="IPv4"
+                          hint={`Ingress VIP for vSphere IPI (IPv4).
+
+**When required:**
+Required when **not using an external load balancer**
+
+**Dual-stack:**
+Set IPv6 below for dual-stack deployments
+
+**Example:**
+10.90.0.3`}
+                        >
+                          <input
+                            className={fieldErrors.ingressVip ? "input-error" : ""}
+                            title={fieldErrors.ingressVip || ""}
+                            value={localVsphereIngressVIPs}
+                            onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
+                            onBlur={(e) => {
+                              const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                              const currentArray = platformConfig.vsphere?.ingressVIPs || [];
+                              if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                                updateVsphere({ ingressVIPs: newArray });
+                              }
+                            }}
+                            placeholder={vipPlaceholders.ingressVip}
+                          />
+                        </FieldLabelWithInfo>
+                        <FieldLabelWithInfo
+                          label="IPv6"
+                          hint={`Second Ingress VIP for dual-stack (IPv6).
+
+**When to set:**
+Only for dual-stack deployments (IPv4 + IPv6)
+
+**Example:**
+fd00::3`}
+                        >
+                          <input
+                            value={localVsphereIngressVIPs}
+                            onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
+                            placeholder={vipPlaceholdersV6.ingressVipV6}
+                          />
+                        </FieldLabelWithInfo>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIPs (comma-separated)"
+                        hint={`Virtual IP address(es) for the Kubernetes API load balancer.
 
 **When required:**
 Required for vSphere IPI when **not using an external load balancer**
@@ -951,25 +1151,25 @@ Comma-separated if multiple (rare)
 
 **Example:**
 192.168.1.10`}
-                    >
-                      <input
-                        className={fieldErrors.apiVip ? "input-error" : ""}
-                        title={fieldErrors.apiVip || ""}
-                        value={localVsphereApiVIPs}
-                        onChange={(e) => setLocalVsphereApiVIPs(e.target.value)}
-                        onBlur={(e) => {
-                          const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                          const currentArray = platformConfig.vsphere?.apiVIPs || [];
-                          if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
-                            updateVsphere({ apiVIPs: newArray });
-                          }
-                        }}
-                        placeholder="e.g. 192.168.1.10"
-                      />
-                    </FieldLabelWithInfo>
-                    <FieldLabelWithInfo
-                      label="Ingress VIPs (comma-separated)"
-                      hint={`Virtual IP address(es) for the default Ingress controller load balancer.
+                      >
+                        <input
+                          className={fieldErrors.apiVip ? "input-error" : ""}
+                          title={fieldErrors.apiVip || ""}
+                          value={localVsphereApiVIPs}
+                          onChange={(e) => setLocalVsphereApiVIPs(e.target.value)}
+                          onBlur={(e) => {
+                            const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                            const currentArray = platformConfig.vsphere?.apiVIPs || [];
+                            if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                              updateVsphere({ apiVIPs: newArray });
+                            }
+                          }}
+                          placeholder={vipPlaceholders.apiVip}
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIPs (comma-separated)"
+                        hint={`Virtual IP address(es) for the default Ingress controller load balancer.
 
 **When required:**
 Required for vSphere IPI when **not using an external load balancer**
@@ -979,23 +1179,24 @@ Comma-separated if multiple (rare)
 
 **Example:**
 192.168.1.11`}
-                    >
-                      <input
-                        className={fieldErrors.ingressVip ? "input-error" : ""}
-                        title={fieldErrors.ingressVip || ""}
-                        value={localVsphereIngressVIPs}
-                        onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
-                        onBlur={(e) => {
-                          const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                          const currentArray = platformConfig.vsphere?.ingressVIPs || [];
-                          if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
-                            updateVsphere({ ingressVIPs: newArray });
-                          }
-                        }}
-                        placeholder="e.g. 192.168.1.11"
-                      />
-                    </FieldLabelWithInfo>
-                  </>
+                      >
+                        <input
+                          className={fieldErrors.ingressVip ? "input-error" : ""}
+                          title={fieldErrors.ingressVip || ""}
+                          value={localVsphereIngressVIPs}
+                          onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
+                          onBlur={(e) => {
+                            const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                            const currentArray = platformConfig.vsphere?.ingressVIPs || [];
+                            if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                              updateVsphere({ ingressVIPs: newArray });
+                            }
+                          }}
+                          placeholder={vipPlaceholders.ingressVip}
+                        />
+                      </FieldLabelWithInfo>
+                    </>
+                  )
                 ) : showVsphereAgentVips ? (
                   showIpv6ForPlatform ? (
                     <>
@@ -1050,7 +1251,7 @@ fd00::1`}>
                                 updateHostInventory({ apiVipV6: newValue });
                               }
                             }}
-                            placeholder="e.g. fd00::1"
+                            placeholder={vipPlaceholdersV6.apiVipV6}
                           />
                         </FieldLabelWithInfo>
                       </div>
@@ -1105,7 +1306,7 @@ fd00::2`}>
                                 updateHostInventory({ ingressVipV6: newValue });
                               }
                             }}
-                            placeholder="e.g. fd00::2"
+                            placeholder={vipPlaceholdersV6.ingressVipV6}
                           />
                         </FieldLabelWithInfo>
                       </div>
@@ -1212,7 +1413,7 @@ fd00::1`}
                               updateHostInventory({ apiVipV6: newValue });
                             }
                           }}
-                          placeholder="e.g. fd00::1"
+                          placeholder={vipPlaceholdersV6.apiVipV6}
                         />
                       </FieldLabelWithInfo>
                     </div>
@@ -1270,7 +1471,7 @@ fd00::2`}
                               updateHostInventory({ ingressVipV6: newValue });
                             }
                           }}
-                          placeholder="e.g. fd00::2"
+                          placeholder={vipPlaceholdersV6.ingressVipV6}
                         />
                       </FieldLabelWithInfo>
                     </div>
@@ -1302,7 +1503,7 @@ fd00::1`}
                               updateHostInventory({ apiVipV6: newValue });
                             }
                           }}
-                          placeholder="e.g. fd00::1"
+                          placeholder={vipPlaceholdersV6.apiVipV6}
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
@@ -1330,7 +1531,7 @@ fd00::2`}
                               updateHostInventory({ ingressVipV6: newValue });
                             }
                           }}
-                          placeholder="e.g. fd00::2"
+                          placeholder={vipPlaceholdersV6.ingressVipV6}
                         />
                       </FieldLabelWithInfo>
                     </>

@@ -5,6 +5,109 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-05-28
+
+### Fixed
+
+**Regression Fixes (5 items)**
+
+#### **Version Display Regression**
+- Fixed `AboutModal.jsx` showing hardcoded "1.1.0" instead of `appVersion` prop
+- Fixed "Invalid Date" display when `buildTime` is "unknown"
+- Fixed missing "dev" fallback when `gitSha` is "unknown"
+- Now shows "1.7.0-dev" instead of hardcoded "1.1.0" when version unavailable
+- Files: `frontend/src/components/AboutModal.jsx`
+- Tests: `frontend/tests/regressions-v1.7.0.test.jsx` (5 tests covering version display)
+
+#### **Feedback Button Missing**
+- Fixed feedback button not displaying in header
+- Removed conditional rendering based on `feedbackConfig.visible`
+- Button now always visible regardless of config fetch status
+- Files: `frontend/src/App.jsx`
+
+#### **Assets & Guide Tab Badge Regression**
+- Fixed "Assets & Guide" tab showing incorrect "Needs review" badge
+- Updated `isOperationalTab()` to exclude "review", "run-oc-mirror", and "operations" tabs from completion indicators
+- Operational tabs no longer show checkmarks or validation badges
+- Files: `frontend/src/components/Sidebar.jsx`
+- Tests: `frontend/tests/regressions-v1.7.0.test.jsx` (5 tests covering sidebar badge behavior)
+
+#### **IP Address Field Validation Display Regression**
+- Fixed IP Address (CIDR), Gateway, and DNS fields not showing validation errors
+- Applied v1.2.2 inline validation pattern (red border + inline error message)
+- Added `className="input-error"`, `title={errorMessage}`, and `aria-invalid` attributes
+- Added inline `<span className="note warning inline">` error messages below fields
+- Files: `frontend/src/components/NodeDrawerIpiContent.jsx`
+- Tests: `frontend/tests/regressions-v1.7.0.test.jsx` (7 tests covering IP validation display)
+
+#### **IPv6/Dual-Stack VIP Placeholder and Validation Regression**
+- Fixed IPv6-only mode showing IPv4 VIP placeholders instead of IPv6
+- Fixed dual-stack mode showing hardcoded placeholders instead of deriving from machine network
+- Fixed vSphere IPI missing IPv6 VIP fields for dual-stack deployments
+- Fixed VIP validation incorrectly showing "Required for IPv4-only mode" errors for vSphere IPI and Nutanix IPI
+- Created `getVipPlaceholdersV6()` helper to derive IPv6 VIP placeholders from machine network IPv6 CIDR
+- VIP placeholders now dynamically generated from machine network CIDRs (both IPv4 and IPv6)
+- Example: Machine network `10.90.0.0/24` → API VIP placeholder `e.g. 10.90.0.2`, Ingress VIP `e.g. 10.90.0.3`
+- Example: Machine network IPv6 `fd10:90::/64` → API VIP placeholder `e.g. fd10:90::2`, Ingress VIP `e.g. fd10:90::3`
+- Updated VIP validation logic to check correct field location based on scenario:
+  - vSphere IPI: `platformConfig.vsphere.apiVIPs` / `ingressVIPs` (arrays)
+  - Nutanix IPI: `platformConfig.nutanix.apiVIP` / `ingressVIP` / `apiVIPV6` / `ingressVIPV6`
+  - Bare metal/vSphere Agent: `hostInventory.apiVip` / `ingressVip` / `apiVipV6` / `ingressVipV6`
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
+- Tests: `frontend/tests/ipv6-vip-placeholders.test.jsx` (16 tests for IPv6 placeholder derivation)
+
+### Changed
+
+**Build and Infrastructure**
+
+#### **Archiver Upgrade (Memory Leak Fix)**
+- Upgraded `archiver` from 6.0.1 to 8.0.0
+- Eliminates `inflight` dependency (known memory leak, deprecated package)
+- Breaking change: Updated import from default export to named export
+  - Old: `import archiver from "archiver"; const archive = archiver("zip", ...);`
+  - New: `import { ZipArchive } from "archiver"; const archive = new ZipArchive(...);`
+- Files: `backend/package.json`, `backend/src/index.js`
+- Tests: `backend/test/archiver-upgrade.test.js` (3 integration tests)
+
+#### **Build Performance Optimization**
+- Added `.dockerignore` exclusions for large local directories
+- Excluded: `local-docs/` (3.0GB), `.research/`, `.archive/`, `.claude/`, `e2e/`, `playwright-report/`, `test-results/`
+- Significantly reduced Docker build context size
+- Files: `.dockerignore`
+
+**Production Readiness (continued from v1.6.0)**
+
+#### **PROD-009: Formal Database Migration System**
+- Implemented versioned migration framework with transaction support
+- Replaced inline schema creation with formal migration files
+- Migration discovery and sequential execution
+- Rollback support for safe production schema changes
+- Migration status tracking in `migrations` table
+- Files:
+  - `backend/src/migrationRunner.js` - Migration execution engine
+  - `backend/src/migrations/001_initial_schema.js` - Base schema migration
+  - `backend/src/migrations/002_add_jobs_metadata.js` - Jobs metadata column
+  - `backend/src/db.js` - Integration with migration system
+  - `docs/DATABASE_MIGRATIONS.md` - 625-line comprehensive migration guide
+- Tests: `backend/test/migrations.test.js` (16 tests covering all migration operations)
+
+### Deprecated
+
+None.
+
+### Removed
+
+None.
+
+### Security
+
+**Container Security Verification**
+- Verified root user in Dockerfile entrypoint is NOT a security issue
+- Entrypoint runs as root ONLY to chown bind-mount permissions
+- Node.js process runs as non-root UID 1001 (appuser)
+- Complies with OpenShift restricted-v2 Security Context Constraints (SCC)
+- Will pass security scanners and organizational policy checks
+
 ## [1.6.0] - 2026-05-20
 
 ### Added

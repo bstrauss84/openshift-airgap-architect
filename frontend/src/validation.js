@@ -1042,6 +1042,7 @@ const validateIpStackModeRequirements = (state) => {
   const errors = [];
   const fieldErrors = {};
   const hostInventory = state.hostInventory || {};
+  const platformConfig = state.platformConfig || {};
   const networking = state.globalStrategy?.networking || {};
   const ipStackMode = hostInventory.ipStackMode || 'ipv4';
 
@@ -1054,6 +1055,29 @@ const validateIpStackModeRequirements = (state) => {
   ];
   const requiresVips = vipScenarios.includes(scenarioId);
 
+  // Helper to get IPv4 VIPs based on scenario
+  const getApiVipV4 = () => {
+    if (scenarioId === 'vsphere-ipi') {
+      const vips = platformConfig.vsphere?.apiVIPs || [];
+      return vips.length > 0 ? vips.join(",") : "";
+    } else if (scenarioId === 'nutanix-ipi') {
+      return (platformConfig.nutanix?.apiVIP || "").trim();
+    } else {
+      return (hostInventory.apiVip || "").trim();
+    }
+  };
+
+  const getIngressVipV4 = () => {
+    if (scenarioId === 'vsphere-ipi') {
+      const vips = platformConfig.vsphere?.ingressVIPs || [];
+      return vips.length > 0 ? vips.join(",") : "";
+    } else if (scenarioId === 'nutanix-ipi') {
+      return (platformConfig.nutanix?.ingressVIP || "").trim();
+    } else {
+      return (hostInventory.ingressVip || "").trim();
+    }
+  };
+
   if (ipStackMode === 'ipv4') {
     // IPv4-only mode: require IPv4 machine network
     const machineV4 = (networking.machineNetworkV4 || "").trim();
@@ -1064,15 +1088,23 @@ const validateIpStackModeRequirements = (state) => {
 
     // IPv4-only VIPs required for applicable scenarios
     if (requiresVips) {
-      const apiVip = (hostInventory.apiVip || "").trim();
-      const ingressVip = (hostInventory.ingressVip || "").trim();
+      const apiVip = getApiVipV4();
+      const ingressVip = getIngressVipV4();
       if (!apiVip) {
         errors.push("API VIP (IPv4) is required for IPv4-only mode.");
-        fieldErrors.apiVip = "Required for IPv4-only mode";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixApiVIP = "Required for IPv4-only mode";
+        } else {
+          fieldErrors.apiVip = "Required for IPv4-only mode";
+        }
       }
       if (!ingressVip) {
         errors.push("Ingress VIP (IPv4) is required for IPv4-only mode.");
-        fieldErrors.ingressVip = "Required for IPv4-only mode";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixIngressVIP = "Required for IPv4-only mode";
+        } else {
+          fieldErrors.ingressVip = "Required for IPv4-only mode";
+        }
       }
     }
   } else if (ipStackMode === 'ipv6') {
@@ -1087,13 +1119,30 @@ const validateIpStackModeRequirements = (state) => {
     if (requiresVips) {
       const apiVipV6 = (hostInventory.apiVipV6 || "").trim();
       const ingressVipV6 = (hostInventory.ingressVipV6 || "").trim();
-      if (!apiVipV6) {
-        errors.push("API VIP (IPv6) is required for IPv6-only mode.");
-        fieldErrors.apiVipV6 = "Required for IPv6-only mode";
-      }
-      if (!ingressVipV6) {
-        errors.push("Ingress VIP (IPv6) is required for IPv6-only mode.");
-        fieldErrors.ingressVipV6 = "Required for IPv6-only mode";
+      const nutanixApiVipV6 = (platformConfig.nutanix?.apiVIPV6 || "").trim();
+      const nutanixIngressVipV6 = (platformConfig.nutanix?.ingressVIPV6 || "").trim();
+
+      // For Nutanix, check Nutanix-specific fields; otherwise check hostInventory
+      if (scenarioId === 'nutanix-ipi') {
+        if (!nutanixApiVipV6) {
+          errors.push("API VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.nutanixApiVIPV6 = "Required for IPv6-only mode";
+        }
+        if (!nutanixIngressVipV6) {
+          errors.push("Ingress VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.nutanixIngressVIPV6 = "Required for IPv6-only mode";
+        }
+      } else {
+        // vSphere IPI doesn't support IPv6-only in the validation logic yet
+        // bare-metal and vsphere-agent use hostInventory fields
+        if (!apiVipV6) {
+          errors.push("API VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.apiVipV6 = "Required for IPv6-only mode";
+        }
+        if (!ingressVipV6) {
+          errors.push("Ingress VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.ingressVipV6 = "Required for IPv6-only mode";
+        }
       }
     }
   } else if (ipStackMode === 'dual-stack') {
@@ -1111,20 +1160,36 @@ const validateIpStackModeRequirements = (state) => {
 
     // Dual-stack VIPs: require at least one set (IPv4 or IPv6)
     if (requiresVips) {
-      const apiVip = (hostInventory.apiVip || "").trim();
+      const apiVip = getApiVipV4();
       const apiVipV6 = (hostInventory.apiVipV6 || "").trim();
-      const ingressVip = (hostInventory.ingressVip || "").trim();
+      const ingressVip = getIngressVipV4();
       const ingressVipV6 = (hostInventory.ingressVipV6 || "").trim();
+      const nutanixApiVipV6 = (platformConfig.nutanix?.apiVIPV6 || "").trim();
+      const nutanixIngressVipV6 = (platformConfig.nutanix?.ingressVIPV6 || "").trim();
 
-      if (!apiVip && !apiVipV6) {
+      // For Nutanix, check Nutanix-specific IPv6 fields
+      const actualApiVipV6 = scenarioId === 'nutanix-ipi' ? nutanixApiVipV6 : apiVipV6;
+      const actualIngressVipV6 = scenarioId === 'nutanix-ipi' ? nutanixIngressVipV6 : ingressVipV6;
+
+      if (!apiVip && !actualApiVipV6) {
         errors.push("At least one API VIP (IPv4 or IPv6) is required for dual-stack mode.");
-        fieldErrors.apiVip = "At least one API VIP required";
-        fieldErrors.apiVipV6 = "At least one API VIP required";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixApiVIP = "At least one API VIP required";
+          fieldErrors.nutanixApiVIPV6 = "At least one API VIP required";
+        } else {
+          fieldErrors.apiVip = "At least one API VIP required";
+          fieldErrors.apiVipV6 = "At least one API VIP required";
+        }
       }
-      if (!ingressVip && !ingressVipV6) {
+      if (!ingressVip && !actualIngressVipV6) {
         errors.push("At least one Ingress VIP (IPv4 or IPv6) is required for dual-stack mode.");
-        fieldErrors.ingressVip = "At least one Ingress VIP required";
-        fieldErrors.ingressVipV6 = "At least one Ingress VIP required";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixIngressVIP = "At least one Ingress VIP required";
+          fieldErrors.nutanixIngressVIPV6 = "At least one Ingress VIP required";
+        } else {
+          fieldErrors.ingressVip = "At least one Ingress VIP required";
+          fieldErrors.ingressVipV6 = "At least one Ingress VIP required";
+        }
       }
     }
   }
