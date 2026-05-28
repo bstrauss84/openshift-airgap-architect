@@ -143,6 +143,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
 - Tests: `frontend/tests/vip-validation.test.js` (39 tests: 28 validation + 11 SNO scenarios)
 
+### Added
+
+**UX Enhancements**
+
+#### **Auto-Select Default Values on First Focus**
+- Added auto-select behavior for cluster name and base domain fields in Identity & Access step
+- When user first focuses a field containing a default value, text is automatically selected
+- Enables quick replacement by immediately typing new value (no need to manually select text)
+- Selection only happens on first focus (before user has edited the field)
+- Once user has typed in the field, subsequent focuses do not auto-select
+- State resets when field value changes externally (e.g., importing a run)
+- Improves workflow for users who want to replace default "agent-cluster" with their cluster name
+- Does not interfere with users who want to click to position cursor (selection only on first touch)
+- Affected fields:
+  - Cluster Name (Identity & Access step) - defaults to "agent-cluster" or catalog default
+  - Base Domain (Identity & Access step) - defaults to imported value or user-provided
+- Files: `frontend/src/steps/IdentityAccessStep.jsx`
+
 ### Changed
 
 **Build and Infrastructure**
