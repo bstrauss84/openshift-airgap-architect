@@ -208,6 +208,12 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const [localVsphereIngressVIPs, setLocalVsphereIngressVIPs] = useState(
     Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""
   );
+  const [localVsphereApiVIPsV6, setLocalVsphereApiVIPsV6] = useState(
+    Array.isArray(platformConfig.vsphere?.apiVIPsV6) ? platformConfig.vsphere.apiVIPsV6.join(", ") : ""
+  );
+  const [localVsphereIngressVIPsV6, setLocalVsphereIngressVIPsV6] = useState(
+    Array.isArray(platformConfig.vsphere?.ingressVIPsV6) ? platformConfig.vsphere.ingressVIPsV6.join(", ") : ""
+  );
   const [localApiVip, setLocalApiVip] = useState(hostInventory.apiVip || "");
   const [localApiVipV6, setLocalApiVipV6] = useState(hostInventory.apiVipV6 ?? "");
   const [localIngressVip, setLocalIngressVip] = useState(hostInventory.ingressVip || "");
@@ -265,6 +271,18 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
       Array.isArray(platformConfig.vsphere?.ingressVIPs) ? platformConfig.vsphere.ingressVIPs.join(", ") : ""
     );
   }, [platformConfig.vsphere?.ingressVIPs]);
+
+  useEffect(() => {
+    setLocalVsphereApiVIPsV6(
+      Array.isArray(platformConfig.vsphere?.apiVIPsV6) ? platformConfig.vsphere.apiVIPsV6.join(", ") : ""
+    );
+  }, [platformConfig.vsphere?.apiVIPsV6]);
+
+  useEffect(() => {
+    setLocalVsphereIngressVIPsV6(
+      Array.isArray(platformConfig.vsphere?.ingressVIPsV6) ? platformConfig.vsphere.ingressVIPsV6.join(", ") : ""
+    );
+  }, [platformConfig.vsphere?.ingressVIPsV6]);
 
   useEffect(() => {
     setLocalApiVip(hostInventory.apiVip || "");
@@ -1146,8 +1164,15 @@ Only for dual-stack deployments (IPv4 + IPv6)
 fd00::2`}
                         >
                           <input
-                            value={localVsphereApiVIPs}
-                            onChange={(e) => setLocalVsphereApiVIPs(e.target.value)}
+                            value={localVsphereApiVIPsV6}
+                            onChange={(e) => setLocalVsphereApiVIPsV6(e.target.value)}
+                            onBlur={(e) => {
+                              const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                              const currentArray = platformConfig.vsphere?.apiVIPsV6 || [];
+                              if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                                updateVsphere({ apiVIPsV6: newArray });
+                              }
+                            }}
                             placeholder={vipPlaceholdersV6.apiVipV6}
                           />
                         </FieldLabelWithInfo>
@@ -1193,8 +1218,15 @@ Only for dual-stack deployments (IPv4 + IPv6)
 fd00::3`}
                         >
                           <input
-                            value={localVsphereIngressVIPs}
-                            onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
+                            value={localVsphereIngressVIPsV6}
+                            onChange={(e) => setLocalVsphereIngressVIPsV6(e.target.value)}
+                            onBlur={(e) => {
+                              const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                              const currentArray = platformConfig.vsphere?.ingressVIPsV6 || [];
+                              if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                                updateVsphere({ ingressVIPsV6: newArray });
+                              }
+                            }}
                             placeholder={vipPlaceholdersV6.ingressVipV6}
                           />
                         </FieldLabelWithInfo>
