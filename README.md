@@ -69,7 +69,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
 - **Live YAML Preview** — Right-side resizable drawer shows real-time generated YAML as you configure. Displays install-config.yaml (or split view with agent-config.yaml for agent-based scenarios). ImageSet config visible on Operators tab. Credentials obfuscated by default with "Show sensitive values" toggle. Download individual files. Syntax highlighting for readability. Available on all configuration tabs after Blueprint lock-in.
 - **IPv6-only single-stack support** — Configure OpenShift clusters with IPv6 networking only (no IPv4). IP stack mode selector supports IPv4-only, IPv6-only, and dual-stack (IPv4+IPv6) modes. Available for bare metal and vSphere platforms (all installation methods). Automatic state migration from v1.2.x exports.
-- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
+- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle. Advanced option to bundle a complete high-side runtime package (container images + deployment scripts) for deploying the application on fully disconnected systems.
 
 <a id="quick-start-container"></a>
 ## Quick start (container)
@@ -459,6 +459,45 @@ When the Landing page or **Tools → About** shows that an update is available, 
 4. Use **Update Docs Links** to refresh cached documentation links used in the field manual.
 
 For disconnected mirror mapping in `install-config.yaml`, the generator emits `imageDigestSources` for OCP `4.14+` and `imageContentSources` for OCP `4.13` and earlier.
+
+### High-Side Runtime Package Export
+
+The **Export** options include an advanced feature: **Include high-side runtime package artifacts**. When enabled, the export bundle contains a complete runtime package for deploying the application on a fully disconnected (high-side) system:
+
+**What's included:**
+- Container images (OCI archives for backend and frontend)
+- Docker Compose configuration for deployment
+- Launch scripts (`load-runtime-images.sh`, `start-high-side.sh`)
+- Bundled configuration payload (your current state)
+- SHA256 checksums for integrity verification
+- Comprehensive startup guide (`HIGH_SIDE_STARTUP_GUIDE.md`)
+
+**Prerequisites:**
+- Container images must be built locally (`docker compose build` or `podman compose build`)
+- Images tagged as: `localhost/openshift-airgap-architect-backend:latest` and `localhost/openshift-airgap-architect-frontend:latest`
+- Podman or Docker available on the export system
+
+**Usage flow:**
+1. Enable "Include high-side runtime package artifacts" in Export options
+2. Click Export to download the bundle
+3. Transfer the bundle to the disconnected system
+4. Extract and verify checksums: `sha256sum -c SHA256SUMS.txt`
+5. Load container images: `bash runtime-package/launch/load-runtime-images.sh`
+6. Start the runtime: `bash runtime-package/launch/start-high-side.sh`
+7. Access UI at `http://localhost:5173` (backend on `localhost:4000`)
+
+**High-side behavior:**
+- Runtime starts with `AIRGAP_RUNTIME_SIDE=high-side` environment variable
+- Auto-imports bundled configuration on first startup
+- Internet-dependent features (Cincinnati, operator discovery) are automatically disabled
+- Localhost-only port binding by default (127.0.0.1)
+
+For remote access from another approved high-side workstation, use SSH port forwarding:
+```bash
+ssh -L 5173:localhost:5173 -L 4000:localhost:4000 <user>@<runtime-host>
+```
+
+See `HIGH_SIDE_STARTUP_GUIDE.md` in the runtime package for complete instructions, firewall considerations, and SELinux notes.
 
 <a id="operator-workflows"></a>
 ## Operator workflows

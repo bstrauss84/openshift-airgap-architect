@@ -45,6 +45,7 @@ import {
 } from "./utils.js";
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
+import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import {
   validateBody,
@@ -3062,6 +3063,63 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
+
+  // High-side runtime package export (DOC-083)
+  if (state.exportOptions?.includeHighSideRuntimePackage) {
+    try {
+      // Create runPayload for high-side deployment
+      const runPayload = {
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        sourceProfile: "connected-authoring",
+        state,
+        version,
+        platform: state.blueprint?.platform,
+        method: state.methodology?.method
+      };
+
+      const runtimePackage = createRuntimePackageArtifacts({
+        state,
+        exportOptions: state.exportOptions,
+        runPayload,
+        dataDir
+      });
+
+      if (runtimePackage.included) {
+        // Add all runtime package files to archive under runtime-package/ directory
+        for (const entry of runtimePackage.entries) {
+          archive.file(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
+        }
+        logger.info({
+          tag: "runtime-package",
+          filesIncluded: runtimePackage.entries.length,
+          imageCount: runtimePackage.imageEntries.length
+        }, "Runtime package added to export bundle");
+      } else {
+        // Runtime package was requested but couldn't be fully created
+        const errorMessage = runtimePackage.notes.join("\n");
+        archive.append(
+          `Runtime package could not be fully generated:\n\n${errorMessage}\n\nPlease ensure:\n- Container images are built and tagged locally\n- Podman or Docker is installed and available\n- Images: ${process.env.RUNTIME_PACKAGE_BACKEND_IMAGE || "localhost/openshift-airgap-architect-backend:latest"}, ${process.env.RUNTIME_PACKAGE_FRONTEND_IMAGE || "localhost/openshift-airgap-architect-frontend:latest"}\n`,
+          { name: "runtime-package/RUNTIME_PACKAGE_NOT_INCLUDED.txt" }
+        );
+        logger.warn({
+          tag: "runtime-package",
+          notes: runtimePackage.notes
+        }, "Runtime package requested but not fully included");
+      }
+    } catch (error) {
+      archive.append(
+        `Failed to create runtime package: ${String(error?.message || error)}\n\nStack trace:\n${error?.stack || "N/A"}\n`,
+        { name: "runtime-package/RUNTIME_PACKAGE_ERROR.txt" }
+      );
+      logger.error({
+        tag: "runtime-package",
+        error: error?.message || String(error),
+        stack: error?.stack
+      }, "Runtime package creation failed");
+    }
+  }
+
   archive.finalize();
 };
 
