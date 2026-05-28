@@ -19,6 +19,8 @@ import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
 import logger, { generateErrorId } from "./logger.js";
 import { loggingMiddleware } from "./middleware/logging.js";
+import { metricsMiddleware } from "./middleware/metrics.js";
+import { getMetrics, getMetricsContentType } from "./metrics.js";
 import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
 import { runCincinnatiBackgroundJob } from "./cincinnatiJob.js";
 import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
@@ -99,6 +101,11 @@ app.use(express.json({ limit: "10mb" }));
 // Structured request logging middleware (skip in test mode)
 if (process.env.NODE_ENV !== "test") {
   app.use(loggingMiddleware);
+}
+
+// Prometheus metrics middleware (records HTTP request duration and counts)
+if (process.env.NODE_ENV !== "test") {
+  app.use(metricsMiddleware);
 }
 
 markStaleJobs();
@@ -791,6 +798,18 @@ app.get("/api/ready", async (req, res) => {
       error: err.message,
       timestamp: new Date().toISOString()
     });
+  }
+});
+
+// Prometheus metrics endpoint: Expose instrumentation metrics for scraping
+app.get("/api/metrics", async (_req, res) => {
+  try {
+    const metrics = await getMetrics();
+    res.set("Content-Type", getMetricsContentType());
+    res.send(metrics);
+  } catch (err) {
+    logger.error({ err }, "Failed to retrieve metrics");
+    res.status(500).json({ error: "Failed to retrieve metrics" });
   }
 });
 

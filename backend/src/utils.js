@@ -13,6 +13,7 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { db, dataDir } from "./db.js";
 import logger from "./logger.js";
+import { recordJobStart, recordJobComplete, recordJobError, stateOperationsTotal } from "./metrics.js";
 
 const now = () => Date.now();
 
@@ -102,6 +103,33 @@ const updateJob = (id, patch) => {
     if (statusChanged && (isTerminalState || isRunning)) {
       const duration = updated.updated_at - current.created_at;
       logger.info({ tag: "job:update", jobId: id, type: current.type, status: updated.status, progress: updated.progress, message: updated.message, duration: isTerminalState ? `${(duration / 1000).toFixed(1)}s` : undefined }, "Job status changed");
+
+      // Record Prometheus metrics
+      const jobType = current.type; // e.g., "cincinnati-refresh", "operator-scan", "oc-mirror-run"
+
+      if (isRunning) {
+        // Job started running
+        recordJobStart(jobType);
+      } else if (isTerminalState) {
+        // Job completed/failed/cancelled
+        const durationSeconds = duration / 1000;
+        recordJobComplete(jobType, updated.status, durationSeconds);
+
+        // Record error if job failed
+        if (updated.status === "failed") {
+          // Try to classify error type from message
+          const message = updated.message?.toLowerCase() || "";
+          let errorType = "unknown";
+          if (message.includes("network") || message.includes("timeout") || message.includes("connection")) {
+            errorType = "network";
+          } else if (message.includes("auth") || message.includes("unauthorized") || message.includes("forbidden")) {
+            errorType = "auth";
+          } else if (message.includes("disk") || message.includes("space") || message.includes("storage")) {
+            errorType = "storage";
+          }
+          recordJobError(jobType, errorType);
+        }
+      }
     }
   }
 
@@ -148,6 +176,9 @@ const markStaleJobs = () => {
 
 const getState = () => {
   const row = db.prepare("SELECT state_json FROM app_state WHERE id = 'singleton'").get();
+  if (process.env.NODE_ENV !== "test") {
+    stateOperationsTotal.inc({ operation: "load" });
+  }
   if (!row) return null;
   return JSON.parse(row.state_json);
 };
@@ -156,6 +187,9 @@ const setState = (state) => {
   db.prepare(
     "INSERT INTO app_state (id, state_json, updated_at) VALUES ('singleton', ?, ?) ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at"
   ).run(JSON.stringify(state), now());
+  if (process.env.NODE_ENV !== "test") {
+    stateOperationsTotal.inc({ operation: "save" });
+  }
 };
 
 const ensureTempDir = () => {

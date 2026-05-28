@@ -756,6 +756,53 @@ The **Operations** tab provides a central view of all background jobs (Cincinnat
 
 All jobs run as background processes in the backend container. Navigation during a job does not cancel it; use the **Stop** button on the Operations tab to cancel a running oc-mirror job if needed.
 
+### Prometheus Metrics
+
+The backend exposes Prometheus metrics at `/api/metrics` for production monitoring. Metrics include HTTP request rates, latency percentiles, background job tracking, and state operations.
+
+**Quick test:**
+```bash
+curl http://localhost:3000/api/metrics
+```
+
+**Prometheus scrape configuration:**
+```yaml
+scrape_configs:
+  - job_name: 'airgap-architect'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:3000']
+    metrics_path: '/api/metrics'
+```
+
+**Key metrics:**
+- `http_requests_total` — HTTP request counts by method, route, status code
+- `http_request_duration_seconds` — Request latency histogram (p50, p95, p99)
+- `background_jobs_total` — Job counts by type (cincinnati-refresh, operator-scan, oc-mirror-run) and status
+- `background_jobs_running` — Currently running jobs gauge
+- `background_job_duration_seconds` — Job execution time histogram
+- `app_state_operations_total` — State save/load operation counts
+
+**Grafana dashboards:**
+
+Example PromQL queries for dashboards:
+
+```promql
+# Request rate by endpoint
+sum(rate(http_requests_total[5m])) by (route)
+
+# p95 request latency
+histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route))
+
+# Job success rate
+sum(rate(background_jobs_total{status="completed"}[5m])) / sum(rate(background_jobs_total[5m])) * 100
+
+# Currently running oc-mirror jobs
+background_jobs_running{job_type="oc-mirror-run"}
+```
+
+See **`docs/METRICS.md`** for complete metric definitions, labels, bucket configurations, alert examples, and Grafana dashboard templates.
+
 <a id="mock-mode-offline-demo"></a>
 ## Mock mode (offline demo)
 
