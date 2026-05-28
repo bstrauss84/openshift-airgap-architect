@@ -2313,7 +2313,7 @@ bx2-4x16 (development/test)`}
                   <input
                     value={platformConfig.ibmcloud?.defaultMachinePlatformProfile || ""}
                     onChange={(e) => updateIbmCloud({ defaultMachinePlatformProfile: e.target.value || undefined })}
-                    placeholder="e.g. bx2-8x32"
+                    placeholder="e.g. bx2-4x16"
                     style={{ maxWidth: "250px" }}
                   />
                 </FieldLabelWithInfo>
