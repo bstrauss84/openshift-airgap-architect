@@ -76,6 +76,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/steps/ConnectivityMirroringStep.jsx`, `frontend/src/validation.js`
 - Tests: `frontend/tests/ntp-validation.test.js` (27 tests covering all validation scenarios)
 
+#### **vSphere IPI IPv6 VIP Fields Duplicating IPv4 Values**
+- Fixed vSphere IPI IPv6 VIP fields showing IPv4 values in dual-stack mode
+- Created separate React state variables for IPv6 VIPs:
+  - `localVsphereApiVIPsV6` for IPv6 API VIPs
+  - `localVsphereIngressVIPsV6` for IPv6 Ingress VIPs
+- Fixed onChange and onBlur handlers to update correct state (IPv6 fields were wired to IPv4 state)
+- IPv6 fields now properly manage their own values independent of IPv4 fields
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`
+- Commit: b1f25f1
+
+#### **VIP IP Address Validation**
+- Added comprehensive VIP IP address validation for all scenarios
+- Validates IPv4 addresses (octets 0-255, proper format)
+- Validates IPv6 addresses (proper format, single :: abbreviation)
+- Supports comma-separated VIP arrays (vSphere IPI)
+- Supports single VIPs (bare metal, Nutanix, vSphere Agent)
+- Scenario-specific validation:
+  - vSphere IPI: `platformConfig.vsphere.apiVIPs` / `ingressVIPs` / `apiVIPsV6` / `ingressVIPsV6` (arrays)
+  - Nutanix IPI: `platformConfig.nutanix.apiVIP` / `ingressVIP` / `apiVIPV6` / `ingressVIPV6` (single values)
+  - Bare metal/vSphere Agent: `hostInventory.apiVip` / `ingressVip` / `apiVipV6` / `ingressVipV6` (single values)
+- Applied inline validation display to all VIP fields:
+  - Red border (`className="input-error"`)
+  - Hover tooltip (`title={errorMessage}`)
+  - Accessibility (`aria-invalid="true"`)
+  - Inline error message (`<span className="note warning inline">`)
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
+- Tests: `frontend/tests/vip-validation.test.js` (28 tests covering all scenarios and validation cases)
+
 ### Changed
 
 **Build and Infrastructure**

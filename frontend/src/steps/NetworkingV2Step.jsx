@@ -1151,8 +1151,10 @@ Set IPv6 below for dual-stack deployments
                               }
                             }}
                             placeholder={vipPlaceholders.apiVip}
+                            aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                         <FieldLabelWithInfo
                           label="IPv6"
                           hint={`Second API VIP for dual-stack (IPv6).
@@ -1164,6 +1166,8 @@ Only for dual-stack deployments (IPv4 + IPv6)
 fd00::2`}
                         >
                           <input
+                            className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                            title={fieldErrors.apiVipV6 || ""}
                             value={localVsphereApiVIPsV6}
                             onChange={(e) => setLocalVsphereApiVIPsV6(e.target.value)}
                             onBlur={(e) => {
@@ -1174,8 +1178,10 @@ fd00::2`}
                               }
                             }}
                             placeholder={vipPlaceholdersV6.apiVipV6}
+                            aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                       </div>
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
@@ -1205,8 +1211,10 @@ Set IPv6 below for dual-stack deployments
                               }
                             }}
                             placeholder={vipPlaceholders.ingressVip}
+                            aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                         <FieldLabelWithInfo
                           label="IPv6"
                           hint={`Second Ingress VIP for dual-stack (IPv6).
@@ -1218,6 +1226,8 @@ Only for dual-stack deployments (IPv4 + IPv6)
 fd00::3`}
                         >
                           <input
+                            className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                            title={fieldErrors.ingressVipV6 || ""}
                             value={localVsphereIngressVIPsV6}
                             onChange={(e) => setLocalVsphereIngressVIPsV6(e.target.value)}
                             onBlur={(e) => {
@@ -1228,8 +1238,10 @@ fd00::3`}
                               }
                             }}
                             placeholder={vipPlaceholdersV6.ingressVipV6}
+                            aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                       </div>
                     </>
                   ) : (
@@ -1313,7 +1325,7 @@ Orders VIPs to match machine networks (IPv4 first, then IPv6)
                         >
                           <input
                             className={fieldErrors.apiVip ? "input-error" : ""}
-                      title={fieldErrors.apiVip || ""}
+                            title={fieldErrors.apiVip || ""}
                             value={localApiVip}
                             onChange={(e) => setLocalApiVip(e.target.value)}
                             onBlur={(e) => {
@@ -1323,8 +1335,10 @@ Orders VIPs to match machine networks (IPv4 first, then IPv6)
                               }
                             }}
                             placeholder={vipPlaceholders.apiVip}
+                            aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary API VIP for dual-stack (IPv6).
 
 **When to set:**
@@ -1337,7 +1351,7 @@ IPv4-only clusters
 fd00::1`}>
                           <input
                             className={fieldErrors.apiVipV6 ? "input-error" : ""}
-                      title={fieldErrors.apiVipV6 || ""}
+                            title={fieldErrors.apiVipV6 || ""}
                             value={localApiVipV6}
                             onChange={(e) => setLocalApiVipV6(e.target.value)}
                             onBlur={(e) => {
@@ -1347,8 +1361,10 @@ fd00::1`}>
                               }
                             }}
                             placeholder={vipPlaceholdersV6.apiVipV6}
+                            aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                       </div>
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
@@ -1368,7 +1384,7 @@ Set IPv6 below for dual-stack deployments
                         >
                           <input
                             className={fieldErrors.ingressVip ? "input-error" : ""}
-                      title={fieldErrors.ingressVip || ""}
+                            title={fieldErrors.ingressVip || ""}
                             value={localIngressVip}
                             onChange={(e) => setLocalIngressVip(e.target.value)}
                             onBlur={(e) => {
@@ -1378,8 +1394,10 @@ Set IPv6 below for dual-stack deployments
                               }
                             }}
                             placeholder={vipPlaceholders.ingressVip}
+                            aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary Ingress VIP for dual-stack (IPv6).
 
 **When to set:**
@@ -1392,7 +1410,7 @@ IPv4-only clusters
 fd00::2`}>
                           <input
                             className={fieldErrors.ingressVipV6 ? "input-error" : ""}
-                      title={fieldErrors.ingressVipV6 || ""}
+                            title={fieldErrors.ingressVipV6 || ""}
                             value={localIngressVipV6}
                             onChange={(e) => setLocalIngressVipV6(e.target.value)}
                             onBlur={(e) => {
@@ -1402,8 +1420,10 @@ fd00::2`}>
                               }
                             }}
                             placeholder={vipPlaceholdersV6.ingressVipV6}
+                            aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
+                        {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                       </div>
                     </>
                   ) : (
@@ -1469,7 +1489,7 @@ Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
                         >
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
-                      title={fieldErrors.apiVip || ""}
+                          title={fieldErrors.apiVip || ""}
                           value={localApiVip}
                           onChange={(e) => setLocalApiVip(e.target.value)}
                           onBlur={(e) => {
@@ -1479,8 +1499,10 @@ Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
                             }
                           }}
                           placeholder={vipPlaceholders.apiVip}
+                          aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                       <FieldLabelWithInfo
                         label="IPv6"
                         hint={`Second API VIP for dual-stack (IPv6).
@@ -1499,7 +1521,7 @@ fd00::1`}
                       >
                         <input
                           className={fieldErrors.apiVipV6 ? "input-error" : ""}
-                      title={fieldErrors.apiVipV6 || ""}
+                          title={fieldErrors.apiVipV6 || ""}
                           value={localApiVipV6}
                           onChange={(e) => setLocalApiVipV6(e.target.value)}
                           onBlur={(e) => {
@@ -1509,8 +1531,10 @@ fd00::1`}
                             }
                           }}
                           placeholder={vipPlaceholdersV6.apiVipV6}
+                          aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                     </div>
                     <div className="vip-group">
                       <h5 className="vip-group-header">Ingress Virtual IP</h5>
@@ -1530,7 +1554,7 @@ Emitted ingressVIPs order is IPv4 then IPv6
                       >
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
-                      title={fieldErrors.ingressVip || ""}
+                          title={fieldErrors.ingressVip || ""}
                           value={localIngressVip}
                           onChange={(e) => setLocalIngressVip(e.target.value)}
                           onBlur={(e) => {
@@ -1540,8 +1564,10 @@ Emitted ingressVIPs order is IPv4 then IPv6
                             }
                           }}
                           placeholder={vipPlaceholders.ingressVip}
+                          aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                       <FieldLabelWithInfo
                         label="IPv6"
                         hint={`Second Ingress VIP for dual-stack (IPv6).
@@ -1557,7 +1583,7 @@ fd00::2`}
                       >
                         <input
                           className={fieldErrors.ingressVipV6 ? "input-error" : ""}
-                      title={fieldErrors.ingressVipV6 || ""}
+                          title={fieldErrors.ingressVipV6 || ""}
                           value={localIngressVipV6}
                           onChange={(e) => setLocalIngressVipV6(e.target.value)}
                           onBlur={(e) => {
@@ -1567,8 +1593,10 @@ fd00::2`}
                             }
                           }}
                           placeholder={vipPlaceholdersV6.ingressVipV6}
+                          aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                     </div>
                     </>
                   ) : ipStackMode === 'ipv6' ? (
@@ -1599,8 +1627,10 @@ fd00::1`}
                             }
                           }}
                           placeholder={vipPlaceholdersV6.apiVipV6}
+                          aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                       <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={`Virtual IP address for the default ingress router load balancer (IPv6-only).
@@ -1627,8 +1657,10 @@ fd00::2`}
                             }
                           }}
                           placeholder={vipPlaceholdersV6.ingressVipV6}
+                          aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                     </>
                   ) : (
                     <>
@@ -1648,7 +1680,7 @@ Single IPv4 address (not comma-separated)
                       >
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
-                      title={fieldErrors.apiVip || ""}
+                          title={fieldErrors.apiVip || ""}
                           value={localApiVip}
                           onChange={(e) => setLocalApiVip(e.target.value)}
                           onBlur={(e) => {
@@ -1658,8 +1690,10 @@ Single IPv4 address (not comma-separated)
                             }
                           }}
                           placeholder={vipPlaceholders.apiVip}
+                          aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                       <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={`Virtual IP address for the default ingress router load balancer.
@@ -1676,7 +1710,7 @@ Single IPv4 address (not comma-separated)
                       >
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
-                      title={fieldErrors.ingressVip || ""}
+                          title={fieldErrors.ingressVip || ""}
                           value={localIngressVip}
                           onChange={(e) => setLocalIngressVip(e.target.value)}
                           onBlur={(e) => {
@@ -1686,8 +1720,10 @@ Single IPv4 address (not comma-separated)
                             }
                           }}
                           placeholder={vipPlaceholders.ingressVip}
+                          aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                     </>
                   )
                 ) : null}

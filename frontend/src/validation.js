@@ -964,6 +964,89 @@ const validateNtpServers = (state) => {
   return { errors, warnings: [], fieldErrors };
 };
 
+/** Validate VIP IP addresses (single or comma-separated IPv4/IPv6 addresses) */
+const validateVipAddresses = (state) => {
+  const errors = [];
+  const fieldErrors = {};
+  const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+  const hostInventory = state.hostInventory || {};
+  const platformConfig = state.platformConfig || {};
+
+  // Helper to validate a single VIP (IPv4 or IPv6)
+  const validateSingleVip = (vip, fieldName, ipVersion) => {
+    const trimmed = vip.trim();
+    if (!trimmed) return; // Empty is okay (field might be optional)
+
+    if (ipVersion === "ipv4") {
+      if (!isValidIpv4(trimmed)) {
+        errors.push(`${fieldName} "${trimmed}" is not a valid IPv4 address.`);
+        fieldErrors[fieldName] = "Invalid IPv4 address";
+      }
+    } else if (ipVersion === "ipv6") {
+      if (!isValidIpv6(trimmed)) {
+        errors.push(`${fieldName} "${trimmed}" is not a valid IPv6 address.`);
+        fieldErrors[fieldName] = "Invalid IPv6 address";
+      }
+    }
+  };
+
+  // Helper to validate comma-separated VIPs (for vSphere IPI arrays)
+  const validateVipArray = (vipString, fieldName, ipVersion) => {
+    if (!vipString || vipString.trim() === "") return;
+
+    const vips = vipString.split(",").map(v => v.trim()).filter(Boolean);
+    for (const vip of vips) {
+      validateSingleVip(vip, fieldName, ipVersion);
+    }
+  };
+
+  // Validate based on scenario
+  if (scenarioId === "vsphere-ipi") {
+    // vSphere IPI uses arrays (comma-separated)
+    const apiVIPs = Array.isArray(platformConfig.vsphere?.apiVIPs)
+      ? platformConfig.vsphere.apiVIPs.join(",")
+      : "";
+    const ingressVIPs = Array.isArray(platformConfig.vsphere?.ingressVIPs)
+      ? platformConfig.vsphere.ingressVIPs.join(",")
+      : "";
+    const apiVIPsV6 = Array.isArray(platformConfig.vsphere?.apiVIPsV6)
+      ? platformConfig.vsphere.apiVIPsV6.join(",")
+      : "";
+    const ingressVIPsV6 = Array.isArray(platformConfig.vsphere?.ingressVIPsV6)
+      ? platformConfig.vsphere.ingressVIPsV6.join(",")
+      : "";
+
+    validateVipArray(apiVIPs, "apiVip", "ipv4");
+    validateVipArray(ingressVIPs, "ingressVip", "ipv4");
+    validateVipArray(apiVIPsV6, "apiVipV6", "ipv6");
+    validateVipArray(ingressVIPsV6, "ingressVipV6", "ipv6");
+  } else if (scenarioId === "nutanix-ipi") {
+    // Nutanix IPI uses single VIPs
+    const apiVIP = platformConfig.nutanix?.apiVIP || "";
+    const ingressVIP = platformConfig.nutanix?.ingressVIP || "";
+    const apiVIPV6 = platformConfig.nutanix?.apiVIPV6 || "";
+    const ingressVIPV6 = platformConfig.nutanix?.ingressVIPV6 || "";
+
+    validateSingleVip(apiVIP, "nutanixApiVIP", "ipv4");
+    validateSingleVip(ingressVIP, "nutanixIngressVIP", "ipv4");
+    validateSingleVip(apiVIPV6, "nutanixApiVIPV6", "ipv6");
+    validateSingleVip(ingressVIPV6, "nutanixIngressVIPV6", "ipv6");
+  } else {
+    // Bare metal IPI/Agent, vSphere Agent use hostInventory
+    const apiVip = hostInventory.apiVip || "";
+    const ingressVip = hostInventory.ingressVip || "";
+    const apiVipV6 = hostInventory.apiVipV6 || "";
+    const ingressVipV6 = hostInventory.ingressVipV6 || "";
+
+    validateSingleVip(apiVip, "apiVip", "ipv4");
+    validateSingleVip(ingressVip, "ingressVip", "ipv4");
+    validateSingleVip(apiVipV6, "apiVipV6", "ipv6");
+    validateSingleVip(ingressVipV6, "ingressVipV6", "ipv6");
+  }
+
+  return { errors, warnings: [], fieldErrors };
+};
+
 /** Networking format: machine/cluster/service CIDRs, API/Ingress VIPs, provisioning CIDR and cluster provisioning IP must be valid IPv4/CIDR. */
 const validateNetworkingFormat = (state) => {
   const errors = [];
@@ -1468,6 +1551,7 @@ const validateStep = (state, stepId) => {
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
     const ntpServersValidation = validateNtpServers(state);
+    const vipValidation = validateVipAddresses(state);
     return {
       errors: [
         ...version.errors,
@@ -1482,7 +1566,8 @@ const validateStep = (state, stepId) => {
         ...vipsInMachineV6.errors,
         ...credentials.errors,
         ...mirrorSecret.errors,
-        ...ntpServersValidation.errors
+        ...ntpServersValidation.errors,
+        ...vipValidation.errors
       ],
       warnings: [
         ...version.warnings,
@@ -1648,6 +1733,9 @@ const validateStep = (state, stepId) => {
     Object.assign(fieldErrors, vipsInMachine.fieldErrors);
     Object.assign(fieldErrors, vipsInMachineV6.fieldErrors);
     Object.assign(fieldErrors, ipStackMode.fieldErrors);
+    // Validate VIP IP address formats
+    const vipValidation = validateVipAddresses(state);
+    Object.assign(fieldErrors, vipValidation.fieldErrors);
     // Catalog-driven requiredness (bare-metal-agent): apiVIPs/ingressVIPs required for multi-node Agent-based
     // (doc: validation checks before agent ISO creation). SNO (1 control plane, 0 workers) uses platform.none and does not require VIPs.
     const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
@@ -1690,7 +1778,7 @@ const validateStep = (state, stepId) => {
       }
     }
     return {
-      errors: [...format.errors, ...ipStackMode.errors, ...networking.errors, ...vipsInMachine.errors, ...vipsInMachineV6.errors],
+      errors: [...format.errors, ...ipStackMode.errors, ...networking.errors, ...vipsInMachine.errors, ...vipsInMachineV6.errors, ...vipValidation.errors],
       warnings: networking.warnings || [],
       fieldErrors
     };
