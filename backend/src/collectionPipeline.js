@@ -81,10 +81,23 @@ export async function createCollectionPipeline({
     name,
     namespace: ns,
     pvc,
-    triggerType
+    triggerType,
+    group: GROUP,
+    version: VERSION,
+    plural: PLURAL
   }, "Creating CollectionPipeline CR");
 
   try {
+    logger.debug({
+      params: {
+        group: GROUP,
+        version: VERSION,
+        namespace: ns,
+        plural: PLURAL,
+        body: collectionPipeline
+      }
+    }, "Calling createNamespacedCustomObject with parameters");
+
     const response = await client.createNamespacedCustomObject(
       GROUP,
       VERSION,
@@ -105,7 +118,9 @@ export async function createCollectionPipeline({
       name,
       namespace: ns,
       error: error.message,
-      statusCode: error.response?.statusCode
+      errorStack: error.stack,
+      statusCode: error.response?.statusCode,
+      responseBody: error.response?.body
     }, "Failed to create CollectionPipeline CR");
 
     throw new Error(`Failed to create CollectionPipeline: ${error.body?.message || error.message}`);
