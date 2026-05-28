@@ -3328,8 +3328,8 @@ if (process.env.NODE_ENV !== "test") {
       }
     }, 60000);
 
-    // Schedule daily cleanup
-    const cleanupInterval = setInterval(() => {
+    // Schedule daily cleanup (stored globally to clear on shutdown)
+    global.cleanupInterval = setInterval(() => {
       try {
         const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
         if (result.totalDeleted > 0) {
@@ -3339,15 +3339,13 @@ if (process.env.NODE_ENV !== "test") {
         logger.error({ err, tag: "job_cleanup" }, "Scheduled job cleanup failed");
       }
     }, cleanupIntervalMs);
-
-    // Clear interval on shutdown
-    const originalShutdown = shutdown;
-    shutdown = (signal) => {
-      clearInterval(cleanupInterval);
-      originalShutdown(signal);
-    };
   });
   const shutdown = (signal) => {
+    // Clear cleanup interval if it exists
+    if (global.cleanupInterval) {
+      clearInterval(global.cleanupInterval);
+      global.cleanupInterval = null;
+    }
     logger.info({ tag: "shutdown", signal }, "Shutting down");
     // Kill any active child processes (oc-mirror runs, scan jobs).
     for (const [, child] of activeProcesses.entries()) {

@@ -924,7 +924,7 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
               )}
               <div className="vip-field-grid">
                 {showNutanixIpiVips ? (
-                  showIpv6ForPlatform ? (
+                  ipStackMode === 'dual-stack' ? (
                     <>
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
@@ -1058,6 +1058,76 @@ fd00::6`}>
                         {fieldErrors.nutanixIngressVIPV6 && <span className="note warning inline">{fieldErrors.nutanixIngressVIPV6}</span>}
                       </div>
                     </>
+                  ) : ipStackMode === 'ipv6' ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP (IPv6)"
+                        hint={`Virtual IP address for the Kubernetes API server load balancer (IPv6).
+
+**What is this:**
+The IPv6 address that clients use to communicate with the cluster API (kubectl, oc, CI/CD)
+
+**Requirements:**
+• Must be an **unused IPv6 address** on the same network as cluster nodes
+• Must **not be in DHCP/SLAAC range** - reserve it
+
+**DNS requirement:**
+api.<cluster-name>.<base-domain> → this VIP
+
+**Example:**
+If machine network is fd10:90::/64, use fd10:90::5`}
+                        required={isRequired("platform.nutanix.apiVIPV6")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixApiVIPV6 ? "input-error" : ""}
+                          title={fieldErrors.nutanixApiVIPV6 || ""}
+                          value={localNutanixApiVIPV6}
+                          onChange={(e) => setLocalNutanixApiVIPV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== platformConfig.nutanix?.apiVIPV6) {
+                              updateNutanix({ apiVIPV6: newValue });
+                            }
+                          }}
+                          placeholder={vipPlaceholdersV6.apiVipV6}
+                        />
+                      </FieldLabelWithInfo>
+                      {fieldErrors.nutanixApiVIPV6 && <span className="note warning inline">{fieldErrors.nutanixApiVIPV6}</span>}
+                      <FieldLabelWithInfo
+                        label="Ingress VIP (IPv6)"
+                        hint={`Virtual IP address for the default ingress router load balancer (IPv6).
+
+**What is this:**
+The IPv6 address where external HTTP/HTTPS traffic enters the cluster to reach your applications
+
+**Requirements:**
+• Must be an **unused IPv6 address** on the same network as cluster nodes
+• Must be **different from API VIP** (but on same network)
+• Must **not be in DHCP/SLAAC range** - reserve it
+
+**DNS requirement:**
+*.apps.<cluster-name>.<base-domain> → this VIP (wildcard)
+
+**Example:**
+If machine network is fd10:90::/64, use fd10:90::6`}
+                        required={isRequired("platform.nutanix.ingressVIPV6")}
+                      >
+                        <input
+                          className={fieldErrors.nutanixIngressVIPV6 ? "input-error" : ""}
+                          title={fieldErrors.nutanixIngressVIPV6 || ""}
+                          value={localNutanixIngressVIPV6}
+                          onChange={(e) => setLocalNutanixIngressVIPV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== platformConfig.nutanix?.ingressVIPV6) {
+                              updateNutanix({ ingressVIPV6: newValue });
+                            }
+                          }}
+                          placeholder={vipPlaceholdersV6.ingressVipV6}
+                        />
+                      </FieldLabelWithInfo>
+                      {fieldErrors.nutanixIngressVIPV6 && <span className="note warning inline">{fieldErrors.nutanixIngressVIPV6}</span>}
+                    </>
                   ) : (
                     <>
                       <FieldLabelWithInfo
@@ -1121,7 +1191,7 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                     </>
                   )
                 ) : showVsphereIpiVips ? (
-                  showIpv6ForPlatform ? (
+                  ipStackMode === 'dual-stack' ? (
                     <>
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
