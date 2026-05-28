@@ -1,10 +1,10 @@
 # Implementation Roadmap (Semantic Versioning)
 
 **Created:** 2026-05-14  
-**Last Updated:** 2026-05-27  
+**Last Updated:** 2026-05-28  
 **Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md  
 **Replaces:** docs/REVISED_PHASED_PLAN_2026-05-10.md (as active roadmap)  
-**Current Version:** 1.6.0 (released 2026-05-27)
+**Current Version:** 1.7.0 (in progress - 6/14 items complete)
 
 ---
 
@@ -635,13 +635,70 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
-### v1.7.0 (Minor) - 4-6 weeks
+### v1.7.0 (Minor) - ⚡ **IN PROGRESS** (6/14 complete - 43%)
 
-**Purpose:** "Complete the Foundation" - Finish deferred work from v1.6.0 + production readiness
-
-**Theme:** Enterprise readiness and production scaling
-
+**Started:** 2026-05-28  
+**Purpose:** "Complete the Foundation" - Finish deferred work from v1.6.0 + production readiness  
+**Theme:** Enterprise readiness and production scaling  
 **Estimated Effort:** 25-35 engineering days (4-6 calendar weeks)
+
+#### Completion Status (as of 2026-05-28)
+
+**✅ Completed (6 items):**
+1. ✅ **High-Priority Missing Parameters** (20 parameters added, DOC-082)
+   - Machine pool configuration (10 params)
+   - Advanced networking (5 params)
+   - Platform-specific advanced (5 params)
+   - Commit: Multiple commits 2026-05-28
+   - Tests: 707 frontend tests passing
+
+2. ✅ **Runtime Package Export Integration** (DOC-083)
+   - Backend integration in buildBundleZip
+   - Frontend ReviewStep UI toggle enabled
+   - Integration tests (10 tests passing)
+   - README documentation updated
+   - Commit: 2026-05-28
+
+3. ✅ **vSphere Deprecation Marking** (5 fields)
+   - Legacy fields marked deprecated in catalogs
+   - CollapsibleSection UI for legacy fields
+   - Migration guidance in tooltips
+   - Warning badges (⚠️ Deprecated)
+   - Commit: 2026-05-28
+
+4. ✅ **PROD-008: Prometheus Metrics** (Instrumentation complete)
+   - HTTP request metrics (duration, counters)
+   - Background job metrics (total, running, duration, errors)
+   - State operation metrics
+   - /api/metrics endpoint
+   - 30 new tests passing
+   - Documentation: docs/METRICS.md (540+ lines)
+   - Commit: ce66970 (2026-05-28)
+
+5. ✅ **PROD-010: E2E Tests** (Infrastructure complete)
+   - Playwright test framework configured
+   - 12 E2E tests across 3 suites
+   - Wizard completion, import/export, operations tests
+   - Documentation: e2e/README.md (130+ lines)
+   - Commit: d9fd04c (2026-05-28)
+
+6. ✅ **PROD-011: Load Testing** (Documentation & infrastructure)
+   - Load test script (scripts/load-test.sh, 5 scenarios)
+   - Documentation: docs/LOAD_TESTING.md (520+ lines)
+   - Performance baselines documented
+   - README updated
+   - Status: done_pending_verification (awaits execution)
+   - Commit: 39bd842 (2026-05-28)
+
+**🚧 Remaining (8 items):**
+- PROD-009: Formal database migration system
+- PROD-012: Automated job cleanup/retention policy
+- PROD-013: Capacity planning documentation update
+- PHX-031: Host apply confirmation modal
+- PHX-033: Post-import credentials warning
+- PHX-035: Post-import certificate exclusion warning
+- PHX-034: Backend test coverage expansion
+- Final integration testing and release preparation
 
 #### Core Items (6 categories, 14 total items)
 
