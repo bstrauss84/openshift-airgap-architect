@@ -32,9 +32,9 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
 
   if (!isOpen) return null;
 
-  const version = appVersion || "1.1.0";
-  const sha = gitSha ? gitSha.slice(0, 7) : "dev";
-  const buildDate = buildTime ? new Date(buildTime).toLocaleDateString() : "unknown";
+  const version = appVersion || "1.7.0-dev";
+  const sha = gitSha && gitSha !== "unknown" ? gitSha.slice(0, 7) : "dev";
+  const buildDate = buildTime && buildTime !== "unknown" ? new Date(buildTime).toLocaleDateString() : "dev build";
 
   return createPortal(
     <>
