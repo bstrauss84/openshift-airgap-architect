@@ -6109,6 +6109,13 @@ input[placeholder*="corp.local"] {
   max-width: 400px;
 }
 
+/* Password inputs with show/hide toggles should not have max-width constraint
+   to prevent width changes when toggling between type="password" and type="text" */
+.password-input-with-toggle input[type="password"],
+.password-input-with-toggle input[type="text"] {
+  max-width: none;
+}
+
 /* Ensure all labels in platform-specifics have consistent font-size */
 .platform-specifics .field-grid label,
 .platform-specifics .field-grid .field-label-with-info,

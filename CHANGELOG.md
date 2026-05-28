@@ -98,6 +98,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Files: `frontend/src/steps/NetworkingV2Step.jsx`
 - Commit: b1f25f1
 
+#### **Password Field Size Regression**
+- Fixed password input fields changing width when toggling between hidden (type="password") and shown (type="text") states
+- Root cause: CSS rule `.platform-specifics .field-grid input[type="password"] { max-width: 400px }` applied to type="password" but not type="text"
+- When user clicked "Show" button, input type changed to "text", max-width constraint removed, field expanded to fill flex container
+- Fix: Applied `password-input-with-toggle` CSS class to password field containers
+- Added CSS override: `.password-input-with-toggle input[type="password"], .password-input-with-toggle input[type="text"] { max-width: none }`
+- Password inputs now use `flex: 1` without max-width constraint, maintaining consistent width in both hidden and shown states
+- Updated vSphere and Nutanix password fields to use semantic CSS classes instead of inline styles
+- Affected fields: vCenter password (vSphere IPI), Prism Central password (Nutanix IPI)
+- Files: `frontend/src/styles.css`, `frontend/src/steps/PlatformSpecificsStep.jsx`
+
 #### **VIP IP Address Validation**
 - Added comprehensive VIP IP address validation for all scenarios
 - Validates IPv4 addresses (octets 0-255, proper format)

@@ -2427,7 +2427,7 @@ us-south-1,us-south-2 (for us-south region with 2 zones)`}
                   hint={"Password for the Prism Central username specified above. This credential is used during OpenShift installation to authenticate API calls for provisioning VMs, configuring networks, and managing cluster infrastructure. The installer stores this password in plain text in the install-config.yaml file (unless you choose to exclude credentials at export time), so treat the install-config with appropriate security controls.\n\n**Important security notes:**\n1. DO NOT allow your browser to save this password - it will be embedded in plain text in the generated config file. Use your browser's password manager ignore features if prompted\n2. After installation completes, you can remove the credentials from install-config.yaml if you no longer need them (though some day-2 operations may require them)\n3. Store install-config.yaml securely - never commit it to version control or place it in shared/public storage with credentials included\n4. Consider using a dedicated service account with limited permissions instead of the main admin account for better security and auditability\n5. Rotate credentials periodically and update any stored install-config files accordingly\n\n**Credential inclusion:** When you export/generate the install-config, you'll have an option to include or exclude credentials. If excluded, you must provide credentials separately when running openshift-install (via prompts or environment variables). If included, the install-config is self-contained but more sensitive. For production deployments, many organizations use temporary credentials that are rotated or revoked after installation, or use secrets management tools (HashiCorp Vault, AWS Secrets Manager) instead of plain text storage."}
                   className="field-medium"
                 >
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div className="password-input-with-toggle">
                     <input
                       type={showNutanixPassword ? "text" : "password"}
                       autoComplete="new-password"
@@ -2440,12 +2440,10 @@ us-south-1,us-south-2 (for us-south region with 2 zones)`}
                       onChange={(e) => setLocalNutanixPassword(e.target.value)}
                       onBlur={() => updateNutanix({ password: localNutanixPassword })}
                       placeholder="••••••••"
-                      style={{ flex: "1 1 auto", minWidth: 0 }}
                     />
                     <button
                       type="button"
-                      className="ghost"
-                      style={{ padding: "2px 8px", fontSize: "0.75rem", flexShrink: 0 }}
+                      className="ghost password-toggle-btn"
                       onClick={() => setShowNutanixPassword((s) => !s)}
                       aria-label={showNutanixPassword ? "Hide password" : "Show password"}
                     >
@@ -2800,7 +2798,7 @@ The password is included in generated install-config.yaml **only when** you choo
 ⚠️ **Do not allow your browser to save this password** - it will be embedded in **plain text** in the install-config
 ⚠️ After installation, you can remove credentials from the file if needed`}
                 >
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <div className="password-input-with-toggle">
                     <input
                       type={showVspherePassword ? "text" : "password"}
                       autoComplete="new-password"
@@ -2814,14 +2812,12 @@ The password is included in generated install-config.yaml **only when** you choo
                       onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: localVspherePassword } })}
                       placeholder="••••••••"
                       aria-label="vCenter password (optional)"
-                      style={{ flex: 1, minWidth: 0 }}
                     />
                     <button
                       type="button"
-                      className="ghost"
+                      className="ghost password-toggle-btn"
                       onClick={() => setShowVspherePassword((s) => !s)}
                       aria-label={showVspherePassword ? "Hide password" : "Show password"}
-                      style={{ flexShrink: 0, padding: "0.5rem 0.75rem", fontSize: "0.8125rem" }}
                     >
                       <span aria-hidden>{showVspherePassword ? " " : "\u{1F441}"}</span>
                       {showVspherePassword ? "Hide" : "Show"}
