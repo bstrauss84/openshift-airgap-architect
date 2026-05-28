@@ -226,6 +226,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `backend/src/index.js` - Scheduled cleanup on startup and daily interval
   - `docs/JOB_CLEANUP_AND_VACUUM.md` - Complete cleanup and VACUUM strategy guide
 - Integration with existing manual cleanup endpoint (backwards compatible)
+- Tests: `backend/test/server-lifecycle.test.js` (5 comprehensive startup regression tests):
+  - Server starts successfully without const reassignment errors
+  - Cleanup interval is scheduled on startup
+  - Shutdown handler clears cleanup interval without errors
+  - Server can start, run, and shutdown multiple times without errors
+  - Cleanup interval uses global scope correctly
+  - Prevents regression of critical backend startup crash (TypeError: Assignment to constant variable)
 
 #### **PROD-013: Updated Capacity Planning Documentation**
 - Updated `docs/CAPACITY_PLANNING.md` to v1.1 with comprehensive database maintenance guidance
