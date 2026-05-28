@@ -68,7 +68,12 @@ const RunCollectionStep = () => {
         setCreated(true);
         setPipelineInfo(response.pipeline);
       } else {
-        setError(response.error || "Failed to create CollectionPipeline");
+        // Handle 409 conflict error with helpful message
+        if (response.existingName) {
+          setError(`A CollectionPipeline named "${response.existingName}" already exists. Please choose a different name.`);
+        } else {
+          setError(response.error || "Failed to create CollectionPipeline");
+        }
       }
     } catch (err) {
       setError(err.message || "Failed to create CollectionPipeline");

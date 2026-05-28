@@ -1205,6 +1205,15 @@ app.post("/api/collection-pipeline/create", async (req, res) => {
     });
   } catch (error) {
     logger.error({ error: error.message, name }, "Failed to create CollectionPipeline");
+
+    // Handle "AlreadyExists" error (409 conflict)
+    if (error.message.includes("already exists") || error.message.includes("AlreadyExists")) {
+      return res.status(409).json({
+        error: `A CollectionPipeline named "${name}" already exists. Please choose a different name or delete the existing one.`,
+        existingName: name
+      });
+    }
+
     res.status(500).json({
       error: error.message
     });
