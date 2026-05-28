@@ -37,7 +37,7 @@ jobs:
           echo "Installing backend dependencies..."
           npm ci
           echo "Running backend tests..."
-          npm test -- --reporter=spec 2>&1 | tee test-output.log
+          npm test 2>&1 | tee test-output.log
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo "::error::Backend tests failed. See test-output.log for details."
             exit 1
