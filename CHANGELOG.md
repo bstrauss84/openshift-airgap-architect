@@ -196,6 +196,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `docs/DATABASE_MIGRATIONS.md` - 625-line comprehensive migration guide
 - Tests: `backend/test/migrations.test.js` (16 tests covering all migration operations)
 
+#### **PROD-012: Automated Job Cleanup and Retention Policy**
+- Implemented automated job cleanup to prevent unbounded database growth
+- Configurable retention policy with two cleanup criteria:
+  - **Age-based**: Delete jobs older than `JOB_RETENTION_DAYS` (default: 7 days)
+  - **Count-based**: Delete oldest jobs if total exceeds `JOB_MAX_COUNT` (default: 100 jobs)
+- Running jobs never deleted regardless of age or count limits
+- Scheduled cleanup execution:
+  - Initial cleanup 60 seconds after server startup (allows startup jobs to complete)
+  - Daily cleanup every 24 hours thereafter
+- Only terminal state jobs eligible for deletion: `completed`, `failed`, `cancelled`
+- Cleanup logic:
+  1. Delete terminal jobs where `updated_at < NOW - retention_days`
+  2. If total jobs > max_count, delete oldest terminal jobs until within limit
+  3. Running jobs (`status = 'running'`) excluded from both passes
+- Environment variables:
+  - `JOB_RETENTION_DAYS` (default: 7) - Keep jobs newer than this many days
+  - `JOB_MAX_COUNT` (default: 100) - Keep at most this many total jobs
+- Structured logging for cleanup events (success/failure with deletion stats)
+- Manual cleanup API still available: `DELETE /api/jobs?completed=true`
+- SQLite VACUUM strategy documentation:
+  - When to VACUUM (disk space reclamation, defragmentation)
+  - Performance impact (locks database, requires 2x space, best during low usage)
+  - Manual VACUUM procedures (SQLite CLI and Node.js scripts)
+  - Best practices (backup first, checkpoint WAL, verify integrity)
+  - Future automation plans (automatic VACUUM after threshold deletions)
+- Files:
+  - `backend/src/utils.js` - `cleanupOldJobs()` function with retention policy
+  - `backend/src/index.js` - Scheduled cleanup on startup and daily interval
+  - `docs/JOB_CLEANUP_AND_VACUUM.md` - Complete cleanup and VACUUM strategy guide
+- Integration with existing manual cleanup endpoint (backwards compatible)
+
 ### Deprecated
 
 None.

@@ -164,6 +164,61 @@ const deleteCompletedJobs = () => {
   return result.changes;
 };
 
+/**
+ * Delete old jobs based on retention policy.
+ * Keeps jobs based on age (days) and max count limits.
+ * Does NOT delete running jobs regardless of retention policy.
+ *
+ * @param {Object} options - Retention policy options
+ * @param {number} [options.retentionDays=7] - Keep jobs newer than this many days
+ * @param {number} [options.maxCount=100] - Keep at most this many total jobs
+ * @returns {Object} - Statistics about deleted jobs
+ */
+const cleanupOldJobs = (options = {}) => {
+  const retentionDays = options.retentionDays ?? 7;
+  const maxCount = options.maxCount ?? 100;
+
+  // Calculate cutoff timestamp (jobs older than this will be deleted)
+  const cutoffTime = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+  const cutoffIso = new Date(cutoffTime).toISOString();
+
+  // Delete jobs that are:
+  // 1. In terminal state (completed, failed, cancelled)
+  // 2. Older than retention period
+  const ageBasedDelete = db.prepare(
+    `DELETE FROM jobs
+     WHERE status IN ('completed', 'failed', 'cancelled')
+     AND updated_at < ?`
+  ).run(cutoffIso);
+
+  const ageDeleted = ageBasedDelete.changes;
+
+  // Count remaining jobs (including running)
+  const totalJobs = db.prepare("SELECT COUNT(*) AS count FROM jobs").get().count;
+
+  // If still over max count, delete oldest terminal jobs
+  let countDeleted = 0;
+  if (totalJobs > maxCount) {
+    const excess = totalJobs - maxCount;
+    const countBasedDelete = db.prepare(
+      `DELETE FROM jobs
+       WHERE id IN (
+         SELECT id FROM jobs
+         WHERE status IN ('completed', 'failed', 'cancelled')
+         ORDER BY updated_at ASC
+         LIMIT ?
+       )`
+    ).run(excess);
+    countDeleted = countBasedDelete.changes;
+  }
+
+  return {
+    deletedByAge: ageDeleted,
+    deletedByCount: countDeleted,
+    totalDeleted: ageDeleted + countDeleted
+  };
+};
+
 const getJobsCount = () => {
   const row = db.prepare("SELECT COUNT(*) AS count FROM jobs").get();
   return row?.count ?? 0;
@@ -238,6 +293,7 @@ export {
   listJobs,
   listJobsByType,
   deleteCompletedJobs,
+  cleanupOldJobs,
   getJobsCount,
   markStaleJobs,
   getState,

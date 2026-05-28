@@ -36,6 +36,7 @@ import {
   listJobs,
   listJobsByType,
   deleteCompletedJobs,
+  cleanupOldJobs,
   getJobsCount,
   writeTempAuth,
   mergePullSecrets,
@@ -3308,6 +3309,43 @@ if (process.env.NODE_ENV !== "test") {
     // Use process.stdout.write for startup banner (visual output, not a log event)
     process.stdout.write(bannerLines.join("\n") + "\n");
     logger.info({ tag: "startup", port, mode: process.env.MOCK_MODE === "true" ? "MOCK" : "Production", dataDir: process.env.DATA_DIR || "/data" }, "Server started");
+
+    // PROD-012: Automated job cleanup/retention policy
+    // Run daily cleanup to prevent unbounded database growth
+    const retentionDays = parseInt(process.env.JOB_RETENTION_DAYS, 10) || 7;
+    const maxJobCount = parseInt(process.env.JOB_MAX_COUNT, 10) || 100;
+    const cleanupIntervalMs = 24 * 60 * 60 * 1000; // 24 hours
+
+    // Run initial cleanup on startup (after 60 seconds to allow any startup jobs to complete)
+    setTimeout(() => {
+      try {
+        const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+        if (result.totalDeleted > 0) {
+          logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Job cleanup completed on startup");
+        }
+      } catch (err) {
+        logger.error({ err, tag: "job_cleanup" }, "Job cleanup failed on startup");
+      }
+    }, 60000);
+
+    // Schedule daily cleanup
+    const cleanupInterval = setInterval(() => {
+      try {
+        const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+        if (result.totalDeleted > 0) {
+          logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Scheduled job cleanup completed");
+        }
+      } catch (err) {
+        logger.error({ err, tag: "job_cleanup" }, "Scheduled job cleanup failed");
+      }
+    }, cleanupIntervalMs);
+
+    // Clear interval on shutdown
+    const originalShutdown = shutdown;
+    shutdown = (signal) => {
+      clearInterval(cleanupInterval);
+      originalShutdown(signal);
+    };
   });
   const shutdown = (signal) => {
     logger.info({ tag: "shutdown", signal }, "Shutting down");
