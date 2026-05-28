@@ -2860,7 +2860,21 @@ The password is included in generated install-config.yaml **only when** you choo
               </div>
 
               {(platformConfig.vsphere?.placementMode || "failureDomains") === "legacy" && (
-                <div className="field-grid" style={{ marginTop: 8, marginBottom: 16 }}>
+                <CollapsibleSection
+                  title="Legacy Single-Zone Placement Fields"
+                  subtitle="⚠️ Deprecated in OpenShift 4.13+ • Use failure domains for multi-zone high availability"
+                  defaultCollapsed={false}
+                  style={{ marginTop: 8, marginBottom: 16 }}
+                >
+                  <div className="note warning" style={{ marginBottom: 16 }}>
+                    <strong>⚠️ Deprecated Configuration Path</strong>
+                    <p style={{ marginTop: 4, marginBottom: 0 }}>
+                      These fields use the <strong>legacy single-zone placement mode</strong>, deprecated since OpenShift 4.13.
+                      For production deployments, use <strong>Failure Domains</strong> (recommended path) which provides multi-zone high availability,
+                      better resource distribution, and improved resilience. Legacy fields remain functional for backward compatibility but will be removed in a future OpenShift release.
+                    </p>
+                  </div>
+                  <div className="field-grid">
                   <FieldLabelWithInfo
                     label="vCenter server"
                     hint={`Fully qualified domain name (FQDN) or IP address of your vCenter Server.
@@ -2893,8 +2907,11 @@ vcenter.example.com (production)
                     />
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
-                    label="Datacenter"
-                    hint={`vSphere datacenter name where the OpenShift cluster will be deployed.
+                    label="Datacenter (⚠️ Deprecated)"
+                    hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.datacenter instead for multi-zone deployments.
+
+**Migration path:**
+Switch to "Use failure domains (recommended)" above and configure datacenter per failure domain for better high availability.
 
 **What is a datacenter:**
 In vSphere, a datacenter is a top-level logical container that organizes compute resources (clusters, hosts), networks, and storage (datastores).
@@ -2920,8 +2937,11 @@ Datacenter-Production (descriptive naming)`}
                     />
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
-                    label="Default datastore"
-                    hint={`vSphere datastore name for cluster VM disks and volumes.
+                    label="Default datastore (⚠️ Deprecated)"
+                    hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.datastore instead for multi-zone deployments.
+
+**Migration path:**
+Switch to "Use failure domains (recommended)" above and configure datastore per failure domain for distributed storage placement and better resilience.
 
 **What is a datastore:**
 A storage container (VMFS, NFS, vSAN, or vVols) where VM disk files (VMDK) are stored.
@@ -2951,8 +2971,11 @@ Production-SAN-01 (descriptive naming)`}
                     />
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
-                    label="Compute cluster (required for legacy path)"
-                    hint={`vSphere compute cluster where worker nodes will be provisioned.
+                    label="Compute cluster (⚠️ Deprecated)"
+                    hint={`⚠️ **DEPRECATED:** Legacy single-zone field. Use failureDomains[].topology.computeCluster instead.
+
+**Migration path:**
+Switch to "Use failure domains (recommended)" above and configure compute cluster per failure domain for multi-zone placement and high availability.
 
 **What is this:**
 A vSphere compute cluster is a collection of ESXi hosts that share resources and provide features like DRS (Distributed Resource Scheduler) and HA (High Availability).
@@ -2981,8 +3004,11 @@ Compute-Zone-A`}
                     />
                   </FieldLabelWithInfo>
                   <FieldLabelWithInfo
-                    label="VM network (required for legacy path)"
-                    hint={`vSphere network name where OpenShift cluster VMs connect.
+                    label="VM network (⚠️ Deprecated)"
+                    hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.networks[] instead for multi-zone deployments.
+
+**Migration path:**
+Switch to "Use failure domains (recommended)" above and configure network(s) per failure domain for better network segmentation and high availability.
 
 **What is this:**
 vSphere network object name (Standard Port Group or Distributed Port Group) where the installer attaches virtual network interfaces (vNICs) for all cluster VMs (control plane, workers, bootstrap).
@@ -3013,9 +3039,6 @@ The installer does not support multi-homed VMs in install-config (requires post-
 **How to find network names:**
 vCenter → Networking → select switch → Port groups (copy exact name shown)
 
-**Legacy path notice:**
-This field is for **legacy single placement mode only**. When using failure domains (OpenShift 4.20+ recommended), each failure domain specifies its own network(s).
-
 **Example:**
 VM Network (default, simple deployments)
 Production-Network (descriptive naming)
@@ -3028,7 +3051,8 @@ OCP-Production-VLAN100 (VLAN-backed network)`}
                       placeholder="e.g. VM Network"
                     />
                   </FieldLabelWithInfo>
-                </div>
+                  </div>
+                </CollapsibleSection>
               )}
 
               {showFailureDomainsSection && (platformConfig.vsphere?.placementMode || "failureDomains") === "failureDomains" && (
@@ -4219,7 +4243,7 @@ external-br (descriptive name)`}
                 <div className="field-grid" style={{ marginTop: 12 }}>
                   {showVsphereLegacyFolderResourcePool && (
                     <>
-                      <FieldLabelWithInfo label="vSphere folder (optional, legacy)" hint={`⚠️ **DEPRECATED:** Use Topology: Folder per failure domain instead. This legacy field only applies when using legacy single placement mode (not recommended for OpenShift 4.20+).
+                      <FieldLabelWithInfo label="vSphere folder (⚠️ Deprecated)" hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.folder instead for multi-zone deployments.
 
 **What this is:**
 Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs when using legacy placement (without failure domains).
