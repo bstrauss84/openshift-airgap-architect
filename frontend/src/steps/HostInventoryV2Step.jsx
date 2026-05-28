@@ -153,6 +153,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [additionalAdvancedOpen, setAdditionalAdvancedOpen] = useState({});
   const [showReplicate, setShowReplicate] = useState(false);
+  const [showReplicateConfirm, setShowReplicateConfirm] = useState(false);
   const [replicateSelectedFields, setReplicateSelectedFields] = useState(() =>
     new Set(["dnsServers", "dnsSearch", "primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Gateway", "primary.ipv6Gateway"])
   );
@@ -398,6 +399,11 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     return out;
   }, [nodes, nodeValidation, catalogValidation]);
 
+  const handleApplyClick = () => {
+    // Show confirmation dialog before applying
+    setShowReplicateConfirm(true);
+  };
+
   const applyReplicate = () => {
     if (selectedIndex == null || !nodes[selectedIndex]) return;
     if ((nodes[selectedIndex]?.role || "").trim() === "arbiter") return;
@@ -408,6 +414,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     );
     if (!targetIndices.length) {
       setShowReplicate(false);
+      setShowReplicateConfirm(false);
       return;
     }
     const targetNodes = targetIndices.map((i) => nodes[i]);
@@ -415,6 +422,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     const next = nodes.map((node, i) => (targetIndices.includes(i) ? nextNodes[targetIndices.indexOf(i)] : node));
     updateInventory({ nodes: next });
     setShowReplicate(false);
+    setShowReplicateConfirm(false);
   };
 
   const resolvedReplicateTargetIndices = replicateTargetIndices.size
@@ -938,7 +946,37 @@ wipefs -a /dev/sdX`}</pre>
             </div>
             <div className="actions">
               <button type="button" className="ghost" onClick={() => setShowReplicate(false)}>Cancel</button>
-              <button type="button" className="primary" onClick={applyReplicate}>Apply</button>
+              <button type="button" className="primary" onClick={handleApplyClick}>Apply</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation modal for apply operation */}
+      {showReplicateConfirm && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowReplicateConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <h3 style={{ marginTop: 0 }}>Confirm Apply Settings</h3>
+            <p>
+              Are you sure you want to apply settings from{" "}
+              <strong>{effectiveHostname(nodes[selectedIndex]) || `Node ${selectedIndex + 1}`}</strong> to{" "}
+              <strong>
+                {resolvedReplicateTargetIndices.length === 1
+                  ? "1 host"
+                  : `${resolvedReplicateTargetIndices.length} hosts`}
+              </strong>?
+            </p>
+            <p className="note warning">
+              ⚠️ This will <strong>overwrite</strong> the selected settings on the target host(s).
+              Make sure you have reviewed the settings before proceeding.
+            </p>
+            <div className="actions" style={{ marginTop: "1.5rem" }}>
+              <button type="button" className="ghost" onClick={() => setShowReplicateConfirm(false)}>
+                Cancel
+              </button>
+              <button type="button" className="primary" onClick={applyReplicate}>
+                Confirm and Apply
+              </button>
             </div>
           </div>
         </div>

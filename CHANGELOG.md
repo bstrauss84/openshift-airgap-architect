@@ -161,6 +161,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Base Domain (Identity & Access step) - defaults to imported value or user-provided
 - Files: `frontend/src/steps/IdentityAccessStep.jsx`
 
+#### **Host Settings Apply Confirmation Modal (PHX-031)**
+- Added confirmation dialog before applying host settings to multiple nodes
+- Prevents accidental overwrites of host-specific network/storage configurations
+- Confirmation modal shows:
+  - Source host name (the host being copied from)
+  - Number of target hosts that will be modified
+  - Warning that operation will overwrite existing settings
+  - Cancel and Confirm buttons
+- Modal appears when clicking "Apply" button in replicate settings drawer
+- User must explicitly confirm before bulk apply operation executes
+- Clicking outside modal or "Cancel" dismisses without applying changes
+- Clicking "Confirm and Apply" proceeds with replication
+- Reduces risk of accidental configuration mistakes in multi-node deployments
+- Particularly important for network settings (IPs, VLANs, bonds) which are often host-specific
+- Files: `frontend/src/steps/HostInventoryV2Step.jsx`
+
 ### Changed
 
 **Build and Infrastructure**
