@@ -227,6 +227,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `docs/JOB_CLEANUP_AND_VACUUM.md` - Complete cleanup and VACUUM strategy guide
 - Integration with existing manual cleanup endpoint (backwards compatible)
 
+#### **PROD-013: Updated Capacity Planning Documentation**
+- Updated `docs/CAPACITY_PLANNING.md` to v1.1 with comprehensive database maintenance guidance
+- Integrated automated job cleanup (PROD-012) into capacity planning:
+  - Database size projections with cleanup enabled vs. disabled
+  - Steady-state database size: 30-50MB (with default 7-day / 100-job retention)
+  - Growth rate tables by usage pattern (light/medium/heavy)
+  - Cleanup effectiveness metrics (20-40% size reduction after VACUUM)
+- Enhanced storage requirements section:
+  - Database size ranges updated to reflect automated cleanup
+  - Maximum size with cleanup: 50-100MB (bounded)
+  - Maximum size without cleanup: 500MB+ (unbounded growth)
+- Added database maintenance subsection with tuning guidance:
+  - Environment-specific retention policy examples (high-volume, audit/compliance)
+  - When to adjust JOB_RETENTION_DAYS and JOB_MAX_COUNT
+  - VACUUM recommendations (weekly during low-usage, after bulk deletions)
+  - Database size monitoring commands with kubectl exec examples
+- Expanded disk space monitoring cleanup strategies:
+  1. Automated job cleanup (runs daily)
+  2. Manual job cleanup API (immediate)
+  3. SQLite VACUUM (disk space reclamation)
+  4. oc-mirror workspace cleanup (large directories)
+  5. Archive old configurations (disaster recovery)
+- Cross-referenced related documentation:
+  - `docs/JOB_CLEANUP_AND_VACUUM.md` - Cleanup and VACUUM strategy guide
+  - `docs/BACKUP_RESTORE.md` - SQLite backup procedures before VACUUM
+- Updated version to 1.1 and last updated date to 2026-05-28
+- Files: `docs/CAPACITY_PLANNING.md`
+
 ### Deprecated
 
 None.
