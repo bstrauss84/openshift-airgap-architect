@@ -511,14 +511,35 @@ This is often the **main network you customize** - other networks (cluster/servi
                     label="Machine Network (IPv6 CIDR)"
                     hint={`IPv6 network range where cluster nodes live.
 
+**What is this:**
+The physical IPv6 network for control plane and worker nodes (VMs/bare metal hosts)
+
 **When is this required:**
-Only for dual-stack deployments (IPv4 + IPv6)
+• **Required** for IPv6-only deployments (bare metal, vSphere)
+• **Required** for dual-stack deployments (IPv4 + IPv6)
+• **Not used** for IPv4-only clusters
 
-**When to leave blank:**
-IPv4-only clusters
+**Requirements:**
+• Must be routable within your datacenter
+• Sufficient addresses for all nodes (IPv6 provides massive address space - even /64 is 18 quintillion addresses)
+• Typically use Unique Local Address (ULA) prefix fd00::/8 for private networks
+• Can use Global Unicast Address (GUA) prefix 2000::/3 for internet-routable addresses
 
-**Example:**
-fd10:90::/64`}
+**When to customize:**
+This is often the **main IPv6 network you customize** - other networks (cluster/service) usually keep defaults unless conflicts exist
+
+**Common prefix lengths:**
+• /64 = standard subnet size (18 quintillion addresses - more than you'll ever need)
+• /48 = site prefix (65,536 /64 subnets)
+• /56 = common for enterprise networks
+
+**Important:**
+⚠️ OpenShift 4.20 supports IPv6-only on bare metal and vSphere platforms (Agent, IPI, UPI methods)
+
+**Examples:**
+• Private network: fd10:90::/64
+• Larger site: fd00:1234::/48
+• Global unicast: 2001:db8:1234::/64`}
                   >
                     <input
                       className={fieldErrors.machineNetworkV6 ? "input-error" : ""}
@@ -633,14 +654,35 @@ How many pods each node can run
                       label={ipStackMode === 'ipv6' ? "Cluster Network CIDR (optional)" : "Cluster Network IPv6 CIDR (optional)"}
                       hint={`IPv6 network range for pod-to-pod communication.
 
-**Use case:**
-Dual-stack or IPv6-only data plane
+**What is this:**
+Software-defined network (SDN) for containers running in the cluster (IPv6 address space for pods)
 
-**Default behavior:**
-If left blank, defaults to fd01::/48
+**How it works:**
+Each node is allocated a subnet from this range based on Host Prefix (below)
 
-**Example:**
-fd01::/48`}
+**When is this used:**
+• **Required** for IPv6-only deployments
+• **Required** for dual-stack deployments (IPv4 + IPv6)
+• **Not used** for IPv4-only clusters
+
+**Default:**
+fd01::/48 (280 trillion pod IPs - OpenShift's default for IPv6 cluster networking)
+
+**When to change:**
+Only if fd01::/48 conflicts with existing infrastructure networks (rare - ULA addresses are private)
+
+**Network isolation:**
+Cluster network is **completely isolated** from external networks - pods communicate externally through NAT or load balancers
+
+**Why /48 instead of /14:**
+IPv6 uses larger prefixes than IPv4 due to address abundance. /48 provides 65,536 /64 subnets - enough for massive clusters.
+
+**Important:**
+⚠️ If left blank, OpenShift installer uses fd01::/48 by default
+
+**Examples:**
+• Default: fd01::/48
+• Alternative: fd02::/48 (if fd01 conflicts)`}
                     >
                       <input
                         className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
@@ -761,14 +803,35 @@ If datacenter uses 172.x.x.x, change to 10.96.0.0/12`}
                     label={ipStackMode === 'ipv6' ? "Service Network CIDR (optional)" : "Service Network IPv6 CIDR (optional)"}
                     hint={`IPv6 network range for Kubernetes ClusterIP services.
 
-**Use case:**
-Dual-stack or IPv6-only service networking
+**What is this:**
+Virtual IPv6 addresses for stable service endpoints (Kubernetes Services get IPs from this range)
 
-**Default behavior:**
-If left blank, defaults to fd02::/112
+**How it works:**
+When you create a Service, Kubernetes assigns it an IPv6 address from this range
 
-**Example:**
-fd02::/112`}
+**When is this used:**
+• **Required** for IPv6-only deployments
+• **Required** for dual-stack deployments (IPv4 + IPv6)
+• **Not used** for IPv4-only clusters
+
+**Default:**
+fd02::/112 (65,536 service IPs - far more than most clusters need)
+
+**Why /112 instead of /16:**
+IPv6 uses smaller subnet for services because address space is abundant. /112 provides 65,536 IPs (2^16) - same count as IPv4's 172.30.0.0/16 but in IPv6 notation.
+
+**Network isolation:**
+This is **purely internal** - service IPs never leave the cluster, only used for internal load balancing
+
+**When to change:**
+Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA addresses are private)
+
+**Important:**
+⚠️ If left blank, OpenShift installer uses fd02::/112 by default
+
+**Examples:**
+• Default: fd02::/112
+• Alternative: fd03::/112 (if fd02 conflicts)`}
                   >
                     <input
                       className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}

@@ -284,7 +284,12 @@ registry.corp.local:5000`}
 ⚠️ Time skew is a **common install failure** - certificates won't validate if clocks are off
 
 **Format:**
-Comma-separated hostnames or IP addresses
+Comma-separated hostnames or IP addresses (IPv4 or IPv6)
+
+**Supported address types:**
+• FQDNs (time.corp.local)
+• IPv4 addresses (10.90.0.10)
+• IPv6 addresses (2001:db8::1) - NTP over IPv6 is supported
 
 **Where this goes:**
 ${scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent" ? "agent-config.yaml → additionalNTPSources" : "Used during installation to keep nodes synchronized"}
@@ -292,8 +297,14 @@ ${scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent" ? "agent-c
 **Best practice:**
 Use internal NTP servers that are reachable from your airgap network
 
-**Example:**
-time.corp.local,10.90.0.10`}
+**Invalid characters:**
+No spaces within addresses (commas separate entries). Only alphanumeric, dots, colons, and hyphens allowed.
+
+**Examples:**
+• Hostnames: time.corp.local,time2.corp.local
+• IPv4: 10.90.0.10,10.90.0.11
+• IPv6: fd00::10,fd00::11
+• Mixed: time.corp.local,10.90.0.10,fd00::10`}
               required={metaNtp?.required}
             >
               <input
@@ -301,8 +312,12 @@ time.corp.local,10.90.0.10`}
                 onChange={(e) => setNtpInput(e.target.value)}
                 onBlur={(e) => updateNtpServers(e.target.value)}
                 placeholder="time.corp.local,10.90.0.10"
+                className={fieldErrors.ntpServers ? "input-error" : ""}
+                title={fieldErrors.ntpServers || ""}
+                aria-invalid={fieldErrors.ntpServers ? "true" : "false"}
               />
             </FieldLabelWithInfo>
+            {fieldErrors.ntpServers && <span className="note warning inline">{fieldErrors.ntpServers}</span>}
           </div>
         </section>
         ) : null}

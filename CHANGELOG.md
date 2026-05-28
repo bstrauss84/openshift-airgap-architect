@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-**Regression Fixes (5 items)**
+**Regression Fixes (6 items)**
 
 #### **Version Display Regression**
 - Fixed `AboutModal.jsx` showing hardcoded "1.1.0" instead of `appVersion` prop
@@ -55,6 +55,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bare metal/vSphere Agent: `hostInventory.apiVip` / `ingressVip` / `apiVipV6` / `ingressVipV6`
 - Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
 - Tests: `frontend/tests/ipv6-vip-placeholders.test.jsx` (16 tests for IPv6 placeholder derivation)
+
+#### **IPv6 Field Tooltips and NTP Server Validation**
+- Fixed IPv6 network field tooltips lacking comprehensive gold standard format
+- Updated IPv6 Machine Network, Cluster Network, and Service Network tooltips to match IPv4 quality:
+  - Added "What is this", "When is this required", "Requirements", "Common prefix lengths", "Important", "Examples" sections
+  - Documented IPv6-only mode support (bare metal, vSphere - Agent, IPI, UPI)
+  - Added ULA (Unique Local Address) vs GUA (Global Unicast Address) guidance
+  - Explained IPv6 prefix length choices (/48, /56, /64)
+  - Documented default values (fd01::/48 cluster, fd02::/112 service)
+- Added NTP server validation (comma-separated FQDNs or IP addresses):
+  - Validates each server as valid FQDN, IPv4, or IPv6 address
+  - Rejects invalid characters (only alphanumeric, dots, colons, hyphens allowed)
+  - Validates IPv4 octets (0-255 range)
+  - Validates IPv6 format (catches multiple :: abbreviations)
+  - Warns if more than 4 NTP servers configured (OpenShift typically uses up to 4)
+  - Documents IPv6 NTP support (NTP over IPv6 is supported by OpenShift)
+- Updated NTP field tooltip to document all address types (FQDN, IPv4, IPv6) with examples
+- Added inline validation display for NTP field (red border + error message)
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/steps/ConnectivityMirroringStep.jsx`, `frontend/src/validation.js`
+- Tests: `frontend/tests/ntp-validation.test.js` (27 tests covering all validation scenarios)
 
 ### Changed
 

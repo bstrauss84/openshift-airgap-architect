@@ -897,6 +897,73 @@ const validateMirrorRegistrySecret = (state) => {
   return { errors, warnings };
 };
 
+/** Validate NTP servers (comma-separated FQDNs or IP addresses) */
+const validateNtpServers = (state) => {
+  const errors = [];
+  const fieldErrors = {};
+  const strategy = state.globalStrategy || {};
+  const ntpServers = strategy.ntpServers;
+
+  if (!ntpServers || (Array.isArray(ntpServers) && ntpServers.length === 0)) {
+    return { errors, warnings: [], fieldErrors };
+  }
+
+  // Convert to array if string
+  const serversArray = Array.isArray(ntpServers)
+    ? ntpServers
+    : (typeof ntpServers === "string" ? ntpServers.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
+  // Validate each server
+  for (let i = 0; i < serversArray.length; i++) {
+    const server = serversArray[i];
+
+    // Check for invalid characters (only alphanumeric, dots, colons, hyphens allowed)
+    if (!/^[a-zA-Z0-9.:\-]+$/.test(server)) {
+      errors.push(`NTP server "${server}" contains invalid characters. Only alphanumeric, dots, colons, and hyphens are allowed.`);
+      fieldErrors.ntpServers = "Contains invalid characters";
+      continue;
+    }
+
+    // Validate as FQDN or IP address
+    const isFqdn = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/.test(server);
+    const isIpv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(server);
+    const isIpv6 = /^[a-fA-F0-9:]+$/.test(server) && server.includes(":");
+
+    if (!isFqdn && !isIpv4 && !isIpv6) {
+      errors.push(`NTP server "${server}" is not a valid FQDN or IP address.`);
+      fieldErrors.ntpServers = "Invalid FQDN or IP address";
+      continue;
+    }
+
+    // Validate IPv4 octets if it looks like IPv4
+    if (isIpv4) {
+      const octets = server.split(".").map(Number);
+      const validOctets = octets.every(n => n >= 0 && n <= 255);
+      if (!validOctets) {
+        errors.push(`NTP server "${server}" has invalid IPv4 octets (must be 0-255).`);
+        fieldErrors.ntpServers = "Invalid IPv4 address";
+      }
+    }
+
+    // Validate IPv6 format if it looks like IPv6
+    if (isIpv6 && !isIpv4) {
+      // Basic IPv6 validation (full validation is complex, this catches obvious errors)
+      const segments = server.split("::");
+      if (segments.length > 2) {
+        errors.push(`NTP server "${server}" has invalid IPv6 format (multiple :: abbreviations).`);
+        fieldErrors.ntpServers = "Invalid IPv6 address";
+      }
+    }
+  }
+
+  // Warn if more than 4 NTP servers (OpenShift typically uses up to 4)
+  if (serversArray.length > 4) {
+    return { errors, warnings: ["More than 4 NTP servers configured. OpenShift typically uses up to 4 sources."], fieldErrors };
+  }
+
+  return { errors, warnings: [], fieldErrors };
+};
+
 /** Networking format: machine/cluster/service CIDRs, API/Ingress VIPs, provisioning CIDR and cluster provisioning IP must be valid IPv4/CIDR. */
 const validateNetworkingFormat = (state) => {
   const errors = [];
@@ -1400,6 +1467,7 @@ const validateStep = (state, stepId) => {
     const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
+    const ntpServersValidation = validateNtpServers(state);
     return {
       errors: [
         ...version.errors,
@@ -1413,7 +1481,8 @@ const validateStep = (state, stepId) => {
         ...vipsInMachine.errors,
         ...vipsInMachineV6.errors,
         ...credentials.errors,
-        ...mirrorSecret.errors
+        ...mirrorSecret.errors,
+        ...ntpServersValidation.errors
       ],
       warnings: [
         ...version.warnings,
@@ -1423,7 +1492,8 @@ const validateStep = (state, stepId) => {
         ...platform.warnings,
         ...networking.warnings,
         ...credentials.warnings,
-        ...mirrorSecret.warnings
+        ...mirrorSecret.warnings,
+        ...ntpServersValidation.warnings
       ]
     };
   }
@@ -1645,7 +1715,12 @@ const validateStep = (state, stepId) => {
         fieldErrors.mirrorSources = "Source repository is required when mirror URL(s) are set.";
       }
     }
-    return { errors, warnings: [], fieldErrors };
+    const ntpValidation = validateNtpServers(state);
+    return {
+      errors: [...errors, ...ntpValidation.errors],
+      warnings: ntpValidation.warnings,
+      fieldErrors: { ...fieldErrors, ...ntpValidation.fieldErrors }
+    };
   }
   // platform-specifics: required fields per scenario from catalog required paths.
   if (stepId === "platform-specifics") {
