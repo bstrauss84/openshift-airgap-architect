@@ -10,7 +10,7 @@
  */
 
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
-import { logger } from "./logger.js";
+import logger from "./logger.js";
 
 const GROUP = "mirror.mirror.mathianasj.github.com";
 const VERSION = "v1";
