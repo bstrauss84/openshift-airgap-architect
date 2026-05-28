@@ -16,7 +16,7 @@
     "test": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} node --test test/"
   },
   "dependencies": {
-    "archiver": "^6.0.1",
+    "archiver": "^8.0.0",
     "better-sqlite3": "^9.4.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",

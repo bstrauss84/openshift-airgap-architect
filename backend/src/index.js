@@ -14,7 +14,7 @@ import express from "express";
 import cors from "cors";
 import fs from "node:fs";
 import path from "node:path";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
 import logger, { generateErrorId } from "./logger.js";
@@ -2934,7 +2934,7 @@ const buildBundleZip = async (state, res) => {
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename=${bundleName}`);
 
-  const archive = archiver("zip", { zlib: { level: 9 } });
+  const archive = new ZipArchive({ zlib: { level: 9 } });
   archive.on("error", (err) => {
     res.status(500).end(String(err));
   });

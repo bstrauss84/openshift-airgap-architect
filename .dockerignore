@@ -17,3 +17,11 @@ AGENTS.md
 backend/data/
 backend/.tmp/
 dist/
+# Large local directories that should not be in build context
+local-docs/
+.research/
+.archive/
+.claude/
+e2e/
+playwright-report/
+test-results/
