@@ -302,7 +302,10 @@ const defaultState = () => ({
       machineNetworkV6: "",
       clusterNetworkCidr: "10.128.0.0/14",
       clusterNetworkHostPrefix: 23,
-      serviceNetworkCidr: "172.30.0.0/16"
+      clusterNetworkCidrV6: "fd01::/48",
+      clusterNetworkHostPrefixV6: 64,
+      serviceNetworkCidr: "172.30.0.0/16",
+      serviceNetworkCidrV6: "fd02::/112"
     },
     mirroring: {
       registryFqdn: "registry.local:5000",

@@ -198,6 +198,13 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const [localClusterNetworkCidrV6, setLocalClusterNetworkCidrV6] = useState(networking.clusterNetworkCidrV6 || "");
   const [localServiceNetworkCidr, setLocalServiceNetworkCidr] = useState(networking.serviceNetworkCidr || "");
   const [localServiceNetworkCidrV6, setLocalServiceNetworkCidrV6] = useState(networking.serviceNetworkCidrV6 || "");
+
+  // Track if user has manually edited network fields with defaults (for auto-select behavior)
+  const [machineNetworkV4Touched, setMachineNetworkV4Touched] = useState(false);
+  const [clusterNetworkCidrTouched, setClusterNetworkCidrTouched] = useState(false);
+  const [clusterNetworkCidrV6Touched, setClusterNetworkCidrV6Touched] = useState(false);
+  const [serviceNetworkCidrTouched, setServiceNetworkCidrTouched] = useState(false);
+  const [serviceNetworkCidrV6Touched, setServiceNetworkCidrV6Touched] = useState(false);
   const [localNutanixApiVIP, setLocalNutanixApiVIP] = useState(platformConfig.nutanix?.apiVIP || "");
   const [localNutanixApiVIPV6, setLocalNutanixApiVIPV6] = useState(platformConfig.nutanix?.apiVIPV6 || "");
   const [localNutanixIngressVIP, setLocalNutanixIngressVIP] = useState(platformConfig.nutanix?.ingressVIP || "");
@@ -219,9 +226,10 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const [localIngressVip, setLocalIngressVip] = useState(hostInventory.ingressVip || "");
   const [localIngressVipV6, setLocalIngressVipV6] = useState(hostInventory.ingressVipV6 ?? "");
 
-  // Sync local state with store changes
+  // Sync local state with store changes (reset touched state on external changes like import)
   useEffect(() => {
     setLocalMachineNetworkV4(networking.machineNetworkV4 || "");
+    setMachineNetworkV4Touched(false);
   }, [networking.machineNetworkV4]);
 
   useEffect(() => {
@@ -230,18 +238,22 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
 
   useEffect(() => {
     setLocalClusterNetworkCidr(networking.clusterNetworkCidr || "");
+    setClusterNetworkCidrTouched(false);
   }, [networking.clusterNetworkCidr]);
 
   useEffect(() => {
     setLocalClusterNetworkCidrV6(networking.clusterNetworkCidrV6 || "");
+    setClusterNetworkCidrV6Touched(false);
   }, [networking.clusterNetworkCidrV6]);
 
   useEffect(() => {
     setLocalServiceNetworkCidr(networking.serviceNetworkCidr || "");
+    setServiceNetworkCidrTouched(false);
   }, [networking.serviceNetworkCidr]);
 
   useEffect(() => {
     setLocalServiceNetworkCidrV6(networking.serviceNetworkCidrV6 || "");
+    setServiceNetworkCidrV6Touched(false);
   }, [networking.serviceNetworkCidrV6]);
 
   useEffect(() => {
