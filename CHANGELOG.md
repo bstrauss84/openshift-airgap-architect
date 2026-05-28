@@ -9,7 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-**Regression Fixes (6 items)**
+**Regression Fixes (7 items)**
+
+#### **Compute (Worker) Replicas Not Writing to YAML**
+- Fixed compute replicas field changes not appearing in live YAML preview or final asset YAML files
+- Bug affected: vSphere IPI, Azure Government IPI, IBM Cloud IPI
+- Root cause: Backend generation logic only checked `platformConfig.computeReplicas` for AWS and Nutanix, not other IPI scenarios
+- Fix: Added compute replicas logic for all IPI scenarios without host inventory
+- vSphere IPI, Azure IPI, IBM Cloud IPI now use `platformConfig.computeReplicas` from Platform Specifics step
+- Defaults to 3 workers if not specified (standard IPI default)
+- Supports 0 workers for compact cluster (3 control plane, 0 compute)
+- Supports 1 control plane + 0 workers for SNO
+- Files: `backend/src/generate.js`
+- Tests: `backend/test/compute-replicas-fix.test.js` (18 tests covering all IPI scenarios)
 
 #### **Version Display Regression**
 - Fixed `AboutModal.jsx` showing hardcoded "1.1.0" instead of `appVersion` prop

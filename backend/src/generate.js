@@ -130,6 +130,9 @@ const buildInstallConfig = (state) => {
   const platformConfig = state.platformConfig || {};
   const isAwsNoHostInventory = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
   const isNutanixIpi = state.blueprint?.platform === "Nutanix" && state.methodology?.method === "IPI";
+  const isVsphereIpi = state.blueprint?.platform === "vSphere" && state.methodology?.method === "IPI";
+  const isAzureIpi = state.blueprint?.platform === "Azure Government" && state.methodology?.method === "IPI";
+  const isIbmCloudIpi = state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI";
 
   // Apply controlPlaneReplicas override if specified (v1.7.0: DOC-082 MISSING-V1.7-001)
   const cpReplicasOverride = Number(platformConfig.controlPlaneReplicas);
@@ -159,6 +162,20 @@ const buildInstallConfig = (state) => {
       if (Number.isInteger(comp) && comp >= 0) workers = comp;
       else workers = 3;
     }
+  } else if (isVsphereIpi || isAzureIpi || isIbmCloudIpi) {
+    // vSphere IPI, Azure Government IPI, IBM Cloud IPI have no host inventory
+    // Apply controlPlaneReplicas and computeReplicas from Platform Specifics
+    if (Number.isInteger(cpReplicasOverride) && cpReplicasOverride > 0) {
+      masters = cpReplicasOverride;
+    } else if (masters === 0) {
+      masters = 3; // Default to 3 if no host inventory and no override
+    }
+    const comp = Number(platformConfig.computeReplicas);
+    if (Number.isInteger(comp) && comp >= 0) {
+      workers = comp;
+    } else if (workers === 0) {
+      workers = 3; // Default to 3 workers for IPI scenarios
+    }
   } else if (Number.isInteger(cpReplicasOverride) && cpReplicasOverride > 0) {
     // General controlPlaneReplicas override for platforms with host inventory (v1.7.0)
     masters = cpReplicasOverride;
@@ -167,7 +184,6 @@ const buildInstallConfig = (state) => {
 
   const networkingState = state.globalStrategy?.networking || {};
   const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
-  const isIbmCloudIpi = state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI";
 
   // Determine IP stack mode from state (default to ipv4)
   // Backward compatibility: if ipStackMode not set but IPv6 networks exist, treat as dual-stack
