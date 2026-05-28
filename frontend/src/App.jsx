@@ -33,6 +33,7 @@ import PlatformSpecificsStep from "./steps/PlatformSpecificsStep.jsx";
 import HostsInventorySegmentStep from "./steps/HostsInventorySegmentStep.jsx";
 import ReleaseSelectionStep from "./steps/ReleaseSelectionStep.jsx";
 import ImageSetConfigStep from "./steps/ImageSetConfigStep.jsx";
+import RunCollectionStep from "./steps/RunCollectionStep.jsx";
 import ScenarioHeaderPanel from "./components/ScenarioHeaderPanel.jsx";
 import ToolsDrawer from "./components/ToolsDrawer.jsx";
 import FeedbackDrawer from "./components/FeedbackDrawer.jsx";
@@ -83,7 +84,8 @@ const COMPONENT_MAP = {
   "platform-specifics": PlatformSpecificsStep,
   "hosts-inventory": HostsInventorySegmentStep,
   "release-selection": ReleaseSelectionStep,
-  "imageset-config": ImageSetConfigStep
+  "imageset-config": ImageSetConfigStep,
+  "run-collection": RunCollectionStep
 };
 
 const FALLBACK_WIZARD_STEPS = [
@@ -179,7 +181,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppShell = () => {
-  const { state, loading, startOver, updateState, setState } = useApp();
+  const { state, loading, startOver, updateState, setState, runtimeInfo } = useApp();
   const [active, setActive] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showReleaseWarning, setShowReleaseWarning] = useState(false);
@@ -299,12 +301,12 @@ const AppShell = () => {
   }, [state]);
   const segmentedFlowV1 = state?.ui?.segmentedFlowV1 === true;
   const visibleSteps = useMemo(() => {
-    const rows = computeVisibleWizardRows(state, stepMap || {});
+    const rows = computeVisibleWizardRows(state, stepMap || {}, runtimeInfo);
     return rows.map((s) => ({
       ...s,
       component: COMPONENT_MAP[s.id] || (() => <PlaceholderCard title={s.label} />)
     }));
-  }, [state, stepMap]);
+  }, [state, stepMap, runtimeInfo]);
 
   const connectivity = state?.docs?.connectivity;
   const isConnectedMode = connectivity === "connected";
@@ -993,7 +995,7 @@ metadata:
       ui.segmentedFlowV1 == null
         ? { ...baseState, ui: { ...ui, segmentedFlowV1: true } }
         : baseState;
-    const rows = computeVisibleWizardRows(rowState, stepMap || {});
+    const rows = computeVisibleWizardRows(rowState, stepMap || {}, runtimeInfo);
     const stepIds = rows.map((r) => r.id);
     const reviewFlags = reconcileReviewFlagsForImportedState(rowState, stepIds);
     const merged = { ...rowState, reviewFlags };

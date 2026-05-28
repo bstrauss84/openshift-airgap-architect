@@ -57,19 +57,27 @@ function buildWizardRowsFromMap(stepMap) {
 /**
  * @param {object} state - app state
  * @param {object} stepMap - API step map (may be empty before load)
+ * @param {object} runtimeInfo - runtime information (operatorManaged, etc.)
  * @returns {{ id: string, label: string, subSteps: object[] }[]}
  */
-export function computeVisibleWizardRows(state, stepMap) {
+export function computeVisibleWizardRows(state, stepMap, runtimeInfo = {}) {
   const connectivity = state?.docs?.connectivity;
 
-  // Connected mode: simplified 4-step flow for imageset-config only
+  // Connected mode: simplified flow for imageset-config (+ collection pipeline if operator-managed)
   if (connectivity === "connected") {
-    return [
+    const baseSteps = [
       { id: "release-selection", label: "Release Selection", subSteps: [] },
       { id: "operators", label: "Operators", subSteps: [] },
       { id: "imageset-config", label: "ImageSet Configuration", subSteps: [] },
-      { id: "review", label: "Review & Download", subSteps: [] }
+      { id: "review", label: "Review Config", subSteps: [] }
     ];
+
+    // Only add run-collection step if running in operator-managed mode
+    if (runtimeInfo?.operatorManaged) {
+      baseSteps.push({ id: "run-collection", label: "Run Collection", subSteps: [] });
+    }
+
+    return baseSteps;
   }
 
   // Disconnected mode: existing logic

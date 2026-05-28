@@ -13,7 +13,7 @@ import { useApp } from "../store.jsx";
 import { apiFetch } from "../api.js";
 
 const ConnectedReviewStep = () => {
-  const { state } = useApp();
+  const { state, runtimeInfo } = useApp();
   const [previewFiles, setPreviewFiles] = useState({});
   const [loading, setLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -21,6 +21,7 @@ const ConnectedReviewStep = () => {
   const operators = state.operators?.selected || [];
   const version = state.release?.patchVersion || state.version?.selectedVersion || "unknown";
   const additionalImages = (state.imagesetConfig?.additionalImages || "").split("\n").filter(Boolean);
+  const operatorManaged = runtimeInfo?.operatorManaged || false;
 
   // Fetch preview on mount
   useEffect(() => {
@@ -135,37 +136,39 @@ const ConnectedReviewStep = () => {
           </div>
         </section>
 
-        <section className="card">
-          <h3>Next Steps</h3>
-          <ol style={{ lineHeight: "1.8", paddingLeft: "1.5rem" }}>
-            <li>Download the imageset-config.yaml file using the button above</li>
-            <li>Transfer the file to your disconnected environment along with the oc-mirror binary</li>
-            <li>On the high side (connected), run:
-              <pre style={{ background: "var(--code-bg)", padding: "0.75rem", margin: "0.5rem 0", borderRadius: "4px" }}>
-                oc-mirror --config imageset-config.yaml file://archives
-              </pre>
-              This creates a directory called <code>archives/</code> containing all operator images.
-            </li>
-            <li>Transfer the <code>archives/</code> directory to your airgapped cluster using approved methods:
-              <ul style={{ marginTop: "0.5rem", listStyleType: "disc", paddingLeft: "1.5rem" }}>
-                <li>Physical media (USB drives, external hard drives)</li>
-                <li>Secure file transfer within controlled networks</li>
-                <li>Other approved methods per your security policy</li>
-              </ul>
-            </li>
-            <li>On the disconnected side, push images to your mirror registry:
-              <pre style={{ background: "var(--code-bg)", padding: "0.75rem", margin: "0.5rem 0", borderRadius: "4px" }}>
-                oc-mirror --from file://archives docker://registry.local:5000
-              </pre>
-              Replace <code>registry.local:5000</code> with your actual mirror registry URL.
-            </li>
-            <li>Apply the generated ImageContentSourcePolicy to your cluster:
-              <pre style={{ background: "var(--code-bg)", padding: "0.75rem", margin: "0.5rem 0", borderRadius: "4px" }}>
-                oc apply -f oc-mirror-workspace/results-*/imageContentSourcePolicy.yaml
-              </pre>
-            </li>
-          </ol>
-        </section>
+        {!operatorManaged && (
+          <section className="card">
+            <h3>Next Steps</h3>
+            <ol style={{ lineHeight: "1.8", paddingLeft: "1.5rem" }}>
+              <li>Download the imageset-config.yaml file using the button above</li>
+              <li>Transfer the file to your disconnected environment along with the oc-mirror binary</li>
+              <li>On the high side (connected), run:
+                <pre style={{ background: "var(--code-bg)", padding: "0.75rem", margin: "0.5rem 0", borderRadius: "4px" }}>
+                  oc-mirror --config imageset-config.yaml file://archives
+                </pre>
+                This creates a directory called <code>archives/</code> containing all operator images.
+              </li>
+              <li>Transfer the <code>archives/</code> directory to your airgapped cluster using approved methods:
+                <ul style={{ marginTop: "0.5rem", listStyleType: "disc", paddingLeft: "1.5rem" }}>
+                  <li>Physical media (USB drives, external hard drives)</li>
+                  <li>Secure file transfer within controlled networks</li>
+                  <li>Other approved methods per your security policy</li>
+                </ul>
+              </li>
+              <li>On the disconnected side, push images to your mirror registry:
+                <pre style={{ background: "var(--code-bg)", padding: "0.75rem", margin: "0.5rem 0", borderRadius: "4px" }}>
+                  oc-mirror --from file://archives docker://registry.local:5000
+                </pre>
+                Replace <code>registry.local:5000</code> with your actual mirror registry URL.
+              </li>
+              <li>Apply the generated ImageContentSourcePolicy to your cluster:
+                <pre style={{ background: "var(--code-bg)", padding: "0.75rem", margin: "0.5rem 0", borderRadius: "4px" }}>
+                  oc apply -f oc-mirror-workspace/results-*/imageContentSourcePolicy.yaml
+                </pre>
+              </li>
+            </ol>
+          </section>
+        )}
 
         {operators.length > 0 && (
           <section className="card">

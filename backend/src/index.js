@@ -50,6 +50,7 @@ import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallCo
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
+import { createCollectionPipeline, listCollectionPipelines } from "./collectionPipeline.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -1168,6 +1169,72 @@ app.get("/api/runtime/operator-managed", (_req, res) => {
     operatorManaged: isOperatorManaged(),
     pullSecretMounted: !!mountedRhPullSecret
   });
+});
+
+app.post("/api/collection-pipeline/create", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "CollectionPipeline creation only available in operator-managed mode"
+    });
+  }
+
+  const { name, imageSetConfig, pvc, triggerType } = req.body;
+
+  if (!name || !imageSetConfig || !pvc) {
+    return res.status(400).json({
+      error: "Missing required fields: name, imageSetConfig, pvc"
+    });
+  }
+
+  try {
+    const pipeline = await createCollectionPipeline({
+      name,
+      imageSetConfig,
+      pvc,
+      triggerType
+    });
+
+    res.json({
+      success: true,
+      pipeline: {
+        name: pipeline.metadata?.name,
+        namespace: pipeline.metadata?.namespace,
+        uid: pipeline.metadata?.uid,
+        creationTimestamp: pipeline.metadata?.creationTimestamp
+      }
+    });
+  } catch (error) {
+    logger.error({ error: error.message, name }, "Failed to create CollectionPipeline");
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/collection-pipeline/list", async (_req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "CollectionPipeline listing only available in operator-managed mode"
+    });
+  }
+
+  try {
+    const pipelines = await listCollectionPipelines();
+    res.json({
+      pipelines: pipelines.map(p => ({
+        name: p.metadata?.name,
+        namespace: p.metadata?.namespace,
+        creationTimestamp: p.metadata?.creationTimestamp,
+        triggerType: p.spec?.triggerType,
+        pvc: p.spec?.storage?.output?.pvc
+      }))
+    });
+  } catch (error) {
+    logger.error({ error: error.message }, "Failed to list CollectionPipelines");
+    res.status(500).json({
+      error: error.message
+    });
+  }
 });
 
 app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {

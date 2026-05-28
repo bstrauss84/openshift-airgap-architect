@@ -16,6 +16,7 @@
     "test": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} node --test test/"
   },
   "dependencies": {
+    "@kubernetes/client-node": "^1.0.0",
     "archiver": "^8.0.0",
     "better-sqlite3": "^9.4.0",
     "cors": "^2.8.5",
