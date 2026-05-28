@@ -177,6 +177,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Particularly important for network settings (IPs, VLANs, bonds) which are often host-specific
 - Files: `frontend/src/steps/HostInventoryV2Step.jsx`
 
+#### **Post-Import Credentials Warning (PHX-033, PHX-035)**
+- Added prominent dismissible warning on Blueprint step after importing saved state
+- Explains that credentials and certificates were excluded from export for security
+- Lists all credential types that need to be re-entered after import:
+  - Pull secrets (Red Hat, mirror registry, operators)
+  - SSH keys (public and private)
+  - Certificates (mirror registry CA, proxy CA)
+  - Platform credentials (vCenter password, BMC credentials, etc.)
+  - Proxy credentials (username/password if using authenticated proxy)
+- Warning appears automatically when `state.ui.isImported` flag is true
+- User can dismiss warning with X button in top-right corner
+- Warning includes step names where each credential type should be entered
+- Helps users understand why imported configurations may be incomplete
+- Reduces confusion about missing credentials after import
+- Files: `frontend/src/steps/BlueprintStep.jsx`
+
 ### Changed
 
 **Build and Infrastructure**
