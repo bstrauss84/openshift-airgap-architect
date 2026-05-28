@@ -98,13 +98,14 @@ export async function createCollectionPipeline({
       }
     }, "Calling createNamespacedCustomObject with parameters");
 
-    const response = await client.createNamespacedCustomObject(
-      GROUP,
-      VERSION,
-      ns,
-      PLURAL,
-      collectionPipeline
-    );
+    // Note: @kubernetes/client-node v1.4.0+ requires parameters as object
+    const response = await client.createNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace: ns,
+      plural: PLURAL,
+      body: collectionPipeline
+    });
 
     logger.info({
       name,
@@ -156,12 +157,12 @@ export async function listCollectionPipelines(namespace) {
   const ns = namespace || await getCurrentNamespace();
 
   try {
-    const response = await client.listNamespacedCustomObject(
-      GROUP,
-      VERSION,
-      ns,
-      PLURAL
-    );
+    const response = await client.listNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace: ns,
+      plural: PLURAL
+    });
 
     return response.body?.items || [];
   } catch (error) {
@@ -189,13 +190,13 @@ export async function getCollectionPipeline(name, namespace) {
   const ns = namespace || await getCurrentNamespace();
 
   try {
-    const response = await client.getNamespacedCustomObject(
-      GROUP,
-      VERSION,
-      ns,
-      PLURAL,
+    const response = await client.getNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace: ns,
+      plural: PLURAL,
       name
-    );
+    });
 
     return response.body;
   } catch (error) {
