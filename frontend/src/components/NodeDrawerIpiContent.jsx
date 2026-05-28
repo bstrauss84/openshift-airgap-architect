@@ -24,6 +24,11 @@ export function NodeDrawerIpiContent({
   getDefaultHostnameForRole,
   nodes
 }) {
+  // Extract field errors for inline display
+  const fieldErrors = mergedNodeValidation[selectedIndex]?.fieldErrors || {};
+  const ipError = fieldErrors["networkConfig.primaryInterface.ip"];
+  const gatewayError = fieldErrors["networkConfig.primaryInterface.gateway"];
+
   return (
     <>
       <div className="host-inventory-v2-section-heading">
@@ -52,9 +57,7 @@ export function NodeDrawerIpiContent({
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          {mergedNodeValidation[selectedIndex]?.fieldErrors?.role ? (
-            <div className="note warning">{mergedNodeValidation[selectedIndex].fieldErrors.role}</div>
-          ) : null}
+          {fieldErrors.role && <span className="note warning inline">{fieldErrors.role}</span>}
         </label>
         <label>
           Hostname{" "}
@@ -394,7 +397,11 @@ Leave blank to use DHCP (simpler, recommended if available)
                   }
                 })}
                 placeholder="192.168.1.10/24"
+                className={ipError ? "input-error" : ""}
+                title={ipError || ""}
+                aria-invalid={ipError ? "true" : "false"}
               />
+              {ipError && <span className="note warning inline">{ipError}</span>}
             </label>
 
             <label>
@@ -411,7 +418,11 @@ Leave blank to use DHCP (simpler, recommended if available)
                   }
                 })}
                 placeholder="192.168.1.1"
+                className={gatewayError ? "input-error" : ""}
+                title={gatewayError || ""}
+                aria-invalid={gatewayError ? "true" : "false"}
               />
+              {gatewayError && <span className="note warning inline">{gatewayError}</span>}
             </label>
 
             <label>
