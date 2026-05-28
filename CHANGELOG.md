@@ -101,8 +101,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Hover tooltip (`title={errorMessage}`)
   - Accessibility (`aria-invalid="true"`)
   - Inline error message (`<span className="note warning inline">`)
+- **SNO (Single Node OpenShift) support:**
+  - VIP validation automatically skipped when SNO configuration detected
+  - Agent-based SNO detection: 1 master node, 0 worker nodes
+  - IPI SNO detection: controlPlane.replicas === 1 && compute.replicas === 0
+  - Validation errors clear when user selects SNO configuration
+  - UI text near VIP fields already explains SNO can skip VIPs (no changes needed)
 - Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
-- Tests: `frontend/tests/vip-validation.test.js` (28 tests covering all scenarios and validation cases)
+- Tests: `frontend/tests/vip-validation.test.js` (39 tests: 28 validation + 11 SNO scenarios)
 
 ### Changed
 

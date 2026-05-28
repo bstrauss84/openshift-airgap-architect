@@ -95,6 +95,33 @@ describe("VIP IP Address Validation", () => {
     const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
     if (!scenarioId) return { errors, warnings: [], fieldErrors };
 
+    const hostInventory = state.hostInventory || {};
+
+    // SNO (Single Node OpenShift) detection - VIPs not required for SNO
+    const isSno = () => {
+      // Agent-based scenarios: check node count (1 master, 0 workers)
+      if (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") {
+        const nodes = hostInventory.nodes || [];
+        const masterCount = nodes.filter((n) => n.role === "master").length;
+        const workerCount = nodes.filter((n) => n.role === "worker").length;
+        return masterCount === 1 && workerCount === 0;
+      }
+
+      // IPI scenarios: check controlPlane and compute replicas
+      if (scenarioId === "bare-metal-ipi" || scenarioId === "vsphere-ipi" || scenarioId === "nutanix-ipi") {
+        const controlPlane = state.controlPlane || {};
+        const compute = state.compute || {};
+        return controlPlane.replicas === 1 && compute.replicas === 0;
+      }
+
+      return false;
+    };
+
+    // Skip VIP validation for SNO - VIPs are not used in single-node configurations
+    if (isSno()) {
+      return { errors, warnings: [], fieldErrors };
+    }
+
     const validateSingleVip = (vip, fieldName, ipVersion) => {
       const trimmed = vip.trim();
       if (!trimmed) return;
@@ -143,7 +170,6 @@ describe("VIP IP Address Validation", () => {
     }
     // Bare metal and vSphere Agent use hostInventory
     else {
-      const hostInventory = state?.hostInventory || {};
       validateSingleVip(hostInventory.apiVip || "", "apiVip", "ipv4");
       validateSingleVip(hostInventory.ingressVip || "", "ingressVip", "ipv4");
       validateSingleVip(hostInventory.apiVipV6 || "", "apiVipV6", "ipv6");
@@ -505,6 +531,185 @@ describe("VIP IP Address Validation", () => {
       };
       const result = validateVipAddresses(state);
       expect(result.fieldErrors.nutanixApiVIP).toBe("Invalid IPv4 address");
+    });
+  });
+
+  describe("SNO (Single Node OpenShift) Validation Skipping", () => {
+    describe("Agent-based SNO", () => {
+      it("should skip validation for bare-metal-agent SNO (1 master, 0 workers)", () => {
+        const state = {
+          blueprint: { platform: "bare-metal" },
+          methodology: { method: "agent" },
+          hostInventory: {
+            apiVip: "999.999.999.999", // Invalid IP
+            nodes: [{ role: "master" }] // 1 master, 0 workers = SNO
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBe(0);
+        expect(result.fieldErrors.apiVip).toBeUndefined();
+      });
+
+      it("should skip validation for vsphere-agent SNO (1 master, 0 workers)", () => {
+        const state = {
+          blueprint: { platform: "vsphere" },
+          methodology: { method: "agent" },
+          hostInventory: {
+            apiVip: "invalid-ip",
+            ingressVip: "999.999.999.999",
+            nodes: [{ role: "master" }]
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBe(0);
+      });
+
+      it("should validate for bare-metal-agent multi-node (3 masters, 2 workers)", () => {
+        const state = {
+          blueprint: { platform: "bare-metal" },
+          methodology: { method: "agent" },
+          hostInventory: {
+            apiVip: "999.999.999.999",
+            nodes: [
+              { role: "master" },
+              { role: "master" },
+              { role: "master" },
+              { role: "worker" },
+              { role: "worker" }
+            ]
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.fieldErrors.apiVip).toBeDefined();
+      });
+
+      it("should validate for vsphere-agent multi-node (3 masters, 0 workers)", () => {
+        const state = {
+          blueprint: { platform: "vsphere" },
+          methodology: { method: "agent" },
+          hostInventory: {
+            apiVip: "999.999.999.999",
+            nodes: [
+              { role: "master" },
+              { role: "master" },
+              { role: "master" }
+            ]
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe("IPI SNO", () => {
+      it("should skip validation for bare-metal-ipi SNO (1 control plane, 0 compute)", () => {
+        const state = {
+          blueprint: { platform: "bare-metal" },
+          methodology: { method: "ipi" },
+          controlPlane: { replicas: 1 },
+          compute: { replicas: 0 },
+          hostInventory: {
+            apiVip: "999.999.999.999"
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBe(0);
+        expect(result.fieldErrors.apiVip).toBeUndefined();
+      });
+
+      it("should skip validation for vsphere-ipi SNO", () => {
+        const state = {
+          blueprint: { platform: "vsphere" },
+          methodology: { method: "ipi" },
+          controlPlane: { replicas: 1 },
+          compute: { replicas: 0 },
+          platformConfig: {
+            vsphere: {
+              apiVIPs: ["999.999.999.999"]
+            }
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBe(0);
+      });
+
+      it("should skip validation for nutanix-ipi SNO", () => {
+        const state = {
+          blueprint: { platform: "nutanix" },
+          methodology: { method: "ipi" },
+          controlPlane: { replicas: 1 },
+          compute: { replicas: 0 },
+          platformConfig: {
+            nutanix: {
+              apiVIP: "invalid-ip"
+            }
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBe(0);
+      });
+
+      it("should validate for bare-metal-ipi multi-node (3 control plane, 2 compute)", () => {
+        const state = {
+          blueprint: { platform: "bare-metal" },
+          methodology: { method: "ipi" },
+          controlPlane: { replicas: 3 },
+          compute: { replicas: 2 },
+          hostInventory: {
+            apiVip: "999.999.999.999"
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.fieldErrors.apiVip).toBeDefined();
+      });
+
+      it("should validate for vsphere-ipi compact cluster (3 control plane, 0 compute)", () => {
+        const state = {
+          blueprint: { platform: "vsphere" },
+          methodology: { method: "ipi" },
+          controlPlane: { replicas: 3 },
+          compute: { replicas: 0 },
+          platformConfig: {
+            vsphere: {
+              apiVIPs: ["999.999.999.999"]
+            }
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe("SNO with empty VIPs", () => {
+      it("should allow empty VIPs for SNO (best practice)", () => {
+        const state = {
+          blueprint: { platform: "bare-metal" },
+          methodology: { method: "agent" },
+          hostInventory: {
+            apiVip: "",
+            ingressVip: "",
+            nodes: [{ role: "master" }]
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBe(0);
+      });
+
+      it("should allow undefined VIPs for SNO", () => {
+        const state = {
+          blueprint: { platform: "vsphere" },
+          methodology: { method: "ipi" },
+          controlPlane: { replicas: 1 },
+          compute: { replicas: 0 },
+          platformConfig: {
+            vsphere: {}
+          }
+        };
+        const result = validateVipAddresses(state);
+        expect(result.errors.length).toBe(0);
+      });
     });
   });
 });

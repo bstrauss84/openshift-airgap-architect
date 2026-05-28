@@ -972,6 +972,31 @@ const validateVipAddresses = (state) => {
   const hostInventory = state.hostInventory || {};
   const platformConfig = state.platformConfig || {};
 
+  // SNO (Single Node OpenShift) detection - VIPs not required for SNO
+  const isSno = () => {
+    // Agent-based scenarios: check node count (1 master, 0 workers)
+    if (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") {
+      const nodes = hostInventory.nodes || [];
+      const masterCount = nodes.filter((n) => n.role === "master").length;
+      const workerCount = nodes.filter((n) => n.role === "worker").length;
+      return masterCount === 1 && workerCount === 0;
+    }
+
+    // IPI scenarios: check controlPlane and compute replicas
+    if (scenarioId === "bare-metal-ipi" || scenarioId === "vsphere-ipi" || scenarioId === "nutanix-ipi") {
+      const controlPlane = state.controlPlane || {};
+      const compute = state.compute || {};
+      return controlPlane.replicas === 1 && compute.replicas === 0;
+    }
+
+    return false;
+  };
+
+  // Skip VIP validation for SNO - VIPs are not used in single-node configurations
+  if (isSno()) {
+    return { errors, warnings: [], fieldErrors };
+  }
+
   // Helper to validate a single VIP (IPv4 or IPv6)
   const validateSingleVip = (vip, fieldName, ipVersion) => {
     const trimmed = vip.trim();
