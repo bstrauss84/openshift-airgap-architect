@@ -64,7 +64,11 @@ export async function createCollectionPipeline({
       labels: {
         "app.kubernetes.io/created-by": "openshift-airgap-architect",
         "app.kubernetes.io/managed-by": "airgap-architect"
-      }
+      },
+      // Add trigger annotation for manual triggers to start immediately
+      annotations: triggerType === "manual"
+        ? { "mirror.mathianasj.github.com/trigger": "true" }
+        : {}
     },
     spec: {
       triggerType,
