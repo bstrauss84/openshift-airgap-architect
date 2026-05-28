@@ -21,6 +21,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   - [Run oc-mirror](#run-oc-mirror)
   - [Operations](#operations)
   - [Mock mode (offline demo)](#mock-mode-offline-demo)
+  - [End-to-End (E2E) testing](#e2e-testing)
 - **Platform, Security, and Operations**
   - [Platform and architecture (multi-arch / Apple Silicon)](#platform-and-architecture-multi-arch--apple-silicon)
   - [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret)
@@ -813,6 +814,37 @@ MOCK_MODE=true docker compose up --build
 ```
 
 If you have registry access but only need to avoid **GitHub** (for example Cincinnati graph data) while staying otherwise connected, prefer **`HTTP_PROXY` / `HTTPS_PROXY` on the backend** or the allow-list guidance in [Corporate HTTP proxy and backend egress](#corporate-proxy-backend-egress) before relying on mock data.
+
+<a id="e2e-testing"></a>
+## End-to-End (E2E) Testing
+
+Playwright-based E2E tests validate critical user workflows including wizard completion, import/export, and background job tracking.
+
+**Prerequisites:**
+- Application running (frontend at `:5173`, backend at `:4000`)
+- Playwright installed (`npm install` from project root)
+
+**Run E2E tests:**
+```bash
+# Headless (CI mode)
+npm run test:e2e
+
+# With browser visible
+npm run test:e2e:headed
+
+# Interactive UI mode (best for development)
+npm run test:e2e:ui
+
+# Debug mode (step through tests)
+npm run test:e2e:debug
+```
+
+**Test coverage:**
+- **Wizard completion** - Full flow from blueprint → configure → generate → export
+- **Import/export** - Export configuration, clear state, import, verify restoration
+- **Operations** - Job history, Cincinnati refresh, log viewing, job status tracking
+
+**12 E2E tests across 3 test suites.** See `e2e/README.md` for detailed test documentation, debugging tips, and CI integration guide.
 
 <a id="platform-and-architecture-multi-arch--apple-silicon"></a>
 ## Platform and architecture (multi-arch / Apple Silicon)
