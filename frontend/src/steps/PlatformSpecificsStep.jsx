@@ -2798,11 +2798,9 @@ Included in install-config only when you choose to include credentials in export
                     data-lpignore="true"
                   />
                 </FieldLabelWithInfo>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <FieldLabelWithInfo
-                      label="vCenter password (optional)"
-                      hint={`Password for the vCenter username specified above.
+                <FieldLabelWithInfo
+                  label="vCenter password (optional)"
+                  hint={`Password for the vCenter username specified above.
 
 **How it's used:**
 • **IPI:** Provisions infrastructure resources (VMs, networks, storage) during installation
@@ -2814,34 +2812,33 @@ The password is included in generated install-config.yaml **only when** you choo
 **Important:**
 ⚠️ **Do not allow your browser to save this password** - it will be embedded in **plain text** in the install-config
 ⚠️ After installation, you can remove credentials from the file if needed`}
+                >
+                  <div className="password-input-with-toggle">
+                    <input
+                      type={showVspherePassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      data-form-type="other"
+                      data-lpignore="true"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      value={localVspherePassword}
+                      onChange={(e) => setLocalVspherePassword(e.target.value)}
+                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: localVspherePassword } })}
+                      placeholder="••••••••"
+                      aria-label="vCenter password (optional)"
                     />
                     <button
                       type="button"
-                      className="ghost pull-secret-toggle"
-                      style={{ padding: "2px 8px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 4 }}
+                      className="ghost password-toggle-btn"
                       onClick={() => setShowVspherePassword((s) => !s)}
                       aria-label={showVspherePassword ? "Hide password" : "Show password"}
                     >
-                      <span aria-hidden>{showVspherePassword ? " " : "👁"}</span>
+                      <span aria-hidden>{showVspherePassword ? " " : "\u{1F441}"}</span>
                       {showVspherePassword ? "Hide" : "Show"}
                     </button>
                   </div>
-                  <input
-                    className="password-input-fixed-width"
-                    type={showVspherePassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    data-form-type="other"
-                    data-lpignore="true"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    value={localVspherePassword}
-                    onChange={(e) => setLocalVspherePassword(e.target.value)}
-                    onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, password: localVspherePassword } })}
-                    placeholder="••••••••"
-                    aria-label="vCenter password (optional)"
-                  />
-                </div>
+                </FieldLabelWithInfo>
               </div>
 
               <h4 className="platform-specifics-subsection">Placement</h4>

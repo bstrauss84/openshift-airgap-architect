@@ -6139,8 +6139,8 @@ input[placeholder*="corp.local"] {
 }
 
 .password-input-with-toggle input {
-  flex: 1;
-  min-width: 0;
+  width: 320px;
+  flex-shrink: 0;
 }
 
 .password-toggle-btn {
