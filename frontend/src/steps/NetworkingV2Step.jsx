@@ -1484,7 +1484,7 @@ Comma-separated if multiple (rare)
                           onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
                           onBlur={(e) => {
                             const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                            const currentArray = platformConfig.vsphere?.ingressVIPsV6 || [];
+                            const currentArray = platformConfig.vsphere?.ingressVIPs || [];
                             if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
                               updateVsphere({ ingressVIPs: newArray });
                             }

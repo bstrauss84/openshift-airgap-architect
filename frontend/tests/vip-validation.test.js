@@ -20,9 +20,10 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { isValidIpv6 } from "../src/validation.js";
 
 describe("VIP IP Address Validation", () => {
-  // Actual validation helpers from validation.js (copied for testing)
+  // Local helper for IPv4 validation (not exported from validation.js)
   const isValidIpv4 = (value) => {
     const parts = value.split(".");
     if (parts.length !== 4) return false;
@@ -31,54 +32,6 @@ describe("VIP IP Address Validation", () => {
       const num = Number(part);
       return num >= 0 && num <= 255;
     });
-  };
-
-  const isValidIpv6 = (value) => {
-    if (!value || typeof value !== "string") return false;
-    const trimmed = value.trim();
-    if (trimmed.includes("/")) return false;
-
-    // Quick reject obviously invalid patterns
-    if (trimmed === "" || trimmed === ":" || trimmed === ":::" || trimmed.includes(":::")) return false;
-
-    // Handle special cases
-    if (trimmed === "::") return true; // All zeros
-
-    // Split on :: for compressed notation
-    const parts = trimmed.split("::");
-
-    // Can only have one :: (compression)
-    if (parts.length > 2) return false;
-
-    if (parts.length === 2) {
-      // Compressed format - validate each side
-      const left = parts[0] ? parts[0].split(":") : [];
-      const right = parts[1] ? parts[1].split(":") : [];
-
-      // Total groups must be less than 8 (compression replaces at least one group)
-      if (left.length + right.length >= 8) return false;
-
-      // Validate each group
-      const allGroups = [...left, ...right];
-      for (const group of allGroups) {
-        if (group === "") return false; // Empty groups not allowed except in ::
-        if (group.length > 4) return false;
-        if (!/^[0-9a-fA-F]+$/.test(group)) return false;
-      }
-
-      return true;
-    } else {
-      // Full format - must have exactly 8 groups
-      const groups = trimmed.split(":");
-      if (groups.length !== 8) return false;
-
-      for (const group of groups) {
-        if (group === "" || group.length > 4) return false;
-        if (!/^[0-9a-fA-F]+$/.test(group)) return false;
-      }
-
-      return true;
-    }
   };
 
   // getScenarioId helper (matches hostInventoryV2Helpers.js signature)
