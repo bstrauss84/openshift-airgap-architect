@@ -2,7 +2,16 @@
 
 **Status:** Not Started (Future Consideration)  
 **Date Documented:** 2026-05-28  
+**Last Updated:** 2026-05-29  
 **Context:** After implementing operator-managed connected flow with CollectionPipeline integration
+
+## Architecture Decision: Keep Existing Backend ✅
+
+**IMPORTANT:** This plugin will use the **existing Express.js backend** for all operations. The plugin is pure UI that calls the same backend APIs as the standalone app. This decision:
+- ✅ Eliminates backend changes (0 backend work required)
+- ✅ Maximizes code reuse (components work identically in both modes)
+- ✅ Reduces effort from 9-14 days to **7-12 days**
+- ✅ Simplifies testing (no Kubernetes SDK mocking needed)
 
 ---
 
@@ -21,8 +30,8 @@ This document outlines the approach for converting the operator-managed flow int
 
 - **Hybrid Deployment**: Both standalone app AND console plugin
 - **Plugin Integration**: Appears in OpenShift console navigation when operator installed
-- **Code Sharing**: 90% of React components shared between modes
-- **Backend Unchanged**: Keep Express backend for complex operations
+- **Code Sharing**: 100% of React components shared between modes (no changes needed)
+- **Backend Unchanged**: Express backend serves both standalone and plugin (identical APIs)
 
 ---
 
@@ -199,11 +208,13 @@ export default extensions;
 
 #### 3. Backend API Integration
 
-**Option A: Keep Current Backend (Recommended)**
+**Architecture Decision: Keep Existing Backend** ✅
+
+The plugin will use the **same backend API** as the standalone app. This approach maximizes code reuse and avoids splitting business logic between frontend and backend.
 
 ```typescript
 // Plugin uses same apiFetch as standalone
-import { apiFetch } from '../../../frontend/src/api';
+import { apiFetch } from '@airgap-architect/shared/api';
 
 const RunCollectionStep = () => {
   const handleCreate = async () => {
@@ -216,56 +227,99 @@ const RunCollectionStep = () => {
 };
 ```
 
-**Pros:**
-- No changes to existing backend
-- Complex operations (generation, scanning) stay server-side
-- Works exactly like standalone
+**Why This Approach:**
 
-**Cons:**
-- Still need backend pod running
-- One extra network hop
+✅ **No Backend Changes Required**
+- Existing Express.js backend works as-is
+- All endpoints (`/api/generate`, `/api/operators/scan`, `/api/cincinnati/*`) unchanged
+- Backend handles complex operations (YAML generation, operator scanning, Cincinnati queries)
 
-**Option B: Direct K8s API for Simple Operations**
+✅ **100% Code Reuse**
+- Plugin components identical to standalone components
+- Same `apiFetch` utility
+- Same state management (`store.jsx`)
+- Same validation logic
+
+✅ **Simpler Architecture**
+- Single source of truth for business logic (backend)
+- Frontend (plugin or standalone) is pure UI
+- Clear separation of concerns
+
+✅ **Easier Testing**
+- Test components once in standalone mode
+- Plugin inherits all test coverage
+- No need to mock Kubernetes SDK for most operations
+
+✅ **Backend Already Handles Auth**
+- Backend validates operator-managed mode
+- Backend checks for mounted pull secrets
+- Backend creates CollectionPipeline CRs via K8s client
+
+**What Gets Shared:**
 
 ```typescript
-import { k8sCreate, useK8sWatchResource } from '@openshift-console/dynamic-plugin-sdk';
+// Shared API layer (works in both standalone and plugin)
+// frontend/src/api.js (moved to shared/)
+export async function apiFetch(path, options = {}) {
+  const baseUrl = window.AIRGAP_BACKEND_URL || 
+                  'http://airgap-architect-backend:3000';
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  return response.json();
+}
 
-const RunCollectionStep = () => {
-  const handleCreate = async () => {
-    // Direct CR creation via console SDK
-    const cr = {
-      apiVersion: 'mirror.mirror.mathianasj.github.com/v1',
-      kind: 'CollectionPipeline',
-      metadata: { name, namespace },
-      spec: { imageSetConfig, storage: { output: { pvc } } }
-    };
-    
-    await k8sCreate({ model: CollectionPipelineModel, data: cr });
-  };
+// Used identically in standalone and plugin:
+const config = await apiFetch('/api/generate', {
+  method: 'POST',
+  body: JSON.stringify({ state })
+});
+```
 
-  // Watch CollectionPipeline status in real-time
-  const [pipeline, loaded, error] = useK8sWatchResource({
+**Plugin-Specific Enhancement (Optional):**
+
+For real-time CollectionPipeline status watching, plugin CAN use console SDK alongside backend:
+
+```typescript
+// Plugin watches CR status via console SDK
+import { useK8sWatchResource } from '@openshift-console/dynamic-plugin-sdk';
+
+const CollectionPipelineStatus = ({ name, namespace }) => {
+  // Watch for status updates in real-time
+  const [pipeline, loaded] = useK8sWatchResource({
     kind: 'CollectionPipeline',
-    name: 'release1',
-    namespace: 'mirror-operator-system'
+    name,
+    namespace
+  });
+  
+  return (
+    <div>
+      <p>Status: {pipeline?.status?.phase || 'Pending'}</p>
+      <p>Progress: {pipeline?.status?.progress || 0}%</p>
+    </div>
+  );
+};
+```
+
+**But creation still goes through backend:**
+
+```typescript
+// Creation uses backend (not direct K8s API)
+const createPipeline = async (name, config) => {
+  return apiFetch('/api/collection-pipeline/create', {
+    method: 'POST',
+    body: JSON.stringify({ name, imageSetConfig: config, pvc, triggerType })
   });
 };
 ```
 
-**Pros:**
-- No backend needed for CR operations
-- Real-time status updates
-- Cleaner architecture
+**Result:**
+- Backend creates the CR (with validation, error handling, logging)
+- Plugin watches the CR for status updates
+- Best of both worlds: backend logic + real-time UI updates
 
-**Cons:**
-- Still need backend for generation, operator scanning
-- Split logic between plugin and backend
-
-**Recommendation:** Hybrid approach
-- Use K8s API for CollectionPipeline CRUD
-- Keep backend for generation, scanning, Cincinnati
-
-**Effort:** 8-12 hours (SDK integration)
+**Effort:** 2-4 hours (just wire up existing backend, optional CR watching)
 
 ---
 
@@ -805,17 +859,23 @@ export const ImageSetConfigPage: React.FC = () => {
 
 ## Effort Estimate
 
-### Total Implementation Time
+### Total Implementation Time (Using Existing Backend)
 
 | Phase | Task | Estimated Time |
 |-------|------|----------------|
 | Phase 1 | Plugin infrastructure setup | 1-2 days |
-| Phase 2 | Migrate ImageSet Config page | 2-3 days |
-| Phase 3 | CollectionPipeline list/detail | 2-3 days |
+| Phase 2 | Wire up existing components (no migration needed) | 1-2 days |
+| Phase 3 | CollectionPipeline list/detail views | 1-2 days |
 | Phase 4 | Production build & deployment | 1-2 days |
 | Testing | Integration testing in console | 2-3 days |
 | Documentation | User guide, dev guide | 1 day |
-| **Total** | **End-to-end plugin** | **9-14 days** |
+| **Total** | **End-to-end plugin** | **7-12 days** |
+
+**Reduced from 9-14 days** because:
+- ✅ No backend changes required (saves 2-3 days)
+- ✅ Components work as-is (saves 1-2 days)
+- ✅ Same API client (`apiFetch`) in both modes (saves 1 day)
+- ✅ Simpler testing (no K8s SDK mocking needed)
 
 **Assumptions:**
 - Developer familiar with React and TypeScript
