@@ -121,6 +121,9 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localNutanixCluster, setLocalNutanixCluster] = useState(platformConfig.nutanix?.cluster || "");
   const [localNutanixStorageContainer, setLocalNutanixStorageContainer] = useState(platformConfig.nutanix?.storageContainer || "");
 
+  // Auto-select touched state for fields with default values
+  const [nutanixPortTouched, setNutanixPortTouched] = useState(false);
+
   // Local state for text inputs (onBlur pattern) - vSphere
   const [localVsphereVcenter, setLocalVsphereVcenter] = useState(platformConfig.vsphere?.vcenter || "");
   const [localVsphereUsername, setLocalVsphereUsername] = useState(platformConfig.vsphere?.username || "");
@@ -195,7 +198,10 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
 
   // Sync local state when store values change (for imports/loads) - Nutanix
   useEffect(() => { setLocalNutanixEndpoint(platformConfig.nutanix?.endpoint || ""); }, [platformConfig.nutanix?.endpoint]);
-  useEffect(() => { setLocalNutanixPort(platformConfig.nutanix?.port || ""); }, [platformConfig.nutanix?.port]);
+  useEffect(() => {
+    setLocalNutanixPort(platformConfig.nutanix?.port || "");
+    setNutanixPortTouched(false); // Reset touched on external update
+  }, [platformConfig.nutanix?.port]);
   useEffect(() => { setLocalNutanixUsername(platformConfig.nutanix?.username || ""); }, [platformConfig.nutanix?.username]);
   useEffect(() => { setLocalNutanixPassword(platformConfig.nutanix?.password || ""); }, [platformConfig.nutanix?.password]);
   useEffect(() => { setLocalNutanixSubnet(platformConfig.nutanix?.subnet || ""); }, [platformConfig.nutanix?.subnet]);
@@ -2395,7 +2401,16 @@ us-south-1,us-south-2 (for us-south region with 2 zones)`}
                   <input
                     type="number"
                     value={localNutanixPort}
-                    onChange={(e) => setLocalNutanixPort(e.target.value)}
+                    onChange={(e) => {
+                      setLocalNutanixPort(e.target.value);
+                      setNutanixPortTouched(true);
+                    }}
+                    onFocus={(e) => {
+                      // Auto-select pre-populated default value on first focus
+                      if (!nutanixPortTouched && localNutanixPort) {
+                        e.target.select();
+                      }
+                    }}
                     onBlur={() => updateNutanix({ port: localNutanixPort || undefined })}
                     placeholder="9440"
                     style={{ maxWidth: 120 }}

@@ -517,7 +517,16 @@ This is often the **main network you customize** - other networks (cluster/servi
                     className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
                       title={fieldErrors.machineNetworkV4 || ""}
                     value={localMachineNetworkV4}
-                    onChange={(e) => setLocalMachineNetworkV4(e.target.value)}
+                    onChange={(e) => {
+                      setLocalMachineNetworkV4(e.target.value);
+                      setMachineNetworkV4Touched(true);
+                    }}
+                    onFocus={(e) => {
+                      // Auto-select pre-populated default value on first focus
+                      if (!machineNetworkV4Touched && localMachineNetworkV4) {
+                        e.target.select();
+                      }
+                    }}
                     onBlur={(e) => {
                       const formatted = formatIpv4Cidr(e.target.value.trim());
                       if (formatted !== networking.machineNetworkV4) {
@@ -623,7 +632,16 @@ If your datacenter uses 10.x.x.x, change to 172.30.0.0/16`}
                       className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
                         title={fieldErrors.clusterNetworkCidr || ""}
                       value={localClusterNetworkCidr}
-                      onChange={(e) => setLocalClusterNetworkCidr(e.target.value)}
+                      onChange={(e) => {
+                        setLocalClusterNetworkCidr(e.target.value);
+                        setClusterNetworkCidrTouched(true);
+                      }}
+                      onFocus={(e) => {
+                        // Auto-select pre-populated default value on first focus
+                        if (!clusterNetworkCidrTouched && localClusterNetworkCidr) {
+                          e.target.select();
+                        }
+                      }}
                       onBlur={(e) => {
                         const formatted = formatIpv4Cidr(e.target.value.trim());
                         if (formatted !== networking.clusterNetworkCidr) {
@@ -718,7 +736,16 @@ IPv6 uses larger prefixes than IPv4 due to address abundance. /48 provides 65,53
                         className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                       title={fieldErrors.clusterNetworkCidrV6 || ""}
                         value={localClusterNetworkCidrV6}
-                        onChange={(e) => setLocalClusterNetworkCidrV6(e.target.value)}
+                        onChange={(e) => {
+                          setLocalClusterNetworkCidrV6(e.target.value);
+                          setClusterNetworkCidrV6Touched(true);
+                        }}
+                        onFocus={(e) => {
+                          // Auto-select pre-populated default value on first focus
+                          if (!clusterNetworkCidrV6Touched && localClusterNetworkCidrV6) {
+                            e.target.select();
+                          }
+                        }}
                         onBlur={(e) => {
                           const formatted = formatIpv6Cidr(e.target.value.trim()) || undefined;
                           if (formatted !== networking.clusterNetworkCidrV6) {
@@ -808,7 +835,16 @@ If datacenter uses 172.x.x.x, change to 10.96.0.0/12`}
                       className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
                         title={fieldErrors.serviceNetworkCidr || ""}
                       value={localServiceNetworkCidr}
-                      onChange={(e) => setLocalServiceNetworkCidr(e.target.value)}
+                      onChange={(e) => {
+                        setLocalServiceNetworkCidr(e.target.value);
+                        setServiceNetworkCidrTouched(true);
+                      }}
+                      onFocus={(e) => {
+                        // Auto-select pre-populated default value on first focus
+                        if (!serviceNetworkCidrTouched && localServiceNetworkCidr) {
+                          e.target.select();
+                        }
+                      }}
                       onBlur={(e) => {
                         const formatted = formatIpv4Cidr(e.target.value.trim());
                         if (formatted !== networking.serviceNetworkCidr) {
@@ -867,7 +903,16 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
                       className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                       title={fieldErrors.serviceNetworkCidrV6 || ""}
                       value={localServiceNetworkCidrV6}
-                      onChange={(e) => setLocalServiceNetworkCidrV6(e.target.value)}
+                      onChange={(e) => {
+                        setLocalServiceNetworkCidrV6(e.target.value);
+                        setServiceNetworkCidrV6Touched(true);
+                      }}
+                      onFocus={(e) => {
+                        // Auto-select pre-populated default value on first focus
+                        if (!serviceNetworkCidrV6Touched && localServiceNetworkCidrV6) {
+                          e.target.select();
+                        }
+                      }}
                       onBlur={(e) => {
                         const formatted = formatIpv6Cidr(e.target.value.trim()) || undefined;
                         if (formatted !== networking.serviceNetworkCidrV6) {
@@ -912,23 +957,37 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
               ) : showVsphereAgentVips ? (
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
-                    ? "Required for vSphere Agent-based multi-node (OpenShift 4.20 validation before agent ISO creation). One IP per field for single-stack; with IPv6 enabled, use separate IPv4 and IPv6 fields so install-config lists match machine networks in order."
-                    : "Single-node OpenShift on vSphere Agent-based uses platform.none per the Agent guide; API/Ingress VIPs are not used. You can leave these blank."}
+                    ? ipStackMode === 'dual-stack'
+                      ? "Required for vSphere Agent-based multi-node with dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below. Install-config apiVIPs/ingressVIPs lists order is IPv4 then IPv6."
+                      : ipStackMode === 'ipv6'
+                      ? "Required for vSphere Agent-based multi-node with IPv6-only: set API VIP and Ingress VIP using IPv6 addresses. Single IPv6 address per field."
+                      : "Required for vSphere Agent-based multi-node (single-stack IPv4): set API VIP and Ingress VIP. One IP per field."
+                    : ipStackMode === 'dual-stack'
+                      ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used. Optional: you may still record VIPs here. With dual-stack, use the IPv4 and IPv6 fields separately."
+                      : ipStackMode === 'ipv6'
+                      ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used. Optional: you may still record IPv6 VIPs here."
+                      : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used. Optional: you may still record IPv4 VIPs here."}
                 </p>
               ) : scenarioId === "bare-metal-agent" ? (
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
-                    ? showIpv6ForPlatform
+                    ? ipStackMode === 'dual-stack'
                       ? "Required for Bare Metal Agent-based multi-node installs when using dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below—do not comma-separate in one box. Official 4.20 install-config guidance requires IPv4 entries before IPv6 in apiVIPs/ingressVIPs lists; this app emits that order."
+                      : ipStackMode === 'ipv6'
+                      ? "Required for Bare Metal Agent-based multi-node installs when using IPv6-only: set API VIP and Ingress VIP using IPv6 addresses. Single IPv6 address per field."
                       : "Required for Bare Metal Agent-based multi-node installs (single-stack IPv4 in this flow): set API VIP and Ingress VIP."
-                    : showIpv6ForPlatform
-                      ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record VIPs here. With IPv6 enabled, use the IPv4 and IPv6 fields separately for dual-stack documentation alignment."
+                    : ipStackMode === 'dual-stack'
+                      ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record VIPs here. With dual-stack, use the IPv4 and IPv6 fields separately for documentation alignment."
+                      : ipStackMode === 'ipv6'
+                      ? "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record IPv6 VIPs here."
                       : "Single-node (SNO) uses platform.none; API/Ingress VIPs are not used in install-config. Optional: you may still record IPv4 VIPs here."}
                 </p>
               ) : scenarioId === "bare-metal-ipi" ? (
                 <p className="note">
-                  {showIpv6ForPlatform
-                    ? "Bare metal IPI: set API and Ingress VIPs, or leave blank if using an external load balancer. With IPv6 enabled, use the separate IPv4 and IPv6 fields (install-config apiVIPs/ingressVIPs list order is IPv4 then IPv6 per 4.20 docs)."
+                  {ipStackMode === 'dual-stack'
+                    ? "Bare metal IPI: set API and Ingress VIPs, or leave blank if using an external load balancer. With dual-stack, use the separate IPv4 and IPv6 fields (install-config apiVIPs/ingressVIPs list order is IPv4 then IPv6 per 4.20 docs)."
+                    : ipStackMode === 'ipv6'
+                    ? "Bare metal IPI: set API and Ingress VIPs (IPv6), or leave blank if using an external load balancer. Single IPv6 address per field."
                     : "Bare metal IPI: set API VIP and Ingress VIP (IPv4), or leave blank if using an external load balancer."}
                 </p>
               ) : (
@@ -976,8 +1035,7 @@ If machine network is 192.168.1.0/24, use 192.168.1.10`}
                             placeholder={vipPlaceholders.apiVip}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.nutanixApiVIP && <span className="note warning inline">{fieldErrors.nutanixApiVIP}</span>}
-                        <FieldLabelWithInfo label="IPv6" hint={`Second API VIP for dual-stack (IPv4 + IPv6).
+                                                <FieldLabelWithInfo label="IPv6" hint={`Second API VIP for dual-stack (IPv4 + IPv6).
 
 **When to set:**
 Only for dual-stack deployments
@@ -1001,8 +1059,7 @@ fd00::5`}>
                             placeholder={vipPlaceholdersV6.apiVipV6}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.nutanixApiVIPV6 && <span className="note warning inline">{fieldErrors.nutanixApiVIPV6}</span>}
-                      </div>
+                                              </div>
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1042,8 +1099,7 @@ If machine network is 192.168.1.0/24, use 192.168.1.11`}
                             placeholder={vipPlaceholders.ingressVip}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.nutanixIngressVIP && <span className="note warning inline">{fieldErrors.nutanixIngressVIP}</span>}
-                        <FieldLabelWithInfo label="IPv6" hint={`Second Ingress VIP for dual-stack (IPv4 + IPv6).
+                                                <FieldLabelWithInfo label="IPv6" hint={`Second Ingress VIP for dual-stack (IPv4 + IPv6).
 
 **When to set:**
 Only for dual-stack deployments
@@ -1067,8 +1123,7 @@ fd00::6`}>
                             placeholder={vipPlaceholdersV6.ingressVipV6}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.nutanixIngressVIPV6 && <span className="note warning inline">{fieldErrors.nutanixIngressVIPV6}</span>}
-                      </div>
+                                              </div>
                     </>
                   ) : ipStackMode === 'ipv6' ? (
                     <>
@@ -1104,8 +1159,7 @@ If machine network is fd10:90::/64, use fd10:90::5`}
                           placeholder={vipPlaceholdersV6.apiVipV6}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.nutanixApiVIPV6 && <span className="note warning inline">{fieldErrors.nutanixApiVIPV6}</span>}
-                      <FieldLabelWithInfo
+                                            <FieldLabelWithInfo
                         label="Ingress VIP (IPv6)"
                         hint={`Virtual IP address for the default ingress router load balancer (IPv6).
 
@@ -1138,8 +1192,7 @@ If machine network is fd10:90::/64, use fd10:90::6`}
                           placeholder={vipPlaceholdersV6.ingressVipV6}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.nutanixIngressVIPV6 && <span className="note warning inline">{fieldErrors.nutanixIngressVIPV6}</span>}
-                    </>
+                                          </>
                   ) : (
                     <>
                       <FieldLabelWithInfo
@@ -1170,8 +1223,7 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.nutanixApiVIP && <span className="note warning inline">{fieldErrors.nutanixApiVIP}</span>}
-                      <FieldLabelWithInfo
+                                            <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={metaNutanixIngressVIP?.description || `Virtual IP address for the default ingress router load balancer.
 
@@ -1199,8 +1251,7 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.nutanixIngressVIP && <span className="note warning inline">{fieldErrors.nutanixIngressVIP}</span>}
-                    </>
+                                          </>
                   )
                 ) : showVsphereIpiVips ? (
                   ipStackMode === 'dual-stack' ? (
@@ -1236,7 +1287,6 @@ Set IPv6 below for dual-stack deployments
                             aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                         <FieldLabelWithInfo
                           label="IPv6"
                           hint={`Second API VIP for dual-stack (IPv6).
@@ -1263,7 +1313,6 @@ fd00::2`}
                             aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                       </div>
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
@@ -1296,7 +1345,6 @@ Set IPv6 below for dual-stack deployments
                             aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                         <FieldLabelWithInfo
                           label="IPv6"
                           hint={`Second Ingress VIP for dual-stack (IPv6).
@@ -1323,8 +1371,68 @@ fd00::3`}
                             aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                       </div>
+                    </>
+                  ) : ipStackMode === 'ipv6' ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIPs (IPv6)"
+                        hint={`Virtual IP address(es) for the Kubernetes API load balancer (IPv6-only).
+
+**When required:**
+Required for vSphere IPI when **not using an external load balancer**
+
+**Format:**
+Comma-separated if multiple (rare)
+
+**Example:**
+fd00::10`}
+                      >
+                        <input
+                          className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                          title={fieldErrors.apiVipV6 || ""}
+                          value={localVsphereApiVIPsV6}
+                          onChange={(e) => setLocalVsphereApiVIPsV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                            const currentArray = platformConfig.vsphere?.apiVIPsV6 || [];
+                            if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                              updateVsphere({ apiVIPsV6: newArray });
+                            }
+                          }}
+                          placeholder={vipPlaceholdersV6.apiVipV6}
+                          aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIPs (IPv6)"
+                        hint={`Virtual IP address(es) for the default Ingress controller load balancer (IPv6-only).
+
+**When required:**
+Required for vSphere IPI when **not using an external load balancer**
+
+**Format:**
+Comma-separated if multiple (rare)
+
+**Example:**
+fd00::11`}
+                      >
+                        <input
+                          className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                          title={fieldErrors.ingressVipV6 || ""}
+                          value={localVsphereIngressVIPsV6}
+                          onChange={(e) => setLocalVsphereIngressVIPsV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                            const currentArray = platformConfig.vsphere?.ingressVIPsV6 || [];
+                            if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
+                              updateVsphere({ ingressVIPsV6: newArray });
+                            }
+                          }}
+                          placeholder={vipPlaceholdersV6.ingressVipV6}
+                          aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
+                        />
+                      </FieldLabelWithInfo>
                     </>
                   ) : (
                     <>
@@ -1376,7 +1484,7 @@ Comma-separated if multiple (rare)
                           onChange={(e) => setLocalVsphereIngressVIPs(e.target.value)}
                           onBlur={(e) => {
                             const newArray = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                            const currentArray = platformConfig.vsphere?.ingressVIPs || [];
+                            const currentArray = platformConfig.vsphere?.ingressVIPsV6 || [];
                             if (JSON.stringify(newArray) !== JSON.stringify(currentArray)) {
                               updateVsphere({ ingressVIPs: newArray });
                             }
@@ -1387,7 +1495,7 @@ Comma-separated if multiple (rare)
                     </>
                   )
                 ) : showVsphereAgentVips ? (
-                  showIpv6ForPlatform ? (
+                  ipStackMode === 'dual-stack' ? (
                     <>
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
@@ -1420,7 +1528,6 @@ Orders VIPs to match machine networks (IPv4 first, then IPv6)
                             aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary API VIP for dual-stack (IPv6).
 
 **When to set:**
@@ -1446,7 +1553,6 @@ fd00::1`}>
                             aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
                       </div>
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
@@ -1479,7 +1585,6 @@ Set IPv6 below for dual-stack deployments
                             aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
                         <FieldLabelWithInfo label="IPv6" hint={`Secondary Ingress VIP for dual-stack (IPv6).
 
 **When to set:**
@@ -1505,19 +1610,88 @@ fd00::2`}>
                             aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                           />
                         </FieldLabelWithInfo>
-                        {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
                       </div>
+                    </>
+                  ) : ipStackMode === 'ipv6' ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="API VIP"
+                        hint={`Virtual IP address for the Kubernetes API server load balancer (IPv6-only).
+
+**What is this:**
+The IPv6 address clients use to communicate with the cluster API
+
+**Format:**
+Single IPv6 address
+
+**Example:**
+fd00::1`}
+                        required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.apiVipV6 ? "input-error" : ""}
+                          title={fieldErrors.apiVipV6 || ""}
+                          value={localApiVipV6}
+                          onChange={(e) => setLocalApiVipV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== (hostInventory.apiVipV6 ?? "")) {
+                              updateHostInventory({ apiVipV6: newValue });
+                            }
+                          }}
+                          placeholder={vipPlaceholdersV6.apiVipV6}
+                          aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
+                        />
+                      </FieldLabelWithInfo>
+                      <FieldLabelWithInfo
+                        label="Ingress VIP"
+                        hint={`Virtual IP address for the default ingress router load balancer (IPv6-only).
+
+**What is this:**
+The IPv6 address where external HTTP/HTTPS traffic enters the cluster
+
+**Format:**
+Single IPv6 address
+
+**Example:**
+fd00::2`}
+                        required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
+                      >
+                        <input
+                          className={fieldErrors.ingressVipV6 ? "input-error" : ""}
+                          title={fieldErrors.ingressVipV6 || ""}
+                          value={localIngressVipV6}
+                          onChange={(e) => setLocalIngressVipV6(e.target.value)}
+                          onBlur={(e) => {
+                            const newValue = e.target.value.trim();
+                            if (newValue !== (hostInventory.ingressVipV6 ?? "")) {
+                              updateHostInventory({ ingressVipV6: newValue });
+                            }
+                          }}
+                          placeholder={vipPlaceholdersV6.ingressVipV6}
+                          aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
+                        />
+                      </FieldLabelWithInfo>
                     </>
                   ) : (
                     <>
                       <FieldLabelWithInfo
-                        label="API VIPs"
-                        hint={metaApiVipsVsphere?.description || "One IPv4 address for single-stack vSphere Agent-based (enable IPv6 above for dual-stack VIP fields)."}
+                        label="API VIP"
+                        hint={metaApiVipsVsphere?.description || `Virtual IP address for the Kubernetes API server load balancer (IPv4).
+
+**What is this:**
+The IP address clients use to communicate with the cluster API
+
+**Format:**
+Single IPv4 address
+
+**Example:**
+10.90.0.1`}
                         required={vipsRequiredForBareMetalAgent && (metaApiVipsVsphere?.required || metaApiVip?.required)}
                       >
                         <input
                           className={fieldErrors.apiVip ? "input-error" : ""}
-                      title={fieldErrors.apiVip || ""}
+                          title={fieldErrors.apiVip || ""}
                           value={localApiVip}
                           onChange={(e) => setLocalApiVip(e.target.value)}
                           onBlur={(e) => {
@@ -1530,13 +1704,22 @@ fd00::2`}>
                         />
                       </FieldLabelWithInfo>
                       <FieldLabelWithInfo
-                        label="Ingress VIPs"
-                        hint={metaIngressVipsVsphere?.description || "One IPv4 address for single-stack. Enable IPv6 above for a separate IPv6 Ingress VIP field."}
+                        label="Ingress VIP"
+                        hint={metaIngressVipsVsphere?.description || `Virtual IP address for the default ingress router load balancer (IPv4).
+
+**What is this:**
+The IP address where external HTTP/HTTPS traffic enters the cluster
+
+**Format:**
+Single IPv4 address
+
+**Example:**
+10.90.0.2`}
                         required={vipsRequiredForBareMetalAgent && (metaIngressVipsVsphere?.required || metaIngressVip?.required)}
                       >
                         <input
                           className={fieldErrors.ingressVip ? "input-error" : ""}
-                      title={fieldErrors.ingressVip || ""}
+                          title={fieldErrors.ingressVip || ""}
                           value={localIngressVip}
                           onChange={(e) => setLocalIngressVip(e.target.value)}
                           onBlur={(e) => {
@@ -1584,8 +1767,7 @@ Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
                           aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
-                      <FieldLabelWithInfo
+                                            <FieldLabelWithInfo
                         label="IPv6"
                         hint={`Second API VIP for dual-stack (IPv6).
 
@@ -1616,8 +1798,7 @@ fd00::1`}
                           aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
-                    </div>
+                                          </div>
                     <div className="vip-group">
                       <h5 className="vip-group-header">Ingress Virtual IP</h5>
                       <FieldLabelWithInfo
@@ -1649,8 +1830,7 @@ Emitted ingressVIPs order is IPv4 then IPv6
                           aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
-                      <FieldLabelWithInfo
+                                            <FieldLabelWithInfo
                         label="IPv6"
                         hint={`Second Ingress VIP for dual-stack (IPv6).
 
@@ -1678,8 +1858,7 @@ fd00::2`}
                           aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
-                    </div>
+                                          </div>
                     </>
                   ) : ipStackMode === 'ipv6' ? (
                     <>
@@ -1712,8 +1891,7 @@ fd00::1`}
                           aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVipV6 && <span className="note warning inline">{fieldErrors.apiVipV6}</span>}
-                      <FieldLabelWithInfo
+                                            <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={`Virtual IP address for the default ingress router load balancer (IPv6-only).
 
@@ -1742,8 +1920,7 @@ fd00::2`}
                           aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVipV6 && <span className="note warning inline">{fieldErrors.ingressVipV6}</span>}
-                    </>
+                                          </>
                   ) : (
                     <>
                       <FieldLabelWithInfo
@@ -1775,8 +1952,7 @@ Single IPv4 address (not comma-separated)
                           aria-invalid={fieldErrors.apiVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
-                      <FieldLabelWithInfo
+                                            <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={`Virtual IP address for the default ingress router load balancer.
 
@@ -1805,8 +1981,7 @@ Single IPv4 address (not comma-separated)
                           aria-invalid={fieldErrors.ingressVip ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.ingressVip && <span className="note warning inline">{fieldErrors.ingressVip}</span>}
-                    </>
+                                          </>
                   )
                 ) : null}
               </div>

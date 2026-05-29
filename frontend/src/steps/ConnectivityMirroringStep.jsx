@@ -67,6 +67,14 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
   const showMirroringConfig = useMirrorPath;
 
   const [mirrorFqdnDerivationWarning, setMirrorFqdnDerivationWarning] = React.useState("");
+  const [localRegistryFqdn, setLocalRegistryFqdn] = React.useState(mirroring.registryFqdn || "");
+  const [registryFqdnTouched, setRegistryFqdnTouched] = React.useState(false);
+
+  // Sync local state from global state when it changes externally
+  React.useEffect(() => {
+    setLocalRegistryFqdn(mirroring.registryFqdn || "");
+    setRegistryFqdnTouched(false); // Reset touched on external update (e.g., import)
+  }, [mirroring.registryFqdn]);
 
   useEffect(() => {
     const currentFqdn = (mirroring.registryFqdn || "").trim();
@@ -188,8 +196,23 @@ registry.corp.local:5000`}
                 required={metaImageDigest?.required}
               >
                 <input
-                  value={mirroring.registryFqdn || ""}
-                  onChange={(e) => handleRegistryFqdnChange(e.target.value)}
+                  value={localRegistryFqdn}
+                  onChange={(e) => {
+                    setLocalRegistryFqdn(e.target.value);
+                    setRegistryFqdnTouched(true);
+                  }}
+                  onFocus={(e) => {
+                    // Auto-select pre-populated default value on first focus
+                    if (!registryFqdnTouched && localRegistryFqdn) {
+                      e.target.select();
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const trimmed = e.target.value.trim();
+                    if (trimmed !== mirroring.registryFqdn) {
+                      handleRegistryFqdnChange(trimmed);
+                    }
+                  }}
                   placeholder="registry.corp.local:5000"
                 />
               </FieldLabelWithInfo>

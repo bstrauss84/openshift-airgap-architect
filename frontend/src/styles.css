@@ -6130,6 +6130,7 @@ input[placeholder*="corp.local"] {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  max-width: 400px; /* Match username field max-width for visual consistency */
 }
 
 .password-input-with-toggle input {
