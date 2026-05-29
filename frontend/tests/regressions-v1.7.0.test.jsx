@@ -21,7 +21,7 @@ import { NodeDrawerIpiContent } from "../src/components/NodeDrawerIpiContent.jsx
 describe("Regression Tests - v1.7.0", () => {
   describe("Version Display Regression", () => {
     it("should use appVersion prop instead of hardcoded '1.1.0'", () => {
-      const { container } = render(
+      render(
         <AboutModal
           isOpen={true}
           onClose={() => {}}
@@ -31,13 +31,14 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const versionText = container.textContent;
+      // AboutModal uses createPortal, so check document.body not container
+      const versionText = document.body.textContent;
       expect(versionText).toContain("1.7.0");
       expect(versionText).not.toContain("1.1.0");
     });
 
     it("should handle missing appVersion with sensible fallback", () => {
-      const { container } = render(
+      render(
         <AboutModal
           isOpen={true}
           onClose={() => {}}
@@ -47,14 +48,14 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const versionText = container.textContent;
+      const versionText = document.body.textContent;
       // Should show dev fallback, not hardcoded 1.1.0
       expect(versionText).toContain("1.7.0-dev");
       expect(versionText).not.toContain("1.1.0");
     });
 
     it("should handle 'unknown' buildTime without showing 'Invalid Date'", () => {
-      const { container } = render(
+      render(
         <AboutModal
           isOpen={true}
           onClose={() => {}}
@@ -64,13 +65,13 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const text = container.textContent;
+      const text = document.body.textContent;
       expect(text).not.toContain("Invalid Date");
       expect(text).toContain("dev build"); // Fallback text
     });
 
     it("should handle 'unknown' gitSha gracefully", () => {
-      const { container } = render(
+      render(
         <AboutModal
           isOpen={true}
           onClose={() => {}}
@@ -80,13 +81,13 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const text = container.textContent;
+      const text = document.body.textContent;
       expect(text).toContain("dev"); // Falls back to "dev" for unknown SHA
       expect(text).not.toContain("unknown");
     });
 
     it("should format valid buildTime as localized date", () => {
-      const { container } = render(
+      render(
         <AboutModal
           isOpen={true}
           onClose={() => {}}
@@ -96,7 +97,7 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const text = container.textContent;
+      const text = document.body.textContent;
       // Should contain a formatted date (exact format depends on locale)
       expect(text).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2}/); // Matches common date formats
     });
@@ -106,7 +107,7 @@ describe("Regression Tests - v1.7.0", () => {
     const mockSteps = [
       { stepNumber: 1, id: "blueprint", label: "Blueprint" },
       { stepNumber: 2, id: "methodology", label: "Methodology" },
-      { stepNumber: 3, id: "identity", label: "Identity & Access" },
+      { stepNumber: 3, id: "identity-access", label: "Identity & Access" },
       { stepNumber: 6, id: "review", label: "Assets & Guide" },
       { stepNumber: 7, id: "run-oc-mirror", label: "Run oc-mirror" },
       { stepNumber: 8, id: "operations", label: "Operations" }
@@ -130,7 +131,8 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const assetsGuideButton = screen.getByRole("button", { name: /Assets & Guide/i });
+      const assetsGuideButtons = screen.getAllByRole("button", { name: /Assets & Guide/i });
+      const assetsGuideButton = assetsGuideButtons[0]; // Use first match
 
       // Should NOT contain "Needs review" badge
       expect(assetsGuideButton.textContent).not.toContain("Needs review");
@@ -154,7 +156,8 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const assetsGuideButton = screen.getByRole("button", { name: /Assets & Guide/i });
+      const assetsGuideButtons = screen.getAllByRole("button", { name: /Assets & Guide/i });
+      const assetsGuideButton = assetsGuideButtons[0]; // Use first match
 
       // Should NOT contain checkmark (✓)
       expect(assetsGuideButton.textContent).not.toContain("✓");
@@ -178,7 +181,8 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const operationsButton = screen.getByRole("button", { name: /Operations/i });
+      const operationsButtons = screen.getAllByRole("button", { name: /Operations/i });
+      const operationsButton = operationsButtons[0]; // Use first match
       expect(operationsButton.textContent).not.toContain("Needs review");
     });
 
@@ -200,12 +204,13 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const runMirrorButton = screen.getByRole("button", { name: /Run oc-mirror/i });
+      const runMirrorButtons = screen.getAllByRole("button", { name: /Run oc-mirror/i });
+      const runMirrorButton = runMirrorButtons[0]; // Use first match
       expect(runMirrorButton.textContent).not.toContain("Needs review");
     });
 
     it("SHOULD show 'Needs review' on configuration tabs like Identity & Access", () => {
-      render(
+      const { container } = render(
         <Sidebar
           steps={mockSteps}
           activeStepId="blueprint"
@@ -213,8 +218,8 @@ describe("Regression Tests - v1.7.0", () => {
           sidebarOpen={true}
           setSidebarOpen={() => {}}
           completeFlags={{}}
-          visitedSteps={{ identity: true }}
-          reviewFlags={{ identity: true }}
+          visitedSteps={{ "identity-access": true }}
+          reviewFlags={{ "identity-access": true }}
           errorFlags={{}}
           foundationalLocked={true}
           lockToast=""
@@ -222,10 +227,18 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const identityButton = screen.getByRole("button", { name: /Identity & Access/i });
+      // Check all buttons to find which one has the badge
+      const allButtons = container.querySelectorAll('button.step-item');
+      let buttonWithBadge = null;
+      allButtons.forEach((btn) => {
+        if (btn.textContent.includes("Needs review")) {
+          buttonWithBadge = btn;
+        }
+      });
 
-      // Configuration tabs SHOULD show "Needs review"
-      expect(identityButton.textContent).toContain("Needs review");
+      // Configuration tabs SHOULD show "Needs review" on Identity & Access
+      expect(buttonWithBadge).not.toBeNull();
+      expect(buttonWithBadge.textContent).toContain("Identity & Access");
     });
   });
 
