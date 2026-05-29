@@ -421,7 +421,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByLabelText(/vCenter username \(optional\)/i)).toBeInTheDocument();
     const showBtn = screen.getByRole("button", { name: /Show password/i });
     expect(showBtn).toBeInTheDocument();
-    const labelRow = showBtn.closest(".field-with-info-row");
+    const labelRow = showBtn.closest(".pull-secret-label-row");
     expect(labelRow).toBeInTheDocument();
     expect(labelRow?.querySelector('[class*="field-label"]') || labelRow?.textContent).toBeTruthy();
   });

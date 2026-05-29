@@ -661,6 +661,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 </select>
               </OptionRow>
             ) : null}
+            {/* High-side runtime package toggle hidden until fully functional and tested
             <OptionRow
               title="Include high-side runtime package artifacts"
               description="Bundle OCI-archive container images and docker-compose for disconnected deployment."
@@ -673,6 +674,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include high-side runtime package artifacts"
               />
             </OptionRow>
+            */}
           </CollapsibleSection>
         </div>
         {needsReview ? (

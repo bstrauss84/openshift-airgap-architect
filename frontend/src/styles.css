@@ -2391,6 +2391,11 @@ body[data-theme="dark"] .note-prominent {
   margin-left: auto;
 }
 
+.password-input-fixed-width {
+  width: 875px;
+  max-width: 100%;
+}
+
 .pull-secret-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
