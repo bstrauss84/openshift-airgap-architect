@@ -322,6 +322,23 @@
       ]
     },
     {
+      "path": "controlPlane.platform",
+      "type": "object",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ]
+    },
+    {
       "path": "controlPlane.platform.nutanix",
       "outputFile": "install-config.yaml",
       "type": "object",
@@ -338,6 +355,24 @@
           "docTitle": "OpenShift Installer 4.20 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.Nutanix",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.replicas",
+      "type": "integer",
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "default": 3,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
         }
       ]
     },
@@ -1040,6 +1075,47 @@
           "docTitle": "DOC-082 Missing Parameter Analysis",
           "sectionHeading": "OCP 4.20 Nutanix docs, machine pool section",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.defaultMachinePlatform.bootType",
+      "type": "string",
+      "required": false,
+      "description": "Default boot type for Nutanix machines.",
+      "default": "Legacy",
+      "enum": [
+        "Legacy",
+        "UEFI",
+        "SecureBoot"
+      ],
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/nutanix/machinepool.go BootType",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 Nutanix install-config reference"
+        }
+      ]
+    },
+    {
+      "path": "platform.nutanix.defaultMachinePlatform.categories",
+      "type": "array",
+      "required": false,
+      "description": "Default Nutanix categories (key-value pairs) for all machines.",
+      "items_type": "object",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/nutanix/machinepool.go Categories",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 Nutanix install-config reference"
         }
       ]
     },

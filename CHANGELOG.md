@@ -5,6 +5,312 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-05-28
+
+### Fixed
+
+**Regression Fixes (7 items)**
+
+#### **Compute (Worker) Replicas Not Writing to YAML**
+- Fixed compute replicas field changes not appearing in live YAML preview or final asset YAML files
+- Bug affected: vSphere IPI, Azure Government IPI, IBM Cloud IPI
+- Root cause: Backend generation logic only checked `platformConfig.computeReplicas` for AWS and Nutanix, not other IPI scenarios
+- Fix: Added compute replicas logic for all IPI scenarios without host inventory
+- vSphere IPI, Azure IPI, IBM Cloud IPI now use `platformConfig.computeReplicas` from Platform Specifics step
+- Defaults to 3 workers if not specified (standard IPI default)
+- Supports 0 workers for compact cluster (3 control plane, 0 compute)
+- Supports 1 control plane + 0 workers for SNO
+- Files: `backend/src/generate.js`
+- Tests: `backend/test/compute-replicas-fix.test.js` (18 tests covering all IPI scenarios)
+
+#### **Version Display Regression**
+- Fixed `AboutModal.jsx` showing hardcoded "1.1.0" instead of `appVersion` prop
+- Fixed "Invalid Date" display when `buildTime` is "unknown"
+- Fixed missing "dev" fallback when `gitSha` is "unknown"
+- Now shows "1.7.0-dev" instead of hardcoded "1.1.0" when version unavailable
+- Files: `frontend/src/components/AboutModal.jsx`
+- Tests: `frontend/tests/regressions-v1.7.0.test.jsx` (5 tests covering version display)
+
+#### **Feedback Button Missing**
+- Fixed feedback button not displaying in header
+- Removed conditional rendering based on `feedbackConfig.visible`
+- Button now always visible regardless of config fetch status
+- Files: `frontend/src/App.jsx`
+
+#### **Assets & Guide Tab Badge Regression**
+- Fixed "Assets & Guide" tab showing incorrect "Needs review" badge
+- Updated `isOperationalTab()` to exclude "review", "run-oc-mirror", and "operations" tabs from completion indicators
+- Operational tabs no longer show checkmarks or validation badges
+- Files: `frontend/src/components/Sidebar.jsx`
+- Tests: `frontend/tests/regressions-v1.7.0.test.jsx` (5 tests covering sidebar badge behavior)
+
+#### **IP Address Field Validation Display Regression**
+- Fixed IP Address (CIDR), Gateway, and DNS fields not showing validation errors
+- Applied v1.2.2 inline validation pattern (red border + inline error message)
+- Added `className="input-error"`, `title={errorMessage}`, and `aria-invalid` attributes
+- Added inline `<span className="note warning inline">` error messages below fields
+- Files: `frontend/src/components/NodeDrawerIpiContent.jsx`
+- Tests: `frontend/tests/regressions-v1.7.0.test.jsx` (7 tests covering IP validation display)
+
+#### **IPv6/Dual-Stack VIP Placeholder and Validation Regression**
+- Fixed IPv6-only mode showing IPv4 VIP placeholders instead of IPv6
+- Fixed dual-stack mode showing hardcoded placeholders instead of deriving from machine network
+- Fixed vSphere IPI missing IPv6 VIP fields for dual-stack deployments
+- Fixed VIP validation incorrectly showing "Required for IPv4-only mode" errors for vSphere IPI and Nutanix IPI
+- Created `getVipPlaceholdersV6()` helper to derive IPv6 VIP placeholders from machine network IPv6 CIDR
+- VIP placeholders now dynamically generated from machine network CIDRs (both IPv4 and IPv6)
+- Example: Machine network `10.90.0.0/24` → API VIP placeholder `e.g. 10.90.0.2`, Ingress VIP `e.g. 10.90.0.3`
+- Example: Machine network IPv6 `fd10:90::/64` → API VIP placeholder `e.g. fd10:90::2`, Ingress VIP `e.g. fd10:90::3`
+- Updated VIP validation logic to check correct field location based on scenario:
+  - vSphere IPI: `platformConfig.vsphere.apiVIPs` / `ingressVIPs` (arrays)
+  - Nutanix IPI: `platformConfig.nutanix.apiVIP` / `ingressVIP` / `apiVIPV6` / `ingressVIPV6`
+  - Bare metal/vSphere Agent: `hostInventory.apiVip` / `ingressVip` / `apiVipV6` / `ingressVipV6`
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
+- Tests: `frontend/tests/ipv6-vip-placeholders.test.jsx` (16 tests for IPv6 placeholder derivation)
+
+#### **IPv6 Field Tooltips and NTP Server Validation**
+- Fixed IPv6 network field tooltips lacking comprehensive gold standard format
+- Updated IPv6 Machine Network, Cluster Network, and Service Network tooltips to match IPv4 quality:
+  - Added "What is this", "When is this required", "Requirements", "Common prefix lengths", "Important", "Examples" sections
+  - Documented IPv6-only mode support (bare metal, vSphere - Agent, IPI, UPI)
+  - Added ULA (Unique Local Address) vs GUA (Global Unicast Address) guidance
+  - Explained IPv6 prefix length choices (/48, /56, /64)
+  - Documented default values (fd01::/48 cluster, fd02::/112 service)
+- Added NTP server validation (comma-separated FQDNs or IP addresses):
+  - Validates each server as valid FQDN, IPv4, or IPv6 address
+  - Rejects invalid characters (only alphanumeric, dots, colons, hyphens allowed)
+  - Validates IPv4 octets (0-255 range)
+  - Validates IPv6 format (catches multiple :: abbreviations)
+  - Warns if more than 4 NTP servers configured (OpenShift typically uses up to 4)
+  - Documents IPv6 NTP support (NTP over IPv6 is supported by OpenShift)
+- Updated NTP field tooltip to document all address types (FQDN, IPv4, IPv6) with examples
+- Added inline validation display for NTP field (red border + error message)
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/steps/ConnectivityMirroringStep.jsx`, `frontend/src/validation.js`
+- Tests: `frontend/tests/ntp-validation.test.js` (27 tests covering all validation scenarios)
+
+#### **vSphere IPI IPv6 VIP Fields Duplicating IPv4 Values**
+- Fixed vSphere IPI IPv6 VIP fields showing IPv4 values in dual-stack mode
+- Created separate React state variables for IPv6 VIPs:
+  - `localVsphereApiVIPsV6` for IPv6 API VIPs
+  - `localVsphereIngressVIPsV6` for IPv6 Ingress VIPs
+- Fixed onChange and onBlur handlers to update correct state (IPv6 fields were wired to IPv4 state)
+- IPv6 fields now properly manage their own values independent of IPv4 fields
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`
+- Commit: b1f25f1
+
+#### **Password Field Size Regression**
+- Fixed password input fields changing width when toggling between hidden (type="password") and shown (type="text") states
+- Root cause: CSS rule `.platform-specifics .field-grid input[type="password"] { max-width: 400px }` applied to type="password" but not type="text"
+- When user clicked "Show" button, input type changed to "text", max-width constraint removed, field expanded to fill flex container
+- Fix: Applied `password-input-with-toggle` CSS class to password field containers
+- Added CSS override: `.password-input-with-toggle input[type="password"], .password-input-with-toggle input[type="text"] { max-width: none }`
+- Password inputs now use `flex: 1` without max-width constraint, maintaining consistent width in both hidden and shown states
+- Updated vSphere and Nutanix password fields to use semantic CSS classes instead of inline styles
+- Affected fields: vCenter password (vSphere IPI), Prism Central password (Nutanix IPI)
+- Files: `frontend/src/styles.css`, `frontend/src/steps/PlatformSpecificsStep.jsx`
+
+#### **File Upload Button Styling Inconsistency**
+- Fixed "Upload file" button in pull secret fields having different styling than "Browse..." buttons
+- Root cause: SecretInput component used `<button className="ghost pull-secret-upload">` with custom padding (8px 14px)
+- Other file selection buttons used `<Button variant="secondary">` component with standard padding (10px 20px)
+- Inconsistent padding made buttons appear visually different despite same ghost styling
+- Fix: Replaced raw button element with Button component in SecretInput
+- All file upload/browse buttons now use `<Button variant="secondary">` for consistent styling
+- Affected buttons: "Upload file" (pull secret fields), "Browse..." (oc-mirror paths), "Import Run" (tools drawer)
+- Files: `frontend/src/components/SecretInput.jsx`
+
+#### **VIP IP Address Validation**
+- Added comprehensive VIP IP address validation for all scenarios
+- Validates IPv4 addresses (octets 0-255, proper format)
+- Validates IPv6 addresses (proper format, single :: abbreviation)
+- Supports comma-separated VIP arrays (vSphere IPI)
+- Supports single VIPs (bare metal, Nutanix, vSphere Agent)
+- Scenario-specific validation:
+  - vSphere IPI: `platformConfig.vsphere.apiVIPs` / `ingressVIPs` / `apiVIPsV6` / `ingressVIPsV6` (arrays)
+  - Nutanix IPI: `platformConfig.nutanix.apiVIP` / `ingressVIP` / `apiVIPV6` / `ingressVIPV6` (single values)
+  - Bare metal/vSphere Agent: `hostInventory.apiVip` / `ingressVip` / `apiVipV6` / `ingressVipV6` (single values)
+- Applied inline validation display to all VIP fields:
+  - Red border (`className="input-error"`)
+  - Hover tooltip (`title={errorMessage}`)
+  - Accessibility (`aria-invalid="true"`)
+  - Inline error message (`<span className="note warning inline">`)
+- **SNO (Single Node OpenShift) support:**
+  - VIP validation automatically skipped when SNO configuration detected
+  - Agent-based SNO detection: 1 master node, 0 worker nodes
+  - IPI SNO detection: controlPlane.replicas === 1 && compute.replicas === 0
+  - Validation errors clear when user selects SNO configuration
+  - UI text near VIP fields already explains SNO can skip VIPs (no changes needed)
+- Files: `frontend/src/steps/NetworkingV2Step.jsx`, `frontend/src/validation.js`
+- Tests: `frontend/tests/vip-validation.test.js` (39 tests: 28 validation + 11 SNO scenarios)
+
+### Added
+
+**UX Enhancements**
+
+#### **Auto-Select Default Values on First Focus**
+- Added auto-select behavior for cluster name and base domain fields in Identity & Access step
+- When user first focuses a field containing a default value, text is automatically selected
+- Enables quick replacement by immediately typing new value (no need to manually select text)
+- Selection only happens on first focus (before user has edited the field)
+- Once user has typed in the field, subsequent focuses do not auto-select
+- State resets when field value changes externally (e.g., importing a run)
+- Improves workflow for users who want to replace default "agent-cluster" with their cluster name
+- Does not interfere with users who want to click to position cursor (selection only on first touch)
+- Affected fields:
+  - Cluster Name (Identity & Access step) - defaults to "agent-cluster" or catalog default
+  - Base Domain (Identity & Access step) - defaults to imported value or user-provided
+- Files: `frontend/src/steps/IdentityAccessStep.jsx`
+
+#### **Host Settings Apply Confirmation Modal (PHX-031)**
+- Added confirmation dialog before applying host settings to multiple nodes
+- Prevents accidental overwrites of host-specific network/storage configurations
+- Confirmation modal shows:
+  - Source host name (the host being copied from)
+  - Number of target hosts that will be modified
+  - Warning that operation will overwrite existing settings
+  - Cancel and Confirm buttons
+- Modal appears when clicking "Apply" button in replicate settings drawer
+- User must explicitly confirm before bulk apply operation executes
+- Clicking outside modal or "Cancel" dismisses without applying changes
+- Clicking "Confirm and Apply" proceeds with replication
+- Reduces risk of accidental configuration mistakes in multi-node deployments
+- Particularly important for network settings (IPs, VLANs, bonds) which are often host-specific
+- Files: `frontend/src/steps/HostInventoryV2Step.jsx`
+
+#### **Post-Import Credentials Warning (PHX-033, PHX-035)**
+- Added prominent dismissible warning on Blueprint step after importing saved state
+- Explains that credentials and certificates were excluded from export for security
+- Lists all credential types that need to be re-entered after import:
+  - Pull secrets (Red Hat, mirror registry, operators)
+  - SSH keys (public and private)
+  - Certificates (mirror registry CA, proxy CA)
+  - Platform credentials (vCenter password, BMC credentials, etc.)
+  - Proxy credentials (username/password if using authenticated proxy)
+- Warning appears automatically when `state.ui.isImported` flag is true
+- User can dismiss warning with X button in top-right corner
+- Warning includes step names where each credential type should be entered
+- Helps users understand why imported configurations may be incomplete
+- Reduces confusion about missing credentials after import
+- Files: `frontend/src/steps/BlueprintStep.jsx`
+
+### Changed
+
+**Build and Infrastructure**
+
+#### **Archiver Upgrade (Memory Leak Fix)**
+- Upgraded `archiver` from 6.0.1 to 8.0.0
+- Eliminates `inflight` dependency (known memory leak, deprecated package)
+- Breaking change: Updated import from default export to named export
+  - Old: `import archiver from "archiver"; const archive = archiver("zip", ...);`
+  - New: `import { ZipArchive } from "archiver"; const archive = new ZipArchive(...);`
+- Files: `backend/package.json`, `backend/src/index.js`
+- Tests: `backend/test/archiver-upgrade.test.js` (3 integration tests)
+
+#### **Build Performance Optimization**
+- Added `.dockerignore` exclusions for large local directories
+- Excluded: `local-docs/` (3.0GB), `.research/`, `.archive/`, `.claude/`, `e2e/`, `playwright-report/`, `test-results/`
+- Significantly reduced Docker build context size
+- Files: `.dockerignore`
+
+**Production Readiness (continued from v1.6.0)**
+
+#### **PROD-009: Formal Database Migration System**
+- Implemented versioned migration framework with transaction support
+- Replaced inline schema creation with formal migration files
+- Migration discovery and sequential execution
+- Rollback support for safe production schema changes
+- Migration status tracking in `migrations` table
+- Files:
+  - `backend/src/migrationRunner.js` - Migration execution engine
+  - `backend/src/migrations/001_initial_schema.js` - Base schema migration
+  - `backend/src/migrations/002_add_jobs_metadata.js` - Jobs metadata column
+  - `backend/src/db.js` - Integration with migration system
+  - `docs/DATABASE_MIGRATIONS.md` - 625-line comprehensive migration guide
+- Tests: `backend/test/migrations.test.js` (16 tests covering all migration operations)
+
+#### **PROD-012: Automated Job Cleanup and Retention Policy**
+- Implemented automated job cleanup to prevent unbounded database growth
+- Configurable retention policy with two cleanup criteria:
+  - **Age-based**: Delete jobs older than `JOB_RETENTION_DAYS` (default: 7 days)
+  - **Count-based**: Delete oldest jobs if total exceeds `JOB_MAX_COUNT` (default: 100 jobs)
+- Running jobs never deleted regardless of age or count limits
+- Scheduled cleanup execution:
+  - Initial cleanup 60 seconds after server startup (allows startup jobs to complete)
+  - Daily cleanup every 24 hours thereafter
+- Only terminal state jobs eligible for deletion: `completed`, `failed`, `cancelled`
+- Cleanup logic:
+  1. Delete terminal jobs where `updated_at < NOW - retention_days`
+  2. If total jobs > max_count, delete oldest terminal jobs until within limit
+  3. Running jobs (`status = 'running'`) excluded from both passes
+- Environment variables:
+  - `JOB_RETENTION_DAYS` (default: 7) - Keep jobs newer than this many days
+  - `JOB_MAX_COUNT` (default: 100) - Keep at most this many total jobs
+- Structured logging for cleanup events (success/failure with deletion stats)
+- Manual cleanup API still available: `DELETE /api/jobs?completed=true`
+- SQLite VACUUM strategy documentation:
+  - When to VACUUM (disk space reclamation, defragmentation)
+  - Performance impact (locks database, requires 2x space, best during low usage)
+  - Manual VACUUM procedures (SQLite CLI and Node.js scripts)
+  - Best practices (backup first, checkpoint WAL, verify integrity)
+  - Future automation plans (automatic VACUUM after threshold deletions)
+- Files:
+  - `backend/src/utils.js` - `cleanupOldJobs()` function with retention policy
+  - `backend/src/index.js` - Scheduled cleanup on startup and daily interval
+  - `docs/JOB_CLEANUP_AND_VACUUM.md` - Complete cleanup and VACUUM strategy guide
+- Integration with existing manual cleanup endpoint (backwards compatible)
+- Tests: `backend/test/server-lifecycle.test.js` (5 comprehensive startup regression tests):
+  - Server starts successfully without const reassignment errors
+  - Cleanup interval is scheduled on startup
+  - Shutdown handler clears cleanup interval without errors
+  - Server can start, run, and shutdown multiple times without errors
+  - Cleanup interval uses global scope correctly
+  - Prevents regression of critical backend startup crash (TypeError: Assignment to constant variable)
+
+#### **PROD-013: Updated Capacity Planning Documentation**
+- Updated `docs/CAPACITY_PLANNING.md` to v1.1 with comprehensive database maintenance guidance
+- Integrated automated job cleanup (PROD-012) into capacity planning:
+  - Database size projections with cleanup enabled vs. disabled
+  - Steady-state database size: 30-50MB (with default 7-day / 100-job retention)
+  - Growth rate tables by usage pattern (light/medium/heavy)
+  - Cleanup effectiveness metrics (20-40% size reduction after VACUUM)
+- Enhanced storage requirements section:
+  - Database size ranges updated to reflect automated cleanup
+  - Maximum size with cleanup: 50-100MB (bounded)
+  - Maximum size without cleanup: 500MB+ (unbounded growth)
+- Added database maintenance subsection with tuning guidance:
+  - Environment-specific retention policy examples (high-volume, audit/compliance)
+  - When to adjust JOB_RETENTION_DAYS and JOB_MAX_COUNT
+  - VACUUM recommendations (weekly during low-usage, after bulk deletions)
+  - Database size monitoring commands with kubectl exec examples
+- Expanded disk space monitoring cleanup strategies:
+  1. Automated job cleanup (runs daily)
+  2. Manual job cleanup API (immediate)
+  3. SQLite VACUUM (disk space reclamation)
+  4. oc-mirror workspace cleanup (large directories)
+  5. Archive old configurations (disaster recovery)
+- Cross-referenced related documentation:
+  - `docs/JOB_CLEANUP_AND_VACUUM.md` - Cleanup and VACUUM strategy guide
+  - `docs/BACKUP_RESTORE.md` - SQLite backup procedures before VACUUM
+- Updated version to 1.1 and last updated date to 2026-05-28
+- Files: `docs/CAPACITY_PLANNING.md`
+
+### Deprecated
+
+None.
+
+### Removed
+
+None.
+
+### Security
+
+**Container Security Verification**
+- Verified root user in Dockerfile entrypoint is NOT a security issue
+- Entrypoint runs as root ONLY to chown bind-mount permissions
+- Node.js process runs as non-root UID 1001 (appuser)
+- Complies with OpenShift restricted-v2 Security Context Constraints (SCC)
+- Will pass security scanners and organizational policy checks
+
 ## [1.6.0] - 2026-05-20
 
 ### Added

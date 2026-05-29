@@ -897,6 +897,181 @@ const validateMirrorRegistrySecret = (state) => {
   return { errors, warnings };
 };
 
+/** Validate NTP servers (comma-separated FQDNs or IP addresses) */
+const validateNtpServers = (state) => {
+  const errors = [];
+  const fieldErrors = {};
+  const strategy = state.globalStrategy || {};
+  const ntpServers = strategy.ntpServers;
+
+  if (!ntpServers || (Array.isArray(ntpServers) && ntpServers.length === 0)) {
+    return { errors, warnings: [], fieldErrors };
+  }
+
+  // Convert to array if string
+  const serversArray = Array.isArray(ntpServers)
+    ? ntpServers
+    : (typeof ntpServers === "string" ? ntpServers.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
+  // Validate each server
+  for (let i = 0; i < serversArray.length; i++) {
+    const server = serversArray[i];
+
+    // Check for invalid characters (only alphanumeric, dots, colons, hyphens allowed)
+    if (!/^[a-zA-Z0-9.:\-]+$/.test(server)) {
+      errors.push(`NTP server "${server}" contains invalid characters. Only alphanumeric, dots, colons, and hyphens are allowed.`);
+      fieldErrors.ntpServers = "Contains invalid characters";
+      continue;
+    }
+
+    // Validate as FQDN or IP address
+    const isFqdn = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/.test(server);
+    const isIpv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(server);
+    const isIpv6 = /^[a-fA-F0-9:]+$/.test(server) && server.includes(":");
+
+    if (!isFqdn && !isIpv4 && !isIpv6) {
+      errors.push(`NTP server "${server}" is not a valid FQDN or IP address.`);
+      fieldErrors.ntpServers = "Invalid FQDN or IP address";
+      continue;
+    }
+
+    // Validate IPv4 octets if it looks like IPv4
+    if (isIpv4) {
+      const octets = server.split(".").map(Number);
+      const validOctets = octets.every(n => n >= 0 && n <= 255);
+      if (!validOctets) {
+        errors.push(`NTP server "${server}" has invalid IPv4 octets (must be 0-255).`);
+        fieldErrors.ntpServers = "Invalid IPv4 address";
+      }
+    }
+
+    // Validate IPv6 format if it looks like IPv6
+    if (isIpv6 && !isIpv4) {
+      // Basic IPv6 validation (full validation is complex, this catches obvious errors)
+      const segments = server.split("::");
+      if (segments.length > 2) {
+        errors.push(`NTP server "${server}" has invalid IPv6 format (multiple :: abbreviations).`);
+        fieldErrors.ntpServers = "Invalid IPv6 address";
+      }
+    }
+  }
+
+  // Warn if more than 4 NTP servers (OpenShift typically uses up to 4)
+  if (serversArray.length > 4) {
+    return { errors, warnings: ["More than 4 NTP servers configured. OpenShift typically uses up to 4 sources."], fieldErrors };
+  }
+
+  return { errors, warnings: [], fieldErrors };
+};
+
+/** Validate VIP IP addresses (single or comma-separated IPv4/IPv6 addresses) */
+const validateVipAddresses = (state) => {
+  const errors = [];
+  const fieldErrors = {};
+  const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
+  const hostInventory = state.hostInventory || {};
+  const platformConfig = state.platformConfig || {};
+
+  // SNO (Single Node OpenShift) detection - VIPs not required for SNO
+  const isSno = () => {
+    // Agent-based scenarios: check node count (1 master, 0 workers)
+    if (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") {
+      const nodes = hostInventory.nodes || [];
+      const masterCount = nodes.filter((n) => n.role === "master").length;
+      const workerCount = nodes.filter((n) => n.role === "worker").length;
+      return masterCount === 1 && workerCount === 0;
+    }
+
+    // IPI scenarios: check controlPlane and compute replicas
+    if (scenarioId === "bare-metal-ipi" || scenarioId === "vsphere-ipi" || scenarioId === "nutanix-ipi") {
+      const controlPlane = state.controlPlane || {};
+      const compute = state.compute || {};
+      return controlPlane.replicas === 1 && compute.replicas === 0;
+    }
+
+    return false;
+  };
+
+  // Skip VIP validation for SNO - VIPs are not used in single-node configurations
+  if (isSno()) {
+    return { errors, warnings: [], fieldErrors };
+  }
+
+  // Helper to validate a single VIP (IPv4 or IPv6)
+  const validateSingleVip = (vip, fieldName, ipVersion) => {
+    const trimmed = vip.trim();
+    if (!trimmed) return; // Empty is okay (field might be optional)
+
+    if (ipVersion === "ipv4") {
+      if (!isValidIpv4(trimmed)) {
+        errors.push(`${fieldName} "${trimmed}" is not a valid IPv4 address.`);
+        fieldErrors[fieldName] = "Invalid IPv4 address";
+      }
+    } else if (ipVersion === "ipv6") {
+      if (!isValidIpv6(trimmed)) {
+        errors.push(`${fieldName} "${trimmed}" is not a valid IPv6 address.`);
+        fieldErrors[fieldName] = "Invalid IPv6 address";
+      }
+    }
+  };
+
+  // Helper to validate comma-separated VIPs (for vSphere IPI arrays)
+  const validateVipArray = (vipString, fieldName, ipVersion) => {
+    if (!vipString || vipString.trim() === "") return;
+
+    const vips = vipString.split(",").map(v => v.trim()).filter(Boolean);
+    for (const vip of vips) {
+      validateSingleVip(vip, fieldName, ipVersion);
+    }
+  };
+
+  // Validate based on scenario
+  if (scenarioId === "vsphere-ipi") {
+    // vSphere IPI uses arrays (comma-separated)
+    const apiVIPs = Array.isArray(platformConfig.vsphere?.apiVIPs)
+      ? platformConfig.vsphere.apiVIPs.join(",")
+      : "";
+    const ingressVIPs = Array.isArray(platformConfig.vsphere?.ingressVIPs)
+      ? platformConfig.vsphere.ingressVIPs.join(",")
+      : "";
+    const apiVIPsV6 = Array.isArray(platformConfig.vsphere?.apiVIPsV6)
+      ? platformConfig.vsphere.apiVIPsV6.join(",")
+      : "";
+    const ingressVIPsV6 = Array.isArray(platformConfig.vsphere?.ingressVIPsV6)
+      ? platformConfig.vsphere.ingressVIPsV6.join(",")
+      : "";
+
+    validateVipArray(apiVIPs, "apiVip", "ipv4");
+    validateVipArray(ingressVIPs, "ingressVip", "ipv4");
+    validateVipArray(apiVIPsV6, "apiVipV6", "ipv6");
+    validateVipArray(ingressVIPsV6, "ingressVipV6", "ipv6");
+  } else if (scenarioId === "nutanix-ipi") {
+    // Nutanix IPI uses single VIPs
+    const apiVIP = platformConfig.nutanix?.apiVIP || "";
+    const ingressVIP = platformConfig.nutanix?.ingressVIP || "";
+    const apiVIPV6 = platformConfig.nutanix?.apiVIPV6 || "";
+    const ingressVIPV6 = platformConfig.nutanix?.ingressVIPV6 || "";
+
+    validateSingleVip(apiVIP, "nutanixApiVIP", "ipv4");
+    validateSingleVip(ingressVIP, "nutanixIngressVIP", "ipv4");
+    validateSingleVip(apiVIPV6, "nutanixApiVIPV6", "ipv6");
+    validateSingleVip(ingressVIPV6, "nutanixIngressVIPV6", "ipv6");
+  } else {
+    // Bare metal IPI/Agent, vSphere Agent use hostInventory
+    const apiVip = hostInventory.apiVip || "";
+    const ingressVip = hostInventory.ingressVip || "";
+    const apiVipV6 = hostInventory.apiVipV6 || "";
+    const ingressVipV6 = hostInventory.ingressVipV6 || "";
+
+    validateSingleVip(apiVip, "apiVip", "ipv4");
+    validateSingleVip(ingressVip, "ingressVip", "ipv4");
+    validateSingleVip(apiVipV6, "apiVipV6", "ipv6");
+    validateSingleVip(ingressVipV6, "ingressVipV6", "ipv6");
+  }
+
+  return { errors, warnings: [], fieldErrors };
+};
+
 /** Networking format: machine/cluster/service CIDRs, API/Ingress VIPs, provisioning CIDR and cluster provisioning IP must be valid IPv4/CIDR. */
 const validateNetworkingFormat = (state) => {
   const errors = [];
@@ -1042,6 +1217,7 @@ const validateIpStackModeRequirements = (state) => {
   const errors = [];
   const fieldErrors = {};
   const hostInventory = state.hostInventory || {};
+  const platformConfig = state.platformConfig || {};
   const networking = state.globalStrategy?.networking || {};
   const ipStackMode = hostInventory.ipStackMode || 'ipv4';
 
@@ -1054,6 +1230,29 @@ const validateIpStackModeRequirements = (state) => {
   ];
   const requiresVips = vipScenarios.includes(scenarioId);
 
+  // Helper to get IPv4 VIPs based on scenario
+  const getApiVipV4 = () => {
+    if (scenarioId === 'vsphere-ipi') {
+      const vips = platformConfig.vsphere?.apiVIPs || [];
+      return vips.length > 0 ? vips.join(",") : "";
+    } else if (scenarioId === 'nutanix-ipi') {
+      return (platformConfig.nutanix?.apiVIP || "").trim();
+    } else {
+      return (hostInventory.apiVip || "").trim();
+    }
+  };
+
+  const getIngressVipV4 = () => {
+    if (scenarioId === 'vsphere-ipi') {
+      const vips = platformConfig.vsphere?.ingressVIPs || [];
+      return vips.length > 0 ? vips.join(",") : "";
+    } else if (scenarioId === 'nutanix-ipi') {
+      return (platformConfig.nutanix?.ingressVIP || "").trim();
+    } else {
+      return (hostInventory.ingressVip || "").trim();
+    }
+  };
+
   if (ipStackMode === 'ipv4') {
     // IPv4-only mode: require IPv4 machine network
     const machineV4 = (networking.machineNetworkV4 || "").trim();
@@ -1064,15 +1263,23 @@ const validateIpStackModeRequirements = (state) => {
 
     // IPv4-only VIPs required for applicable scenarios
     if (requiresVips) {
-      const apiVip = (hostInventory.apiVip || "").trim();
-      const ingressVip = (hostInventory.ingressVip || "").trim();
+      const apiVip = getApiVipV4();
+      const ingressVip = getIngressVipV4();
       if (!apiVip) {
         errors.push("API VIP (IPv4) is required for IPv4-only mode.");
-        fieldErrors.apiVip = "Required for IPv4-only mode";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixApiVIP = "Required for IPv4-only mode";
+        } else {
+          fieldErrors.apiVip = "Required for IPv4-only mode";
+        }
       }
       if (!ingressVip) {
         errors.push("Ingress VIP (IPv4) is required for IPv4-only mode.");
-        fieldErrors.ingressVip = "Required for IPv4-only mode";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixIngressVIP = "Required for IPv4-only mode";
+        } else {
+          fieldErrors.ingressVip = "Required for IPv4-only mode";
+        }
       }
     }
   } else if (ipStackMode === 'ipv6') {
@@ -1087,13 +1294,30 @@ const validateIpStackModeRequirements = (state) => {
     if (requiresVips) {
       const apiVipV6 = (hostInventory.apiVipV6 || "").trim();
       const ingressVipV6 = (hostInventory.ingressVipV6 || "").trim();
-      if (!apiVipV6) {
-        errors.push("API VIP (IPv6) is required for IPv6-only mode.");
-        fieldErrors.apiVipV6 = "Required for IPv6-only mode";
-      }
-      if (!ingressVipV6) {
-        errors.push("Ingress VIP (IPv6) is required for IPv6-only mode.");
-        fieldErrors.ingressVipV6 = "Required for IPv6-only mode";
+      const nutanixApiVipV6 = (platformConfig.nutanix?.apiVIPV6 || "").trim();
+      const nutanixIngressVipV6 = (platformConfig.nutanix?.ingressVIPV6 || "").trim();
+
+      // For Nutanix, check Nutanix-specific fields; otherwise check hostInventory
+      if (scenarioId === 'nutanix-ipi') {
+        if (!nutanixApiVipV6) {
+          errors.push("API VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.nutanixApiVIPV6 = "Required for IPv6-only mode";
+        }
+        if (!nutanixIngressVipV6) {
+          errors.push("Ingress VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.nutanixIngressVIPV6 = "Required for IPv6-only mode";
+        }
+      } else {
+        // vSphere IPI doesn't support IPv6-only in the validation logic yet
+        // bare-metal and vsphere-agent use hostInventory fields
+        if (!apiVipV6) {
+          errors.push("API VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.apiVipV6 = "Required for IPv6-only mode";
+        }
+        if (!ingressVipV6) {
+          errors.push("Ingress VIP (IPv6) is required for IPv6-only mode.");
+          fieldErrors.ingressVipV6 = "Required for IPv6-only mode";
+        }
       }
     }
   } else if (ipStackMode === 'dual-stack') {
@@ -1111,20 +1335,36 @@ const validateIpStackModeRequirements = (state) => {
 
     // Dual-stack VIPs: require at least one set (IPv4 or IPv6)
     if (requiresVips) {
-      const apiVip = (hostInventory.apiVip || "").trim();
+      const apiVip = getApiVipV4();
       const apiVipV6 = (hostInventory.apiVipV6 || "").trim();
-      const ingressVip = (hostInventory.ingressVip || "").trim();
+      const ingressVip = getIngressVipV4();
       const ingressVipV6 = (hostInventory.ingressVipV6 || "").trim();
+      const nutanixApiVipV6 = (platformConfig.nutanix?.apiVIPV6 || "").trim();
+      const nutanixIngressVipV6 = (platformConfig.nutanix?.ingressVIPV6 || "").trim();
 
-      if (!apiVip && !apiVipV6) {
+      // For Nutanix, check Nutanix-specific IPv6 fields
+      const actualApiVipV6 = scenarioId === 'nutanix-ipi' ? nutanixApiVipV6 : apiVipV6;
+      const actualIngressVipV6 = scenarioId === 'nutanix-ipi' ? nutanixIngressVipV6 : ingressVipV6;
+
+      if (!apiVip && !actualApiVipV6) {
         errors.push("At least one API VIP (IPv4 or IPv6) is required for dual-stack mode.");
-        fieldErrors.apiVip = "At least one API VIP required";
-        fieldErrors.apiVipV6 = "At least one API VIP required";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixApiVIP = "At least one API VIP required";
+          fieldErrors.nutanixApiVIPV6 = "At least one API VIP required";
+        } else {
+          fieldErrors.apiVip = "At least one API VIP required";
+          fieldErrors.apiVipV6 = "At least one API VIP required";
+        }
       }
-      if (!ingressVip && !ingressVipV6) {
+      if (!ingressVip && !actualIngressVipV6) {
         errors.push("At least one Ingress VIP (IPv4 or IPv6) is required for dual-stack mode.");
-        fieldErrors.ingressVip = "At least one Ingress VIP required";
-        fieldErrors.ingressVipV6 = "At least one Ingress VIP required";
+        if (scenarioId === 'nutanix-ipi') {
+          fieldErrors.nutanixIngressVIP = "At least one Ingress VIP required";
+          fieldErrors.nutanixIngressVIPV6 = "At least one Ingress VIP required";
+        } else {
+          fieldErrors.ingressVip = "At least one Ingress VIP required";
+          fieldErrors.ingressVipV6 = "At least one Ingress VIP required";
+        }
       }
     }
   }
@@ -1335,6 +1575,8 @@ const validateStep = (state, stepId) => {
     const vipsInMachineV6 = validateVipsInMachineNetworkV6(state);
     const credentials = validateCredentials(state);
     const mirrorSecret = validateMirrorRegistrySecret(state);
+    const ntpServersValidation = validateNtpServers(state);
+    const vipValidation = validateVipAddresses(state);
     return {
       errors: [
         ...version.errors,
@@ -1348,7 +1590,9 @@ const validateStep = (state, stepId) => {
         ...vipsInMachine.errors,
         ...vipsInMachineV6.errors,
         ...credentials.errors,
-        ...mirrorSecret.errors
+        ...mirrorSecret.errors,
+        ...ntpServersValidation.errors,
+        ...vipValidation.errors
       ],
       warnings: [
         ...version.warnings,
@@ -1358,7 +1602,8 @@ const validateStep = (state, stepId) => {
         ...platform.warnings,
         ...networking.warnings,
         ...credentials.warnings,
-        ...mirrorSecret.warnings
+        ...mirrorSecret.warnings,
+        ...ntpServersValidation.warnings
       ]
     };
   }
@@ -1513,6 +1758,9 @@ const validateStep = (state, stepId) => {
     Object.assign(fieldErrors, vipsInMachine.fieldErrors);
     Object.assign(fieldErrors, vipsInMachineV6.fieldErrors);
     Object.assign(fieldErrors, ipStackMode.fieldErrors);
+    // Validate VIP IP address formats
+    const vipValidation = validateVipAddresses(state);
+    Object.assign(fieldErrors, vipValidation.fieldErrors);
     // Catalog-driven requiredness (bare-metal-agent): apiVIPs/ingressVIPs required for multi-node Agent-based
     // (doc: validation checks before agent ISO creation). SNO (1 control plane, 0 workers) uses platform.none and does not require VIPs.
     const scenarioId = getScenarioId(state?.blueprint?.platform, state?.methodology?.method);
@@ -1555,7 +1803,7 @@ const validateStep = (state, stepId) => {
       }
     }
     return {
-      errors: [...format.errors, ...ipStackMode.errors, ...networking.errors, ...vipsInMachine.errors, ...vipsInMachineV6.errors],
+      errors: [...format.errors, ...ipStackMode.errors, ...networking.errors, ...vipsInMachine.errors, ...vipsInMachineV6.errors, ...vipValidation.errors],
       warnings: networking.warnings || [],
       fieldErrors
     };
@@ -1580,7 +1828,12 @@ const validateStep = (state, stepId) => {
         fieldErrors.mirrorSources = "Source repository is required when mirror URL(s) are set.";
       }
     }
-    return { errors, warnings: [], fieldErrors };
+    const ntpValidation = validateNtpServers(state);
+    return {
+      errors: [...errors, ...ntpValidation.errors],
+      warnings: ntpValidation.warnings,
+      fieldErrors: { ...fieldErrors, ...ntpValidation.fieldErrors }
+    };
   }
   // platform-specifics: required fields per scenario from catalog required paths.
   if (stepId === "platform-specifics") {
@@ -1591,70 +1844,129 @@ const validateStep = (state, stepId) => {
     const aws = state.platformConfig?.aws || {};
     const azure = state.platformConfig?.azure || {};
     const ibmcloud = state.platformConfig?.ibmcloud || {};
+    const nutanix = state.platformConfig?.nutanix || {};
+    const platformConfig = state.platformConfig || {};
+
+    // v1.7.0: controlPlane.replicas validation (applies to all scenarios)
+    const cpReplicas = platformConfig.controlPlaneReplicas;
+    const errors = [];
+    if (cpReplicas !== undefined && cpReplicas !== null && cpReplicas !== "") {
+      const num = Number(cpReplicas);
+      if (!Number.isInteger(num) || num < 1) {
+        errors.push("Control plane replicas must be a positive integer.");
+      } else if (num > 1 && num % 2 === 0) {
+        errors.push("Control plane replicas must be an odd number (1, 3, 5, 7, or 9) for etcd quorum.");
+      } else if (num > 9) {
+        errors.push("Control plane replicas should not exceed 9 (etcd cluster size limits).");
+      }
+    }
+
     if (scenarioId === "azure-government-ipi") {
-      const errors = [];
+      const azureErrors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       // Note: cloudName is auto-filled to "AzureUSGovernmentCloud" in generation (only valid value)
       // so no validation needed - field not shown in UI
       if (requiredPaths.includes("platform.azure.region") && !(azure.region || "").trim()) {
-        errors.push("Azure region is required for Azure Government IPI.");
+        azureErrors.push("Azure region is required for Azure Government IPI.");
       }
       // Note: resourceGroupName is optional for IPI (installer creates it), so no validation
       if (requiredPaths.includes("platform.azure.baseDomainResourceGroupName") && !(azure.baseDomainResourceGroupName || "").trim()) {
-        errors.push("Base domain resource group is required for Azure Government IPI.");
+        azureErrors.push("Base domain resource group is required for Azure Government IPI.");
       }
-      return { errors, warnings: [] };
+
+      // v1.7.0: defaultMachinePlatform.zones validation
+      if (Array.isArray(azure.defaultMachinePlatformZones) && azure.defaultMachinePlatformZones.length > 0) {
+        const invalidZones = azure.defaultMachinePlatformZones.filter(z => !["1", "2", "3"].includes(String(z).trim()));
+        if (invalidZones.length > 0) {
+          azureErrors.push(`Azure zones must be 1, 2, or 3. Invalid: ${invalidZones.join(", ")}`);
+        }
+      }
+
+      // v1.7.0: defaultMachinePlatform.osDisk.diskSizeGB validation
+      const osDiskSize = azure.defaultMachinePlatformOsDiskSizeGB;
+      if (osDiskSize !== undefined && osDiskSize !== null && osDiskSize !== "") {
+        const size = Number(osDiskSize);
+        if (!Number.isInteger(size) || size < 16) {
+          azureErrors.push("Azure OS disk size must be at least 16 GB.");
+        } else if (size > 4095) {
+          azureErrors.push("Azure OS disk size cannot exceed 4095 GB.");
+        }
+      }
+
+      return { errors: [...errors, ...azureErrors], warnings: [] };
     }
     if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") {
-      const errors = [];
+      const vsphereErrors = [];
       const label =
         scenarioId === "vsphere-upi" ? "vSphere UPI" : scenarioId === "vsphere-agent" ? "vSphere Agent-based" : "vSphere IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const placementMode = vsphere.placementMode || "failureDomains";
       if (state.platformConfig?.publish === "Internal") {
-        errors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
+        vsphereErrors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
       }
       if (scenarioId === "vsphere-ipi") {
         const hasClusterOSImage = (vsphere.clusterOSImage || "").trim() !== "";
         const hasTemplateInFd = Array.isArray(vsphere.failureDomains) && vsphere.failureDomains.some((fd) => (fd.topology?.template || "").trim() !== "");
         if (hasClusterOSImage && hasTemplateInFd) {
-          errors.push("Use only one RHCOS image method: clusterOSImage URL or topology.template per failure domain, not both.");
+          vsphereErrors.push("Use only one RHCOS image method: clusterOSImage URL or topology.template per failure domain, not both.");
         }
       }
       // Legacy path: require only legacy-owned fields (vcenter, datacenter, defaultDatastore, cluster, network for single FD).
       if (placementMode === "legacy") {
-        if (!(vsphere.vcenter || "").trim()) errors.push(`vCenter server is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.datacenter || "").trim()) errors.push(`Datacenter is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.vcenter || "").trim()) vsphereErrors.push(`vCenter server is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.datacenter || "").trim()) vsphereErrors.push(`Datacenter is required for ${label} when using legacy single placement.`);
         if (requiredPaths.includes("platform.vsphere.defaultDatastore") && !(vsphere.datastore || "").trim()) {
-          errors.push(`Default datastore is required for ${label} when using legacy single placement.`);
+          vsphereErrors.push(`Default datastore is required for ${label} when using legacy single placement.`);
         }
-        if (!(vsphere.cluster || "").trim()) errors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.network || "").trim()) errors.push(`VM network is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.cluster || "").trim()) vsphereErrors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.network || "").trim()) vsphereErrors.push(`VM network is required for ${label} when using legacy single placement.`);
       } else {
         // Failure-domains path: require at least one valid FD for IPI and Agent-based multi-node (install-config platform.vsphere).
         if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-agent") {
           const fds = Array.isArray(vsphere.failureDomains) ? vsphere.failureDomains : [];
           const validFd = fds.some((fd) => (fd.server || "").trim() && (fd.topology?.datacenter || "").trim() && (fd.topology?.computeCluster || "").trim() && (fd.topology?.datastore || "").trim() && Array.isArray(fd.topology?.networks) && fd.topology.networks.length > 0);
           if (fds.length === 0 || !validFd) {
-            errors.push(`At least one failure domain with server, datacenter, compute cluster, datastore, and networks is required for ${label} when using failure domains.`);
+            vsphereErrors.push(`At least one failure domain with server, datacenter, compute cluster, datastore, and networks is required for ${label} when using failure domains.`);
           }
         }
       }
-      return { errors, warnings: [] };
+      return { errors: [...errors, ...vsphereErrors], warnings: [] };
     }
     if (scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi") {
-      const errors = [];
+      const awsErrors = [];
       const label = scenarioId === "aws-govcloud-upi" ? "AWS GovCloud UPI" : "AWS GovCloud IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       if (requiredPaths.includes("platform.aws.region") && !(aws.region || "").trim()) {
-        errors.push(`AWS GovCloud region is required for ${label}.`);
+        awsErrors.push(`AWS GovCloud region is required for ${label}.`);
+      }
+
+      // v1.7.0: defaultMachinePlatform.iamProfile validation (ARN format)
+      const iamProfile = aws.defaultMachinePlatformIamProfile;
+      if (iamProfile && iamProfile.trim()) {
+        const arnPattern = /^arn:aws(-us-gov|-cn)?:iam::\d{12}:instance-profile\/.+$/;
+        if (!arnPattern.test(iamProfile.trim())) {
+          awsErrors.push("IAM instance profile must be a valid ARN (arn:aws-us-gov:iam::account:instance-profile/name).");
+        }
+      }
+
+      // v1.7.0: defaultMachinePlatform.zones validation (AWS zone format)
+      if (Array.isArray(aws.defaultMachinePlatformZones) && aws.defaultMachinePlatformZones.length > 0) {
+        const region = aws.region || "";
+        const invalidZones = aws.defaultMachinePlatformZones.filter(z => {
+          const zone = String(z).trim();
+          // AWS zones are region + letter (e.g., us-gov-west-1a, us-gov-east-1b)
+          return !zone || (!region && !zone.match(/^[a-z]{2}-[a-z]+-\d[a-z]$/)) || (region && !zone.startsWith(region));
+        });
+        if (invalidZones.length > 0) {
+          awsErrors.push(`AWS zones must match region format (e.g., ${region || "us-gov-west-1"}a). Invalid: ${invalidZones.join(", ")}`);
+        }
       }
       if (aws.vpcMode === "existing") {
         const entries = Array.isArray(aws.subnetEntries) && aws.subnetEntries.length > 0
           ? aws.subnetEntries
           : (aws.subnets || "").split(",").map((s) => ({ id: s.trim(), roles: [] })).filter((e) => e.id);
         if (entries.length === 0) {
-          errors.push("At least one subnet is required when using existing VPC/subnets.");
+          awsErrors.push("At least one subnet is required when using existing VPC/subnets.");
         } else {
           const anyRoles = entries.some((e) => Array.isArray(e.roles) && e.roles.length > 0);
           if (anyRoles) {
@@ -1666,52 +1978,73 @@ const validateStep = (state, stepId) => {
               if (!(entries[i].id || "").trim()) continue;
               const roles = entries[i].roles || [];
               if (roles.length === 0) {
-                errors.push("When subnet roles are used, each subnet must have at least one role.");
+                awsErrors.push("When subnet roles are used, each subnet must have at least one role.");
                 break;
               }
             }
             const assigned = new Set(entries.flatMap((e) => e.roles || []));
             for (const r of requiredSet) {
               if (!assigned.has(r)) {
-                errors.push(`Subnet roles must include "${r}" on at least one subnet (4.20 doc).`);
+                awsErrors.push(`Subnet roles must include "${r}" on at least one subnet (4.20 doc).`);
                 break;
               }
             }
           }
         }
       }
-      return { errors, warnings: [] };
+      return { errors: [...errors, ...awsErrors], warnings: [] };
     }
     if (scenarioId === "nutanix-ipi") {
-      return validatePlatformConfig(state);
+      // v1.7.0: defaultMachinePlatform.bootType validation (dropdown handles enum, just document)
+      const nutanixBootType = nutanix.defaultMachinePlatformBootType;
+      if (nutanixBootType && !["Legacy", "UEFI", "SecureBoot"].includes(nutanixBootType)) {
+        errors.push("Nutanix boot type must be one of: Legacy, UEFI, SecureBoot.");
+      }
+
+      const platformErrors = validatePlatformConfig(state);
+      return { errors: [...errors, ...(platformErrors.errors || [])], warnings: platformErrors.warnings || [] };
     }
     if (scenarioId === "ibm-cloud-ipi") {
-      const errors = [];
+      const ibmErrors = [];
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
       const vpcMode = ibmcloud.vpcMode || "existing-vpc";
       const dedicatedHostsProfile = (ibmcloud.dedicatedHostsProfile || "").trim();
       const dedicatedHostsName = (ibmcloud.dedicatedHostsName || "").trim();
       if (requiredPaths.includes("platform.ibmcloud.region") && !(ibmcloud.region || "").trim()) {
-        errors.push("IBM Cloud region is required for IBM Cloud IPI.");
+        ibmErrors.push("IBM Cloud region is required for IBM Cloud IPI.");
       }
       if (vpcMode === "existing-vpc") {
         if (!(ibmcloud.networkResourceGroupName || "").trim()) {
-          errors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("networkResourceGroupName is required when using an existing IBM Cloud VPC.");
         }
         if (!(ibmcloud.vpcName || "").trim()) {
-          errors.push("vpcName is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("vpcName is required when using an existing IBM Cloud VPC.");
         }
         if (!(ibmcloud.controlPlaneSubnets || "").trim()) {
-          errors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("controlPlaneSubnets is required when using an existing IBM Cloud VPC.");
         }
         if (!(ibmcloud.computeSubnets || "").trim()) {
-          errors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
+          ibmErrors.push("computeSubnets is required when using an existing IBM Cloud VPC.");
         }
       }
       if (dedicatedHostsProfile && dedicatedHostsName) {
-        errors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
+        ibmErrors.push("For IBM Cloud dedicated hosts, set either dedicatedHosts.profile or dedicatedHosts.name, not both.");
       }
-      return { errors, warnings: [] };
+
+      // v1.7.0: IBM Cloud defaultMachinePlatform.zones validation
+      if (Array.isArray(ibmcloud.defaultMachinePlatformZones) && ibmcloud.defaultMachinePlatformZones.length > 0) {
+        const region = ibmcloud.region || "";
+        const invalidZones = ibmcloud.defaultMachinePlatformZones.filter(z => {
+          const zone = String(z).trim();
+          // IBM Cloud zones are region + dash + number (e.g., us-east-1, us-south-2)
+          return !zone || (!region && !zone.match(/^[a-z]{2}-[a-z]+(-[a-z]+)?-\d$/)) || (region && !zone.startsWith(region + "-"));
+        });
+        if (invalidZones.length > 0) {
+          ibmErrors.push(`IBM Cloud zones must match region format (e.g., ${region || "us-east"}-1). Invalid: ${invalidZones.join(", ")}`);
+        }
+      }
+
+      return { errors: [...errors, ...ibmErrors], warnings: [] };
     }
     // For scenarios with provisioning network fields (bare-metal-ipi, bare-metal-agent),
     // include field-level validation errors for provisioning network CIDR, DHCP range, and cluster provisioning IP

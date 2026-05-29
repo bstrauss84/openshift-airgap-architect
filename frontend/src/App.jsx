@@ -1135,17 +1135,15 @@ metadata:
           >
             ⚙ Tools
           </button>
-          {feedbackConfig?.visible ? (
-            <button
-              type="button"
-              className="ghost icon-button feedback-trigger"
-              onClick={() => setFeedbackOpen(true)}
-              title="Share feedback"
-              aria-label="Open Feedback"
-            >
-              💬 Feedback
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="ghost icon-button feedback-trigger"
+            onClick={() => setFeedbackOpen(true)}
+            title="Share feedback"
+            aria-label="Open Feedback"
+          >
+            💬 Feedback
+          </button>
         </div>
       </header>
       {showLanding ? (

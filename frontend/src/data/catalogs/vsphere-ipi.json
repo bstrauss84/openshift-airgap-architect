@@ -387,6 +387,23 @@
       ]
     },
     {
+      "path": "controlPlane.platform",
+      "type": "object",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ]
+    },
+    {
       "path": "controlPlane.platform.vsphere",
       "outputFile": "install-config.yaml",
       "type": "object",
@@ -427,6 +444,24 @@
           "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure",
           "sectionHeading": "2.4.5.4 Configuring regions and zones for a VMware vCenter",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.replicas",
+      "type": "integer",
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "default": 3,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
         }
       ]
     },
@@ -1664,16 +1699,25 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Legacy single-zone network name. Use failureDomains[].topology.network for multi-zone.",
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.networks[]",
+      "description": "Legacy single-zone network name. Deprecated in 4.13+; prefer failureDomains[].topology.networks[] for multi-zone deployments; still supported for legacy single placement.",
       "applies_to": [
         "vsphere-ipi"
       ],
+      "conditionals": {
+        "placementPath": "legacy",
+        "mutuallyExclusiveWith": [
+          "platform.vsphere.failureDomains"
+        ],
+        "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
+      },
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 vSphere docs, network section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ]
     },

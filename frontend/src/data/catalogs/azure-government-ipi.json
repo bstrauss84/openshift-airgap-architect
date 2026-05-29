@@ -323,6 +323,23 @@
       ]
     },
     {
+      "path": "controlPlane.platform",
+      "type": "object",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ]
+    },
+    {
       "path": "controlPlane.platform.azure",
       "outputFile": "install-config.yaml",
       "type": "object",
@@ -339,6 +356,24 @@
           "docTitle": "OpenShift Installer 4.20 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.Azure",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.replicas",
+      "type": "integer",
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "default": 3,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
         }
       ]
     },
@@ -1143,6 +1178,42 @@
           "docTitle": "DOC-082 Missing Parameter Analysis",
           "sectionHeading": "OCP 4.20 Installing on Azure docs, machine pool section",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+        }
+      ]
+    },
+    {
+      "path": "platform.azure.defaultMachinePlatform.osDisk.diskSizeGB",
+      "type": "integer",
+      "required": false,
+      "description": "OS disk size in GB for Azure machines.",
+      "default": 128,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/azure/machinepool.go OSDisk.DiskSizeGB",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 Azure install-config reference"
+        }
+      ]
+    },
+    {
+      "path": "platform.azure.defaultMachinePlatform.zones",
+      "type": "array",
+      "required": false,
+      "description": "Default availability zones for Azure machines.",
+      "items_type": "string",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/azure/machinepool.go Zones",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 Azure install-config reference"
         }
       ]
     },

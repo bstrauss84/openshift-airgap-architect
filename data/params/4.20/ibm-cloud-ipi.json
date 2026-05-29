@@ -379,6 +379,23 @@
       ]
     },
     {
+      "path": "controlPlane.platform",
+      "type": "object",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ]
+    },
+    {
       "path": "controlPlane.platform.ibmcloud",
       "outputFile": "install-config.yaml",
       "type": "object",
@@ -415,6 +432,24 @@
           "docTitle": "Installation configuration parameters for IBM Cloud",
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.replicas",
+      "type": "integer",
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "default": 3,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
         }
       ]
     },
@@ -1118,6 +1153,23 @@
           "docTitle": "Installation configuration parameters for IBM Cloud",
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+        }
+      ]
+    },
+    {
+      "path": "platform.ibmcloud.defaultMachinePlatform",
+      "type": "object",
+      "required": false,
+      "description": "Default machine platform configuration for IBM Cloud machines.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/ibmcloud/platform.go DefaultMachinePlatform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 IBM Cloud install-config reference"
         }
       ]
     },

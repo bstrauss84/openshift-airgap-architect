@@ -114,7 +114,8 @@ describe("Feedback submit behavior", () => {
     });
   });
 
-  it("does not expose feedback submission UI when online mode is unconfigured", async () => {
+  it("shows feedback button but prevents submission when feedback is disabled (v1.7.0 behavior)", async () => {
+    // v1.7.0 regression fix: Button always visible, but FeedbackDrawer handles disabled state
     mountWithFeedbackMocks(
       () => Promise.resolve({ ok: true }),
       {
@@ -126,9 +127,24 @@ describe("Feedback submit behavior", () => {
     );
     const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
     fireEvent.click(startButton);
+
+    // Button should be visible (v1.7.0 change)
     await waitFor(() => {
-      expect(screen.queryAllByRole("button", { name: /open feedback/i })).toHaveLength(0);
+      expect(screen.queryAllByRole("button", { name: /open feedback/i })).toHaveLength(1);
     });
+
+    // Opening the drawer should show disabled message (not submission form)
+    const feedbackButton = screen.getByRole("button", { name: /open feedback/i });
+    fireEvent.click(feedbackButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /feedback/i })).toBeInTheDocument();
+    });
+
+    // Drawer should show "Feedback disabled" message
+    expect(screen.getByText(/Feedback disabled/i)).toBeInTheDocument();
+
+    // Should NOT show submission form when disabled
     expect(apiFetch).not.toHaveBeenCalledWith(
       "/api/feedback/submit",
       expect.objectContaining({ method: "POST" })

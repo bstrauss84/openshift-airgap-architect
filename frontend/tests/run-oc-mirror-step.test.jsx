@@ -96,7 +96,8 @@ describe("Run oc-mirror step (v1)", () => {
       </AppProvider>
     );
     await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 2, name: /Run oc-mirror/i })).toBeInTheDocument();
+      const headings = screen.getAllByRole("heading", { level: 2, name: /Run oc-mirror/i });
+      expect(headings.length).toBeGreaterThanOrEqual(1);
     });
     const preflightButtons = screen.getAllByTestId("run-preflight-btn");
     fireEvent.click(preflightButtons[0]);

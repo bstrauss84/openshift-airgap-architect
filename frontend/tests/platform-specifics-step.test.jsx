@@ -421,9 +421,10 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
     expect(screen.getByLabelText(/vCenter username \(optional\)/i)).toBeInTheDocument();
     const showBtn = screen.getByRole("button", { name: /Show password/i });
     expect(showBtn).toBeInTheDocument();
-    const labelRow = showBtn.closest(".field-with-info-row");
-    expect(labelRow).toBeInTheDocument();
-    expect(labelRow?.querySelector('[class*="field-label"]') || labelRow?.textContent).toBeTruthy();
+    // Show/hide button is inside password-input-with-toggle div (original structure)
+    const passwordContainer = showBtn.closest(".password-input-with-toggle");
+    expect(passwordContainer).toBeInTheDocument();
+    expect(passwordContainer?.querySelector('input[type="password"]') || passwordContainer?.querySelector('input[type="text"]')).toBeTruthy();
   });
 
   it("vsphere-ipi: diskType dropdown placeholder is not selectable (disabled)", () => {

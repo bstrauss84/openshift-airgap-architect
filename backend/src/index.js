@@ -14,11 +14,13 @@ import express from "express";
 import cors from "cors";
 import fs from "node:fs";
 import path from "node:path";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
 import logger, { generateErrorId } from "./logger.js";
 import { loggingMiddleware } from "./middleware/logging.js";
+import { metricsMiddleware } from "./middleware/metrics.js";
+import { getMetrics, getMetricsContentType } from "./metrics.js";
 import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
 import { runCincinnatiBackgroundJob } from "./cincinnatiJob.js";
 import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
@@ -34,6 +36,7 @@ import {
   listJobs,
   listJobsByType,
   deleteCompletedJobs,
+  cleanupOldJobs,
   getJobsCount,
   writeTempAuth,
   mergePullSecrets,
@@ -45,6 +48,7 @@ import {
 } from "./utils.js";
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
+import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import {
   validateBody,
@@ -98,6 +102,11 @@ app.use(express.json({ limit: "10mb" }));
 // Structured request logging middleware (skip in test mode)
 if (process.env.NODE_ENV !== "test") {
   app.use(loggingMiddleware);
+}
+
+// Prometheus metrics middleware (records HTTP request duration and counts)
+if (process.env.NODE_ENV !== "test") {
+  app.use(metricsMiddleware);
 }
 
 markStaleJobs();
@@ -293,7 +302,10 @@ const defaultState = () => ({
       machineNetworkV6: "",
       clusterNetworkCidr: "10.128.0.0/14",
       clusterNetworkHostPrefix: 23,
-      serviceNetworkCidr: "172.30.0.0/16"
+      clusterNetworkCidrV6: "fd01::/48",
+      clusterNetworkHostPrefixV6: 64,
+      serviceNetworkCidr: "172.30.0.0/16",
+      serviceNetworkCidrV6: "fd02::/112"
     },
     mirroring: {
       registryFqdn: "registry.local:5000",
@@ -790,6 +802,18 @@ app.get("/api/ready", async (req, res) => {
       error: err.message,
       timestamp: new Date().toISOString()
     });
+  }
+});
+
+// Prometheus metrics endpoint: Expose instrumentation metrics for scraping
+app.get("/api/metrics", async (_req, res) => {
+  try {
+    const metrics = await getMetrics();
+    res.set("Content-Type", getMetricsContentType());
+    res.send(metrics);
+  } catch (err) {
+    logger.error({ err }, "Failed to retrieve metrics");
+    res.status(500).json({ error: "Failed to retrieve metrics" });
   }
 });
 
@@ -2914,7 +2938,7 @@ const buildBundleZip = async (state, res) => {
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename=${bundleName}`);
 
-  const archive = archiver("zip", { zlib: { level: 9 } });
+  const archive = new ZipArchive({ zlib: { level: 9 } });
   archive.on("error", (err) => {
     res.status(500).end(String(err));
   });
@@ -3062,6 +3086,63 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
+
+  // High-side runtime package export (DOC-083)
+  if (state.exportOptions?.includeHighSideRuntimePackage) {
+    try {
+      // Create runPayload for high-side deployment
+      const runPayload = {
+        schemaVersion: 1,
+        exportedAt: new Date().toISOString(),
+        sourceProfile: "connected-authoring",
+        state,
+        version,
+        platform: state.blueprint?.platform,
+        method: state.methodology?.method
+      };
+
+      const runtimePackage = createRuntimePackageArtifacts({
+        state,
+        exportOptions: state.exportOptions,
+        runPayload,
+        dataDir
+      });
+
+      if (runtimePackage.included) {
+        // Add all runtime package files to archive under runtime-package/ directory
+        for (const entry of runtimePackage.entries) {
+          archive.file(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
+        }
+        logger.info({
+          tag: "runtime-package",
+          filesIncluded: runtimePackage.entries.length,
+          imageCount: runtimePackage.imageEntries.length
+        }, "Runtime package added to export bundle");
+      } else {
+        // Runtime package was requested but couldn't be fully created
+        const errorMessage = runtimePackage.notes.join("\n");
+        archive.append(
+          `Runtime package could not be fully generated:\n\n${errorMessage}\n\nPlease ensure:\n- Container images are built and tagged locally\n- Podman or Docker is installed and available\n- Images: ${process.env.RUNTIME_PACKAGE_BACKEND_IMAGE || "localhost/openshift-airgap-architect-backend:latest"}, ${process.env.RUNTIME_PACKAGE_FRONTEND_IMAGE || "localhost/openshift-airgap-architect-frontend:latest"}\n`,
+          { name: "runtime-package/RUNTIME_PACKAGE_NOT_INCLUDED.txt" }
+        );
+        logger.warn({
+          tag: "runtime-package",
+          notes: runtimePackage.notes
+        }, "Runtime package requested but not fully included");
+      }
+    } catch (error) {
+      archive.append(
+        `Failed to create runtime package: ${String(error?.message || error)}\n\nStack trace:\n${error?.stack || "N/A"}\n`,
+        { name: "runtime-package/RUNTIME_PACKAGE_ERROR.txt" }
+      );
+      logger.error({
+        tag: "runtime-package",
+        error: error?.message || String(error),
+        stack: error?.stack
+      }, "Runtime package creation failed");
+    }
+  }
+
   archive.finalize();
 };
 
@@ -3231,8 +3312,43 @@ if (process.env.NODE_ENV !== "test") {
     // Use process.stdout.write for startup banner (visual output, not a log event)
     process.stdout.write(bannerLines.join("\n") + "\n");
     logger.info({ tag: "startup", port, mode: process.env.MOCK_MODE === "true" ? "MOCK" : "Production", dataDir: process.env.DATA_DIR || "/data" }, "Server started");
+
+    // PROD-012: Automated job cleanup/retention policy
+    // Run daily cleanup to prevent unbounded database growth
+    const retentionDays = parseInt(process.env.JOB_RETENTION_DAYS, 10) || 7;
+    const maxJobCount = parseInt(process.env.JOB_MAX_COUNT, 10) || 100;
+    const cleanupIntervalMs = 24 * 60 * 60 * 1000; // 24 hours
+
+    // Run initial cleanup on startup (after 60 seconds to allow any startup jobs to complete)
+    setTimeout(() => {
+      try {
+        const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+        if (result.totalDeleted > 0) {
+          logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Job cleanup completed on startup");
+        }
+      } catch (err) {
+        logger.error({ err, tag: "job_cleanup" }, "Job cleanup failed on startup");
+      }
+    }, 60000);
+
+    // Schedule daily cleanup (stored globally to clear on shutdown)
+    global.cleanupInterval = setInterval(() => {
+      try {
+        const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+        if (result.totalDeleted > 0) {
+          logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Scheduled job cleanup completed");
+        }
+      } catch (err) {
+        logger.error({ err, tag: "job_cleanup" }, "Scheduled job cleanup failed");
+      }
+    }, cleanupIntervalMs);
   });
   const shutdown = (signal) => {
+    // Clear cleanup interval if it exists
+    if (global.cleanupInterval) {
+      clearInterval(global.cleanupInterval);
+      global.cleanupInterval = null;
+    }
     logger.info({ tag: "shutdown", signal }, "Shutting down");
     // Kill any active child processes (oc-mirror runs, scan jobs).
     for (const [, child] of activeProcesses.entries()) {

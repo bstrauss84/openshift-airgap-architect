@@ -13,6 +13,7 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { db, dataDir } from "./db.js";
 import logger from "./logger.js";
+import { recordJobStart, recordJobComplete, recordJobError, stateOperationsTotal } from "./metrics.js";
 
 const now = () => Date.now();
 
@@ -102,6 +103,33 @@ const updateJob = (id, patch) => {
     if (statusChanged && (isTerminalState || isRunning)) {
       const duration = updated.updated_at - current.created_at;
       logger.info({ tag: "job:update", jobId: id, type: current.type, status: updated.status, progress: updated.progress, message: updated.message, duration: isTerminalState ? `${(duration / 1000).toFixed(1)}s` : undefined }, "Job status changed");
+
+      // Record Prometheus metrics
+      const jobType = current.type; // e.g., "cincinnati-refresh", "operator-scan", "oc-mirror-run"
+
+      if (isRunning) {
+        // Job started running
+        recordJobStart(jobType);
+      } else if (isTerminalState) {
+        // Job completed/failed/cancelled
+        const durationSeconds = duration / 1000;
+        recordJobComplete(jobType, updated.status, durationSeconds);
+
+        // Record error if job failed
+        if (updated.status === "failed") {
+          // Try to classify error type from message
+          const message = updated.message?.toLowerCase() || "";
+          let errorType = "unknown";
+          if (message.includes("network") || message.includes("timeout") || message.includes("connection")) {
+            errorType = "network";
+          } else if (message.includes("auth") || message.includes("unauthorized") || message.includes("forbidden")) {
+            errorType = "auth";
+          } else if (message.includes("disk") || message.includes("space") || message.includes("storage")) {
+            errorType = "storage";
+          }
+          recordJobError(jobType, errorType);
+        }
+      }
     }
   }
 
@@ -136,6 +164,61 @@ const deleteCompletedJobs = () => {
   return result.changes;
 };
 
+/**
+ * Delete old jobs based on retention policy.
+ * Keeps jobs based on age (days) and max count limits.
+ * Does NOT delete running jobs regardless of retention policy.
+ *
+ * @param {Object} options - Retention policy options
+ * @param {number} [options.retentionDays=7] - Keep jobs newer than this many days
+ * @param {number} [options.maxCount=100] - Keep at most this many total jobs
+ * @returns {Object} - Statistics about deleted jobs
+ */
+const cleanupOldJobs = (options = {}) => {
+  const retentionDays = options.retentionDays ?? 7;
+  const maxCount = options.maxCount ?? 100;
+
+  // Calculate cutoff timestamp (jobs older than this will be deleted)
+  const cutoffTime = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+  const cutoffIso = new Date(cutoffTime).toISOString();
+
+  // Delete jobs that are:
+  // 1. In terminal state (completed, failed, cancelled)
+  // 2. Older than retention period
+  const ageBasedDelete = db.prepare(
+    `DELETE FROM jobs
+     WHERE status IN ('completed', 'failed', 'cancelled')
+     AND updated_at < ?`
+  ).run(cutoffIso);
+
+  const ageDeleted = ageBasedDelete.changes;
+
+  // Count remaining jobs (including running)
+  const totalJobs = db.prepare("SELECT COUNT(*) AS count FROM jobs").get().count;
+
+  // If still over max count, delete oldest terminal jobs
+  let countDeleted = 0;
+  if (totalJobs > maxCount) {
+    const excess = totalJobs - maxCount;
+    const countBasedDelete = db.prepare(
+      `DELETE FROM jobs
+       WHERE id IN (
+         SELECT id FROM jobs
+         WHERE status IN ('completed', 'failed', 'cancelled')
+         ORDER BY updated_at ASC
+         LIMIT ?
+       )`
+    ).run(excess);
+    countDeleted = countBasedDelete.changes;
+  }
+
+  return {
+    deletedByAge: ageDeleted,
+    deletedByCount: countDeleted,
+    totalDeleted: ageDeleted + countDeleted
+  };
+};
+
 const getJobsCount = () => {
   const row = db.prepare("SELECT COUNT(*) AS count FROM jobs").get();
   return row?.count ?? 0;
@@ -148,6 +231,9 @@ const markStaleJobs = () => {
 
 const getState = () => {
   const row = db.prepare("SELECT state_json FROM app_state WHERE id = 'singleton'").get();
+  if (process.env.NODE_ENV !== "test") {
+    stateOperationsTotal.inc({ operation: "load" });
+  }
   if (!row) return null;
   return JSON.parse(row.state_json);
 };
@@ -156,6 +242,9 @@ const setState = (state) => {
   db.prepare(
     "INSERT INTO app_state (id, state_json, updated_at) VALUES ('singleton', ?, ?) ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at"
   ).run(JSON.stringify(state), now());
+  if (process.env.NODE_ENV !== "test") {
+    stateOperationsTotal.inc({ operation: "save" });
+  }
 };
 
 const ensureTempDir = () => {
@@ -204,6 +293,7 @@ export {
   listJobs,
   listJobsByType,
   deleteCompletedJobs,
+  cleanupOldJobs,
   getJobsCount,
   markStaleJobs,
   getState,

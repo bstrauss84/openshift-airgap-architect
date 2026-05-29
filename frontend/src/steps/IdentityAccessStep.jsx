@@ -46,13 +46,21 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   const [localClusterName, setLocalClusterName] = useState(clusterName);
   const [localBaseDomain, setLocalBaseDomain] = useState(baseDomain);
 
+  // Track if user has manually edited fields (for auto-select behavior)
+  const [clusterNameTouched, setClusterNameTouched] = useState(false);
+  const [baseDomainTouched, setBaseDomainTouched] = useState(false);
+
   // Sync local state when prop values change (e.g., from import/load)
   useEffect(() => {
     setLocalClusterName(clusterName);
+    // Reset touched state when value changes externally (e.g., import)
+    setClusterNameTouched(false);
   }, [clusterName]);
 
   useEffect(() => {
     setLocalBaseDomain(baseDomain);
+    // Reset touched state when value changes externally (e.g., import)
+    setBaseDomainTouched(false);
   }, [baseDomain]);
 
   const [showKeygen, setShowKeygen] = useState(false);
@@ -282,11 +290,20 @@ dev-ocp`}
             >
               <input
                 value={localClusterName}
-                onChange={(e) => setLocalClusterName(e.target.value)}
+                onChange={(e) => {
+                  setLocalClusterName(e.target.value);
+                  setClusterNameTouched(true);
+                }}
                 onBlur={(e) => {
                   const newValue = e.target.value.trim();
                   if (newValue !== clusterName) {
                     updateBlueprint({ clusterName: newValue });
+                  }
+                }}
+                onFocus={(e) => {
+                  // Auto-select text on first focus for easy replacement of default value
+                  if (!clusterNameTouched && localClusterName) {
+                    e.target.select();
                   }
                 }}
                 placeholder={defaultClusterName}
@@ -332,11 +349,20 @@ ocp.company.com`}
             >
               <input
                 value={localBaseDomain}
-                onChange={(e) => setLocalBaseDomain(e.target.value)}
+                onChange={(e) => {
+                  setLocalBaseDomain(e.target.value);
+                  setBaseDomainTouched(true);
+                }}
                 onBlur={(e) => {
                   const newValue = e.target.value.trim();
                   if (newValue !== baseDomain) {
                     updateBlueprint({ baseDomain: newValue });
+                  }
+                }}
+                onFocus={(e) => {
+                  // Auto-select text on first focus for easy replacement of default value
+                  if (!baseDomainTouched && localBaseDomain) {
+                    e.target.select();
                   }
                 }}
                 placeholder="example.com"

@@ -73,13 +73,26 @@ describe("Feedback drawer visibility and open/close", () => {
     });
   });
 
-  it("hides Feedback trigger when feedback is not visible", async () => {
+  it("shows Feedback trigger button even when feedback config is disabled (v1.7.0 regression fix)", async () => {
+    // v1.7.0 regression fix: Feedback button always visible regardless of config
+    // Rationale: Config fetch can fail, but users should always have access to feedback
     setupMock({ visible: false, enabled: false, mode: "disabled" });
     render(<App />);
     const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
     fireEvent.click(startButton);
+
+    // Button should be visible even when config says disabled
     await waitFor(() => {
-      expect(screen.queryAllByRole("button", { name: /open feedback/i })).toHaveLength(0);
+      expect(screen.queryAllByRole("button", { name: /open feedback/i })).toHaveLength(1);
+    });
+
+    // Clicking it should still open the drawer (FeedbackDrawer component handles disabled state)
+    const feedbackButton = screen.getByRole("button", { name: /open feedback/i });
+    fireEvent.click(feedbackButton);
+
+    // Drawer should open (it will show disabled UI inside, but drawer itself opens)
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: /feedback/i })).toBeInTheDocument();
     });
   });
 });

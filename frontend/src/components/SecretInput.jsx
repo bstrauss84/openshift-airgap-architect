@@ -12,6 +12,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import FieldLabelWithInfo from "./FieldLabelWithInfo.jsx";
+import Button from "./Button.jsx";
 
 /**
  * Shared pull-secret / credential input: masked by default, show/hide toggle,
@@ -203,14 +204,13 @@ function SecretInput({
         onChange={handleFileChange}
       />
       <div className="pull-secret-upload-wrap">
-        <button
-          type="button"
-          className="ghost pull-secret-upload"
+        <Button
+          variant="secondary"
           onClick={() => fileRef.current?.click()}
           disabled={disabled}
         >
           Upload file
-        </button>
+        </Button>
         {additionalButtons}
       </div>
       {errorMessage ? (

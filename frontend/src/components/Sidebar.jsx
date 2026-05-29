@@ -32,7 +32,7 @@ const Sidebar = ({
     !foundationalLocked && step.id !== "blueprint" && step.id !== "operations";
 
   // Operational/output tabs don't show completion indicators
-  const isOperationalTab = (stepId) => ["assets-guide", "run-oc-mirror", "operations"].includes(stepId);
+  const isOperationalTab = (stepId) => ["review", "run-oc-mirror", "operations"].includes(stepId);
 
   return (
     <aside className={`sidebar ${sidebarOpen ? "open" : "collapsed"}`} aria-label="Wizard steps">

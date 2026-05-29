@@ -2391,6 +2391,11 @@ body[data-theme="dark"] .note-prominent {
   margin-left: auto;
 }
 
+.password-input-fixed-width {
+  width: 875px;
+  max-width: 100%;
+}
+
 .pull-secret-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -6109,6 +6114,13 @@ input[placeholder*="corp.local"] {
   max-width: 400px;
 }
 
+/* Password inputs with show/hide toggles should not have max-width constraint
+   to prevent width changes when toggling between type="password" and type="text" */
+.password-input-with-toggle input[type="password"],
+.password-input-with-toggle input[type="text"] {
+  max-width: none;
+}
+
 /* Ensure all labels in platform-specifics have consistent font-size */
 .platform-specifics .field-grid label,
 .platform-specifics .field-grid .field-label-with-info,
@@ -6123,11 +6135,12 @@ input[placeholder*="corp.local"] {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  max-width: 400px; /* Match username field max-width for visual consistency */
 }
 
 .password-input-with-toggle input {
-  flex: 1;
-  min-width: 0;
+  width: 320px;
+  flex-shrink: 0;
 }
 
 .password-toggle-btn {

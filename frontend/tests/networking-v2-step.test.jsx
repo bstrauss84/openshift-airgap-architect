@@ -124,8 +124,9 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     );
     const headings = screen.getAllByRole("heading", { name: /API and Ingress VIPs/i });
     expect(headings.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByPlaceholderText("e.g. 192.168.1.10")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("e.g. 192.168.1.11")).toBeInTheDocument();
+    // VIP placeholders default to 10.90.0.x when no machine network is configured
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.2").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByPlaceholderText("e.g. 10.90.0.3").length).toBeGreaterThanOrEqual(1);
   });
 
   it("overlap validation: networking-v2 step reports errors when machine overlaps cluster", () => {
@@ -199,7 +200,8 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     );
 
     expect(screen.getAllByPlaceholderText("e.g. 10.90.0.2").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByPlaceholderText("e.g. fd00::1").length).toBeGreaterThanOrEqual(1);
+    // IPv6 VIP placeholders default to fd00::2/fd00::3 when no IPv6 machine network is configured
+    expect(screen.getAllByPlaceholderText("e.g. fd00::2").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/separate IPv4 and IPv6 fields/i)).toBeInTheDocument();
     expect(within(container).queryByText(/comma-separated/i)).toBeNull();
   });

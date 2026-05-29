@@ -404,6 +404,23 @@
       ]
     },
     {
+      "path": "controlPlane.platform",
+      "type": "object",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ]
+    },
+    {
       "path": "controlPlane.platform.baremetal",
       "outputFile": "install-config.yaml",
       "type": "object",
@@ -420,6 +437,24 @@
           "docTitle": "OpenShift Installer 4.20 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.BareMetal",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ]
+    },
+    {
+      "path": "controlPlane.replicas",
+      "type": "integer",
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "default": 3,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
         }
       ]
     },
@@ -1133,6 +1168,40 @@
       ]
     },
     {
+      "path": "platform.baremetal.defaultMachinePlatform",
+      "type": "object",
+      "required": false,
+      "description": "Default machine platform configuration for bare-metal machines.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/baremetal/platform.go DefaultMachinePlatform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 bare-metal install-config reference"
+        }
+      ]
+    },
+    {
+      "path": "platform.baremetal.externalBridge",
+      "type": "string",
+      "required": false,
+      "description": "External network bridge name for baremetal network.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/baremetal/platform.go ExternalBridge",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 bare-metal install-config reference"
+        }
+      ]
+    },
+    {
       "path": "platform.baremetal.hosts",
       "outputFile": "install-config.yaml",
       "type": "array",
@@ -1628,6 +1697,24 @@
           "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
           "sectionHeading": "Bare metal API and Ingress VIPs",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ]
+    },
+    {
+      "path": "platform.baremetal.libvirtURI",
+      "type": "string",
+      "required": false,
+      "description": "Libvirt connection URI for bare-metal provisioning host.",
+      "default": "qemu:///system",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/baremetal/platform.go LibvirtURI",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 bare-metal install-config reference"
         }
       ]
     },

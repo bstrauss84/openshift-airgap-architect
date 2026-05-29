@@ -130,11 +130,17 @@ const buildInstallConfig = (state) => {
   const platformConfig = state.platformConfig || {};
   const isAwsNoHostInventory = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
   const isNutanixIpi = state.blueprint?.platform === "Nutanix" && state.methodology?.method === "IPI";
+  const isVsphereIpi = state.blueprint?.platform === "vSphere" && state.methodology?.method === "IPI";
+  const isAzureIpi = state.blueprint?.platform === "Azure Government" && state.methodology?.method === "IPI";
+  const isIbmCloudIpi = state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI";
+
+  // Apply controlPlaneReplicas override if specified (v1.7.0: DOC-082 MISSING-V1.7-001)
+  const cpReplicasOverride = Number(platformConfig.controlPlaneReplicas);
+
   if (isAwsNoHostInventory) {
-    const cp = Number(platformConfig.controlPlaneReplicas);
-    const comp = Number(platformConfig.computeReplicas);
-    if (Number.isInteger(cp) && cp >= 0) masters = cp;
+    if (Number.isInteger(cpReplicasOverride) && cpReplicasOverride >= 0) masters = cpReplicasOverride;
     else if (masters === 0) masters = 3;
+    const comp = Number(platformConfig.computeReplicas);
     if (Number.isInteger(comp) && comp >= 0) workers = comp;
   } else if (isNutanixIpi) {
     // Nutanix IPI has no host inventory; replicas come from Platform Specifics topology selection.
@@ -146,23 +152,38 @@ const buildInstallConfig = (state) => {
       masters = 3;
       workers = 0;
     } else if (topology === "ha") {
-      masters = 3;
+      masters = Number.isInteger(cpReplicasOverride) && cpReplicasOverride > 0 ? cpReplicasOverride : 3;
       workers = Number(platformConfig.computeReplicas) || 3;
     } else {
       // backward compat: fall back to explicit replica fields
-      const cp = Number(platformConfig.controlPlaneReplicas);
-      const comp = Number(platformConfig.computeReplicas);
-      if (Number.isInteger(cp) && cp > 0) masters = cp;
+      if (Number.isInteger(cpReplicasOverride) && cpReplicasOverride > 0) masters = cpReplicasOverride;
       else masters = 3;
+      const comp = Number(platformConfig.computeReplicas);
       if (Number.isInteger(comp) && comp >= 0) workers = comp;
       else workers = 3;
     }
+  } else if (isVsphereIpi || isAzureIpi || isIbmCloudIpi) {
+    // vSphere IPI, Azure Government IPI, IBM Cloud IPI have no host inventory
+    // Apply controlPlaneReplicas and computeReplicas from Platform Specifics
+    if (Number.isInteger(cpReplicasOverride) && cpReplicasOverride > 0) {
+      masters = cpReplicasOverride;
+    } else if (masters === 0) {
+      masters = 3; // Default to 3 if no host inventory and no override
+    }
+    const comp = Number(platformConfig.computeReplicas);
+    if (Number.isInteger(comp) && comp >= 0) {
+      workers = comp;
+    } else if (workers === 0) {
+      workers = 3; // Default to 3 workers for IPI scenarios
+    }
+  } else if (Number.isInteger(cpReplicasOverride) && cpReplicasOverride > 0) {
+    // General controlPlaneReplicas override for platforms with host inventory (v1.7.0)
+    masters = cpReplicasOverride;
   }
   const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
 
   const networkingState = state.globalStrategy?.networking || {};
   const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
-  const isIbmCloudIpi = state.blueprint?.platform === "IBM Cloud" && state.methodology?.method === "IPI";
 
   // Determine IP stack mode from state (default to ipv4)
   // Backward compatibility: if ipStackMode not set but IPv6 networks exist, treat as dual-stack
@@ -334,6 +355,16 @@ const buildInstallConfig = (state) => {
       if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
       if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
       if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
+
+      // Bare metal IPI: libvirtURI and externalBridge (v1.7.0: DOC-082 MISSING-V1.7-019, MISSING-V1.7-020)
+      if ((hi.libvirtURI || "").trim()) baremetal.libvirtURI = hi.libvirtURI.trim();
+      if ((hi.externalBridge || "").trim()) baremetal.externalBridge = hi.externalBridge.trim();
+
+      // Bare metal defaultMachinePlatform (v1.7.0: DOC-082 MISSING-V1.7-009)
+      if (hi.defaultMachinePlatform && typeof hi.defaultMachinePlatform === "object") {
+        baremetal.defaultMachinePlatform = hi.defaultMachinePlatform;
+      }
+
       const baremetalBaseDomain = state.blueprint?.baseDomain;
       const hosts = (hi.nodes || []).map((node) => {
         const host = {
@@ -535,6 +566,19 @@ const buildInstallConfig = (state) => {
     if (Object.keys(aws).length) {
       installConfig.platform.aws = aws;
     }
+
+    // AWS defaultMachinePlatform (v1.7.0: DOC-082 MISSING-V1.7-005, MISSING-V1.7-006)
+    if (platformConfig.aws?.defaultMachinePlatformIamProfile || (Array.isArray(platformConfig.aws?.defaultMachinePlatformZones) && platformConfig.aws.defaultMachinePlatformZones.length > 0)) {
+      if (!installConfig.platform.aws) installConfig.platform.aws = {};
+      installConfig.platform.aws.defaultMachinePlatform = {};
+      if (platformConfig.aws.defaultMachinePlatformIamProfile) {
+        installConfig.platform.aws.defaultMachinePlatform.iamProfile = platformConfig.aws.defaultMachinePlatformIamProfile;
+      }
+      if (Array.isArray(platformConfig.aws.defaultMachinePlatformZones) && platformConfig.aws.defaultMachinePlatformZones.length > 0) {
+        installConfig.platform.aws.defaultMachinePlatform.zones = platformConfig.aws.defaultMachinePlatformZones;
+      }
+    }
+
     if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn)) {
       const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null
         ? { ...installConfig.controlPlane.platform } : {};
@@ -801,6 +845,19 @@ const buildInstallConfig = (state) => {
       if (v4Api) nutanix.apiVIP = v4Api;
       if (v4Ing) nutanix.ingressVIP = v4Ing;
     }
+
+    // Nutanix defaultMachinePlatform (v1.7.0: DOC-082 MISSING-V1.7-011, MISSING-V1.7-012)
+    const nxDefaultMp = {};
+    if (Array.isArray(nx.defaultMachinePlatformCategories) && nx.defaultMachinePlatformCategories.length > 0) {
+      nxDefaultMp.categories = nx.defaultMachinePlatformCategories.filter(cat => cat && cat.key && cat.value);
+    }
+    if (nx.defaultMachinePlatformBootType && ["Legacy", "UEFI", "SecureBoot"].includes(nx.defaultMachinePlatformBootType)) {
+      nxDefaultMp.bootType = nx.defaultMachinePlatformBootType;
+    }
+    if (Object.keys(nxDefaultMp).length > 0) {
+      nutanix.defaultMachinePlatform = nxDefaultMp;
+    }
+
     if (Object.keys(nutanix).length) {
       installConfig.platform.nutanix = nutanix;
     }
@@ -818,6 +875,19 @@ const buildInstallConfig = (state) => {
     if (platformConfig.azure?.baseDomainResourceGroupName) {
       azure.baseDomainResourceGroupName = platformConfig.azure.baseDomainResourceGroupName;
     }
+
+    // Azure defaultMachinePlatform (v1.7.0: DOC-082 MISSING-V1.7-007, MISSING-V1.7-008)
+    if ((Array.isArray(platformConfig.azure?.defaultMachinePlatformZones) && platformConfig.azure.defaultMachinePlatformZones.length > 0) || platformConfig.azure?.defaultMachinePlatformOsDiskSizeGB) {
+      azure.defaultMachinePlatform = {};
+      if (Array.isArray(platformConfig.azure.defaultMachinePlatformZones) && platformConfig.azure.defaultMachinePlatformZones.length > 0) {
+        azure.defaultMachinePlatform.zones = platformConfig.azure.defaultMachinePlatformZones;
+      }
+      const diskSize = Number(platformConfig.azure?.defaultMachinePlatformOsDiskSizeGB);
+      if (Number.isFinite(diskSize) && diskSize >= 16) {
+        azure.defaultMachinePlatform.osDisk = { diskSizeGB: diskSize };
+      }
+    }
+
     if (Object.keys(azure).length) {
       installConfig.platform.azure = azure;
     }
@@ -852,10 +922,19 @@ const buildInstallConfig = (state) => {
         ibm.dedicatedHosts.profile = dedicatedHostsProfile;
       }
     }
+    // IBM Cloud defaultMachinePlatform (v1.7.0: DOC-082 MISSING-V1.7-013)
+    const ibmDefaultMp = {};
     if ((ibmRaw.defaultMachineBootVolumeEncryptionKey || "").trim()) {
-      ibm.defaultMachinePlatform = {
-        bootVolume: { encryptionKey: ibmRaw.defaultMachineBootVolumeEncryptionKey.trim() }
-      };
+      ibmDefaultMp.bootVolume = { encryptionKey: ibmRaw.defaultMachineBootVolumeEncryptionKey.trim() };
+    }
+    if ((ibmRaw.defaultMachinePlatformProfile || "").trim()) {
+      ibmDefaultMp.profile = ibmRaw.defaultMachinePlatformProfile.trim();
+    }
+    if (Array.isArray(ibmRaw.defaultMachinePlatformZones) && ibmRaw.defaultMachinePlatformZones.length > 0) {
+      ibmDefaultMp.zones = ibmRaw.defaultMachinePlatformZones;
+    }
+    if (Object.keys(ibmDefaultMp).length > 0) {
+      ibm.defaultMachinePlatform = ibmDefaultMp;
     }
     if (Array.isArray(ibmRaw.serviceEndpoints)) {
       const endpoints = ibmRaw.serviceEndpoints

@@ -1,8 +1,8 @@
 # OpenShift Airgap Architect - Capacity Planning Guide
 
-**Version:** 1.0  
-**Last Updated:** 2026-05-20  
-**Applies to:** v1.x deployment (Kubernetes/OpenShift)
+**Version:** 1.1  
+**Last Updated:** 2026-05-28  
+**Applies to:** v1.7.0+ deployment (Kubernetes/OpenShift)
 
 This document provides comprehensive capacity planning guidance for deploying OpenShift Airgap Architect in production Kubernetes/OpenShift environments.
 
@@ -199,8 +199,9 @@ spec:
 **What Lives on the PVC:**
 
 1. **SQLite Database:** `/data/app.db`
-   - Typical size: 10-50MB (state snapshots, Cincinnati cache)
-   - Maximum size: ~500MB (many saved configurations, long cache history)
+   - Typical size: 10-50MB (state snapshots, Cincinnati cache, job history)
+   - Maximum size with cleanup: ~50-100MB (bounded by automated retention policy)
+   - Maximum size without cleanup: ~500MB+ (unbounded job history growth)
 
 2. **oc-mirror Workspace:** `/data/oc-mirror-workspace/`
    - Per-job size: 50-200GB (varies by OCP version and operator count)
@@ -255,9 +256,77 @@ Alert when:
 - PVC usage >90% (critical, may cause pod eviction)
 
 Cleanup strategies:
-- Delete old oc-mirror workspaces: `rm -rf /data/oc-mirror-workspace/old-*`
-- Vacuum SQLite: `sqlite3 /data/app.db 'VACUUM;'` (recovers deleted space)
-- Archive old configurations: move to S3/external storage
+1. **Automated job cleanup** (v1.7.0+):
+   - Enabled by default with configurable retention policy
+   - Deletes jobs older than 7 days (configurable via JOB_RETENTION_DAYS)
+   - Keeps max 100 total jobs (configurable via JOB_MAX_COUNT)
+   - Runs daily at 24-hour intervals
+   - See: `docs/JOB_CLEANUP_AND_VACUUM.md`
+
+2. **Manual job cleanup** (immediate):
+   ```bash
+   curl -X DELETE 'http://localhost:4000/api/jobs?completed=true'
+   ```
+
+3. **SQLite VACUUM** (disk space reclamation):
+   ```bash
+   kubectl exec deployment/airgap-architect-backend -- \
+     sqlite3 /data/app.db 'VACUUM;'
+   ```
+   - Reclaims space from deleted jobs
+   - Defragments database for better performance
+   - Requires 2x database size free space temporarily
+   - Best run during low-usage periods
+
+4. **oc-mirror workspace cleanup**:
+   ```bash
+   # Delete old workspaces
+   kubectl exec deployment/airgap-architect-backend -- \
+     find /data/oc-mirror-workspace -type d -mtime +30 -exec rm -rf {} +
+   ```
+
+5. **Archive old configurations**:
+   - Export state snapshots to S3/external storage
+   - Helps with disaster recovery and compliance
+
+### Database Maintenance (v1.7.0+)
+
+**Automated Cleanup:**
+- Default retention: 7 days (JOB_RETENTION_DAYS environment variable)
+- Default max jobs: 100 (JOB_MAX_COUNT environment variable)
+- Cleanup schedule: Daily at 24-hour intervals
+- Running jobs never deleted regardless of age
+- Only terminal states eligible: completed, failed, cancelled
+
+**Tuning Retention Policy:**
+
+High-volume environments (many jobs/day):
+```yaml
+env:
+- name: JOB_RETENTION_DAYS
+  value: "3"  # Keep only 3 days of history
+- name: JOB_MAX_COUNT
+  value: "50"  # Limit to 50 total jobs
+```
+
+Audit/compliance environments (long retention):
+```yaml
+env:
+- name: JOB_RETENTION_DAYS
+  value: "30"  # Keep 30 days for audit trail
+- name: JOB_MAX_COUNT
+  value: "500"  # Allow more jobs in database
+```
+
+**Manual VACUUM Recommendations:**
+- Run after cleanup deletes >50 jobs
+- Run weekly during low-usage periods (e.g., Sunday 2 AM)
+- Monitor database size: `du -h /data/app.db`
+- Check for wasted space: `sqlite3 /data/app.db 'PRAGMA freelist_count;'`
+
+**See Also:**
+- `docs/JOB_CLEANUP_AND_VACUUM.md` - Complete cleanup and VACUUM strategy guide
+- `docs/BACKUP_RESTORE.md` - SQLite backup procedures before VACUUM
 
 ---
 
@@ -812,6 +881,58 @@ See `manifests/monitoring/grafana-dashboard.json` (future enhancement)
 **Bandwidth:**
 - **Inbound:** <1 Mbps (HTTP API traffic)
 - **Outbound:** 10-50 Mbps during oc-mirror jobs (image manifest downloads)
+
+### Database Growth Patterns (v1.7.0+)
+
+With automated job cleanup enabled (default in v1.7.0+):
+
+**Steady-state database size:**
+- **Baseline:** 10-20MB (state snapshots, Cincinnati cache)
+- **Job history:** 5-30MB (bounded by retention policy)
+- **Total typical:** 30-50MB (with default 7-day / 100-job retention)
+- **Total maximum:** 80-100MB (high-volume with 100 jobs retained)
+
+**Without automated cleanup (v1.6.0 and earlier):**
+- Database grows ~1-2MB per 100 jobs
+- Unbounded growth: 200-500MB+ over months
+- Manual cleanup required to prevent degradation
+
+**Growth rate by usage pattern:**
+
+| Usage Pattern | Jobs/Day | DB Growth/Week (with cleanup) | DB Growth/Week (without cleanup) |
+|---------------|----------|-------------------------------|----------------------------------|
+| Light (dev/test) | 5-10 | ~0MB (steady state) | ~2-5MB |
+| Medium (production) | 20-30 | ~0MB (steady state) | ~10-20MB |
+| Heavy (high-side/ops) | 50-100 | ~5-10MB (bounded) | ~50-100MB |
+
+**Cleanup effectiveness:**
+- Age-based deletion keeps database current (removes stale jobs)
+- Count-based deletion prevents unbounded growth
+- Recommended VACUUM after cleanup to reclaim disk space
+- VACUUM reduces file size by 20-40% after bulk deletions
+
+**When to increase JOB_MAX_COUNT:**
+- Audit/compliance requirements (longer retention needed)
+- Troubleshooting (need more job history for investigation)
+- High-volume environments (more than 100 jobs in 7 days)
+
+**When to decrease JOB_RETENTION_DAYS:**
+- Storage-constrained environments
+- High job volume (50+ jobs/day)
+- No audit requirements for job history
+
+**Monitoring database size:**
+```bash
+# Current size
+kubectl exec deployment/airgap-architect-backend -- \
+  du -h /data/app.db
+
+# Wasted space (freelist)
+kubectl exec deployment/airgap-architect-backend -- \
+  sqlite3 /data/app.db 'PRAGMA page_count; PRAGMA freelist_count;'
+
+# If freelist_count / page_count > 0.25, run VACUUM
+```
 
 ---
 

@@ -21,6 +21,8 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   - [Run oc-mirror](#run-oc-mirror)
   - [Operations](#operations)
   - [Mock mode (offline demo)](#mock-mode-offline-demo)
+  - [End-to-End (E2E) testing](#e2e-testing)
+  - [Load testing](#load-testing)
 - **Platform, Security, and Operations**
   - [Platform and architecture (multi-arch / Apple Silicon)](#platform-and-architecture-multi-arch--apple-silicon)
   - [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret)
@@ -69,7 +71,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
 - **Live YAML Preview** — Right-side resizable drawer shows real-time generated YAML as you configure. Displays install-config.yaml (or split view with agent-config.yaml for agent-based scenarios). ImageSet config visible on Operators tab. Credentials obfuscated by default with "Show sensitive values" toggle. Download individual files. Syntax highlighting for readability. Available on all configuration tabs after Blueprint lock-in.
 - **IPv6-only single-stack support** — Configure OpenShift clusters with IPv6 networking only (no IPv4). IP stack mode selector supports IPv4-only, IPv6-only, and dual-stack (IPv4+IPv6) modes. Available for bare metal and vSphere platforms (all installation methods). Automatic state migration from v1.2.x exports.
-- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle
+- **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle. Advanced option to bundle a complete high-side runtime package (container images + deployment scripts) for deploying the application on fully disconnected systems.
 
 <a id="quick-start-container"></a>
 ## Quick start (container)
@@ -460,6 +462,45 @@ When the Landing page or **Tools → About** shows that an update is available, 
 
 For disconnected mirror mapping in `install-config.yaml`, the generator emits `imageDigestSources` for OCP `4.14+` and `imageContentSources` for OCP `4.13` and earlier.
 
+### High-Side Runtime Package Export
+
+The **Export** options include an advanced feature: **Include high-side runtime package artifacts**. When enabled, the export bundle contains a complete runtime package for deploying the application on a fully disconnected (high-side) system:
+
+**What's included:**
+- Container images (OCI archives for backend and frontend)
+- Docker Compose configuration for deployment
+- Launch scripts (`load-runtime-images.sh`, `start-high-side.sh`)
+- Bundled configuration payload (your current state)
+- SHA256 checksums for integrity verification
+- Comprehensive startup guide (`HIGH_SIDE_STARTUP_GUIDE.md`)
+
+**Prerequisites:**
+- Container images must be built locally (`docker compose build` or `podman compose build`)
+- Images tagged as: `localhost/openshift-airgap-architect-backend:latest` and `localhost/openshift-airgap-architect-frontend:latest`
+- Podman or Docker available on the export system
+
+**Usage flow:**
+1. Enable "Include high-side runtime package artifacts" in Export options
+2. Click Export to download the bundle
+3. Transfer the bundle to the disconnected system
+4. Extract and verify checksums: `sha256sum -c SHA256SUMS.txt`
+5. Load container images: `bash runtime-package/launch/load-runtime-images.sh`
+6. Start the runtime: `bash runtime-package/launch/start-high-side.sh`
+7. Access UI at `http://localhost:5173` (backend on `localhost:4000`)
+
+**High-side behavior:**
+- Runtime starts with `AIRGAP_RUNTIME_SIDE=high-side` environment variable
+- Auto-imports bundled configuration on first startup
+- Internet-dependent features (Cincinnati, operator discovery) are automatically disabled
+- Localhost-only port binding by default (127.0.0.1)
+
+For remote access from another approved high-side workstation, use SSH port forwarding:
+```bash
+ssh -L 5173:localhost:5173 -L 4000:localhost:4000 <user>@<runtime-host>
+```
+
+See `HIGH_SIDE_STARTUP_GUIDE.md` in the runtime package for complete instructions, firewall considerations, and SELinux notes.
+
 <a id="operator-workflows"></a>
 ## Operator workflows
 
@@ -717,6 +758,53 @@ The **Operations** tab provides a central view of all background jobs (Cincinnat
 
 All jobs run as background processes in the backend container. Navigation during a job does not cancel it; use the **Stop** button on the Operations tab to cancel a running oc-mirror job if needed.
 
+### Prometheus Metrics
+
+The backend exposes Prometheus metrics at `/api/metrics` for production monitoring. Metrics include HTTP request rates, latency percentiles, background job tracking, and state operations.
+
+**Quick test:**
+```bash
+curl http://localhost:3000/api/metrics
+```
+
+**Prometheus scrape configuration:**
+```yaml
+scrape_configs:
+  - job_name: 'airgap-architect'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:3000']
+    metrics_path: '/api/metrics'
+```
+
+**Key metrics:**
+- `http_requests_total` — HTTP request counts by method, route, status code
+- `http_request_duration_seconds` — Request latency histogram (p50, p95, p99)
+- `background_jobs_total` — Job counts by type (cincinnati-refresh, operator-scan, oc-mirror-run) and status
+- `background_jobs_running` — Currently running jobs gauge
+- `background_job_duration_seconds` — Job execution time histogram
+- `app_state_operations_total` — State save/load operation counts
+
+**Grafana dashboards:**
+
+Example PromQL queries for dashboards:
+
+```promql
+# Request rate by endpoint
+sum(rate(http_requests_total[5m])) by (route)
+
+# p95 request latency
+histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route))
+
+# Job success rate
+sum(rate(background_jobs_total{status="completed"}[5m])) / sum(rate(background_jobs_total[5m])) * 100
+
+# Currently running oc-mirror jobs
+background_jobs_running{job_type="oc-mirror-run"}
+```
+
+See **`docs/METRICS.md`** for complete metric definitions, labels, bucket configurations, alert examples, and Grafana dashboard templates.
+
 <a id="mock-mode-offline-demo"></a>
 ## Mock mode (offline demo)
 
@@ -727,6 +815,78 @@ MOCK_MODE=true docker compose up --build
 ```
 
 If you have registry access but only need to avoid **GitHub** (for example Cincinnati graph data) while staying otherwise connected, prefer **`HTTP_PROXY` / `HTTPS_PROXY` on the backend** or the allow-list guidance in [Corporate HTTP proxy and backend egress](#corporate-proxy-backend-egress) before relying on mock data.
+
+<a id="e2e-testing"></a>
+## End-to-End (E2E) Testing
+
+Playwright-based E2E tests validate critical user workflows including wizard completion, import/export, and background job tracking.
+
+**Prerequisites:**
+- Application running (frontend at `:5173`, backend at `:4000`)
+- Playwright installed (`npm install` from project root)
+
+**Run E2E tests:**
+```bash
+# Headless (CI mode)
+npm run test:e2e
+
+# With browser visible
+npm run test:e2e:headed
+
+# Interactive UI mode (best for development)
+npm run test:e2e:ui
+
+# Debug mode (step through tests)
+npm run test:e2e:debug
+```
+
+**Test coverage:**
+- **Wizard completion** - Full flow from blueprint → configure → generate → export
+- **Import/export** - Export configuration, clear state, import, verify restoration
+- **Operations** - Job history, Cincinnati refresh, log viewing, job status tracking
+
+**12 E2E tests across 3 test suites.** See `e2e/README.md` for detailed test documentation, debugging tips, and CI integration guide.
+
+<a id="load-testing"></a>
+## Load Testing
+
+Validate application performance and capacity planning under concurrent user load.
+
+**Load test script:** `scripts/load-test.sh`
+
+**Run load tests:**
+```bash
+# Default (10 concurrent users, 30 minutes)
+./scripts/load-test.sh
+
+# Custom configuration
+./scripts/load-test.sh http://localhost:4000 25 60  # 25 users, 60 minutes
+```
+
+**Test scenarios:**
+- **Health check baseline** - 1000 rapid-fire requests to establish minimum latency
+- **Cincinnati channels** - 500 version discovery requests to test external API caching
+- **State operations** - 500 save + 500 load to validate SQLite performance
+- **Concurrent users** - Realistic wizard workflow with configurable users and duration
+- **YAML generation** - 100 generation requests to test computational overhead
+
+**Performance targets:**
+- Health check: P95 <50ms
+- State save/load: P95 <200ms
+- Cincinnati: P95 <2s
+- YAML generation: P95 <1s
+- Failure rate: <1%
+
+**Resource monitoring:**
+```bash
+# Docker Compose
+docker stats
+
+# Kubernetes
+kubectl top pod -l app=airgap-architect
+```
+
+**Results:** Automatically generates timestamped results directory with latency percentiles (P50, P95, P99), request counts, failure rates, and per-user summaries. See `docs/LOAD_TESTING.md` for detailed analysis guide, optimization recommendations, and production deployment checklist.
 
 <a id="platform-and-architecture-multi-arch--apple-silicon"></a>
 ## Platform and architecture (multi-arch / Apple Silicon)
