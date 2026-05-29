@@ -13,6 +13,7 @@ import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
 import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
 import { ipv6CidrOverlaps } from "../validation.js";
+import { useAutoSelect } from "../hooks/useAutoSelect.js";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
@@ -199,12 +200,13 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const [localServiceNetworkCidr, setLocalServiceNetworkCidr] = useState(networking.serviceNetworkCidr || "");
   const [localServiceNetworkCidrV6, setLocalServiceNetworkCidrV6] = useState(networking.serviceNetworkCidrV6 || "");
 
-  // Track if user has manually edited network fields with defaults (for auto-select behavior)
-  const [machineNetworkV4Touched, setMachineNetworkV4Touched] = useState(false);
-  const [clusterNetworkCidrTouched, setClusterNetworkCidrTouched] = useState(false);
-  const [clusterNetworkCidrV6Touched, setClusterNetworkCidrV6Touched] = useState(false);
-  const [serviceNetworkCidrTouched, setServiceNetworkCidrTouched] = useState(false);
-  const [serviceNetworkCidrV6Touched, setServiceNetworkCidrV6Touched] = useState(false);
+  // Auto-select hooks for network CIDR fields with default values
+  const machineNetworkV4AutoSelect = useAutoSelect(localMachineNetworkV4);
+  const clusterNetworkCidrAutoSelect = useAutoSelect(localClusterNetworkCidr);
+  const clusterNetworkCidrV6AutoSelect = useAutoSelect(localClusterNetworkCidrV6);
+  const serviceNetworkCidrAutoSelect = useAutoSelect(localServiceNetworkCidr);
+  const serviceNetworkCidrV6AutoSelect = useAutoSelect(localServiceNetworkCidrV6);
+
   const [localNutanixApiVIP, setLocalNutanixApiVIP] = useState(platformConfig.nutanix?.apiVIP || "");
   const [localNutanixApiVIPV6, setLocalNutanixApiVIPV6] = useState(platformConfig.nutanix?.apiVIPV6 || "");
   const [localNutanixIngressVIP, setLocalNutanixIngressVIP] = useState(platformConfig.nutanix?.ingressVIP || "");
@@ -226,11 +228,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
   const [localIngressVip, setLocalIngressVip] = useState(hostInventory.ingressVip || "");
   const [localIngressVipV6, setLocalIngressVipV6] = useState(hostInventory.ingressVipV6 ?? "");
 
-  // Sync local state with store changes (reset touched state on external changes like import)
+  // Sync local state with store changes (reset auto-select on external changes like import)
   useEffect(() => {
     setLocalMachineNetworkV4(networking.machineNetworkV4 || "");
-    setMachineNetworkV4Touched(false);
-  }, [networking.machineNetworkV4]);
+    machineNetworkV4AutoSelect.reset();
+  }, [networking.machineNetworkV4, machineNetworkV4AutoSelect.reset]);
 
   useEffect(() => {
     setLocalMachineNetworkV6(networking.machineNetworkV6 || "");
@@ -238,23 +240,23 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
 
   useEffect(() => {
     setLocalClusterNetworkCidr(networking.clusterNetworkCidr || "");
-    setClusterNetworkCidrTouched(false);
-  }, [networking.clusterNetworkCidr]);
+    clusterNetworkCidrAutoSelect.reset();
+  }, [networking.clusterNetworkCidr, clusterNetworkCidrAutoSelect.reset]);
 
   useEffect(() => {
     setLocalClusterNetworkCidrV6(networking.clusterNetworkCidrV6 || "");
-    setClusterNetworkCidrV6Touched(false);
-  }, [networking.clusterNetworkCidrV6]);
+    clusterNetworkCidrV6AutoSelect.reset();
+  }, [networking.clusterNetworkCidrV6, clusterNetworkCidrV6AutoSelect.reset]);
 
   useEffect(() => {
     setLocalServiceNetworkCidr(networking.serviceNetworkCidr || "");
-    setServiceNetworkCidrTouched(false);
-  }, [networking.serviceNetworkCidr]);
+    serviceNetworkCidrAutoSelect.reset();
+  }, [networking.serviceNetworkCidr, serviceNetworkCidrAutoSelect.reset]);
 
   useEffect(() => {
     setLocalServiceNetworkCidrV6(networking.serviceNetworkCidrV6 || "");
-    setServiceNetworkCidrV6Touched(false);
-  }, [networking.serviceNetworkCidrV6]);
+    serviceNetworkCidrV6AutoSelect.reset();
+  }, [networking.serviceNetworkCidrV6, serviceNetworkCidrV6AutoSelect.reset]);
 
   useEffect(() => {
     setLocalNutanixApiVIP(platformConfig.nutanix?.apiVIP || "");
@@ -517,16 +519,8 @@ This is often the **main network you customize** - other networks (cluster/servi
                     className={fieldErrors.machineNetworkV4 ? "input-error" : ""}
                       title={fieldErrors.machineNetworkV4 || ""}
                     value={localMachineNetworkV4}
-                    onChange={(e) => {
-                      setLocalMachineNetworkV4(e.target.value);
-                      setMachineNetworkV4Touched(true);
-                    }}
-                    onFocus={(e) => {
-                      // Auto-select pre-populated default value on first focus
-                      if (!machineNetworkV4Touched && localMachineNetworkV4) {
-                        e.target.select();
-                      }
-                    }}
+                    onChange={(e) => setLocalMachineNetworkV4(e.target.value)}
+                    onFocus={machineNetworkV4AutoSelect.onFocus}
                     onBlur={(e) => {
                       const formatted = formatIpv4Cidr(e.target.value.trim());
                       if (formatted !== networking.machineNetworkV4) {
@@ -632,16 +626,8 @@ If your datacenter uses 10.x.x.x, change to 172.30.0.0/16`}
                       className={fieldErrors.clusterNetworkCidr ? "input-error" : ""}
                         title={fieldErrors.clusterNetworkCidr || ""}
                       value={localClusterNetworkCidr}
-                      onChange={(e) => {
-                        setLocalClusterNetworkCidr(e.target.value);
-                        setClusterNetworkCidrTouched(true);
-                      }}
-                      onFocus={(e) => {
-                        // Auto-select pre-populated default value on first focus
-                        if (!clusterNetworkCidrTouched && localClusterNetworkCidr) {
-                          e.target.select();
-                        }
-                      }}
+                      onChange={(e) => setLocalClusterNetworkCidr(e.target.value)}
+                      onFocus={clusterNetworkCidrAutoSelect.onFocus}
                       onBlur={(e) => {
                         const formatted = formatIpv4Cidr(e.target.value.trim());
                         if (formatted !== networking.clusterNetworkCidr) {
@@ -736,16 +722,8 @@ IPv6 uses larger prefixes than IPv4 due to address abundance. /48 provides 65,53
                         className={fieldErrors.clusterNetworkCidrV6 ? "input-error" : ""}
                       title={fieldErrors.clusterNetworkCidrV6 || ""}
                         value={localClusterNetworkCidrV6}
-                        onChange={(e) => {
-                          setLocalClusterNetworkCidrV6(e.target.value);
-                          setClusterNetworkCidrV6Touched(true);
-                        }}
-                        onFocus={(e) => {
-                          // Auto-select pre-populated default value on first focus
-                          if (!clusterNetworkCidrV6Touched && localClusterNetworkCidrV6) {
-                            e.target.select();
-                          }
-                        }}
+                        onChange={(e) => setLocalClusterNetworkCidrV6(e.target.value)}
+                        onFocus={clusterNetworkCidrV6AutoSelect.onFocus}
                         onBlur={(e) => {
                           const formatted = formatIpv6Cidr(e.target.value.trim()) || undefined;
                           if (formatted !== networking.clusterNetworkCidrV6) {
@@ -835,16 +813,8 @@ If datacenter uses 172.x.x.x, change to 10.96.0.0/12`}
                       className={fieldErrors.serviceNetworkCidr ? "input-error" : ""}
                         title={fieldErrors.serviceNetworkCidr || ""}
                       value={localServiceNetworkCidr}
-                      onChange={(e) => {
-                        setLocalServiceNetworkCidr(e.target.value);
-                        setServiceNetworkCidrTouched(true);
-                      }}
-                      onFocus={(e) => {
-                        // Auto-select pre-populated default value on first focus
-                        if (!serviceNetworkCidrTouched && localServiceNetworkCidr) {
-                          e.target.select();
-                        }
-                      }}
+                      onChange={(e) => setLocalServiceNetworkCidr(e.target.value)}
+                      onFocus={serviceNetworkCidrAutoSelect.onFocus}
                       onBlur={(e) => {
                         const formatted = formatIpv4Cidr(e.target.value.trim());
                         if (formatted !== networking.serviceNetworkCidr) {
@@ -903,16 +873,8 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
                       className={fieldErrors.serviceNetworkCidrV6 ? "input-error" : ""}
                       title={fieldErrors.serviceNetworkCidrV6 || ""}
                       value={localServiceNetworkCidrV6}
-                      onChange={(e) => {
-                        setLocalServiceNetworkCidrV6(e.target.value);
-                        setServiceNetworkCidrV6Touched(true);
-                      }}
-                      onFocus={(e) => {
-                        // Auto-select pre-populated default value on first focus
-                        if (!serviceNetworkCidrV6Touched && localServiceNetworkCidrV6) {
-                          e.target.select();
-                        }
-                      }}
+                      onChange={(e) => setLocalServiceNetworkCidrV6(e.target.value)}
+                      onFocus={serviceNetworkCidrV6AutoSelect.onFocus}
                       onBlur={(e) => {
                         const formatted = formatIpv6Cidr(e.target.value.trim()) || undefined;
                         if (formatted !== networking.serviceNetworkCidrV6) {
