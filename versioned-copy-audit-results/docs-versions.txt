@@ -1,0 +1,824 @@
+docs/ocp/README.md:3:This directory is reserved for versioned, scenario-specific OpenShift documentation (4.17–4.20).
+docs/ocp/README.md:7:- `4.17/` — Docs and references for OCP 4.17
+docs/ocp/README.md:8:- `4.18/` — Docs and references for OCP 4.18
+docs/ocp/README.md:9:- `4.19/` — Docs and references for OCP 4.19
+docs/ocp/README.md:10:- `4.20/` — Docs and references for OCP 4.20
+docs/ocp/README.md:14:Existing repo docs (e.g. `docs/ocp-4.20-*.md`) remain the current reference until migrated under this structure.
+docs/e2e-examples/README.md:1:# E2E example collection (4.20)
+docs/e2e-examples/README.md:3:**Purpose:** Local reference of OpenShift 4.20 install-config and agent-config structure for E2E validation (Workstream K follow-up). Primary sources: official Red Hat 4.20 installation docs and param catalogs in `data/params/4.20/`.
+docs/e2e-examples/README.md:9:- **install-config/** — Canonical install-config examples by scenario or config type (minimal, with-proxy, dual-stack, etc.). Structure and required/optional keys per 4.20.
+docs/e2e-examples/README.md:11:- **REFERENCE.md** — Required top-level keys and scenario-specific platform blocks per 4.20 params.
+docs/e2e-examples/README.md:13:## Official docs (4.20)
+docs/e2e-examples/README.md:15:- [Installation configuration](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_configuration/index)
+docs/e2e-examples/README.md:16:- [Installation configuration parameters for the Agent-based Installer](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent)
+docs/e2e-examples/README.md:17:- Scenario-specific: AWS GovCloud, Azure Government, vSphere, Nutanix, Bare Metal UPI — see `data/docs-index/4.20.json`.
+docs/e2e-examples/REFERENCE.md:1:# 4.20 install-config / agent-config reference (E2E validation)
+docs/e2e-examples/REFERENCE.md:3:Derived from `data/params/4.20/*.json` and official 4.20 installation docs.
+docs/e2e-examples/REFERENCE.md:20:Per 4.20 params these are **optional**. Emit only when:
+docs/e2e-examples/REFERENCE.md:45:| aws-govcloud-ipi, aws-govcloud-upi | platform.aws (existing VPC: platform.aws.vpc.subnets[].id per 4.20 doc) | — |
+docs/e2e-examples/INVENTORY.md:3:Sources: OpenShift 4.20 installation docs (Red Hat), data/docs-index/4.20.json, nmstate.io examples. Each entry lists source (doc/section or URL), scenario/variant, and file location. This inventory currently tracks install-config coverage for the core scenario set used by this E2E collection; it is not the canonical scenario-ID registry (see `docs/DOC_INDEX_RULES.md` and `data/docs-index/4.20.json`).
+docs/e2e-examples/INVENTORY.md:10:| install-config/bare-metal-agent_minimal.yaml        | bare-metal-agent     | minimal    | Red Hat 4.20 Agent-based Installer Ch 9.1                                                               |
+docs/e2e-examples/INVENTORY.md:11:| install-config/bare-metal-agent_with-proxy.yaml     | bare-metal-agent     | with-proxy | 4.20 Installing on any platform, proxy section                                                          |
+docs/e2e-examples/INVENTORY.md:12:| install-config/bare-metal-agent_dual-stack.yaml     | bare-metal-agent     | dual-stack | 4.20 Agent doc 9.1.2 Network parameters (dual-stack)                                                    |
+docs/e2e-examples/INVENTORY.md:13:| install-config/bare-metal-agent_with-fips.yaml      | bare-metal-agent     | with-fips  | 4.20 Agent doc 9.1.3 fips                                                                               |
+docs/e2e-examples/INVENTORY.md:14:| install-config/bare-metal-upi_minimal.yaml          | bare-metal-upi       | minimal    | 4.20 Bare metal UPI; platform none                                                                      |
+docs/e2e-examples/INVENTORY.md:15:| install-config/bare-metal-ipi_minimal.yaml          | bare-metal-ipi       | minimal    | **Synthetic from params** — data/params/4.20/bare-metal-ipi.json, docs-index installing-bare-metal-ipi  |
+docs/e2e-examples/INVENTORY.md:16:| install-config/vsphere-ipi_minimal.yaml             | vsphere-ipi          | minimal    | **Synthetic from params** — data/params/4.20/vsphere-ipi.json, installation-config-parameters-vsphere   |
+docs/e2e-examples/INVENTORY.md:17:| install-config/vsphere-upi_minimal.yaml             | vsphere-upi          | minimal    | **Synthetic from params** — data/params/4.20/vsphere-upi.json, docs-index installing-vsphere-upi        |
+docs/e2e-examples/INVENTORY.md:18:| install-config/aws-govcloud-ipi_minimal.yaml        | aws-govcloud-ipi     | minimal    | **Synthetic from params** — data/params/4.20/aws-govcloud-ipi.json, installing-aws-govcloud-ipi         |
+docs/e2e-examples/INVENTORY.md:19:| install-config/aws-govcloud-upi_minimal.yaml        | aws-govcloud-upi     | minimal    | **Synthetic from params** — data/params/4.20/aws-govcloud-upi.json, installing-aws-govcloud-upi         |
+docs/e2e-examples/INVENTORY.md:20:| install-config/azure-government-ipi_minimal.yaml    | azure-government-ipi | minimal    | **Synthetic from params** — data/params/4.20/azure-government-ipi.json, installing-azure-government-ipi |
+docs/e2e-examples/INVENTORY.md:21:| install-config/nutanix-ipi_minimal.yaml             | nutanix-ipi          | minimal    | **Synthetic from params** — data/params/4.20/nutanix-ipi.json, installing-nutanix-ipi                   |
+docs/e2e-examples/INVENTORY.md:22:| install-config/disconnected_imageDigestSources.yaml | (snippet)            | mirroring  | 4.20 disconnected; imageDigestSources with multiple sources/mirrors                                     |
+docs/e2e-examples/INVENTORY.md:32:| agent-config/bare-metal-agent_minimal.yaml | bare-metal-agent | minimal | 4.20 Agent-based Installer Ch 9.2 |
+docs/e2e-examples/INVENTORY.md:49:| docs/e2e-examples/snippets/ | ~1,357 blocks (after cleanup) | Every 4.20 doc URL fetched; HTML pre/code extracted. Snippets with wrong `kind` or oc/status output removed. See SNIPPETS_INVENTORY.md. |
+docs/e2e-examples/INVENTORY.md:54:- Red Hat OpenShift 4.20: Installation configuration parameters for the Agent-based Installer — [https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent)
+docs/e2e-examples/INVENTORY.md:55:- Red Hat 4.20 Installing on any platform (proxy) — [https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic)
+docs/e2e-examples/INVENTORY.md:56:- Red Hat 4.20 Bare metal UPI — [https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure)
+docs/e2e-examples/INVENTORY.md:57:- Red Hat 4.20 Disconnected — [https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/)
+docs/VSPHERE_IPI_UPI_AUDIT_AND_PLAN.md:7:**Scope:** OpenShift 4.20 disconnected vSphere IPI and vSphere UPI only.  
+docs/VSPHERE_IPI_UPI_AUDIT_AND_PLAN.md:17:- **URL:** https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere  
+docs/VSPHERE_IPI_UPI_AUDIT_AND_PLAN.md:29:- vSphere IPI: `installing_on_vmware_vsphere` (docs-index 4.20.json)  
+docs/VSPHERE_IPI_UPI_AUDIT_AND_PLAN.md:103:1. **Citations:** Both catalogs cite Agent-based installer and platform-agnostic docs for generic params; vSphere-specific params cite `installation-config-parameters-vsphere` (docs.redhat.com) or `installing-vsphere-ipi` / `installing-vsphere-upi`. URLs are valid; the 4.20 vSphere parameter page was successfully fetched.
+docs/VSPHERE_HARDENING_FINDINGS.md:8:**Scope:** OpenShift 4.20 vSphere IPI/UPI; no UI changes in Phase 1.
+docs/VSPHERE_HARDENING_FINDINGS.md:16:**Finding:** **Dual-stack IPv6 is supported** for OpenShift 4.20 on vSphere (IPI and UPI).
+docs/VSPHERE_HARDENING_FINDINGS.md:19:- **Source:** OpenShift 4.20 installation configuration parameters (network section 9.1.2) apply to vSphere; dual-stack with OVNKubernetes is documented for the platform.
+docs/VSPHERE_HARDENING_FINDINGS.md:20:- **Implication:** **No Networking tab gating** for vSphere. Do **not** hide or disable the IPv6 / dual-stack controls for vSphere IPI or vSphere UPI (unlike AWS GovCloud, which is IPv4-only per 4.20 and is already gated in `NetworkingV2Step.jsx` via `isAwsGovCloud`).
+docs/VSPHERE_HARDENING_FINDINGS.md:28:**Finding:** The allowed values for `platform.vsphere.diskType` are **complete and correct** per OpenShift 4.20 vSphere docs.
+docs/VSPHERE_HARDENING_FINDINGS.md:32:- **Source:** Official 4.20 install-config parameters for vSphere (section 9.1.4 Additional VMware vSphere configuration parameters).
+docs/VSPHERE_HARDENING_FINDINGS.md:40:- https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere (sections 9.1.2, 9.1.4)
+docs/VSPHERE_CORRECTIVE_FOLLOWUP_FINDINGS.md:16:- **vSphere IPI and UPI (4.20):** The deprecated flat fields (vCenter server, datacenter, defaultDatastore, cluster, network) are **replaced by** the `vcenters[]` + `failureDomains[]` model (docs 9.1.4, 9.1.5). Both paths are still supported; preferred is failure domains.
+docs/VSPHERE_CORRECTIVE_FOLLOWUP_FINDINGS.md:24:- **Finding:** NTP is **applicable** to vSphere IPI and UPI. The app emits NTP via **MachineConfig** (`99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`), which is platform-agnostic. OpenShift 4.20 does not put NTP in install-config for vSphere; time sync is applied via Machine Config Operator.
+docs/VSPHERE_CORRECTIVE_FOLLOWUP_FINDINGS.md:34:- **Finding:** OpenShift 4.20 installation configuration parameters for vSphere (9.1.4) document `vcenters[].port` as optional with **default 443**.
+docs/PARAMS_RECONCILIATION_CHECKLIST.md:5:**Scope:** One (platform, version, install method) scenario per run (e.g. vSphere 4.20 IPI).
+docs/VSPHERE_4_20_IPI_STRUCTURAL_AUDIT.md:1:# vSphere 4.20 IPI — Structural Integrity Audit
+docs/VSPHERE_4_20_IPI_STRUCTURAL_AUDIT.md:21:- **Doc URL:** `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure` (section 2.4.5.3 Deploying with user-managed load balancer).
+docs/VSPHERE_4_20_IPI_STRUCTURAL_AUDIT.md:72:  - Line 305 (comment): "vcenters[].port: 4.20 doc default 443 (installation-config-parameters-vsphere 9.1.4); emit 443 when not specified."  
+docs/VSPHERE_4_20_IPI_STRUCTURAL_AUDIT.md:108:  - Label/hint: "Topology: Networks" — "4.20 doc: array of network name strings. Enter one or more VM network names separated by commas; e.g. VM Network or VM Network, DPG-1."  
+docs/VSPHERE_4_20_IPI_STRUCTURAL_AUDIT.md:178:- **Working doc** §2.2.1: "Set the value to the image **location or URL**. Example: clusterOSImage: http://mirror.example.com/images/rhcos-43.81.201912131630.0-vmware.x86_64.ova?sha256=..." (from Red Hat 4.20 doc "Choose one of the following methods" for RHCOS image).
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:1:# vSphere 4.20 IPI — Doc Review, Params Truth, AS-IS Inventory, and Implementation Plan
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:7:**Scope:** Platform VMware vSphere, OpenShift 4.20, Install method IPI only.  
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:12:## Current code truth (vSphere 4.20 IPI — sync reference)
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:31:### 1.1 Official doc hierarchy (4.20 vSphere IPI)
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:33:**Canonical base:** `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`. Do not use docs.openshift.com (shut down).
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:37:| Parent | Installing on VMware vSphere | https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/ | Book landing; TOC for IPI vs UPI vs Agent. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:38:| Preparing / methods | Installation methods (Installer-provisioned) | https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/preparing-to-install-on-vsphere#installer-provisioned-infrastructure-installation | Section 1.3; lists the 3 IPI sub-flow links. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:39:| IPI chapter | Installer-provisioned infrastructure | https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure | Chapter 2; sections 2.3–2.5 are the three sub-flows. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:43:| Params (authoritative) | Installation configuration parameters for vSphere | https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere | **Chapter 9** — 9.1.1 required, 9.1.2 network, 9.1.3 optional, **9.1.4** vSphere, **9.1.5** deprecated, **9.1.6** machine pool. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:65:- **vsphere-ipi** scenario in `data/docs-index/4.20.json` and mirror `frontend/src/data/docs-index/4.20.json`:
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:117:The **parameter reference** (installation-config-parameters-vsphere) provides per-section snippets, not a single full-file example. Full or larger **install-config examples** and their **use-case context** appear in the **parent vSphere install book**. **Canonical source:** OpenShift docs are published at **docs.redhat.com** (docs.openshift.com has been shut down). For 4.20 use the Red Hat book base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/` (html or html-single variants).
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:123:| Red Hat 4.20 html-single | `#specifying-regions-zones-infrastructure-vsphere_post-install-vsphere-zones-regions-configuration` | Regions/zones (failure domains) layout; post-install or install-time config showing region/zone structure. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:124:| Red Hat 4.20 html-single | `#installation-vsphere-regions-zones-host-groups_installing-restricted-networks-installer-provisioned-vsphere` | Regions/zones and **host groups** in restricted-network context; install-config layout and use-case for host-group scenario. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:125:| Red Hat 4.20 html-single | `#installation-installer-provisioned-vsphere-config-yaml_installing-restricted-networks-installer-provisioned-vsphere` | **Restricted-network IPI** install-config example; full or large example with mirror/restricted-network–specific fields and surrounding narrative. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:127:**URLs (4.20):**
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:129:- Base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere/index`
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:134:**First-pass gap:** The initial review relied on the parameter page; the docs.redhat.com 4.20 pages were not fully scraped (timeouts). A **line-by-line scan** of the Red Hat 4.20 install book (docs.redhat.com) is required to:
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:164:This section records the Phase B finalization pass: extraction of every install-config example structure from the 4.20 vSphere docs, structural diff against the params catalog and backend emission, explicit mutual-exclusivity checks, and completion status.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:168:Source: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/` (installer-provisioned-infrastructure, installation-config-parameters-vsphere). HTML chapter content was reviewed; installer-provisioned page is the same book in multi-page HTML form.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:281:**Source:** docs.redhat.com only. Base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:321:**Full URLs (4.20):**
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:323:- Multipage base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/`
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:326:- html-single base: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere/index`
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:405:  git commit -m "vSphere 4.20 IPI: Phase B deep reconciliation + Phase C metadata hardening (plan-level)"
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:417:**Source:** `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere/` (full book fetched; 15,403 lines in converted output).
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:460:- **Canonical (gitignored):** `data/params/4.20/vsphere-ipi.json` — not present in repo (data/ gitignored).
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:559:- Add optional doc entries for vsphere-ipi: preparing-to-install, installing-vsphere-ipi-standard, installing-restricted-networks-vsphere-ipi with correct URLs under **docs.redhat.com** (e.g. `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/...`) and tags. Do not use docs.openshift.com (shut down).
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:617:- Exact Red Hat 4.20 HTML URLs for “Preparing to install” and “Installing in restricted network” vSphere IPI (pages may redirect or differ from OKD). All doc links must use docs.redhat.com.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:707:### 6.18 Implementation status (vSphere 4.20 IPI implementation pass)
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:726:## Implementation complete (vSphere 4.20 IPI)
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:728:The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete. **loadBalancer.type was implemented then removed** (no dropdown, no emission; doc note satisfied by VIP helper text). Implemented: clusterOSImage vs topology.template mutual-exclusivity UX, machine-pool (advanced) fields, zone placement (≥2 FDs), publish External-only for vSphere, VIP-in-machine-network validation, legacy global folder/resourcePool gated to legacy placement, Topology: Networks comma handling fixed. featureSet and arbiter.* remain intentionally deferred (catalog only). Tests updated accordingly.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:736:- **Script: docs-index discovery** — For a given version (e.g. 4.20) and platform (e.g. vsphere), fetch the platform install book TOC from **docs.redhat.com** (canonical; docs.openshift.com is shut down). Base URL: `https://docs.redhat.com/en/documentation/openshift_container_platform/<version>/`. Parse sections “Preparing to install,” “Installer-provisioned,” “User-provisioned,” “Restricted network,” and output a suggested doc tree (IDs, titles, URLs). Manual review before merging into docs-index.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:739:- **Version-specific scenario truth** — Single source: data/docs-index/<version>.json and data/params/<version>/<scenario>.json. When adding 4.21, copy 4.20 scenario entries and update URLs/version; run refresh-doc-index and validate-catalog.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:743:- **scripts/docs-index-discovery.js**: For a given version (default 4.20) and optional platform (vsphere, bare-metal-agent, aws-govcloud, or all), outputs suggested doc tree (IDs, path segments, full URLs) from known install-book path segments. Manual review before merging into docs-index. Usage: `node scripts/docs-index-discovery.js [version] [platform]`.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:744:- **scripts/scenario-doc-mapping.js**: Reads data/docs-index/<version>.json, accepts scenarioId as arg, prints doc IDs and URLs for that scenario. **Extended with `--check-urls`**: fetches each doc URL (HEAD) and reports ok/fail. Usage: `node scripts/scenario-doc-mapping.js [scenarioId] [path/to/docs-index/4.20.json] [--check-urls]`.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:747:- **docs/PHASE_G_ADDING_A_VERSION.md**: Steps for adding a new version (e.g. 4.21): copy docs-index, update version/baseUrl/URLs, sync frontend copy, params/catalogs, validate, optional discovery and scenario-doc-mapping --check-urls. References DOC_INDEX_RULES, CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES, PARAMS_RECONCILIATION_CHECKLIST.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:755:| data/docs-index/4.20.json | vsphere-ipi: notes and tags refined; installation-config-parameters-vsphere entry ensured with tags (vsphere, failure-domains, vcenters). Optional: add sub-scenario doc entries. |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:756:| frontend/src/data/docs-index/4.20.json | Sync from canonical (if docs-index updated). |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:793:git commit -m "vSphere 4.20 IPI: implementation-plan tightening (field/gate matrix, UI/backend spec, test plan)"
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:831:   - **docs.openshift.com has been shut down.** The application uses **docs.redhat.com** as the base for all OpenShift Container Platform documentation. For a given version (e.g. 4.20), the base URL is: **`https://docs.redhat.com/en/documentation/openshift_container_platform/<version>/`** (e.g. html or html-single install books). All doc-index entries, param citations, and scenario doc links must point to docs.redhat.com. Do not add or retain docs.openshift.com URLs; if discovered in existing content, update them to the equivalent docs.redhat.com path.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:837:**vSphere 4.20 IPI scenario:** No `docs.openshift.com` links remain in docs-index or params/catalog for this scenario. All scenario doc entries and all param citations use **docs.redhat.com** (base `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`). Completion rule satisfied.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:843:| **frontend/src/data/docs-index/4.20.json** | vSphere installation-config-parameters-vsphere; AWS GovCloud IPI/UPI; Azure Government IPI. Notes updated to remove "docs.openshift.com URL used." |
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:855:**Pattern used:** `https://docs.openshift.com/container-platform/4.20/installing/<segment>/<page>.html` → `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/<segment_redhat>/<page>` (e.g. installing_vsphere → installing_on_vmware_vsphere). **Not replaced:** Intentional mentions of "docs.openshift.com is shut down" in rules and working doc. **Could not find equivalent:** None; all updated to docs.redhat.com paths.
+docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md:879:**Different values for control plane vs compute (e.g. CPUs)?** The 4.20 vSphere param table (9.1.6) we reviewed does not document per-pool overrides for these fields. If the installer accepts `compute[0].platform.vsphere.cpus` and `controlPlane.platform.vsphere.cpus` separately, that would be an undocumented or platform-default behavior. We are **not** currently set up to support different machine-pool sizing for control plane vs compute: we have one set of fields (osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB) and emit them only at **platform.vsphere**. So we match the documented 9.1.6 shape. To support per-pool values we would need separate state and backend emission for `compute[0].platform.vsphere.*` and `controlPlane.platform.vsphere.*` for those keys (and doc confirmation that the installer accepts them there).
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:1:# vSphere 4.20 UPI — Doc Review, Params Truth, AS-IS Inventory, and Implementation Plan
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:7:**Scope:** Platform VMware vSphere, OpenShift 4.20, Install method **User-provisioned infrastructure (UPI)** only.  
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:10:**Canonical base:** `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`. Do not use docs.openshift.com (shut down).
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:18:- `node scripts/docs-index-discovery.js 4.20 vsphere` — Outputs suggested doc tree for vsphere (IPI-focused path segments). Does **not** list UPI-specific page; manual verification required.
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:34:### A.3 Docs-index current state (4.20)
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:36:**vsphere-upi** in `data/docs-index/4.20.json` has:
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:128:## Phase E — AS-IS app inventory (vSphere 4.20 UPI)
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:198:- vSphere 4.20 UPI is supported: docs-index has vsphere-upi; catalog vsphere-upi.json has platform.vsphere params (no apiVIPs/ingressVIPs/template); UI shows vSphere UPI card with placement and failure domains; backend emits vcenters, failureDomains, diskType; publish forced to External.
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:243:### Backlog text (vSphere 4.20 UPI scenario truth)
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:247:- **vSphere 4.20 UPI first-pass (scenario truth):** Docs-index and params aligned to docs.redhat.com 4.20. UPI: no apiVIPs/ingressVIPs/topology.template (doc 9.1.4); vcenters, failureDomains, diskType, legacy flat supported; publish External only. AS-IS: UI and backend already correct (no VIPs for UPI; IPI-only sections gated). Optional: docs-index note for UPI sample sections; catalog conditionals for publish and legacy. See `docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`.
+docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md:254:git diff data/docs-index/4.20.json
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:1:## Bare Metal 4.20 IPI — Working Doc
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:7:This file is the **working record** for the Bare Metal / 4.20 / IPI truth pass (docs-index mapping, full-doc review, params reconciliation, AS-IS inventory, discrepancy analysis, and implementation plan). It is intentionally concise; the main narrative and matrices live in this markdown plus the primary source docs.
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:12:- **Version:** 4.20
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:16:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/`
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:18:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure`
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:20:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent`
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:22:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index`
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:24:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic`
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:29:   - `data/docs-index/4.20.json` and `frontend/src/data/docs-index/4.20.json` both define a `bare-metal-ipi` scenario that points at:
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:48:   - `data/params/4.20/bare-metal-ipi.json` and `frontend/src/data/catalogs/bare-metal-ipi.json` model:
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:51:   - **Notable nuance:** the catalog currently exposes **singular** `platform.baremetal.apiVIP` and `platform.baremetal.ingressVIP`. The 4.20 bare metal IPI chapter’s dual-stack example uses **plural** `apiVIPs` / `ingressVIPs` lists. It is very likely that:
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:54:   - I am **not ≥95% certain** whether the bare metal 4.20 product docs intend singular vs plural VIP fields to be treated as:
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:57:   - Because of that uncertainty, this pass **does not** change VIP-related param paths; instead, the implementation plan will call out an explicit follow-up research task to confirm the intended 4.20 schema for bare metal VIPs.
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:92:- **Conclusion:** Official 4.20 bare metal IPI docs state that from OpenShift 4.12 onward, `apiVIP` and `ingressVIP` are **deprecated**; the installer expects **`apiVIPs`** and **`ingressVIPs`** (list format). Single-stack = one element in each list; dual-stack = two elements (order = primary/secondary).
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:99:  - I am **not ≥95% certain** whether the intended 4.20 canonical shape for bare metal IPI is:
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:102:  - Because of this, **no change** is made to any VIP-related param or emission behavior in this pass; the implementation plan will require an explicit schema check against current 4.20 install-config validation (outside this repo) before changing shapes.
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:109:- The **parameter truth table** for `platform.baremetal.*` and shared install-config fields (taken from manual review of the cached HTML plus `data/params/4.20/bare-metal-ipi.json`).
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:110:- The **AS-IS inventory and delta analysis** for bare metal 4.20 IPI (to be expanded in subsequent edits if/when the implementation pass proceeds).
+docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md:116:- **Canonical:** `data/params/<version>/*.json` (e.g. `data/params/4.20/bare-metal-ipi.json`) — source of truth; validated by `node scripts/validate-catalog.js`. The frontend container in Docker does not have access to `data/` at runtime.
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:1:# Bare Metal 4.20 UPI — Working Doc
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:7:Working record for the Bare Metal / 4.20 / UPI scenario truth and implementation alignment.
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:12:- **Version:** 4.20
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:16:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/`
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:18:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure`
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:20:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent`
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:22:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index`
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:24:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic`
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:36:**docs-index:** `data/docs-index/4.20.json` and `frontend/src/data/docs-index/4.20.json` both define `bare-metal-upi` with:
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:82:| Canonical scenario params | `data/params/4.20/bare-metal-upi.json` | Yes |
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:84:| Docs-index (canonical) | `data/docs-index/4.20.json` | Yes |
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:85:| Docs-index (frontend) | `frontend/src/data/docs-index/4.20.json` | Yes |
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:91:- **Doc proof:** Official 4.20 Bare Metal UPI doc, section **2.1.12.1 "Sample install-config.yaml file for bare metal"**, shows only `platform: none: {}`. It states: *"You must set the platform to `none`. You cannot provide additional platform configuration variables for your platform."* The sample has no `controlPlane.platform` or `compute[].platform` keys. So: (1) top-level platform is **only** `platform: { none: {} }`; (2) no `platform.baremetal` in install-config for UPI; (3) no machine-pool `platform` stanzas.
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:92:- **Canonical:** `data/params/4.20/bare-metal-upi.json` — **removed** all platform.baremetal entries for this scenario: hosts, provisioning*, and apiVIP, apiVIPs, ingressVIP, ingressVIPs (doc: no additional platform config; API/Ingress are external LB/DNS).
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:150:- None for current scope. Bare Metal 4.20 UPI is closed: scenario truth, params/catalog, UI gating, backend emission, preview/download, and tests are aligned with docs.
+docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md:154:See `docs/DATA_AND_FRONTEND_COPIES.md`. Canonical params live in `data/params/4.20/`; frontend copy in `frontend/src/data/catalogs/`. Sync when canonical params change.
+docs/CLUSTERFILE_FEATURE_ANALYSIS_AND_PLAN.md:126:| **Version support** | 4.17–4.20; version in Blueprint; version-aware policies | Schema enums 4.14–4.21 + semver; single version in clusterfile |
+docs/CLUSTERFILE_FEATURE_ANALYSIS_AND_PLAN.md:194:- **Docs check:** Confirm exact install-config key name and shape for “user-provided manifests” for 4.17–4.20 (e.g. under platform.baremetal or top-level); implement to match.
+docs/CLUSTERFILE_COMPARISON_REVISED_PLAN_2026-03-17.md:166:For OpenShift 4.20, the documented install-time customization pattern is to create additional manifest files in the install directory, typically under the `openshift/` subdirectory after generating manifests, especially in agent-based and bare-metal flows. The docs explicitly describe additional/custom manifests in that file-based form, not as a standard top-level install-config key. Therefore, we should support **install-time manifest assets**, not invent a fake install-config parameter. citeturn103718search0turn103718search3turn103718search6turn411459search0
+docs/CLUSTERFILE_COMPARISON_REVISED_PLAN_2026-03-17.md:435:     - OpenShift-version alignment note (4.17-4.20),
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:1:# Bare Metal 4.20 Agent-based — Working Doc
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:7:Working record for the Bare Metal / 4.20 / Agent-based Installer scenario truth and implementation alignment.
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:12:- **Version:** 4.20
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:16:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent`
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:18:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/`
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:20:    `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index`
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:26:| Canonical scenario params | `data/params/4.20/bare-metal-agent.json` | Yes |
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:28:| Docs-index (canonical) | `data/docs-index/4.20.json` | Yes |
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:29:| Docs-index (frontend) | `frontend/src/data/docs-index/4.20.json` | Yes |
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:42:**docs-index:** `data/docs-index/4.20.json` and `frontend/src/data/docs-index/4.20.json` define `bare-metal-agent` with:
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:49:- **VIP truth (doc proof):** 4.20 agent-based installer guide PDF, **“Validation checks before agent ISO creation”**: **“apiVIPs and ingressVIPs parameters must be set for bare metal and vSphere platforms.”** The same section shows `platform.baremetal.apiVIPs` / `ingressVIPs` lists (dual-stack example).
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:50:- **Canonical:** `data/params/4.20/bare-metal-agent.json` includes install-config params (platform.baremetal: apiVIP/apiVIPs, ingressVIP/ingressVIPs, hosts, provisioning*, etc.) and agent-config params (rendezvousIP, bootArtifactsBaseURL, additionalNTPSources, hosts[], networkConfig, minimalISO, etc.).
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:89:- **IPv6-only** and **4+ control-plane** support: explicit 4.20 citations still **open** (see `docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md`).
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:95:See `docs/DATA_AND_FRONTEND_COPIES.md`. Canonical params in `data/params/4.20/`; frontend copy in `frontend/src/data/catalogs/`. Sync when canonical changes.
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:103:  - **Agent-based multi-node:** `platform.baremetal` with **apiVIPs and ingressVIPs only**; no `hosts`, no `provisioningNetwork*` in install-config (per 4.20 doc: those are optional/Day 2; agent-config and host inventory drive provisioning).
+docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:139:**Node / control-plane topology:** App validates **2 control plane + 0 arbiter** as invalid for bare-metal-agent and documents **SNO** and **2+1 arbiter** flows above. **4+ control plane** and other counts are **not** re-proven against the full 4.20 agent install guide in this pass — treat stricter limits as **open** if you need explicit doc citations.
+docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md:90:     - `OCP_CLIENT_URL` → `https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/openshift-client-linux.tar.gz` (or the correct stable-4.20 path if we pin version).
+docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md:120:   - Confirm authoritative mirror URLs (or path pattern) for aarch64 `oc` and `oc-mirror` for the OCP versions we support (e.g. 4.17–4.20). Do not implement from guesswork.
+docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md:140:  - [ ] `backend/Containerfile`: set default `OCP_CLIENT_URL` and `OCP_MIRROR_URL` to explicit x86_64 mirror paths (match Red Hat mirror layout for your chosen version, e.g. latest or stable-4.20).
+docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md:155:- **OpenShift mirror (example):** `https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-4.20/` (and per-arch paths under x86_64, aarch64 when available).
+docs/PLACEHOLDER_VALUES_DEFERRED.md:20:5. **Doc alignment:** Any revival must be scoped per scenario against 4.17–4.20 official docs (same rule as the rest of the app).
+docs/VSPHERE_FINAL_VERIFICATION.md:8:**Source:** OpenShift 4.20 official docs (installation-config-parameters-vsphere, sections 9.1.1–9.1.6).
+docs/VSPHERE_FINAL_VERIFICATION.md:16:- **URL:** https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere  
+docs/VSPHERE_FINAL_VERIFICATION.md:21:- **NOT APPLICABLE (documented):** The 4.20 parameter page does **not** include full install-config YAML examples for vSphere (legacy vs failure domains). No "Show more" or expandable YAML blocks were found on the scraped page. Structure is inferred from the parameter tables (9.1.4, 9.1.5) and field descriptions.
+docs/VSPHERE_FINAL_VERIFICATION.md:71:- **A.** NTP does **not** appear in official install-config examples for vSphere on the 4.20 parameter page.  
+docs/VSPHERE_FINAL_VERIFICATION.md:90:| Failure domain default behavior | Yes | One empty FD added when FD mode and list empty (useEffect) | PlatformSpecificsStep.jsx | — | 4.20 recommended path |
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:1:# Nutanix + OpenShift 4.20 — platform-family closeout (app scope)
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:15:### Official OpenShift 4.20 Nutanix methodologies (verified)
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:19:- [Chapter 1. Installation methods — Installing on Nutanix](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/preparing-to-install-on-nutanix) — §1.2 documents **Agent-based Installer** on Nutanix and links to the Agent-based book.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:21:- [Chapter 7. Installation configuration parameters for Nutanix](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix) — `platform.nutanix` fields (`prismCentral.endpoint`, `apiVIP`, `ingressVIP`, `subnetUUIDs`, optional `failureDomains`, `defaultMachinePlatform`, etc.), plus **shared** install-config rows (e.g. `controlPlane.replicas` 3 or 1 for SNO, `compute.replicas` described as ≥2 with default 3, global `arbiter` block in the same table).
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:22:- [Installing a cluster (platform-agnostic)](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic) — cross-cutting install-config (proxy, trust, etc.) referenced from Nutanix flows.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:34:3. **Dual-stack VIP list shape (`apiVIPs` / `ingressVIPs`):** A 2026-03-19 fetch of the 4.20 **Installation configuration parameters for Nutanix** page shows **`apiVIP` / `ingressVIP`** only (singular) in the `platform.nutanix` section; no `apiVIPs` / `ingressVIPs` rows appeared in that HTML. The backend still emits **lists** when dual-stack machine network + IPv6 VIP fields are set (same pattern as other IPI paths in this repo). **Installer acceptance of plural VIP fields on Nutanix** should be verified against your target 4.20 release notes or a test install if you rely on that shape.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:48:| Canonical params | `data/params/4.20/nutanix-ipi.json` |
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:50:| Docs index (canonical + frontend copy) | `data/docs-index/4.20.json`, `frontend/src/data/docs-index/4.20.json` → `scenarios["nutanix-ipi"]` |
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:92:- **Catalog / canonical params:** `credentialsMode` narrowed to **Manual** only with citation to **preparing-to-install-on-nutanix** §1.4; **`publish`** description documents Internal rejection + generator coercion. **`data/params/4.20/nutanix-ipi.json`** kept in sync with **`frontend/src/data/catalogs/nutanix-ipi.json`**.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:117:node scripts/validate-catalog.js data/params/4.20/nutanix-ipi.json
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:133:- [ ] Re-read **live** Nutanix 4.20 docs (including collapsed tables) before production.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:137:- `data/params/4.20/nutanix-ipi.json` — canonical catalog (synced from frontend).
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:139:- `data/docs-index/4.20.json` — Agent-based-on-Nutanix reference entry under `nutanix-ipi`.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:140:- `frontend/src/data/docs-index/4.20.json` — same.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:159:- **Nutanix documentation family (4.20):** Includes **Agent-based** and **IPI** (and shared install-config topics).
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:191:#   data/params/4.20/nutanix-ipi.json \
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:193:#   data/docs-index/4.20.json \
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:194:#   frontend/src/data/docs-index/4.20.json \
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:207:# git commit -m "Nutanix 4.20 IPI: CCO Manual/publish alignment, catalog+canonical sync, docs-index agent ref, run-oc-mirror footer, working doc"
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:215:1. **Which Nutanix installation methodologies are supported in the official 4.20 docs?** — At minimum **Agent-based Installer on Nutanix** and **installer-provisioned (IPI) on Nutanix**, per *Installing on Nutanix* Chapter 1 and related chapters; plus shared platform-agnostic install-config topics.
+docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md:219:5. **Did scenario truth updates flow through params, catalog, UI, backend, tests, docs?** — **Yes** for the **`nutanix-ipi`** line (including canonical `data/params/4.20/nutanix-ipi.json`, frontend catalog, generator, validation, steps, smoke tests, e2e matrix/example, docs-index, this working doc). **Not applicable** for Nutanix Agent (not implemented).
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:1:# VMware vSphere + OpenShift 4.20 + Agent-Based Installer — doc review, scenario truth, and implementation
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:17:| Canonical params | `data/params/4.20/vsphere-agent.json` | **Yes** (created this pass) |
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:19:| Docs index (canonical) | `data/docs-index/4.20.json` | **Yes** — `scenarios.vsphere-agent` added |
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:20:| Docs index (frontend) | `frontend/src/data/docs-index/4.20.json` | **Yes** (synced copy) |
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:30:## Phase A — Doc scrub summary (OpenShift 4.20, sources actually opened)
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:35:   `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer/index`  
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:40:   `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent`  
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:47:**Doc-backed conclusions (this pass, OpenShift 4.20 Agent html-single, verified in-repo fetch):**
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:76:**`vsphere-agent`** entry added to **both** `data/docs-index/4.20.json` and `frontend/src/data/docs-index/4.20.json` with:
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:90:- **`data/params/4.20/vsphere-agent.json`:** Built from **bare-metal-agent** minus `platform.baremetal.*`, plus **`platform.vsphere.*`** from **vsphere-ipi** (excluding `topology.template` path — IPI-only per doc note), plus explicit **`platform.vsphere.apiVIPs`** / **`platform.vsphere.ingressVIPs`** with citations to §1.11 validation + §9.1.5.  
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:95:`node scripts/validate-catalog.js data/params/4.20` — **passed**.
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:135:| `node scripts/validate-catalog.js data/params/4.20` | Pass |
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:146:**Goal:** vSphere Agent inherits the **same shared Networking (v2) + Global Strategy** dual-stack **field visibility** as bare-metal-agent; arbiter UX/validation/replicate is **role-correct**; doc caveats tightened where the 4.20 Agent guide allows.
+docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md:220:git commit -m "feat: vsphere-agent scenario (4.20 Agent-based on VMware)"
+docs/DOC_INDEX_RULES.md:9:- **Canonical source:** HTML docs on **docs.redhat.com** only. Base URL for 4.20: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`. docs.openshift.com is shut down; do not add or retain docs.openshift.com URLs. If an equivalent 4.20 page is not yet located on docs.redhat.com, document the gap in the doc entry `notes` and in the scenario working doc.
+docs/DOC_INDEX_RULES.md:13:- Only **official** OpenShift installation/configuration docs for the given version (4.17–4.20).
+docs/DOC_INDEX_RULES.md:17:- Use the 4.20 Install documentation TOC as the discovery starting point when adding or updating entries.
+docs/DOC_INDEX_RULES.md:22:- Current 4.20 docs-index scenarios (authoritative list): `bare-metal-agent`, `bare-metal-ipi`, `bare-metal-upi`, `vsphere-ipi`, `vsphere-upi`, `vsphere-agent`, `nutanix-ipi`, `aws-govcloud-ipi`, `aws-govcloud-upi`, `azure-government-ipi`, `ibm-cloud-ipi`.
+docs/DOC_INDEX_RULES.md:48:  Reads `data/docs-index/4.20.json` (or path as first argument), fetches each URL, and overwrites the file with only live URLs. Deterministic output (sorted by scenarioId, then by doc title).
+docs/DOC_INDEX_RULES.md:62:- Copy `data/docs-index/4.20.json` to `data/docs-index/4.19.json` (and 4.18, 4.17).
+docs/MIRRORING_SECTION_GATING.md:3:This documents **what the code does today**. It is **not** a scenario-by-scenario proof against every 4.20 disconnected-install page; a fuller doc audit remains **open**.
+docs/MIRRORING_SECTION_GATING.md:27:- [openshift/installer `release-4.20` `clusterinfo.go`](https://github.com/openshift/installer/blob/release-4.20/pkg/asset/agent/joiner/clusterinfo.go)
+docs/LOCAL_IGNORED_DOCS_TRIAGE.md:39:| `docs/E2E_REPORT_4.20.md` | ingest_then_archive | Promote still-relevant matrix-level gaps into canonical backlog. |
+docs/LOCAL_IGNORED_DOCS_TRIAGE.md:47:| `docs/PHASE_5_A1_4.20_NOTES.md` | ingest_then_archive | Canonicalize open A1 notes in backlog; archive local note. |
+docs/REVIEW_NOTES.md:4:  exact 4.17–4.20 reference page is confirmed.
+docs/DEEP_DIVE_FINDINGS.md:3:Per-scenario audit of official OCP 4.20 (or latest) docs vs our install-config/agent-config generation and Field Manual.
+docs/DEEP_DIVE_FINDINGS.md:19:- **Docs**: `installation-config-parameters-agent` (install-config + agent-config); preparing-to-install (disconnected, mirror). Saved in `docs/ocp-4.20-agent-install-config-parameters.md` and `ocp-4.20-agent-based-preparing.md`.
+docs/DEEP_DIVE_FINDINGS.md:29:- **Docs**: User-provisioned vSphere; user provisions VMs; install-config in 4.20 may omit or minimal platform.vsphere (user brings infrastructure).
+docs/E2E_BACKLOG.md:6:**Reference:** E2E_EXHAUSTIVE_REPORT_4.20.md, E2E_K_PART4_CHECKLIST.md, E2E_PART2_REPORT_4.20.md §4.
+docs/E2E_BACKLOG.md:14:- **What:** When dual-stack is enabled (machineNetworkV6 set), generated install-config must include **two** entries each for `clusterNetwork` and `serviceNetwork` (IPv4 then IPv6), in the same order as `machineNetwork`, per 4.20 dual-stack docs.
+docs/E2E_BACKLOG.md:34:- **Action:** If product needs to align with those doc examples: (1) Confirm 4.20 install-config parameter docs for `mtu` / genevePort / ipsecConfig. (2) Add param catalog entries if supported. (3) In generate.js, emit `ovnKubernetesConfig.mtu` (and optionally genevePort, ipsecConfig) when set in state. (4) Add an E2E path or fixture that sets OVN MTU and validate output.
+docs/E2E_BACKLOG.md:89:**Top deliverable:** Implement B-1 and B-2 so dual-stack output matches 4.20 doc (clusterNetwork and serviceNetwork each with IPv4 + IPv6). Then re-run dual-stack E2E cells and validation.
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:13:- **controlPlane.platform / compute.platform:** Emitted only where required: bare-metal UPI → `platform: none`; AWS GovCloud IPI with instance types → `platform.aws.type`. Aligns with REFERENCE.md and 4.20 params.
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:27:| **aws-with-instance-types** | controlPlane.platform.aws.type and compute[].platform.aws.type emitted for AWS GovCloud IPI; matches 4.20 rules. |
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:32:- **bare-metal-agent minimal, with-proxy, with-fips:** Compared to Red Hat 4.20 Agent doc examples; required keys and proxy/fips presence align. Agent-config minimal compared to Ch 9.2 example.
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:56:| **dual-stack** (all scenarios) | clusterNetwork and serviceNetwork each have **two** entries (IPv4 + IPv6 in same order as machineNetwork) | clusterNetwork and serviceNetwork each have **one** entry (IPv4 only) | 4.20 dual-stack doc: machineNetwork, clusterNetwork, and serviceNetwork must all list IPv4 then IPv6 in the same order. We only dual-stack machineNetwork; clusterNetwork and serviceNetwork are built from single clusterNetworkCidr / serviceNetworkCidr and do not get a second IPv6 entry. So **dual-stack output is incomplete** vs doc. |
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:81:For these, the collection has a **synthetic from params** example only (no full-file example from 4.20 docs):
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:91:So for those scenarios, **platform-specific values and structure** (e.g. vSphere failureDomains, AWS instance types, Azure cloudName) could not be checked against a real doc full-file example—only against REFERENCE.md and data/params/4.20/*.json.
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:125:| **Dual-stack: emit IPv6 for clusterNetwork and serviceNetwork** | High | When machineNetworkV6 (and optionally IPv6 cluster/service CIDRs) are set, add second entries to clusterNetwork and serviceNetwork in the same order as machineNetwork (IPv4 then IPv6). Use 4.20 doc and param catalog for default IPv6 cluster/service ranges if not in wizard. |
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:134:| **Expose dual-stack cluster/service CIDRs** | High | If dual-stack is supported, add fields (or derive from machineNetworkV6) for clusterNetwork IPv6 and serviceNetwork IPv6 so generate.js can emit full dual-stack networking per 4.20. |
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:138:| **OVN MTU (install-config)** | Medium | If product needs to align with doc examples that show `ovnKubernetesConfig.mtu` (e.g. 1400), add a networking param and emit it from generate.js when set. Confirm 4.20 install-config parameter docs for mtu/genevePort/ipsecConfig before adding. |
+docs/E2E_FINDINGS_AND_RECOMMENDATIONS.md:166:| Top recommendation | Implement dual-stack clusterNetwork and serviceNetwork (IPv6) in generate.js and expose/derive IPv6 CIDRs in wizard so output matches 4.20 dual-stack docs. |
+docs/E2E_FOLLOWUP_REPORT_4.20.md:1:# E2E Follow-up Report — 4.20 (Workstream K follow-up)
+docs/E2E_FOLLOWUP_REPORT_4.20.md:3:**Purpose:** Report-only validation after K follow-up: platform-field clarification, example collection, fixtures, expanded matrix definition, and comparison of outputs against 4.20 docs and params. No automatic app changes except Part 1 (platform fields).
+docs/E2E_FOLLOWUP_REPORT_4.20.md:9:**Finding:** Per 4.20 params (`data/params/4.20/*.json`), `compute[].platform` and `controlPlane.platform` are **optional** (required: false). Official installation docs describe platform at the cluster level; controlPlane/compute platform are not required unless platform-specific machine config is needed.
+docs/E2E_FOLLOWUP_REPORT_4.20.md:24:- **Contents:** `README.md` (purpose, links to 4.20 docs), `REFERENCE.md` (required install-config/agent-config keys, when controlPlane/compute.platform are emitted, scenario → platform block mapping).
+docs/E2E_FOLLOWUP_REPORT_4.20.md:25:- **Use:** Primary reference for validation alongside `data/params/4.20/`. No YAML file examples committed; REFERENCE.md encodes structure and rules derived from params and official docs.
+docs/E2E_FOLLOWUP_REPORT_4.20.md:49:**Comparison vs docs/e2e-examples/REFERENCE.md and data/params/4.20:**
+docs/E2E_FOLLOWUP_REPORT_4.20.md:70:- **Report location:** This file (`docs/E2E_FOLLOWUP_REPORT_4.20.md`). Baseline pass/fail table also in `docs/E2E_REPORT_4.20.md` (generated by script).
+docs/E2E_K_COMPLETION_CHECKLIST.md:11:| K-1 | Document scenario × path matrix (scenario id, path name, minimal state) | DONE | backend/scripts/e2e-matrix.js defines SCENARIOS (9), ALL_PATH_IDS, PATH_APPLIES; docs/E2E_REPORT_4.20.md matrix size |
+docs/E2E_K_COMPLETION_CHECKLIST.md:13:| K-3 | Validate outputs against 4.20 docs (structure, required keys, allowed keys); produce report | DONE | backend/scripts/validate-e2e-examples.js; docs/E2E_PART2_REPORT_4.20.md §2 per-cell, §3 summary |
+docs/E2E_K_COMPLETION_CHECKLIST.md:14:| K-4 | Summary: matrix size, artifact location, report location | DONE | docs/E2E_REPORT_4.20.md; E2E_PART2_REPORT_4.20.md §1 inventory, §3 summary (42 cells) |
+docs/E2E_K_COMPLETION_CHECKLIST.md:15:| K-5 | Re-run instructions for matrix and report | DONE | docs/E2E_PART2_REPORT_4.20.md §6 How to re-run (e2e-matrix.js, validate-e2e-examples.js) |
+docs/E2E_K_COMPLETION_CHECKLIST.md:24:| KF-2 | Part 2: Example collection from 4.20 docs and trusted sources; local collection under docs/e2e-examples/ or data/e2e-examples/ | DONE | docs/e2e-examples/install-config/, agent-config/, nmstate/; INVENTORY.md; REFERENCE.md |
+docs/E2E_K_COMPLETION_CHECKLIST.md:28:| KF-6 | Part 6: Report — platform summary, example collection location, matrix size, per-scenario/path pass/fail, misalignments, suggested fixes, unable-to-verify | DONE | docs/E2E_REPORT_4.20.md; docs/E2E_PART2_REPORT_4.20.md §1–§3, §4 (coverage), §5 refs |
+docs/E2E_K_COMPLETION_CHECKLIST.md:36:| K2-A | Part A: Crawl/scan 4.20 install docs; extract and store install-config, agent-config, image set examples; categorize by scenario/variant; store under docs/e2e-examples/ with structure; include nmstate.io and trusted sources | DONE | docs/e2e-examples/INVENTORY.md; install-config (doc + synthetic), agent-config, nmstate/; data/docs-index/4.20.json used |
+docs/E2E_K_COMPLETION_CHECKLIST.md:38:| K2-C | Part C: Report — (1) example inventory, (2) per-cell validation table, (3) summary tables (align / discrepancies / no example), (4) references | DONE | E2E_PART2_REPORT_4.20.md §1 inventory, §2 per-cell table, §3 summary (42 with example, 42 pass, 0 no example, 0 discrepancy), §5 references |
+docs/E2E_K_COMPLETION_CHECKLIST.md:39:| K2-D | Part D: Field and path coverage — cross-check matrix paths vs wizard/param fields; coverage list (param → path(s)); "Not covered by any path" list | DONE | E2E_PART2_REPORT_4.20.md §4.1 Coverage list, §4.2 Not covered by any path |
+docs/E2E_K_COMPLETION_CHECKLIST.md:47:| K3-1 | Use data/docs-index/4.20.json to obtain every relevant 4.20 doc URL; crawl or systematically process every listed URL (or document skipped/inaccessible) | DONE | data/docs-index/4.20.json read; every scenario’s docs[] URLs used as source refs (synthetic file headers + INVENTORY). No full HTTP crawl this run; part 2 had crawled key pages; 7 scenarios with no full-file doc received synthetic from params per prompt. |
+docs/E2E_K_COMPLETION_CHECKLIST.md:49:| K3-3 | Validation: every matrix cell validated against matching example; report updated with per-cell results, discrepancies, unverified, summary | DONE | validate-e2e-examples.js run after EXAMPLE_MAP expanded; E2E_PART2_REPORT_4.20.md §2 (42 rows), §3 (42 with example, 42 pass, 0 discrepancy) |
+docs/E2E_K_COMPLETION_CHECKLIST.md:50:| K3-4 | Part D: Coverage list (param/field → path(s)) and "Not covered by any path" list in or linked from report | DONE | E2E_PART2_REPORT_4.20.md §4.1 Coverage list, §4.2 Not covered by any path |
+docs/E2E_MATRIX.md:3:**Purpose:** Enumerate all valid (scenario, path) combinations for end-to-end generation. Each cell is run by the E2E script to produce install-config (and agent-config where applicable) and validate against 4.20 docs.
+docs/E2E_MATRIX.md:9:## Scenario list (4.20)
+docs/E2E_MATRIX.md:65:## Validation (4.20)
+docs/E2E_MATRIX.md:69:- **Report:** See `docs/E2E_REPORT_4.20.md` (or JSON in e2e-artifacts).
+docs/E2E_PART2_REPORT_4.20.md:151:- **Unverified when no example:** platform.* blocks, proxy, fips, imageDigestSources structure, dual-stack networks, node-counts, instance types, failure domains, provisioning network — validated only via REFERENCE.md and 4.20 param rules.
+docs/E2E_PART2_REPORT_4.20.md:156:- Red Hat 4.20 Agent-based Installer installation config: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent
+docs/E2E_PART2_REPORT_4.20.md:157:- Red Hat 4.20 Installing on any platform (proxy): https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic
+docs/E2E_PART2_REPORT_4.20.md:158:- Red Hat 4.20 Bare metal UPI: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure
+docs/E2E_REPORT_4.20.md:1:# E2E Report — 4.20 alignment (Workstream K)
+docs/E2E_REPORT_4.20.md:3:Full scenario × path matrix. Generated by backend/scripts/e2e-matrix.js. Validates install-config (and agent-config where applicable) against 4.20 structure and docs/e2e-examples/REFERENCE.md.
+docs/E2E_REPORT_4.20.md:132:K follow-up: see docs/E2E_FOLLOWUP_REPORT_4.20.md for platform-field clarification and full validation.
+docs/PHASE1_CI_AGENT_PROMPT.md:9:**Context:** The OpenShift Airgap Architect repo has a docs catalog with a machine-readable docs index at `data/docs-index/4.20.json`. Phase 1 specifies that the **preferred** base URL for this index is **docs.redhat.com** (e.g. `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`), not docs.openshift.com. Some doc entries may still use docs.openshift.com URLs when a 4.20 HTML equivalent is not available on Red Hat’s site; that is documented in the index and in `docs/DOC_INDEX_RULES.md`.
+docs/PHASE1_CI_AGENT_PROMPT.md:13:1. **Do not overwrite or regenerate `data/docs-index/4.20.json` in CI.**  
+docs/PHASE1_CI_AGENT_PROMPT.md:24:   - `data/docs-index/4.20.json` has `baseUrl` equal to or containing `docs.openshift.com`, or  
+docs/PHASE1_CI_AGENT_PROMPT.md:38:*This prompt was produced as part of Phase 1 (Docs Index for OCP 4.20) of the Docs Catalog work.*
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:1:# Phase 1–3 redo delta report (OCP 4.20)
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:4:**Scope:** Docs index (Phase 1) and parameter catalogs (Phases 2–3) for OCP 4.20, with docs.redhat.com as source of truth and extraction of previously missing proxy/trust-bundle fields.
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:10:### data/docs-index/4.20.json
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:18:No new doc URLs were added. All scenario doc entries already had `configTypes` and `tags`; no changes were required there. Preferred source remains docs.redhat.com HTML; docs.openshift.com is only used where 4.20 HTML is not available (noted in `notes`).
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:20:**Phase 1 re-validation (Phase 0 scenario list):** Per DOC_INDEX_RULES.md, Phase 0 scenario IDs are: bare-metal-agent, bare-metal-ipi, bare-metal-upi, vsphere-ipi, vsphere-upi, nutanix-ipi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi. data/docs-index/4.20.json contains exactly these nine scenarios. Each has 3 docs: (1) installation-config-parameters-agent, (2) platform-specific or agent install guide, (3) installing-disconnected. configTypes and tags are present on every doc entry.
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:35:**Source:** docs.redhat.com → [Installing a cluster on any platform (platform-agnostic)](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic), section **1.11.2. Configuring the cluster-wide proxy during installation**. The page was fetched and the YAML example and “where” list were used; no content was inferred from memory.
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:40:- **imageDigestSources** (or mirrorDigestSources): Not in install-config. It **is** documented in 4.20 **Edge computing → Image-based installation for single-node OpenShift** for **image-based-installation-config.yaml** (Table 17.5) and **ImageClusterInstall** (Table 17.8). Structure: array of objects with **mirrors** (array of strings) and **source** (string). Our catalogs are install-config/agent-config/imageset-config only; IBI configs are a separate surface—see PARAMS_CATALOG_RULES.md "IBI imageDigestSources" and the doc link there. “no guessing” rule.
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:43:**imageDigestSources search (completed):** 4.20 install docs were searched; no **install-config** parameter named imageDigestSources. It **was found** in the IBI doc: [Image-based installation for single-node OpenShift](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install), Tables 17.5 (image-based-installation-config.yaml) and 17.8 (ImageClusterInstall). Fields: **imageDigestSources** (array) → each element **mirrors** (array of strings), **source** (string). Documented in PARAMS_CATALOG_RULES.md; not added to install-config catalogs because IBI is a different config surface.
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:69:- `node scripts/validate-catalog.js data/params/4.20` — exit 0 (all scenario catalogs validated; no duplicate path+outputFile; citations and required fields present).
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:75:- `data/docs-index/4.20.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:76:- `data/params/4.20/bare-metal-agent.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:77:- `data/params/4.20/bare-metal-ipi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:78:- `data/params/4.20/bare-metal-upi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:79:- `data/params/4.20/vsphere-ipi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:80:- `data/params/4.20/vsphere-upi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:81:- `data/params/4.20/nutanix-ipi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:82:- `data/params/4.20/aws-govcloud-ipi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:83:- `data/params/4.20/aws-govcloud-upi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:84:- `data/params/4.20/azure-government-ipi.json`
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:99:| **Phase 1 (3)** Prefer docs.redhat.com HTML; PDF only if required | Yes | All primary URLs are docs.redhat.com HTML; docs.openshift.com only where 4.20 HTML not located (noted in notes). |
+docs/PHASE_1-3_REDO_DELTA_REPORT.md:103:| **Phase 2/3 (C)** Known-miss targets: proxy.*, imageDigest*, imageContentSources, additionalTrustBundlePolicy, publish, operatorPublishingStrategy, restricted-network fields | Partial | proxy.* and additionalTrustBundlePolicy added. publish already present. imageContentSources present. imageDigestSources: not in install-config; documented in IBI doc (image-based-installation-config.yaml, ImageClusterInstall)—see PARAMS_CATALOG_RULES.md "IBI imageDigestSources". **operatorPublishingStrategy**: searched site:docs.redhat.com 4.20 install-config; not documented as install-config parameter; not added. |
+docs/PHASE_4_5_COVERAGE_BARE_METAL_AGENT.md:4:Catalogs: data/params/4.20/bare-metal-agent.json, data/params/4.20/bare-metal-ipi.json
+docs/PHASE_4_5_COVERAGE_BARE_METAL_AGENT.md:63:| apiVersion | cluster | Assets (internal; verify emitted value matches 4.20 docs) |
+docs/PHASE_4_5_COVERAGE_BARE_METAL_AGENT.md:219:- Verify apiVersion emitted matches the expected 4.20 docs (commonly v1beta1 for 4.20).
+docs/PHASE_4_5_RECOMMENDATIONS.md:9:- Catalogs under `data/params/4.20/*.json` are docs-derived and are the source of truth for required/allowed/default/type when specified (no guessing).
+docs/PHASE_4_5_RECOMMENDATIONS.md:112:- Action: VERIFY what backend emits for OCP 4.20 agent-config apiVersion (catalog/doc expectation is usually v1beta1 for 4.20).
+docs/PHASE_4_5_RECOMMENDATIONS.md:113:  - If it is already v1beta1: add/keep a backend test that asserts it for the 4.20 release path.
+docs/PHASE_4_5_RECOMMENDATIONS.md:130:- Confirm nmstate accepted naming for 4.20 (labels vs emitted mode values).
+docs/PHASE_5_A1_4.20_NOTES.md:1:# Phase 5 A1 — 4.20 param and catalog alignment notes
+docs/PHASE_5_A1_4.20_NOTES.md:4:**Scope:** OpenShift 4.20 install-config and agent-config parameters; canonical catalogs in `data/params/4.20/`; frontend copies in `frontend/src/data/catalogs/`.
+docs/PHASE_5_A1_4.20_NOTES.md:8:- All 9 scenarios in `data/params/4.20/` were audited against `backend/src/generate.js` and replacement steps (Platform Specifics, Networking, Identity, Connectivity, Trust, Hosts).
+docs/PHASE_5_A1_4.20_NOTES.md:12:## 4.20-specific
+docs/PHASE_5_A1_4.20_NOTES.md:14:- **Network type:** 4.20 install-config supports OVN-Kubernetes only (catalog `allowed` / default). When the catalog allows a single value, the UI shows it as read-only instead of a dropdown.
+docs/PHASE_5_A1_4.20_NOTES.md:15:- **Parameters not in catalog / deferred:** As per [PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md](./PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md): `featureSet`, `arbiter.*`, `imageContentSources` (we use `imageDigestSources`), and bare-metal–only `credentialsMode`/`publish` are deferred or cloud-only. No additional 4.20-only parameters were added to the catalogs in this pass; citations in existing params point to 4.20 docs.
+docs/PHASE_5_AGENT_ROLES.md:94:2. `node scripts/validate-catalog.js data/params/4.20`
+docs/PHASE_5_B_DEFERRAL_LIST.md:70:1. User sets AWS GovCloud, version (e.g. 4.20.11), and arch (e.g. x86_64) on Blueprint and confirms the lock popup.
+docs/PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md:8:**OpenShift version in scope:** 4.20. Decisions are based on the official install-config and agent-config parameter docs cited in `data/params/4.20/*.json`.
+docs/PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md:20:| `state.blueprint.arch` | `compute[].architecture`, `controlPlane[].architecture` | `installConfig.compute[].architecture`, `installConfig.controlPlane.architecture` | Map UI arch to catalog allowed: **x86_64 → amd64**, **aarch64 → arm64**. If Blueprint later adds ppc64le/s390x, pass through. All pools must match (per 4.20 docs). |
+docs/PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md:36:For each catalog parameter that was **not** covered by the current UI/backend (as of the Plan Manager review), the table below states: **Include (Basic | Advanced)** or **Defer**, **Tab** to house the field (if included), **State path** (if new), and **Output mapping**. Decisions align with 4.20 official docs and catalog citations.
+docs/PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md:52:| `credentialsMode` | agent, ipi, upi | **Include (Advanced)** | Platform Specifics | Only for cloud (AWS GovCloud, Azure Government); already in generate for those. Bare metal: **Defer** (not in bare metal install flow per 4.20). | Already emitted for cloud only. |
+docs/PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md:53:| `imageContentSources`, `imageContentSources[].source`, `imageContentSources[].mirrors` | agent, ipi, upi | **Defer** | — | Superseded by imageDigestSources in 4.20; we emit imageDigestSources from Connectivity & Mirroring. Document in PARAMS_CATALOG_RULES. | — |
+docs/PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md:100:1. **Param file:** `data/params/4.20/<scenario-id>.json` — every `path` + `outputFile` is either implemented on a tab, carried over from Blueprint, or explicitly deferred with a note.
+docs/PHASE_5_HOW_TO_USE_PROMPTS_AND_DOCS.md:21:| **data/docs-index/4.20.json** | You need scenario IDs and doc links for the scenario header or doc links. (Frontend uses copies in `frontend/src/data/docs-index/` — see `docs/DATA_AND_FRONTEND_COPIES.md`.) |
+docs/PHASE_5_HOW_TO_USE_PROMPTS_AND_DOCS.md:22:| **data/params/4.20/*.json** | You need the source of truth for which params exist per scenario and their type/allowed/default/required. (Frontend uses copies in `frontend/src/data/catalogs/` — see `docs/DATA_AND_FRONTEND_COPIES.md`.) |
+docs/PHASE_5_HOW_TO_USE_PROMPTS_AND_DOCS.md:66:> - **data/params/4.20/bare-metal-agent.json** (and any other scenario you support) — use the catalog to decide which fields exist and their type/default/required.
+docs/PHASE_5_HOW_TO_USE_PROMPTS_AND_DOCS.md:88:> 2) node scripts/validate-catalog.js data/params/4.20  
+docs/PHASE_5_HOW_TO_USE_PROMPTS_AND_DOCS.md:108:> Read **docs/PHASE_4_5_COVERAGE_BARE_METAL_AGENT.md** and **data/params/4.20/bare-metal-agent.json** (and any other scenarios we’re targeting). For the replacement tabs that exist (Identity & Access, Networking, …), produce a short report:  
+docs/PHASE_5_HOW_TO_USE_PROMPTS_AND_DOCS.md:149:> Use **docs/PARAMS_CATALOG_RULES.md** and **data/params/4.20/** for all UI decisions: required/optional, widget type (toggle vs select), and validation. Do not guess required or allowed values; only use what’s explicitly in the catalog. If the catalog says “not specified in docs”, treat it as optional and do not add required validation.
+docs/PHASE_5_HOW_TO_USE_PROMPTS_AND_DOCS.md:160:- **“Catalog is source of truth; no guessing”** → use `docs/PARAMS_CATALOG_RULES.md` and `data/params/4.20/*.json`  
+docs/PHASE_5_POST_PHASE_REVIEW.md:88:| **A1 — Params not in catalog / deferred** | [PHASE_5_A1_4.20_NOTES.md](./PHASE_5_A1_4.20_NOTES.md), [PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md](./PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md) | **Leave deferred** | Documented; address during 4.20 doc refresh or dedicated validation pass. |
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:8:**OpenShift version in scope:** 4.20 for param/docs alignment unless otherwise noted.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:34:| **I** | UX / design | Layout, buttons, fields, menu, header; inspiration from OCP 4.20 console; no content change | H |
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:36:| **K** | E2E tester | All valid paths × all scenarios; store YAML outputs; validate against 4.20 docs | A, C |
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:45:**Goal:** Ensure all fields and scenarios are accounted for and that validation is intelligent and aligned with params, `generate.js`, and official Red Hat OpenShift 4.20 docs.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:53:  - Research 4.20 install-config/docs for any params or constraints not yet in catalog; add or document gaps.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:58:  - **Tab relevance:** Determine when the Networking tab (or specific networking fields) does not apply: e.g. AWS GovCloud IPI/UPI may handle networking differently; hide tab or show “not applicable” or restrict fields by scenario. Research per-platform 4.20 docs.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:145:**Goal:** Improve how the app is displayed (not what is displayed): layout, menu, header, buttons, fields, notes; inspiration from OpenShift 4.20 web console and similar tools; modern, consistent look (e.g. 3D-style buttons, standardized fields and notes) without overwhelming the user. **Landing page unchanged.**
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:165:**Goal:** Enumerate all valid paths (Blueprint × Methodology × scenario × key options) and run through each; capture generated YAML; validate outputs against 4.20 docs (examples and install-config/agent-config structure) and store results for review.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:168:- Compare outputs to official 4.20 examples and parameter docs; flag mismatches or unsupported keys.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:171:**K follow-up (see [PHASE_5_POST_SCENARIO_PROMPTS.md](./PHASE_5_POST_SCENARIO_PROMPTS.md) “Prompt K follow-up”):** (1) Clarify and optionally remove `compute.platform` / `controlPlane.platform` from install-config unless required by 4.20 docs. (2) Expand matrix to all configuration paths (FIPS, interfaces, bonds/VLANs, node counts, proxy, dual-stack, AWS/vSphere options, etc.); every field/value/selection covered. (3) Build local collection of 4.20 examples; validate every output against it; report only—misalignments, violations, suggested fixes, and unverified items. (4) Locked-in fixture values (IPs, MACs, hostnames, etc.) for consistent runs. Artifacts and folder remain gitignored. **K follow-up part 2** (same doc): When the example collection is still thin (REFERENCE.md only), run "Prompt K follow-up (part 2)" to crawl all 4.20 docs and trusted sources (e.g. nmstate.io), store actual examples by scenario/variant, validate every cell against matching examples, and report discrepancies plus specific unverified keys/sections. **K follow-up part 3 — FINAL K** (same doc): Run "Prompt K follow-up (part 3)" to complete all outstanding K work: full crawl using data/docs-index/4.20.json, at least one example per scenario (all 9), Part D coverage list and "Not covered by any path" list, and mandatory completion checklist (docs/E2E_K_COMPLETION_CHECKLIST.md) before reporting done. **K follow-up part 4 — Exhaustive** (same doc): If part 3 did not actually fetch and extract every full/snippet example from the 4.20 docs (including expand/show-more content) and from nmstate.io, or run every logical config combination (including hyperthreading and advanced values), run "Prompt K follow-up (part 4)" — zero exclusions; do not stop until every doc example is pulled, every combo is run, and every cell is validated against every relevant example.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:236:- **A1 outcome (4.20 alignment, format helpers):** [PHASE_5_A1_4.20_NOTES.md](./PHASE_5_A1_4.20_NOTES.md) — audit result, network-type behavior, format helpers, deferred params.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:248:- **K outcome (E2E tester):** Baseline: [docs/E2E_MATRIX.md](./E2E_MATRIX.md), [backend/scripts/e2e-matrix.js](../backend/scripts/e2e-matrix.js), [docs/E2E_REPORT_4.20.md](./E2E_REPORT_4.20.md); artifacts under `e2e-artifacts/` (gitignored). **K follow-up (parts 2–4):** See [PHASE_5_POST_SCENARIO_PROMPTS.md](./PHASE_5_POST_SCENARIO_PROMPTS.md). Part 4 delivered: doc crawl (1,357 snippets after cleanup), nmstate (20 examples), 87 cells (13 paths), validation 87/87 pass, [E2E_FINDINGS_AND_RECOMMENDATIONS.md](./E2E_FINDINGS_AND_RECOMMENDATIONS.md), [E2E_K_PART4_CHECKLIST.md](./E2E_K_PART4_CHECKLIST.md). **Backlog:** Recommended follow-ups (dual-stack fix, OVN MTU, host MTU/SR-IOV path, etc.) are in [docs/E2E_BACKLOG.md](./E2E_BACKLOG.md) for later implementation.
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:281:| **A1** | Params not in catalog / explicitly deferred (featureSet, arbiter, etc.) | [PHASE_5_A1_4.20_NOTES.md](./PHASE_5_A1_4.20_NOTES.md); [PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md](./PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md) |
+docs/PHASE_5_POST_SCENARIO_AGENT_PLAN.md:299:   Address when doing a **4.20 doc refresh** or a dedicated validation pass. Use A1/A2 prompts or a short “validation backlog” prompt that references PHASE_5_SCENARIO_EXPANSION.md § 6 and the gap-remediation matrix. One run per theme (e.g. platform=none, then tab relevance).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:23:- **Canonical param catalogs:** `data/params/4.20/*.json` (one per scenario). Run `node scripts/validate-catalog.js data/params/4.20` to validate.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:30:- **OpenShift 4.20:** Use official install-config and agent-config parameter docs (links in data/docs-index/4.20.json and in param citations) to confirm allowed values and types; e.g. network type (OVN-Kubernetes only in 4.17+) — if only one option, consider hiding or single-option.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:33:1. **Audit:** For every scenario in `data/params/4.20/`, ensure every catalog parameter is either (a) implemented on a replacement step (with a form field or derived value), (b) carried over from Blueprint (documented in PHASE_5_GAP_REMEDIATION_AND_CARRYOVER.md § 1), or (c) explicitly deferred with a one-line note. Cross-check `backend/src/generate.js`: every state key it reads for each platform must have a corresponding catalog entry and UI or carry-over. List any gaps and fix them (add missing params to canonical catalog and sync to frontend, or add missing UI/validation).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:34:2. **Align UI with catalog:** String params → string inputs; number → number; booleans → toggles where the catalog says type boolean or allowed true/false; allowed lists → dropdowns (not free text). If the docs (e.g. 4.20) allow only one value for a field (e.g. network type = OVN-Kubernetes), consider hiding that field or showing a single option so the UI is not misleading.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:36:4. **4.20 research:** Scan official Red Hat OpenShift 4.20 install-config (and agent-config where applicable) parameter docs for any parameters or constraints not yet in the catalogs; add them to the appropriate scenario catalog(s) with citations, or document gaps in a short note (e.g. in a comment or in docs).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:40:- A short **summary** of what you did: which scenarios you audited, which gaps you fixed (missing params, missing UI, wrong widget type), any format helpers added, and any 4.20 params you added or documented as deferred.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:41:- **Git commands** (from repo root) to stage and commit your changes. Include every file you added or modified (e.g. data/params/4.20/*.json, frontend/src/data/catalogs/*.json, frontend/src/steps/*.jsx, frontend/src/validation.js, backend/src/generate.js if needed, frontend/tests/** or backend/test/**). Example format:
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:49:- Confirm that **node scripts/validate-docs-index.js**, **node scripts/validate-catalog.js data/params/4.20**, **cd backend && npm test**, and **cd frontend && npm run test -- --run** and **npm run build** all pass (or list any failure and how you addressed it).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:66:3. **docs/PHASE_5_A1_4.20_NOTES.md** — A1 outcome (catalog alignment, format helpers); do not redo A1 work.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:69:- **Backend (platform = none):** `backend/src/generate.js` — where `installConfig.controlPlane.platform` and `installConfig.compute[0].platform` are set. For UPI installs (e.g. bare-metal UPI, vSphere UPI, AWS GovCloud UPI), research OpenShift 4.20 docs: when does the installer expect `platform: none` (or equivalent) for control plane and compute? Implement or fix so that UPI scenarios emit the correct value (e.g. `none` where docs require it). Preserve IPI behavior.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:70:- **Step visibility / tab relevance:** `frontend/src/App.jsx` — how steps are included in the segmented flow; which step IDs exist (e.g. `networking-v2`, `platform-specifics`). `frontend/src/steps/NetworkingV2Step.jsx` — Networking step content. Determine per scenario whether the Networking tab (or specific networking fields) applies: e.g. AWS GovCloud IPI/UPI may handle networking differently per 4.20 docs. If a tab or section does not apply for a scenario, show "not applicable" or hide/restrict that section (catalog-driven or scenarioId check); do not remove the step from the flow for other scenarios.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:72:- **Official 4.20 docs:** Use install-config parameter docs for each platform (links in `data/docs-index/4.20.json` and in param citations) to confirm when Networking params apply and when platform = none is required for UPI.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:75:1. **Platform = none:** Research OpenShift 4.20 install-config (and any agent-config) docs for UPI: when must `compute[].platform` / `controlPlane.platform` (or the top-level platform key used by the installer) be set to `none`? At minimum: **bare-metal UPI**. Optionally: vSphere UPI, AWS GovCloud UPI, other UPI. In `backend/src/generate.js`, ensure that for those scenarios the generated install-config (and agent-config if applicable) emits the correct platform value (e.g. `none`) for control plane and compute. Add or extend backend tests to assert the emitted value.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:76:2. **Tab relevance — Networking:** Research per-platform 4.20 docs: for **AWS GovCloud IPI** (and optionally UPI), do the standard Networking tab fields (networkType, machineNetwork, etc.) apply, or does AWS GovCloud use different networking configuration? If they do not apply or are restricted, update the Networking step so that for aws-govcloud-ipi (and aws-govcloud-upi if applicable) it shows "not applicable" or only the subset of fields that apply. Use catalog presence or scenarioId to drive visibility; do not remove fields for other scenarios.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:92:- Confirm that **node scripts/validate-docs-index.js**, **node scripts/validate-catalog.js data/params/4.20**, **cd backend && npm test**, **cd frontend && npm run test -- --run**, and **cd frontend && npm run build** all pass (or list any failure and how you addressed it).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:341:- **Reference:** OpenShift 4.20 web console or similar tools for inspiration (e.g. 3D-style buttons, standardized form fields). Keep the app recognizable and avoid overwhelming the user.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:392:Use this prompt for **Workstream K** (E2E tester). Run after A and C (and optionally after D). The agent builds a scenario × path matrix, runs through each, captures YAML, and validates against 4.20 docs.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:405:- **Validation:** Compare each output to official OpenShift 4.20 install-config (and agent-config) parameter docs and examples. Flag mismatches, unsupported keys, or missing required keys. Produce a report (e.g. markdown or JSON) of alignment vs docs.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:410:3. Validate outputs against 4.20 docs (structure, required keys, allowed keys); produce a report. Optionally add a script or test that runs the matrix and report so it can be re-run.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:413:- A **summary**: matrix size, where artifacts are stored, and report location (alignment with 4.20 docs).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:424:Use this prompt **after** the initial K run (matrix, script, report baseline). It extends K to: (1) clarify and optionally remove `compute.platform` / `controlPlane.platform` from install-config unless required; (2) expand the test matrix to **all** configuration paths the wizard supports; (3) build a local collection of 4.20 examples and validate every output against it; (4) report only (no automatic changes)—misalignments, violations, and suggested fixes.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:426:**Prerequisite:** Existing K deliverables (e.g. `docs/E2E_MATRIX.md`, `backend/scripts/e2e-matrix.js`, `docs/E2E_REPORT_4.20.md`). Artifacts under `e2e-artifacts/` must remain gitignored.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:429:You are running **Workstream K follow-up** — E2E completeness and 4.20 doc alignment. The baseline K matrix (minimal path per scenario) exists; you are extending it and tightening validation.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:434:3. **data/params/4.20/** — Param catalogs per scenario; use as source of truth for which fields exist and how they map to install-config/agent-config.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:435:4. **Official OpenShift 4.20 installation docs** — Install-config, agent-config, and image set examples. You will crawl/scan and build a local collection (see below).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:438:- Review the 4.20 install-config docs and the params files. Clarify whether **compute[].platform** and **controlPlane.platform** are required or needed, or if they are overridden by the top-level **platform** field.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:442:**PART 2 — Example collection (4.20 docs and trusted sources)**
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:443:- Perform an in-depth scan/crawl of the **OpenShift 4.20 installation documentation** and **trusted sources** (e.g. Red Hat solution articles, official example repos). Extract and **categorize all install-config, image set, and agent-config examples**.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:457:- For **each** output: **compare** to the 4.20 example collection and params. Check that structure, required keys, allowed keys, and values align **exactly** with the relevant official examples for that scenario.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:465:- Update or create **docs/E2E_REPORT_4.20.md** (or a dedicated follow-up report) to include:
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:486:Use this prompt when the **example collection is still a thin REFERENCE.md** (e.g. only required top-level keys and platform rules) and you need validation against **all** install-config/agent-config/image set examples from the **official 4.20 docs and trusted sources**. This prompt forces a real crawl of the docs, a comprehensive example collection, and a report that compares **every** test result to **matching** doc examples and explicitly lists discrepancies and unverified parts.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:491:You are running **Workstream K follow-up (part 2)** — Example collection from 4.20 docs and validation report. The full matrix (e.g. 42+ cells) is already running; the example collection is **not** yet populated with the real install-config/agent-config/image set examples from the OpenShift 4.20 installation docs. Your job is to build that collection and validate every generated output against it, then report discrepancies and unverified sections.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:496:3. **data/params/4.20/** — Param catalogs; used with the example collection as source of truth.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:497:4. **Official OpenShift 4.20 installation documentation** — You will systematically scan/crawl **all** relevant pages (install config, agent-based install, IPI/UPI per platform, networking, proxy, dual-stack, FIPS, vSphere failure domains, bare metal, AWS GovCloud, Azure Government, Nutanix, image set, etc.). The docs span many pages and sections; you must not rely on a single "reference" page. Use the repo's docs-index or doc links (e.g. data/docs-index/4.20.json) if present to find every relevant doc.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:504:- **Crawl/scan** the OpenShift 4.20 installation documentation (all relevant sections). Do **not** assume one or two pages are enough; the 4.20 install docs include **many** pages with install-config, agent-config, and image set **snippets and full examples** for different scenarios (per platform, with proxy, dual-stack, FIPS, failure domains, bare metal interfaces, etc.).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:525:The report (e.g. `docs/E2E_FOLLOWUP_REPORT_4.20.md` or a dedicated part-2 report) must include:
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:536:4. **References:** Cite the official 4.20 doc pages/sections and trusted sources (including nmstate.io examples) used to build the collection. Ensure the report is traceable.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:542:- Cross-check the matrix paths against the **full** set of wizard fields: `data/params/4.20/*.json` and the UI (steps). Produce a **coverage list**: for each catalog param or wizard choice (or a representative set if too large), which matrix path(s) exercise it. List any **field or selection** that is **not** exercised by any path as "Not covered by any path" and, if possible, suggest a path or note why it was omitted.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:549:- **Example collection:** Populated under `docs/e2e-examples/` (or agreed location) with **actual** examples from 4.20 docs and trusted sources (including nmstate.io), categorized by scenario and variant. Not just REFERENCE.md with required keys—real YAML/structure examples.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:563:**Prerequisite:** K follow-up part 1 (full matrix, platform fields, fixtures, 42+ cells) and K follow-up part 2 (validation script, partial example collection, Part 2 report) have been run. Artifacts under `e2e-artifacts/` exist. `docs/E2E_PART2_REPORT_4.20.md` and `docs/e2e-examples/INVENTORY.md` exist.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:568:   - Use **data/docs-index/4.20.json** (and any other doc index in the repo) to obtain **every** relevant 4.20 doc URL. You **must** crawl or systematically process **every** listed URL (or document which URLs were inaccessible and why).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:570:   - **Target:** The collection must have **at least one** install-config or agent-config example for **each** of the 9 scenarios. If, after crawling every URL in the docs-index and key 4.20 install pages, a scenario truly has **no** example in the docs, you must (a) document the exact pages you checked and (b) add a short "synthetic" example built from the 4.20 param catalog for that scenario so validation can still compare structure; label it clearly as "synthetic from params" with source.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:576:   - Update **docs/E2E_PART2_REPORT_4.20.md** (or a single consolidated **docs/E2E_FINAL_REPORT_4.20.md**) with: example inventory, per-cell table (example used, pass vs example, discrepancies, unverified parts), summary counts (passed / failed / no example), and references.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:579:   - Cross-check the matrix paths against the **full** set of wizard/param fields: **data/params/4.20/*.json** and the wizard steps (e.g. frontend steps that set platform, networking, proxy, FIPS, host inventory, etc.).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:593:     - **Evidence:** file path, report section, or one-line proof (e.g. "INVENTORY.md lists 9 scenarios" or "E2E_FINAL_REPORT_4.20.md §2 table has 42 rows")
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:608:1. You have crawled or processed every URL in **data/docs-index/4.20.json** (or documented which were skipped and why).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:622:Use this prompt when the prior K work **did not** do the following: (1) actually **fetch and extract every** install-config, agent-config, and imageset **full and snippet** example from the OpenShift 4.20 install docs (including content behind "Expand" / "Show more" / collapsible sections); (2) extract **every** example from the nmstate.io page (no exclusions); (3) run **every logical combination** of available configs (including hyperthreading and other advanced values) and compare each output against the **relevant** doc examples for that scenario and config path. This prompt **replaces** any weaker interpretation of "crawl" or "example collection." You must **not stop** until all of the requirements below are satisfied.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:624:**Prerequisite:** data/docs-index/4.20.json (and any other 4.20 doc list in repo), data/params/4.20/*.json, backend/scripts/e2e-matrix.js and validate-e2e-examples.js, docs/e2e-examples/ (current collection will be replaced or massively expanded).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:632:3. data/docs-index/4.20.json — every URL here (and any other 4.20 install doc index in the repo) is a crawl target.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:633:4. data/params/4.20/*.json — defines every field/option; the matrix must cover every logical combination of these that the wizard can produce.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:634:5. Official OpenShift 4.20 installation documentation — you will fetch and parse every relevant page and extract every full and snippet example.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:641:- **Crawl means fetch:** For every URL in data/docs-index/4.20.json (and any other 4.20 install doc index in the repo), you MUST actually retrieve the page content (e.g. HTTP fetch, mcp_web_fetch, or a script that fetches and parses HTML). You MUST also obtain content that is initially hidden behind "Expand," "Show more," or similar collapsible/accordion sections in the HTML — by re-fetching with expanded state, parsing both expanded and unexpanded blocks, or using a headless browser if necessary. Document any page or section that could not be retrieved or expanded and why.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:653:- **Every combination:** The test matrix MUST include **every logical combination** of available configuration options that the wizard and data/params/4.20 support. This includes, but is not limited to:
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:679:1. **Collection complete:** Every 4.20 install doc page listed in data/docs-index/4.20.json (and any other 4.20 install doc list in the repo) has been fetched, and every install-config/agent-config/imageset full and snippet example has been extracted and stored. Content behind Expand/Show more has been retrieved or documented as unreachable. Every example from https://nmstate.io/examples.html (and its anchors) has been extracted and stored. The inventory lists every example; no full or snippet example from those sources may be excluded.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:682:4. **Report complete:** The report includes: (a) full example inventory (source URL, section, tags, file path) for every pulled example; (b) per-cell validation table (cell, relevant examples used, align / discrepancies, unverified parts); (c) summary (cells passed / failed / no matching example; examples with no matching test); (d) coverage list (param → path(s)) and "Not covered by any path" for any remaining param; (e) references (4.20 docs, nmstate.io).
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:690:- **Example collection:** docs/e2e-examples/ (or data/e2e-examples/) containing every extracted full and snippet example from the 4.20 docs and from nmstate.io, categorized and tagged. INVENTORY listing every example with source and tags.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:692:- **Validation and report:** Script or process that, for each cell, resolves relevant examples and compares output to each; report (e.g. docs/E2E_EXHAUSTIVE_REPORT_4.20.md) with inventory, per-cell validation, alignment/discrepancies, "examples with no matching test," coverage list, and "not covered" list.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:697:**ONE-LINE SUMMARY TO ENFORCE:** Do not stop until you have pulled every full and snippet install/agent/imageset example from the 4.20 docs and from nmstate.io (including content behind expand/show more), run every logical config combination (including hyperthreading and advanced values), and verified every cell's output against every relevant example from that collection; every collected example must be used in validation or listed as having no matching test.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:704:Use this prompt to implement **E2E_BACKLOG.md** items **B-1** and **B-2**: dual-stack install-config must emit IPv6 entries for clusterNetwork and serviceNetwork (not only machineNetwork), and the wizard must expose or derive IPv6 CIDRs for cluster and service networks so generate.js can emit them. Align with OpenShift 4.20 dual-stack docs and the example in docs/e2e-examples/install-config/bare-metal-agent_dual-stack.yaml.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:714:3. **docs/e2e-examples/install-config/bare-metal-agent_dual-stack.yaml** — canonical 4.20 dual-stack example: machineNetwork [IPv4, IPv6], clusterNetwork [IPv4 + hostPrefix, IPv6 + hostPrefix], serviceNetwork [IPv4, IPv6].
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:717:6. **OpenShift 4.20 install-config dual-stack docs** — confirm allowed IPv6 ranges for cluster and service networks (e.g. fd01::/48, fd02::/112 as in the example); use for defaults or validation.
+docs/PHASE_5_POST_SCENARIO_PROMPTS.md:728:  - **clusterNetworkCidrV6** (optional): IPv6 CIDR for cluster network (e.g. fd01::/48). If absent when dual-stack is on, generate.js may use a documented default (e.g. fd01::/48) so output still matches 4.20.
+docs/PHASE_5_PROMPTS_NEXT.md:22:- data/docs-index/4.20.json (scenario IDs and doc links per scenario)
+docs/PHASE_5_PROMPTS_NEXT.md:34:- Target OCP version (e.g. "4.20") from state or from the docs index version.
+docs/PHASE_5_PROMPTS_NEXT.md:36:- Links to the exact docs pages for this scenario. Read data/docs-index/4.20.json: for the current scenarioId, scenarios[scenarioId].docs[].title and .url. Render these as links (e.g. "Documentation: ..." with each doc title as link text). Scenario ID can be derived from platform + method (e.g. Bare Metal + Agent-Based Installer => bare-metal-agent; see docs-index keys).
+docs/PHASE_5_PROMPTS_NEXT.md:87:2) node scripts/validate-catalog.js data/params/4.20
+docs/PHASE_5_PROMPTS_NEXT.md:230:2) **Bare metal API and Ingress VIPs** — For bare metal scenarios (bare-metal-agent, bare-metal-ipi), add a section "API and Ingress VIPs" with two fields: API VIP and Ingress VIP, bound to state.hostInventory.apiVip and state.hostInventory.ingressVip. Catalog shows required: false. **External load balancer:** Before implementing, **verify in the official OpenShift 4.20 docs** (Bare metal API and Ingress VIPs, or load balancer / ingress docs) whether apiVIP and ingressVIP are optional or should be left blank when the user is using an **external load balancer**. Then implement one of: (a) **Gate:** Add a toggle "Using an external load balancer?" and when true, leave API VIP and Ingress VIP blank (hide or disable with a note), or (b) **Note:** Show a clear note near the fields: "If you are using an external load balancer, leave API VIP and Ingress VIP blank." Ensure validation does not require VIPs when the docs say they are optional for external-LB setups.
+docs/PHASE_5_PROMPTS_NEXT.md:393:**Source of truth:** For scenario X, the single source of truth is data/params/4.20/X.json. Use it for required/default/allowed and for what to show. Copy to frontend/src/data/catalogs/X.json and wire in catalogPaths.js and catalogFieldMeta.js. Do not assume UPI ⊇ IPI; use each scenario's param file as truth.
+docs/PHASE_5_PROMPTS_NEXT.md:399:- Copy data/params/4.20/X.json to frontend/src/data/catalogs/X.json.
+docs/PHASE_5_REMAINING_WORK.md:47:6. PHASE_5_B_DEFERRAL_LIST.md, PHASE_5_E_VULN_AND_AUDIT.md, PHASE_5_A1_4.20_NOTES.md — deferred items.
+docs/PHASE_5_REMAINING_WORK.md:156:| A1/A2 validation | [PHASE_5_A1_4.20_NOTES.md](./PHASE_5_A1_4.20_NOTES.md), [PHASE_5_SCENARIO_EXPANSION.md §6](./PHASE_5_SCENARIO_EXPANSION.md#6-future-validation--backlog-postscenario-expansion) |
+docs/PHASE_5_REPO_HEALTH_REPORT.md:14:| `node scripts/validate-catalog.js data/params/4.20` | **PASS** | Validated 9 catalog file(s). |
+docs/PHASE_5_SCENARIO_EXPANSION.md:75:| **1 — Scenario registration and catalog** | Map (platform, method) → scenario X in `getScenarioId`. Copy `data/params/4.20/<scenario-id>.json` → `frontend/src/data/catalogs/`. Wire scenario in `catalogPaths.js` and `catalogFieldMeta.js`. If Hosts applies for X, add `SCENARIO_SECTION_ORDER[scenarioId]` in `hostInventoryV2Helpers.js`. Update docs index copy if needed. | Full test suite + build; **all existing tests pass**. Scenario X resolvable (select platform + method → scenario header / “This will generate” reflect X). |
+docs/PHASE_5_SCENARIO_EXPANSION.md:127:**Done (A2):** Platform = none for bare-metal UPI (generate.js sets `controlPlane.platform` and `compute[0].platform` = `"none"`); vSphere UPI and AWS GovCloud UPI keep existing platform. Tab relevance: per 4.20 docs, AWS GovCloud IPI/UPI use standard install-config networking; Networking step shows full form with a scenario note for aws-govcloud-ipi/upi.
+docs/PHASE_5_TRANSITION_PLAN.md:12:- `data/docs-index/4.20.json` — scenario → docs links  
+docs/PHASE_5_TRANSITION_PLAN.md:13:- `data/params/4.20/*.json` — parameter catalogs per scenario  
+docs/PHASE_5_TRANSITION_PLAN.md:24:  - Target OCP major/minor (e.g. 4.20)
+docs/PHASE_5_TRANSITION_PLAN.md:55:- **Implication:** Phase 5.1 is the UI-Flow Skeleton Agent (one feature flag, scenario header, six replacement steps as skeletal placeholders/minimal content). Subsequent phases implement tab content (Identity, Networking, etc.) using catalogs; scenario coverage can start with bare-metal-agent and expand. **Frontend catalog scope:** Only the scenario catalogs the UI uses are copied to `frontend/src/data/catalogs/`. Currently that is **two** (bare-metal-agent, bare-metal-ipi). The other seven scenarios in `data/params/4.20/` are added to the frontend when we implement support for that scenario (see **docs/DATA_AND_FRONTEND_COPIES.md**).
+docs/PHASE_5_TRANSITION_PLAN.md:68:| Networking | networkType, machine/cluster/service networks, dual-stack; **Bare metal: apiVIP, ingressVIP** (state: hostInventory); Advanced: internalJoinSubnet (doc-only OK). When using external load balancer, VIPs optional per 4.20 docs. | ✓ | — | VIPs edited on this tab for bare-metal; same state as Hosts. |
+docs/REQUIREMENTS_REMAINING.md:9:- Stay aligned to official OpenShift docs for the selected version (4.17–4.20 minimum) and encode any version differences explicitly.
+docs/REQUIREMENTS_VERBATIM.md:9:- Stay aligned to official OpenShift docs for the selected version (4.17–4.20 minimum) and encode any version differences explicitly.
+docs/SCENARIO_CATALOG_PLAN.md:9:- **Scenario** = one (platform, install method) pair for a given OCP version (e.g. 4.20).
+docs/SCENARIO_CATALOG_PLAN.md:28:## 4.21+ strategy
+docs/SCENARIO_CATALOG_PLAN.md:30:- When 4.21 is supported: add `data/docs-index/4.21.json` and `data/params/4.21/<scenario-id>.json` following the same schema.
+docs/SCENARIO_CATALOG_PLAN.md:31:- Validators and refresh script accept a version or default to a configured version (e.g. 4.20); no branching on "4.21+" in schema beyond adding new versioned files.
+docs/SCENARIOS_NUTANIX_FAMILY.md:22:- `data/docs-index/4.20.json`
+docs/SCENARIOS_NUTANIX_FAMILY.md:23:- `data/params/4.20/nutanix-ipi.json`
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:232:- Alignment with OpenShift 4.17-4.20 source truth.
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:433:- `E3` upstream-doc alignment evidence (OpenShift docs contract for 4.17-4.20 behavior)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:459:- `E3`: Version guardrails are encoded in project governance docs to keep OpenShift 4.17-4.20 bounded.
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:672:    - OpenShift 4.17-4.20 alignment note,
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:747:- Installer packaging claims now match backend behavior: host OS family (`rhel8`/`rhel9`) and host FIPS requirement are validated inputs and readiness metadata, while artifact variant remains version+architecture for this release.
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:753:Canonical docs evidence anchors reviewed for oc-mirror handoff semantics (OpenShift 4.20):
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:755:- [About installing oc-mirror plugin v2](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:756:- [Mirroring in disconnected environments](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-in-disconnected-environments)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:757:- [Installing disconnected environments](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-disconnected-environments)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:779:Canonical docs evidence references reviewed with explicit page/anchor scope (OpenShift 4.20):
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:781:- [About oc-mirror plugin v2 (chapter)](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:782:- [oc-mirror plugin v2 high-level workflow](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2#high-level-workflow_about-installing-oc-mirror-v2)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:783:- [Mirroring an image set in a fully disconnected environment](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2#mirroring-an-image-set-in-a-fully-disconnected-environment_about-installing-oc-mirror-v2)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:784:- [Mirroring from mirror to disk](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2#mirroring-from-mirror-to-disk_about-installing-oc-mirror-v2)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:785:- [Mirroring from disk to mirror](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2#mirroring-from-disk-to-mirror_about-installing-oc-mirror-v2)
+docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md:786:- [Installing a cluster in a disconnected environment (chapter)](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-disconnected-environments)
+docs/ABA_COMPARISON_REVISED_PLAN_2026-03-24.md:182:- Adoption should remain OpenShift 4.17-4.20 bounded and scenario-aware, not generic orchestration expansion.
+docs/AUTOSHIFTV2_COMPARISON_REVISED_PLAN_2026-03-23.md:252:   - OpenShift 4.17-4.20 alignment note,
+docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md:1:# Bare metal scenarios — IPv4 / IPv6 / dual-stack and VIPs (4.20, doc-backed where cited)
+docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md:7:This table supports Networking / VIP UI text. **Do not treat “Kubernetes in general” as evidence**—only the cited 4.20 material and in-repo working docs.
+docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md:14:| `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent` | §9.1.2 network parameters: dual-stack requirements; IPv4+IPv6 ordering; OVN-Kubernetes IPv4/IPv6 CIDRs; warning about single-stack IPv4 on dual-stack-capable NICs. §9.1.4 bare metal: example IPv6 in `clusterProvisioningIP`. |
+docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md:15:| `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/`                                     | Book landing (TOC); no extra VIP tables in the fetched landing HTML.                                                                                                                                                            |
+docs/BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md:24:| **bare-metal-agent** | **Supported** for single-stack in this app’s IPv4-only path (no IPv6 toggle). 4.20 Chapter 9 describes dual-stack and IPv4/IPv6 CIDRs; warns against **single-stack IPv4** when the host network is dual-stack capable—not “IPv4 forbidden”. | **Not verified** in the Chapter 9 excerpt used this pass. Parameter text shows IPv6 examples for some bare-metal IPs (e.g. provisioning-style addresses) but does **not** establish a full IPv6-only cluster+VIPs story here. **Do not claim IPv6-only** without a dedicated doc pass (e.g. validation-check sections, full agent guide chapters). | **Documented** in §9.1.2: both families, same order everywhere (IPv4 before IPv6), same default gateway/NIC constraints. | Lists `apiVIPs` / `ingressVIPs`: **IPv4 and/or IPv6 addresses** are consistent with generic “IP address” requirements; dual-stack uses **two entries in order**. | VIP validation-check wording (“apiVIPs and ingressVIPs required”) may live in other chapters; cross-link when captured. |
+docs/DATA_AND_FRONTEND_COPIES.md:27:- Syncing is manual: copy from canonical into `frontend/src/data/` and run validators on the canonical files. **CI enforces parity:** `node scripts/validate-param-authority.js` (see `docs/PARAM_AUTHORITY.md`) requires each `frontend/src/data/catalogs/<scenario>.json` to match `data/params/4.20/<scenario>.json` after stable sort of `parameters`, and each `frontend/src/data/docs-index/<version>.json` to match `data/docs-index/<version>.json` after stable normalization.
+docs/PARAMS_CATALOG_RULES.md:21:- **No arguments (default):** validate all catalog files under `data/params/4.20/*.json` (or default version).
+docs/PARAMS_CATALOG_RULES.md:22:- **Directory:** `node scripts/validate-catalog.js data/params` or `node scripts/validate-catalog.js data/params/4.20` — validate all `*.json` in that directory (and version subdirs when target is `data/params`).
+docs/PARAMS_CATALOG_RULES.md:23:- **Single file:** `node scripts/validate-catalog.js data/params/4.20/bare-metal-agent.json` — validate that file only.
+docs/PARAMS_CATALOG_RULES.md:45:- `release-4.20` installer code includes both fields in the cluster info model:
+docs/PARAMS_CATALOG_RULES.md:48:- Source: [openshift/installer `clusterinfo.go` (release-4.20)](https://github.com/openshift/installer/blob/release-4.20/pkg/asset/agent/joiner/clusterinfo.go)
+docs/PARAMS_CATALOG_RULES.md:60:The **hosts[].networkConfig** field in agent-config.yaml accepts a dictionary that must match the **Host Network Management API** defined in the [nmstate documentation](https://nmstate.io/examples.html). Red Hat OpenShift 4.20 supports static IPs, DNS, routes, and interfaces of type **ethernet**, **bond**, and **vlan** (VLANs and NIC bonds per Preparing to install).
+docs/PARAMS_CATALOG_RULES.md:78:This reads `data/params/4.20/bare-metal-agent.json`, takes all `install-config.yaml` parameters (shared + platform.baremetal), and merges them into each of: bare-metal-ipi, bare-metal-upi, vsphere-ipi, vsphere-upi, nutanix-ipi, aws-govcloud-ipi, aws-govcloud-upi, azure-government-ipi (with `applies_to` set to that scenario and existing platform-specific params preserved). `ibm-cloud-ipi` is curated from IBM Cloud installation docs and is not part of this bulk-expansion script. Run from the repo root. Then run `node scripts/validate-catalog.js` to confirm.
+docs/PARAM_AUTHORITY.md:28:| Canonical ↔ frontend parity | `validate-catalog-frontend-parity.js` | Same scenario file in `data/params/4.20/` and `frontend/src/data/catalogs/` must match after stable sort of `parameters`. |
+docs/PARAM_AUTHORITY.md:36:When OpenShift doc version bumps (e.g. 4.21), add `data/params/4.21/` and wire the app to that version deliberately; rerun all checks for the new directory.
+docs/API.md:312:  "channels": ["4.17", "4.18", "4.19", "4.20"],
+docs/API.md:354:- `channel` (string, required) - Release channel (e.g., "4.20")
+docs/API.md:360:  "versions": ["4.20.0", "4.20.1", "4.20.2"],
+docs/API.md:383:  "channel": "4.20"
+docs/API.md:470:  "catalog": "registry.redhat.io/redhat/redhat-operator-index:v4.20"
+docs/API.md:484:  "catalog": "registry.redhat.io/redhat/redhat-operator-index:v4.20",
+docs/API.md:508:  "catalog": "registry.redhat.io/redhat/redhat-operator-index:v4.20"
+docs/API.md:534:    "catalog": "registry.redhat.io/redhat/redhat-operator-index:v4.20",
+docs/API.md:986:- `version` (string, required) - OpenShift version (e.g., "4.20.1")
+docs/API.md:994:  "version": "4.20.1",
+docs/API.md:1041:  "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index"
+docs/API.md:1446:# 5. Get patch versions for 4.20
+docs/API.md:1447:curl "http://localhost:4000/api/cincinnati/patches?channel=4.20"
+docs/ARCHITECTURE.md:490:  - `cincinnati_channels_v1` - List of available channels (e.g., ["4.20", "4.19"])
+docs/ARCHITECTURE.md:491:  - `cincinnati_patches_v1:4.20` - Patch versions for channel 4.20
+docs/ARCHITECTURE.md:529:Result: `["4.20.5", "4.20.4", "4.20.3", ...]`
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:36:0f86663 Align bare-metal Agent Day-2 install-config with OCP 4.20 §9.1.4
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:38:c5b27cd fix(trust): forward-compatible policy for OCP 4.17+ minors (e.g. 4.21)
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:39:4ae7b16 feat(trust): gate policy UI on PEM bundle; align defaults with OCP 4.20
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:47:4. Trust bundle policy enhancements (4.20 alignment)
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:90:### CONFLICT #3: `data/params/4.20/bare-metal-agent.json`
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:94:**Cause:** Main updated bare-metal agent parameters per OCP 4.20 §9.1.4
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:105:- Prefer main's version for OCP 4.20 compliance
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:208:**Cause:** Main updated trust policy logic for 4.20 compatibility
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:212:- 4.20 default alignment
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:224:4. Verify 4.20 alignment
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:304:- `data/params/4.20/bare-metal-agent.json` - Catalog alignment
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:344:   - For catalog files: prefer main's OCP 4.20 compliance
+docs/MAIN_DEVELOP_MERGE_ASSESSMENT_2026-05-13.md:414:   - Trust policy 4.20 alignment
+docs/PARAMETER_CATALOG.md:34:5. **Version-specific support** - Catalogs tied to OpenShift versions (currently 4.20)
+docs/PARAMETER_CATALOG.md:51:  "version": "4.20",
+docs/PARAMETER_CATALOG.md:68:          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/..."
+docs/PARAMETER_CATALOG.md:80:| `version` | string | OpenShift version this catalog applies to (e.g., "4.20") |
+docs/PARAMETER_CATALOG.md:118:  "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/..."
+docs/PARAMETER_CATALOG.md:186:### Current Scenarios (OCP 4.20)
+docs/PARAMETER_CATALOG.md:277:  "version": "4.21",
+docs/PARAMETER_CATALOG.md:332:When upgrading to a new OpenShift version (e.g., 4.20 → 4.21):
+docs/PARAMETER_CATALOG.md:357:### Example: 4.20 → 4.21 Upgrade
+docs/PARAMETER_CATALOG.md:361:  "version": "4.21",  // Changed from "4.20"
+docs/PARAMETER_CATALOG.md:365:      "path": "newParameter",  // Added in 4.21
+docs/PARAMETER_CATALOG.md:369:      "description": "New parameter added in 4.21",
+docs/PARAMETER_CATALOG.md:373:          "url": "https://docs.redhat.com/.../4.21/html/..."  // Updated URL
+docs/PARAMETER_CATALOG.md:447:      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+docs/PARAMETER_CATALOG.md:664:- [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/) - Official parameter docs
+docs/STATE_SCHEMA.md:88:    "version": "4.20.1",
+docs/STATE_SCHEMA.md:104:| `version` | string | Yes | OpenShift version (e.g., "4.20.1") |
+docs/STATE_SCHEMA.md:133:**`version`:** Semantic version string from Cincinnati (e.g., "4.20.0", "4.20.1")
+docs/STATE_SCHEMA.md:200:    "selectedVersion": "4.20.1",
+docs/STATE_SCHEMA.md:201:    "selectedChannel": "4.20",
+docs/STATE_SCHEMA.md:208:    "channel": "4.20",
+docs/STATE_SCHEMA.md:209:    "patchVersion": "4.20.1",
+docs/STATE_SCHEMA.md:231:| `channel` | string | Release channel (e.g., "4.20") |
+docs/STATE_SCHEMA.md:232:| `patchVersion` | string | Full version (e.g., "4.20.1") |
+docs/STATE_SCHEMA.md:319:- AWS GovCloud and IBM Cloud do not support dual-stack (4.20)
+docs/STATE_SCHEMA.md:354:- OCP 4.20+: Uses `imageDigestSources` in install-config.yaml
+docs/STATE_SCHEMA.md:355:- OCP 4.14-4.19: Uses deprecated `imageContentSources`
+docs/STATE_SCHEMA.md:677:- OCP 4.17+: Supports `additionalTrustBundlePolicy`
+docs/STATE_SCHEMA.md:678:- OCP 4.14-4.16: Does not support policy (trust bundle always applied)
+docs/STATE_SCHEMA.md:745:**Failure Domains (IPI, OCP 4.16+):**
+docs/STATE_SCHEMA.md:897:    "catalog": "registry.redhat.io/redhat/redhat-operator-index:v4.20",
+docs/STATE_SCHEMA.md:1058:    "version": "4.20.1",
+docs/STATE_SCHEMA.md:1067:    "selectedVersion": "4.20.1",
+docs/STATE_SCHEMA.md:1068:    "selectedChannel": "4.20",
+docs/CATALOG_SYNC_GUIDE.md:7:1. **`data/params/4.20/`** - Backend/canonical source (12 files)
+docs/CATALOG_SYNC_GUIDE.md:35:  • data/params/4.20/bare-metal-ipi.json
+docs/CATALOG_SYNC_GUIDE.md:81:### ✅ Recommended: Edit in `data/params/4.20/`
+docs/CATALOG_SYNC_GUIDE.md:87:vim data/params/4.20/bare-metal-ipi.json
+docs/CATALOG_SYNC_GUIDE.md:90:git add data/params/4.20/bare-metal-ipi.json
+docs/CATALOG_SYNC_GUIDE.md:110:cp frontend/src/data/catalogs/vsphere-ipi.json data/params/4.20/
+docs/CATALOG_SYNC_GUIDE.md:113:git add data/params/4.20/vsphere-ipi.json
+docs/CATALOG_SYNC_GUIDE.md:124:2. Copies files from `data/params/4.20/` → `frontend/src/data/catalogs/`
+docs/CATALOG_SYNC_GUIDE.md:134:📂 Source: data/params/4.20
+docs/CATALOG_SYNC_GUIDE.md:196:| `data/params/4.20/*.json` | **Canonical source** | Edit here |
+docs/CATALOG_SYNC_GUIDE.md:223:- Edit catalogs in `data/params/4.20/`
+docs/COMPREHENSIVE_MASTER_PLAN.md:83:- `data/params/4.20/*.json`
+docs/COMPREHENSIVE_MASTER_PLAN.md:284:3. **Cross-reference with OpenShift 4.20/4.21 docs** - confirm field truly only allows one value
+docs/MANUAL_TESTING_CHECKLIST.md:56:- [ ] OpenShift version dropdown shows 4.17-4.20
+docs/MANUAL_TESTING_CHECKLIST.md:291:  - [ ] Doc sources match selected OCP version (4.17-4.20)
+docs/MANUAL_TESTING_CHECKLIST.md:510:  - [ ] OCP 4.17-4.19: policy should be "Proxyonly"
+docs/MANUAL_TESTING_CHECKLIST.md:511:  - [ ] OCP 4.20: policy should be "Always"
+docs/REVISED_PHASED_PLAN_2026-05-10.md:77:  - Research valid platform: none paths per 4.20 docs
+docs/REVISED_PHASED_PLAN_2026-05-10.md:126:  - Version-aware ODF quick picks implemented (4.16-4.21 support)
+docs/REVISED_PHASED_PLAN_2026-05-10.md:149:  - Remaining optional 4.20 params (serviceEndpoints, userTags, etc.)
+docs/REVISED_PHASED_PLAN_2026-05-10.md:253:1. **Research & Baseline:** Document 4.20 as baseline
+docs/REVISED_PHASED_PLAN_2026-05-10.md:262:- Configs accurate for 2+ minor releases (4.20, 4.21)
+docs/SETUP_COMPLETE.md:14:- Syncs from `data/params/4.20/` → `frontend/src/data/catalogs/`
+docs/SETUP_COMPLETE.md:32:- Detects changes to `data/params/4.20/*.json` or `frontend/src/data/catalogs/*.json`
+docs/SETUP_COMPLETE.md:40:git add data/params/4.20/bare-metal-ipi.json
+docs/SETUP_COMPLETE.md:90:📂 Source: data/params/4.20
+docs/SETUP_COMPLETE.md:184:vim data/params/4.20/vsphere-ipi.json
+docs/SETUP_COMPLETE.md:187:git add data/params/4.20/vsphere-ipi.json
+docs/SETUP_COMPLETE.md:204:cp frontend/src/data/catalogs/nutanix-ipi.json data/params/4.20/
+docs/SETUP_COMPLETE.md:207:git add data/params/4.20/nutanix-ipi.json
+docs/SETUP_COMPLETE.md:220:   ls data/params/4.20/
+docs/SETUP_COMPLETE.md:226:   node scripts/validate-catalog.js data/params/4.20/*.json
+docs/SETUP_COMPLETE.md:276:1. Edit catalogs in `data/params/4.20/`
+docs/TOOLTIP_EXPANSION_MASTER_PLAN.md:309:- [ ] Investigate storageContainer - verify if field exists in 4.20/4.21 docs
+docs/TOOLTIP_EXPANSION_MASTER_PLAN.md:343:- Backend params: `data/params/4.20/*.json`
+docs/CONTRIBUTING.md:48:The versioned docs index (`data/docs-index/*.json`) drives which OCP doc links are shown for each scenario. The **canonical base URL is docs.redhat.com** (e.g. `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`). The index is the **source of truth** and is **not auto-generated in CI**; CI only runs schema validation. See `docs/DOC_INDEX_RULES.md` for structure and inclusion rules. **Run these from the repo root** (not from `frontend/` or `backend/`):
+docs/CONTRIBUTING.md:54:  This reads `data/docs-index/4.20.json`, checks each doc URL, and overwrites the file with only live URLs. Use `node scripts/refresh-doc-index.js --dry-run` to print a summary without writing.
+docs/CONTRIBUTING.md:125:- If this is questioned, use installer source for the target release branch as tie-breaker (for 4.20: `pkg/asset/agent/joiner/clusterinfo.go` has `ImageDigestSources` plus `DeprecatedImageContentSources`).
+docs/CONTRIBUTING.md:129:See `.cursor/rules/` and `AGENTS.md` for AI/agent guidance. Align to official OpenShift docs for the selected version (4.17–4.20); do not store or export credentials by default.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:1:# oc-mirror v2 Run Tab — Implementation Contract (OpenShift 4.20)
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:12:**Doc source:** OpenShift 4.20 Disconnected environments → Chapter 5 "Mirroring images for a disconnected installation by using the oc-mirror plugin v2" (docs.redhat.com).
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:14:**Structure:** §1–§9 = implementation contract. "Reference" and Phase A onward = condensed 4.20 truth and prior narrative.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:24:| Canonical docs index 4.20 | `data/docs-index/4.20.json` | **Exists** (previous pass incorrectly said "not present"; `.gitignore` has `!/data/docs-index/` so it is tracked). |
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:25:| Frontend docs index copy | `frontend/src/data/docs-index/4.20.json` | Exists; contains `sharedDocs` including `about-oc-mirror-v2` → disconnected_environments index URL. |
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:32:| Generate / field manual | `backend/src/generate.js` | `buildImageSetConfig`, field manual with m2d/d2m commands; **bug:** manual says `oc apply -f ${outputPath}/cluster-resources` but 4.20 docs place resources under `working-dir/cluster-resources` (see §Corrections). |
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:45:- **workspace / cache-dir:** Not in backend; only in 4.20 doc content and this plan.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:50:- **dry-run:** Only in 4.20 docs and this plan; not in app.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:65:1. **Canonical docs-index:** `data/docs-index/4.20.json` **exists** (and is not gitignored; exceptions in .gitignore). Previous claim that it was "not present" was wrong.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:66:2. **Field manual path:** 4.20 docs place cluster resources at `<workspace_or_archive>/working-dir/cluster-resources`. generate.js currently says `${outputPath}/cluster-resources`; it should be `${outputPath}/working-dir/cluster-resources` (when outputPath is the file:// target, oc-mirror creates working-dir inside it).
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:227:**Long-help (durable):** Mode section: each radio has a short paragraph (what it is, when to use it). Same card/note pattern as AWS GovCloud IPI; no hover-only critical info. Deferred note: "Delete and reset workspace are not available in this version."
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:444:## 4.20 workflow summary
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:458:## Phase A — 4.20 oc-mirror v2 Critical Truth (Re-verified)
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:502:### 7. 4.20 credential/DNS/SSL verification note
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:504:Docs state oc-mirror v2 verifies that the complete image set is mirrored. Release notes for 4.20 were not re-scraped; if there is explicit "verify credentials/DNS/SSL before populating cache," the app should not duplicate deep checks — rely on oc-mirror for that; app preflight stays path/config/auth-presence only.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:654:- **oc-mirror at runtime:** Per 4.20, oc-mirror verifies and runs; failures (auth, DNS, SSL) appear in job output. App surfaces logs and artifact paths; does not duplicate deep verification.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:718:- **Deferred:** "Delete" and "Reset workspace" mentioned in a short note as "not available in this version" with link to docs.
+docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md:895:   (1) Reliance on existing Operations/SSE — if unstable, stabilize or document as prerequisite. (2) Field manual path bug to fix in implementation. (3) No 4.20 release-note scrape for "verify credentials before mirroring" — app leaves runtime verification to oc-mirror.
+docs/E2E_K_PART4_CHECKLIST.md:9:| Every URL in data/docs-index/4.20.json fetched | DONE | backend/scripts/crawl-doc-examples.js fetches each URL; SNIPPETS_INVENTORY.md lists source URLs. |
+docs/E2E_K_PART4_CHECKLIST.md:37:| Per-cell result (align / discrepancies / unverified) | DONE | docs/E2E_PART2_REPORT_4.20.md § 2 — 107 rows; all "Pass vs example: yes", discrepancies "—". |
+docs/E2E_K_PART4_CHECKLIST.md:44:| Doc snippets (1,831) | DONE | Used for tag-based relevance (dual-stack, with-proxy, etc.); full-file comparison covers structure. Snippets with no matching path (credentialsMode, arbiter, featureSet, legacy imageContentSources, etc.) listed in docs/E2E_EXHAUSTIVE_REPORT_4.20.md § 4. |
+docs/E2E_K_PART4_CHECKLIST.md:51:- **Doc crawl:** All 4.20 index URLs fetched; 1,831 blocks extracted; inventory in SNIPPETS_INVENTORY.md.
+docs/E2E_EXHAUSTIVE_REPORT_4.20.md:8:- **Doc snippets:** Every URL in data/docs-index/4.20.json was fetched; code blocks extracted from HTML and saved under docs/e2e-examples/snippets/. **Cleanup:** Snippets with `kind:` other than AgentConfig/ImageSetConfiguration (e.g. Secret, BareMetalHost, MachineConfig, ConfigMap) or with `status:`/`oc get` output were removed; **~1,357** snippets remain. Inventory: docs/e2e-examples/SNIPPETS_INVENTORY.md.
+docs/E2E_EXHAUSTIVE_REPORT_4.20.md:18:- **Table:** docs/E2E_PART2_REPORT_4.20.md § 2 (107 rows).
+docs/E2E_EXHAUSTIVE_REPORT_4.20.md:30:- Coverage list / Not covered: docs/E2E_PART2_REPORT_4.20.md § 4.
+docs/E2E_EXHAUSTIVE_REPORT_4.20.md:31:- References: data/docs-index/4.20.json, Red Hat 4.20 install docs, nmstate.io/examples.html.
+docs/DISCONNECTED_SCENARIO_MATRIX.md:643:- ✅ imageDigestSources support (OpenShift 4.13+)
+docs/HIGH_SIDE_FEATURES_BACKLOG.md:426:**OpenShift 4.20 Platform Support:**
+docs/HIGH_SIDE_FEATURES_BACKLOG.md:655:- OpenShift 4.20 Disconnected Environments: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/
+docs/HIGH_SIDE_FEATURES_BACKLOG.md:656:- mirror-registry documentation: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_a_private_registry/
+docs/HIGH_SIDE_FEATURES_BACKLOG.md:658:- Agent-Based Installer: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/
+docs/IPV6_MIGRATION_GUIDE.md:280:- **OpenShift Documentation:** IPv6-only networking supported since OpenShift 4.12+
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:4:**OpenShift Version:** 4.20  
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:13:| **Bare Metal** | IPI | ✅ **CONFIRMED** | Red Hat Customer Portal #6994999, Official 4.20 docs | **ENABLE** |
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:14:| **Bare Metal** | Agent | ✅ **CONFIRMED** | Red Hat Customer Portal #6994999, Official 4.20 docs | **ENABLE** |
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:15:| **Bare Metal** | UPI | ✅ **CONFIRMED** | Red Hat Customer Portal #6994999, Official 4.20 docs | **ENABLE** |
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:16:| **vSphere** | IPI | ✅ **LIKELY SUPPORTED** | Official 4.20 docs, IPv6 control plane GA Q1 2026 | **ENABLE** |
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:17:| **vSphere** | Agent | ✅ **LIKELY SUPPORTED** | Official 4.20 docs, IPv6 control plane GA Q1 2026 | **ENABLE** |
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:18:| **vSphere** | UPI | ✅ **LIKELY SUPPORTED** | Official 4.20 docs, IPv6 control plane GA Q1 2026 | **ENABLE** |
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:33:**Since:** OpenShift 4.12+  
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:34:**4.20 Support:** Yes
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:38:- Official OpenShift 4.20 bare metal installation documentation
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:41:- Single-stack IPv6 supported since 4.12 (4.20 inherits support)
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:53:**4.20 Support:** Yes (inferred from dual-stack + IPv6 control plane support)
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:56:- Official OpenShift 4.20 vSphere installation documentation
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:63:- Official 4.20 vSphere docs exist (indicates continued support)
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:67:**Note:** While not explicitly confirmed in search results, the progression from dual-stack (4.14) → IPv6-only control plane GA (Q1 2026) → 4.20 release strongly suggests full IPv6-only support.
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:75:**4.20 Support:** Unknown
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:78:- Official OpenShift 4.20 Nutanix documentation exists
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:82:- OpenShift 4.20 Nutanix IPI installation docs are available
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:95:- Review detailed Nutanix 4.20 network configuration documentation
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:103:**4.20 Support:** ROSA 4.20 available, but no IPv6 support
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:106:- ROSA (Red Hat OpenShift Service on AWS) 4.20 available on AWS GovCloud
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:124:**4.20 Support:** Unknown
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:152:**4.20 Support:** OpenShift 4.20 available, but IPv6 not supported
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:155:- OpenShift 4.20 released on IBM Cloud (February 2026)
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:159:- OpenShift 4.20 is available on IBM Cloud
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:332:- OpenShift 4.20 Installing on bare metal documentation
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:333:- OpenShift 4.20 Installing on vSphere documentation
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:334:- OpenShift 4.20 Installing on Nutanix documentation
+docs/IPV6_PLATFORM_SUPPORT_MATRIX.md:345:- Existing dual-stack support: OpenShift 4.14+ (vSphere), 4.12+ (bare metal)
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:5:**Status:** ✅ Implementation correct and complete per OpenShift 4.20 documentation
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:13:**Valid use cases (OpenShift 4.20):**
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:17:**Current implementation status:** ✅ **CORRECT** - All scenarios properly implement `platform: none` per OpenShift 4.20 documentation. Backend generation logic (backend/src/generate.js) enforces correct usage through topology checks.
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:19:**Params JSON files** (data/params/4.20/*.json) allow broader platform values for flexibility (curated from OpenShift 4.20 docs + openshift-install binary dissection), but **backend enforces doc-grounded best practices**.
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:29:### Params JSON Files (data/params/4.20/*.json)
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:31:**Purpose:** Define ALLOWED platform values from OpenShift 4.20 documentation and binary
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:34:1. Scraped official OpenShift 4.20 HTML documentation
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:36:3. Dissected 4.20.x openshift-install binary to understand exact parameter support
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:53:**Purpose:** Enforce VALID platform values per OpenShift 4.20 doc recommendations
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:70:**OpenShift 4.20 Documentation:**
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:73:**Source:** Red Hat OpenShift 4.20 Installing on bare metal, §2.1.12.1 "Sample install-config.yaml file for bare metal"
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:95:**Params JSON:** `data/params/4.20/bare-metal-upi.json` (allows `none` + others for flexibility)
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:107:**OpenShift 4.20 Documentation:**
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:110:**Source:** Red Hat OpenShift 4.20 Installing with the Agent-based Installer
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:133:- `data/params/4.20/bare-metal-agent.json` (allows `none` + others)
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:134:- `data/params/4.20/vsphere-agent.json` (allows `none` + others)
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:213:**Conclusion:** ALL scenarios correctly implement `platform: none` vs platform-specific configuration per OpenShift 4.20 documentation. Backend enforces best practices regardless of broader params allowances.
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:227:  // All topologies use platform: none per 4.20 docs
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:233:**Result:** Bare Metal UPI install-config.yaml always contains `platform: { none: {} }`, enforcing OpenShift 4.20 requirement.
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:296:1. **Scraped Official OpenShift 4.20 HTML Documentation**
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:300:2. **Dissected 4.20.x openshift-install Binary**
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:309:**Location:** `/home/billstrauss/code/openshift-airgap-architect/data/params/4.20/*.json`
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:334:## OpenShift 4.20 Documentation References
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:338:**Source:** Red Hat OpenShift 4.20 Installing on bare metal, §2.1.12.1 "Sample install-config.yaml file for bare metal"
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:351:**Source:** Red Hat OpenShift 4.20 Installing an OpenShift Container Platform cluster with the Agent-based Installer
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:372:**Source:** Red Hat OpenShift 4.20 Installing on vSphere
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:516:- ✅ All valid `platform: none` paths documented with OpenShift 4.20 doc references
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:523:- ✅ OpenShift 4.20 documentation sources cited with file paths
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:535:- Current code is already correct per OpenShift 4.20 docs
+docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md:545:- Update when OpenShift 4.21+ introduces new platform: none rules
+docs/SCENARIOS_BARE_METAL_FAMILY.md:30:- `data/docs-index/4.20.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:27:- `data/docs-index/4.20.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:28:- `data/params/4.20/aws-govcloud-ipi.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:29:- `data/params/4.20/aws-govcloud-upi.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:30:- `data/params/4.20/azure-government-ipi.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:31:- `data/params/4.20/ibm-cloud-ipi.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:71:  - `data/params/4.20/ibm-cloud-ipi.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:72:  - `data/docs-index/4.20.json`
+docs/SCENARIOS_CLOUD_FAMILY.md:77:  - IBM Cloud networking is currently treated as IPv4-only in 4.20 validations.
+docs/SCENARIOS_GUIDE.md:24:1. Identify scenario ID in `data/docs-index/4.20.json`.
+docs/SCENARIOS_VSPHERE_FAMILY.md:29:- `data/docs-index/4.20.json`
+docs/UPI_PREP_GUIDES/README.md:297:- OpenShift version changes (currently based on 4.20)
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:5:**OpenShift Version:** 4.20  
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:44:- OpenShift 4.20 Installing on AWS GovCloud: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:45:  https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:556:# List RHCOS AMIs for OpenShift 4.20 in AWS GovCloud
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:562:  --filters "Name=name,Values=rhcos-4.20*" \
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:569:**Note:** RHCOS AMI IDs are published in OpenShift 4.20 documentation. Verify AMI ID before use.
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:850:  - OpenShift 4.20 Installing on AWS GovCloud: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/aws-govcloud-upi-prep-guide.md:851:    https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-upi
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:5:**OpenShift Version:** 4.20  
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:45:- OpenShift 4.20 Installing on Azure Government: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:46:  https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-upi
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:645:# Example RHCOS image URN for 4.20
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:646:RHCOS_URN="RedHat:RHCOS:rhcos-4.20:latest"
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:649:**Note:** RHCOS images are published in Azure Marketplace. Verify image availability for OpenShift 4.20.
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:932:  - OpenShift 4.20 Installing on Azure Government: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/azure-government-upi-prep-guide.md:933:    https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-upi
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:5:**OpenShift Version:** 4.20  
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:42:- OpenShift 4.20 Installing on bare metal: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:43:  https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:463:# Download RHCOS images for OpenShift 4.20
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:466:RHCOS_VERSION="4.20"
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:630:skopeo inspect --authfile=pull-secret.json docker://mirror.registry.example.com:5000/openshift/release-images:4.20.0-x86_64
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:730:  - OpenShift 4.20 Installing on bare metal: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/bare-metal-upi-prep-guide.md:731:    https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:5:**OpenShift Version:** 4.20  
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:44:- OpenShift 4.20 Installing on VMware vSphere: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:45:  https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:76:- [ ] **vSphere version:** 7.0 Update 2 or later (OpenShift 4.20 requirement)
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:325:# Download RHCOS OVA for OpenShift 4.20
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:328:RHCOS_VERSION="4.20"
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:344:  -name=rhcos-4.20-template \
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:348:govc vm.markastemplate rhcos-4.20-template
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:355:3. Choose name: `rhcos-4.20-template`
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:370:# /dc1/vm/rhcos-4.20-template
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:412:  -vm=rhcos-4.20-template \
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:425:    -vm=rhcos-4.20-template \
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:437:    -vm=rhcos-4.20-template \
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:721:govc vm.info rhcos-4.20-template
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:755:skopeo inspect --authfile=pull-secret.json docker://mirror.registry.example.com:5000/openshift/release-images:4.20.0-x86_64
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:891:  - OpenShift 4.20 Installing on VMware vSphere: User-provisioned infrastructure  
+docs/UPI_PREP_GUIDES/vsphere-upi-prep-guide.md:892:    https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure
+docs/VSPHERE_SDK_DISCONNECTED_CONSTRAINTS.md:176:- **OpenShift Documentation:** [Installing on vSphere](https://docs.openshift.com/container-platform/4.20/installing/installing_vsphere/)
+docs/API_SCHEMA.md:136:Returns patch versions for a channel. Query param: `?channel=stable-4.20`
+docs/API_SCHEMA.md:144:  channel: string (required, min 1 char)  // e.g., "stable-4.20"
+docs/API_SCHEMA.md:154:  preferredChannel?: string | null  // e.g., "4.20" or null
+docs/API_SCHEMA.md:191:Returns cached operator scan results. Query param: `?version=4.20`
+docs/API_SCHEMA.md:288:  version?: string (1-100 chars)  // e.g., "4.20.1" (also accepted via query param)
+docs/API_SCHEMA.md:295:Returns available AWS regions. Query params: `?version=4.20.1&arch=x86_64&force=true`
+docs/API_SCHEMA.md:298:Returns AWS AMI for a region. Query params: `?version=4.20.1&arch=x86_64&region=us-east-1`
+docs/PARAMETER_ADDITIONS_2026-05-27.md:174:- Reads `local-docs/ocp-4.20/analysis/missing-parameters-analysis.json`
+docs/PARAMETER_ADDITIONS_2026-05-27.md:190:git diff data/params/4.20/ frontend/src/data/catalogs/  # Verify
+docs/PARAMETER_ADDITIONS_2026-05-27.md:209:    "sectionHeading": "OCP 4.20 installation configuration docs",
+docs/PARAMETER_ADDITIONS_2026-05-27.md:210:    "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+docs/PARAMETER_ADDITIONS_2026-05-27.md:220:- ✅ Backend catalogs: `data/params/4.20/*.json` (12 files)
+docs/PARAMETER_ADDITIONS_2026-05-27.md:310:- `local-docs/ocp-4.20/analysis/missing-parameters-analysis.json`
+docs/PARAMETER_ADDITIONS_2026-05-27.md:314:- Backend: `data/params/4.20/*.json` (12 catalogs)
+docs/PARAMETER_ADDITIONS_2026-05-27.md:323:- `local-docs/ocp-4.20/analysis/AUDIT_COMPLETE_SUMMARY.md`
+docs/CAPACITY_PLANNING.md:1639:- Mirroring OCP 4.15 + 50 operators
+docs/PARAMETER_ADDITIONS_V1.7.0.md:426:**Backend catalogs updated (data/params/4.20/):**
+docs/PARAMETER_ADDITIONS_V1.7.0.md:501:**None.** No existing parameters deprecated in this release.
+docs/PARAMETER_ADDITIONS_V1.7.0.md:507:- **DOC-082 Audit:** `/local-docs/ocp-4.20/analysis/missing-parameters-v1.7.0.json`
+docs/PARAMETER_ADDITIONS_V1.7.0.md:519:The DOC-082 audit identified 1071 total parameters in OpenShift 4.20 install-config schema. After v1.7.0:
+docs/HANDOFF_PACKET.md:686:- `local-docs/ocp-4.20/analysis/` (5 audit deliverables: deprecated, metadata, missing params)
+docs/HANDOFF_PACKET.md:834:**DOC-082:** OpenShift 4.20 Parameter Canonicalization & Validation Audit - ✅ **ALL 7 PHASES COMPLETE**
+docs/HANDOFF_PACKET.md:841:- Downloaded 12 OpenShift 4.20 documentation PDFs
+docs/HANDOFF_PACKET.md:842:- Cloned installer source code (release-4.20 branch)
+docs/HANDOFF_PACKET.md:851:- All batches documented in `local-docs/ocp-4.20/analysis/BATCH_*.md`
+docs/HANDOFF_PACKET.md:872:- Reproducible process for OCP 4.21+ audits
+docs/HANDOFF_PACKET.md:883:**Audit Deliverables:** `local-docs/ocp-4.20/analysis/`
+docs/HANDOFF_PACKET.md:912:   - `data/params/4.20/bare-metal-ipi.json`
+docs/HANDOFF_PACKET.md:937:**Official Validation:** Matches Red Hat 4.20 bare-metal IPI documentation (pages 382-383, 404-405) - NMState structure confirmed correct.
+docs/HANDOFF_PACKET.md:968:**What it is:** Documentation of when `platform: none` is valid in install-config.yaml per OCP 4.20 docs.
+docs/HANDOFF_PACKET.md:976:- **Implementation audit:** Current code is CORRECT per OCP 4.20 docs
+docs/HANDOFF_PACKET.md:1037:- Verified `data/docs-index/4.20.json` uses docs.redhat.com (47/48 URLs)
+docs/HANDOFF_PACKET.md:1253:**Why it's massive:** App currently locked to OpenShift 4.20. Need to support 4.17-4.21+ with version-specific parameters.
+docs/HANDOFF_PACKET.md:1257:- Download + parse official PDF docs (4.17, 4.18, 4.19, 4.20, 4.21)
+docs/HANDOFF_PACKET.md:1259:- Automatic delta detection (4.20 → 4.21 → 4.22)
+docs/HANDOFF_PACKET.md:1267:- Configs accurate for 2+ releases (4.20, 4.21)
+docs/HANDOFF_PACKET.md:1275:- Version-aware work adds OCP 4.17-4.21 support
+docs/HANDOFF_PACKET.md:1458:4. Tooltips would need version-specific content ("added in 4.21", "deprecated in 4.23")
+docs/HANDOFF_PACKET.md:1500:6. **Catalog System (1024 params for 4.20 only)** - Manual migration needed
+docs/HANDOFF_PACKET.md:1510:4. ✅ Supporting multiple OCP versions (4.20, 4.21, 4.22) is high priority
+docs/HANDOFF_PACKET.md:1517:4. ✅ Most users staying on 4.20 for now (not urgently needing 4.21/4.22)
+docs/HANDOFF_PACKET.md:1525:   - Document OCP 4.20 as baseline
+docs/HANDOFF_PACKET.md:1532:   - Download PDF docs for each release (4.20, 4.21, 4.22)
+docs/HANDOFF_PACKET.md:1558:- ✅ Configs accurate for 2+ minor releases (4.20, 4.21)
+docs/HANDOFF_PACKET.md:1561:- ✅ Can add new OCP version (4.22) in <2 weeks
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:7:**Scope:** OpenShift 4.20 (Baseline) → 4.21 (First Target)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:14:OpenShift Airgap Architect is hardcoded to **OpenShift 4.20**. All parameters (949 across 13 catalogs), validation rules (1398 tests), tooltips (87 fields), field guide content, and generated artifacts assume 4.20-era schemas and documentation.
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:18:- User selects and locks OpenShift minor version (4.20, 4.21, future 4.22+) on Blueprint page
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:29:- Field Guide compartmentalization (build on existing `v4.20/` structure)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:36:✅ **Field Guide already has version structure:** `backend/src/fieldGuide/v4.20/` directory exists with 8 compartment files (117KB total). This indicates prior architectural thinking about versioning and provides a major head start.
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:38:✅ **OCP 4.20 strong audit baseline:** DOC-082 audit (2026-05-20 to 2026-05-27) extracted 553 parameters from installer source, validated 949 catalog parameters, and created 18 reusable automation scripts.
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:126:- **Example:** Field Z required in 4.20 docs, optional in 4.21 docs
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:184:- **Example:** `platform.vsphere.cluster` (4.20, deprecated 4.14, use failureDomains)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:227:### Support Status Migration (4.20 → 2.0.0)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:232:1. Review all 949 existing params in 4.20 catalogs
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:286:**Phase 0: Baseline Certification (4.20)**
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:292:**Phase 2.5: Version Delta Analysis (NEW for 4.21+)**
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:293:- Compare 4.21 vs 4.20 installer structs
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:294:- Compare 4.21 vs 4.20 docs
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:326:- Cannot add 4.21 support without completing Phases 1-5 for 4.21
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:358:  "versionNotes": "Changed from GB to GiB in 4.21; default changed from 100 to 120 in 4.20",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:360:    "4.20": {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:364:    "4.21": {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:397:  "versionNotes": "Default changed from OpenShiftSDN to OVNKubernetes in 4.15; OpenShiftSDN removed from allowed values in 4.21",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:399:    "4.20": {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:403:    "4.21": {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:410:      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration/index",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:424:- Example above: Only 4.20 and 4.21 listed because allowed values changed
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:462:    channel: "4.20",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:463:    patchVersion: "4.20.22",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:475:    selectedMinor: "4.21",           // User-selected minor version
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:476:    selectedPatch: "4.21.15",        // User-selected patch version (optional)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:477:    selectedChannel: "stable-4.21",  // Cincinnati channel
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:485:    _previousChannel: "4.20"         // Original release.channel if migrated
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:490:    channel: "4.21",                 // Synced with version.selectedMinor
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:491:    patchVersion: "4.21.15",         // Synced with version.selectedPatch
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:511:      selectedMinor: state.release?.channel || "4.20",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:512:      selectedPatch: state.release?.patchVersion || "4.20.0",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:513:      selectedChannel: state.release?.channel ? `stable-${state.release.channel}` : "stable-4.20",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:523:      channel: state.release?.channel || "4.20",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:524:      patchVersion: state.release?.patchVersion || "4.20.0",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:568:    "selectedMinor": "4.21",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:569:    "selectedPatch": "4.21.15",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:616:   const supportedVersions = ["4.20", "4.21"];
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:653:**Granularity:** OpenShift minor versions (4.20, 4.21, 4.22)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:658:- Patch versions (4.21.0 vs 4.21.15) rarely affect schemas
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:665:  const userMinor = minorVersion; // e.g., "4.21"
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:682:- **Documented installer bugs:** Field broken in 4.21.0-4.21.3, fixed in 4.21.4+
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:690:  "minVersion": "4.21",
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:692:    "4.21.0-4.21.3": {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:694:      "disabledReason": "Known installer bug - field ignored (fixed in 4.21.4)"
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:726:├── 4.20/
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:740:└── 4.21/
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:749:├── 4.20/
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:751:└── 4.21/
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:758:├── 4.20.json
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:759:└── 4.21.json
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:762:├── 4.20.json
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:763:└── 4.21.json
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:766:### Migration from Current (4.20-only)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:770:data/params/4.20/*.json  ✅ Already correct!
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:773:**No migration needed for 4.20** - structure already matches target.
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:775:**Adding 4.21:**
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:778:mkdir -p data/params/4.21/
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:780:cp local-docs/ocp-4.21/catalogs/*.json data/params/4.21/
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:783:node scripts/sync-catalogs.js 4.21
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:799:export function getCatalogForScenario(scenarioId, version = "4.20") {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:810:function loadCatalog(scenarioId, version = "4.20") {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:889:- Version-specific breaking changes (e.g., Agent SNO requires platform: none in 4.20+)
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:895:  "4.20": {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:901:  "4.21": {
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:902:    validateVipsInMachineNetwork,      // Inherited from 4.20
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:906:    validateOVNKubernetesOnly          // NEW in 4.21
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:911:  const validators = VERSION_VALIDATORS[version] || VERSION_VALIDATORS["4.20"];
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:983:registerValidator("4.20", "vipsInMachineNetwork", validateVipsInMachineNetwork);
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:984:registerValidator("4.20", "agentSNOPlatformNone", validateAgentSNOPlatformNone);
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:985:registerValidator("4.21", "ovnKubernetesOnly", validateOVNKubernetesOnly);
+docs/VERSION_AWARENESS_MASTER_STRATEGY.md:988:inheritValidators("4.21", "4.20"); // 4.21 inherits all 4.20 validators

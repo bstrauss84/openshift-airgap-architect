@@ -1,0 +1,5 @@
+frontend/src/validation.js:794:      errors.push("Nutanix IPI requires credentialsMode Manual (OpenShift 4.20 Installing on Nutanix §1.4).");
+frontend/src/validation.js:801:        errors.push("Nutanix IPI supports control plane replicas 3 (standard or compact three-node) or 1 (single-node OpenShift) per OpenShift 4.20 Nutanix install-config parameters.");
+frontend/src/validation.js:1186:    errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
+frontend/src/validation.js:1189:    errors.push("IBM Cloud install-config clusterNetwork in OpenShift 4.20 is documented as IPv4 only.");
+frontend/src/validation.js:1192:    errors.push("IBM Cloud install-config serviceNetwork in OpenShift 4.20 is documented as IPv4 only.");
