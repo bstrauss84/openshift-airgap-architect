@@ -20,7 +20,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "additionalTrustBundlePolicy",
@@ -43,7 +46,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "apiVersion",
@@ -63,7 +69,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "arbiter.name",
@@ -83,7 +92,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "arbiter.replicas",
@@ -103,7 +115,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "baseDomain",
@@ -123,7 +138,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities",
@@ -143,7 +161,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities.additionalEnabledCapabilities",
@@ -163,7 +184,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities.baselineCapabilitySet",
@@ -188,7 +212,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute",
@@ -208,7 +235,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].architecture",
@@ -230,7 +260,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].hyperthreading",
@@ -253,7 +286,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].name",
@@ -273,7 +309,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].platform",
@@ -296,7 +335,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].platform.ibmcloud.bootVolume.encryptionKey",
@@ -316,7 +358,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].replicas",
@@ -336,7 +381,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane",
@@ -356,7 +404,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.diskSetup",
@@ -376,7 +427,10 @@
           "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.platform",
@@ -393,7 +447,10 @@
           "source": "ocp_docs",
           "note": "OpenShift 4.20 install-config reference"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.platform.ibmcloud",
@@ -413,7 +470,10 @@
           "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.IBMCloud",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.platform.ibmcloud.bootVolume.encryptionKey",
@@ -433,7 +493,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.replicas",
@@ -451,7 +514,10 @@
           "source": "ocp_docs",
           "note": "OpenShift 4.20 install-config reference"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].architecture",
@@ -473,7 +539,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].hyperthreading",
@@ -496,7 +565,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].name",
@@ -516,7 +588,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].platform",
@@ -539,7 +614,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].replicas",
@@ -564,7 +642,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "cpuPartitioningMode",
@@ -587,7 +668,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "credentialsMode",
@@ -609,7 +693,10 @@
           "sectionHeading": "8.11. Manually creating IAM",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
         }
-      ]
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "featureGates",
@@ -629,7 +716,10 @@
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "featureSet",
@@ -649,7 +739,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "fips",
@@ -672,7 +765,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageContentSources[].mirrors",
@@ -692,7 +788,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageContentSources[].source",
@@ -712,7 +811,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources",
@@ -732,7 +834,10 @@
           "sectionHeading": "Disconnected installation mirroring",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources[].mirrors",
@@ -752,7 +857,10 @@
           "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources[].source",
@@ -772,7 +880,10 @@
           "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "metadata",
@@ -792,7 +903,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "metadata.name",
@@ -812,7 +926,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking",
@@ -832,7 +949,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork",
@@ -852,7 +972,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork[].cidr",
@@ -872,7 +995,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork[].hostPrefix",
@@ -892,7 +1018,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetworkMTU",
@@ -912,7 +1041,10 @@
           "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.machineNetwork",
@@ -932,7 +1064,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.machineNetwork[].cidr",
@@ -952,7 +1087,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.networkType",
@@ -974,7 +1112,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.ovnKubernetesConfig",
@@ -994,7 +1135,10 @@
           "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.ovnKubernetesConfig.ipv4.internalJoinSubnet",
@@ -1014,7 +1158,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.serviceNetwork",
@@ -1034,7 +1181,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform",
@@ -1054,7 +1204,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud",
@@ -1074,7 +1227,10 @@
           "sectionHeading": "pkg/types/installconfig.go - Platform.IBMCloud",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.computeSubnets",
@@ -1094,7 +1250,10 @@
           "sectionHeading": "8.3.2. VPC validation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.controlPlaneSubnets",
@@ -1114,7 +1273,10 @@
           "sectionHeading": "8.3.2. VPC validation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.dedicatedHosts.name",
@@ -1134,7 +1296,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.dedicatedHosts.profile",
@@ -1154,7 +1319,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.defaultMachinePlatform",
@@ -1171,7 +1339,10 @@
           "source": "ocp_docs",
           "note": "OpenShift 4.20 IBM Cloud install-config reference"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.defaultMachinePlatform.bootVolume.encryptionKey",
@@ -1191,7 +1362,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.networkResourceGroupName",
@@ -1211,7 +1385,10 @@
           "sectionHeading": "8.3.2. VPC validation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.region",
@@ -1231,7 +1408,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.resourceGroupName",
@@ -1251,7 +1431,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.serviceEndpoints",
@@ -1271,7 +1454,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.type",
@@ -1291,7 +1477,10 @@
           "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.ibmcloud.vpcName",
@@ -1311,7 +1500,10 @@
           "sectionHeading": "8.3.2. VPC validation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy",
@@ -1331,7 +1523,10 @@
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.httpProxy",
@@ -1351,7 +1546,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.httpsProxy",
@@ -1371,7 +1569,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.noProxy",
@@ -1391,7 +1592,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "publish",
@@ -1414,7 +1618,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "pullSecret",
@@ -1434,7 +1641,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "sshKey",
@@ -1454,7 +1664,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     }
   ]
 }

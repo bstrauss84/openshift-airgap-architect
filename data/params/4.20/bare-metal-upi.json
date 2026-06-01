@@ -20,7 +20,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "additionalTrustBundlePolicy",
@@ -43,7 +46,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "apiVersion",
@@ -63,7 +69,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "arbiter",
@@ -83,7 +92,10 @@
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Arbiter",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "arbiter.name",
@@ -103,7 +115,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "arbiter.replicas",
@@ -123,7 +138,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "baseDomain",
@@ -143,7 +161,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities",
@@ -163,7 +184,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities.additionalEnabledCapabilities",
@@ -183,7 +207,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities.baselineCapabilitySet",
@@ -209,7 +236,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute",
@@ -229,7 +259,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].architecture",
@@ -254,7 +287,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].hyperthreading",
@@ -277,7 +313,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].name",
@@ -297,7 +336,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].platform",
@@ -321,7 +363,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].replicas",
@@ -341,7 +386,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane",
@@ -361,7 +409,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.diskSetup",
@@ -381,7 +432,10 @@
           "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.fencing",
@@ -401,7 +455,10 @@
           "sectionHeading": "pkg/types/installconfig.go - MachinePool.Fencing",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.platform",
@@ -418,7 +475,10 @@
           "source": "ocp_docs",
           "note": "OpenShift 4.20 install-config reference"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.platform.baremetal",
@@ -438,7 +498,10 @@
           "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.BareMetal",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.replicas",
@@ -456,7 +519,10 @@
           "source": "ocp_docs",
           "note": "OpenShift 4.20 install-config reference"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].architecture",
@@ -481,7 +547,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].hyperthreading",
@@ -504,7 +573,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].name",
@@ -524,7 +596,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].platform",
@@ -548,7 +623,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].replicas",
@@ -574,7 +652,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "cpuPartitioningMode",
@@ -597,7 +678,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "credentialsMode",
@@ -622,7 +706,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "featureGates",
@@ -642,7 +729,10 @@
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "featureSet",
@@ -662,7 +752,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "fips",
@@ -685,7 +778,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageContentSources[].mirrors",
@@ -705,7 +801,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageContentSources[].source",
@@ -725,7 +824,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources",
@@ -745,7 +847,10 @@
           "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources[].mirrors",
@@ -765,7 +870,10 @@
           "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources[].source",
@@ -785,7 +893,10 @@
           "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "metadata",
@@ -805,7 +916,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "metadata.name",
@@ -825,7 +939,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking",
@@ -845,7 +962,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork",
@@ -865,7 +985,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork[].cidr",
@@ -885,7 +1008,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork[].hostPrefix",
@@ -905,7 +1031,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetworkMTU",
@@ -925,7 +1054,10 @@
           "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.machineNetwork",
@@ -945,7 +1077,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.machineNetwork[].cidr",
@@ -965,7 +1100,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.networkType",
@@ -985,7 +1123,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.ovnKubernetesConfig",
@@ -1005,7 +1146,10 @@
           "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.ovnKubernetesConfig.ipv4.internalJoinSubnet",
@@ -1025,7 +1169,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.serviceNetwork",
@@ -1045,7 +1192,10 @@
           "sectionHeading": "9.1.2. Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform",
@@ -1065,7 +1215,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.baremetal",
@@ -1085,7 +1238,10 @@
           "sectionHeading": "pkg/types/installconfig.go - Platform.BareMetal",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy",
@@ -1105,7 +1261,10 @@
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.httpProxy",
@@ -1125,7 +1284,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.httpsProxy",
@@ -1145,7 +1307,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.noProxy",
@@ -1165,7 +1330,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "publish",
@@ -1188,7 +1356,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "pullSecret",
@@ -1208,7 +1379,10 @@
           "sectionHeading": "9.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "sshKey",
@@ -1228,7 +1402,10 @@
           "sectionHeading": "9.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     }
   ]
 }

@@ -11,7 +11,9 @@
       "default": "mirror.openshift.io/v2alpha1",
       "required": true,
       "description": "The API version of the ImageSetConfiguration content. Must be mirror.openshift.io/v2alpha1 for oc-mirror v2.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -19,7 +21,10 @@
           "sectionHeading": "5.12. ImageSet configuration parameters for oc-mirror plugin v2",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "kind",
@@ -29,7 +34,9 @@
       "default": "ImageSetConfiguration",
       "required": true,
       "description": "The resource kind. Must be ImageSetConfiguration for oc-mirror v2 image set configuration files.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -37,7 +44,10 @@
           "sectionHeading": "5.12. ImageSet configuration parameters for oc-mirror plugin v2",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "archiveSize",
@@ -47,7 +57,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The maximum size, in GiB, of each archive file within the image set. Used for mirror-to-disk workflow to split large image sets into multiple archive files.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -55,7 +67,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "kubeVirtContainer",
@@ -68,7 +83,9 @@
       "default": "false",
       "required": false,
       "description": "When set to true, includes images from the HyperShift KubeVirt CoreOS container. Used for HyperShift deployments with KubeVirt provider.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -76,7 +93,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror",
@@ -86,7 +106,9 @@
       "default": "not specified in docs",
       "required": true,
       "description": "The main configuration object for the image set. Contains nested configuration for platform releases, operators, helm charts, and additional images to mirror.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -94,7 +116,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.additionalImages",
@@ -104,7 +129,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Additional container images to include in the image set beyond platform and operator images. Each entry specifies an image by tag or digest. In oc-mirror v2, you must use explicit registry hostnames.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -112,7 +139,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.additionalImages[].name",
@@ -122,7 +152,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The tag or digest of the additional image to mirror. Examples: registry.redhat.io/ubi8/ubi:latest or quay.io/app@sha256:abc123...",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -130,7 +162,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.blockedImages",
@@ -140,7 +175,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "List of images with a tag or digest to block from mirroring. Can specify full image references or patterns to exclude unwanted images from the mirror operation.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -148,7 +185,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm",
@@ -158,7 +198,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The helm configuration for the image set. Allows mirroring helm charts from local paths or remote repositories. Note: oc-mirror does not support helm charts with manually modified values.yaml files.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -166,7 +208,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.local",
@@ -176,7 +221,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Configuration for local helm charts to mirror. Each entry specifies a helm chart stored locally on disk by name and filesystem path.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -184,7 +231,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.local[].name",
@@ -194,7 +244,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The name of the local helm chart to mirror.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -202,7 +254,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.local[].path",
@@ -212,7 +267,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The filesystem path to the local helm chart archive (.tar.gz file).",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -220,7 +277,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.local[].charts.imagePaths",
@@ -230,7 +290,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Custom JSONPath expressions to locate container images within the local helm chart. oc-mirror auto-detects well-known paths; use this for custom image locations. Example: '{.spec.template.spec.custom[*].image}'",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -238,7 +300,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.repositories",
@@ -248,7 +313,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Configuration for remote helm chart repositories. Each entry specifies a repository URL and the charts to mirror from it.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -256,7 +323,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.repositories[].name",
@@ -266,7 +336,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The name of the remote helm repository.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -274,7 +346,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.repositories[].url",
@@ -284,7 +359,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The URL of the remote helm repository. Example: https://redhat-developer.github.io/service-binding-operator-helm-chart/",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -292,7 +369,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.repositories[].charts",
@@ -302,7 +382,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The helm charts to mirror from this repository. Each entry specifies chart name, version, and optional custom image paths.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -310,7 +392,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.repositories[].charts[].name",
@@ -320,7 +405,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The name of the helm chart to mirror from the remote repository.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -328,7 +415,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.repositories[].charts[].version",
@@ -338,7 +428,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The version of the helm chart to mirror from the remote repository.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -346,7 +438,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.helm.repositories[].charts[].imagePaths",
@@ -356,7 +451,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Custom JSONPath expressions to locate container images within the remote helm chart. Use for charts with non-standard image field locations.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -364,7 +461,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators",
@@ -374,7 +474,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Operator catalog configuration for the image set. Each entry specifies an operator catalog and optional package/channel filters to control which operators and versions are mirrored.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -382,7 +484,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].catalog",
@@ -392,7 +497,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The operator catalog image to mirror. Example: registry.redhat.io/redhat/redhat-operator-index:v4.20",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -400,7 +507,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].full",
@@ -413,7 +523,9 @@
       "default": "false",
       "required": false,
       "description": "When true, downloads the entire operator catalog (all packages, all versions). When false, uses package/channel filters. Cannot be combined with package filtering.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -421,7 +533,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].targetCatalog",
@@ -431,7 +546,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Alternative catalog name to use when pushing manifests to the registry. Allows renaming the catalog in the destination registry.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -439,7 +556,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].targetName",
@@ -449,7 +569,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Alternative namespace and name for the catalog to be mirrored. Format: namespace/catalog-name",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -457,7 +579,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].targetTag",
@@ -467,7 +592,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Alternative tag for the catalog to be mirrored. Allows retagging the catalog in the destination registry.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -475,7 +602,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].packages",
@@ -485,7 +615,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Specific operator packages to include from the catalog. If omitted and full=false, mirrors channel heads only. Each entry can filter by channels and version ranges.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -493,7 +625,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].packages[].name",
@@ -503,7 +638,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The operator package name to mirror. Example: aws-load-balancer-operator, compliance-operator",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -511,7 +648,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].packages[].channels",
@@ -521,7 +661,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Specific operator channels to mirror from this package. If omitted, mirrors the default channel head.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -529,7 +671,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].packages[].channels[].name",
@@ -539,7 +684,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The operator channel name to mirror. Example: stable, stable-v0, fast-4.16",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -547,7 +694,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].packages[].channels[].includeConfig",
@@ -557,7 +707,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Version filtering configuration for this channel. Allows specifying minimum and maximum operator versions to mirror.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -565,7 +717,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].packages[].channels[].includeConfig.minVersion",
@@ -575,7 +730,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The minimum operator version to mirror from this channel. All versions >= minVersion and <= maxVersion will be mirrored.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -583,7 +740,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.operators[].packages[].channels[].includeConfig.maxVersion",
@@ -593,7 +753,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The maximum operator version to mirror from this channel. All versions >= minVersion and <= maxVersion will be mirrored.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -601,7 +763,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform",
@@ -611,7 +776,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "OpenShift Container Platform release image configuration. Specifies which OCP versions, architectures, and update graph metadata to mirror.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -619,7 +786,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.architectures",
@@ -634,7 +804,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The CPU architectures of the platform release payloads to mirror. Example: ['amd64'] or ['amd64', 'arm64'] for multi-arch.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -642,7 +814,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.graph",
@@ -655,7 +830,9 @@
       "default": "false",
       "required": false,
       "description": "When true, builds and pushes the graph-data image to the mirror registry. Required for creating OpenShift Update Service (OSUS). Also generates the UpdateService custom resource manifest.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -663,7 +840,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels",
@@ -673,7 +853,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "Platform release channels to mirror. Each channel specifies which OCP versions to include and whether to follow shortest upgrade path.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -681,7 +863,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].name",
@@ -696,7 +881,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The name of the OpenShift release channel. Examples: stable-4.20, fast-4.20, eus-4.20, candidate-4.20",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -704,7 +891,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].type",
@@ -717,7 +907,9 @@
       "default": "ocp",
       "required": false,
       "description": "The type of release channel. Valid values: ocp (OpenShift Container Platform) or okd (OKD community distribution).",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -725,7 +917,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].minVersion",
@@ -735,7 +930,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The minimum OpenShift Container Platform version to mirror from this channel. All versions between minVersion and maxVersion will be mirrored (or shortest path if shortestPath: true).",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -743,7 +940,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].maxVersion",
@@ -753,7 +953,9 @@
       "default": "not specified in docs",
       "required": false,
       "description": "The maximum OpenShift Container Platform version to mirror from this channel. All versions between minVersion and maxVersion will be mirrored (or shortest path if shortestPath: true).",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -761,7 +963,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].includeMin",
@@ -774,7 +979,9 @@
       "default": "true",
       "required": false,
       "description": "Whether to include the minVersion in the mirrored release set. Set to false to exclude the minimum version boundary.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -782,7 +989,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].includeMax",
@@ -795,7 +1005,9 @@
       "default": "true",
       "required": false,
       "description": "Whether to include the maxVersion in the mirrored release set. Set to false to exclude the maximum version boundary.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -803,7 +1015,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].shortestPath",
@@ -816,7 +1031,9 @@
       "default": "false",
       "required": false,
       "description": "When true, mirrors only the shortest upgrade path between minVersion and maxVersion. When false, mirrors all versions in the range. Reduces mirror size for upgrade scenarios.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -824,7 +1041,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "mirror.platform.channels[].full",
@@ -837,7 +1057,9 @@
       "default": "false",
       "required": false,
       "description": "When true, automatically sets minVersion to 0.0.1 and maxVersion to the latest version available in the channel. Mirrors the entire channel history.",
-      "applies_to": ["oc-mirror-v2"],
+      "applies_to": [
+        "oc-mirror-v2"
+      ],
       "citations": [
         {
           "docId": "disconnected-environments-imageset-params",
@@ -845,7 +1067,10 @@
           "sectionHeading": "Table 5.3. ImageSetConfiguration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/mirroring-images-for-a-disconnected-installation-using-the-oc-mirror-plugin-v2#oc-mirror-imageset-config-params_oc-mirror-v2"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     }
   ]
 }
