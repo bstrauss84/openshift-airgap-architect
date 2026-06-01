@@ -1,0 +1,12 @@
+{
+  "name": "@openshift-airgap-architect/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for OpenShift Airgap Architect (backend + frontend)",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./versionUtils.js": "./versionUtils.js"
+  },
+  "author": "Bill Strauss",
+  "license": "UNLICENSED"
+}

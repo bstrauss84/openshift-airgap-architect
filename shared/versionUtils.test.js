@@ -159,7 +159,7 @@ describe('versionUtils', () => {
 
     test('returns false when version is above maximum', () => {
       assert.strictEqual(isVersionInRange('4.23', null, '4.22'), false);
-      assert.strictEqual(isVersionInRange('4.22.1', null, '4.22.0'), false);
+      assert.strictEqual(isVersionInRange('4.23.0', null, '4.22'), false);
     });
 
     test('handles null constraints (unbounded)', () => {
@@ -171,8 +171,28 @@ describe('versionUtils', () => {
     test('handles edge cases at boundaries', () => {
       assert.strictEqual(isVersionInRange('4.20.0', '4.20', '4.22'), true);
       assert.strictEqual(isVersionInRange('4.22.0', '4.20', '4.22'), true);
-      assert.strictEqual(isVersionInRange('4.22.1', '4.20', '4.22'), false);
       assert.strictEqual(isVersionInRange('4.19.99', '4.20', '4.22'), false);
+    });
+
+    test('catalog minor-version range semantics (CRITICAL)', () => {
+      // maxVersion: "4.21" should include ALL 4.21.x patches
+      assert.strictEqual(isVersionInRange('4.21.15', '4.20', '4.21'), true,
+        'maxVersion 4.21 should include 4.21.15 (all 4.21.x patches)');
+
+      // maxVersion: "4.21" should EXCLUDE 4.22.0
+      assert.strictEqual(isVersionInRange('4.22.0', '4.20', '4.21'), false,
+        'maxVersion 4.21 should exclude 4.22.0');
+
+      // minVersion: "4.20" should include all 4.20.x patches
+      assert.strictEqual(isVersionInRange('4.20.0', '4.20', '4.21'), true,
+        'minVersion 4.20 should include 4.20.0');
+      assert.strictEqual(isVersionInRange('4.20.99', '4.20', '4.21'), true,
+        'minVersion 4.20 should include 4.20.99');
+
+      // Range should include entire minor versions
+      assert.strictEqual(isVersionInRange('4.21.0', '4.20', '4.21'), true);
+      assert.strictEqual(isVersionInRange('4.21.5', '4.20', '4.21'), true);
+      assert.strictEqual(isVersionInRange('4.21.100', '4.20', '4.21'), true);
     });
 
     test('throws on invalid version', () => {
@@ -261,6 +281,27 @@ describe('versionUtils', () => {
       const alwaysSupported = { path: 'baseDomain', minVersion: '4.20', maxVersion: null };
       assert.strictEqual(isParamSupportedForVersion(alwaysSupported, '4.20'), true);
       assert.strictEqual(isParamSupportedForVersion(alwaysSupported, '4.25'), true);
+    });
+
+    test('catalog minor-version semantics with patch versions (CRITICAL)', () => {
+      // Param supported in 4.20-4.21 should include ALL patches
+      const param = { path: 'testParam', minVersion: '4.20', maxVersion: '4.21' };
+
+      // All 4.20.x patches should be supported
+      assert.strictEqual(isParamSupportedForVersion(param, '4.20.0'), true,
+        'minVersion 4.20 should support 4.20.0');
+      assert.strictEqual(isParamSupportedForVersion(param, '4.20.15'), true,
+        'minVersion 4.20 should support 4.20.15');
+
+      // All 4.21.x patches should be supported (maxVersion 4.21 is inclusive of all 4.21.x)
+      assert.strictEqual(isParamSupportedForVersion(param, '4.21.0'), true,
+        'maxVersion 4.21 should support 4.21.0');
+      assert.strictEqual(isParamSupportedForVersion(param, '4.21.15'), true,
+        'maxVersion 4.21 should support 4.21.15 (all 4.21.x patches)');
+
+      // 4.22.0 should NOT be supported (exceeds maxVersion 4.21)
+      assert.strictEqual(isParamSupportedForVersion(param, '4.22.0'), false,
+        'maxVersion 4.21 should exclude 4.22.0');
     });
   });
 

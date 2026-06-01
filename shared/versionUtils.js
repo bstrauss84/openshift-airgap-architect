@@ -65,6 +65,12 @@ function getMinorVersion(version) {
 /**
  * Compares two OpenShift versions using semantic versioning.
  *
+ * **API:** Returns -1, 0, or 1 (NOT an operator-based API).
+ *
+ * Use convenience helpers for readability:
+ * - `isVersionGTE(a, b)` instead of `compareVersions(a, b) >= 0`
+ * - `isVersionLT(a, b)` instead of `compareVersions(a, b) < 0`
+ *
  * @param {string} versionA - First version to compare
  * @param {string} versionB - Second version to compare
  * @returns {number} -1 if A < B, 0 if A === B, 1 if A > B
@@ -104,6 +110,11 @@ function compareVersions(versionA, versionB) {
 /**
  * Checks if a version is within a specified range (inclusive).
  *
+ * **CATALOG SEMANTICS:** For catalog parameter version gates, min/max are
+ * minor-version boundaries. This means:
+ * - `minVersion: "4.20"` includes all 4.20.x patches (4.20.0, 4.20.15, etc.)
+ * - `maxVersion: "4.21"` includes all 4.21.x patches but EXCLUDES 4.22.0
+ *
  * @param {string} version - Version to check
  * @param {string|null} minVersion - Minimum version (null = no minimum)
  * @param {string|null} maxVersion - Maximum version (null = no maximum)
@@ -112,22 +123,25 @@ function compareVersions(versionA, versionB) {
  *
  * @example
  * isVersionInRange("4.20", "4.20", "4.22") → true
+ * isVersionInRange("4.21.15", "4.20", "4.21") → true (within 4.21 minor range)
+ * isVersionInRange("4.22.0", "4.20", "4.21") → false (exceeds 4.21 minor range)
  * isVersionInRange("4.19", "4.20", null) → false (below minimum)
- * isVersionInRange("4.23", null, "4.22") → false (above maximum)
  * isVersionInRange("4.21", null, null) → true (no constraints)
  */
 function isVersionInRange(version, minVersion, maxVersion) {
-  const normalized = normalizeVersion(version);
+  const versionMinor = getMinorVersion(version);
 
   if (minVersion !== null) {
-    if (compareVersions(normalized, minVersion) < 0) {
-      return false; // Version is below minimum
+    const minMinor = getMinorVersion(minVersion);
+    if (compareVersions(versionMinor, minMinor) < 0) {
+      return false; // Version minor is below minimum
     }
   }
 
   if (maxVersion !== null) {
-    if (compareVersions(normalized, maxVersion) > 0) {
-      return false; // Version is above maximum
+    const maxMinor = getMinorVersion(maxVersion);
+    if (compareVersions(versionMinor, maxMinor) > 0) {
+      return false; // Version minor is above maximum
     }
   }
 
@@ -191,28 +205,13 @@ function isParamSupportedForVersion(param, version) {
   );
 }
 
-// Node.js module exports
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    normalizeVersion,
-    getMinorVersion,
-    compareVersions,
-    isVersionInRange,
-    isVersionGTE,
-    isVersionLT,
-    isParamSupportedForVersion
-  };
-}
-
-// Browser ES module exports (for frontend)
-if (typeof window !== 'undefined') {
-  window.versionUtils = {
-    normalizeVersion,
-    getMinorVersion,
-    compareVersions,
-    isVersionInRange,
-    isVersionGTE,
-    isVersionLT,
-    isParamSupportedForVersion
-  };
-}
+// ES Module exports (works in both Node.js and browser with build tools)
+export {
+  normalizeVersion,
+  getMinorVersion,
+  compareVersions,
+  isVersionInRange,
+  isVersionGTE,
+  isVersionLT,
+  isParamSupportedForVersion
+};
