@@ -17,7 +17,7 @@
     {
       "version": "2.0.0",
       "date": "2026-06-01",
-      "changes": "⭐ BREAKING: Added version-awareness support (DOC-101 Phase 1): supportStatus (REQUIRED), minVersion (OPTIONAL, defaults to '4.20'), maxVersion (OPTIONAL, defaults to null), versionNotes (OPTIONAL), validationRules (OPTIONAL). All parameters MUST have supportStatus. CI fails on 'unknown-needs-review' status."
+      "changes": "⭐ BREAKING: Added version-awareness support (DOC-101 Phase 1): supportStatus (REQUIRED), minVersion (REQUIRED), maxVersion (REQUIRED), versionNotes (OPTIONAL), validationRules (OPTIONAL). All parameters MUST have these three fields. CI fails on 'unknown-needs-review' status."
     }
   ],
   "type": "object",
@@ -43,7 +43,7 @@
       "description": "Array of parameter definitions",
       "items": {
         "type": "object",
-        "required": ["path", "outputFile", "type", "required", "description", "supportStatus"],
+        "required": ["path", "outputFile", "type", "required", "description", "supportStatus", "minVersion", "maxVersion"],
         "properties": {
           "path": {
             "type": "string",
@@ -196,13 +196,13 @@
           },
           "minVersion": {
             "type": "string",
-            "description": "⭐ NEW v2.0.0 OPTIONAL: Minimum OpenShift minor version supporting this parameter (inclusive). Defaults to '4.20' if omitted. Minor-version gate (includes all patches: 4.20.0, 4.20.15, etc.)",
+            "description": "⭐ NEW v2.0.0 REQUIRED: Minimum OpenShift minor version supporting this parameter (inclusive). Minor-version gate (includes all patches: 4.20.0, 4.20.15, etc.)",
             "pattern": "^4\\.\\d+$",
             "examples": ["4.20", "4.21", "4.22"],
             "default": "4.20"
           },
           "maxVersion": {
-            "description": "⭐ NEW v2.0.0 OPTIONAL: Maximum OpenShift minor version supporting this parameter (inclusive of all patches). Null (default) means no maximum. Minor-version gate: maxVersion '4.21' includes 4.21.0 through 4.21.99 but EXCLUDES 4.22.0.",
+            "description": "⭐ NEW v2.0.0 REQUIRED: Maximum OpenShift minor version supporting this parameter (inclusive of all patches). Null means no maximum (ongoing support). Minor-version gate: maxVersion '4.21' includes 4.21.0 through 4.21.99 but EXCLUDES 4.22.0.",
             "oneOf": [
               { "type": "string", "pattern": "^4\\.\\d+$" },
               { "type": "null" }
@@ -363,8 +363,8 @@
     "This schema documents the structure of parameter catalog files used by the OpenShift Airgap Architect application.",
     "Catalog files are located in data/params/4.20/ (backend) and synchronized to frontend/src/data/catalogs/.",
     "The 'deprecated' family of fields (v1.1.0) enables gradual migration from legacy fields to canonical replacements.",
-    "⭐ v2.0.0 BREAKING CHANGE: All parameters MUST have 'supportStatus' field (REQUIRED). CI validation FAILS on 'unknown-needs-review' status.",
-    "⭐ v2.0.0: minVersion (OPTIONAL, defaults to '4.20') and maxVersion (OPTIONAL, defaults to null) are MINOR-VERSION gates.",
+    "⭐ v2.0.0 BREAKING CHANGE: All parameters MUST have 'supportStatus', 'minVersion', and 'maxVersion' fields (REQUIRED). CI validation FAILS on 'unknown-needs-review' status.",
+    "⭐ v2.0.0: minVersion and maxVersion are MINOR-VERSION gates. Phase 0 added explicit values to all 1,071 parameters.",
     "⭐ v2.0.0: Minor-version gate semantics: maxVersion '4.21' includes 4.21.0, 4.21.15 but excludes 4.22.0.",
     "⭐ v2.0.0: validationRules (OPTIONAL) enables sparse version-specific validation with inheritance from prior versions.",
     "UI components (FieldLabelWithInfo) render deprecated parameters with orange badges and warning tooltips.",

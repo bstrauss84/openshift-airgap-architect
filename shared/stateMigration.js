@@ -50,10 +50,11 @@ export function migrateStateToV3(state) {
     };
   }
 
-  // Already v3? No-op (idempotent)
+  // Already v3? Return normalized clone (safe for mutation downstream)
   if (state.version?._schemaVersion === 3) {
+    // Deep clone to avoid accidental mutation of shared state
     return {
-      migrated: state,
+      migrated: JSON.parse(JSON.stringify(state)),
       wasV1: false,
       wasV2: false,
       wasV3: true,

@@ -54,8 +54,8 @@ describe('stateMigration', () => {
     });
   });
 
-  describe('migrateStateToV3 - v3 input (no-op)', () => {
-    test('v3 state passes through unchanged (idempotent)', () => {
+  describe('migrateStateToV3 - v3 input (normalized clone)', () => {
+    test('v3 state returns normalized clone (safe for downstream mutation)', () => {
       const v3State = {
         version: {
           selectedMinor: '4.21',
@@ -71,7 +71,16 @@ describe('stateMigration', () => {
       assert.strictEqual(result.wasV2, false);
       assert.strictEqual(result.wasV1, false);
       assert.strictEqual(result.error, null);
-      assert.strictEqual(result.migrated, v3State); // Same object reference (no-op)
+
+      // Returns CLONE, not same reference (safe for mutation)
+      assert.notStrictEqual(result.migrated, v3State);
+
+      // But values are equal
+      assert.deepStrictEqual(result.migrated, v3State);
+
+      // Mutating result does not affect original
+      result.migrated.version.selectedMinor = '4.22';
+      assert.strictEqual(v3State.version.selectedMinor, '4.21'); // Original unchanged
     });
   });
 

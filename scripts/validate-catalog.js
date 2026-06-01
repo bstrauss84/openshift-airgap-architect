@@ -43,9 +43,14 @@ function getFilesToValidate(targetPath) {
 
 function validateParam(p, i, scenarioId) {
   const errs = [];
-  const need = ["path", "outputFile", "description", "applies_to", "citations", "supportStatus"];
+  const need = ["path", "outputFile", "description", "applies_to", "citations", "supportStatus", "minVersion", "maxVersion"];
   for (const k of need) {
-    if (p[k] === undefined || p[k] === null) errs.push(`param[${i}].${k} required`);
+    // maxVersion can be null (unbounded), but field must exist
+    if (k === "maxVersion") {
+      if (!p.hasOwnProperty(k)) errs.push(`param[${i}].maxVersion required (use null for unbounded)`);
+    } else if (p[k] === undefined || p[k] === null) {
+      errs.push(`param[${i}].${k} required`);
+    }
   }
 
   // Schema v2.0.0: supportStatus validation
