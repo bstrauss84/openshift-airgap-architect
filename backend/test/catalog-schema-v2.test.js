@@ -163,8 +163,20 @@ describe('Catalog Parameter Schema v2.0.0', () => {
         }
       }
 
-      // Most parameters should have null maxVersion (ongoing support)
-      assert.ok(nullMaxVersionCount > 500, 'Most parameters should have null maxVersion (ongoing support)');
+      // Most parameters should have null or undefined maxVersion (ongoing support)
+      assert.ok(nullMaxVersionCount > 500, 'Most parameters should have null/undefined maxVersion (ongoing support)');
+    });
+
+    test('maxVersion: null is explicitly valid (JSON Schema accepts null)', () => {
+      // This test verifies the schema v2.0 fix: maxVersion can be null without conflicting type
+      const catalogDir = path.join(repoRoot, 'data/params/4.20');
+      const file = 'bare-metal-ipi.json';
+      const data = JSON.parse(fs.readFileSync(path.join(catalogDir, file), 'utf8'));
+
+      // Phase 0 added explicit maxVersion: null to all params, so find one
+      const param = data.parameters.find(p => p.maxVersion === null);
+      assert.ok(param, 'Should have params with maxVersion: null');
+      assert.strictEqual(param.maxVersion, null, 'maxVersion: null should be valid (schema fix: removed conflicting top-level type)');
     });
   });
 
