@@ -2,9 +2,10 @@
 
 **Created:** 2026-05-14  
 **Last Updated:** 2026-05-29  
-**Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md  
+**Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md + version-aware planning (local-docs/version-aware-planning/)  
 **Replaces:** docs/REVISED_PHASED_PLAN_2026-05-10.md (as active roadmap)  
-**Current Version:** 1.7.0 (released 2026-05-29)
+**Current Version:** 1.7.0 (released 2026-05-29)  
+**Next Major:** v2.0.0 (architecture approved 2026-05-29, implementation starting with Phase 0)
 
 ---
 
@@ -1371,47 +1372,150 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
-### v2.0.0 (Major) - 8-12 weeks (SEPARATE PROJECT)
+### v2.0.0 (Major) - 16-20 weeks (ARCHITECTURE APPROVED 2026-05-29)
 
-**Purpose:** Version-aware system - **BREAKING CHANGE**
+**Status:** Architecture planning complete 2026-05-29, implementation starting  
+**Purpose:** Version-aware system - **BREAKING CHANGE**  
+**Scope:** OpenShift 4.20 (baseline) + 4.21 (first target)  
+**Planning Docs:** `local-docs/version-aware-planning/` (ADR-001 through ADR-007, README.md, versioned copy audit requirements)  
+**Tracking:** DOC-059 (parent), DOC-100 through DOC-107 (phased work breakdown)
 
-#### Phase 6: Version-Aware System
+#### Why Major Version (Breaking Changes)
 
-**Item (1 MASSIVE):**
+- State schema v2 → v3 (incompatible with v1.x)
+- Export bundles require version-manifest.json (v1.x can't read)
+- Frontend catalog structure changes (breaks v1.x frontend)
+- Catalog parameter schema v1.1.0 → v2.0.0 (new required fields)
+- Import/export no longer forward/backward compatible without migration
+- v1.x imports supported via explicit user-confirmed migration flow
 
-**DOC-059 (merged with LOCAL #7):** OpenShift version-aware system
+#### Key Architectural Decisions (Approved)
 
-**Why major version:**
-- **Breaking API changes:** Params JSON structure changes
-- **UI changes:** Version selector affects entire wizard flow
-- **Re-validation required:** All scenarios must be re-validated for each version
+1. **NO FALLBACK:** User-facing catalog loading/validation/preview/generation blocks unsupported versions
+2. **State Schema v3:** Pure shared migration helper at all boundaries (import, generation, hydration, export, API)
+3. **Catalog Param Schema v2.0:** supportStatus taxonomy (8 states), minVersion default 4.20, sparse validationRules
+4. **Bundler-Compatible Imports:** Vite's import.meta.glob (not raw require())
+5. **Centralized Version Utility:** shared/versionUtils.js prevents ad hoc semver/string comparisons
+6. **Versioned Copy Audit:** Required workstream (inventory + strategy implementation)
+7. **v1.x Migration:** Explicit user confirmation modal (not silent acceptance)
+8. **Strict Checksums:** Reject corrupted exports with clear error
 
-**Sub-Phases:**
+#### Phase 0: Baseline Certification (4.20) - 2-3 days
 
-1. **Research & Baseline (2 weeks)**
-   - Document OpenShift 4.20 as baseline
-   - Catalog all param variations across install methods
-   - Identify version-specific fields
+**Tracking:** DOC-100
 
-2. **Delta Detection (2 weeks)**
-   - Build tooling to identify changes between OCP minor versions
-   - Parse openshift-install binary for new params
-   - Download PDF docs for each release
-   - Extract param changes from official docs
+**Tasks:**
+1. Add `supportStatus` to all 949 params in 4.20 catalogs (script-assisted, human review)
+2. Normalize all docs.openshift.com → docs.redhat.com citations
+3. Validate current behavior matches catalog claims
+4. **Versioned Copy/Messaging/UX Text Audit** (DOC-106):
+   - Inventory all hardcoded version-specific user-facing text
+   - Search patterns: "4.20", "OCP 4.20", "current version", "this release"
+   - Script: `scripts/find-hardcoded-versions.sh`
+   - Output: `docs/VERSIONED_COPY_INVENTORY.md` with classification table
 
-3. **Pipeline (2 weeks)**
-   - Automated workflow for version-aware catalog generation
-   - Carry forward unchanged values from previous version (4.20 → 4.21)
-   - Annotate deltas, additions, deprecations
-   - Version catalogs per release (4.20, 4.21, 4.22...)
+**Evidence Required:**
+- Git diff showing supportStatus added, CI passing
+- Test results, discrepancy resolution log
+- Versioned copy inventory complete
 
-4. **Frontend/Backend Integration (2 weeks)**
-   - Make wizard components version-aware
-   - Version selector on Blueprint step
-   - Dynamic param loading based on selected version
-   - Validation rules per version
+#### Phase 1: Architecture Foundation - 4 weeks
 
-5. **Field Guide Compartmentalization (1 week)**
+**Tracking:** DOC-101
+
+**Tasks:**
+1. State schema v3 migration (pure shared helper at all boundaries)
+2. Centralized version utility (shared/versionUtils.js)
+3. Catalog parameter schema v2.0
+4. Frontend catalog restructuring (bundler-compatible import.meta.glob)
+5. **Versioned Copy Strategy** (DOC-107):
+   - Centralized copy maps (shared/versionedCopy.js)
+   - Template interpolation helpers
+   - Address all inventory items from Phase 0
+   - Rule: No hardcoded 4.20 in user-facing text unless locked version is 4.20
+   - CI enforcement to prevent new hardcoded versions
+6. Version-gated field visibility
+7. Version-gated validation (with version-aware error messages)
+8. Export version manifest (with v1.x migration flow)
+9. Backend generation version-awareness (NO FALLBACK)
+
+**Evidence Required:**
+- Commits, tests passing
+- NO hardcoded 4.20 in user-facing code (CI enforcement)
+- All versioned copy inventory items addressed
+
+#### Phase 2: OpenShift 4.21 Audit - 4 weeks
+
+**Tracking:** DOC-102
+
+**Tasks (reuse DOC-082 audit process):**
+1. Download 4.21 assets (docs, installer source, binaries)
+2. Parameter extraction (reuse automation scripts - 70% automated)
+3. Delta analysis (4.21 vs 4.20) - identify added/removed/changed/deprecated fields
+4. Catalog updates (apply delta to 4.21 catalogs)
+5. Field guide v4.21 (copy + modify v4.20)
+6. Validation rule updates (register 4.21 validators)
+
+**Evidence Required:**
+- `local-docs/ocp-4.21/` workspace
+- delta.json with categorized changes
+- 4.21 catalogs validated by schema
+
+#### Phase 3: UI/UX Enhancements - 2 weeks
+
+**Tracking:** DOC-103
+
+**Tasks:**
+1. Version lock UI (Blueprint page "Lock Version" button, manual not automatic)
+2. Deprecation badges (⚠️ on deprecated fields)
+3. Version-specific tooltips (version annotations)
+4. Field guide version selector
+
+**Evidence Required:**
+- UI screenshots showing version lock workflow
+- Deprecated fields show badges
+- User can lock/unlock version with confirmation modal
+
+#### Phase 4: Testing & Validation - 2 weeks
+
+**Tracking:** DOC-104
+
+**Tasks:**
+- Expand test matrix from 1398 → ~2500-3000 tests
+- Categories: state migration (50), catalog loading (100), field visibility (200), validation (300), generation (400), import/export (100), E2E (50)
+- Parameterized tests for 4.20 and 4.21
+- Version-gating tests (fields hidden/shown correctly)
+
+**Evidence Required:**
+- All tests passing
+- Coverage report showing version-gating logic tested
+
+#### Phase 5: Documentation & Release - 2 weeks
+
+**Tracking:** DOC-105
+
+**Tasks:**
+1. Update CLAUDE.md with version-awareness patterns
+2. Create MIGRATION_GUIDE_v1_to_v2.md
+3. Update README.md with version selection instructions
+4. Create final ADR documents in local-docs/version-aware-planning/
+5. **Update BACKLOG_STATUS.md** - Mark DOC-059, DOC-100-107 verified_done ONLY after:
+   - Implementation complete
+   - Tests passing
+   - Generated artifact validation (4.20 and 4.21 YAMLs correct)
+   - Manual UI evidence (screenshots, walkthrough)
+   - Security review complete (no sensitive data in version manifest, versioned copy audit clean)
+6. Update IMPLEMENTATION_ROADMAP with v2.0.0 release notes
+7. Security audit (pull secrets, credentials, versioned copy)
+8. Final QA across all supported platforms and versions (4.20 and 4.21)
+
+**Evidence Required:**
+- All documentation updated
+- Security review signed off
+- Manual UI testing complete for 4.20 and 4.21
+- Generated install-config.yaml, agent-config.yaml validated for both versions
+
+#### Field Guide Compartmentalization
    - Break Field Guide into reusable compartments
    - Automation for new release documentation
    - Per-version Field Guide generation
@@ -1662,5 +1766,5 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
-**Last Updated:** 2026-05-27 (v1.6.0 released, v1.7.0 scope defined, consolidated work breakdown)  
-**Next Review:** After v1.7.0 release (target: July 2026)
+**Last Updated:** 2026-05-29 (v2.0.0 architecture approved, phased work breakdown added with DOC-100 through DOC-107 tracking items)  
+**Next Review:** After v2.0.0 Phase 0 complete (target: June 2026)
