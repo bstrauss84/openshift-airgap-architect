@@ -48,6 +48,7 @@ import {
 } from "./utils.js";
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
+import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import {
@@ -469,6 +470,39 @@ const defaultState = () => ({
 const ensureState = () => {
   const existing = getState();
   if (existing) {
+    // DOC-101 Phase 1 Slice 4 Boundary 1: Migrate state on read (defensive)
+    const migrationResult = migrateStateToV3(existing);
+
+    if (migrationResult.error) {
+      // Critical: Unknown schema - cannot proceed, must reset
+      logger.error(
+        { error: migrationResult.error, existingState: existing },
+        "CRITICAL: Unknown state schema detected in ensureState, resetting to default"
+      );
+      const initial = defaultState();
+      setState(initial);
+      return initial;
+    }
+
+    // If migration occurred, persist and apply trust defaults
+    if (migrationResult.wasV1 || migrationResult.wasV2) {
+      logger.info(
+        { wasV1: migrationResult.wasV1, wasV2: migrationResult.wasV2 },
+        "State migrated to v3 in ensureState"
+      );
+      const next = { ...migrationResult.migrated };
+      next.trust = { ...(migrationResult.migrated.trust || {}) };
+      if (!Object.prototype.hasOwnProperty.call(next.trust, "bundleSelectionMode")) {
+        next.trust.bundleSelectionMode = "original";
+      }
+      if (!Object.prototype.hasOwnProperty.call(next.trust, "reducedSelection")) {
+        next.trust.reducedSelection = null;
+      }
+      setState(next);
+      return next;
+    }
+
+    // Already v3, apply trust defaults if needed
     let changed = false;
     const next = { ...existing };
     next.trust = { ...(existing.trust || {}) };
@@ -1123,8 +1157,35 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     delete nextCreds.mirrorRegistryPullSecret;
     patch.credentials = nextCreds;
   }
+
+  // DOC-101 Phase 1 Slice 4 Boundary 1: State migration at API boundary
+  // Merge patch first, then migrate to v3 if needed
   const merged = updateState(patch);
-  res.json(merged);
+  const migrationResult = migrateStateToV3(merged);
+
+  if (migrationResult.error) {
+    logger.warn({ error: migrationResult.error, merged }, "State migration failed at /api/state boundary");
+    return res.status(400).json({
+      error: "State migration failed",
+      details: [{
+        path: "state._schemaVersion",
+        message: `Unknown or invalid state schema. ${migrationResult.error}`
+      }]
+    });
+  }
+
+  // If migration occurred (v1 or v2 → v3), persist the migrated state
+  if (migrationResult.wasV1 || migrationResult.wasV2) {
+    logger.info(
+      { wasV1: migrationResult.wasV1, wasV2: migrationResult.wasV2 },
+      "State migrated to v3 at /api/state boundary"
+    );
+    setState(migrationResult.migrated);
+    res.json(migrationResult.migrated);
+  } else {
+    // Already v3, return the merged state (which was already persisted by updateState)
+    res.json(merged);
+  }
 });
 
 // Mounted Red Hat pull secret endpoints
