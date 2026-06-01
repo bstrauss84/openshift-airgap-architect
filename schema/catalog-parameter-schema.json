@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "OpenShift Airgap Architect Parameter Catalog Schema",
   "description": "JSON Schema for parameter catalog files in data/params/4.20/*.json",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "changelog": [
     {
       "version": "1.0.0",
@@ -13,6 +13,11 @@
       "version": "1.1.0",
       "date": "2026-05-26",
       "changes": "Added deprecation support: deprecated, deprecatedReason, replacementPath, removalVersion fields"
+    },
+    {
+      "version": "2.0.0",
+      "date": "2026-06-01",
+      "changes": "⭐ BREAKING: Added version-awareness support (DOC-101 Phase 1): supportStatus (REQUIRED), minVersion, maxVersion, versionNotes, validationRules. All parameters MUST have supportStatus. CI fails on 'unknown-needs-review' status."
     }
   ],
   "type": "object",
@@ -38,7 +43,7 @@
       "description": "Array of parameter definitions",
       "items": {
         "type": "object",
-        "required": ["path", "outputFile", "type", "required", "description"],
+        "required": ["path", "outputFile", "type", "required", "description", "supportStatus"],
         "properties": {
           "path": {
             "type": "string",
@@ -150,12 +155,12 @@
           },
           "deprecated": {
             "type": "boolean",
-            "description": "⭐ NEW v1.1.0: Marks parameter as deprecated. Shows orange 'Deprecated' badge in UI, adds warning to tooltip.",
+            "description": "Marks parameter as deprecated. Shows orange 'Deprecated' badge in UI, adds warning to tooltip.",
             "default": false
           },
           "deprecatedReason": {
             "type": "string",
-            "description": "⭐ NEW v1.1.0: Brief explanation of why parameter is deprecated and what to use instead. Shown in UI warning tooltip.",
+            "description": "Brief explanation of why parameter is deprecated and what to use instead. Shown in UI warning tooltip.",
             "examples": [
               "Legacy single-zone field. Use failureDomains for multi-zone support.",
               "Use imageDigestSources for IDMS-based mirroring instead of ICSP."
@@ -163,7 +168,7 @@
           },
           "replacementPath": {
             "type": "string",
-            "description": "⭐ NEW v1.1.0: Canonical parameter path that replaces this deprecated field. Shown in UI tooltip as migration guidance.",
+            "description": "Canonical parameter path that replaces this deprecated field. Shown in UI tooltip as migration guidance.",
             "examples": [
               "platform.vsphere.failureDomains[].topology.datacenter",
               "imageDigestSources"
@@ -171,9 +176,97 @@
           },
           "removalVersion": {
             "type": "string",
-            "description": "⭐ NEW v1.1.0: OpenShift major version when this field will be removed (e.g., '5.0'). Helps users plan migration timeline.",
+            "description": "OpenShift major version when this field will be removed (e.g., '5.0'). Helps users plan migration timeline.",
             "pattern": "^\\d+\\.\\d+$",
             "examples": ["5.0", "6.0"]
+          },
+          "supportStatus": {
+            "type": "string",
+            "description": "⭐ NEW v2.0.0 REQUIRED: Support status taxonomy for version-awareness. MUST be present. CI fails on 'unknown-needs-review'.",
+            "enum": [
+              "supported-ui",
+              "supported-backend-only",
+              "supported-derived",
+              "docs-only-not-supported",
+              "hidden-not-applicable",
+              "deprecated-supported",
+              "removed"
+            ],
+            "examples": ["supported-ui", "supported-backend-only", "deprecated-supported"]
+          },
+          "minVersion": {
+            "type": "string",
+            "description": "⭐ NEW v2.0.0: Minimum OpenShift minor version supporting this parameter (inclusive). Defaults to '4.20' if omitted. Minor-version gate (includes all patches: 4.20.0, 4.20.15, etc.)",
+            "pattern": "^4\\.\\d+$",
+            "examples": ["4.20", "4.21", "4.22"],
+            "default": "4.20"
+          },
+          "maxVersion": {
+            "type": "string",
+            "description": "⭐ NEW v2.0.0: Maximum OpenShift minor version supporting this parameter (inclusive of all patches). Null means no maximum. Minor-version gate: maxVersion '4.21' includes 4.21.0 through 4.21.99 but EXCLUDES 4.22.0.",
+            "oneOf": [
+              { "type": "string", "pattern": "^4\\.\\d+$" },
+              { "type": "null" }
+            ],
+            "examples": ["4.21", "4.22", null],
+            "default": null
+          },
+          "versionNotes": {
+            "type": "string",
+            "description": "⭐ NEW v2.0.0: Version-specific notes for this parameter. Documents behavior changes, new defaults, or deprecation timeline across OpenShift versions.",
+            "examples": [
+              "Default changed from 100 to 120 in 4.21",
+              "Required in 4.20, optional in 4.21+",
+              "Deprecated in 4.20, removed in 4.22"
+            ]
+          },
+          "validationRules": {
+            "type": "object",
+            "description": "⭐ NEW v2.0.0: Sparse version-specific validation rules. Keys are minor versions ('4.20', '4.21'). Rules inherit from previous versions unless overridden. Used for metadata-driven validation (90%) alongside function-based validators (10%).",
+            "patternProperties": {
+              "^4\\.\\d+$": {
+                "type": "object",
+                "description": "Validation rules for specific OpenShift minor version",
+                "properties": {
+                  "required": {
+                    "type": "boolean",
+                    "description": "Override global required field for this version"
+                  },
+                  "allowed": {
+                    "oneOf": [
+                      {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Allowed enum values for this version"
+                      },
+                      {
+                        "type": "string",
+                        "description": "Free-form allowed description"
+                      }
+                    ]
+                  },
+                  "default": {
+                    "description": "Version-specific default value",
+                    "oneOf": [
+                      { "type": "string" },
+                      { "type": "number" },
+                      { "type": "boolean" },
+                      { "type": "null" }
+                    ]
+                  }
+                }
+              }
+            },
+            "examples": [
+              {
+                "4.20": { "allowed": ["OVNKubernetes", "OpenShiftSDN"] },
+                "4.21": { "allowed": ["OVNKubernetes"] }
+              },
+              {
+                "4.20": { "default": 100 },
+                "4.21": { "default": 120 }
+              }
+            ]
           }
         },
         "if": {
@@ -181,7 +274,18 @@
         },
         "then": {
           "required": ["deprecatedReason", "replacementPath"]
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "supportStatus": { "const": "unknown-needs-review" } }
+            },
+            "then": {
+              "not": {}
+            },
+            "else": {}
+          }
+        ]
       }
     }
   },
@@ -198,6 +302,9 @@
           "default": null,
           "required": true,
           "description": "Base DNS domain for the cluster.",
+          "supportStatus": "supported-ui",
+          "minVersion": "4.20",
+          "maxVersion": null,
           "citations": [
             {
               "docId": "installation-config-parameters",
@@ -206,6 +313,24 @@
               "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installation-configuration#installation-configuration-parameters"
             }
           ]
+        },
+        {
+          "path": "networking.networkType",
+          "outputFile": "install-config.yaml",
+          "type": "string",
+          "allowed": ["OVNKubernetes", "OpenShiftSDN"],
+          "default": "OVNKubernetes",
+          "required": false,
+          "description": "Network plugin for the cluster network.",
+          "supportStatus": "supported-ui",
+          "minVersion": "4.20",
+          "maxVersion": null,
+          "versionNotes": "OpenShiftSDN deprecated in 4.20, removed in 4.21",
+          "validationRules": {
+            "4.20": { "allowed": ["OVNKubernetes", "OpenShiftSDN"] },
+            "4.21": { "allowed": ["OVNKubernetes"] }
+          },
+          "citations": []
         },
         {
           "path": "platform.vsphere.datacenter",
@@ -219,6 +344,10 @@
           "deprecatedReason": "Legacy single-zone field. Use failureDomains for multi-zone support.",
           "replacementPath": "platform.vsphere.failureDomains[].topology.datacenter",
           "removalVersion": "5.0",
+          "supportStatus": "deprecated-supported",
+          "minVersion": "4.18",
+          "maxVersion": "4.21",
+          "versionNotes": "Deprecated in 4.20, will be removed in 5.0",
           "citations": [
             {
               "docId": "vsphere-installation-config",
@@ -235,6 +364,9 @@
     "This schema documents the structure of parameter catalog files used by the OpenShift Airgap Architect application.",
     "Catalog files are located in data/params/4.20/ (backend) and synchronized to frontend/src/data/catalogs/.",
     "The 'deprecated' family of fields (v1.1.0) enables gradual migration from legacy fields to canonical replacements.",
+    "⭐ v2.0.0 BREAKING CHANGE: All parameters MUST have 'supportStatus' field. CI validation FAILS on 'unknown-needs-review' status.",
+    "⭐ v2.0.0: minVersion/maxVersion are MINOR-VERSION gates (e.g., maxVersion '4.21' includes 4.21.0, 4.21.15 but excludes 4.22.0).",
+    "⭐ v2.0.0: validationRules enables sparse version-specific validation with inheritance from prior versions.",
     "UI components (FieldLabelWithInfo) render deprecated parameters with orange badges and warning tooltips.",
     "Backend validation (yamlValidator.js) logs warnings when deprecated fields are used in generated YAML.",
     "Deprecation follows OpenShift semantic versioning: deprecate in minor version (4.20), remove in major version (5.0+)."

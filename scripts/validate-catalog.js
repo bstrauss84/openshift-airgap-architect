@@ -2,10 +2,20 @@
 "use strict";
 
 /**
- * Validate params catalog: single file or directory of *.json, or default data/params/4.20.
- * Required: path, outputFile, description, applies_to, citations (non-empty).
- * Citation: docId, docTitle, sectionHeading, url required (Phase 3).
- * No duplicate path+outputFile. allowed/type/required/default must be concrete or "not specified in docs".
+ * Validate params catalog against schema v2.0.0 (DOC-101 Phase 1 Slice 2).
+ *
+ * Schema v1.x requirements:
+ * - Required: path, outputFile, description, applies_to, citations (non-empty)
+ * - Citation: docId, docTitle, sectionHeading, url required
+ * - No duplicate path+outputFile
+ * - allowed/type/required/default must be concrete or "not specified in docs"
+ *
+ * Schema v2.0.0 NEW requirements (BREAKING):
+ * - supportStatus REQUIRED (MUST be present, MUST NOT be "unknown-needs-review")
+ * - minVersion: Minor version format "4.20" (defaults to "4.20" if omitted)
+ * - maxVersion: Minor version format "4.21" or null (defaults to null)
+ * - versionNotes: Optional version-specific notes
+ * - validationRules: Optional sparse version-specific validation rules
  */
 
 const fs = require("fs");
@@ -33,9 +43,58 @@ function getFilesToValidate(targetPath) {
 
 function validateParam(p, i, scenarioId) {
   const errs = [];
-  const need = ["path", "outputFile", "description", "applies_to", "citations"];
+  const need = ["path", "outputFile", "description", "applies_to", "citations", "supportStatus"];
   for (const k of need) {
     if (p[k] === undefined || p[k] === null) errs.push(`param[${i}].${k} required`);
+  }
+
+  // Schema v2.0.0: supportStatus validation
+  if (p.supportStatus !== undefined) {
+    const validStatuses = [
+      "supported-ui",
+      "supported-backend-only",
+      "supported-derived",
+      "docs-only-not-supported",
+      "hidden-not-applicable",
+      "deprecated-supported",
+      "removed"
+    ];
+    if (!validStatuses.includes(p.supportStatus)) {
+      errs.push(`param[${i}].supportStatus must be one of: ${validStatuses.join(", ")}`);
+    }
+    if (p.supportStatus === "unknown-needs-review") {
+      errs.push(`param[${i}].supportStatus CANNOT be "unknown-needs-review" in committed catalogs (CI FAIL)`);
+    }
+  }
+
+  // Schema v2.0.0: minVersion/maxVersion format validation
+  const versionPattern = /^4\.\d+$/;
+  if (p.minVersion !== undefined && p.minVersion !== null) {
+    if (!versionPattern.test(p.minVersion)) {
+      errs.push(`param[${i}].minVersion must be minor version format "4.20" (got: ${p.minVersion})`);
+    }
+  }
+  if (p.maxVersion !== undefined && p.maxVersion !== null) {
+    if (!versionPattern.test(p.maxVersion)) {
+      errs.push(`param[${i}].maxVersion must be minor version format "4.21" or null (got: ${p.maxVersion})`);
+    }
+  }
+
+  // Schema v2.0.0: validationRules structure validation
+  if (p.validationRules !== undefined && p.validationRules !== null) {
+    if (typeof p.validationRules !== "object" || Array.isArray(p.validationRules)) {
+      errs.push(`param[${i}].validationRules must be object with version keys ("4.20", "4.21", etc.)`);
+    } else {
+      for (const versionKey of Object.keys(p.validationRules)) {
+        if (!versionPattern.test(versionKey)) {
+          errs.push(`param[${i}].validationRules key "${versionKey}" must be minor version format "4.20"`);
+        }
+        const rules = p.validationRules[versionKey];
+        if (typeof rules !== "object" || Array.isArray(rules)) {
+          errs.push(`param[${i}].validationRules["${versionKey}"] must be object with required/allowed/default fields`);
+        }
+      }
+    }
   }
   if (!Array.isArray(p.citations)) {
     if (p.citations !== undefined) errs.push(`param[${i}].citations must be array`);
