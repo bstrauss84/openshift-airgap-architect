@@ -470,39 +470,8 @@ const defaultState = () => ({
 const ensureState = () => {
   const existing = getState();
   if (existing) {
-    // DOC-101 Phase 1 Slice 4 Boundary 1: Migrate state on read (defensive)
-    const migrationResult = migrateStateToV3(existing);
-
-    if (migrationResult.error) {
-      // Critical: Unknown schema - cannot proceed, must reset
-      logger.error(
-        { error: migrationResult.error, existingState: existing },
-        "CRITICAL: Unknown state schema detected in ensureState, resetting to default"
-      );
-      const initial = defaultState();
-      setState(initial);
-      return initial;
-    }
-
-    // If migration occurred, persist and apply trust defaults
-    if (migrationResult.wasV1 || migrationResult.wasV2) {
-      logger.info(
-        { wasV1: migrationResult.wasV1, wasV2: migrationResult.wasV2 },
-        "State migrated to v3 in ensureState"
-      );
-      const next = { ...migrationResult.migrated };
-      next.trust = { ...(migrationResult.migrated.trust || {}) };
-      if (!Object.prototype.hasOwnProperty.call(next.trust, "bundleSelectionMode")) {
-        next.trust.bundleSelectionMode = "original";
-      }
-      if (!Object.prototype.hasOwnProperty.call(next.trust, "reducedSelection")) {
-        next.trust.reducedSelection = null;
-      }
-      setState(next);
-      return next;
-    }
-
-    // Already v3, apply trust defaults if needed
+    // DOC-101 Phase 1 Slice 4: Trust defaults only - NO migration here
+    // Migration happens at explicit boundaries: POST /api/state, import, export, generate
     let changed = false;
     const next = { ...existing };
     next.trust = { ...(existing.trust || {}) };
@@ -1164,7 +1133,17 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
   const migrationResult = migrateStateToV3(merged);
 
   if (migrationResult.error) {
-    logger.warn({ error: migrationResult.error, merged }, "State migration failed at /api/state boundary");
+    // SECURITY: Log only safe metadata, never full state (credentials risk)
+    logger.warn(
+      {
+        error: migrationResult.error,
+        hasRelease: !!merged.release,
+        hasVersion: !!merged.version,
+        versionSchemaVersion: merged.version?._schemaVersion || 'none',
+        scenarioId: merged.scenarioId || 'none'
+      },
+      "State migration failed at /api/state boundary"
+    );
     return res.status(400).json({
       error: "State migration failed",
       details: [{
