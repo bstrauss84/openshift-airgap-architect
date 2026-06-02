@@ -1293,9 +1293,51 @@ app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
       migrated.operators.stale = true;
     }
   }
-  const sanitized = sanitizeStateForExport(migrated, { ...(migrated.exportOptions || {}), includeCredentials: false });
+
+  // DOC-101 Phase 1 Slice 4 Boundary 2: State schema migration at import boundary
+  // Migrate v1/v2 state to v3 before persisting
+  const stateMigrationResult = migrateStateToV3(migrated);
+
+  if (stateMigrationResult.error) {
+    // SECURITY: Log only safe metadata, never full imported state (credentials risk)
+    logger.warn(
+      {
+        error: stateMigrationResult.error,
+        bundleSchemaVersion: schemaVersion,
+        hasRelease: !!migrated.release,
+        hasVersion: !!migrated.version,
+        versionSchemaVersion: migrated.version?._schemaVersion || 'none',
+        runId: migrated.runId || 'none'
+      },
+      "State migration failed at /api/run/import boundary"
+    );
+    return res.status(400).json({
+      error: "Import failed: unknown or invalid state schema",
+      details: [{
+        path: "state._schemaVersion",
+        message: `Cannot import state with unknown schema. ${stateMigrationResult.error}`
+      }]
+    });
+  }
+
+  // Use migrated v3 state (or original if already v3)
+  const v3State = stateMigrationResult.migrated;
+
+  // Log migration result if v1/v2 was migrated
+  if (stateMigrationResult.wasV1 || stateMigrationResult.wasV2) {
+    logger.info(
+      {
+        wasV1: stateMigrationResult.wasV1,
+        wasV2: stateMigrationResult.wasV2,
+        bundleSchemaVersion: schemaVersion
+      },
+      "Imported state migrated to v3 at /api/run/import boundary"
+    );
+  }
+
+  const sanitized = sanitizeStateForExport(v3State, { ...(v3State.exportOptions || {}), includeCredentials: false });
   setState(sanitized);
-  res.json({ ok: true, state: sanitized });
+  res.json({ ok: true, state: sanitized, migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2 });
 });
 
 app.post("/api/run/duplicate", validateBody(runDuplicateSchema), (req, res) => {
