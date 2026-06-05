@@ -2518,17 +2518,44 @@ function resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath) {
 
 app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) => {
   const state = ensureState();
-  const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+
+  // DOC-101 Phase 1 Slice 5: State schema migration at generation boundary
+  // Migrate v1/v2 state to v3 before generating imageset-config.yaml
+  const stateMigrationResult = migrateStateToV3(state);
+
+  if (stateMigrationResult.error) {
+    // SECURITY: Log only safe metadata, never full state (credentials risk)
+    logger.warn(
+      {
+        error: stateMigrationResult.error,
+        hasRelease: !!state.release,
+        hasVersion: !!state.version,
+        versionSchemaVersion: state.version?._schemaVersion || 'none'
+      },
+      "State migration failed at oc-mirror generation boundary"
+    );
+    return res.status(400).json({
+      error: "oc-mirror failed: unknown or invalid state schema",
+      details: [{
+        path: "state._schemaVersion",
+        message: stateMigrationResult.error
+      }]
+    });
+  }
+
+  const v3State = stateMigrationResult.migrated;
+
+  const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
   const body = req.body || {};
   const mode = body.mode || "mirrorToDisk";
   const dryRun = Boolean(body.dryRun);
-  const archivePath = body.archivePath?.trim() || state.mirrorWorkflow?.archivePath?.trim() || state.mirrorWorkflow?.outputPath?.trim();
-  const workspacePath = body.workspacePath?.trim() || state.mirrorWorkflow?.workspacePath?.trim();
-  const cachePath = body.cachePath?.trim() || state.mirrorWorkflow?.cachePath?.trim();
-  const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn?.trim();
+  const archivePath = body.archivePath?.trim() || v3State.mirrorWorkflow?.archivePath?.trim() || v3State.mirrorWorkflow?.outputPath?.trim();
+  const workspacePath = body.workspacePath?.trim() || v3State.mirrorWorkflow?.workspacePath?.trim();
+  const cachePath = body.cachePath?.trim() || v3State.mirrorWorkflow?.cachePath?.trim();
+  const registryFqdn = v3State.globalStrategy?.mirroring?.registryFqdn?.trim();
   const registryUrl = body.registryUrl?.trim() || (registryFqdn ? `docker://${registryFqdn}` : "");
   const configSourceType = body.configSourceType || "generated";
   const configPathExternal = body.configPath?.trim();
@@ -2564,7 +2591,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
 
   if (configSourceType === "generated") {
-    const configContents = buildImageSetConfig(state);
+    const configContents = buildImageSetConfig(v3State);
     configPathToUse = path.join(tmpDir, `imageset-${jobId}.yaml`);
     fs.writeFileSync(configPathToUse, configContents, "utf8");
   } else {
@@ -2902,10 +2929,20 @@ app.get("/api/aws/ami", async (req, res) => {
 });
 
 const buildPreviewFiles = (state) => {
-  const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  // DOC-101 Phase 1 Slice 5: State schema migration at generation boundary
+  // Migrate v1/v2 state to v3 before generation
+  const stateMigrationResult = migrateStateToV3(state);
+
+  if (stateMigrationResult.error) {
+    throw new Error(`Generation failed: ${stateMigrationResult.error}`);
+  }
+
+  const v3State = stateMigrationResult.migrated;
+
+  const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) return null;
-  const version = getOpenShiftMinorFromState(state) || "4.0";
-  const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
+  const version = getOpenShiftMinorFromState(v3State) || "4.0";
+  const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
 
@@ -2913,9 +2950,9 @@ const buildPreviewFiles = (state) => {
   // Without this, pullSecret and other credentials are replaced with "{\"auths\":{}}" placeholders
   // even before reaching the YamlDrawer obfuscation layer
   const previewState = {
-    ...state,
+    ...v3State,
     exportOptions: {
-      ...(state.exportOptions || {}),
+      ...(v3State.exportOptions || {}),
       includeCredentials: true
     }
   };
@@ -3034,31 +3071,58 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
 });
 
 const buildBundleZip = async (state, res) => {
-  const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  // DOC-101 Phase 1 Slice 5: State schema migration at generation boundary
+  // Migrate v1/v2 state to v3 before bundle generation
+  const stateMigrationResult = migrateStateToV3(state);
+
+  if (stateMigrationResult.error) {
+    // SECURITY: Log only safe metadata, never full state (credentials risk)
+    logger.warn(
+      {
+        error: stateMigrationResult.error,
+        hasRelease: !!state.release,
+        hasVersion: !!state.version,
+        versionSchemaVersion: state.version?._schemaVersion || 'none'
+      },
+      "State migration failed at bundle generation boundary"
+    );
+    res.status(400).json({
+      error: "Bundle generation failed: unknown or invalid state schema",
+      details: [{
+        path: "state._schemaVersion",
+        message: stateMigrationResult.error
+      }]
+    });
+    return;
+  }
+
+  const v3State = stateMigrationResult.migrated;
+
+  const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) {
     res.status(400).json({ error: "Version not confirmed." });
     return;
   }
 
-  const version = getOpenShiftMinorFromState(state) || "4.0";
+  const version = getOpenShiftMinorFromState(v3State) || "4.0";
 
   if (process.env.NODE_ENV !== "test") {
-    logger.info({ tag: "bundle:start", version, platform: state.blueprint?.platform, method: state.methodology?.method, includeClientTools: Boolean(state.exportOptions?.includeClientTools), draftMode: Boolean(state.exportOptions?.draftMode) }, "Bundle build started");
+    logger.info({ tag: "bundle:start", version, platform: v3State.blueprint?.platform, method: v3State.methodology?.method, includeClientTools: Boolean(v3State.exportOptions?.includeClientTools), draftMode: Boolean(v3State.exportOptions?.draftMode) }, "Bundle build started");
   }
 
-  const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
+  const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
-  const installConfig = buildInstallConfig(state);
+  const installConfig = buildInstallConfig(v3State);
   const wantsAgentConfig =
-    state.methodology?.method === "Agent-Based Installer" &&
-    (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere");
-  const agentConfig = wantsAgentConfig ? buildAgentConfig(state) : null;
-  const imageSetConfig = buildImageSetConfig(state);
-  const ntpMachineConfigs = buildNtpMachineConfigs(state);
-  const fieldManual = buildFieldManual(state, links);
+    v3State.methodology?.method === "Agent-Based Installer" &&
+    (v3State.blueprint?.platform === "Bare Metal" || v3State.blueprint?.platform === "VMware vSphere");
+  const agentConfig = wantsAgentConfig ? buildAgentConfig(v3State) : null;
+  const imageSetConfig = buildImageSetConfig(v3State);
+  const ntpMachineConfigs = buildNtpMachineConfigs(v3State);
+  const fieldManual = buildFieldManual(v3State, links);
 
-  const bundleName = `airgap-${state.release?.patchVersion || "unknown"}-install-configs-bundle.zip`;
+  const bundleName = `airgap-${v3State.release?.patchVersion || "unknown"}-install-configs-bundle.zip`;
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename=${bundleName}`);
 
@@ -3076,15 +3140,15 @@ const buildBundleZip = async (state, res) => {
   Object.entries(ntpMachineConfigs).forEach(([name, content]) => {
     archive.append(content, { name });
   });
-  if (state.exportOptions?.draftMode) {
+  if (v3State.exportOptions?.draftMode) {
     archive.append(
       "DRAFT/NOT VALIDATED: Warnings were present at export time. Review before use.\n",
       { name: "DRAFT_NOT_VALIDATED.txt" }
     );
   }
-  if (state.exportOptions?.includeClientTools) {
+  if (v3State.exportOptions?.includeClientTools) {
     try {
-      const exportArch = state.exportOptions?.exportBinaryArch || getLocalBinaryArch();
+      const exportArch = v3State.exportOptions?.exportBinaryArch || getLocalBinaryArch();
       const { ocPath, ocMirrorPath } = await getBinariesForExportArch(exportArch, dataDir);
       const assertReadableFile = (filePath, label) => {
         if (!filePath || !fs.existsSync(filePath)) return false;
@@ -3110,15 +3174,15 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
-  if (state.exportOptions?.includeInstaller) {
+  if (v3State.exportOptions?.includeInstaller) {
     try {
-      const version = state.release?.patchVersion;
+      const version = v3State.release?.patchVersion;
       if (!version) {
         throw new Error("Version not selected.");
       }
 
-      const useFips = state.exportOptions?.installerUseFips || false;
-      const platformArch = state.exportOptions?.installerPlatformArch || ""; // "" means default
+      const useFips = v3State.exportOptions?.installerUseFips || false;
+      const platformArch = v3State.exportOptions?.installerPlatformArch || ""; // "" means default
 
       // Download (or retrieve from cache) the requested binary variant
       const installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
@@ -3137,9 +3201,9 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
-  if (state.exportOptions?.includeMirrorRegistry) {
+  if (v3State.exportOptions?.includeMirrorRegistry) {
     try {
-      const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
+      const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
       const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
       const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
       const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
@@ -3180,7 +3244,7 @@ const buildBundleZip = async (state, res) => {
         }
       }
     } catch (error) {
-      const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
+      const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
       const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
       const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
       archive.append(
@@ -3189,8 +3253,8 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
-  const mirrorOutputPath = state.mirrorWorkflow?.archivePath || state.mirrorWorkflow?.outputPath;
-  if (state.mirrorWorkflow?.includeInExport && mirrorOutputPath) {
+  const mirrorOutputPath = v3State.mirrorWorkflow?.archivePath || v3State.mirrorWorkflow?.outputPath;
+  if (v3State.mirrorWorkflow?.includeInExport && mirrorOutputPath) {
     const rawPath = mirrorOutputPath;
     try {
       const resolved = path.resolve(rawPath);
@@ -3212,22 +3276,22 @@ const buildBundleZip = async (state, res) => {
   }
 
   // High-side runtime package export (DOC-083)
-  if (state.exportOptions?.includeHighSideRuntimePackage) {
+  if (v3State.exportOptions?.includeHighSideRuntimePackage) {
     try {
       // Create runPayload for high-side deployment
       const runPayload = {
         schemaVersion: 1,
         exportedAt: new Date().toISOString(),
         sourceProfile: "connected-authoring",
-        state,
+        state: v3State,
         version,
-        platform: state.blueprint?.platform,
-        method: state.methodology?.method
+        platform: v3State.blueprint?.platform,
+        method: v3State.methodology?.method
       };
 
       const runtimePackage = createRuntimePackageArtifacts({
-        state,
-        exportOptions: state.exportOptions,
+        state: v3State,
+        exportOptions: v3State.exportOptions,
         runPayload,
         dataDir
       });

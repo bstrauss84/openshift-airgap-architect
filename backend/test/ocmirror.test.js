@@ -111,8 +111,8 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        version: { versionConfirmed: true },
-        release: { channel: "stable-4.20", patchVersion: "4.20.0" }
+        version: { _schemaVersion: 3, selectedMinor: "4.20", selectedPatch: "4.20.0", locked: true },
+        release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
       })
     });
     const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
