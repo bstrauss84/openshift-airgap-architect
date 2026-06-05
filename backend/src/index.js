@@ -3278,21 +3278,28 @@ const buildBundleZip = async (state, res) => {
   // High-side runtime package export (DOC-083)
   if (v3State.exportOptions?.includeHighSideRuntimePackage) {
     try {
+      // SECURITY: Sanitize state in runPayload to prevent credential leakage
+      // High-side runtime package is written to bundle.zip which may be transferred/stored
+      const sanitizedState = sanitizeStateForExport(v3State, {
+        ...(v3State.exportOptions || {}),
+        includeCredentials: false // Never include credentials in runtime package
+      });
+
       // Create runPayload for high-side deployment
       const runPayload = {
         schemaVersion: 1,
         exportedAt: new Date().toISOString(),
         sourceProfile: "connected-authoring",
-        state: v3State,
+        state: sanitizedState, // Use sanitized state (no credentials)
         version,
         platform: v3State.blueprint?.platform,
         method: v3State.methodology?.method
       };
 
       const runtimePackage = createRuntimePackageArtifacts({
-        state: v3State,
+        state: v3State, // createRuntimePackageArtifacts needs full state for other purposes
         exportOptions: v3State.exportOptions,
-        runPayload,
+        runPayload, // But runPayload uses sanitized state
         dataDir
       });
 

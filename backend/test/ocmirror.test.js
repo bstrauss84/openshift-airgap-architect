@@ -107,11 +107,12 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocmirror-test-"));
   const { server, baseUrl } = await createTestServer();
   try {
+    // Use legacy v2-ish state to prove migration works
     await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        version: { _schemaVersion: 3, selectedMinor: "4.20", selectedPatch: "4.20.0", locked: true },
+        version: { versionConfirmed: true }, // Legacy v2 field
         release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
       })
     });

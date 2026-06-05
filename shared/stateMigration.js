@@ -23,6 +23,24 @@
  */
 
 /**
+ * Normalize channel name to minor version.
+ * Handles both "4.20" and "stable-4.20" formats.
+ *
+ * @private
+ * @param {string} channel - Channel name (e.g., "4.20", "stable-4.20")
+ * @returns {string} Minor version (e.g., "4.20")
+ */
+function normalizeChannelToMinor(channel) {
+  if (!channel || typeof channel !== 'string') return '4.20';
+
+  // Strip "stable-", "fast-", "candidate-", "eus-" prefixes
+  const stripped = channel.replace(/^(stable-|fast-|candidate-|eus-)/, '');
+
+  // Return stripped version (e.g., "stable-4.20" → "4.20")
+  return stripped || '4.20';
+}
+
+/**
  * Migrates state from v1/v2 to v3 schema.
  *
  * **CRITICAL**: This function is PURE and IDEMPOTENT.
@@ -113,7 +131,7 @@ export function migrateStateToV3(state) {
  * @private
  */
 function migrateV1ToV3(state) {
-  const selectedMinor = state.release?.channel || '4.20';
+  const selectedMinor = normalizeChannelToMinor(state.release?.channel);
 
   const migratedState = {
     ...state,
@@ -173,9 +191,12 @@ function migrateV1ToV3(state) {
  */
 function migrateV2ToV3(state) {
   // Prefer version object values over release object (version is newer)
-  const selectedMinor = state.version?.selectedMinor || state.release?.channel || '4.20';
+  const selectedMinor = state.version?.selectedMinor || normalizeChannelToMinor(state.release?.channel);
   const selectedPatch = state.version?.selectedPatch || state.release?.patchVersion || null;
-  const locked = state.version?.locked ?? state.release?.confirmed ?? false;
+
+  // Handle multiple legacy confirmation field names
+  // Priority: version.locked (v3) > version.versionConfirmed (legacy) > release.confirmed (v1/v2)
+  const locked = state.version?.locked ?? state.version?.versionConfirmed ?? state.release?.confirmed ?? false;
 
   const migratedState = {
     ...state,
