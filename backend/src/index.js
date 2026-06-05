@@ -1234,16 +1234,58 @@ app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
 
 app.get("/api/run/export", (req, res) => {
   const state = ensureState();
-  const options = state.exportOptions || {};
-  const sanitized = sanitizeStateForExport(state, { ...options, includeCredentials: false });
+
+  // DOC-101 Phase 1 Slice 4 Boundary 3: State schema migration at export boundary
+  // Migrate v1/v2 state to v3 before exporting
+  const stateMigrationResult = migrateStateToV3(state);
+
+  if (stateMigrationResult.error) {
+    // SECURITY: Log only safe metadata, never full exported state (credentials risk)
+    logger.warn(
+      {
+        error: stateMigrationResult.error,
+        hasRelease: !!state.release,
+        hasVersion: !!state.version,
+        versionSchemaVersion: state.version?._schemaVersion || 'none',
+        runId: state.runId || 'none'
+      },
+      "State migration failed at /api/run/export boundary"
+    );
+    return res.status(400).json({
+      error: "Export failed: unknown or invalid state schema",
+      details: [{
+        path: "state._schemaVersion",
+        message: stateMigrationResult.error
+      }]
+    });
+  }
+
+  // Use migrated v3 state (or original if already v3)
+  const v3State = stateMigrationResult.migrated;
+
+  // Log migration result if v1/v2 was migrated
+  if (stateMigrationResult.wasV1 || stateMigrationResult.wasV2) {
+    logger.info(
+      {
+        wasV1: stateMigrationResult.wasV1,
+        wasV2: stateMigrationResult.wasV2,
+        runId: v3State.runId || 'none'
+      },
+      "Exported state migrated to v3 at /api/run/export boundary"
+    );
+  }
+
+  const options = v3State.exportOptions || {};
+  const sanitized = sanitizeStateForExport(v3State, { ...options, includeCredentials: false });
   if (process.env.NODE_ENV !== "test") {
-    logger.info({ tag: "run:export", runId: state.runId }, "Run exported");
+    logger.info({ tag: "run:export", runId: v3State.runId }, "Run exported");
   }
   res.json({
     schemaVersion: 2,
     exportedAt: new Date().toISOString(),
-    runId: state.runId,
-    state: sanitized
+    runId: v3State.runId,
+    state: sanitized,
+    migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2
   });
 });
 
