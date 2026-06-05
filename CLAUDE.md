@@ -233,6 +233,92 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
+## NPM Supply Chain Security Guardrails
+
+**Last Updated:** 2026-06-05 (June 1, 2026 `@redhat-cloud-services` npm compromise audit)
+
+### Critical Rules
+
+1. **DO NOT** add `@redhat-cloud-services/*` packages without explicit human approval and current security review
+   - These packages were compromised in June 2026
+   - Malware targeted CI secrets, npm tokens, GitHub tokens, cloud credentials, kubeconfigs, Vault tokens, SSH keys, Docker credentials, `.env` files
+   - Permanent ban unless security team explicitly approves
+
+2. **Before adding or updating ANY npm dependency:**
+   - Check `npm audit` and current advisories
+   - Review lockfile diff for unexpected transitive dependencies
+   - Search for recent security incidents involving the package
+   - Verify package ownership and maintainer history
+
+3. **Prefer `npm ci` over `npm install`:**
+   - CI/CD: Always use `npm ci` (already enforced in `.github/workflows/ci.yml`)
+   - Docker builds: Use `npm ci` for reproducible builds
+   - Local development: `npm install` is acceptable but validate lockfile changes
+
+4. **Use `--ignore-scripts` where feasible:**
+   - Audit workflows: `npm audit --ignore-scripts`
+   - Security scans: Skip install scripts when not needed
+   - **Exception:** Packages with native builds (better-sqlite3, esbuild, @swc, sharp) require install scripts
+   - Document why scripts are needed if adding new native dependencies
+
+5. **Treat lifecycle scripts as HIGH RISK:**
+   - Any package with `preinstall`, `install`, or `postinstall` must be explicitly reviewed
+   - Check what the script does before first install
+   - Prefer packages without install-time code execution
+
+6. **DO NOT run arbitrary `npx` commands:**
+   - Only run `npx` for known, vetted tools
+   - Never `npx <random-package>` without security review
+   - Prefer global installs or package.json scripts for common tools
+
+7. **Credential and secret access:**
+   - DO NOT introduce dependencies that access:
+     - Environment variables without clear justification
+     - Filesystem secrets (.env, .ssh, .aws, .kube, etc.)
+     - Network exfiltration paths (unexplained HTTP requests)
+   - Audit new dependencies for credential access before approval
+
+8. **Compromise response:**
+   - If a compromised package may have been installed:
+     - **STOP ALL WORK IMMEDIATELY**
+     - Document when/where the package was installed
+     - Recommend credential rotation for:
+       - npm tokens
+       - GitHub tokens (GITHUB_TOKEN, personal access tokens)
+       - Cloud credentials (AWS, Azure, GCP, RHCS)
+       - SSH keys
+       - Any secrets in `.env` files or environment variables
+     - Report to security team before resuming work
+
+### Native Build Dependencies (Approved Exceptions)
+
+These packages require install scripts for native compilation:
+
+- **better-sqlite3** - SQLite native bindings (backend)
+  - Audited: 2026-06-05
+  - Install script: node-gyp rebuild
+  - Risk: LOW (native build only, no credential access)
+
+Add new native dependencies to this list with audit date and justification.
+
+### Current Status
+
+**Last Audit:** 2026-06-05  
+**Auditor:** Claude Sonnet 4.5  
+**Result:** ✅ NO COMPROMISED PACKAGES FOUND
+
+**Findings:**
+- Zero `@redhat-cloud-services/*` dependencies (direct or transitive)
+- Zero matches in package.json, package-lock.json (backend + frontend)
+- CI uses `npm ci` correctly
+- Dockerfiles use `npm install` (should use `npm ci` - see improvement plan)
+
+**Recommended Improvements:**
+1. Change `backend/Dockerfile` line 39: `npm install --omit=dev` → `npm ci --omit=dev`
+2. Change `frontend/Dockerfile` line 10: `npm install` → `npm ci`
+
+---
+
 ## Testing Requirements
 
 ### Before Marking Work Complete
