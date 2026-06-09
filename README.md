@@ -220,6 +220,10 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 - **`CHECK_UPDATES=false`** — Disables the optional GitHub “new version” check on About.
 - **`FEEDBACK_MODE=offline`** — Avoids GitHub-oriented feedback behavior where applicable (see env table under [Build info and update checks](#build-info-and-update-checks)).
 
+**GitHub API rate limits:**
+
+- **`GITHUB_TOKEN=ghp_xxx`** — Optional GitHub personal access token for Cincinnati data fetching. Without this, GitHub API requests are unauthenticated and limited to 60 requests/hour. With a token, the limit increases to 5000 requests/hour. This is particularly important in operator-managed mode where multiple users may be browsing OpenShift versions simultaneously. Create a token at https://github.com/settings/tokens (no scopes required, just public repository access).
+
 If **GitHub is blocked** and you cannot use **`MOCK_MODE`**, live Cincinnati channel/patch lists cannot be loaded in the app; that is a policy constraint, not a missing UI setting. If **all** Red Hat registries are blocked with no proxy path, connected operator scan and connected **Run oc-mirror** cannot succeed in that environment; use a connected jump host and transfer artifacts per [Run oc-mirror](#run-oc-mirror).
 
 **`AIRGAP_FETCH_USE_ENV_PROXY`:** The backend enables undici **`EnvHttpProxyAgent`** by default so Node **`fetch`** honors `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`. Set to **`false`** or **`0`** only if you must disable that behavior (see [Build info and update checks](#build-info-and-update-checks) env table).
