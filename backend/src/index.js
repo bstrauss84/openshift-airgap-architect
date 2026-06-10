@@ -12,6 +12,21 @@
 import "./configureFetchProxy.js";
 import express from "express";
 import cors from "cors";
+
+// Global error handlers to prevent crashes from unhandled rejections
+// (e.g., Cincinnati cache warming failures, background job errors)
+process.on("unhandledRejection", (reason, promise) => {
+  // Log but don't crash - many operations are non-critical background tasks
+  console.error("Unhandled Promise Rejection:", reason);
+  console.error("Promise:", promise);
+});
+
+process.on("uncaughtException", (error) => {
+  // Log critical errors but attempt graceful handling
+  console.error("Uncaught Exception:", error);
+  // Don't exit immediately - let the app try to continue
+  // Critical errors will be caught by liveness probes
+});
 import fs from "node:fs";
 import path from "node:path";
 import { ZipArchive } from "archiver";
@@ -174,7 +189,10 @@ const warmCincinnatiCache = async () => {
   }
 };
 
-warmCincinnatiCache();
+warmCincinnatiCache().catch((err) => {
+  // Extra safety: catch any unhandled rejections from warmCincinnatiCache
+  logger.debug({ err }, "Unhandled error in Cincinnati cache warming (non-fatal)");
+});
 
 const activeProcesses = new Map();
 const pendingBundleStates = new Map();
