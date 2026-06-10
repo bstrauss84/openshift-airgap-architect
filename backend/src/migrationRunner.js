@@ -128,10 +128,20 @@ export async function runMigrations(db) {
         recordMigration(db, migration.name);
       });
 
-      applyMigration();
-
-      logger.info({ tag: 'migrations', migration: migration.name }, 'Migration applied successfully');
-      appliedCount++;
+      try {
+        applyMigration();
+        logger.info({ tag: 'migrations', migration: migration.name }, 'Migration applied successfully');
+        appliedCount++;
+      } catch (transactionError) {
+        // Handle race condition: if another process already applied this migration,
+        // the UNIQUE constraint on migrations.name will fail. This is safe to ignore.
+        if (transactionError.code === 'SQLITE_CONSTRAINT' && transactionError.message.includes('migrations.name')) {
+          logger.info({ tag: 'migrations', migration: migration.name }, 'Migration already applied (race condition)');
+          // Don't increment appliedCount since we didn't apply it
+        } else {
+          throw transactionError;
+        }
+      }
     } catch (error) {
       logger.error(
         { tag: 'migrations', migration: migration.name, err: error },
