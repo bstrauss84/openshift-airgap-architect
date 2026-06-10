@@ -626,9 +626,14 @@ metadata:
     // 0ms delay for regular field edits (immediate feedback)
     const delay = (methodologyChanged || isImporting) ? 150 : 0;
 
-    const controller = new AbortController();
+    // Create controller ref so cleanup can abort it
+    let controller = null;
 
     const timer = setTimeout(() => {
+      // Create AbortController here, inside setTimeout, so it's only created
+      // when we're actually about to make the request
+      controller = new AbortController();
+
       setPreviewError("");
       setPreviewLoading(true);
 
@@ -676,7 +681,10 @@ metadata:
     // Cleanup: clear timer and abort request on dependency change
     return () => {
       clearTimeout(timer);
-      controller.abort();
+      // Only abort if controller was actually created (setTimeout fired)
+      if (controller) {
+        controller.abort();
+      }
     };
   }, [
     showPreview,
