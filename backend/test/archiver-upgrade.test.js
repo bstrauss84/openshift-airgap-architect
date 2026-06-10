@@ -10,7 +10,7 @@ import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { Readable } from "node:stream";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 describe("Archiver 8.0.0 Upgrade", () => {
   it("should create zip archive with append method", async () => {
     const chunks = [];
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
 
     // Collect chunks
     archive.on("data", (chunk) => chunks.push(chunk));
@@ -45,7 +45,7 @@ describe("Archiver 8.0.0 Upgrade", () => {
 
     try {
       const chunks = [];
-      const archive = archiver('zip', { zlib: { level: 9 } });
+      const archive = new ZipArchive({ zlib: { level: 9 } });
 
       archive.on("data", (chunk) => chunks.push(chunk));
 
@@ -74,7 +74,7 @@ describe("Archiver 8.0.0 Upgrade", () => {
 
     try {
       const chunks = [];
-      const archive = archiver('zip', { zlib: { level: 9 } });
+      const archive = new ZipArchive({ zlib: { level: 9 } });
 
       archive.on("data", (chunk) => chunks.push(chunk));
 
@@ -96,7 +96,7 @@ describe("Archiver 8.0.0 Upgrade", () => {
   });
 
   it("should handle pipe method (used for HTTP response streaming)", async () => {
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
 
     // Create a writable stream to pipe to
     const chunks = [];
@@ -121,7 +121,7 @@ describe("Archiver 8.0.0 Upgrade", () => {
   });
 
   it("should handle error events", async () => {
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
 
     let errorCaught = false;
     archive.on("error", (err) => {
