@@ -822,6 +822,10 @@ metadata:
   const back = () => {
     if (active === 0) {
       setShowLanding(true);
+      // Also update backend state so it stays in sync
+      updateState({
+        ui: { ...state.ui, showLanding: true }
+      });
     } else {
       setActiveStep(active - 1);
     }
