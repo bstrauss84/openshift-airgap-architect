@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airgap-architect-plugin
+  namespace: openshift-airgap-architect
+  labels:
+    app: airgap-architect-plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airgap-architect-plugin
+  template:
+    metadata:
+      labels:
+        app: airgap-architect-plugin
+    spec:
+      containers:
+      - name: plugin
+        image: quay.io/airgap-architect/console-plugin:latest
+        ports:
+        - containerPort: 9001
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /plugin-manifest.json
+            port: 9001
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /plugin-manifest.json
+            port: 9001
+          initialDelaySeconds: 5
+          periodSeconds: 10

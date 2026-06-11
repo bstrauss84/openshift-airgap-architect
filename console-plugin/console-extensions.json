@@ -1,0 +1,28 @@
+[
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "airgap-architect",
+      "name": "Airgap Architect",
+      "href": "/airgap-architect",
+      "section": "admin",
+      "insertAfter": "administration"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/airgap-architect",
+      "component": { "$codeRef": "pages.AirgapArchitectPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/airgap-architect/imagesets/create",
+      "component": { "$codeRef": "pages.CreateImageSetPage" }
+    }
+  }
+]

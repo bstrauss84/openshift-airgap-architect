@@ -1,0 +1,11 @@
+apiVersion: console.openshift.io/v1
+kind: ConsolePlugin
+metadata:
+  name: airgap-architect-plugin
+spec:
+  displayName: 'Airgap Architect'
+  service:
+    name: airgap-architect-plugin
+    namespace: openshift-airgap-architect
+    port: 9001
+    basePath: '/'
