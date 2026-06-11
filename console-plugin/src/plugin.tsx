@@ -1,6 +1,9 @@
 import * as React from 'react';
 import type { EncodedCodeRefs } from '@openshift-console/dynamic-plugin-sdk';
 
+// Import PatternFly CSS (must be bundled with plugin)
+import '@patternfly/react-core/dist/styles/base.css';
+
 // Import pages
 import AirgapArchitectPage from './pages/AirgapArchitectPage';
 import CreateImageSetPage from './pages/CreateImageSetPage';
