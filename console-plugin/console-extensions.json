@@ -5,8 +5,8 @@
       "id": "airgap-architect",
       "name": "Airgap Architect",
       "href": "/airgap-architect",
-      "section": "admin",
-      "insertAfter": "administration"
+      "perspective": "admin",
+      "section": "administration"
     }
   },
   {

@@ -26,7 +26,7 @@ USER root
 # Copy built plugin files
 COPY --from=builder --chown=1001:0 /app/dist /usr/share/nginx/html
 
-# Create complete nginx config
+# Create complete nginx config with HTTPS support
 RUN echo 'worker_processes auto; \
 error_log /dev/stderr info; \
 pid /tmp/nginx.pid; \
@@ -52,9 +52,18 @@ http { \
     keepalive_timeout 65; \
     \
     server { \
-        listen 9001; \
+        listen 9001 ssl; \
         server_name _; \
         root /usr/share/nginx/html; \
+        \
+        # Service-CA injected certificates \
+        ssl_certificate /var/serving-cert/tls.crt; \
+        ssl_certificate_key /var/serving-cert/tls.key; \
+        \
+        # Modern SSL configuration \
+        ssl_protocols TLSv1.2 TLSv1.3; \
+        ssl_ciphers HIGH:!aNULL:!MD5; \
+        ssl_prefer_server_ciphers on; \
         \
         location / { \
             try_files $uri $uri/ =404; \
@@ -68,6 +77,8 @@ http { \
         } \
     } \
 }' > /etc/nginx/nginx.conf && \
+    # Create directory for serving cert (will be mounted as volume) \
+    mkdir -p /var/serving-cert && \
     # Ensure permissions for nginx to run as non-root \
     chown -R 1001:0 /usr/share/nginx/html && \
     chmod -R g+rwX /usr/share/nginx/html && \
@@ -75,6 +86,8 @@ http { \
     chmod -R g+rwX /etc/nginx && \
     chown -R 1001:0 /var/log/nginx && \
     chmod -R g+rwX /var/log/nginx && \
+    chown -R 1001:0 /var/serving-cert && \
+    chmod -R g+rwX /var/serving-cert && \
     mkdir -p /tmp/client_body /tmp/proxy /tmp/fastcgi /tmp/uwsgi /tmp/scgi && \
     chown -R 1001:0 /tmp && \
     chmod -R g+rwX /tmp

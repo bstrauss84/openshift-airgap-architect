@@ -8,18 +8,18 @@ import {
   Breadcrumb,
   BreadcrumbItem
 } from '@patternfly/react-core';
-import { useNavigate } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { AppProvider } from '../AppProvider';
 import { ReleaseSelectionStep } from '../components/ReleaseSelectionStep';
 
 const CreateImageSetPage: React.FC = () => {
-  const navigate = useNavigate();
+  const history = useHistory();
 
   return (
     <AppProvider>
       <PageSection variant="light">
         <Breadcrumb>
-          <BreadcrumbItem to="#" onClick={() => navigate('/airgap-architect')}>
+          <BreadcrumbItem to="#" onClick={() => history.push('/airgap-architect')}>
             Airgap Architect
           </BreadcrumbItem>
           <BreadcrumbItem isActive>Create ImageSet Configuration</BreadcrumbItem>

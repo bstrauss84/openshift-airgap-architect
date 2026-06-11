@@ -12,14 +12,14 @@ import {
   TextContent,
   TextVariants
 } from '@patternfly/react-core';
-import { useNavigate } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { PlusCircleIcon } from '@patternfly/react-icons';
 
 const AirgapArchitectPage: React.FC = () => {
-  const navigate = useNavigate();
+  const history = useHistory();
 
   const handleCreateImageSet = () => {
-    navigate('/airgap-architect/imagesets/create');
+    history.push('/airgap-architect/imagesets/create');
   };
 
   return (
