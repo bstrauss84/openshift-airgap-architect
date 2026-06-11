@@ -9,6 +9,7 @@ env:
   QUAY_ORG: ${{ secrets.QUAY_ORG }}
   FRONTEND_IMAGE: quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-frontend
   BACKEND_IMAGE: quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-backend
+  CONSOLE_PLUGIN_IMAGE: quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin
 
 jobs:
   build-and-test:
@@ -54,6 +55,19 @@ jobs:
           npm test 2>&1 | tee test-output.log
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo "::error::Frontend tests failed. See test-output.log for details."
+            exit 1
+          fi
+
+      - name: Console Plugin install and build
+        run: |
+          cd console-plugin
+          echo "Installing console plugin dependencies..."
+          npm ci
+          echo "Building console plugin..."
+          npm run build
+          echo "Verifying plugin manifest exists..."
+          if [ ! -f dist/plugin-manifest.json ]; then
+            echo "::error::Plugin build failed - plugin-manifest.json not found"
             exit 1
           fi
 
@@ -105,6 +119,16 @@ jobs:
           tags: |
             quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-backend:latest
             quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-backend:${{ github.sha }}
+
+      - name: Build and push console plugin
+        uses: docker/build-push-action@v5
+        with:
+          context: ./console-plugin
+          file: console-plugin/Dockerfile
+          push: true
+          tags: |
+            quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin:latest
+            quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin:${{ github.sha }}
 
   secrets:
     runs-on: ubuntu-latest

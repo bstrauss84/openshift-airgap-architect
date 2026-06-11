@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
       - name: plugin
-        image: quay.io/airgap-architect/console-plugin:latest
+        # Update this to match your Quay.io organization
+        image: quay.io/REPLACE-WITH-YOUR-ORG/openshift-airgap-architect-console-plugin:latest
         ports:
         - containerPort: 9001
           name: http

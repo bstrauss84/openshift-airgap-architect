@@ -43,7 +43,49 @@ npm run build
 
 Output is in `dist/` directory.
 
-### Testing in OpenShift Console
+## Deploying to OpenShift
+
+### Quick Start (Using Pre-Built Images)
+
+The console plugin is automatically built and pushed to Quay.io by CI/CD:
+
+```
+quay.io/<your-org>/openshift-airgap-architect-console-plugin:latest
+quay.io/<your-org>/openshift-airgap-architect-backend:latest
+```
+
+**Deploy to your cluster:**
+
+```bash
+# Create namespace
+oc create namespace openshift-airgap-architect
+
+# Deploy backend (required - plugin uses backend API)
+oc apply -f ../manifests/base/backend-deployment.yaml
+oc apply -f ../manifests/base/backend-service.yaml
+
+# Deploy console plugin
+oc apply -f k8s/deployment.yaml
+oc apply -f k8s/service.yaml
+oc apply -f k8s/consoleplugin.yaml
+
+# Enable the plugin in OpenShift Console
+oc patch console.operator.openshift.io cluster \
+  --type='json' \
+  -p='[{"op": "add", "path": "/spec/plugins/-", "value": "airgap-architect-plugin"}]'
+```
+
+The plugin will appear in the **Administrator** menu as "Airgap Architect".
+
+### Update Image References
+
+Before deploying, update `k8s/deployment.yaml` with your Quay organization:
+
+```yaml
+image: quay.io/YOUR-ORG/openshift-airgap-architect-console-plugin:latest
+```
+
+### Local Development Testing
 
 1. Start the backend API server (port 4000):
    ```bash
@@ -57,29 +99,43 @@ Output is in `dist/` directory.
    npm run dev
    ```
 
-3. Enable the plugin in your OpenShift Console:
-   - Edit the console operator: `oc edit console.operator.openshift.io cluster`
-   - Add to `spec.plugins`:
-     ```yaml
-     spec:
-       plugins:
-         - airgap-architect-plugin
-     ```
-
-4. Create a ConsolePlugin resource pointing to your dev server:
-   ```yaml
-   apiVersion: console.openshift.io/v1alpha1
-   kind: ConsolePlugin
-   metadata:
-     name: airgap-architect-plugin
-   spec:
-     displayName: 'Airgap Architect'
-     service:
-       name: airgap-architect-plugin
-       namespace: default
-       port: 9001
-       basePath: '/'
+3. Port-forward the dev server into your cluster (for testing):
+   ```bash
+   # In another terminal
+   kubectl port-forward -n openshift-airgap-architect service/airgap-architect-plugin 9001:9001
    ```
+
+4. Apply the ConsolePlugin resource:
+   ```bash
+   oc apply -f k8s/consoleplugin.yaml
+   ```
+
+5. Enable the plugin:
+   ```bash
+   oc patch console.operator.openshift.io cluster \
+     --type='json' \
+     -p='[{"op": "add", "path": "/spec/plugins/-", "value": "airgap-architect-plugin"}]'
+   ```
+
+6. Refresh your OpenShift Console - the plugin should load from your local dev server
+
+### Verify Deployment
+
+Check plugin is running:
+```bash
+oc get pods -n openshift-airgap-architect
+oc logs -n openshift-airgap-architect deployment/airgap-architect-plugin
+```
+
+Check plugin is registered:
+```bash
+oc get consoleplugin airgap-architect-plugin
+```
+
+Check Console operator has loaded it:
+```bash
+oc get console.operator.openshift.io cluster -o jsonpath='{.spec.plugins}'
+```
 
 ## Directory Structure
 
