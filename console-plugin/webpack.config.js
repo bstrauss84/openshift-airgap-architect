@@ -43,6 +43,11 @@ module.exports = {
         exposedModules: {
           pages: './src/pages/index.ts'
         }
+      },
+      // Option 3: Bundle our own React 18 instead of using console's React 17
+      sharedModules: {
+        react: false,          // Don't use console's React 17
+        'react-dom': false     // Don't use console's React-DOM 17
       }
     })
   ],

@@ -9,12 +9,14 @@ import {
   BreadcrumbItem
 } from '@patternfly/react-core';
 import { useNavigate } from 'react-router-dom';
+import { AppProvider } from '../AppProvider';
+import { ReleaseSelectionStep } from '../components/ReleaseSelectionStep';
 
 const CreateImageSetPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <>
+    <AppProvider>
       <PageSection variant="light">
         <Breadcrumb>
           <BreadcrumbItem to="#" onClick={() => navigate('/airgap-architect')}>
@@ -32,19 +34,9 @@ const CreateImageSetPage: React.FC = () => {
         </TextContent>
       </PageSection>
       <PageSection>
-        <TextContent>
-          <Text component={TextVariants.h2}>Connected Flow Wizard</Text>
-          <Text component={TextVariants.p}>
-            The wizard will be integrated here in Phase 2. It will include:
-          </Text>
-          <ul>
-            <li>Release Selection - Choose OpenShift versions to mirror</li>
-            <li>Operator Selection - Select operators from catalogs</li>
-            <li>ImageSet Configuration - Review and generate YAML</li>
-          </ul>
-        </TextContent>
+        <ReleaseSelectionStep />
       </PageSection>
-    </>
+    </AppProvider>
   );
 };
 
