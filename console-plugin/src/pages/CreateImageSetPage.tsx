@@ -2,9 +2,7 @@ import * as React from 'react';
 import {
   PageSection,
   Title,
-  TextContent,
-  Text,
-  TextVariants,
+  Content,
   Breadcrumb,
   BreadcrumbItem
 } from '@patternfly/react-core';
@@ -27,11 +25,9 @@ const CreateImageSetPage: React.FC = () => {
         <Title headingLevel="h1" size="2xl">
           Create ImageSet Configuration
         </Title>
-        <TextContent>
-          <Text component={TextVariants.p}>
-            Configure and generate ImageSetConfiguration YAML for oc-mirror.
-          </Text>
-        </TextContent>
+        <Content component="p">
+          Configure and generate ImageSetConfiguration YAML for oc-mirror.
+        </Content>
       </PageSection>
       <PageSection>
         <ReleaseSelectionStep />

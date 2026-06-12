@@ -1,9 +1,13 @@
 const path = require('path');
 const { ConsoleRemotePlugin } = require('@openshift-console/dynamic-plugin-sdk-webpack');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const IS_PRODUCTION = NODE_ENV === 'production';
 
 module.exports = {
-  mode: 'development',
-  entry: './src/plugin.tsx',
+  mode: NODE_ENV,
+  entry: {},
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name]-bundle.js',
@@ -11,7 +15,11 @@ module.exports = {
     publicPath: 'auto'
   },
   resolve: {
-    extensions: ['.ts', '.tsx', '.js', '.jsx']
+    extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    alias: {
+      'react/jsx-runtime': require.resolve('react/jsx-runtime'),
+      'react/jsx-dev-runtime': require.resolve('react/jsx-dev-runtime')
+    }
   },
   module: {
     rules: [
@@ -29,24 +37,24 @@ module.exports = {
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader']
+        use: [MiniCssExtractPlugin.loader, 'css-loader']
+      },
+      {
+        test: /\.(png|jpg|jpeg|gif|svg|woff2?|ttf|eot|otf)(\?.*$|$)/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'assets/[name][ext]'
+        }
       }
     ]
   },
   plugins: [
-    new ConsoleRemotePlugin({
-      pluginMetadata: {
-        name: 'airgap-architect-plugin',
-        version: '1.0.0',
-        displayName: 'Airgap Architect',
-        description: 'OpenShift Airgap Architect Console Plugin',
-        exposedModules: {
-          pages: './src/pages/index.ts'
-        }
-      }
-      // Use console's shared modules (React, PatternFly, etc.)
+    new ConsoleRemotePlugin(),
+    new MiniCssExtractPlugin({
+      ignoreOrder: true
     })
   ],
+  ignoreWarnings: [(warning) => !!warning?.file?.includes('shared module')],
   devServer: {
     port: 9001,
     static: {

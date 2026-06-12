@@ -13,7 +13,7 @@ import ReactDOM from "react-dom";
 import App from "./App.jsx";
 import "./styles.css";
 
-// React 17 rendering (not React 18 createRoot)
+// React 17 rendering
 ReactDOM.render(
   <React.StrictMode>
     <App />

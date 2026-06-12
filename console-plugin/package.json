@@ -8,20 +8,33 @@
     "build": "webpack --mode production",
     "clean": "rm -rf dist"
   },
+  "consolePlugin": {
+    "name": "airgap-architect-plugin",
+    "version": "1.0.0",
+    "displayName": "Airgap Architect",
+    "description": "OpenShift Airgap Architect Console Plugin",
+    "exposedModules": {
+      "pages": "./src/pages"
+    },
+    "dependencies": {
+      "@console/pluginAPI": "*"
+    }
+  },
   "dependencies": {
-    "@patternfly/react-core": "^4.276.0",
-    "@patternfly/react-icons": "^4.93.0",
-    "@patternfly/react-table": "^4.112.0",
+    "@openshift-console/dynamic-plugin-sdk": "^1.0.0",
+    "@openshift-console/dynamic-plugin-sdk-webpack": "^1.0.0",
+    "@patternfly/react-core": "^6.4.0",
+    "@patternfly/react-icons": "^6.4.0",
+    "@patternfly/react-table": "^6.4.0",
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
     "react": "17.0.2",
     "react-dom": "17.0.2",
     "react-router-dom": "~5.3.0"
   },
   "devDependencies": {
-    "@openshift-console/dynamic-plugin-sdk": "^1.0.0",
-    "@openshift-console/dynamic-plugin-sdk-webpack": "^1.0.0",
-    "@types/react": "^17.0.0",
-    "@types/react-dom": "^17.0.0",
     "css-loader": "^6.8.0",
+    "mini-css-extract-plugin": "^2.7.6",
     "style-loader": "^3.3.0",
     "ts-loader": "^9.4.0",
     "typescript": "^5.0.0",

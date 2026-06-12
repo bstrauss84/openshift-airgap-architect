@@ -1,14 +1,14 @@
 /**
  * API Client for Console Plugin
  *
- * Thin wrapper around fetch that points to the backend API service.
- * Compatible with the frontend's apiFetch() interface.
+ * Uses OpenShift Console's plugin proxy to reach the backend service.
+ * The proxy is configured in the ConsolePlugin CR by the operator.
  */
 
-// In production, this should point to the backend service
+// In production, use console's plugin proxy endpoint
 // In dev, it points to localhost:4000
 const API_BASE_URL = process.env.NODE_ENV === 'production'
-  ? 'http://airgap-architect-backend.openshift-airgap-architect.svc.cluster.local:4000'
+  ? '/api/proxy/plugin/airgap-architect-plugin/backend'
   : 'http://localhost:4000';
 
 export interface ApiFetchOptions extends RequestInit {

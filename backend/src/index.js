@@ -12,6 +12,7 @@
 import "./configureFetchProxy.js";
 import express from "express";
 import cors from "cors";
+import https from "https";
 
 // Global error handlers to prevent crashes from unhandled rejections
 // (e.g., Cincinnati cache warming failures, background job errors)
@@ -3427,19 +3428,31 @@ app.post("/api/bundle.zip", validateBody(bundleZipSchema), async (req, res) => {
 
 let server;
 if (process.env.NODE_ENV !== "test") {
-  server = app.listen(port, () => {
-    // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
-    const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
-    const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
-    const bannerLines = [
-      "",
-      "╔═══════════════════════════════════════════════════════════════════╗",
-      "║                                                                   ║",
-      "║          OpenShift Airgap Architect - Backend Server             ║",
-      "║                                                                   ║",
-      "╚═══════════════════════════════════════════════════════════════════╝",
-      "",
-      `  Server:        http://localhost:${port}`,
+  // Check if TLS certificates are available
+  const tlsCertPath = process.env.TLS_CERT_PATH;
+  const tlsKeyPath = process.env.TLS_KEY_PATH;
+  const useTLS = tlsCertPath && tlsKeyPath && fs.existsSync(tlsCertPath) && fs.existsSync(tlsKeyPath);
+
+  if (useTLS) {
+    // Create HTTPS server
+    const httpsOptions = {
+      cert: fs.readFileSync(tlsCertPath),
+      key: fs.readFileSync(tlsKeyPath)
+    };
+    server = https.createServer(httpsOptions, app);
+    server.listen(port, () => {
+      // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
+      const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
+      const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
+      const bannerLines = [
+        "",
+        "╔═══════════════════════════════════════════════════════════════════╗",
+        "║                                                                   ║",
+        "║          OpenShift Airgap Architect - Backend Server             ║",
+        "║                                                                   ║",
+        "╚═══════════════════════════════════════════════════════════════════╝",
+        "",
+        `  Server:        https://localhost:${port} (TLS enabled)`,
       `  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`,
       `  Data Dir:      ${process.env.DATA_DIR || "/data"}`,
     ];
@@ -3490,6 +3503,66 @@ if (process.env.NODE_ENV !== "test") {
       }
     }, cleanupIntervalMs);
   });
+  } else {
+    // HTTP fallback
+    server = app.listen(port, () => {
+      const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
+      const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
+      const bannerLines = [
+        "",
+        "╔═══════════════════════════════════════════════════════════════════╗",
+        "║                                                                   ║",
+        "║          OpenShift Airgap Architect - Backend Server             ║",
+        "║                                                                   ║",
+        "╚═══════════════════════════════════════════════════════════════════╝",
+        "",
+        `  Server:        http://localhost:${port}`,
+        `  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`,
+        `  Data Dir:      ${process.env.DATA_DIR || "/data"}`,
+      ];
+      if (bannerSha || bannerTime) {
+        bannerLines.push(`  Build:         ${bannerSha ? String(bannerSha).slice(0, 7) : "dev"} • ${bannerTime || "unknown"}`);
+      }
+      bannerLines.push(
+        "",
+        "  Developed by:  Bill Strauss",
+        "  AI Assistance: Claude (Anthropic) • Cursor AI",
+        "  License:       MIT",
+        "  Repository:    https://github.com/billstrauss/openshift-airgap-architect",
+        "",
+        "───────────────────────────────────────────────────────────────────",
+        "",
+      );
+      process.stdout.write(bannerLines.join("\n") + "\n");
+      logger.info({ tag: "startup", port, mode: process.env.MOCK_MODE === "true" ? "MOCK" : "Production", dataDir: process.env.DATA_DIR || "/data" }, "Server started");
+
+      const retentionDays = parseInt(process.env.JOB_RETENTION_DAYS, 10) || 7;
+      const maxJobCount = parseInt(process.env.JOB_MAX_COUNT, 10) || 100;
+      const cleanupIntervalMs = 24 * 60 * 60 * 1000;
+
+      setTimeout(() => {
+        try {
+          const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+          if (result.totalDeleted > 0) {
+            logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Job cleanup completed on startup");
+          }
+        } catch (err) {
+          logger.error({ err, tag: "job_cleanup" }, "Job cleanup failed on startup");
+        }
+      }, 60000);
+
+      global.cleanupInterval = setInterval(() => {
+        try {
+          const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+          if (result.totalDeleted > 0) {
+            logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Scheduled job cleanup completed");
+          }
+        } catch (err) {
+          logger.error({ err, tag: "job_cleanup" }, "Scheduled job cleanup failed");
+        }
+      }, cleanupIntervalMs);
+    });
+  }
   const shutdown = (signal) => {
     // Clear cleanup interval if it exists
     if (global.cleanupInterval) {

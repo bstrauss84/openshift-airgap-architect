@@ -2,15 +2,12 @@ import * as React from 'react';
 import {
   PageSection,
   Title,
-  Button,
+  Content,
   Card,
   CardBody,
   CardTitle,
   Gallery,
-  GalleryItem,
-  Text,
-  TextContent,
-  TextVariants
+  GalleryItem
 } from '@patternfly/react-core';
 import { useHistory } from 'react-router-dom';
 import { PlusCircleIcon } from '@patternfly/react-icons';
@@ -28,11 +25,9 @@ const AirgapArchitectPage: React.FC = () => {
         <Title headingLevel="h1" size="2xl">
           Airgap Architect
         </Title>
-        <TextContent>
-          <Text component={TextVariants.p}>
-            Create and manage ImageSetConfiguration resources for disconnected OpenShift environments.
-          </Text>
-        </TextContent>
+        <Content component="p">
+          Create and manage ImageSetConfiguration resources for disconnected OpenShift environments.
+        </Content>
       </PageSection>
       <PageSection>
         <Gallery hasGutter minWidths={{ default: '100%', md: '300px' }}>

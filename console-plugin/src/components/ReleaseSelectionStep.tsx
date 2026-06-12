@@ -12,11 +12,11 @@ import {
   FormGroup,
   Select,
   SelectOption,
-  SelectVariant,
+  SelectList,
+  MenuToggle,
+  MenuToggleElement,
   Spinner,
-  Text,
-  TextContent,
-  TextVariants
+  Content
 } from '@patternfly/react-core';
 import { useApp } from '../AppProvider';
 import { apiFetch } from '../api';
@@ -127,12 +127,12 @@ export const ReleaseSelectionStep: React.FC = () => {
 
   return (
     <div>
-      <TextContent>
-        <Text component={TextVariants.h2}>Select OpenShift Release</Text>
-        <Text component={TextVariants.p}>
+      <Content>
+        <Content component="h2">Select OpenShift Release</Content>
+        <Content component="p">
           Choose the OpenShift version you want to mirror to your disconnected environment.
-        </Text>
-      </TextContent>
+        </Content>
+      </Content>
 
       <Form>
         <FormGroup
@@ -142,18 +142,27 @@ export const ReleaseSelectionStep: React.FC = () => {
           helperText="Major.minor release channel (e.g., stable-4.16)"
         >
           <Select
-            variant={SelectVariant.single}
-            onToggle={() => setChannelOpen(!channelOpen)}
-            onSelect={handleChannelSelect}
-            selections={selectedChannel}
             isOpen={channelOpen}
-            placeholderText="Select a channel"
+            selected={selectedChannel}
+            onSelect={handleChannelSelect}
+            onOpenChange={(isOpen) => setChannelOpen(isOpen)}
+            toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+              <MenuToggle
+                ref={toggleRef}
+                onClick={() => setChannelOpen(!channelOpen)}
+                isExpanded={channelOpen}
+              >
+                {selectedChannel || 'Select a channel'}
+              </MenuToggle>
+            )}
           >
-            {channels.map((channel) => (
-              <SelectOption key={channel} value={channel}>
-                {channel}
-              </SelectOption>
-            ))}
+            <SelectList>
+              {channels.map((channel) => (
+                <SelectOption key={channel} value={channel}>
+                  {channel}
+                </SelectOption>
+              ))}
+            </SelectList>
           </Select>
         </FormGroup>
 
@@ -164,25 +173,33 @@ export const ReleaseSelectionStep: React.FC = () => {
           helperText="Specific patch release to mirror"
         >
           <Select
-            variant={SelectVariant.single}
-            onToggle={() => setPatchOpen(!patchOpen)}
-            onSelect={handlePatchSelect}
-            selections={selectedVersion}
             isOpen={patchOpen}
-            isDisabled={!selectedChannel || patchesLoading}
-            placeholderText={
-              patchesLoading
-                ? 'Loading versions...'
-                : selectedChannel
-                ? 'Select a version'
-                : 'Select a channel first'
-            }
+            selected={selectedVersion}
+            onSelect={handlePatchSelect}
+            onOpenChange={(isOpen) => setPatchOpen(isOpen)}
+            toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
+              <MenuToggle
+                ref={toggleRef}
+                onClick={() => setPatchOpen(!patchOpen)}
+                isExpanded={patchOpen}
+                isDisabled={!selectedChannel || patchesLoading}
+              >
+                {selectedVersion ||
+                  (patchesLoading
+                    ? 'Loading versions...'
+                    : selectedChannel
+                    ? 'Select a version'
+                    : 'Select a channel first')}
+              </MenuToggle>
+            )}
           >
-            {patches.map((patch) => (
-              <SelectOption key={patch} value={patch}>
-                {patch}
-              </SelectOption>
-            ))}
+            <SelectList>
+              {patches.map((patch) => (
+                <SelectOption key={patch} value={patch}>
+                  {patch}
+                </SelectOption>
+              ))}
+            </SelectList>
           </Select>
         </FormGroup>
       </Form>
