@@ -21,6 +21,31 @@ RUN dnf install -y --setopt=install_weak_deps=false \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
+COPY --from=build-info /ctx /ctx
+RUN set -e && \
+    _ca_found="" && \
+    for _path in "/ctx/custom-ca.pem" "/ctx/custom-ca.crt" "/ctx/custom-ca.cer"; do \
+      if [ -f "$_path" ]; then \
+        _ca_found="$_path" && break; \
+      fi; \
+    done && \
+    if [ -n "$_ca_found" ]; then \
+      echo "Installing additional CA bundle from ${_ca_found##*/}" >&2; \
+      if command -v update-ca-trust >/dev/null 2>&1; then \
+        cp "$_ca_found" /etc/pki/ca-trust/source/anchors/openshift-airgap-extra-ca.crt; \
+        update-ca-trust; \
+      elif command -v update-ca-certificates >/dev/null 2>&1; then \
+        cp "$_ca_found" /usr/local/share/ca-certificates/openshift-airgap-extra-ca.crt; \
+        update-ca-certificates; \
+      else \
+        echo "ERROR: Neither update-ca-trust nor update-ca-certificates found. Cannot install CA bundle." >&2; \
+        exit 1; \
+      fi; \
+    else \
+      echo "No custom-ca.pem/crt/cer found in repo root; using base image CA trust only." >&2; \
+    fi && \
+    rm -rf /ctx
+
 # Detect build-host architecture and download matching binaries.
 # uname -m returns the native build architecture (no cross-compilation/emulation needed).
 # Supported: x86_64, aarch64 (arm64), ppc64le, s390x.
