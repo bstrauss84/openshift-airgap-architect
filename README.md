@@ -191,6 +191,8 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 
 **TLS interception:** For the **running** backend container, if HTTPS is decrypted at a corporate proxy, add your corporate CA to trust (for example mount a PEM and set **`NODE_EXTRA_CA_CERTS=/path/to/corp-ca-bundle.pem`**) and ensure the same CA is trusted for `curl` and registry TLS. For **image build**, the **build host** (or build root filesystem in CI) must trust the proxy or target CAs so **`curl`** and **`npm`** during `Containerfile` can complete.
 
+**Custom CA bundle injection:** If your environment requires a custom CA for TLS interception, place your PEM/CRT/CER file as `custom-ca.pem` (or `.crt`/`.cer`) in the repo root before building. The backend image build will auto-detect and trust it for all HTTPS operations. No configuration is needed for users who do not require this.
+
 **Quick troubleshooting:**
 
 | Symptom | Likely cause |
