@@ -71,7 +71,7 @@ export const ReleaseSelectionStep: React.FC = () => {
     if (!selectedChannel) return;
 
     setPatchesLoading(true);
-    apiFetch(`/api/cincinnati/graph?channel=${selectedChannel}`)
+    apiFetch(`/api/cincinnati/patches?channel=${selectedChannel}`)
       .then((data: any) => {
         const versions = data.versions || [];
         setPatches(versions);
@@ -205,11 +205,11 @@ export const ReleaseSelectionStep: React.FC = () => {
       </Form>
 
       {selectedChannel && selectedVersion && (
-        <TextContent style={{ marginTop: '20px' }}>
-          <Text component={TextVariants.p}>
+        <div style={{ marginTop: '20px', padding: '1rem', background: '#f0f0f0', borderRadius: '4px' }}>
+          <p style={{ margin: 0 }}>
             <strong>Selected:</strong> OpenShift {selectedVersion} from {selectedChannel} channel
-          </Text>
-        </TextContent>
+          </p>
+        </div>
       )}
     </div>
   );

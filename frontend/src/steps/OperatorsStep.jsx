@@ -22,6 +22,13 @@ import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
+// TODO: Move to backend API endpoint
+// Create /api/operators/bundles endpoint in backend that returns this scenarios array.
+// Both the frontend and console-plugin should fetch bundles from the backend instead
+// of hardcoding them, ensuring a single source of truth for operator bundle definitions.
+// This eliminates the need to manually sync between frontend/src/steps/OperatorsStep.jsx
+// and console-plugin/src/components/OperatorsSelectionStep.tsx.
+//
 const scenarios = [
   {
     id: "virtualization",
