@@ -10,6 +10,7 @@ import { Content } from '@patternfly/react-core/dist/dynamic/components/Content'
 import { Button } from '@patternfly/react-core/dist/dynamic/components/Button';
 import { Alert } from '@patternfly/react-core/dist/dynamic/components/Alert';
 import { Spinner } from '@patternfly/react-core/dist/dynamic/components/Spinner';
+import DownloadIcon from '@patternfly/react-icons/dist/dynamic/icons/download-icon';
 import {
   Table,
   Thead,
@@ -31,6 +32,8 @@ interface CollectionPipeline {
     version?: string;
     startTime?: string;
     completionTime?: string;
+    pipelineRunRef?: string;
+    bundleUrl?: string;
   };
 }
 
@@ -80,6 +83,10 @@ export const CollectionPipelineList: React.FC = () => {
     return 'warning';
   };
 
+  const getPipelineRunUrl = (pipelineRunName: string, namespace: string) => {
+    return `/k8s/ns/${namespace}/tekton.dev~v1~PipelineRun/${pipelineRunName}`;
+  };
+
   return (
     <>
       <PageSection variant="light">
@@ -124,12 +131,26 @@ export const CollectionPipelineList: React.FC = () => {
                 <Th>Version</Th>
                 <Th>Created</Th>
                 <Th>Completed</Th>
+                <Th>Actions</Th>
               </Tr>
             </Thead>
             <Tbody>
               {pipelines.map((pipeline) => (
                 <Tr key={pipeline.metadata.name}>
-                  <Td>{pipeline.metadata.name}</Td>
+                  <Td>
+                    {pipeline.status?.pipelineRunRef ? (
+                      <a
+                        href={getPipelineRunUrl(pipeline.status.pipelineRunRef, pipeline.metadata.namespace)}
+                        style={{ color: '#0066cc', textDecoration: 'none' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                      >
+                        {pipeline.metadata.name}
+                      </a>
+                    ) : (
+                      pipeline.metadata.name
+                    )}
+                  </Td>
                   <Td>
                     <span
                       style={{
@@ -161,6 +182,23 @@ export const CollectionPipelineList: React.FC = () => {
                   <Td>{pipeline.status?.version || '-'}</Td>
                   <Td>{formatTimestamp(pipeline.metadata.creationTimestamp)}</Td>
                   <Td>{formatTimestamp(pipeline.status?.completionTime)}</Td>
+                  <Td>
+                    {pipeline.status?.bundleUrl &&
+                     (pipeline.status?.phase === 'Complete' || pipeline.status?.phase === 'Succeeded') ? (
+                      <Button
+                        variant="link"
+                        icon={<DownloadIcon />}
+                        component="a"
+                        href={pipeline.status.bundleUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Download Bundle
+                      </Button>
+                    ) : (
+                      <span style={{ color: '#6a6e73', fontSize: '0.875rem' }}>-</span>
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </Tbody>
