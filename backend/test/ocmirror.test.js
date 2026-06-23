@@ -108,7 +108,8 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
   const { server, baseUrl } = await createTestServer();
   try {
     // Use legacy v2-ish state to prove migration works
-    await fetch(`${baseUrl}/api/state`, {
+    // This tests that the migration helper correctly converts legacy fields to v3
+    const stateUpdateRes = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -116,6 +117,14 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
         release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
       })
     });
+    assert.strictEqual(stateUpdateRes.status, 200, "State update should succeed");
+
+    // Verify the state was migrated to v3 with locked=true
+    const stateGetRes = await fetch(`${baseUrl}/api/state`);
+    const currentState = await stateGetRes.json();
+    assert.strictEqual(currentState.version?.locked, true, "Legacy versionConfirmed should migrate to locked:true");
+    assert.strictEqual(currentState.version?._schemaVersion, 3, "State should be migrated to schema v3");
+
     const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -128,6 +137,11 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
         authSource: "env"
       })
     });
+    // If test fails, capture error response for diagnosis
+    if (res.status !== 200) {
+      const errorBody = await res.json();
+      assert.fail(`Expected 200, got ${res.status}. Error: ${errorBody.error || JSON.stringify(errorBody)}`);
+    }
     assert.strictEqual(res.status, 200);
     const data = await res.json();
     assert.ok(data.jobId);

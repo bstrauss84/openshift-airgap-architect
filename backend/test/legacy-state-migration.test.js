@@ -130,35 +130,60 @@ test("Legacy State Migration: Version Confirmation Fields", async (t) => {
   });
 
   /**
-   * Test 7: Priority order - version.locked > version.versionConfirmed > release.confirmed
+   * Test 7: Locked field precedence (explicit over implicit)
+   *
+   * Correct precedence order:
+   * 1. version.locked (if explicitly present, even if false)
+   * 2. version.versionConfirmed (v2 legacy)
+   * 3. release.confirmed (v1 legacy)
+   * 4. false (default)
    */
-  await t.test("locked field priority order is correct", () => {
-    // Case 1: version.locked takes precedence
+  await t.test("locked field precedence: explicit locked always wins", () => {
+    // Case 1: locked:false overrides versionConfirmed:true
     const state1 = {
       runId: "priority-1",
       version: { locked: false, versionConfirmed: true },
       release: { channel: "4.20", confirmed: true }
     };
     const result1 = migrateStateToV3(state1);
-    assert.strictEqual(result1.migrated.version.locked, false, "version.locked should take precedence");
+    assert.strictEqual(result1.migrated.version.locked, false, "Explicit locked:false should override versionConfirmed:true");
+    assert.strictEqual(result1.wasV2, true, "Should be detected as v2 migration");
 
-    // Case 2: version.versionConfirmed takes precedence over release.confirmed
+    // Case 2: locked:true overrides versionConfirmed:false
     const state2 = {
       runId: "priority-2",
-      version: { versionConfirmed: false },
-      release: { channel: "4.20", confirmed: true }
+      version: { locked: true, versionConfirmed: false },
+      release: { channel: "4.20", confirmed: false }
     };
     const result2 = migrateStateToV3(state2);
-    assert.strictEqual(result2.migrated.version.locked, false, "version.versionConfirmed should take precedence over release.confirmed");
+    assert.strictEqual(result2.migrated.version.locked, true, "Explicit locked:true should override versionConfirmed:false");
 
-    // Case 3: release.confirmed used when no version confirmation fields
+    // Case 3: versionConfirmed takes precedence when no locked field
     const state3 = {
       runId: "priority-3",
+      version: { versionConfirmed: true },
+      release: { channel: "4.20", confirmed: false }
+    };
+    const result3 = migrateStateToV3(state3);
+    assert.strictEqual(result3.migrated.version.locked, true, "versionConfirmed should be used when locked not present");
+
+    // Case 4: release.confirmed used when no version fields
+    const state4 = {
+      runId: "priority-4",
       version: {},
       release: { channel: "4.20", confirmed: true }
     };
-    const result3 = migrateStateToV3(state3);
-    assert.strictEqual(result3.migrated.version.locked, true, "release.confirmed should be used as fallback");
+    const result4 = migrateStateToV3(state4);
+    assert.strictEqual(result4.migrated.version.locked, true, "release.confirmed should be used as fallback");
+
+    // Case 5: all missing defaults to false
+    const state5 = {
+      runId: "priority-5",
+      version: {},
+      release: { channel: "4.20" }
+    };
+    const result5 = migrateStateToV3(state5);
+    assert.strictEqual(result5.migrated.version.locked, false, "Should default to false when all confirmation fields missing");
   });
 });
 
@@ -256,5 +281,82 @@ test("Legacy State Migration: Edge Cases", async (t) => {
 
     const result = migrateStateToV3(state);
     assert.strictEqual(result.migrated.version.selectedMinor, "4.21");
+  });
+});
+
+test("Legacy State Migration: Malformed Channel Rejection", async (t) => {
+  /**
+   * Test 13: Reject "latest" channel
+   */
+  await t.test('rejects channel "latest"', () => {
+    const state = {
+      runId: "malformed-latest",
+      release: { channel: "latest", confirmed: true },
+      blueprint: {}
+    };
+
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error !== null, true, "Should return error for 'latest' channel");
+    assert.ok(result.error.includes("Invalid channel format"), "Error should mention invalid format");
+    assert.strictEqual(result.migrated, null, "Should not migrate malformed channel");
+  });
+
+  /**
+   * Test 14: Reject "stable-mars" channel
+   */
+  await t.test('rejects channel "stable-mars"', () => {
+    const state = {
+      runId: "malformed-mars",
+      release: { channel: "stable-mars", confirmed: true }
+    };
+
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error !== null, true, "Should return error for 'stable-mars' channel");
+    assert.ok(result.error.includes("Invalid channel format"));
+  });
+
+  /**
+   * Test 15: Reject "4.x" channel
+   */
+  await t.test('rejects channel "4.x"', () => {
+    const state = {
+      runId: "malformed-x",
+      release: { channel: "4.x", confirmed: true }
+    };
+
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error !== null, true, "Should return error for '4.x' channel");
+  });
+
+  /**
+   * Test 16: Reject patch version in channel "4.20.15"
+   */
+  await t.test('rejects channel "4.20.15"', () => {
+    const state = {
+      runId: "malformed-patch",
+      release: { channel: "4.20.15", confirmed: true }
+    };
+
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error !== null, true, "Should return error for '4.20.15' channel");
+    assert.ok(result.error.includes("Invalid channel format"));
+  });
+
+  /**
+   * Test 17: Accept valid formats
+   */
+  await t.test("accepts valid channel formats", () => {
+    const validChannels = ["4.20", "stable-4.20", "fast-4.21", "candidate-4.22", "eus-4.18"];
+
+    validChannels.forEach(channel => {
+      const state = {
+        runId: `valid-${channel}`,
+        release: { channel, confirmed: true }
+      };
+
+      const result = migrateStateToV3(state);
+      assert.strictEqual(result.error, null, `Channel "${channel}" should be accepted`);
+      assert.ok(result.migrated, `Channel "${channel}" should migrate successfully`);
+    });
   });
 });

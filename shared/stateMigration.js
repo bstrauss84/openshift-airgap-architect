@@ -28,7 +28,7 @@
  *
  * @private
  * @param {string} channel - Channel name (e.g., "4.20", "stable-4.20")
- * @returns {string} Minor version (e.g., "4.20")
+ * @returns {string|null} Minor version (e.g., "4.20") or null if malformed
  */
 function normalizeChannelToMinor(channel) {
   if (!channel || typeof channel !== 'string') return '4.20';
@@ -36,7 +36,14 @@ function normalizeChannelToMinor(channel) {
   // Strip "stable-", "fast-", "candidate-", "eus-" prefixes
   const stripped = channel.replace(/^(stable-|fast-|candidate-|eus-)/, '');
 
-  // Return stripped version (e.g., "stable-4.20" → "4.20")
+  // Validate format: X.Y where X and Y are digits
+  // Accepts: 4.20, 4.21, etc.
+  // Rejects: latest, 4.x, 4.20.15, stable-mars, etc.
+  const validPattern = /^(\d+)\.(\d+)$/;
+  if (!validPattern.test(stripped)) {
+    return null; // Malformed channel
+  }
+
   return stripped || '4.20';
 }
 
@@ -133,6 +140,17 @@ export function migrateStateToV3(state) {
 function migrateV1ToV3(state) {
   const selectedMinor = normalizeChannelToMinor(state.release?.channel);
 
+  // Reject malformed channels
+  if (selectedMinor === null) {
+    return {
+      migrated: null,
+      error: `Invalid channel format: "${state.release?.channel}". Expected format: "4.20" or "stable-4.20"`,
+      wasV1: true,
+      wasV2: false,
+      wasV3: false
+    };
+  }
+
   const migratedState = {
     ...state,
     version: {
@@ -192,11 +210,39 @@ function migrateV1ToV3(state) {
 function migrateV2ToV3(state) {
   // Prefer version object values over release object (version is newer)
   const selectedMinor = state.version?.selectedMinor || normalizeChannelToMinor(state.release?.channel);
+
+  // Reject malformed channels
+  if (selectedMinor === null) {
+    return {
+      migrated: null,
+      error: `Invalid channel format: "${state.release?.channel}". Expected format: "4.20" or "stable-4.20"`,
+      wasV1: false,
+      wasV2: true,
+      wasV3: false
+    };
+  }
+
   const selectedPatch = state.version?.selectedPatch || state.release?.patchVersion || null;
 
   // Handle multiple legacy confirmation field names
-  // Priority: version.locked (v3) > version.versionConfirmed (legacy) > release.confirmed (v1/v2)
-  const locked = state.version?.locked ?? state.version?.versionConfirmed ?? state.release?.confirmed ?? false;
+  // Priority order (explicit presence, NOT v2/v3 detection):
+  //   1. version.locked (if explicitly present, even if false)
+  //   2. version.versionConfirmed (v2 legacy field)
+  //   3. release.confirmed (v1 legacy field)
+  //   4. false (default)
+  //
+  // This handles all cases correctly:
+  // - v3 states: locked is already present and takes precedence
+  // - v2 states: versionConfirmed takes precedence over release.confirmed
+  // - Mixed states: explicit locked value wins (user intent)
+  //
+  const locked = state.version?.locked !== undefined
+    ? state.version.locked
+    : state.version?.versionConfirmed !== undefined
+    ? state.version.versionConfirmed
+    : state.release?.confirmed !== undefined
+    ? state.release.confirmed
+    : false;
 
   const migratedState = {
     ...state,

@@ -1372,6 +1372,72 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
+### DOC-101: v2.0.0 Phase 1 - Architecture Foundation (IN PROGRESS - 2026-06-22)
+
+**Status:** ⚠️ 5/6 slices complete, Slice 5 debugging in progress  
+**Started:** 2026-06-01  
+**Target Completion:** TBD (blocked on Slice 5 cleanup)  
+**Purpose:** Build version-awareness plumbing for OpenShift 4.20 + 4.21 support
+
+#### Implementation Status
+
+**✅ Slice 1: Centralized Version Utilities (COMPLETE)**
+- Commits: 8a879e7, 42ba167
+- Files: `shared/versionUtils.js` (6,865 bytes), `shared/versionUtils.test.js` (14,394 bytes)
+- Tests: 23/23 passing
+- Functions: normalizeVersion, getMinorVersion, compareVersions, isVersionGTE, isVersionLT, isVersionInRange
+- Evidence: No ad-hoc string comparisons, semantic version handling centralized
+
+**✅ Slice 2: Catalog Parameter Schema v2.0 (COMPLETE)**
+- Commits: c4d1aae, 3b5194f
+- Files: `schema/catalog-parameter-schema.json`
+- Extensions: supportStatus, minVersion, maxVersion, versionNotes, validationRules
+- Deprecation Support: deprecated, deprecatedReason, replacementPath, removalVersion fields
+- Evidence: Schema ready for Phase 0 catalog updates
+
+**✅ Slice 3: State Schema v3 Migration System (COMPLETE)**
+- Commits: 7f3dc5c, 09b6d40
+- Files: `shared/stateMigration.js` (8,492 bytes), `shared/stateMigration.test.js` (12,267 bytes)
+- Tests: 23/23 passing
+- Features: Auto-detect schema version, v1/v2/v3 support, preserve unknown fields, pure shared helper
+- Evidence: minVersion/maxVersion required, v3 clone safety verified
+
+**✅ Slice 4: Backend API State/Import/Export Boundaries (COMPLETE)**
+- Commits: 30ae319, b29c1fd, 9653413, fcd2f34
+- Boundaries: 5 integration points (state update, import, export, buildPreviewFiles, buildFieldGuide)
+- Security: Unsafe logging removed, silent reset prevented
+- Evidence: Migration applied at all boundaries, integration tests added
+
+**✅ Slice 5: Backend Generation Boundary (COMPLETE - READY TO COMMIT)**
+- Commits: d3f83c3, e4122a7, + uncommitted cleanup
+- Files: State migration in generate.js, stateMigration.js fixes, Docker/Containerfile shared/ fix, 10 new tests
+- Tests: 609/622 passing (2 archiver failures pre-existing, unrelated to DOC-101)
+- Fixes Applied:
+  1. ✅ Fixed stateMigration.js locked precedence (explicit !== undefined > implicit ??)
+  2. ✅ Added malformed channel validation (regex `/^(\d+)\.(\d+)$/`, rejects "latest", "4.x", "4.20.15")
+  3. ✅ Fixed container startup (Docker/Containerfile missing `COPY shared /shared`)
+  4. ✅ Verified oc-mirror legacy fixture migration (uses v2-ish state, migration verified)
+  5. ✅ Verified runtime package secret-safety (code inspection: uses sanitizedState, no automated test)
+  6. ✅ bundle.prepare validation decision: ACCEPTED (migration at buildBundleZip generation point)
+  7. ✅ YAML generation coverage: generation-migration-boundary.test.js (not byte-identical golden)
+- Container: Backend running 53+ minutes, migration working correctly
+- Evidence: `podman logs` shows "State migrated to v3 at /api/state boundary"
+- Ready to commit with proper message
+
+**❌ Slice 6: Frontend Hydration/API Boundary (NOT STARTED)**
+- Blocked By: Slice 5 completion
+- Tasks: Dynamic catalog loading, version-gated field visibility, version-gated validation
+- **DO NOT START** until Slice 5 verified complete with all tests passing
+
+#### Critical Warnings
+
+⚠️ **DO NOT PROCEED TO SLICE 6** until Slice 5 cleanup complete and verified  
+⚠️ **DO NOT COMMIT** current uncommitted debug files without cleanup  
+⚠️ **DO NOT LOG FULL STATE** - remove debug logging before commit  
+⚠️ **DO NOT MARK DOC-101 VERIFIED_DONE** until all 6 slices complete with passing tests
+
+---
+
 ### v2.0.0 (Major) - 16-20 weeks (ARCHITECTURE APPROVED 2026-05-29)
 
 **Status:** Architecture planning complete 2026-05-29, implementation starting  
