@@ -48,7 +48,7 @@ jobs:
         run: |
           cd frontend
           echo "Installing frontend dependencies..."
-          npm install
+          npm ci
           echo "Building frontend..."
           npm run build
           echo "Running frontend tests..."
