@@ -112,6 +112,11 @@ interface PipelineRun {
 export const CollectionPipelineDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
   const history = useHistory();
+
+  // Debug logging
+  console.log('CollectionPipelineDetail - name param:', name);
+  console.log('CollectionPipelineDetail - location:', window.location.href);
+
   const [pipeline, setPipeline] = React.useState<CollectionPipeline | null>(null);
   const [pipelineRun, setPipelineRun] = React.useState<PipelineRun | null>(null);
   const [downloadUrls, setDownloadUrls] = React.useState<DownloadUrls | null>(null);
@@ -123,6 +128,12 @@ export const CollectionPipelineDetail: React.FC = () => {
   const namespace = 'mirror-operator-system';
 
   const fetchPipeline = async () => {
+    if (!name) {
+      setError('Collection pipeline name is missing from URL');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(
         `/api/kubernetes/apis/mirror.mirror.mathianasj.github.com/v1/namespaces/${namespace}/collectionpipelines/${name}`
