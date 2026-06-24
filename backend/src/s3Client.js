@@ -66,9 +66,27 @@ export async function readS3Credentials(secretName, namespace) {
       name: secretName,
       namespace: ns
     });
-    const secret = response.body;
 
-    if (!secret.data) {
+    // Debug: log response structure to understand what the K8s client returns
+    logger.info({
+      secretName,
+      namespace: ns,
+      responseType: typeof response,
+      hasBody: !!response?.body,
+      responseKeys: response ? Object.keys(response) : [],
+      bodyKeys: response?.body ? Object.keys(response.body) : []
+    }, "K8s secret response structure");
+
+    // Handle response format - object-style API may return data directly or in .body
+    const secret = response.body || response;
+
+    if (!secret || !secret.data) {
+      logger.error({
+        secretName,
+        namespace: ns,
+        secretType: typeof secret,
+        secretKeys: secret ? Object.keys(secret) : []
+      }, "Secret missing data field");
       throw new Error(`Secret ${secretName} has no data field`);
     }
 
