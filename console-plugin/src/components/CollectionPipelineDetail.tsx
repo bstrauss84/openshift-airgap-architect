@@ -110,12 +110,17 @@ interface PipelineRun {
 }
 
 export const CollectionPipelineDetail: React.FC = () => {
-  const { name } = useParams<{ name: string }>();
+  // OpenShift Console plugins need to parse the path manually
+  // since useParams doesn't work with console plugin routes
   const history = useHistory();
+  const pathname = window.location.pathname;
+  const match = pathname.match(/\/airgap-architect\/collections\/([^/]+)/);
+  const name = match ? match[1] : undefined;
 
   // Debug logging
   console.log('CollectionPipelineDetail - name param:', name);
   console.log('CollectionPipelineDetail - location:', window.location.href);
+  console.log('CollectionPipelineDetail - pathname:', pathname);
 
   const [pipeline, setPipeline] = React.useState<CollectionPipeline | null>(null);
   const [pipelineRun, setPipelineRun] = React.useState<PipelineRun | null>(null);
