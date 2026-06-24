@@ -12,6 +12,9 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./store.jsx";
+import { getVersionLocked, detectUnknownSchema } from "./shared/versionHelpers.js";
+
+const STORAGE_KEY = "airgap-architect-state";
 import Sidebar from "./components/Sidebar.jsx";
 import Modal from "./components/Modal.jsx";
 import LandingPage from "./LandingPage.jsx";
@@ -175,7 +178,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppShell = () => {
-  const { state, loading, startOver, updateState, setState } = useApp();
+  const { state, loading, schemaError, startOver, updateState, setState } = useApp();
   const [active, setActive] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showReleaseWarning, setShowReleaseWarning] = useState(false);
@@ -303,7 +306,7 @@ const AppShell = () => {
   }, [state, stepMap]);
 
   const foundationalLocked = Boolean(
-    state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed)
+    state?.blueprint?.confirmed && getVersionLocked(state)
   );
 
   const sidebarSteps = useMemo(
@@ -331,7 +334,7 @@ const AppShell = () => {
       .map((step) => step.label);
   }, [state, visibleSteps]);
 
-  const versionConfirmed = state?.version?.versionConfirmed ?? state?.release?.confirmed;
+  const versionConfirmed = getVersionLocked(state);
   const versionDependentSteps = useMemo(
     () => getVersionDependentStepIdSet(segmentedFlowV1, visibleSteps),
     [segmentedFlowV1, visibleSteps]
@@ -367,7 +370,7 @@ const AppShell = () => {
       const explicitlyCompleted = Boolean(state.ui?.completedSteps?.[step.id]);
       const completed =
         step.id === "blueprint"
-          ? Boolean(state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed))
+          ? Boolean(state.blueprint?.confirmed && getVersionLocked(state))
           : valid && explicitlyCompleted && !needsReview && versionOk;
       flags[step.id] = completed;
     });
@@ -387,12 +390,12 @@ const AppShell = () => {
   const firstIncompleteStepIndex = useMemo(() => {
     const idx = visibleSteps.findIndex((step) => {
       if (step.id === "blueprint") {
-        return !(state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed));
+        return !(state?.blueprint?.confirmed && getVersionLocked(state));
       }
       return !state?.ui?.completedSteps?.[step.id];
     });
     return idx >= 0 ? idx : Math.max(0, visibleSteps.length - 1);
-  }, [visibleSteps, state?.ui?.completedSteps, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
+  }, [visibleSteps, state?.ui?.completedSteps, state?.blueprint?.confirmed, state]);
 
   const previewStepId = visibleSteps[active]?.id;
   const hasRunningOcMirrorJobs = startOverRunningJobs.length > 0;
@@ -427,12 +430,11 @@ const AppShell = () => {
   const previewEnabled = useMemo(() => {
     // Enable preview on all steps after Blueprint lock-in, except landing/blueprint/review/operations
     const locked = Boolean(
-      state?.blueprint?.confirmed &&
-      (state?.version?.versionConfirmed ?? state?.release?.confirmed)
+      state?.blueprint?.confirmed && getVersionLocked(state)
     );
     const excludedSteps = ["landing", "blueprint", "review", "operations"];
     return locked && !excludedSteps.includes(previewStepId);
-  }, [previewStepId, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
+  }, [previewStepId, state?.blueprint?.confirmed, state]);
   const yamlDrawerScenario = useMemo(() => ({
     isAgentBased: state?.methodology?.method === "Agent-Based Installer" &&
                   (state?.blueprint?.platform === "Bare Metal" ||
@@ -937,6 +939,14 @@ metadata:
     }
 
     const baseState = data.state || {};
+
+    // Check for unknown/future schema BEFORE applying imported state
+    const unknownSchema = detectUnknownSchema(baseState);
+    if (unknownSchema) {
+      alert(`Cannot import: ${unknownSchema.message}\n\nSchema version found: ${unknownSchema.schemaVersion}\nSupported versions: v1, v2, v3`);
+      return;
+    }
+
     const ui = baseState.ui || {};
     const rowState =
       ui.segmentedFlowV1 == null
@@ -949,8 +959,7 @@ metadata:
 
     const importedUi = merged.ui || {};
     const importedLocked = Boolean(
-      merged.blueprint?.confirmed &&
-      (merged.version?.versionConfirmed ?? merged.release?.confirmed)
+      merged.blueprint?.confirmed && getVersionLocked(merged)
     );
 
     if (importedUi.showLanding === true) {
@@ -1080,6 +1089,38 @@ metadata:
             </button>
             <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
               {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
+            </button>
+          </div>
+        </Modal>
+      </div>
+    );
+  }
+
+  // Unknown/future schema error - show blocking modal
+  if (schemaError) {
+    return (
+      <div className="app-shell">
+        <Modal title="Unsupported State Schema" open={true} onClose={() => {}}>
+          <p>{schemaError.message}</p>
+          <p>
+            <strong>Schema version found:</strong> {schemaError.schemaVersion}
+          </p>
+          <p>
+            <strong>Supported versions:</strong> v1, v2, v3
+          </p>
+          <p>
+            Please upgrade to the latest version of this tool, or start a new configuration.
+          </p>
+          <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                localStorage.removeItem(STORAGE_KEY);
+                window.location.reload();
+              }}
+            >
+              Start New Configuration
             </button>
           </div>
         </Modal>

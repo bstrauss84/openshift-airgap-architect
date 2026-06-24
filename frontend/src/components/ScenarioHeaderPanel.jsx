@@ -12,6 +12,7 @@
  */
 import React, { useState, useMemo, useRef, useCallback } from "react";
 import { getScenarioId } from "../hostInventoryV2Helpers.js";
+import { getDisplayOpenShiftVersion } from "../shared/versionHelpers.js";
 import {
   getConfirmedTabs,
   buildIdentitySummary,
@@ -46,7 +47,7 @@ export default function ScenarioHeaderPanel({ state }) {
   const platform = state?.blueprint?.platform || "";
   const method = state?.methodology?.method || "";
   const scenarioName = [platform, method].filter(Boolean).join(", ") || "—";
-  const version = state?.version?.selectedVersion || state?.release?.patchVersion || docsIndex?.version || "4.20";
+  const version = getDisplayOpenShiftVersion(state, docsIndex);
   const scenarioId = getScenarioId(platform, method);
 
   // Track which tabs are confirmed (visited, not flagged for review, validation passes)

@@ -10,6 +10,7 @@
  */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api.js";
+import { detectUnknownSchema } from "./shared/versionHelpers.js";
 
 const AppContext = createContext(null);
 
@@ -46,12 +47,29 @@ const useAppProvider = () => {
     return saved ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(true);
+  const [schemaError, setSchemaError] = useState(null);
 
   useEffect(() => {
     apiFetch("/api/state")
       .then((data) => {
+        // Check for unknown/future schema before applying state
+        const unknownSchema = detectUnknownSchema(data);
+        if (unknownSchema) {
+          setSchemaError(unknownSchema);
+          setLoading(false);
+          return;
+        }
+
         setState(data);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(getStateForPersistence(data)));
+      })
+      .catch((err) => {
+        // API/network error during hydration - surface error instead of silently using stale localStorage
+        console.error("Failed to load state from backend:", err);
+        setSchemaError({
+          schemaVersion: "unknown",
+          message: `Failed to load configuration from backend: ${err.message}. The application may not function correctly.`
+        });
       })
       .finally(() => setLoading(false));
   }, []);
@@ -66,7 +84,15 @@ const useAppProvider = () => {
     return () => clearTimeout(timeout);
   }, [state]);
 
-  const updateState = (patch) => setState((prev) => ({ ...prev, ...patch }));
+  const updateState = (patch) =>
+    setState((prev) => ({
+      ...prev,
+      ...patch,
+      // Preserve nested version metadata from v3 schema during partial updates
+      version: patch.version
+        ? { ...prev.version, ...patch.version }
+        : prev.version
+    }));
 
   const startOver = async (options = {}) => {
     const cancelRunningOcMirror = options.cancelRunningOcMirror !== false;
@@ -95,12 +121,12 @@ const useAppProvider = () => {
     return next;
   };
 
-  return { state, setState, updateState, loading, startOver };
+  return { state, setState, updateState, loading, schemaError, startOver };
 };
 
 const AppProvider = ({ children }) => {
   const ctx = useAppProvider();
-  const value = useMemo(() => ctx, [ctx.state, ctx.loading]);
+  const value = useMemo(() => ctx, [ctx.state, ctx.loading, ctx.schemaError]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
 

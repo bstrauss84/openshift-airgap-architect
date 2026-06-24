@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
+import { getVersionLocked } from "../shared/versionHelpers.js";
 import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
 import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
@@ -49,7 +50,7 @@ const BlueprintStep = () => {
   const release = state.release;
   const version = state.version || {};
   const locked = blueprint?.confirmed;
-  const releaseLocked = version?.versionConfirmed ?? release?.confirmed;
+  const releaseLocked = getVersionLocked(state);
 
   const [channels, setChannels] = useState([]);
   const [patches, setPatches] = useState([]);
@@ -117,7 +118,7 @@ const BlueprintStep = () => {
         selectionTimestamp: version.selectionTimestamp ?? Date.now(),
         confirmedByUser: false,
         confirmationTimestamp: null,
-        versionConfirmed: false,
+        locked: false,  // v3 canonical field
         ...patch
       },
       operators: {
