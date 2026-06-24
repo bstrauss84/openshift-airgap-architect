@@ -233,6 +233,43 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
+## Container Runtime Preference
+
+**ALWAYS use Podman over Docker**
+
+When working with containers for building, testing, or generating artifacts:
+
+### Why Podman:
+- **Rootless by default** - Better security model
+- **OpenShift compatible** - Uses same OCI standards
+- **No daemon** - Simpler architecture, better resource management
+- **Available on this system** - `/opt/podman/bin/podman`
+
+### Usage Examples:
+
+**Generate Linux package-lock.json:**
+```bash
+podman run --rm -v "$(pwd):/workspace:z" -w /workspace node:20-alpine \
+  sh -c "rm -rf node_modules package-lock.json && npm install --package-lock-only"
+```
+
+**Build container images:**
+```bash
+podman build -t myimage:latest .
+```
+
+**Run tests in container:**
+```bash
+podman run --rm -v "$(pwd):/app:z" -w /app node:20 npm test
+```
+
+### Important Notes:
+- Use `:z` volume mount suffix for SELinux compatibility
+- Podman commands are drop-in replacements for docker commands
+- When documentation says `docker`, always use `podman` instead
+
+---
+
 ## Testing Requirements
 
 ### Before Marking Work Complete
