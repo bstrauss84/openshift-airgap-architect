@@ -92,7 +92,7 @@ export const CollectionPipelineList: React.FC = () => {
     setDownloadingPipeline(pipelineName);
     try {
       // Call backend API via console plugin proxy to get pre-signed download URLs
-      const response = await fetch(`/api/proxy/plugin/airgap-architect/backend/collections/${pipelineName}/download-url`);
+      const response = await fetch(`/api/proxy/plugin/airgap-architect-plugin/backend/api/collections/${pipelineName}/download-url`);
 
       if (!response.ok) {
         const errorData = await response.json();
