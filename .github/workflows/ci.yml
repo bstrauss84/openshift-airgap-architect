@@ -48,7 +48,8 @@ jobs:
         run: |
           cd frontend
           echo "Installing frontend dependencies..."
-          npm ci --include=optional
+          rm -rf node_modules package-lock.json
+          npm install
           echo "Building frontend..."
           npm run build
           echo "Running frontend tests..."
