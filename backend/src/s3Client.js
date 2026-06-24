@@ -61,7 +61,11 @@ export async function readS3Credentials(secretName, namespace) {
   const ns = namespace || await getCurrentNamespace();
 
   try {
-    const response = await client.readNamespacedSecret(secretName, ns);
+    // Note: @kubernetes/client-node v1.0.0+ requires parameters as object
+    const response = await client.readNamespacedSecret({
+      name: secretName,
+      namespace: ns
+    });
     const secret = response.body;
 
     if (!secret.data) {
