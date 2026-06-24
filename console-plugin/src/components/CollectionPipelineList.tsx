@@ -84,8 +84,8 @@ export const CollectionPipelineList: React.FC = () => {
     return 'warning';
   };
 
-  const getPipelineRunUrl = (pipelineRunName: string, namespace: string) => {
-    return `/k8s/ns/${namespace}/tekton.dev~v1~PipelineRun/${pipelineRunName}`;
+  const getDetailUrl = (pipelineName: string) => {
+    return `/airgap-architect/collections/${pipelineName}`;
   };
 
   const handleDownload = async (pipelineName: string) => {
@@ -165,18 +165,18 @@ export const CollectionPipelineList: React.FC = () => {
               {pipelines.map((pipeline) => (
                 <Tr key={pipeline.metadata.name}>
                   <Td>
-                    {pipeline.status?.pipelineRunRef ? (
-                      <a
-                        href={getPipelineRunUrl(pipeline.status.pipelineRunRef, pipeline.metadata.namespace)}
-                        style={{ color: '#0066cc', textDecoration: 'none' }}
-                        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-                        onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
-                      >
-                        {pipeline.metadata.name}
-                      </a>
-                    ) : (
-                      pipeline.metadata.name
-                    )}
+                    <a
+                      href={getDetailUrl(pipeline.metadata.name)}
+                      style={{ color: '#0066cc', textDecoration: 'none', cursor: 'pointer' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        history.push(getDetailUrl(pipeline.metadata.name));
+                      }}
+                    >
+                      {pipeline.metadata.name}
+                    </a>
                   </Td>
                   <Td>
                     <span

@@ -24,5 +24,13 @@
       "path": "/airgap-architect/imagesets/create",
       "component": { "$codeRef": "pages.CreateImageSetPage" }
     }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/airgap-architect/collections/:name",
+      "component": { "$codeRef": "pages.CollectionPipelineDetailPage" }
+    }
   }
 ]
