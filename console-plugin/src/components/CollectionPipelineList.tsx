@@ -42,6 +42,7 @@ export const CollectionPipelineList: React.FC = () => {
   const [pipelines, setPipelines] = React.useState<CollectionPipeline[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [downloadingPipeline, setDownloadingPipeline] = React.useState<string | null>(null);
 
   const fetchPipelines = async () => {
     try {
@@ -85,6 +86,32 @@ export const CollectionPipelineList: React.FC = () => {
 
   const getPipelineRunUrl = (pipelineRunName: string, namespace: string) => {
     return `/k8s/ns/${namespace}/tekton.dev~v1~PipelineRun/${pipelineRunName}`;
+  };
+
+  const handleDownload = async (pipelineName: string) => {
+    setDownloadingPipeline(pipelineName);
+    try {
+      // Call backend API to get pre-signed download URLs
+      const response = await fetch(`/api/collections/${pipelineName}/download-url`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to get download URL: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // If we have URLs, download the main bundle (mirror_seq1_000000.tar)
+      if (data.urls && data.urls['mirror_seq1_000000.tar']) {
+        window.open(data.urls['mirror_seq1_000000.tar'], '_blank');
+      } else {
+        throw new Error('No bundle URL available');
+      }
+    } catch (err: any) {
+      alert(`Failed to download: ${err.message}`);
+    } finally {
+      setDownloadingPipeline(null);
+    }
   };
 
   return (
@@ -183,17 +210,15 @@ export const CollectionPipelineList: React.FC = () => {
                   <Td>{formatTimestamp(pipeline.metadata.creationTimestamp)}</Td>
                   <Td>{formatTimestamp(pipeline.status?.completionTime)}</Td>
                   <Td>
-                    {pipeline.status?.bundleUrl &&
-                     (pipeline.status?.phase === 'Complete' || pipeline.status?.phase === 'Succeeded') ? (
+                    {(pipeline.status?.phase === 'Complete' || pipeline.status?.phase === 'Succeeded') ? (
                       <Button
                         variant="link"
                         icon={<DownloadIcon />}
-                        component="a"
-                        href={pipeline.status.bundleUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        onClick={() => handleDownload(pipeline.metadata.name)}
+                        isLoading={downloadingPipeline === pipeline.metadata.name}
+                        isDisabled={downloadingPipeline !== null}
                       >
-                        Download Bundle
+                        {downloadingPipeline === pipeline.metadata.name ? 'Generating URL...' : 'Download Bundle'}
                       </Button>
                     ) : (
                       <span style={{ color: '#6a6e73', fontSize: '0.875rem' }}>-</span>
