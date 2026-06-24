@@ -352,12 +352,22 @@ Reads S3 credentials from the `collection-artifacts` Kubernetes secret and gener
 - `500` - Not running in Kubernetes cluster, or S3 credential error
 
 **Required Kubernetes Secret:**
-The endpoint expects a secret named `collection-artifacts` (in the current namespace) with the following base64-encoded data fields:
+The endpoint expects a Kubernetes secret (in the current namespace) with the following base64-encoded data fields:
 - `AWS_ACCESS_KEY_ID` - S3 access key ID (required)
 - `AWS_SECRET_ACCESS_KEY` - S3 secret access key (required)
 - `S3_BUCKET` - S3 bucket name (required)
 - `AWS_REGION` - AWS region (optional, defaults to `us-east-1`)
 - `S3_ENDPOINT` - Custom S3 endpoint URL for S3-compatible storage like MinIO (optional)
+
+**Secret Name Configuration:**
+The secret name can be configured via the `S3_SECRET_NAME` environment variable. If not set, defaults to `collection-artifacts`.
+
+Example deployment configuration:
+```yaml
+env:
+  - name: S3_SECRET_NAME
+    value: "my-custom-s3-secret"
+```
 
 **Artifact Paths:**
 The endpoint attempts to generate URLs for the following artifacts (if they exist):

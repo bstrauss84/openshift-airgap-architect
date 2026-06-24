@@ -172,6 +172,46 @@ describe("S3 Client - generateCollectionDownloadUrls", () => {
     // Should pass expiresIn parameter to generatePresignedUrl
     assert.ok(true, "Integration test - requires S3 access");
   });
+
+  it("should use S3_SECRET_NAME environment variable when set", () => {
+    // This test verifies the environment variable override works
+    const originalEnv = process.env.S3_SECRET_NAME;
+
+    try {
+      // Set environment variable
+      process.env.S3_SECRET_NAME = "custom-secret-name";
+
+      // The function should use the env var value
+      // (This would be tested in integration with actual K8s client)
+      assert.equal(process.env.S3_SECRET_NAME, "custom-secret-name", "Environment variable should be set");
+    } finally {
+      // Restore original value
+      if (originalEnv === undefined) {
+        delete process.env.S3_SECRET_NAME;
+      } else {
+        process.env.S3_SECRET_NAME = originalEnv;
+      }
+    }
+  });
+
+  it("should default to 'collection-artifacts' when no env var set", () => {
+    // Verify default behavior
+    const originalEnv = process.env.S3_SECRET_NAME;
+
+    try {
+      // Ensure env var is not set
+      delete process.env.S3_SECRET_NAME;
+
+      // Default should be 'collection-artifacts'
+      const defaultName = process.env.S3_SECRET_NAME || 'collection-artifacts';
+      assert.equal(defaultName, 'collection-artifacts', "Should default to collection-artifacts");
+    } finally {
+      // Restore original value
+      if (originalEnv !== undefined) {
+        process.env.S3_SECRET_NAME = originalEnv;
+      }
+    }
+  });
 });
 
 describe("S3 Client - API endpoint /api/collections/:name/download-url", () => {

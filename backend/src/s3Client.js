@@ -183,19 +183,28 @@ export async function generatePresignedUrl({ bucket, key, client, expiresIn = 36
  * Generate pre-signed URLs for all artifacts in a collection
  * @param {object} options - Options for URL generation
  * @param {string} options.collectionName - Name of the collection
- * @param {string} [options.secretName='collection-artifacts'] - Name of the secret containing S3 credentials
+ * @param {string} [options.secretName] - Name of the secret containing S3 credentials (defaults to env var S3_SECRET_NAME or 'collection-artifacts')
  * @param {string} [options.namespace] - Namespace (defaults to current namespace)
  * @param {number} [options.expiresIn=3600] - URL expiration in seconds (default: 1 hour)
  * @returns {Promise<object>} Object containing pre-signed URLs for each artifact
  */
 export async function generateCollectionDownloadUrls({
   collectionName,
-  secretName = 'collection-artifacts',
+  secretName,
   namespace,
   expiresIn = 3600
 }) {
+  // Determine secret name: parameter > env var > default
+  const effectiveSecretName = secretName || process.env.S3_SECRET_NAME || 'collection-artifacts';
+
+  logger.info({
+    collectionName,
+    secretName: effectiveSecretName,
+    secretNameSource: secretName ? 'parameter' : (process.env.S3_SECRET_NAME ? 'environment' : 'default')
+  }, "Generating collection download URLs");
+
   // Read S3 credentials from secret
-  const credentials = await readS3Credentials(secretName, namespace);
+  const credentials = await readS3Credentials(effectiveSecretName, namespace);
 
   // Create S3 client
   const s3Client = createS3Client(credentials);
