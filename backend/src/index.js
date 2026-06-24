@@ -67,6 +67,7 @@ import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { createCollectionPipeline, listCollectionPipelines } from "./collectionPipeline.js";
+import { generateCollectionDownloadUrls } from "./s3Client.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -1259,6 +1260,70 @@ app.get("/api/collection-pipeline/list", async (_req, res) => {
     });
   } catch (error) {
     logger.error({ error: error.message }, "Failed to list CollectionPipelines");
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/collections/:name/download-url", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "Collection download URLs only available in operator-managed mode"
+    });
+  }
+
+  const { name } = req.params;
+
+  if (!name) {
+    return res.status(400).json({
+      error: "Collection name is required"
+    });
+  }
+
+  try {
+    // Generate pre-signed URLs for collection artifacts
+    // URLs expire in 1 hour by default
+    const urls = await generateCollectionDownloadUrls({
+      collectionName: name,
+      expiresIn: 3600 // 1 hour
+    });
+
+    if (Object.keys(urls).length === 0) {
+      return res.status(404).json({
+        error: `No artifacts found for collection: ${name}`
+      });
+    }
+
+    logger.info({
+      collectionName: name,
+      urlCount: Object.keys(urls).length
+    }, "Generated pre-signed download URLs");
+
+    res.json({
+      collectionName: name,
+      expiresIn: 3600,
+      urls
+    });
+  } catch (error) {
+    logger.error({
+      collectionName: name,
+      error: error.message
+    }, "Failed to generate download URLs");
+
+    // Provide specific error messages for common failures
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        error: `Secret or collection not found: ${error.message}`
+      });
+    }
+
+    if (error.message.includes("Kubernetes client not available")) {
+      return res.status(500).json({
+        error: "Not running in Kubernetes cluster"
+      });
+    }
+
     res.status(500).json({
       error: error.message
     });

@@ -16,6 +16,8 @@
     "test": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} node --test test/"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@kubernetes/client-node": "^1.0.0",
     "archiver": "^8.0.0",
     "better-sqlite3": "^9.4.0",
