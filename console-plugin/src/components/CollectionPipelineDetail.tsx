@@ -50,15 +50,9 @@ interface CollectionPipeline {
     completionTime?: string;
     pipelineRunRef?: string;
     bundleUrl?: string;
+    signatureUrl?: string;
     sbomUrl?: string;
-  };
-}
-
-interface DownloadUrls {
-  collectionName: string;
-  expiresIn: number;
-  urls: {
-    [key: string]: string;
+    configMapRef?: string;
   };
 }
 
@@ -82,30 +76,27 @@ interface PipelineRun {
     }>;
     startTime?: string;
     completionTime?: string;
-    taskRuns?: {
-      [key: string]: {
-        pipelineTaskName: string;
-        status?: {
-          conditions?: Array<{
-            type: string;
-            status: string;
-            reason?: string;
-          }>;
-          startTime?: string;
-          completionTime?: string;
-          steps?: Array<{
-            name: string;
-            container: string;
-            terminated?: {
-              exitCode: number;
-              startedAt?: string;
-              finishedAt?: string;
-              reason?: string;
-            };
-          }>;
-        };
-      };
-    };
+    childReferences?: Array<{
+      apiVersion: string;
+      kind: string;
+      name: string;
+      pipelineTaskName: string;
+    }>;
+  };
+}
+
+interface TaskRun {
+  metadata: {
+    name: string;
+  };
+  status?: {
+    conditions?: Array<{
+      type: string;
+      status: string;
+      reason?: string;
+    }>;
+    startTime?: string;
+    completionTime?: string;
   };
 }
 
@@ -124,11 +115,10 @@ export const CollectionPipelineDetail: React.FC = () => {
 
   const [pipeline, setPipeline] = React.useState<CollectionPipeline | null>(null);
   const [pipelineRun, setPipelineRun] = React.useState<PipelineRun | null>(null);
-  const [downloadUrls, setDownloadUrls] = React.useState<DownloadUrls | null>(null);
+  const [taskRuns, setTaskRuns] = React.useState<Array<{ name: string; pipelineTaskName: string; taskRun: TaskRun }>>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadingPipelineRun, setLoadingPipelineRun] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [loadingUrls, setLoadingUrls] = React.useState(false);
 
   const namespace = 'mirror-operator-system';
 
@@ -180,31 +170,38 @@ export const CollectionPipelineDetail: React.FC = () => {
 
       const data = await response.json();
       setPipelineRun(data);
+
+      // Fetch individual TaskRuns from childReferences
+      if (data.status?.childReferences) {
+        const taskRunPromises = data.status.childReferences
+          .filter((ref: any) => ref.kind === 'TaskRun')
+          .map(async (ref: any) => {
+            try {
+              const taskRunResponse = await fetch(
+                `/api/kubernetes/apis/tekton.dev/v1/namespaces/${namespace}/taskruns/${ref.name}`
+              );
+              if (taskRunResponse.ok) {
+                const taskRunData = await taskRunResponse.json();
+                return {
+                  name: ref.name,
+                  pipelineTaskName: ref.pipelineTaskName,
+                  taskRun: taskRunData
+                };
+              }
+            } catch (err) {
+              console.error(`Failed to fetch TaskRun ${ref.name}:`, err);
+            }
+            return null;
+          });
+
+        const fetchedTaskRuns = await Promise.all(taskRunPromises);
+        setTaskRuns(fetchedTaskRuns.filter((tr): tr is { name: string; pipelineTaskName: string; taskRun: TaskRun } => tr !== null));
+      }
     } catch (err: any) {
       console.error('Failed to fetch PipelineRun:', err);
       // Don't set error state - we still want to show the pipeline details
     } finally {
       setLoadingPipelineRun(false);
-    }
-  };
-
-  const fetchDownloadUrls = async () => {
-    setLoadingUrls(true);
-    try {
-      const response = await fetch(`/api/proxy/plugin/airgap-architect-plugin/backend/api/collections/${name}/download-url`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to get download URLs: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setDownloadUrls(data);
-    } catch (err: any) {
-      console.error('Failed to fetch download URLs:', err);
-      // Don't set error state - we still want to show the pipeline details
-    } finally {
-      setLoadingUrls(false);
     }
   };
 
@@ -275,19 +272,11 @@ export const CollectionPipelineDetail: React.FC = () => {
   };
 
   const getSortedTaskRuns = () => {
-    if (!pipelineRun?.status?.taskRuns) return [];
-
-    return Object.entries(pipelineRun.status.taskRuns)
-      .map(([key, taskRun]) => ({
-        key,
-        name: taskRun.pipelineTaskName,
-        taskRun
-      }))
-      .sort((a, b) => {
-        const aStart = a.taskRun.status?.startTime || '';
-        const bStart = b.taskRun.status?.startTime || '';
-        return aStart.localeCompare(bStart);
-      });
+    return taskRuns.sort((a, b) => {
+      const aStart = a.taskRun.status?.startTime || '';
+      const bStart = b.taskRun.status?.startTime || '';
+      return aStart.localeCompare(bStart);
+    });
   };
 
   const parseImageSetConfig = (yaml?: string) => {
@@ -565,59 +554,54 @@ export const CollectionPipelineDetail: React.FC = () => {
         )}
 
         {/* Downloads Card (only show when complete) */}
-        {isComplete && (
+        {isComplete && (pipeline.status?.bundleUrl || pipeline.status?.signatureUrl || getSbomUrl()) && (
           <Card style={{ marginBottom: '1rem' }}>
             <CardTitle>Downloads</CardTitle>
             <CardBody>
-              {loadingUrls && (
-                <div style={{ textAlign: 'center', padding: '1rem' }}>
-                  <Spinner size="md" /> Generating download URLs...
+              <List>
+                {pipeline.status?.bundleUrl && (
+                  <ListItem>
+                    <Button
+                      variant="link"
+                      icon={<DownloadIcon />}
+                      component="a"
+                      href={pipeline.status.bundleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Download Collection Bundle (.tar.gz)
+                    </Button>
+                  </ListItem>
+                )}
+                {pipeline.status?.signatureUrl && (
+                  <ListItem>
+                    <Button
+                      variant="link"
+                      icon={<DownloadIcon />}
+                      component="a"
+                      href={pipeline.status.signatureUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Download Signature (.sig)
+                    </Button>
+                  </ListItem>
+                )}
+              </List>
+
+              {getSbomUrl() && (
+                <div style={{ marginTop: '1rem' }}>
+                  <Button
+                    variant="link"
+                    icon={<ExternalLinkAltIcon />}
+                    component="a"
+                    href={getSbomUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View SBOM in Trusted Application Analyzer
+                  </Button>
                 </div>
-              )}
-
-              {!loadingUrls && !downloadUrls && (
-                <Alert variant="warning" title="Download URLs Not Available" isInline>
-                  <p>Unable to generate download URLs. The collection artifacts may not be ready yet.</p>
-                </Alert>
-              )}
-
-              {!loadingUrls && downloadUrls && (
-                <>
-                  <Content component="p" style={{ marginBottom: '1rem' }}>
-                    Pre-signed download URLs (expires in {Math.floor(downloadUrls.expiresIn / 60)} minutes)
-                  </Content>
-                  <List>
-                    {Object.entries(downloadUrls.urls).map(([filename, url]) => (
-                      <ListItem key={filename}>
-                        <Button
-                          variant="link"
-                          icon={<DownloadIcon />}
-                          component="a"
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {filename}
-                        </Button>
-                      </ListItem>
-                    ))}
-                  </List>
-
-                  {getSbomUrl() && (
-                    <div style={{ marginTop: '1rem' }}>
-                      <Button
-                        variant="link"
-                        icon={<ExternalLinkAltIcon />}
-                        component="a"
-                        href={getSbomUrl()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View SBOM in Trusted Application Analyzer
-                      </Button>
-                    </div>
-                  )}
-                </>
               )}
             </CardBody>
           </Card>
