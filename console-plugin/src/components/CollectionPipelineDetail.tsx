@@ -120,6 +120,9 @@ export const CollectionPipelineDetail: React.FC = () => {
   const [loadingPipelineRun, setLoadingPipelineRun] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Track if this is the first load using a ref
+  const isFirstLoadRef = React.useRef(true);
+
   const namespace = 'mirror-operator-system';
 
   const fetchPipeline = async () => {
@@ -144,8 +147,9 @@ export const CollectionPipelineDetail: React.FC = () => {
       // Fetch PipelineRun details if available
       if (data.status?.pipelineRunRef) {
         // Only show loading on first fetch, not on auto-refresh
-        const isInitialLoad = !pipeline;
+        const isInitialLoad = isFirstLoadRef.current;
         fetchPipelineRun(data.status.pipelineRunRef, isInitialLoad);
+        isFirstLoadRef.current = false;
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load collection pipeline');
@@ -495,11 +499,11 @@ export const CollectionPipelineDetail: React.FC = () => {
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {getSortedTaskRuns().map(({ key, name, taskRun }) => {
+                      {getSortedTaskRuns().map(({ name, pipelineTaskName, taskRun }) => {
                         const taskStatus = getTaskStatus(taskRun);
                         return (
-                          <Tr key={key}>
-                            <Td>{name}</Td>
+                          <Tr key={name}>
+                            <Td>{pipelineTaskName}</Td>
                             <Td>
                               <span
                                 style={{
