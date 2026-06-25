@@ -143,7 +143,9 @@ export const CollectionPipelineDetail: React.FC = () => {
 
       // Fetch PipelineRun details if available
       if (data.status?.pipelineRunRef) {
-        fetchPipelineRun(data.status.pipelineRunRef);
+        // Only show loading on first fetch, not on auto-refresh
+        const isInitialLoad = !pipeline;
+        fetchPipelineRun(data.status.pipelineRunRef, isInitialLoad);
       }
 
       // If pipeline is complete, fetch download URLs
@@ -157,8 +159,12 @@ export const CollectionPipelineDetail: React.FC = () => {
     }
   };
 
-  const fetchPipelineRun = async (pipelineRunName: string) => {
-    setLoadingPipelineRun(true);
+  const fetchPipelineRun = async (pipelineRunName: string, isInitialLoad = false) => {
+    // Only show loading spinner on initial load, not on auto-refresh
+    if (isInitialLoad) {
+      setLoadingPipelineRun(true);
+    }
+
     try {
       const response = await fetch(
         `/api/kubernetes/apis/tekton.dev/v1/namespaces/${namespace}/pipelineruns/${pipelineRunName}`
@@ -201,7 +207,9 @@ export const CollectionPipelineDetail: React.FC = () => {
       console.error('Failed to fetch PipelineRun:', err);
       // Don't set error state - we still want to show the pipeline details
     } finally {
-      setLoadingPipelineRun(false);
+      if (isInitialLoad) {
+        setLoadingPipelineRun(false);
+      }
     }
   };
 
