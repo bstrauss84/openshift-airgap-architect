@@ -1128,8 +1128,10 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
   }
 
   // DOC-101 Phase 1 Slice 4 Boundary 1: State migration at API boundary
-  // Merge patch first, then migrate to v3 if needed
-  const merged = updateState(patch);
+  // CRITICAL: Validate migration BEFORE persisting to prevent database pollution
+  // Build candidate merged state in memory only, validate, then persist if valid
+  const current = ensureState();
+  const merged = deepMerge(current, patch);
   const migrationResult = migrateStateToV3(merged);
 
   if (migrationResult.error) {
@@ -1144,6 +1146,7 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
       },
       "State migration failed at /api/state boundary"
     );
+    // Return 400 without persisting - candidate state was invalid
     return res.status(400).json({
       error: "State migration failed",
       details: [{
@@ -1153,8 +1156,9 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     });
   }
 
-  // If migration occurred (v1 or v2 → v3), persist the migrated state
+  // Migration validation succeeded - now safe to persist
   if (migrationResult.wasV1 || migrationResult.wasV2) {
+    // v1/v2 → v3 migration: persist the migrated state
     logger.info(
       { wasV1: migrationResult.wasV1, wasV2: migrationResult.wasV2 },
       "State migrated to v3 at /api/state boundary"
@@ -1162,7 +1166,8 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     setState(migrationResult.migrated);
     res.json(migrationResult.migrated);
   } else {
-    // Already v3, return the merged state (which was already persisted by updateState)
+    // Already v3 and valid: persist the merged state
+    setState(merged);
     res.json(merged);
   }
 });
