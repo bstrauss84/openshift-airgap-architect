@@ -147,11 +147,6 @@ export const CollectionPipelineDetail: React.FC = () => {
         const isInitialLoad = !pipeline;
         fetchPipelineRun(data.status.pipelineRunRef, isInitialLoad);
       }
-
-      // If pipeline is complete, fetch download URLs
-      if (data.status?.phase === 'Complete' || data.status?.phase === 'Succeeded') {
-        fetchDownloadUrls();
-      }
     } catch (err: any) {
       setError(err.message || 'Failed to load collection pipeline');
     } finally {
