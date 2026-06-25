@@ -40,7 +40,15 @@ describe("Blueprint lock: scan kickoff and field cleared", () => {
         return Promise.resolve({
           ok: true,
           release: { channel: "4.15", patchVersion: "4.15.0", confirmed: true },
-          version: { versionConfirmed: true }
+          version: {
+            _schemaVersion: 3,
+            selectedMinor: "4.15",
+            selectedPatch: "4.15.0",
+            selectedChannel: "stable-4.15",
+            selectedVersion: "4.15.0",
+            locked: true,
+            confirmedByUser: true
+          }
         });
       }
       if (path === "/api/operators/scan") return Promise.resolve({ jobs: { redhat: "job-1" } });

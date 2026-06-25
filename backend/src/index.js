@@ -1460,13 +1460,18 @@ app.get("/api/operators/credentials", (req, res) => {
 app.post("/api/operators/confirm", validateBody(operatorConfirmSchema), (req, res) => {
   const state = ensureState();
   const release = { ...state.release, confirmed: true };
+  // DOC-101 Phase 1: Use v3 canonical fields (locked, selectedMinor, selectedPatch, _schemaVersion)
+  // Preserve existing v3 schema marker and locked state if already set
   const version = {
+    _schemaVersion: state.version?._schemaVersion ?? 3,  // v3 schema marker
+    selectedMinor: state.release?.channel || state.version?.selectedMinor || null,
+    selectedPatch: state.release?.patchVersion || state.version?.selectedPatch || null,
     selectedChannel: state.release?.channel ? `stable-${state.release.channel}` : null,
     selectedVersion: state.release?.patchVersion || null,
     selectionTimestamp: state.version?.selectionTimestamp || Date.now(),
     confirmedByUser: true,
     confirmationTimestamp: Date.now(),
-    versionConfirmed: true
+    locked: true  // v3 canonical lock field
   };
   updateState({ release, version });
   res.json({ ok: true, release, version });
