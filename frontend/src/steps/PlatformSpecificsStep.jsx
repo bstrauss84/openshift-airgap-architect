@@ -11,6 +11,7 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../store.jsx";
+import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
 import { formatMACAsYouType } from "../formatUtils.js";
 import { apiFetch } from "../api.js";
@@ -70,7 +71,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const method = state.methodology?.method;
   const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || "";
   const arch = state.blueprint?.arch || "x86_64";
-  const versionConfirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  const versionConfirmed = getVersionLocked(state);
   const catalogParams = getCatalogForScenario(scenarioId) || [];
   const showAwsGovcloudSection = catalogParams.some(
     (p) => p.path === "platform.aws.region" && p.outputFile === INSTALL_CONFIG

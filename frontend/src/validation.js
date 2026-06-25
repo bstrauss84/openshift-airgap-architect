@@ -18,6 +18,7 @@ import {
   getTrustPolicyOptionsForScenario,
   inferDefaultAdditionalTrustBundlePolicy
 } from "./shared/trustBundlePolicy.js";
+import { getVersionLocked } from "./shared/versionHelpers.js";
 import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
@@ -680,7 +681,7 @@ const validateHostInventory = (state) => {
 };
 
 const validateVersionConfirmed = (state) => {
-  const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  const confirmed = getVersionLocked(state);
   if (!confirmed) {
     return { errors: ["Version selection is not confirmed."], warnings: [] };
   }

@@ -563,7 +563,7 @@ const AppShell = () => {
     // Fix: Always generate YAML when state changes; YamlDrawer controls display via isOpen
     // This fixes: import showing wrong YAML, methodology switch showing empty agent-config
 
-    const confirmed = state?.version?.versionConfirmed ?? state?.release?.confirmed;
+    const confirmed = getVersionLocked(state);
 
     if (!confirmed) {
       // Show skeleton YAML before version confirmation
@@ -1303,7 +1303,7 @@ metadata:
                 className="primary"
                 onClick={() => {
                   const coreLockLocked =
-                    state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed);
+                    state.blueprint?.confirmed && getVersionLocked(state);
                   if (visibleSteps[active]?.id === "blueprint" && !coreLockLocked) {
                     setPendingNavIndex(active + 1);
                     setShowCoreLockWarning(true);
@@ -1324,7 +1324,7 @@ metadata:
                 {active === visibleSteps.length - 1
                   ? "Finish"
                   : visibleSteps[active]?.id === "blueprint" &&
-                      !(state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed))
+                      !(state.blueprint?.confirmed && getVersionLocked(state))
                     ? "Confirm & Proceed"
                     : visibleSteps[active]?.id === "blueprint"
                       ? "Proceed"

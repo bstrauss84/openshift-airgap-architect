@@ -11,6 +11,7 @@
  */
 import React from "react";
 import { useApp } from "../store.jsx";
+import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
 import { getForwardOpenShiftMinorDocNotice } from "../shared/versionPolicy.js";
 import { getScenarioId } from "../catalogResolver.js";
@@ -29,7 +30,7 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
   const platform = state.blueprint?.platform;
   const method = state.methodology?.method;
   const showPublishCreds = (platform === "AWS GovCloud" || platform === "Azure Government") && method === "IPI";
-  const versionConfirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  const versionConfirmed = getVersionLocked(state);
   const arch = state.blueprint?.arch;
   const allowedConnectivity = ["fully-disconnected", "jumpbox"];
   const connectivity = allowedConnectivity.includes(state.docs?.connectivity)

@@ -12,6 +12,7 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
+import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { useCatalogScanProgress } from "../useCatalogScanProgress.js";
 import SecretInput from "../components/SecretInput.jsx";
@@ -244,7 +245,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const catalogs = normalizeCatalogs(catalogsData);
   const selected = state.operators?.selected || [];
   const scenarioSelections = state.operators?.scenarios || {};
-  const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  const confirmed = getVersionLocked(state);
   const selectionsKey = `${version}-${confirmed}`;
   const hasResults = catalogs.redhat.length || catalogs.certified.length || catalogs.community.length;
   const fastMode = Boolean(state.operators?.fastMode);
