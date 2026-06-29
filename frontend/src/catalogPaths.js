@@ -36,8 +36,16 @@ export function getCatalogForScenario(scenarioId, version = '4.20') {
     const versionExists = Object.keys(catalogs).some(path => path.startsWith(`./data/catalogs/${minorVersion}/`));
 
     if (!versionExists) {
+      // Discover all available versions dynamically
+      const availableVersions = [...new Set(
+        Object.keys(catalogs)
+          .filter(p => p.startsWith('./data/catalogs/'))
+          .map(p => p.split('/')[3]) // Extract version from path like ./data/catalogs/4.20/scenario.json
+          .filter(Boolean)
+      )].sort();
+
       throw new Error(
-        `OpenShift ${minorVersion} is not supported yet. Supported versions: 4.20. ` +
+        `OpenShift ${minorVersion} is not supported yet. Supported versions: ${availableVersions.join(', ')}. ` +
         `To add support for ${minorVersion}, create catalogs at frontend/src/data/catalogs/${minorVersion}/`
       );
     } else {

@@ -48,11 +48,11 @@ describe('Catalog versioning (ADR-005)', () => {
   });
 
   describe('Unsupported version blocking', () => {
-    it('throws clear error for 4.21 (catalog does not exist)', () => {
-      expect(() => getCatalogForScenario('bare-metal-agent', '4.21'))
-        .toThrow(/OpenShift 4.21 is not supported yet/);
-      expect(() => getCatalogForScenario('bare-metal-agent', '4.21'))
-        .toThrow(/Supported versions: 4.20/);
+    it('throws clear error for 4.22 (future version, catalog does not exist)', () => {
+      expect(() => getCatalogForScenario('bare-metal-agent', '4.22'))
+        .toThrow(/OpenShift 4.22 is not supported yet/);
+      expect(() => getCatalogForScenario('bare-metal-agent', '4.22'))
+        .toThrow(/Supported versions: 4.20, 4.21/);
     });
 
     it('throws clear error for 4.99 (future version)', () => {
@@ -97,7 +97,7 @@ describe('Catalog versioning (ADR-005)', () => {
 
   describe('No silent fallback', () => {
     it('does not silently return empty array for unsupported version', () => {
-      expect(() => getCatalogForScenario('bare-metal-agent', '4.21'))
+      expect(() => getCatalogForScenario('bare-metal-agent', '4.22'))
         .toThrow();
       // Should NOT return []
     });
@@ -123,8 +123,8 @@ describe('Catalog versioning (ADR-005)', () => {
     });
 
     it('throws same errors for unsupported versions', () => {
-      expect(() => getCatalogParameters('bare-metal-agent', '4.21'))
-        .toThrow(/OpenShift 4.21 is not supported yet/);
+      expect(() => getCatalogParameters('bare-metal-agent', '4.22'))
+        .toThrow(/OpenShift 4.22 is not supported yet/);
     });
   });
 
@@ -137,8 +137,8 @@ describe('Catalog versioning (ADR-005)', () => {
     });
 
     it('throws error for unsupported version', () => {
-      expect(() => getCatalogPaths('bare-metal-agent', '4.21'))
-        .toThrow(/OpenShift 4.21 is not supported yet/);
+      expect(() => getCatalogPaths('bare-metal-agent', '4.22'))
+        .toThrow(/OpenShift 4.22 is not supported yet/);
     });
   });
 });
