@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
- * Catalog Sync Utility
+ * Catalog Sync Utility (Version-Aware)
  *
  * Ensures catalog parameter files are synchronized between:
- * - data/params/4.20/ (backend source)
- * - frontend/src/data/catalogs/ (frontend source)
+ * - data/params/<version>/ (backend source)
+ * - frontend/src/data/catalogs/<version>/ (frontend mirror)
+ *
+ * Preserves version subdirectory structure per ADR-001/ADR-005.
  *
  * Run manually: node scripts/sync-catalogs.js
  * Auto-runs: pre-commit hook, npm run sync-catalogs
@@ -16,8 +18,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const SOURCE_DIR = path.join(__dirname, '..', 'data', 'params', '4.20');
-const TARGET_DIR = path.join(__dirname, '..', 'frontend', 'src', 'data', 'catalogs');
+const PARAMS_ROOT = path.join(__dirname, '..', 'data', 'params');
+const CATALOGS_ROOT = path.join(__dirname, '..', 'frontend', 'src', 'data', 'catalogs');
 
 const COLORS = {
   reset: '\x1b[0m',
@@ -42,7 +44,7 @@ function syncCatalogs(options = {}) {
   const { dryRun = false, verbose = false } = options;
 
   log('═══════════════════════════════════════════════════', 'blue');
-  log('  Catalog Sync Utility', 'blue');
+  log('  Catalog Sync Utility (Version-Aware)', 'blue');
   log('═══════════════════════════════════════════════════', 'blue');
 
   if (dryRun) {
@@ -50,102 +52,131 @@ function syncCatalogs(options = {}) {
   }
   log('');
 
-  // Verify directories exist
-  if (!fs.existsSync(SOURCE_DIR)) {
-    log(`❌ Source directory not found: ${SOURCE_DIR}`, 'red');
+  // Verify root directories exist
+  if (!fs.existsSync(PARAMS_ROOT)) {
+    log(`❌ Params root not found: ${PARAMS_ROOT}`, 'red');
     process.exit(1);
   }
 
-  if (!fs.existsSync(TARGET_DIR)) {
-    log(`❌ Target directory not found: ${TARGET_DIR}`, 'red');
+  if (!fs.existsSync(CATALOGS_ROOT)) {
+    log(`❌ Catalogs root not found: ${CATALOGS_ROOT}`, 'red');
     process.exit(1);
   }
 
-  // Get all JSON files from source
-  const sourceFiles = fs.readdirSync(SOURCE_DIR).filter(f => f.endsWith('.json'));
+  // Find all version directories in params root
+  const versions = fs.readdirSync(PARAMS_ROOT)
+    .filter(name => {
+      const fullPath = path.join(PARAMS_ROOT, name);
+      return fs.statSync(fullPath).isDirectory() && /^\d+\.\d+$/.test(name);
+    })
+    .sort();
 
-  if (sourceFiles.length === 0) {
-    log('⚠️  No catalog files found in source directory', 'yellow');
+  if (versions.length === 0) {
+    log('⚠️  No version directories found in data/params/', 'yellow');
     process.exit(0);
   }
 
-  log(`📂 Source: ${path.relative(process.cwd(), SOURCE_DIR)}`, 'gray');
-  log(`📂 Target: ${path.relative(process.cwd(), TARGET_DIR)}`, 'gray');
-  log(`📄 Files: ${sourceFiles.length} catalog files`, 'gray');
+  log(`📂 Versions found: ${versions.join(', ')}`, 'gray');
   log('');
 
-  let identical = 0;
-  let synced = 0;
-  let errors = 0;
+  let totalIdentical = 0;
+  let totalSynced = 0;
+  let totalErrors = 0;
 
-  sourceFiles.forEach(fileName => {
-    const sourcePath = path.join(SOURCE_DIR, fileName);
-    const targetPath = path.join(TARGET_DIR, fileName);
+  versions.forEach(version => {
+    const sourceDir = path.join(PARAMS_ROOT, version);
+    const targetDir = path.join(CATALOGS_ROOT, version);
 
-    const sourceHash = getFileHash(sourcePath);
-    const targetHash = getFileHash(targetPath);
+    log(`Version ${version}:`, 'blue');
 
-    if (!targetHash) {
-      // Target doesn't exist - copy it
+    // Ensure target version directory exists
+    if (!fs.existsSync(targetDir)) {
       if (!dryRun) {
-        try {
-          fs.copyFileSync(sourcePath, targetPath);
-          log(`  ✓ ${fileName} - CREATED`, 'green');
-          synced++;
-        } catch (err) {
-          log(`  ✗ ${fileName} - ERROR: ${err.message}`, 'red');
-          errors++;
-        }
+        fs.mkdirSync(targetDir, { recursive: true });
+        log(`  Created directory: frontend/src/data/catalogs/${version}/`, 'green');
       } else {
-        log(`  → ${fileName} - WOULD CREATE`, 'yellow');
-        synced++;
+        log(`  Would create directory: frontend/src/data/catalogs/${version}/`, 'yellow');
       }
-    } else if (sourceHash !== targetHash) {
-      // Files differ - sync them
-      if (!dryRun) {
-        try {
-          fs.copyFileSync(sourcePath, targetPath);
-          log(`  ✓ ${fileName} - SYNCED`, 'green');
-          synced++;
-        } catch (err) {
-          log(`  ✗ ${fileName} - ERROR: ${err.message}`, 'red');
-          errors++;
-        }
-      } else {
-        log(`  → ${fileName} - WOULD SYNC`, 'yellow');
-        synced++;
-      }
-
-      if (verbose) {
-        log(`    Source: ${sourceHash}`, 'gray');
-        log(`    Target: ${targetHash}`, 'gray');
-      }
-    } else {
-      // Files are identical
-      if (verbose) {
-        log(`  ≡ ${fileName} - IDENTICAL`, 'gray');
-      }
-      identical++;
     }
+
+    // Get all JSON files from source version directory
+    const sourceFiles = fs.readdirSync(sourceDir).filter(f => f.endsWith('.json'));
+
+    if (sourceFiles.length === 0) {
+      log(`  ⚠️  No catalog files found`, 'yellow');
+      return;
+    }
+
+    sourceFiles.forEach(fileName => {
+      const sourcePath = path.join(sourceDir, fileName);
+      const targetPath = path.join(targetDir, fileName);
+
+      const sourceHash = getFileHash(sourcePath);
+      const targetHash = getFileHash(targetPath);
+
+      if (!targetHash) {
+        // Target doesn't exist - copy it
+        if (!dryRun) {
+          try {
+            fs.copyFileSync(sourcePath, targetPath);
+            log(`  ✓ ${fileName} - CREATED`, 'green');
+            totalSynced++;
+          } catch (err) {
+            log(`  ✗ ${fileName} - ERROR: ${err.message}`, 'red');
+            totalErrors++;
+          }
+        } else {
+          log(`  → ${fileName} - WOULD CREATE`, 'yellow');
+          totalSynced++;
+        }
+      } else if (sourceHash !== targetHash) {
+        // Files differ - sync them
+        if (!dryRun) {
+          try {
+            fs.copyFileSync(sourcePath, targetPath);
+            log(`  ✓ ${fileName} - SYNCED`, 'green');
+            totalSynced++;
+          } catch (err) {
+            log(`  ✗ ${fileName} - ERROR: ${err.message}`, 'red');
+            totalErrors++;
+          }
+        } else {
+          log(`  → ${fileName} - WOULD SYNC`, 'yellow');
+          totalSynced++;
+        }
+
+        if (verbose) {
+          log(`    Source: ${sourceHash}`, 'gray');
+          log(`    Target: ${targetHash}`, 'gray');
+        }
+      } else {
+        // Files are identical
+        if (verbose) {
+          log(`  ≡ ${fileName} - IDENTICAL`, 'gray');
+        }
+        totalIdentical++;
+      }
+    });
+
+    log('');
   });
 
-  log('');
   log('═══════════════════════════════════════════════════', 'blue');
   log('  Summary', 'blue');
   log('═══════════════════════════════════════════════════', 'blue');
-  log(`  ✓ Identical: ${identical}`, identical > 0 ? 'green' : 'gray');
-  log(`  ↻ Synced:    ${synced}`, synced > 0 ? 'yellow' : 'gray');
-  log(`  ✗ Errors:    ${errors}`, errors > 0 ? 'red' : 'gray');
+  log(`  ✓ Identical: ${totalIdentical}`, totalIdentical > 0 ? 'green' : 'gray');
+  log(`  ↻ Synced:    ${totalSynced}`, totalSynced > 0 ? 'yellow' : 'gray');
+  log(`  ✗ Errors:    ${totalErrors}`, totalErrors > 0 ? 'red' : 'gray');
   log('═══════════════════════════════════════════════════', 'blue');
 
-  if (errors > 0) {
+  if (totalErrors > 0) {
     process.exit(1);
   }
 
-  if (synced > 0 && !dryRun) {
+  if (totalSynced > 0 && !dryRun) {
     log('');
     log('✅ Catalogs synchronized successfully!', 'green');
-  } else if (synced > 0 && dryRun) {
+  } else if (totalSynced > 0 && dryRun) {
     log('');
     log('⚠️  Run without --dry-run to apply changes', 'yellow');
   } else {
@@ -153,7 +184,7 @@ function syncCatalogs(options = {}) {
     log('✅ All catalogs already in sync!', 'green');
   }
 
-  return { identical, synced, errors };
+  return { identical: totalIdentical, synced: totalSynced, errors: totalErrors };
 }
 
 // CLI handling
@@ -166,7 +197,9 @@ if (require.main === module) {
 
   if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-Catalog Sync Utility
+Catalog Sync Utility (Version-Aware)
+
+Syncs data/params/<version>/*.json → frontend/src/data/catalogs/<version>/*.json
 
 Usage: node scripts/sync-catalogs.js [options]
 

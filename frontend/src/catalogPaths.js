@@ -10,32 +10,10 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { getOpenShiftMinorFromSources } from './shared/openShiftMinor.js';
+import { getMinorVersion } from './shared/catalogVersion.js';
 
 // Dynamic imports for version-aware catalog loading (ADR-005)
 const catalogs = import.meta.glob('./data/catalogs/**/*.json', { eager: true });
-
-/**
- * Extracts the minor version from a full version string.
- * Mirrors shared/versionUtils.js behavior for frontend use.
- * @param {string} version - Full version (e.g., "4.20.15", "4.21.0", "4.20")
- * @returns {string} Minor version (e.g., "4.20", "4.21")
- * @throws {Error} If version is invalid or missing
- */
-function getMinorVersion(version) {
-  if (!version || typeof version !== 'string') {
-    throw new Error(`Invalid version: expected non-empty string, got ${typeof version}`);
-  }
-  const cleaned = String(version).trim().replace(/^v/, '');
-  const parts = cleaned.split('.').filter(Boolean);
-  if (parts.length < 2) {
-    throw new Error(`Invalid version format: ${version}. Expected format: "4.20" or "4.20.15"`);
-  }
-  if (!/^\d+$/.test(parts[0]) || !/^\d+$/.test(parts[1])) {
-    throw new Error(`Invalid version format: ${version}. Expected numeric major.minor`);
-  }
-  return `${parts[0]}.${parts[1]}`;
-}
 
 /**
  * Returns the parameters array for the given scenario and version.
