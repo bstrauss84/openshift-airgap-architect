@@ -1,41 +1,17 @@
 /**
  * OpenShift Airgap Architect - Catalog Field Metadata Resolver
  *
- * Field meta resolver for catalog-driven controls.
- * Maps scenarioId + outputFile + path → { type, allowed, required, default } from parameter catalogs.
+ * Version-aware field meta resolver for catalog-driven controls.
+ * Maps scenarioId + version + outputFile + path → { type, allowed, required, default } from parameter catalogs.
  * Only uses values that are NOT "not specified in docs".
- * Catalogs live in frontend/src/data/catalogs/ (see docs/DATA_AND_FRONTEND_COPIES.md).
+ * Catalogs live in frontend/src/data/catalogs/<version>/ (see ADR-001, ADR-005, docs/DATA_AND_FRONTEND_COPIES.md).
  *
  * @author Bill Strauss
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import bareMetalAgentCatalog from "./data/catalogs/bare-metal-agent.json";
-import bareMetalIpiCatalog from "./data/catalogs/bare-metal-ipi.json";
-import bareMetalUpiCatalog from "./data/catalogs/bare-metal-upi.json";
-import vsphereIpiCatalog from "./data/catalogs/vsphere-ipi.json";
-import vsphereUpiCatalog from "./data/catalogs/vsphere-upi.json";
-import awsGovcloudIpiCatalog from "./data/catalogs/aws-govcloud-ipi.json";
-import awsGovcloudUpiCatalog from "./data/catalogs/aws-govcloud-upi.json";
-import azureGovernmentIpiCatalog from "./data/catalogs/azure-government-ipi.json";
-import ibmCloudIpiCatalog from "./data/catalogs/ibm-cloud-ipi.json";
-import nutanixIpiCatalog from "./data/catalogs/nutanix-ipi.json";
-import vsphereAgentCatalog from "./data/catalogs/vsphere-agent.json";
-
-const CATALOGS = {
-  "bare-metal-agent": bareMetalAgentCatalog,
-  "bare-metal-ipi": bareMetalIpiCatalog,
-  "bare-metal-upi": bareMetalUpiCatalog,
-  "vsphere-agent": vsphereAgentCatalog,
-  "vsphere-ipi": vsphereIpiCatalog,
-  "vsphere-upi": vsphereUpiCatalog,
-  "aws-govcloud-ipi": awsGovcloudIpiCatalog,
-  "aws-govcloud-upi": awsGovcloudUpiCatalog,
-  "azure-government-ipi": azureGovernmentIpiCatalog,
-  "ibm-cloud-ipi": ibmCloudIpiCatalog,
-  "nutanix-ipi": nutanixIpiCatalog
-};
+import { getCatalogForScenario } from './catalogPaths';
 
 const NOT_SPECIFIED = "not specified in docs";
 
@@ -47,33 +23,86 @@ function isSpecified(value) {
 
 /**
  * Returns normalized field metadata from the scenario catalog when the parameter exists and has specified values.
- * @param {string|null} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
+ * @param {string} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
  * @param {string} outputFile - e.g. "install-config.yaml", "agent-config.yaml"
  * @param {string} path - e.g. "platform.baremetal.apiVIP", "hosts[].role"
+ * @param {string} version - OpenShift version e.g. "4.20"
  * @returns {{ type: string|null, allowed: string|array|null, required: boolean|null, default: any } | null}
  *   - type, allowed, required, default only set when catalog specifies them (not "not specified in docs").
  *   - allowed is array when catalog has JSON array; string otherwise if specified.
  *   - Returns null when scenarioId is null or parameter not found.
  */
-export function getFieldMeta(scenarioId, outputFile, path) {
-  const catalog = scenarioId ? CATALOGS[scenarioId] : null;
-  const parameters = catalog?.parameters;
-  if (!Array.isArray(parameters) || !path) return null;
+export function getFieldMeta(scenarioId, outputFile, path, version = '4.20') {
+  if (!scenarioId) return null;
 
-  const param = parameters.find((p) => p.path === path && p.outputFile === outputFile);
+  const parameters = getCatalogForScenario(scenarioId, version);
+
+  if (!Array.isArray(parameters) || parameters.length === 0) return null;
+
+  const param = parameters.find(
+    (p) => p.outputFile === outputFile && p.path === path
+  );
+
   if (!param) return null;
 
-  const type = isSpecified(param.type) ? param.type : null;
-  let allowed = null;
-  if (Array.isArray(param.allowed)) {
-    allowed = param.allowed;
-  } else if (isSpecified(param.allowed)) {
-    allowed = param.allowed;
-  }
-  const required = typeof param.required === "boolean" ? param.required : null;
-  const defaultVal = isSpecified(param.default) ? param.default : null;
+  const meta = {
+    type: null,
+    allowed: null,
+    required: null,
+    default: undefined
+  };
 
-  return { type, allowed, required, default: defaultVal };
+  if (isSpecified(param.type)) {
+    meta.type = param.type;
+  }
+
+  if (isSpecified(param.allowed)) {
+    meta.allowed = param.allowed;
+  }
+
+  if (isSpecified(param.required)) {
+    meta.required = param.required;
+  }
+
+  if (isSpecified(param.default)) {
+    meta.default = param.default;
+  }
+
+  return meta;
+}
+
+/**
+ * Backward compatibility wrapper for tests and legacy code.
+ * OLD signature: (scenarioId, path, outputFile) vs NEW: (scenarioId, outputFile, path, version)
+ * Includes description field for compatibility.
+ * @deprecated Use getFieldMeta with correct parameter order
+ */
+export function getParamMeta(scenarioId, path, outputFile, version = '4.20') {
+  const meta = getFieldMeta(scenarioId, outputFile, path, version);
+
+  if (!meta) {
+    return {
+      type: null,
+      allowed: null,
+      default: null,
+      required: false,
+      description: null
+    };
+  }
+
+  // Add description field from catalog
+  const parameters = getCatalogForScenario(scenarioId, version);
+  const param = parameters.find((p) => p.path === path && p.outputFile === outputFile);
+  const description = param?.description && param.description !== NOT_SPECIFIED ? param.description : null;
+
+  return {
+    ...meta,
+    description,
+    // Ensure required defaults to false when not specified
+    required: meta.required ?? false,
+    // Ensure default is null when undefined
+    default: meta.default !== undefined ? meta.default : null
+  };
 }
 
 /**
@@ -81,49 +110,10 @@ export function getFieldMeta(scenarioId, outputFile, path) {
  * @param {string|null} scenarioId
  * @param {string} outputFile
  * @param {string} path
+ * @param {string} version
  * @returns {boolean}
  */
-export function hasAllowedList(scenarioId, outputFile, path) {
-  const meta = getFieldMeta(scenarioId, outputFile, path);
+export function hasAllowedList(scenarioId, outputFile, path, version = '4.20') {
+  const meta = getFieldMeta(scenarioId, outputFile, path, version);
   return Array.isArray(meta?.allowed) && meta.allowed.length > 0;
-}
-
-/** Safe defaults when parameter is not in catalog (per PARAMS_CATALOG_RULES: do not treat as required). */
-const DEFAULT_PARAM_META = {
-  type: null,
-  allowed: null,
-  default: null,
-  required: false,
-  description: null
-};
-
-/**
- * Returns param metadata for replacement tabs: type, allowed, default, required, description.
- * Only uses values present in catalog; "not specified in docs" is treated as unspecified.
- * When parameter is not found, returns safe defaults (e.g. required: false).
- * @param {string|null} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
- * @param {string} path - e.g. "metadata.name", "baseDomain"
- * @param {string} outputFile - e.g. "install-config.yaml", "agent-config.yaml"
- * @returns {{ type: string|null, allowed: array|string|null, default: any, required: boolean, description: string|null }}
- */
-export function getParamMeta(scenarioId, path, outputFile) {
-  const catalog = scenarioId ? CATALOGS[scenarioId] : null;
-  const parameters = catalog?.parameters;
-  if (!Array.isArray(parameters) || !path) return { ...DEFAULT_PARAM_META };
-
-  const param = parameters.find((p) => p.path === path && p.outputFile === outputFile);
-  if (!param) return { ...DEFAULT_PARAM_META };
-
-  const type = isSpecified(param.type) ? param.type : null;
-  let allowed = null;
-  if (Array.isArray(param.allowed)) {
-    allowed = param.allowed;
-  } else if (isSpecified(param.allowed)) {
-    allowed = param.allowed;
-  }
-  const defaultVal = isSpecified(param.default) ? param.default : null;
-  const required = typeof param.required === "boolean" ? param.required : false;
-  const description = typeof param.description === "string" ? param.description : null;
-
-  return { type, allowed, default: defaultVal, required, description };
 }

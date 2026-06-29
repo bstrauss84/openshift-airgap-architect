@@ -1770,7 +1770,7 @@ const validateStep = (state, stepId) => {
     const workerCount = nodes.filter((n) => n.role === "worker").length;
     const isAgentSno =
       (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
-    const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+    const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
     if (!isAgentSno && requiredPaths.includes("platform.baremetal.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
       const msg = "API VIPs are required for Bare Metal Agent-based multi-node installs.";
       fieldErrors.apiVip = fieldErrors.apiVip || msg;
@@ -1864,7 +1864,7 @@ const validateStep = (state, stepId) => {
 
     if (scenarioId === "azure-government-ipi") {
       const azureErrors = [];
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       // Note: cloudName is auto-filled to "AzureUSGovernmentCloud" in generation (only valid value)
       // so no validation needed - field not shown in UI
       if (requiredPaths.includes("platform.azure.region") && !(azure.region || "").trim()) {
@@ -1900,7 +1900,7 @@ const validateStep = (state, stepId) => {
       const vsphereErrors = [];
       const label =
         scenarioId === "vsphere-upi" ? "vSphere UPI" : scenarioId === "vsphere-agent" ? "vSphere Agent-based" : "vSphere IPI";
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       const placementMode = vsphere.placementMode || "failureDomains";
       if (state.platformConfig?.publish === "Internal") {
         vsphereErrors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
@@ -1936,7 +1936,7 @@ const validateStep = (state, stepId) => {
     if (scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi") {
       const awsErrors = [];
       const label = scenarioId === "aws-govcloud-upi" ? "AWS GovCloud UPI" : "AWS GovCloud IPI";
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       if (requiredPaths.includes("platform.aws.region") && !(aws.region || "").trim()) {
         awsErrors.push(`AWS GovCloud region is required for ${label}.`);
       }
@@ -2007,7 +2007,7 @@ const validateStep = (state, stepId) => {
     }
     if (scenarioId === "ibm-cloud-ipi") {
       const ibmErrors = [];
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       const vpcMode = ibmcloud.vpcMode || "existing-vpc";
       const dedicatedHostsProfile = (ibmcloud.dedicatedHostsProfile || "").trim();
       const dedicatedHostsName = (ibmcloud.dedicatedHostsName || "").trim();

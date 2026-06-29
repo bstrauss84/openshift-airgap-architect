@@ -10,7 +10,9 @@
  */
 import React, { useState, useEffect } from "react";
 import { useApp } from "../store.jsx";
-import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
+import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
+import { getCatalogParameters } from "../catalogPaths.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
 import { ipv6CidrOverlaps } from "../validation.js";
 import { useAutoSelect } from "../hooks/useAutoSelect.js";
@@ -314,7 +316,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     setLocalIngressVipV6(hostInventory.ingressVipV6 ?? "");
   }, [hostInventory.ingressVipV6]);
 
-  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
+  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG, state) || [];
   const isRequired = (path) => requiredPaths.includes(path);
   const nodes = hostInventory.nodes || [];
   const masterCount = nodes.filter((n) => n.role === "master").length;
@@ -328,14 +330,14 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
   const vipsRequiredForBareMetalAgent = !isAgentSno;
 
-  const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG);
-  const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG);
-  const metaApiVips = getParamMeta(scenarioId, "platform.baremetal.apiVIPs", INSTALL_CONFIG);
-  const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG);
-  const metaApiVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG);
-  const metaIngressVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG);
-  const metaNutanixApiVIP = getParamMeta(scenarioId, "platform.nutanix.apiVIP", INSTALL_CONFIG);
-  const metaNutanixIngressVIP = getParamMeta(scenarioId, "platform.nutanix.ingressVIP", INSTALL_CONFIG);
+  const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG, state);
+  const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG, state);
+  const metaApiVips = getParamMeta(scenarioId, "platform.baremetal.apiVIPs", INSTALL_CONFIG, state);
+  const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG, state);
+  const metaApiVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG, state);
+  const metaIngressVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG, state);
+  const metaNutanixApiVIP = getParamMeta(scenarioId, "platform.nutanix.apiVIP", INSTALL_CONFIG, state);
+  const metaNutanixIngressVIP = getParamMeta(scenarioId, "platform.nutanix.ingressVIP", INSTALL_CONFIG, state);
 
   const overlapMessages = [];
   if (cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)) {
@@ -360,7 +362,8 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     overlapMessages.push("Cluster network IPv6 CIDR overlaps with service network IPv6 CIDR.");
   }
 
-  const catalogParams = getCatalogForScenario(scenarioId) || [];
+  const version = getOpenShiftMinorFromState(state) || '4.20';
+  const catalogParams = getCatalogParameters(scenarioId, version) || [];
   const hasNetworkingParam = (path) =>
     catalogParams.some((p) => p.path === path && p.outputFile === INSTALL_CONFIG);
   const showBareMetalVips = catalogParams.some(

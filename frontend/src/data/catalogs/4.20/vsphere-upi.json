@@ -1,0 +1,2183 @@
+{
+  "version": "4.20",
+  "scenarioId": "vsphere-upi",
+  "parameters": [
+    {
+      "path": "additionalTrustBundle",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "PEM-encoded X.509 bundle",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "PEM-encoded X.509 certificate bundle added to nodes' trust store; used when proxy is configured.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "additionalTrustBundlePolicy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Proxyonly",
+        "Always"
+      ],
+      "default": "Proxyonly",
+      "required": false,
+      "description": "Policy for when to reference user-ca-bundle in Proxy trustedCA: Proxyonly when proxy configured, or Always. Optional.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "apiVersion",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "v1 (current)",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "API version for install-config.yaml content. Current version is v1.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "arbiter.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "e.g. arbiter",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name for arbiter nodes.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "arbiter.replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": 1,
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Number of arbiter nodes. Cannot be greater than 1.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "baseDomain",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "fully-qualified domain or subdomain",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Base domain for cluster; used with metadata.name for routes. Full DNS name is <metadata.name>.<baseDomain>.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "capabilities",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Controls installation of optional core cluster components.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "capabilities.additionalEnabledCapabilities",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "string array",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Additional capabilities beyond baselineCapabilitySet.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "capabilities.baselineCapabilitySet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "v4.11",
+        "v4.12",
+        "vCurrent"
+      ],
+      "default": "vCurrent",
+      "required": false,
+      "description": "Initial set of optional capabilities to enable.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for compute (worker) machines.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for the machine pool. All pools must match.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on compute machines.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "worker",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if compute is used.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "baremetal",
+        "vsphere",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for worker machines. Must match controlPlane.platform.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer >= 2",
+      "default": 3,
+      "required": false,
+      "description": "Number of compute (worker) machines to provision.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for control plane machines.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.diskSetup",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of Disk objects (etcd, swap, user-defined)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Disk partitioning and setup configuration for control plane machines. Configures dedicated disks for etcd data, swap space, or custom user-defined partitions. Applied via MachineConfigs during installation.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.platform",
+      "type": "object",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.platform.vsphere",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "vsphere.MachinePool object",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vSphere-specific configuration for control plane machines. Use for per-pool overrides. Overrides global platform.vsphere settings for control plane only.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.VSphere",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.replicas",
+      "type": "integer",
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "default": 3,
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 install-config reference"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for control plane pool.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on control plane machines.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "master",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if controlPlane is used.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "baremetal",
+        "vsphere",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for control plane. Must match compute.platform.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": [
+        3,
+        4,
+        5,
+        1
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Number of control plane machines. 3, 4, 5, or 1 for single-node.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "cpuPartitioningMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "AllNodes"
+      ],
+      "default": "None",
+      "required": false,
+      "description": "Enables workload partitioning to isolate cluster services to reserved CPUs. Only at install.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "credentialsMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Mint",
+        "Passthrough",
+        "Manual",
+        ""
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud Credential Operator (CCO) mode.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "featureGates",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of strings in format 'FeatureGateName=true|false'",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Custom feature gate configuration for enabling/disabling specific cluster features. Only valid when featureSet is 'CustomNoUpgrade'. Each entry is 'FeatureGateName=true' to enable or 'FeatureGateName=false' to disable. Example: ['ExperimentalFeature=true', 'OldFeature=false']. Clusters with custom feature gates cannot upgrade.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "featureSet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "e.g. TechPreviewNoUpgrade",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Feature set to enable (features not enabled by default).",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "fips",
+      "outputFile": "install-config.yaml",
+      "type": "bool",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": false,
+      "required": false,
+      "description": "Enable or disable FIPS mode. RHCOS uses FIPS-validated crypto when true.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageContentSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "One or more repositories that may contain the same images.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageContentSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Repository users refer to (e.g. in image pull specs). Required if imageContentSources used.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageDigestSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "objects with source and mirrors",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Replacement for soon-to-be-deprecated imageContentSources; same sub-field structure (mirrors, source). Specifies the sources or repositories for the release-image content.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "image-based-installation-sno",
+          "docTitle": "Image-based installation for single-node OpenShift",
+          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageDigestSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].mirrors. One or more mirror registry URLs that may contain the same images (e.g. registry.example.com:5000/ocp4/openshift4).",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "image-based-installation-sno",
+          "docTitle": "Image-based installation for single-node OpenShift",
+          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageDigestSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].source. Source repository for release-image content (e.g. quay.io/openshift-release-dev/ocp-release). Required if imageDigestSources used.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "image-based-installation-sno",
+          "docTitle": "Image-based installation for single-node OpenShift",
+          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "metadata",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Kubernetes ObjectMeta; only name is consumed.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "metadata.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "lowercase letters, hyphens, periods",
+      "default": "agent-cluster when not provided",
+      "required": false,
+      "description": "Cluster name. DNS records are subdomains of {{.metadata.name}}.{{.baseDomain}}. Ignored in agent-config if set in install-config.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for the cluster network. Cannot be changed after installation.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.128.0.0/14 hostPrefix 23",
+      "required": false,
+      "description": "IP address blocks for pods. Multiple blocks must not overlap.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IP address block for pods. IPv4 prefix 0-32, IPv6 0-128.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetwork[].hostPrefix",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "subnet prefix",
+      "default": "23 IPv4, 64 IPv6",
+      "required": false,
+      "description": "Subnet prefix length per node. hostPrefix 23 gives 510 pod IPs per node.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetworkMTU",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": "not specified in docs",
+      "default": 8951,
+      "required": false,
+      "description": "MTU for cluster network (pod-to-pod traffic). Defaults to 8951 for OVN-Kubernetes (Geneve overhead), 1450 for OpenShiftSDN.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "missing-parameter-analysis",
+          "docTitle": "DOC-082 Missing Parameter Analysis",
+          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.machineNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.0.0.0/16 (varies by platform)",
+      "required": false,
+      "description": "IP address blocks for machines. Must match CIDR of preferred NIC.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.machineNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "10.0.0.0/16 (platform-dependent)",
+      "required": false,
+      "description": "IP network block for machines in CIDR notation.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.networkType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "OVNKubernetes",
+      "default": "OVNKubernetes",
+      "required": false,
+      "description": "Red Hat OpenShift Networking network plugin. Default is OVNKubernetes.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.ovnKubernetesConfig",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "OVNKubernetesConfig object with ipv4, ipv6, policyAuditConfig fields",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for OVN-Kubernetes CNI plugin (default network plugin for OpenShift 4.20). Only applies when networking.networkType is OVNKubernetes.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.ovnKubernetesConfig.ipv4.internalJoinSubnet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "100.64.0.0/16",
+      "required": false,
+      "description": "IPv4 join subnet used internally by ovn-kubernetes. Must not overlap node network. Cannot change after install.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.serviceNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "CIDR array",
+      "default": "172.30.0.0/16",
+      "required": false,
+      "description": "IP address block for services. OVNKubernetes supports single block or dual-stack.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "baremetal, external, none, vsphere, nutanix",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Configuration for the platform for installation.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "vsphere.Platform object with vCenter, datacenter, cluster, network, etc.",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vSphere platform configuration for installer-provisioned infrastructure. Includes vCenter connection details, datacenter, cluster, datastore, network, folder paths. Required when platform.type is 'vsphere'.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Platform.VSphere",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.clusterOSImage",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "HTTP or HTTPS URL, optionally with SHA-256 checksum",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: URL for RHCOS image. Must match release boot image version. 9.1.6. Choose one: this OR failureDomains[].topology.template.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "mutuallyExclusiveWith": [
+          "platform.vsphere.failureDomains[].topology.template"
+        ],
+        "visibility": "Optional; one of two RHCOS image methods",
+        "requiredness": "If used, must be exclusive of topology.template",
+        "placementLevel": "platform.vsphere (not inside failureDomains)",
+        "narrative": "Choose one method for RHCOS image: clusterOSImage URL OR topology.template path (pre-imported OVA in vCenter)."
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.coresPerSocket",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer; cpus / coresPerSocket = number of sockets",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: cores per socket. Control plane and compute default to 4 virtual sockets. 9.1.6.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "placementLevel": "platform.vsphere",
+        "optional": true
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.cpus",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer; must be multiple of coresPerSocket",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: total virtual processor cores per VM. 9.1.6.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "placementLevel": "platform.vsphere",
+        "optional": true
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.datacenter",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "vSphere datacenter name. Deprecated in 4.13+; prefer failureDomains[].topology.datacenter and vcenters[].datacenters; still supported.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-vsphere-upi",
+          "sectionHeading": "vSphere UPI install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure#installing-vsphere",
+          "docTitle": "Installing a cluster on vSphere with user-provisioned infrastructure"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.defaultDatastore",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Default datastore for cluster VMs. Deprecated in 4.13+; prefer failureDomains[].topology.datastore; still supported for legacy single-placement path.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.defaultMachinePlatform",
+      "type": "object",
+      "required": false,
+      "description": "Default machine platform configuration for vSphere machines.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer/pkg/types/vsphere/platform.go DefaultMachinePlatform",
+          "note": "Go struct definition"
+        },
+        {
+          "source": "ocp_docs",
+          "note": "OpenShift 4.20 vSphere install-config reference"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.diskType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "thin",
+        "thick",
+        "eagerZeroedThick"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional disk provisioning method. Defaults to vSphere storage policy if not set. thin, thick, or eagerZeroedThick.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "failure domain objects with name, region, zone, server, topology",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Establishes relationships between region and zone. Defines vCenter location for cluster nodes. Array allows multiple failure domains.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains.regionType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Datacenter",
+        "ComputeCluster",
+        "HostGroup"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vSphere tag category type for region definition. Defines how regions are mapped in vSphere infrastructure. Datacenter = use datacenters as regions, ComputeCluster = use compute clusters, HostGroup = use host groups. Used with vSphere zones for failure domain configuration.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/vsphere/platform.go - FailureDomain.RegionType",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/vsphere/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains.topology",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "FailureDomainTopology object with computeCluster, datacenter, datastore, networks, resourcePool",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vSphere topology configuration for failure domain. Defines vSphere infrastructure resources for a specific failure domain: compute cluster, datacenter, datastore, networks, resource pool. Used for multi-zone vSphere deployments.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/vsphere/platform.go - FailureDomain.Topology",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/vsphere/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains.zoneType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Datacenter",
+        "ComputeCluster",
+        "HostGroup"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vSphere tag category type for zone definition. Defines how zones are mapped in vSphere infrastructure. Datacenter = use datacenters as zones, ComputeCluster = use compute clusters, HostGroup = use host groups. Used with vSphere regions for failure domain configuration.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/vsphere/platform.go - FailureDomain.ZoneType",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/vsphere/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "The name of the failure domain.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].region",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "For multiple failure domains use openshift-region tag; for single DC use an alphanumeric value e.g. datacenter.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].server",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "FQDN or IP of the vCenter server for this failure domain.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.computeCluster",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "The path to the vSphere compute cluster.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.datacenter",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Datacenter where cluster VMs operate. Must match vcenters datacenters.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.datastore",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Path to the vSphere datastore for this failure domain.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.folder",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional absolute path of folder for VMs e.g. /datacenter/vm/folder.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.networks",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of network name strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Networks in vCenter that contain the virtual IP addresses and DNS records.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].topology.resourcePool",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional absolute path of resource pool for VMs e.g. /datacenter/host/cluster/Resources/pool.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.failureDomains[].zone",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "For multiple failure domains use openshift-zone tag; for single DC use an alphanumeric value e.g. cluster.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.folder",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "absolute VM folder path in vSphere inventory",
+      "default": "datacenter root VM folder",
+      "required": false,
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.folder",
+      "description": "VM folder path in vSphere inventory (e.g., /datacenter/vm/folder). Deprecated in 4.13+; prefer failureDomains[].topology.folder; still supported for legacy single placement.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "placementPath": "legacy",
+        "mutuallyExclusiveWith": [
+          "platform.vsphere.failureDomains"
+        ],
+        "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.memoryMB",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer (MB)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: VM memory in megabytes. 9.1.6.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "placementLevel": "platform.vsphere",
+        "optional": true
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.network",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.networks[]",
+      "description": "Legacy single-zone network name. Deprecated in 4.13+; prefer failureDomains[].topology.networks[] for multi-zone deployments; still supported for legacy single placement.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "placementPath": "legacy",
+        "mutuallyExclusiveWith": [
+          "platform.vsphere.failureDomains"
+        ],
+        "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.osDisk.diskSizeGB",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "integer (GB)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional machine pool: OS disk size in gigabytes. 9.1.6.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "placementLevel": "platform.vsphere",
+        "optional": true
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.resourcePool",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "absolute resource pool path in vSphere inventory",
+      "default": "root resource pool of the cluster",
+      "required": false,
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.resourcePool",
+      "description": "Resource pool path in vSphere inventory (e.g., /datacenter/host/cluster/Resources/pool). Deprecated in 4.13+; prefer failureDomains[].topology.resourcePool; still supported for legacy single placement.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "conditionals": {
+        "placementPath": "legacy",
+        "mutuallyExclusiveWith": [
+          "platform.vsphere.failureDomains"
+        ],
+        "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
+      },
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.vcenter",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "vCenter server FQDN or IP. Deprecated in 4.13+; prefer vcenters[].server; still supported.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-vsphere-upi",
+          "sectionHeading": "vSphere UPI install-config parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure#installing-vsphere",
+          "docTitle": "Installing a cluster on vSphere with user-provisioned infrastructure"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.vcenters",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "vCenter connection objects with server, user, password, port, datacenters",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Connection details for vCenter server(s). Datacenters must match failureDomains.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.vcenters[].datacenters",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of datacenter name strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Datacenters where cluster VMs operate. Must match failureDomains topology.datacenter.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.vcenters[].password",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vCenter password. Emitted when including credentials.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.vcenters[].port",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "not specified in docs",
+      "default": 443,
+      "required": false,
+      "description": "Port for vCenter server. Default 443.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.vcenters[].server",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "FQDN or IP address of the vCenter server.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.vsphere.vcenters[].user",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "vCenter username. Emitted when including credentials.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "proxy",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "Proxy object with httpProxy, httpsProxy, noProxy fields",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cluster-wide proxy configuration for external HTTP/HTTPS connections. Configure if cluster nodes access Red Hat services, container registries, or external resources through a proxy server. If unset, cluster does not use a proxy.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "proxy.httpProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "http URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTP connections outside the cluster. URL scheme must be http.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "proxy.httpsProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "https URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTPS connections outside the cluster.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "proxy.noProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "comma-separated domains, IPs, CIDRs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Comma-separated list of destinations to exclude from proxying. Prefix domain with . for subdomains only; use * to bypass proxy for all.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "publish",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Internal",
+        "External"
+      ],
+      "default": "External",
+      "required": false,
+      "description": "How to publish cluster endpoints (Kubernetes API, routes). Internal not supported on non-cloud.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "pullSecret",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "JSON auths object",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Pull secret from Red Hat OpenShift Cluster Manager to authenticate image pulls from Quay.io etc.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "sshKey",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "SSH public key",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "SSH key to authenticate access to cluster machines. Recommend for production.",
+      "applies_to": [
+        "vsphere-upi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    }
+  ]
+}

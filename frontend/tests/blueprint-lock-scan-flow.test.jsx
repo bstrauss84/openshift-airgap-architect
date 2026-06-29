@@ -21,7 +21,7 @@ const stateWithPullSecretUnlocked = {
     confirmationTimestamp: null,
     blueprintPullSecretEphemeral: '{"auths":{"registry.redhat.io":{"auth":"dGVzdA=="}}}'
   },
-  release: { channel: "4.15", patchVersion: "4.15.0", confirmed: true },
+  release: { channel: "4.20", patchVersion: "4.20.0", confirmed: true },
   version: { versionConfirmed: true },
   methodology: { method: "Agent-Based Installer" },
   operators: {},
@@ -34,18 +34,18 @@ describe("Blueprint lock: scan kickoff and field cleared", () => {
       if (path === "/api/state") {
         return Promise.resolve(stateWithPullSecretUnlocked);
       }
-      if (path === "/api/cincinnati/channels") return Promise.resolve({ channels: ["4.15"] });
-      if (path === "/api/cincinnati/patches") return Promise.resolve({ versions: ["4.15.0"] });
+      if (path === "/api/cincinnati/channels") return Promise.resolve({ channels: ["4.20"] });
+      if (path === "/api/cincinnati/patches") return Promise.resolve({ versions: ["4.20.0"] });
       if (path === "/api/operators/confirm") {
         return Promise.resolve({
           ok: true,
-          release: { channel: "4.15", patchVersion: "4.15.0", confirmed: true },
+          release: { channel: "4.20", patchVersion: "4.20.0", confirmed: true },
           version: {
             _schemaVersion: 3,
-            selectedMinor: "4.15",
-            selectedPatch: "4.15.0",
-            selectedChannel: "stable-4.15",
-            selectedVersion: "4.15.0",
+            selectedMinor: "4.20",
+            selectedPatch: "4.20.0",
+            selectedChannel: "stable-4.20",
+            selectedVersion: "4.20.0",
             locked: true,
             confirmedByUser: true
           }

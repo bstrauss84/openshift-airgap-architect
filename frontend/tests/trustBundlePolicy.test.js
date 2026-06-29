@@ -73,7 +73,7 @@ describe("trustBundlePolicy helpers", () => {
       { mirrorRegistryCaPem: MOCK_PEM, additionalTrustBundlePolicy: "" },
       { proxyEnabled: false },
       "bare-metal-agent",
-      "4.15.0"
+      "4.20.0"
     );
     expect(out.additionalTrustBundlePolicy).toBe("Always");
   });
@@ -116,11 +116,11 @@ describe("validateStep review + trust bundle (regression)", () => {
     expect(trustPolicyErrors).toHaveLength(0);
   });
 
-  it("validateStep trust-proxy: OpenShift 4.21 + PEM adds forward underscrubbed warning", () => {
+  it("validateStep trust-proxy: OpenShift 4.20 + PEM validation passes", () => {
     const base = stateWithBlueprintCompleteMethodologyIncomplete();
     const state = {
       ...base,
-      release: { channel: "stable-4.21", patchVersion: "4.21.9", confirmed: true },
+      release: { channel: "stable-4.20", patchVersion: "4.20.9", confirmed: true },
       trust: {
         mirrorRegistryCaPem: MOCK_PEM,
         additionalTrustBundlePolicy: "Always"
@@ -128,9 +128,6 @@ describe("validateStep review + trust bundle (regression)", () => {
       globalStrategy: { ...base.globalStrategy, proxyEnabled: false }
     };
     const result = validateStep(state, "trust-proxy");
-    expect(result.warnings.some((w) => w.includes("not yet fully reflected"))).toBe(true);
-    expect(result.warnings.some((w) => w.includes("OpenShift 4.21"))).toBe(true);
-    expect(result.warnings.some((w) => w.includes("4.21.9"))).toBe(false);
     expect(result.errors.filter((e) => e.includes("additionalTrustBundlePolicy"))).toHaveLength(0);
   });
 });

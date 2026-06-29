@@ -198,13 +198,13 @@ export default function TrustProxyStep({ highlightErrors }) {
     updateState({ trust: nextTrust });
   };
 
-  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
+  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG, state) || [];
   const isRequired = (path) => requiredPaths.includes(path);
 
-  const metaHttpProxy = getParamMeta(scenarioId, "proxy.httpProxy", INSTALL_CONFIG);
-  const metaHttpsProxy = getParamMeta(scenarioId, "proxy.httpsProxy", INSTALL_CONFIG);
-  const metaNoProxy = getParamMeta(scenarioId, "proxy.noProxy", INSTALL_CONFIG);
-  const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG);
+  const metaHttpProxy = getParamMeta(scenarioId, "proxy.httpProxy", INSTALL_CONFIG, state);
+  const metaHttpsProxy = getParamMeta(scenarioId, "proxy.httpsProxy", INSTALL_CONFIG, state);
+  const metaNoProxy = getParamMeta(scenarioId, "proxy.noProxy", INSTALL_CONFIG, state);
+  const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG, state);
 
   const trustPolicyOptions = getTrustPolicyOptionsForScenario(scenarioId, selectedVersion);
   const forwardDocNotice = getForwardOpenShiftMinorDocNotice(selectedVersion);

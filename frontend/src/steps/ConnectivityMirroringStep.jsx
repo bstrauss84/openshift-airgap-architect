@@ -141,8 +141,8 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
     updateMirroring({ registryFqdn: nextFqdn, sources: updatedSources });
   };
 
-  const metaImageDigest = getParamMeta(scenarioId, "imageDigestSources", INSTALL_CONFIG);
-  const metaNtp = getParamMeta(scenarioId, "additionalNTPSources", AGENT_CONFIG);
+  const metaImageDigest = getParamMeta(scenarioId, "imageDigestSources", INSTALL_CONFIG, state);
+  const metaNtp = getParamMeta(scenarioId, "additionalNTPSources", AGENT_CONFIG, state);
   const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
   const showNtpSection = !isAwsGovCloud;
 

@@ -25,6 +25,7 @@ import {
   getNextEnoName
 } from "../hostInventoryV2Helpers.js";
 import { getCatalogPaths } from "../catalogPaths.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { getFieldMeta } from "../catalogFieldMeta.js";
 import {
   getCatalogValidationForInventoryV2,
@@ -131,10 +132,11 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     () => getSectionOrderForRender(true, scenarioId),
     [scenarioId]
   );
-  const catalogPaths = useMemo(() => getCatalogPaths(scenarioId), [scenarioId]);
+  const version = useMemo(() => getOpenShiftMinorFromState(state) || '4.20', [state?.release?.patchVersion, state?.release?.channel, state?.version?.selectedVersion]);
+  const catalogPaths = useMemo(() => getCatalogPaths(scenarioId, version), [scenarioId, version]);
   const sectionOrderSet = useMemo(() => new Set(sectionOrder), [sectionOrder]);
 
-  const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT), [scenarioId]);
+  const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT, version), [scenarioId, version]);
   const ROLE_LABELS = { master: "Control plane", worker: "Worker", arbiter: "Arbiter" };
   const roleOptions = useMemo(() => {
     if (Array.isArray(roleMeta?.allowed) && roleMeta.allowed.length > 0) {

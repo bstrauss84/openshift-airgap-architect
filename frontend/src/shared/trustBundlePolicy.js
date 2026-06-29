@@ -9,7 +9,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import { getParamMeta } from "../catalogResolver.js";
+import { getFieldMeta } from "../catalogFieldMeta.js";
 import { getTrustBundlePolicies } from "./versionPolicy.js";
 
 const INSTALL_CONFIG = "install-config.yaml";
@@ -45,7 +45,8 @@ export function trustBundleInferTier(trust) {
  * @returns {string[]}
  */
 export function getTrustPolicyOptionsForScenario(scenarioId, selectedVersion) {
-  const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG);
+  // Use getFieldMeta directly with explicit version (no state needed)
+  const metaPolicy = getFieldMeta(scenarioId, INSTALL_CONFIG, "additionalTrustBundlePolicy", selectedVersion || '4.20');
   const policyAllowed = Array.isArray(metaPolicy?.allowed)
     ? metaPolicy.allowed
     : metaPolicy?.allowed

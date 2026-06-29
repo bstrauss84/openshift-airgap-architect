@@ -134,9 +134,12 @@ describe("catalogResolver: getCatalogForScenario", () => {
     expect(params.some((p) => p.path === "credentialsMode" && p.outputFile === "install-config.yaml")).toBe(true);
   });
 
-  it("returns empty array for unknown scenario", () => {
-    expect(getCatalogForScenario("unknown-scenario")).toEqual([]);
-    expect(getCatalogForScenario(null)).toEqual([]);
+  it("throws error for unknown scenario", () => {
+    expect(() => getCatalogForScenario("unknown-scenario")).toThrow(/Catalog not found for scenario/);
+  });
+
+  it("throws error for null scenario", () => {
+    expect(() => getCatalogForScenario(null)).toThrow(/Invalid scenarioId/);
   });
 });
 
@@ -170,9 +173,15 @@ describe("catalogResolver: getRequiredParamsForOutput", () => {
     expect(paths).toContain("metadata");
   });
 
-  it("returns empty array for unknown scenario or no match", () => {
-    expect(getRequiredParamsForOutput(null, "install-config.yaml")).toEqual([]);
-    expect(getRequiredParamsForOutput("unknown-scenario", "install-config.yaml")).toEqual([]);
+  it("returns empty array for null scenario (safe fallback)", () => {
+    // getRequiredParamsForOutput wraps catalog access - null scenario returns empty safely
+    const fakeState = { release: { patchVersion: '4.20' }, version: { selectedVersion: '4.20' } };
+    expect(getRequiredParamsForOutput(null, "install-config.yaml", fakeState)).toEqual([]);
+  });
+
+  it("throws error for unknown scenario", () => {
+    const fakeState = { release: { patchVersion: '4.20' }, version: { selectedVersion: '4.20' } };
+    expect(() => getRequiredParamsForOutput("unknown-scenario", "install-config.yaml", fakeState)).toThrow(/Catalog not found/);
   });
 
   it("returns required paths for install-config.yaml (bare-metal-upi); install-config only, no agent-config", () => {

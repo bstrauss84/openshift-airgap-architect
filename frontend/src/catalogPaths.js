@@ -1,59 +1,108 @@
 /**
  * OpenShift Airgap Architect - Catalog Path Lookup
  *
- * Read-only catalog path lookup for Host Inventory v2 compare-mode annotations.
- * Uses frontend copies from frontend/src/data/catalogs/ (synced from data/params/<version>/).
- * See docs/DATA_AND_FRONTEND_COPIES.md.
+ * Version-aware catalog lookup for parameters.
+ * Uses frontend copies from frontend/src/data/catalogs/<version>/ (synced from data/params/<version>/).
+ * See ADR-001, ADR-005, docs/DATA_AND_FRONTEND_COPIES.md.
  *
  * @author Bill Strauss
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import bareMetalAgentCatalog from "./data/catalogs/bare-metal-agent.json";
-import bareMetalIpiCatalog from "./data/catalogs/bare-metal-ipi.json";
-import bareMetalUpiCatalog from "./data/catalogs/bare-metal-upi.json";
-import vsphereIpiCatalog from "./data/catalogs/vsphere-ipi.json";
-import vsphereUpiCatalog from "./data/catalogs/vsphere-upi.json";
-import awsGovcloudIpiCatalog from "./data/catalogs/aws-govcloud-ipi.json";
-import awsGovcloudUpiCatalog from "./data/catalogs/aws-govcloud-upi.json";
-import azureGovernmentIpiCatalog from "./data/catalogs/azure-government-ipi.json";
-import ibmCloudIpiCatalog from "./data/catalogs/ibm-cloud-ipi.json";
-import nutanixIpiCatalog from "./data/catalogs/nutanix-ipi.json";
-import vsphereAgentCatalog from "./data/catalogs/vsphere-agent.json";
+import { getOpenShiftMinorFromSources } from './shared/openShiftMinor.js';
 
-const CATALOGS = {
-  "bare-metal-agent": bareMetalAgentCatalog,
-  "bare-metal-ipi": bareMetalIpiCatalog,
-  "bare-metal-upi": bareMetalUpiCatalog,
-  "vsphere-agent": vsphereAgentCatalog,
-  "vsphere-ipi": vsphereIpiCatalog,
-  "vsphere-upi": vsphereUpiCatalog,
-  "aws-govcloud-ipi": awsGovcloudIpiCatalog,
-  "aws-govcloud-upi": awsGovcloudUpiCatalog,
-  "azure-government-ipi": azureGovernmentIpiCatalog,
-  "ibm-cloud-ipi": ibmCloudIpiCatalog,
-  "nutanix-ipi": nutanixIpiCatalog
-};
+// Dynamic imports for version-aware catalog loading (ADR-005)
+const catalogs = import.meta.glob('./data/catalogs/**/*.json', { eager: true });
 
 /**
- * Returns the full parameters array for the given scenario (from frontend catalog copies).
- * @param {string|null} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
- * @returns {object[]} parameters array; empty array when scenario unknown or no parameters
+ * Extracts the minor version from a full version string.
+ * Mirrors shared/versionUtils.js behavior for frontend use.
+ * @param {string} version - Full version (e.g., "4.20.15", "4.21.0", "4.20")
+ * @returns {string} Minor version (e.g., "4.20", "4.21")
+ * @throws {Error} If version is invalid or missing
  */
-export function getCatalogForScenario(scenarioId) {
-  const catalog = scenarioId ? CATALOGS[scenarioId] : null;
+function getMinorVersion(version) {
+  if (!version || typeof version !== 'string') {
+    throw new Error(`Invalid version: expected non-empty string, got ${typeof version}`);
+  }
+  const cleaned = String(version).trim().replace(/^v/, '');
+  const parts = cleaned.split('.').filter(Boolean);
+  if (parts.length < 2) {
+    throw new Error(`Invalid version format: ${version}. Expected format: "4.20" or "4.20.15"`);
+  }
+  if (!/^\d+$/.test(parts[0]) || !/^\d+$/.test(parts[1])) {
+    throw new Error(`Invalid version format: ${version}. Expected numeric major.minor`);
+  }
+  return `${parts[0]}.${parts[1]}`;
+}
+
+/**
+ * Returns the parameters array for the given scenario and version.
+ * Backward compatible with original API (returns parameters array, not catalog object).
+ * @param {string} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
+ * @param {string} version - OpenShift version e.g. "4.20", "4.21.15"
+ * @returns {object[]} parameters array
+ * @throws {Error} when version is not supported or scenario not found
+ */
+export function getCatalogForScenario(scenarioId, version = '4.20') {
+  if (!scenarioId || typeof scenarioId !== 'string') {
+    throw new Error(`Invalid scenarioId: expected non-empty string, got ${typeof scenarioId}`);
+  }
+
+  const minorVersion = getMinorVersion(version);
+  const catalogPath = `./data/catalogs/${minorVersion}/${scenarioId}.json`;
+
+  if (!catalogs[catalogPath]) {
+    // Check if version directory exists at all
+    const versionExists = Object.keys(catalogs).some(path => path.startsWith(`./data/catalogs/${minorVersion}/`));
+
+    if (!versionExists) {
+      throw new Error(
+        `OpenShift ${minorVersion} is not supported yet. Supported versions: 4.20. ` +
+        `To add support for ${minorVersion}, create catalogs at frontend/src/data/catalogs/${minorVersion}/`
+      );
+    } else {
+      throw new Error(
+        `Catalog not found for scenario "${scenarioId}" in OpenShift ${minorVersion}. ` +
+        `Available scenarios: ${Object.keys(catalogs)
+          .filter(p => p.startsWith(`./data/catalogs/${minorVersion}/`))
+          .map(p => p.split('/').pop().replace('.json', ''))
+          .join(', ')}`
+      );
+    }
+  }
+
+  const catalog = catalogs[catalogPath].default ?? catalogs[catalogPath];
   const parameters = catalog?.parameters;
-  return Array.isArray(parameters) ? parameters : [];
+
+  if (!Array.isArray(parameters)) {
+    throw new Error(`Invalid catalog structure for ${scenarioId} ${minorVersion}: parameters must be an array`);
+  }
+
+  return parameters;
+}
+
+/**
+ * Alias for getCatalogForScenario (both return parameters array).
+ * @param {string} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
+ * @param {string} version - OpenShift version e.g. "4.20"
+ * @returns {object[]} parameters array
+ * @throws {Error} when version is not supported or scenario not found
+ */
+export function getCatalogParameters(scenarioId, version = '4.20') {
+  return getCatalogForScenario(scenarioId, version);
 }
 
 /**
  * Returns the set of parameter paths that exist in the catalog for the given scenario.
- * @param {string|null} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
+ * @param {string} scenarioId - e.g. "bare-metal-agent", "bare-metal-ipi"
+ * @param {string} version - OpenShift version e.g. "4.20"
  * @returns {Set<string>} set of path strings
+ * @throws {Error} when version is not supported or scenario not found
  */
-export function getCatalogPaths(scenarioId) {
-  const parameters = getCatalogForScenario(scenarioId);
+export function getCatalogPaths(scenarioId, version = '4.20') {
+  const parameters = getCatalogParameters(scenarioId, version);
   if (!parameters.length) return new Set();
   return new Set(parameters.map((p) => p.path));
 }

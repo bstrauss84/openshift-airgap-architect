@@ -18,7 +18,7 @@ export function stateWithBlueprintCompleteMethodologyIncomplete() {
       confirmed: true,
       confirmationTimestamp: Date.now()
     },
-    release: { channel: "4.15", patchVersion: "4.15.0", confirmed: true },
+    release: { channel: "4.20", patchVersion: "4.20.0", confirmed: true },
     version: { versionConfirmed: true },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: {
