@@ -12,22 +12,32 @@
 
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { KubeConfig, CoreV1Api } from "@kubernetes/client-node";
+import { KubeConfig, CoreV1Api, CustomObjectsApi } from "@kubernetes/client-node";
 import logger from "./logger.js";
+
+/**
+ * Initialize Kubernetes config from in-cluster config
+ * @returns {KubeConfig|null} Kubernetes config or null if not in cluster
+ */
+function getKubernetesConfig() {
+  try {
+    const kc = new KubeConfig();
+    kc.loadFromCluster();
+    return kc;
+  } catch (error) {
+    logger.warn({ error: error.message }, "Failed to load Kubernetes config - not running in cluster");
+    return null;
+  }
+}
 
 /**
  * Initialize Kubernetes client from in-cluster config
  * @returns {CoreV1Api|null} Kubernetes core API client or null if not in cluster
  */
 function getKubernetesClient() {
-  try {
-    const kc = new KubeConfig();
-    kc.loadFromCluster();
-    return kc.makeApiClient(CoreV1Api);
-  } catch (error) {
-    logger.warn({ error: error.message }, "Failed to load Kubernetes config - not running in cluster");
-    return null;
-  }
+  const kc = getKubernetesConfig();
+  if (!kc) return null;
+  return kc.makeApiClient(CoreV1Api);
 }
 
 /**
@@ -202,6 +212,71 @@ export async function generatePresignedUrl({ bucket, key, client, expiresIn = 36
 }
 
 /**
+ * Extract S3 object key from internal Kubernetes service URL
+ * @param {string} url - Internal URL (e.g., http://minio.namespace.svc.cluster.local:9000/bucket/path/to/file)
+ * @param {string} bucket - S3 bucket name
+ * @returns {string|null} S3 object key or null if URL can't be parsed
+ */
+function extractS3KeyFromUrl(url, bucket) {
+  if (!url) return null;
+
+  try {
+    const urlObj = new URL(url);
+    // Path should be /bucket/key or just /key depending on path-style vs virtual-hosted
+    let path = urlObj.pathname;
+
+    // Remove leading slash
+    if (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+
+    // If path starts with bucket name, remove it
+    if (path.startsWith(`${bucket}/`)) {
+      return path.substring(bucket.length + 1);
+    }
+
+    return path;
+  } catch (error) {
+    logger.warn({ url, error: error.message }, "Failed to parse URL to extract S3 key");
+    return null;
+  }
+}
+
+/**
+ * Fetch CollectionPipeline resource from Kubernetes
+ * @param {string} name - CollectionPipeline name
+ * @param {string} [namespace] - Namespace (defaults to current namespace)
+ * @returns {Promise<object>} CollectionPipeline resource
+ */
+async function fetchCollectionPipeline(name, namespace) {
+  const kc = getKubernetesConfig();
+  if (!kc) {
+    throw new Error("Kubernetes client not available - not running in cluster");
+  }
+
+  const ns = namespace || await getCurrentNamespace();
+
+  try {
+    // Use custom resource API
+    const k8sApi = kc.makeApiClient(CustomObjectsApi);
+    const response = await k8sApi.getNamespacedCustomObject(
+      'mirror.mirror.mathianasj.github.com',
+      'v1',
+      ns,
+      'collectionpipelines',
+      name
+    );
+
+    return response.body || response;
+  } catch (error) {
+    if (error.response?.statusCode === 404) {
+      throw new Error(`CollectionPipeline ${name} not found in namespace ${ns}`);
+    }
+    throw error;
+  }
+}
+
+/**
  * Generate pre-signed URLs for all artifacts in a collection
  * @param {object} options - Options for URL generation
  * @param {string} options.collectionName - Name of the collection
@@ -225,43 +300,71 @@ export async function generateCollectionDownloadUrls({
     secretNameSource: secretName ? 'parameter' : (process.env.S3_SECRET_NAME ? 'environment' : 'default')
   }, "Generating collection download URLs");
 
+  // Fetch the CollectionPipeline resource to get the actual artifact URLs
+  const pipeline = await fetchCollectionPipeline(collectionName, namespace);
+
+  if (!pipeline.status) {
+    throw new Error(`CollectionPipeline ${collectionName} has no status`);
+  }
+
   // Read S3 credentials from secret
   const credentials = await readS3Credentials(effectiveSecretName, namespace);
 
   // Create S3 client
   const s3Client = createS3Client(credentials);
 
-  // Generate pre-signed URLs for common artifact files
-  // Adjust paths based on your actual S3 structure
-  const artifacts = [
-    `${collectionName}/mirror_seq1_000000.tar`,
-    `${collectionName}/imageset-config.yaml`,
-    `${collectionName}/publish/imageContentSourcePolicy.yaml`,
-    `${collectionName}/publish/catalogSource.yaml`,
-    `${collectionName}/publish/release-signatures.json`
-  ];
+  // Extract S3 object keys from the internal URLs in the pipeline status
+  const artifactUrls = {
+    bundle: pipeline.status.bundleUrl,
+    signature: pipeline.status.signatureUrl
+  };
 
   const urls = {};
 
-  for (const artifactPath of artifacts) {
+  for (const [artifactType, internalUrl] of Object.entries(artifactUrls)) {
+    if (!internalUrl) {
+      logger.debug({ collectionName, artifactType }, "No URL found in pipeline status");
+      continue;
+    }
+
+    // Extract the S3 object key from the internal URL
+    const objectKey = extractS3KeyFromUrl(internalUrl, credentials.bucket);
+
+    if (!objectKey) {
+      logger.warn({
+        collectionName,
+        artifactType,
+        internalUrl
+      }, "Could not extract S3 key from URL");
+      continue;
+    }
+
     try {
       const url = await generatePresignedUrl({
         bucket: credentials.bucket,
-        key: artifactPath,
+        key: objectKey,
         client: s3Client,
         expiresIn
       });
 
-      // Store URL with a friendly name
-      const fileName = artifactPath.split('/').pop();
+      // Store URL with the filename
+      const fileName = objectKey.split('/').pop();
       urls[fileName] = url;
+
+      logger.info({
+        collectionName,
+        artifactType,
+        fileName,
+        objectKey
+      }, "Generated pre-signed URL for artifact");
     } catch (error) {
       // Log error but continue processing other artifacts
       logger.warn({
         collectionName,
-        artifactPath,
+        artifactType,
+        objectKey,
         error: error.message
-      }, "Failed to generate URL for artifact (may not exist)");
+      }, "Failed to generate URL for artifact");
     }
   }
 

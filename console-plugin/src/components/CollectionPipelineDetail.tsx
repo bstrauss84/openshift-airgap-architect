@@ -119,6 +119,8 @@ export const CollectionPipelineDetail: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [loadingPipelineRun, setLoadingPipelineRun] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [downloadUrls, setDownloadUrls] = React.useState<{ bundle?: string; signature?: string } | null>(null);
+  const [loadingDownloadUrls, setLoadingDownloadUrls] = React.useState(false);
 
   // Track if this is the first load using a ref
   const isFirstLoadRef = React.useRef(true);
@@ -220,6 +222,13 @@ export const CollectionPipelineDetail: React.FC = () => {
     return () => clearInterval(interval);
   }, [name]);
 
+  // Fetch download URLs when pipeline becomes complete
+  React.useEffect(() => {
+    if (isComplete && !downloadUrls && !loadingDownloadUrls) {
+      fetchDownloadUrls();
+    }
+  }, [isComplete, name]);
+
   const formatTimestamp = (timestamp?: string) => {
     if (!timestamp) return '-';
     return new Date(timestamp).toLocaleString();
@@ -239,7 +248,42 @@ export const CollectionPipelineDetail: React.FC = () => {
 
   const getSbomUrl = () => {
     // SBOM URL should be set by the operator in the CollectionPipeline status
+    // This should be the specific SBOM URL for this collection, not just the base TPA URL
     return pipeline?.status?.sbomUrl;
+  };
+
+  const fetchDownloadUrls = async () => {
+    if (!name || !isComplete) {
+      return;
+    }
+
+    setLoadingDownloadUrls(true);
+    try {
+      // Call backend API to get pre-signed download URLs with proper public endpoint
+      const response = await fetch(`/api/proxy/plugin/airgap-architect-plugin/backend/api/collections/${name}/download-url`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to get download URLs: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Extract bundle and signature URLs from the response
+      setDownloadUrls({
+        bundle: data.urls?.['mirror_seq1_000000.tar'],
+        signature: data.urls?.['mirror_seq1_000000.tar.sig']
+      });
+    } catch (err: any) {
+      console.error('Failed to fetch download URLs:', err);
+      // Fall back to using status URLs if API call fails
+      setDownloadUrls({
+        bundle: pipeline?.status?.bundleUrl,
+        signature: pipeline?.status?.signatureUrl
+      });
+    } finally {
+      setLoadingDownloadUrls(false);
+    }
   };
 
   const calculateDuration = (startTime?: string, endTime?: string) => {
@@ -561,54 +605,64 @@ export const CollectionPipelineDetail: React.FC = () => {
         )}
 
         {/* Downloads Card (only show when complete) */}
-        {isComplete && (pipeline.status?.bundleUrl || pipeline.status?.signatureUrl || getSbomUrl()) && (
+        {isComplete && (downloadUrls || getSbomUrl()) && (
           <Card style={{ marginBottom: '1rem' }}>
             <CardTitle>Downloads</CardTitle>
             <CardBody>
-              <List>
-                {pipeline.status?.bundleUrl && (
-                  <ListItem>
-                    <Button
-                      variant="link"
-                      icon={<DownloadIcon />}
-                      component="a"
-                      href={pipeline.status.bundleUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Download Collection Bundle (.tar.gz)
-                    </Button>
-                  </ListItem>
-                )}
-                {pipeline.status?.signatureUrl && (
-                  <ListItem>
-                    <Button
-                      variant="link"
-                      icon={<DownloadIcon />}
-                      component="a"
-                      href={pipeline.status.signatureUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Download Signature (.sig)
-                    </Button>
-                  </ListItem>
-                )}
-              </List>
-
-              {getSbomUrl() && (
-                <div style={{ marginTop: '1rem' }}>
-                  <Button
-                    variant="link"
-                    icon={<ExternalLinkAltIcon />}
-                    component="a"
-                    href={getSbomUrl()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View SBOM in Trusted Application Analyzer
-                  </Button>
+              {loadingDownloadUrls && (
+                <div style={{ textAlign: 'center', padding: '1rem' }}>
+                  <Spinner size="md" /> Generating download URLs...
                 </div>
+              )}
+
+              {!loadingDownloadUrls && (
+                <>
+                  <List>
+                    {downloadUrls?.bundle && (
+                      <ListItem>
+                        <Button
+                          variant="link"
+                          icon={<DownloadIcon />}
+                          component="a"
+                          href={downloadUrls.bundle}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Download Collection Bundle (.tar.gz)
+                        </Button>
+                      </ListItem>
+                    )}
+                    {downloadUrls?.signature && (
+                      <ListItem>
+                        <Button
+                          variant="link"
+                          icon={<DownloadIcon />}
+                          component="a"
+                          href={downloadUrls.signature}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Download Signature (.sig)
+                        </Button>
+                      </ListItem>
+                    )}
+                  </List>
+
+                  {getSbomUrl() && (
+                    <div style={{ marginTop: '1rem' }}>
+                      <Button
+                        variant="link"
+                        icon={<ExternalLinkAltIcon />}
+                        component="a"
+                        href={getSbomUrl()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View SBOM in Trusted Application Analyzer
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </CardBody>
           </Card>
