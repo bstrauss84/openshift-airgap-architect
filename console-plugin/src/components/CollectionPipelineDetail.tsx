@@ -214,6 +214,11 @@ export const CollectionPipelineDetail: React.FC = () => {
     }
   };
 
+  // Determine completion status
+  const isComplete = pipeline?.status?.phase === 'Complete' || pipeline?.status?.phase === 'Succeeded';
+  const isRunning = pipeline?.status?.phase === 'Running' || pipeline?.status?.phase === 'InProgress';
+  const isFailed = pipeline?.status?.phase === 'Failed';
+
   React.useEffect(() => {
     fetchPipeline();
 
@@ -409,10 +414,6 @@ export const CollectionPipelineDetail: React.FC = () => {
       </PageSection>
     );
   }
-
-  const isComplete = pipeline.status?.phase === 'Complete' || pipeline.status?.phase === 'Succeeded';
-  const isRunning = pipeline.status?.phase === 'Running' || pipeline.status?.phase === 'InProgress';
-  const isFailed = pipeline.status?.phase === 'Failed';
 
   return (
     <>
