@@ -259,13 +259,13 @@ async function fetchCollectionPipeline(name, namespace) {
   try {
     // Use custom resource API
     const k8sApi = kc.makeApiClient(CustomObjectsApi);
-    const response = await k8sApi.getNamespacedCustomObject(
-      'mirror.mirror.mathianasj.github.com',
-      'v1',
-      ns,
-      'collectionpipelines',
-      name
-    );
+    const response = await k8sApi.getNamespacedCustomObject({
+      group: 'mirror.mirror.mathianasj.github.com',
+      version: 'v1',
+      namespace: ns,
+      plural: 'collectionpipelines',
+      name: name
+    });
 
     return response.body || response;
   } catch (error) {
