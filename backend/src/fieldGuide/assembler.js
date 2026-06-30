@@ -9,6 +9,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import { compartments_v420 } from "./v4.20/index.js";
+import { compartments_v421 } from "./v4.21/index.js";
 import { render } from "./template.js";
 import { getTroubleshootingRules } from "./troubleshootingRules.js";
 
@@ -17,7 +18,7 @@ import { getTroubleshootingRules } from "./troubleshootingRules.js";
  * Add branches here when new versions are supported.
  */
 const getCompartmentsForVersion = (minor) => {
-  // if (minor === "4.21") return compartments_v421;
+  if (minor === "4.21") return compartments_v421;
   return compartments_v420; // default / fallback to latest known
 };
 
