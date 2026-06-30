@@ -2087,6 +2087,86 @@
       "maxVersion": null
     },
     {
+      "path": "platform.baremetal.dnsRecordsType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "Internal, External, or omitted",
+      "default": "Internal",
+      "required": false,
+      "description": "Determines whether DNS records for api, api-int, and ingress are provided by the internal DNS service or externally. When set to 'Internal', records are provided by the internal infrastructure. When set to 'External', records must be configured by the user on a DNS server outside the cluster. This value may only be set when loadBalancer.type is set to UserManaged.",
+      "applies_to": [
+        "bare-metal-ipi",
+        "bare-metal-upi",
+        "bare-metal-agent"
+      ],
+      "notes": "External mode requires OnPremDNSRecords feature gate. External mode requires loadBalancer.type = UserManaged. Current default is 'Internal'.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer release-4.21 pkg/types/baremetal/platform.go line 254",
+          "note": "DNSRecordsType configv1.DNSRecordsType field definition"
+        },
+        {
+          "source": "delta_analysis",
+          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
+          "note": "Confirmed added in 4.21, absent in 4.20"
+        },
+        {
+          "source": "slice_5c_investigation",
+          "url": "local-docs/ocp-4.21/analysis/SLICE-5C-MANUAL-REVIEW-PARAMS.md",
+          "note": "Evidence-based investigation completed 2026-06-30"
+        }
+      ],
+      "supportStatus": "catalog-only",
+      "minVersion": "4.21",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.bmcVerifyCA",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "PEM-encoded CA certificate content",
+      "default": null,
+      "required": false,
+      "description": "User-provided CA certificate for BMC (Baseboard Management Controller) TLS verification. Allows BMC connections to verify against custom CA certificates. Content should be a PEM-encoded CA certificate. Creates a TLS asset file and ConfigMap in the openshift-machine-api namespace. Used by the Ironic bootstrap container for secure BMC communication.",
+      "applies_to": [
+        "bare-metal-ipi",
+        "bare-metal-upi",
+        "bare-metal-agent"
+      ],
+      "notes": "Multi-line PEM certificate content. Future UI implementation requires textarea with file upload button. Generation creates TLS asset (bmc-verify-ca.crt) and ConfigMap (openshift-machine-api/bmc-verify-ca). PEM format validation required before full implementation.",
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer release-4.21 pkg/types/baremetal/platform.go line 267",
+          "note": "BMCVerifyCA string field definition"
+        },
+        {
+          "source": "delta_analysis",
+          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
+          "note": "Confirmed added in 4.21, absent in 4.20"
+        },
+        {
+          "source": "tls_asset_source",
+          "url": "github.com/openshift/installer release-4.21 pkg/asset/tls/bmcverifyca.go",
+          "note": "TLS asset generation logic"
+        },
+        {
+          "source": "configmap_source",
+          "url": "github.com/openshift/installer release-4.21 pkg/asset/manifests/bmcverifycaconfigmap.go",
+          "note": "ConfigMap manifest generation (openshift-machine-api/bmc-verify-ca)"
+        },
+        {
+          "source": "slice_5c_investigation",
+          "url": "local-docs/ocp-4.21/analysis/SLICE-5C-MANUAL-REVIEW-PARAMS.md",
+          "note": "Evidence-based investigation completed 2026-06-30"
+        }
+      ],
+      "supportStatus": "catalog-only",
+      "minVersion": "4.21",
+      "maxVersion": null
+    },
+    {
       "path": "proxy",
       "outputFile": "install-config.yaml",
       "type": "object",

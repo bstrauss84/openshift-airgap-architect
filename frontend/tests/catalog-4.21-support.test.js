@@ -49,6 +49,30 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       );
       expect(azureParams421).toHaveLength(0);
     });
+
+    it('4.20 catalogs do NOT contain 4.21-only manual-review params (Slice 5D)', () => {
+      // Test bare-metal
+      const bareMetalParams = getCatalogForScenario('bare-metal-ipi', '4.20');
+      const bareMetalManualReview = bareMetalParams.filter(p =>
+        p.path === 'platform.baremetal.dnsRecordsType' ||
+        p.path === 'platform.baremetal.bmcVerifyCA'
+      );
+      expect(bareMetalManualReview).toHaveLength(0);
+
+      // Test vsphere
+      const vSphereParams = getCatalogForScenario('vsphere-ipi', '4.20');
+      const vSphereManualReview = vSphereParams.filter(p =>
+        p.path === 'platform.vsphere.dnsRecordsType'
+      );
+      expect(vSphereManualReview).toHaveLength(0);
+
+      // Test nutanix
+      const nutanixParams = getCatalogForScenario('nutanix-ipi', '4.20');
+      const nutanixManualReview = nutanixParams.filter(p =>
+        p.path === 'platform.nutanix.dnsRecordsType'
+      );
+      expect(nutanixManualReview).toHaveLength(0);
+    });
   });
 
   describe('4.21 catalogs load', () => {
@@ -122,15 +146,87 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(subnetsRole.maxVersion).toBe(null);
     });
 
-    it('all 7 new params have catalog-only supportStatus', () => {
+    it('4.21 bare-metal catalogs contain 2 new manual-review params (Slice 5D)', () => {
+      // Test all 3 bare-metal scenarios
+      ['bare-metal-ipi', 'bare-metal-upi', 'bare-metal-agent'].forEach(scenario => {
+        const params = getCatalogForScenario(scenario, '4.21');
+
+        const dnsRecordsType = params.find(p => p.path === 'platform.baremetal.dnsRecordsType');
+        const bmcVerifyCA = params.find(p => p.path === 'platform.baremetal.bmcVerifyCA');
+
+        expect(dnsRecordsType).toBeDefined();
+        expect(dnsRecordsType.minVersion).toBe('4.21');
+        expect(dnsRecordsType.maxVersion).toBe(null);
+        expect(dnsRecordsType.supportStatus).toBe('catalog-only');
+
+        expect(bmcVerifyCA).toBeDefined();
+        expect(bmcVerifyCA.minVersion).toBe('4.21');
+        expect(bmcVerifyCA.maxVersion).toBe(null);
+        expect(bmcVerifyCA.supportStatus).toBe('catalog-only');
+      });
+    });
+
+    it('4.21 vsphere catalogs contain 1 new manual-review param (Slice 5D)', () => {
+      // Test all 3 vsphere scenarios
+      ['vsphere-ipi', 'vsphere-upi', 'vsphere-agent'].forEach(scenario => {
+        const params = getCatalogForScenario(scenario, '4.21');
+
+        const dnsRecordsType = params.find(p => p.path === 'platform.vsphere.dnsRecordsType');
+
+        expect(dnsRecordsType).toBeDefined();
+        expect(dnsRecordsType.minVersion).toBe('4.21');
+        expect(dnsRecordsType.maxVersion).toBe(null);
+        expect(dnsRecordsType.supportStatus).toBe('catalog-only');
+      });
+    });
+
+    it('4.21 nutanix catalog contains 1 new manual-review param (Slice 5D)', () => {
+      const params = getCatalogForScenario('nutanix-ipi', '4.21');
+
+      const dnsRecordsType = params.find(p => p.path === 'platform.nutanix.dnsRecordsType');
+
+      expect(dnsRecordsType).toBeDefined();
+      expect(dnsRecordsType.minVersion).toBe('4.21');
+      expect(dnsRecordsType.maxVersion).toBe(null);
+      expect(dnsRecordsType.supportStatus).toBe('catalog-only');
+    });
+
+    it('all 7 high-confidence params (Slice 5B) have catalog-only supportStatus', () => {
       const awsParams = getCatalogForScenario('aws-govcloud-ipi', '4.21');
       const azureParams = getCatalogForScenario('azure-government-ipi', '4.21');
 
-      const new421Params = [...awsParams, ...azureParams].filter(p => p.minVersion === '4.21');
-      expect(new421Params).toHaveLength(7);
+      const highConfParams = [...awsParams, ...azureParams].filter(p =>
+        p.minVersion === '4.21' &&
+        (p.path.includes('aws.cpuOptions') ||
+         p.path.includes('aws.rootVolume.throughput') ||
+         p.path.includes('azure.allowSharedKeyAccess') ||
+         p.path.includes('azure.subnets'))
+      );
+      expect(highConfParams).toHaveLength(7);
 
-      new421Params.forEach(p => {
+      highConfParams.forEach(p => {
         expect(p.supportStatus).toBe('catalog-only');
+      });
+    });
+
+    it('all 4 manual-review params (Slice 5D) have catalog-only supportStatus', () => {
+      const bareMetalIpi = getCatalogForScenario('bare-metal-ipi', '4.21');
+      const vSphereIpi = getCatalogForScenario('vsphere-ipi', '4.21');
+      const nutanixIpi = getCatalogForScenario('nutanix-ipi', '4.21');
+
+      const manualReviewParams = [...bareMetalIpi, ...vSphereIpi, ...nutanixIpi].filter(p =>
+        p.minVersion === '4.21' &&
+        (p.path.includes('dnsRecordsType') || p.path.includes('bmcVerifyCA'))
+      );
+
+      // bare-metal-ipi: 2 params (dnsRecordsType + bmcVerifyCA)
+      // vsphere-ipi: 1 param (dnsRecordsType)
+      // nutanix-ipi: 1 param (dnsRecordsType)
+      expect(manualReviewParams).toHaveLength(4);
+
+      manualReviewParams.forEach(p => {
+        expect(p.supportStatus).toBe('catalog-only');
+        expect(p.outputFile).toBe('install-config.yaml');
       });
     });
   });
