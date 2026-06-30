@@ -286,10 +286,10 @@ describe('Catalog Parameter Schema v2.0.0', () => {
     });
 
     test('all 4.20 frontend catalogs comply with schema v2.0', () => {
-      const catalogDir = path.join(repoRoot, 'frontend/src/data/catalogs');
+      const catalogDir = path.join(repoRoot, 'frontend/src/data/catalogs/4.20');
       const files = fs.readdirSync(catalogDir).filter(f => f.endsWith('.json'));
 
-      assert.ok(files.length >= 13, 'Should have at least 13 frontend catalog files');
+      assert.ok(files.length >= 13, 'Should have at least 13 frontend catalog files (in versioned 4.20 directory)');
 
       for (const file of files) {
         const data = JSON.parse(fs.readFileSync(path.join(catalogDir, file), 'utf8'));

@@ -1166,9 +1166,10 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     setState(migrationResult.migrated);
     res.json(migrationResult.migrated);
   } else {
-    // Already v3 and valid: persist the merged state
-    setState(merged);
-    res.json(merged);
+    // Already v3 and valid: persist the canonical v3 state from migration result
+    // This ensures legacy confirmation fields (versionConfirmed, confirmedByUser) are canonicalized to locked
+    setState(migrationResult.migrated);
+    res.json(migrationResult.migrated);
   }
 });
 

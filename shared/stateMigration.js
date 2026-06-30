@@ -78,8 +78,43 @@ export function migrateStateToV3(state) {
   // Already v3? Return normalized clone (safe for mutation downstream)
   if (state.version?._schemaVersion === 3) {
     // Deep clone to avoid accidental mutation of shared state
+    const cloned = JSON.parse(JSON.stringify(state));
+
+    // Canonicalize legacy confirmation fields even when state is v3
+    // This handles the case where a v3 state receives a patch with legacy fields like versionConfirmed
+    if (cloned.version) {
+      // Priority order for locked field:
+      //   1. version.locked (if explicitly present)
+      //   2. version.versionConfirmed (legacy v2 field)
+      //   3. version.confirmedByUser (legacy field)
+      //   4. release.confirmed (legacy v1 field)
+      const hasLegacyConfirmation =
+        cloned.version.versionConfirmed !== undefined ||
+        cloned.version.confirmedByUser !== undefined ||
+        cloned.release?.confirmed !== undefined;
+
+      if (hasLegacyConfirmation) {
+        // Canonicalize: legacy fields -> locked
+        // If ANY legacy confirmation field is true, set locked to true (they override stale locked: false)
+        const locked =
+          cloned.version.versionConfirmed === true ||
+          cloned.version.confirmedByUser === true ||
+          cloned.release?.confirmed === true ||
+          (cloned.version.locked !== undefined && cloned.version.locked);
+
+        cloned.version.locked = locked;
+        delete cloned.version.versionConfirmed;
+        delete cloned.version.confirmedByUser;
+
+        // Sync release from canonical version
+        if (cloned.release) {
+          cloned.release.confirmed = locked;
+        }
+      }
+    }
+
     return {
-      migrated: JSON.parse(JSON.stringify(state)),
+      migrated: cloned,
       wasV1: false,
       wasV2: false,
       wasV3: true,

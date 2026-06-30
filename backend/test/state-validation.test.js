@@ -116,7 +116,9 @@ describe("State Validation Tests", () => {
 
       assert.strictEqual(response.status, 200, "Should accept valid release confirmation");
       const state = await response.json();
-      assert.strictEqual(state.release.confirmed, true);
+      // v3 schema: version.locked is canonical, release.confirmed is synced from it
+      assert.strictEqual(state.version.locked, true, "Should canonicalize release.confirmed to version.locked");
+      assert.strictEqual(state.release.confirmed, true, "Should sync release.confirmed from version.locked");
       assert.strictEqual(state.release.channel, "4.21");
     });
 
@@ -269,11 +271,12 @@ describe("State Validation Tests", () => {
 
   describe("Operator Scanning Requirements", () => {
     it("should fail operator scan when release not confirmed", async () => {
-      // Reset to unconfirmed
+      // Reset to unconfirmed - v3 schema requires setting version.locked explicitly
       await fetch(`${baseURL}/api/state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          version: { locked: false },
           release: { confirmed: false, channel: null, patchVersion: null }
         })
       });
@@ -287,7 +290,7 @@ describe("State Validation Tests", () => {
       assert.strictEqual(
         response.status,
         400,
-        "Operator scan should fail when release not confirmed"
+        "Operator scan should fail when version not locked"
       );
 
       const error = await response.json();
