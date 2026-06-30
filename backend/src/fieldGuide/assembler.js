@@ -12,14 +12,49 @@ import { compartments_v420 } from "./v4.20/index.js";
 import { compartments_v421 } from "./v4.21/index.js";
 import { render } from "./template.js";
 import { getTroubleshootingRules } from "./troubleshootingRules.js";
+import { getMinorVersion } from "../../shared/versionUtils.js";
+
+/**
+ * Supported OCP minor versions for Field Guide generation.
+ * Update this list when new version compartments are added.
+ */
+const SUPPORTED_VERSIONS = ["4.20", "4.21"];
 
 /**
  * Returns the compartment list for a given OCP minor version.
- * Add branches here when new versions are supported.
+ * Throws an error for unsupported versions - no silent fallback.
+ *
+ * @param {string} minor - OCP minor version (e.g., "4.21")
+ * @returns {Array} Compartment array for the specified version
+ * @throws {Error} If version is unsupported or invalid
  */
 const getCompartmentsForVersion = (minor) => {
-  if (minor === "4.21") return compartments_v421;
-  return compartments_v420; // default / fallback to latest known
+  // Validate and normalize version
+  let normalizedMinor;
+  try {
+    normalizedMinor = minor ? getMinorVersion(minor) : null;
+  } catch (err) {
+    throw new Error(`Invalid OpenShift version format: "${minor}". Expected format: "4.20" or "4.21"`);
+  }
+
+  if (!normalizedMinor) {
+    throw new Error("OpenShift version is required for Field Guide generation");
+  }
+
+  // Check supported versions
+  if (!SUPPORTED_VERSIONS.includes(normalizedMinor)) {
+    throw new Error(
+      `OpenShift ${normalizedMinor} is not supported for Field Guide generation. ` +
+      `Supported versions: ${SUPPORTED_VERSIONS.join(", ")}`
+    );
+  }
+
+  // Return version-specific compartments
+  if (normalizedMinor === "4.21") return compartments_v421;
+  if (normalizedMinor === "4.20") return compartments_v420;
+
+  // Should never reach here due to SUPPORTED_VERSIONS check above
+  throw new Error(`No compartments found for version ${normalizedMinor}`);
 };
 
 /**

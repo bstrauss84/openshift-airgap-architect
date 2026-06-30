@@ -208,3 +208,55 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
     });
   });
 });
+
+  describe("unsupported version blocking (Slice 5F.2)", () => {
+    it("throws clear error for version 4.22 (future)", () => {
+      assert.throws(
+        () => selectAndOrder("4.22", { platform: "Bare Metal", methodology: "IPI" }),
+        /OpenShift 4\.22 is not supported.*Supported versions:/,
+        "Should throw clear error for unsupported version 4.22"
+      );
+    });
+
+    it("throws clear error for version 4.99 (far future)", () => {
+      assert.throws(
+        () => selectAndOrder("4.99", { platform: "Bare Metal", methodology: "IPI" }),
+        /OpenShift 4\.99 is not supported.*Supported versions:/,
+        "Should throw clear error for unsupported version 4.99"
+      );
+    });
+
+    it("throws clear error for invalid version format", () => {
+      assert.throws(
+        () => selectAndOrder("invalid", { platform: "Bare Metal", methodology: "IPI" }),
+        /Invalid OpenShift version format/,
+        "Should throw clear error for invalid version format"
+      );
+    });
+
+    it("throws clear error for missing version", () => {
+      assert.throws(
+        () => selectAndOrder(null, { platform: "Bare Metal", methodology: "IPI" }),
+        /OpenShift version is required/,
+        "Should throw clear error for missing version"
+      );
+    });
+
+    it("throws clear error for empty string version", () => {
+      assert.throws(
+        () => selectAndOrder("", { platform: "Bare Metal", methodology: "IPI" }),
+        /OpenShift version is required/,
+        "Should throw clear error for empty string version"
+      );
+    });
+
+    it("does NOT silently fallback to v4.20 for unsupported versions", () => {
+      try {
+        selectAndOrder("4.22", { platform: "Bare Metal", methodology: "IPI" });
+        assert.fail("Should have thrown an error, not returned v4.20 compartments");
+      } catch (err) {
+        assert(err.message.includes("not supported"), "Error should indicate version not supported");
+      }
+    });
+  });
+});
