@@ -1,8 +1,8 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 vSphere Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 vSphere Compartments
  *
  * Platform-specific installation procedures for VMware vSphere.
- * Covers IPI, UPI, and Agent-based installer methods for OCP 4.20.
+ * Covers IPI, UPI, and Agent-based installer methods for OCP 4.21.
  *
  * @author Bill Strauss
  *
@@ -19,9 +19,9 @@ export const vsphereIpiPrereqs = {
     methodologies: ["IPI"],
   },
   docRefs: [
-    { label: "Preparing to install on vSphere — IPI (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-on-vsphere#preparing-to-install-on-vsphere" },
-    { label: "vSphere IPI install-config parameters", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-on-vsphere#installation-vsphere-config-yaml_installing-vsphere" },
-    { label: "Required vCenter permissions for IPI", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-on-vsphere#installation-vsphere-required-permissions_installing-vsphere" },
+    { label: "Preparing to install on vSphere — IPI (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_vmware_vsphere/index#preparing-to-install-on-vsphere" },
+    { label: "vSphere IPI install-config parameters", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_vmware_vsphere/index#installation-vsphere-config-yaml_installing-vsphere" },
+    { label: "Required vCenter permissions for IPI", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_vmware_vsphere/index#installation-vsphere-required-permissions_installing-vsphere" },
   ],
   items: [
     { text: "Confirm vSphere/ESXi version is 7.0 Update 2 or later (8.x is also supported for OCP 4.20). Check from vCenter:", cmd: "# vSphere UI: Home → vCenter → Summary → Version\n# Or via API:\ncurl -sk https://{{vcenter}}/rest/appliance/system/version | python3 -m json.tool | grep version" },
@@ -55,7 +55,7 @@ export const vsphereIpiInstall = {
     methodologies: ["IPI"],
   },
   docRefs: [
-    { label: "Installing a cluster on vSphere with IPI (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-on-vsphere#installing-vsphere" },
+    { label: "Installing a cluster on vSphere with IPI (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_vmware_vsphere/index#installing-vsphere" },
   ],
   items: [
     { text: "Place install-config.yaml in {{installDir}}. If you used the app and downloaded the export bundle, copy it from the bundle (it already contains vCenter credentials, VIPs, and mirror settings).", cmd: "mkdir -p {{installDir}}\ncp /path/to/bundle/install-config.yaml {{installDir}}/" },
@@ -87,8 +87,8 @@ export const vsphereUpiPrereqs = {
     methodologies: ["UPI"],
   },
   docRefs: [
-    { label: "Installing a cluster on vSphere with UPI (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-on-vsphere#installing-vsphere-installer-provisioned" },
-    { label: "vSphere UPI infrastructure requirements", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-on-vsphere#upi-vsphere-infrastructure" },
+    { label: "Installing a cluster on vSphere with UPI (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_vmware_vsphere/index#installing-vsphere-installer-provisioned" },
+    { label: "vSphere UPI infrastructure requirements", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_vmware_vsphere/index#upi-vsphere-infrastructure" },
   ],
   items: [
     { text: "Confirm vSphere 7.0 U2+ or 8.x and that you have sufficient permissions to create VMs, clone templates, and assign networks in datacenter {{datacenter}}." },
@@ -119,7 +119,7 @@ export const vsphereUpiInstall = {
     methodologies: ["UPI"],
   },
   docRefs: [
-    { label: "vSphere UPI — cluster completion steps (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-on-vsphere#installation-installing-bare-metal_installing-vsphere-installer-provisioned" },
+    { label: "vSphere UPI — cluster completion steps (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_vmware_vsphere/index#installation-installing-bare-metal_installing-vsphere-installer-provisioned" },
   ],
   items: [
     { text: "Power on the bootstrap VM first; wait for it to reach a Running state with an IP address visible in vCenter." },
@@ -147,8 +147,8 @@ export const vsphereAgentPrereqs = {
     methodologies: ["Agent-Based Installer"],
   },
   docRefs: [
-    { label: "Installing with the Agent-based Installer on vSphere (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-with-agent-based-installer#installing-with-agent-based-installer" },
-    { label: "Agent-based Installer prerequisites", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-with-agent-based-installer#prerequisites-agent-based-installer" },
+    { label: "Installing an on-premise cluster with the Agent-based Installer (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/index" },
+    { label: "Agent-based Installer prerequisites", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/index#prerequisites-agent-based-installer" },
   ],
   items: [
     { text: "Confirm vSphere 7.0 U2+ or 8.x. For agent-based installs, you provision VMs manually (like UPI) but use the agent ISO for node bootstrapping." },
@@ -204,7 +204,7 @@ export const vsphereAgentInstall = {
     methodologies: ["Agent-Based Installer"],
   },
   docRefs: [
-    { label: "Installing with Agent-based Installer — cluster creation (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing/installing-with-agent-based-installer#installing-ocp-agent_installing-with-agent-based-installer" },
+    { label: "Installing with Agent-based Installer — cluster creation (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/index#installing-ocp-agent_installing-with-agent-based-installer" },
   ],
   items: [
     { text: "Ensure install-config.yaml and agent-config.yaml are in {{installDir}}. If you used the app and downloaded the export bundle, both files are pre-generated — copy them from the bundle.", cmd: "ls {{installDir}}/install-config.yaml {{installDir}}/agent-config.yaml" },
