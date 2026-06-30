@@ -275,9 +275,14 @@ export const CollectionPipelineDetail: React.FC = () => {
       const data = await response.json();
 
       // Extract bundle and signature URLs from the response
+      // The backend returns URLs keyed by filename, find by extension
+      const urls = data.urls || {};
+      const bundleKey = Object.keys(urls).find(key => key.endsWith('.tar.gz') || key.endsWith('.tar'));
+      const signatureKey = Object.keys(urls).find(key => key.endsWith('.sig'));
+
       setDownloadUrls({
-        bundle: data.urls?.['mirror_seq1_000000.tar'],
-        signature: data.urls?.['mirror_seq1_000000.tar.sig']
+        bundle: bundleKey ? urls[bundleKey] : undefined,
+        signature: signatureKey ? urls[signatureKey] : undefined
       });
     } catch (err: any) {
       console.error('Failed to fetch download URLs:', err);
