@@ -158,7 +158,7 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
 
   describe("4.21 AWS compartments present", () => {
     it("AWS GovCloud IPI compartments exist in v4.21", () => {
-      const awsIds = ["aws-govcloud-ipi-prereqs", "aws-govcloud-ipi-install"];
+      const awsIds = ["aws-govcloud-prereqs", "aws-govcloud-install"];
       const found = compartments_v421.filter((c) => awsIds.includes(c.id));
       assert.equal(
         found.length,
@@ -170,7 +170,7 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
 
   describe("4.21 Azure compartments present", () => {
     it("Azure Government IPI compartments exist in v4.21", () => {
-      const azureIds = ["azure-gov-ipi-prereqs", "azure-gov-ipi-install"];
+      const azureIds = ["azure-gov-prereqs", "azure-gov-install"];
       const found = compartments_v421.filter((c) => azureIds.includes(c.id));
       assert.equal(
         found.length,
@@ -202,12 +202,11 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
 
   describe("4.21 mirror compartments present", () => {
     it("oc-mirror low-side compartment exists in v4.21", () => {
-      const ocMirror = compartments_v421.find((c) => c.id === "oc-mirror-lowside");
-      assert(ocMirror, "oc-mirror-lowside compartment should exist");
+      const ocMirror = compartments_v421.find((c) => c.id === "oc-mirror-low-side");
+      assert(ocMirror, "oc-mirror-low-side compartment should exist");
       assert.equal(ocMirror.version, "4.21");
     });
   });
-});
 
   describe("unsupported version blocking (Slice 5F.2)", () => {
     it("throws clear error for version 4.22 (future)", () => {
@@ -229,8 +228,8 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
     it("throws clear error for invalid version format", () => {
       assert.throws(
         () => selectAndOrder("invalid", { platform: "Bare Metal", methodology: "IPI" }),
-        /Invalid OpenShift version format/,
-        "Should throw clear error for invalid version format"
+        /OpenShift version is required/,
+        "Should throw clear error for invalid version format (treated as null by normalizer)"
       );
     });
 

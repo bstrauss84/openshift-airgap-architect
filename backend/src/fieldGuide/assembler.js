@@ -12,7 +12,7 @@ import { compartments_v420 } from "./v4.20/index.js";
 import { compartments_v421 } from "./v4.21/index.js";
 import { render } from "./template.js";
 import { getTroubleshootingRules } from "./troubleshootingRules.js";
-import { getMinorVersion } from "../../shared/versionUtils.js";
+import { getMinorVersion } from "../versionPolicy.js";
 
 /**
  * Supported OCP minor versions for Field Guide generation.
