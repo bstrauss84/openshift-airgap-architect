@@ -52,13 +52,14 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
   });
 
   describe('4.21 catalogs load', () => {
-    it('loads all 13 4.21 catalogs successfully', () => {
+    it('loads 12 install-config/agent-config 4.21 catalogs successfully', () => {
       const scenarios = [
         'bare-metal-agent', 'bare-metal-ipi', 'bare-metal-upi',
         'vsphere-agent', 'vsphere-ipi', 'vsphere-upi',
         'aws-govcloud-ipi', 'aws-govcloud-upi',
         'azure-government-ipi', 'azure-government-upi',
-        'ibm-cloud-ipi', 'nutanix-ipi', 'oc-mirror-v2'
+        'ibm-cloud-ipi', 'nutanix-ipi'
+        // oc-mirror-v2 DEFERRED - ImageSetConfiguration extraction still pending
       ];
 
       scenarios.forEach(scenario => {
@@ -158,7 +159,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     });
   });
 
-  describe('No deferred platforms added', () => {
+  describe('No deferred platforms/scenarios added', () => {
     it('PowerVC catalogs do not exist', () => {
       expect(() => getCatalogForScenario('powervc-ipi', '4.21'))
         .toThrow(/Catalog not found/);
@@ -172,6 +173,13 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     it('OpenStack catalogs do not exist', () => {
       expect(() => getCatalogForScenario('openstack-ipi', '4.21'))
         .toThrow(/Catalog not found/);
+    });
+
+    it('oc-mirror 4.21 catalog does not exist (ImageSetConfiguration deferred)', () => {
+      expect(() => getCatalogForScenario('oc-mirror-v2', '4.21'))
+        .toThrow(/Catalog not found for scenario "oc-mirror-v2"/);
+      expect(() => getCatalogForScenario('oc-mirror-v2', '4.21'))
+        .toThrow(/Available scenarios:/);
     });
   });
 });
