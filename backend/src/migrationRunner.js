@@ -63,9 +63,10 @@ function removeMigrationRecord(db, name) {
 
 /**
  * Discover migration files in migrations directory
+ * @param {string} [customMigrationsDir] - Optional custom migrations directory (for testing)
  */
-async function discoverMigrations() {
-  const migrationsDir = path.join(__dirname, 'migrations');
+async function discoverMigrations(customMigrationsDir) {
+  const migrationsDir = customMigrationsDir || path.join(__dirname, 'migrations');
 
   if (!fs.existsSync(migrationsDir)) {
     return [];
@@ -87,13 +88,14 @@ async function discoverMigrations() {
  * Run all pending migrations
  *
  * @param {Database} db - better-sqlite3 database instance
+ * @param {string} [migrationsDir] - Optional custom migrations directory (for testing)
  * @returns {Promise<number>} Number of migrations applied
  */
-export async function runMigrations(db) {
+export async function runMigrations(db, migrationsDir) {
   ensureMigrationsTable(db);
 
   const appliedMigrations = getAppliedMigrations(db);
-  const availableMigrations = await discoverMigrations();
+  const availableMigrations = await discoverMigrations(migrationsDir);
 
   const pendingMigrations = availableMigrations.filter(
     (migration) => !appliedMigrations.includes(migration.name)

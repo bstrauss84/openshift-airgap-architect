@@ -130,11 +130,24 @@ describe("Migration System", () => {
     it("should rollback on migration failure", async () => {
       const db = createTestDb();
 
-      // Create a temporary bad migration
-      const migrationsDir = path.join(__dirname, "../src/migrations");
-      const badMigrationPath = path.join(migrationsDir, "999_bad_migration.js");
+      // Create a temporary migrations directory for this test
+      const testMigrationsDir = path.join(__dirname, "test-migrations-tmp");
+      fs.mkdirSync(testMigrationsDir, { recursive: true });
 
-      const badMigrationContent = `
+      try {
+        // Copy existing migrations to test directory
+        const realMigrationsDir = path.join(__dirname, "../src/migrations");
+        const realMigrations = fs.readdirSync(realMigrationsDir);
+        for (const file of realMigrations) {
+          fs.copyFileSync(
+            path.join(realMigrationsDir, file),
+            path.join(testMigrationsDir, file)
+          );
+        }
+
+        // Create a bad migration in the test directory
+        const badMigrationPath = path.join(testMigrationsDir, "999_bad_migration.js");
+        const badMigrationContent = `
 export const up = (db) => {
   throw new Error("Intentional migration failure");
 };
@@ -143,26 +156,28 @@ export const down = (db) => {
   // Nothing to rollback
 };
 `;
+        fs.writeFileSync(badMigrationPath, badMigrationContent);
 
-      fs.writeFileSync(badMigrationPath, badMigrationContent);
+        try {
+          await runMigrations(db, testMigrationsDir);
+          assert.fail("Should have thrown error on bad migration");
+        } catch (error) {
+          assert.ok(error.message.includes("999_bad_migration"), "Error should reference bad migration");
+          assert.ok(error.message.includes("Intentional migration failure"), "Error should include original message");
+        }
 
-      try {
-        await runMigrations(db);
-        assert.fail("Should have thrown error on bad migration");
-      } catch (error) {
-        assert.ok(error.message.includes("999_bad_migration"), "Error should reference bad migration");
-        assert.ok(error.message.includes("Intentional migration failure"), "Error should include original message");
+        // Check that bad migration was NOT recorded
+        const migrations = db.prepare("SELECT name FROM migrations WHERE name LIKE '%999%'").all();
+        assert.strictEqual(migrations.length, 0, "Bad migration should not be recorded");
+
+        db.close();
+        cleanupTestDb();
+      } finally {
+        // Clean up test migrations directory
+        if (fs.existsSync(testMigrationsDir)) {
+          fs.rmSync(testMigrationsDir, { recursive: true, force: true });
+        }
       }
-
-      // Check that bad migration was NOT recorded
-      const migrations = db.prepare("SELECT name FROM migrations WHERE name LIKE '%999%'").all();
-      assert.strictEqual(migrations.length, 0, "Bad migration should not be recorded");
-
-      // Clean up bad migration file
-      fs.unlinkSync(badMigrationPath);
-
-      db.close();
-      cleanupTestDb();
     });
   });
 
