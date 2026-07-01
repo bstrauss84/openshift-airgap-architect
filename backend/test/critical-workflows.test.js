@@ -31,34 +31,10 @@ const startServer = async () => {
 
   const { app } = await import("../src/index.js");
 
-  return new Promise((resolve, reject) => {
-    // If app is already listening (from another test), reuse it
-    if (app.listening) {
-      const address = app.address();
-      if (address && typeof address === 'object') {
-        resolve({ server: app, port: address.port });
-        return;
-      }
-    }
-
+  return new Promise((resolve) => {
     const server = app.listen(0, () => {
       const port = server.address().port;
       resolve({ server, port });
-    });
-
-    // Add error handler for EADDRINUSE
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        // App already listening, get its port
-        const address = app.address();
-        if (address && typeof address === 'object') {
-          resolve({ server: app, port: address.port });
-        } else {
-          reject(err);
-        }
-      } else {
-        reject(err);
-      }
     });
   });
 };
