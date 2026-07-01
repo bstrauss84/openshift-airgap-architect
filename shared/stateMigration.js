@@ -83,23 +83,18 @@ export function migrateStateToV3(state) {
     // Canonicalize legacy confirmation fields even when state is v3
     // This handles the case where a v3 state receives a patch with legacy fields like versionConfirmed
     if (cloned.version) {
-      // Priority order for locked field:
-      //   1. version.locked (if explicitly present)
-      //   2. version.versionConfirmed (legacy v2 field)
-      //   3. version.confirmedByUser (legacy field)
-      //   4. release.confirmed (legacy v1 field)
-      const hasLegacyConfirmation =
+      // For v3 states, only canonicalize version-level legacy fields
+      // Do NOT use release.confirmed to override version.locked (release is derived, not canonical)
+      const hasVersionLegacyConfirmation =
         cloned.version.versionConfirmed !== undefined ||
-        cloned.version.confirmedByUser !== undefined ||
-        cloned.release?.confirmed !== undefined;
+        cloned.version.confirmedByUser !== undefined;
 
-      if (hasLegacyConfirmation) {
-        // Canonicalize: legacy fields -> locked
-        // If ANY legacy confirmation field is true, set locked to true (they override stale locked: false)
+      if (hasVersionLegacyConfirmation) {
+        // Canonicalize version-level legacy fields to locked
+        // If ANY version legacy confirmation field is true, set locked to true
         const locked =
           cloned.version.versionConfirmed === true ||
           cloned.version.confirmedByUser === true ||
-          cloned.release?.confirmed === true ||
           (cloned.version.locked !== undefined && cloned.version.locked);
 
         cloned.version.locked = locked;
@@ -109,6 +104,12 @@ export function migrateStateToV3(state) {
         // Sync release from canonical version
         if (cloned.release) {
           cloned.release.confirmed = locked;
+        }
+      } else {
+        // No version-level legacy fields, but sync release.confirmed if inconsistent
+        // version.locked is canonical, release.confirmed is derived
+        if (cloned.release && cloned.release.confirmed !== cloned.version.locked) {
+          cloned.release.confirmed = cloned.version.locked;
         }
       }
     }
@@ -195,7 +196,6 @@ function migrateV1ToV3(state) {
       locked: state.release?.confirmed || false,
       lockTimestamp: state.release?.confirmationTimestamp || null,
       selectionTimestamp: Date.now(),
-      confirmedByUser: state.release?.confirmed || false,
 
       // Migration metadata
       _migrated: true,
@@ -260,24 +260,15 @@ function migrateV2ToV3(state) {
   const selectedPatch = state.version?.selectedPatch || state.release?.patchVersion || null;
 
   // Handle multiple legacy confirmation field names
-  // Priority order (explicit presence, NOT v2/v3 detection):
-  //   1. version.locked (if explicitly present, even if false)
-  //   2. version.versionConfirmed (v2 legacy field)
-  //   3. release.confirmed (v1 legacy field)
-  //   4. false (default)
-  //
-  // This handles all cases correctly:
-  // - v3 states: locked is already present and takes precedence
-  // - v2 states: versionConfirmed takes precedence over release.confirmed
-  // - Mixed states: explicit locked value wins (user intent)
-  //
-  const locked = state.version?.locked !== undefined
-    ? state.version.locked
-    : state.version?.versionConfirmed !== undefined
-    ? state.version.versionConfirmed
-    : state.release?.confirmed !== undefined
-    ? state.release.confirmed
-    : false;
+  // Priority: ANY confirmation field === true should set locked: true
+  // This matches v3 canonicalization behavior and handles the case where
+  // v2 default state has versionConfirmed: false but a patch has release.confirmed: true
+  const locked =
+    state.version?.locked === true ||
+    state.version?.versionConfirmed === true ||
+    state.release?.confirmed === true ||
+    (state.version?.locked !== undefined && state.version.locked) ||
+    false;
 
   const migratedState = {
     ...state,
@@ -288,7 +279,6 @@ function migrateV2ToV3(state) {
       locked,
       lockTimestamp: state.version?.lockTimestamp || state.release?.confirmationTimestamp || null,
       selectionTimestamp: state.version?.selectionTimestamp || Date.now(),
-      confirmedByUser: state.version?.confirmedByUser ?? locked,
 
       // Migration metadata
       _migrated: true,

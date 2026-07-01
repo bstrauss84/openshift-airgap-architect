@@ -301,11 +301,12 @@ describe("State Validation Tests", () => {
     });
 
     it("should not use vnull in catalog images", async () => {
-      // Set valid confirmed state
+      // Set valid confirmed state using v3 canonical field
       await fetch(`${baseURL}/api/state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          version: { locked: true, selectedVersion: "4.21.3" },
           release: { confirmed: true, channel: "4.21", patchVersion: "4.21.3" }
         })
       });

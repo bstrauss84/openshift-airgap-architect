@@ -57,7 +57,8 @@ describe('State Migration Boundary 1: Backend API Integration', () => {
       assert.strictEqual(result.wasV1, true);
       assert.strictEqual(result.migrated.version.selectedMinor, '4.21');
       assert.strictEqual(result.migrated.version.locked, false);
-      assert.strictEqual(result.migrated.version.confirmedByUser, false);
+      // v3 schema uses locked, not confirmedByUser (legacy field)
+      assert.strictEqual(result.migrated.version.confirmedByUser, undefined);
     });
 
     test('v1 defaults to 4.20 if channel missing', () => {

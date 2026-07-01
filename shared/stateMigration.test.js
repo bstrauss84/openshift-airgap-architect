@@ -126,7 +126,8 @@ describe('stateMigration', () => {
 
       assert.strictEqual(result.migrated.version.selectedMinor, '4.21');
       assert.strictEqual(result.migrated.version.locked, false);
-      assert.strictEqual(result.migrated.version.confirmedByUser, false);
+      // v3 schema uses locked, not confirmedByUser (legacy field)
+      assert.strictEqual(result.migrated.version.confirmedByUser, undefined);
     });
 
     test('defaults to 4.20 if release.channel missing', () => {
@@ -365,6 +366,162 @@ describe('stateMigration', () => {
       // Release synced from version
       assert.strictEqual(result.migrated.release.channel, '4.21');
       assert.strictEqual(result.migrated.release.confirmed, true);
+    });
+  });
+
+  describe('v3 canonicalization edge cases', () => {
+    test('v3 locked=false, no legacy fields -> remains locked=false', () => {
+      const v3State = {
+        version: {
+          selectedMinor: '4.21',
+          selectedPatch: '4.21.3',
+          selectedChannel: 'stable-4.21',
+          locked: false,
+          _schemaVersion: 3
+        },
+        release: {
+          channel: '4.21',
+          patchVersion: '4.21.3',
+          confirmed: false
+        }
+      };
+
+      const result = migrateStateToV3(v3State);
+
+      assert.strictEqual(result.wasV3, true);
+      assert.strictEqual(result.migrated.version.locked, false);
+      assert.strictEqual(result.migrated.release.confirmed, false);
+    });
+
+    test('v3 locked=true, no legacy fields -> remains locked=true', () => {
+      const v3State = {
+        version: {
+          selectedMinor: '4.21',
+          locked: true,
+          _schemaVersion: 3
+        },
+        release: {
+          channel: '4.21',
+          confirmed: true
+        }
+      };
+
+      const result = migrateStateToV3(v3State);
+
+      assert.strictEqual(result.wasV3, true);
+      assert.strictEqual(result.migrated.version.locked, true);
+      assert.strictEqual(result.migrated.release.confirmed, true);
+    });
+
+    test('v3 locked=false + versionConfirmed=true -> locked=true, versionConfirmed removed', () => {
+      const v3State = {
+        version: {
+          selectedMinor: '4.21',
+          locked: false,
+          versionConfirmed: true,  // Legacy field in v3 state (from patch)
+          _schemaVersion: 3
+        },
+        release: {
+          channel: '4.21',
+          confirmed: false
+        }
+      };
+
+      const result = migrateStateToV3(v3State);
+
+      assert.strictEqual(result.wasV3, true);
+      assert.strictEqual(result.migrated.version.locked, true);
+      assert.strictEqual(result.migrated.version.versionConfirmed, undefined);
+      assert.strictEqual(result.migrated.release.confirmed, true);
+    });
+
+    test('v3 locked=false + confirmedByUser=true -> locked=true, confirmedByUser removed', () => {
+      const v3State = {
+        version: {
+          selectedMinor: '4.21',
+          locked: false,
+          confirmedByUser: true,  // Legacy field
+          _schemaVersion: 3
+        },
+        release: {
+          channel: '4.21',
+          confirmed: false
+        }
+      };
+
+      const result = migrateStateToV3(v3State);
+
+      assert.strictEqual(result.wasV3, true);
+      assert.strictEqual(result.migrated.version.locked, true);
+      assert.strictEqual(result.migrated.version.confirmedByUser, undefined);
+      assert.strictEqual(result.migrated.release.confirmed, true);
+    });
+
+    test('v3 locked=false + release.confirmed=true with NO version legacy fields -> does NOT relock', () => {
+      // This is the critical case: stale release.confirmed should not override canonical locked
+      // when there are no version-level legacy fields to suggest a patch
+      const v3State = {
+        version: {
+          selectedMinor: '4.21',
+          locked: false,
+          _schemaVersion: 3
+        },
+        release: {
+          channel: '4.21',
+          confirmed: true  // Stale from previous state, not from a patch
+        }
+      };
+
+      const result = migrateStateToV3(v3State);
+
+      assert.strictEqual(result.wasV3, true);
+      // locked should remain false - release.confirmed alone without version legacy fields
+      // indicates stale state, not a fresh confirmation patch
+      assert.strictEqual(result.migrated.version.locked, false);
+      // release.confirmed gets synced FROM version.locked (canonical)
+      assert.strictEqual(result.migrated.release.confirmed, false);
+    });
+
+    test('v3 locked=true + release.confirmed=false -> locked remains true', () => {
+      const v3State = {
+        version: {
+          selectedMinor: '4.21',
+          locked: true,
+          _schemaVersion: 3
+        },
+        release: {
+          channel: '4.21',
+          confirmed: false  // Stale/inconsistent
+        }
+      };
+
+      const result = migrateStateToV3(v3State);
+
+      assert.strictEqual(result.wasV3, true);
+      assert.strictEqual(result.migrated.version.locked, true);
+      // release.confirmed gets synced FROM version.locked
+      assert.strictEqual(result.migrated.release.confirmed, true);
+    });
+
+    test('v3 locked=true + patch version.locked=false -> locked becomes false', () => {
+      // User explicitly unlocking
+      const v3State = {
+        version: {
+          selectedMinor: '4.21',
+          locked: false,  // Explicitly set to false in patch
+          _schemaVersion: 3
+        },
+        release: {
+          channel: '4.21',
+          confirmed: true
+        }
+      };
+
+      const result = migrateStateToV3(v3State);
+
+      assert.strictEqual(result.wasV3, true);
+      assert.strictEqual(result.migrated.version.locked, false);
+      assert.strictEqual(result.migrated.release.confirmed, false);
     });
   });
 });

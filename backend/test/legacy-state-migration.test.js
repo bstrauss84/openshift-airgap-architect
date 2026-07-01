@@ -130,23 +130,21 @@ test("Legacy State Migration: Version Confirmation Fields", async (t) => {
   });
 
   /**
-   * Test 7: Locked field precedence (explicit over implicit)
+   * Test 7: Locked field precedence (OR-based priority)
    *
-   * Correct precedence order:
-   * 1. version.locked (if explicitly present, even if false)
-   * 2. version.versionConfirmed (v2 legacy)
-   * 3. release.confirmed (v1 legacy)
-   * 4. false (default)
+   * Correct priority: ANY confirmation field === true sets locked: true
+   * This matches v3 canonicalization behavior and handles the case where
+   * v2 default state has versionConfirmed: false but a patch has release.confirmed: true
    */
-  await t.test("locked field precedence: explicit locked always wins", () => {
-    // Case 1: locked:false overrides versionConfirmed:true
+  await t.test("locked field precedence: ANY confirmation === true wins", () => {
+    // Case 1: versionConfirmed:true sets locked:true (even if locked not present)
     const state1 = {
       runId: "priority-1",
-      version: { locked: false, versionConfirmed: true },
-      release: { channel: "4.20", confirmed: true }
+      version: { versionConfirmed: true },
+      release: { channel: "4.20", confirmed: false }
     };
     const result1 = migrateStateToV3(state1);
-    assert.strictEqual(result1.migrated.version.locked, false, "Explicit locked:false should override versionConfirmed:true");
+    assert.strictEqual(result1.migrated.version.locked, true, "versionConfirmed:true should set locked:true");
     assert.strictEqual(result1.wasV2, true, "Should be detected as v2 migration");
 
     // Case 2: locked:true overrides versionConfirmed:false
@@ -210,7 +208,8 @@ test("Legacy State Migration: Real-World oc-mirror Test State", async (t) => {
     assert.strictEqual(v3State.version.selectedPatch, "4.20.0");
     assert.strictEqual(v3State.version.selectedChannel, "stable-4.20");
     assert.strictEqual(v3State.version.locked, true, "Should normalize versionConfirmed to locked");
-    assert.strictEqual(v3State.version.confirmedByUser, true);
+    // v3 schema uses locked, not confirmedByUser (legacy field)
+    assert.strictEqual(v3State.version.confirmedByUser, undefined);
 
     // Verify release object synced
     assert.strictEqual(v3State.release.channel, "4.20", "Synced release.channel should be minor version only");
