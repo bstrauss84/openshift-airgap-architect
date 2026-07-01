@@ -31,10 +31,34 @@ const startServer = async () => {
 
   const { app } = await import("../src/index.js");
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    // If app is already listening (from another test), reuse it
+    if (app.listening) {
+      const address = app.address();
+      if (address && typeof address === 'object') {
+        resolve({ server: app, port: address.port });
+        return;
+      }
+    }
+
     const server = app.listen(0, () => {
       const port = server.address().port;
       resolve({ server, port });
+    });
+
+    // Add error handler for EADDRINUSE
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        // App already listening, get its port
+        const address = app.address();
+        if (address && typeof address === 'object') {
+          resolve({ server: app, port: address.port });
+        } else {
+          reject(err);
+        }
+      } else {
+        reject(err);
+      }
     });
   });
 };
@@ -193,11 +217,12 @@ describe("Critical Workflow Integration Tests", () => {
     });
 
     it("should reject operator scan when release not confirmed", async () => {
-      // Reset state to unconfirmed
+      // Reset state to unconfirmed - v3 schema requires setting version.locked explicitly
       await fetch(`${baseURL}/api/state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          version: { locked: false },
           release: { confirmed: false, channel: null, patchVersion: null }
         })
       });
