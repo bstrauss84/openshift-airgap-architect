@@ -17,12 +17,7 @@ import { compareVersions } from '../../../shared/versionUtils.js';
 
 /** Sort channel strings (e.g. "4.17", "4.21") ascending by semantic version so newest is last. */
 export function sortChannelsBySemverAscending(channelList) {
-  return [...(channelList || [])].sort((a, b) => {
-    const [amj, ami] = (a || "").split(".").map(Number);
-    const [bmj, bmi] = (b || "").split(".").map(Number);
-    if (amj !== bmj) return amj - bmj;
-    return (ami || 0) - (bmi || 0);
-  });
+  return [...(channelList || [])].sort((a, b) => compareVersions(a, b));
 }
 
 /** Sort channels descending (newest first) for Blueprint minor-channel dropdown display. */

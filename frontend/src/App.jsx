@@ -47,6 +47,8 @@ import { computeVisibleWizardRows, findFirstAttentionStepIndex } from "./wizardV
 import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
+import { SUPPORTED_MINORS } from "./shared/versionPolicy.js";
+import { compareVersions } from "../../shared/versionUtils.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
 import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
@@ -192,10 +194,12 @@ const VersionSupportGate = ({ children }) => {
   }
 
   // Check if selected version is supported
-  const { SUPPORTED_MINORS } = require('./shared/versionPolicy.js');
   const isSupported = SUPPORTED_MINORS.includes(selectedMinor);
 
   if (!isSupported) {
+    // Get newest supported version (don't mutate SUPPORTED_MINORS)
+    const newestSupported = [...SUPPORTED_MINORS].sort((a, b) => compareVersions(b, a))[0];
+
     // Unsupported version - show recovery UI, do NOT mount AppShell
     return (
       <div className="app-loading" role="alert">
@@ -230,30 +234,28 @@ const VersionSupportGate = ({ children }) => {
               type="button"
               className="secondary"
               onClick={() => {
-                // Select the newest supported version
-                const newest = SUPPORTED_MINORS.sort((a, b) => {
-                  const [aMaj, aMin] = a.split('.').map(Number);
-                  const [bMaj, bMin] = b.split('.').map(Number);
-                  if (aMaj !== bMaj) return bMaj - aMaj;
-                  return bMin - aMin;
-                })[0];
-
+                // Update both canonical v3 and legacy state atomically
                 updateState({
+                  version: {
+                    ...(state.version || {}),
+                    selectedMinor: newestSupported,
+                    selectedPatch: null,
+                    selectedChannel: `stable-${newestSupported}`,
+                    locked: false,
+                    lockTimestamp: null,
+                    selectionTimestamp: Date.now(),
+                    _schemaVersion: 3
+                  },
                   release: {
                     ...state.release,
-                    channel: newest,
+                    channel: newestSupported,
                     patchVersion: null,
                     confirmed: false
                   }
                 });
               }}
             >
-              Switch to {SUPPORTED_MINORS.sort((a, b) => {
-                const [aMaj, aMin] = a.split('.').map(Number);
-                const [bMaj, bMin] = b.split('.').map(Number);
-                if (aMaj !== bMaj) return bMaj - aMaj;
-                return bMin - aMin;
-              })[0]}
+              Switch to {newestSupported}
             </button>
           </div>
         </div>

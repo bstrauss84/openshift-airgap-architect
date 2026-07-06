@@ -13,7 +13,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { getTrustBundlePolicies, getTrustBundlePolicySupport, getForwardOpenShiftMinorDocNotice } from "./shared/versionPolicy.js";
+import { getTrustBundlePolicies, getTrustBundlePolicySupport, getForwardOpenShiftMinorDocNotice, SUPPORTED_MINORS } from "./shared/versionPolicy.js";
 import {
   getTrustPolicyOptionsForScenario,
   inferDefaultAdditionalTrustBundlePolicy
@@ -2119,7 +2119,6 @@ export function reconcileReviewFlagsForImportedState(state, visibleStepIds) {
 
 /** Validate manual OpenShift minor (4.xx) and patch (4.xx.yy) for Blueprint advanced entry. */
 const validateManualOpenShiftRelease = (minorRaw, patchRaw) => {
-  const { SUPPORTED_MINORS } = require('./shared/versionPolicy.js');
   const minor = String(minorRaw ?? "").trim();
   const patch = String(patchRaw ?? "").trim();
   const errors = [];

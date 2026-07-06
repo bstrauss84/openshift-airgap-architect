@@ -12,7 +12,7 @@
 
 // Application-supported OpenShift minors (requires audited catalogs, Field Guide, validation, generation contract)
 // Cincinnati availability is NOT the same as application support
-const SUPPORTED_MINORS = ["4.20", "4.21"];
+const SUPPORTED_MINORS = Object.freeze(["4.20", "4.21"]);
 
 const TRUST_BUNDLE_POLICY_ALLOWLIST = {
   "4.20": ["Proxyonly", "Always"],

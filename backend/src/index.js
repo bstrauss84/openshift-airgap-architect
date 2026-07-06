@@ -51,6 +51,7 @@ import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js
 import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
+import { SUPPORTED_MINORS, isSupportedMinor } from "./versionPolicy.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -2955,7 +2956,6 @@ const buildPreviewFiles = (state) => {
   const version = getOpenShiftMinorFromState(v3State) || "4.0";
 
   // DOC-102 Slice 5F.13: Unsupported version boundary - reject before generation
-  const { SUPPORTED_MINORS, isSupportedMinor } = require('./versionPolicy.js');
   if (!isSupportedMinor(version)) {
     const error = new Error(
       `OpenShift ${version} is not supported by this version of OpenShift Airgap Architect. ` +
@@ -3094,7 +3094,7 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
       return res.status(409).json({
         error: error.message,
         code: error.code,
-        analysisHashMismatchTrue,
+        analysisHashMismatch: true,
         details: error.details || {}
       });
     }
