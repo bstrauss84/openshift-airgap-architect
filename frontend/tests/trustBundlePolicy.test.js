@@ -31,22 +31,26 @@ describe("trustBundlePolicy helpers", () => {
     expect(hasEffectiveTrustBundle({ mirrorRegistryCaPem: "garbage", proxyCaPem: "" })).toBe(false);
   });
 
-  it("getTrustBundlePolicySupport: 4.20 explicit, 4.21 forward, unsupported outside OCP4 range", () => {
+  it("getTrustBundlePolicySupport: 4.20 and 4.21 explicit, unsupported outside supported range", () => {
     expect(getTrustBundlePolicySupport("4.20.5").source).toBe("explicit");
     expect(getTrustBundlePolicySupport("4.21.9")).toEqual({
       policies: ["Proxyonly", "Always"],
-      source: "forward",
+      source: "explicit",
       minorVersion: "4.21"
     });
+    expect(getTrustBundlePolicySupport("4.22.0").source).toBe("forward"); // 4.22 uses forward policy (not explicit yet)
     expect(getTrustBundlePolicySupport("4.16.1").source).toBe("unsupported");
     expect(getTrustBundlePolicySupport("3.11.1").source).toBe("unsupported");
   });
 
   it("getForwardOpenShiftMinorDocNotice uses minor only and generic wording", () => {
-    const n = getForwardOpenShiftMinorDocNotice("4.21.9");
-    expect(n).toContain("OpenShift 4.21");
-    expect(n).not.toContain("4.21.9");
+    // 4.21 is now explicit (not forward), so it should return null
+    expect(getForwardOpenShiftMinorDocNotice("4.21.9")).toBeNull();
     expect(getForwardOpenShiftMinorDocNotice("4.20.1")).toBeNull();
+    // 4.22 uses forward policy (not explicit yet)
+    const n = getForwardOpenShiftMinorDocNotice("4.22.0");
+    expect(n).toContain("OpenShift 4.22");
+    expect(n).not.toContain("4.22.0");
   });
 
   it("getTrustPolicyOptionsForScenario prefers catalog over empty version policy", () => {

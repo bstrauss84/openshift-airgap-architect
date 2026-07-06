@@ -234,7 +234,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
   describe('Version blocking unchanged', () => {
     it('4.99 future version still throws clearly', () => {
       expect(() => getCatalogForScenario('aws-govcloud-ipi', '4.99'))
-        .toThrow(/OpenShift 4.99 is not supported yet/);
+        .toThrow(/OpenShift 4.99 is not supported by this version of OpenShift Airgap Architect/);
     });
 
     it('4.22 future version still throws clearly', () => {

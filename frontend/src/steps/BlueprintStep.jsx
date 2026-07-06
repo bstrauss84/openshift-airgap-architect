@@ -4,7 +4,8 @@ import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
-import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
+import { sortChannelsBySemverDescending, getNewestSupportedChannel, filterSupportedChannels } from "../shared/cincinnatiChannels.js";
+import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -53,6 +54,7 @@ const BlueprintStep = () => {
   const releaseLocked = getVersionLocked(state);
 
   const [channels, setChannels] = useState([]);
+  const [unsupportedChannels, setUnsupportedChannels] = useState([]);
   const [patches, setPatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [patchesLoading, setPatchesLoading] = useState(false);
@@ -132,15 +134,18 @@ const BlueprintStep = () => {
     setLoading(true);
     apiFetch("/api/cincinnati/channels")
       .then((data) => {
-        setChannels(sortChannelsBySemverDescending(data.channels || []));
-        if (!data.channels?.length && !releaseLocked) {
+        const { supported, unsupported } = filterSupportedChannels(data.channels || []);
+        setChannels(sortChannelsBySemverDescending(supported));
+        setUnsupportedChannels(sortChannelsBySemverDescending(unsupported));
+
+        if (!supported.length && !releaseLocked) {
           updateState({
             release: { ...release, channel: null, patchVersion: null, confirmed: false, followLatestMinor: true }
           });
           updateVersionSelection({ selectedChannel: null, selectedVersion: null, selectionTimestamp: Date.now() });
         }
-        if (!releaseLocked && !release?.channel && data.channels?.length) {
-          const channel = getNewestChannel(data.channels);
+        if (!releaseLocked && !release?.channel && supported.length) {
+          const channel = getNewestSupportedChannel(data.channels);
           if (channel) {
             updateState({
               release: { ...release, channel, followLatestMinor: true, confirmed: false }
@@ -154,7 +159,9 @@ const BlueprintStep = () => {
         apiFetch("/api/cincinnati/update", { method: "POST" })
           .then((data) => {
             if (data.channels?.length) {
-              setChannels(sortChannelsBySemverDescending(data.channels));
+              const { supported, unsupported } = filterSupportedChannels(data.channels);
+              setChannels(sortChannelsBySemverDescending(supported));
+              setUnsupportedChannels(sortChannelsBySemverDescending(unsupported));
             }
           })
           .catch(() => {});
@@ -260,14 +267,17 @@ const BlueprintStep = () => {
         return;
       }
       const chRes = await apiFetch("/api/cincinnati/channels");
-      const newChannels = sortChannelsBySemverDescending(chRes.channels || []);
+      const { supported, unsupported } = filterSupportedChannels(chRes.channels || []);
+      const newChannels = sortChannelsBySemverDescending(supported);
       setChannels(newChannels);
+      setUnsupportedChannels(sortChannelsBySemverDescending(unsupported));
+
       if (newChannels.length === 0) {
         setUpdatedMessage(true);
         setTimeout(() => setUpdatedMessage(false), 5000);
         return;
       }
-      const newestChannel = getNewestChannel(newChannels);
+      const newestChannel = getNewestSupportedChannel(chRes.channels);
       const followLatest = release?.followLatestMinor === true;
       let channelToLoad;
       if (releaseLocked) {
@@ -434,6 +444,12 @@ const BlueprintStep = () => {
           {refreshError ? (
             <div className="note" style={{ marginBottom: 12, color: "var(--danger, #c62828)" }} role="alert">
               {refreshError}
+            </div>
+          ) : null}
+          {unsupportedChannels.length > 0 ? (
+            <div className="note warning" style={{ marginBottom: 12 }} role="alert">
+              ⚠️ OpenShift {unsupportedChannels.join(", ")} {unsupportedChannels.length === 1 ? "is" : "are"} available upstream but not yet supported by this version of OpenShift Airgap Architect.
+              {" "}Supported versions: {SUPPORTED_MINORS.join(", ")}
             </div>
           ) : null}
           <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem" }}>

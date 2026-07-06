@@ -11,9 +11,62 @@
  */
 
 import { getMinorVersion } from './shared/catalogVersion.js';
+import { SUPPORTED_MINORS } from './shared/versionPolicy.js';
 
 // Dynamic imports for version-aware catalog loading (ADR-005)
 const catalogs = import.meta.glob('./data/catalogs/**/*.json', { eager: true });
+
+/**
+ * Typed error for unsupported OpenShift versions.
+ * UI can catch this to show recovery options instead of generic error boundary.
+ */
+export class UnsupportedVersionError extends Error {
+  constructor(requestedVersion, supportedVersions) {
+    super(
+      `OpenShift ${requestedVersion} is not supported by this version of OpenShift Airgap Architect. ` +
+      `Supported versions: ${supportedVersions.join(', ')}`
+    );
+    this.name = 'UnsupportedVersionError';
+    this.requestedVersion = requestedVersion;
+    this.supportedVersions = supportedVersions;
+  }
+}
+
+/**
+ * Get all available catalog versions from filesystem (sorted descending).
+ * @returns {string[]} e.g. ["4.21", "4.20"]
+ */
+export function getAvailableCatalogVersions() {
+  const versions = [...new Set(
+    Object.keys(catalogs)
+      .filter(p => p.startsWith('./data/catalogs/'))
+      .map(p => p.split('/')[3])
+      .filter(Boolean)
+  )];
+
+  return versions.sort((a, b) => {
+    const [aMajor, aMinor] = a.split('.').map(Number);
+    const [bMajor, bMinor] = b.split('.').map(Number);
+    if (aMajor !== bMajor) return bMajor - aMajor;
+    return bMinor - aMinor;
+  });
+}
+
+/**
+ * Get the latest supported catalog version (not just filesystem presence).
+ * Uses centralized version policy, not filesystem discovery.
+ * @returns {string|null} e.g. "4.21" or null if no supported versions
+ */
+export function getLatestSupportedVersion() {
+  if (!SUPPORTED_MINORS.length) return null;
+  const sorted = [...SUPPORTED_MINORS].sort((a, b) => {
+    const [aMajor, aMinor] = a.split('.').map(Number);
+    const [bMajor, bMinor] = b.split('.').map(Number);
+    if (aMajor !== bMajor) return bMajor - aMajor;
+    return bMinor - aMinor;
+  });
+  return sorted[0];
+}
 
 /**
  * Returns the parameters array for the given scenario and version.
@@ -29,34 +82,25 @@ export function getCatalogForScenario(scenarioId, version = '4.20') {
   }
 
   const minorVersion = getMinorVersion(version);
+
+  // Check against centralized version policy first (Cincinnati availability ≠ app support)
+  if (!SUPPORTED_MINORS.includes(minorVersion)) {
+    throw new UnsupportedVersionError(minorVersion, SUPPORTED_MINORS);
+  }
+
   const catalogPath = `./data/catalogs/${minorVersion}/${scenarioId}.json`;
 
   if (!catalogs[catalogPath]) {
-    // Check if version directory exists at all
-    const versionExists = Object.keys(catalogs).some(path => path.startsWith(`./data/catalogs/${minorVersion}/`));
+    // Version is supported but scenario doesn't exist
+    const availableScenarios = Object.keys(catalogs)
+      .filter(p => p.startsWith(`./data/catalogs/${minorVersion}/`))
+      .map(p => p.split('/').pop().replace('.json', ''))
+      .join(', ');
 
-    if (!versionExists) {
-      // Discover all available versions dynamically
-      const availableVersions = [...new Set(
-        Object.keys(catalogs)
-          .filter(p => p.startsWith('./data/catalogs/'))
-          .map(p => p.split('/')[3]) // Extract version from path like ./data/catalogs/4.20/scenario.json
-          .filter(Boolean)
-      )].sort();
-
-      throw new Error(
-        `OpenShift ${minorVersion} is not supported yet. Supported versions: ${availableVersions.join(', ')}. ` +
-        `To add support for ${minorVersion}, create catalogs at frontend/src/data/catalogs/${minorVersion}/`
-      );
-    } else {
-      throw new Error(
-        `Catalog not found for scenario "${scenarioId}" in OpenShift ${minorVersion}. ` +
-        `Available scenarios: ${Object.keys(catalogs)
-          .filter(p => p.startsWith(`./data/catalogs/${minorVersion}/`))
-          .map(p => p.split('/').pop().replace('.json', ''))
-          .join(', ')}`
-      );
-    }
+    throw new Error(
+      `Catalog not found for scenario "${scenarioId}" in OpenShift ${minorVersion}. ` +
+      `Available scenarios: ${availableScenarios || 'none'}`
+    );
   }
 
   const catalog = catalogs[catalogPath].default ?? catalogs[catalogPath];

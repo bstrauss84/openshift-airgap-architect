@@ -12,13 +12,13 @@
 
 import { parseMinorVersionCore } from './openShiftMinor.js';
 
-const SUPPORTED_MINORS = ["4.17", "4.18", "4.19", "4.20"];
+// Application-supported OpenShift minors (requires audited catalogs, Field Guide, validation, generation contract)
+// Cincinnati availability is NOT the same as application support
+const SUPPORTED_MINORS = ["4.20", "4.21"];
 
 const TRUST_BUNDLE_POLICY_ALLOWLIST = {
-  "4.17": ["Proxyonly", "Always"],
-  "4.18": ["Proxyonly", "Always"],
-  "4.19": ["Proxyonly", "Always"],
-  "4.20": ["Proxyonly", "Always"]
+  "4.20": ["Proxyonly", "Always"],
+  "4.21": ["Proxyonly", "Always"]
 };
 
 const getMinorVersion = (version) => {
