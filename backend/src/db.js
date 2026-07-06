@@ -22,10 +22,7 @@ const dbPath = path.join(dataDir, "airgap-architect.db");
 
 fs.mkdirSync(dataDir, { recursive: true });
 
-// Create database with timeout option for concurrent access
-const db = new Database(dbPath, {
-  timeout: 10000, // 10 second busy timeout for concurrent migration scenarios
-});
+const db = new Database(dbPath);
 
 // Enable WAL mode for better concurrency
 db.pragma("journal_mode = WAL");
