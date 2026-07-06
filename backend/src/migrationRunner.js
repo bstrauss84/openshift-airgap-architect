@@ -28,6 +28,7 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Initialize migrations tracking table
+ * Uses IF NOT EXISTS for safe concurrent execution
  */
 function ensureMigrationsTable(db) {
   db.exec(`
@@ -124,13 +125,48 @@ export async function runMigrations(db, migrationsDir) {
         throw new Error(`Migration ${migration.name} does not export an 'up' function`);
       }
 
-      // Run migration in a transaction
+      // Run migration in a transaction with double-check for concurrent safety
+      // Recheck inside transaction to prevent race when multiple processes
+      // see the same migration as pending before either records it
       const applyMigration = db.transaction(() => {
+        const alreadyApplied = db
+          .prepare('SELECT name FROM migrations WHERE name = ?')
+          .get(migration.name);
+
+        if (alreadyApplied) {
+          // Another concurrent process applied this migration between our check and transaction start
+          logger.info(
+            { tag: 'migrations', migration: migration.name },
+            'Migration already applied by concurrent process, skipping'
+          );
+          return false; // Signal that this migration was skipped
+        }
+
         migrationModule.up(db);
         recordMigration(db, migration.name);
+        return true; // Signal that this migration was applied
       });
 
-      applyMigration();
+      let wasApplied;
+      try {
+        wasApplied = applyMigration();
+      } catch (transactionError) {
+        // If we get a UNIQUE constraint error, another process won the race
+        // Treat this as success - the migration is applied, just not by us
+        if (transactionError.message && transactionError.message.includes('UNIQUE constraint failed: migrations.name')) {
+          logger.info(
+            { tag: 'migrations', migration: migration.name },
+            'Migration applied concurrently by another process (UNIQUE constraint), continuing'
+          );
+          continue; // Skip this migration, don't increment counter
+        }
+        // Other errors are real failures
+        throw transactionError;
+      }
+
+      if (!wasApplied) {
+        continue; // Skip incrementing appliedCount for migrations applied by other processes
+      }
 
       logger.info({ tag: 'migrations', migration: migration.name }, 'Migration applied successfully');
       appliedCount++;
