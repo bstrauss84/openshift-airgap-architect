@@ -2119,13 +2119,17 @@ export function reconcileReviewFlagsForImportedState(state, visibleStepIds) {
 
 /** Validate manual OpenShift minor (4.xx) and patch (4.xx.yy) for Blueprint advanced entry. */
 const validateManualOpenShiftRelease = (minorRaw, patchRaw) => {
+  const { SUPPORTED_MINORS } = require('./shared/versionPolicy.js');
   const minor = String(minorRaw ?? "").trim();
   const patch = String(patchRaw ?? "").trim();
   const errors = [];
-  if (!minor) errors.push("Minor channel is required (e.g. 4.17).");
-  else if (!/^4\.\d+$/.test(minor)) errors.push("Minor channel must look like 4.17.");
-  if (!patch) errors.push("Patch version is required (e.g. 4.17.12).");
-  else if (!/^4\.\d+\.\d+$/.test(patch)) errors.push("Patch version must look like 4.17.12.");
+  if (!minor) errors.push("Minor channel is required (e.g. 4.20, 4.21).");
+  else if (!/^4\.\d+$/.test(minor)) errors.push("Minor channel must look like 4.20.");
+  else if (!SUPPORTED_MINORS.includes(minor)) {
+    errors.push(`OpenShift ${minor} is not supported by this version of OpenShift Airgap Architect. Supported versions: ${SUPPORTED_MINORS.join(', ')}`);
+  }
+  if (!patch) errors.push("Patch version is required (e.g. 4.20.15, 4.21.5).");
+  else if (!/^4\.\d+\.\d+$/.test(patch)) errors.push("Patch version must look like 4.20.15.");
   if (minor && patch && !patch.startsWith(`${minor}.`)) {
     errors.push(`Patch ${patch} must belong to minor ${minor}.`);
   }

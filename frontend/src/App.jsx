@@ -177,6 +177,94 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+/**
+ * Version Support Gate - blocks AppShell mount for unsupported OpenShift versions.
+ * Prevents catalog-dependent validation and hooks from running for 4.22+.
+ * Shows recoverable UI with explicit version selection instead of generic error boundary.
+ */
+const VersionSupportGate = ({ children }) => {
+  const { state, startOver, updateState } = useApp();
+  const selectedMinor = getOpenShiftMinorFromState(state);
+
+  // No version selected yet - let app proceed normally
+  if (!selectedMinor) {
+    return children;
+  }
+
+  // Check if selected version is supported
+  const { SUPPORTED_MINORS } = require('./shared/versionPolicy.js');
+  const isSupported = SUPPORTED_MINORS.includes(selectedMinor);
+
+  if (!isSupported) {
+    // Unsupported version - show recovery UI, do NOT mount AppShell
+    return (
+      <div className="app-loading" role="alert">
+        <div style={{ maxWidth: '600px', textAlign: 'left' }}>
+          <h2>Unsupported OpenShift Version</h2>
+          <p>
+            The selected OpenShift version <strong>{selectedMinor}</strong> is not supported by this version of OpenShift Airgap Architect.
+          </p>
+          <p>
+            <strong>Supported versions:</strong> {SUPPORTED_MINORS.join(', ')}
+          </p>
+          <p>
+            This may occur if you:
+          </p>
+          <ul>
+            <li>Imported state from a newer version of this tool</li>
+            <li>Manually selected an unsupported release</li>
+            <li>Upgraded OpenShift but not this tool</li>
+          </ul>
+          <p>
+            <strong>Recovery options:</strong>
+          </p>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="primary"
+              onClick={startOver}
+            >
+              Start Over
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                // Select the newest supported version
+                const newest = SUPPORTED_MINORS.sort((a, b) => {
+                  const [aMaj, aMin] = a.split('.').map(Number);
+                  const [bMaj, bMin] = b.split('.').map(Number);
+                  if (aMaj !== bMaj) return bMaj - aMaj;
+                  return bMin - aMin;
+                })[0];
+
+                updateState({
+                  release: {
+                    ...state.release,
+                    channel: newest,
+                    patchVersion: null,
+                    confirmed: false
+                  }
+                });
+              }}
+            >
+              Switch to {SUPPORTED_MINORS.sort((a, b) => {
+                const [aMaj, aMin] = a.split('.').map(Number);
+                const [bMaj, bMin] = b.split('.').map(Number);
+                if (aMaj !== bMaj) return bMaj - aMaj;
+                return bMin - aMin;
+              })[0]}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Supported version - proceed normally
+  return children;
+};
+
 const AppShell = () => {
   const { state, loading, schemaError, startOver, updateState, setState } = useApp();
   const [active, setActive] = useState(0);
@@ -1526,7 +1614,9 @@ metadata:
 const App = () => (
   <AppProvider>
     <ErrorBoundary>
-      <AppShell />
+      <VersionSupportGate>
+        <AppShell />
+      </VersionSupportGate>
     </ErrorBoundary>
   </AppProvider>
 );

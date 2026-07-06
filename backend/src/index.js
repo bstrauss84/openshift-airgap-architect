@@ -2953,6 +2953,19 @@ const buildPreviewFiles = (state) => {
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) return null;
   const version = getOpenShiftMinorFromState(v3State) || "4.0";
+
+  // DOC-102 Slice 5F.13: Unsupported version boundary - reject before generation
+  const { SUPPORTED_MINORS, isSupportedMinor } = require('./versionPolicy.js');
+  if (!isSupportedMinor(version)) {
+    const error = new Error(
+      `OpenShift ${version} is not supported by this version of OpenShift Airgap Architect. ` +
+      `Supported versions: ${SUPPORTED_MINORS.join(', ')}`
+    );
+    error.code = 'UNSUPPORTED_VERSION';
+    error.requestedVersion = version;
+    error.supportedVersions = SUPPORTED_MINORS;
+    throw error;
+  }
   const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
@@ -3006,6 +3019,14 @@ app.get("/api/generate", (req, res) => {
     if (!files) return res.status(400).json({ error: "Version not confirmed." });
     res.json({ files });
   } catch (error) {
+    if (error.code === 'UNSUPPORTED_VERSION') {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        requestedVersion: error.requestedVersion,
+        supportedVersions: error.supportedVersions
+      });
+    }
     if (error instanceof TrustAnalysisHashMismatchError) {
       return res.status(409).json({
         error: error.message,
@@ -3061,11 +3082,19 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
 
     res.json({ files });
   } catch (error) {
+    if (error.code === 'UNSUPPORTED_VERSION') {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        requestedVersion: error.requestedVersion,
+        supportedVersions: error.supportedVersions
+      });
+    }
     if (error instanceof TrustAnalysisHashMismatchError) {
       return res.status(409).json({
         error: error.message,
         code: error.code,
-        analysisHashMismatch: true,
+        analysisHashMismatchTrue,
         details: error.details || {}
       });
     }

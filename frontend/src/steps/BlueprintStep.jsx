@@ -4,7 +4,7 @@ import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
-import { sortChannelsBySemverDescending, getNewestSupportedChannel, filterSupportedChannels } from "../shared/cincinnatiChannels.js";
+import { sortChannelsBySemverDescending, getNewestSupportedChannel, classifyChannels } from "../shared/cincinnatiChannels.js";
 import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
 
 const archOptions = [
@@ -54,7 +54,7 @@ const BlueprintStep = () => {
   const releaseLocked = getVersionLocked(state);
 
   const [channels, setChannels] = useState([]);
-  const [unsupportedChannels, setUnsupportedChannels] = useState([]);
+  const [newerUnsupportedChannels, setNewerUnsupportedChannels] = useState([]);
   const [patches, setPatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [patchesLoading, setPatchesLoading] = useState(false);
@@ -134,9 +134,9 @@ const BlueprintStep = () => {
     setLoading(true);
     apiFetch("/api/cincinnati/channels")
       .then((data) => {
-        const { supported, unsupported } = filterSupportedChannels(data.channels || []);
+        const { supported, newerUnsupported } = classifyChannels(data.channels || []);
         setChannels(sortChannelsBySemverDescending(supported));
-        setUnsupportedChannels(sortChannelsBySemverDescending(unsupported));
+        setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
 
         if (!supported.length && !releaseLocked) {
           updateState({
@@ -159,9 +159,9 @@ const BlueprintStep = () => {
         apiFetch("/api/cincinnati/update", { method: "POST" })
           .then((data) => {
             if (data.channels?.length) {
-              const { supported, unsupported } = filterSupportedChannels(data.channels);
+              const { supported, newerUnsupported } = classifyChannels(data.channels);
               setChannels(sortChannelsBySemverDescending(supported));
-              setUnsupportedChannels(sortChannelsBySemverDescending(unsupported));
+              setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
             }
           })
           .catch(() => {});
@@ -267,10 +267,10 @@ const BlueprintStep = () => {
         return;
       }
       const chRes = await apiFetch("/api/cincinnati/channels");
-      const { supported, unsupported } = filterSupportedChannels(chRes.channels || []);
+      const { supported, newerUnsupported } = classifyChannels(chRes.channels || []);
       const newChannels = sortChannelsBySemverDescending(supported);
       setChannels(newChannels);
-      setUnsupportedChannels(sortChannelsBySemverDescending(unsupported));
+      setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
 
       if (newChannels.length === 0) {
         setUpdatedMessage(true);
@@ -446,9 +446,9 @@ const BlueprintStep = () => {
               {refreshError}
             </div>
           ) : null}
-          {unsupportedChannels.length > 0 ? (
+          {newerUnsupportedChannels.length > 0 ? (
             <div className="note warning" style={{ marginBottom: 12 }} role="alert">
-              ⚠️ OpenShift {unsupportedChannels.join(", ")} {unsupportedChannels.length === 1 ? "is" : "are"} available upstream but not yet supported by this version of OpenShift Airgap Architect.
+              ⚠️ OpenShift {newerUnsupportedChannels.join(", ")} {newerUnsupportedChannels.length === 1 ? "is" : "are"} available upstream but not yet supported by this version of OpenShift Airgap Architect.
               {" "}Supported versions: {SUPPORTED_MINORS.join(", ")}
             </div>
           ) : null}
@@ -511,26 +511,26 @@ const BlueprintStep = () => {
             </p>
             <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem", maxWidth: "32rem" }}>
               <label className="label-emphasis">
-                Minor (e.g. 4.17)
+                Minor (e.g. 4.20, 4.21)
                 <input
                   type="text"
                   data-testid="blueprint-manual-minor"
                   value={manualMinor}
                   disabled={releaseLocked}
                   onChange={(e) => setManualMinor(e.target.value)}
-                  placeholder="4.17"
+                  placeholder="4.21"
                   autoComplete="off"
                 />
               </label>
               <label className="label-emphasis">
-                Patch (e.g. 4.17.12)
+                Patch (e.g. 4.21.5)
                 <input
                   type="text"
                   data-testid="blueprint-manual-patch"
                   value={manualPatch}
                   disabled={releaseLocked}
                   onChange={(e) => setManualPatch(e.target.value)}
-                  placeholder="4.17.12"
+                  placeholder="4.21.5"
                   autoComplete="off"
                 />
               </label>

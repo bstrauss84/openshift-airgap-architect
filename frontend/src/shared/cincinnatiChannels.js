@@ -13,6 +13,7 @@
  */
 
 import { SUPPORTED_MINORS } from './versionPolicy.js';
+import { compareVersions } from '../../../shared/versionUtils.js';
 
 /** Sort channel strings (e.g. "4.17", "4.21") ascending by semantic version so newest is last. */
 export function sortChannelsBySemverAscending(channelList) {
@@ -37,24 +38,68 @@ export function getNewestChannel(channelList) {
 }
 
 /**
+ * Classify Cincinnati channels into supported, newer unsupported, older out-of-scope, and invalid.
+ * Uses shared version utilities for comparisons (no ad hoc split/Number).
+ *
+ * @param {string[]} upstreamChannels - Channels from Cincinnati (e.g. ["4.17", "4.18", "4.19", "4.20", "4.21", "4.22"])
+ * @returns {{supported: string[], newerUnsupported: string[], olderOutOfScope: string[], invalid: string[]}}
+ *
+ * Example:
+ *   upstream: ["4.17", "4.18", "4.19", "4.20", "4.21", "4.22"]
+ *   SUPPORTED_MINORS: ["4.20", "4.21"]
+ *   result: {
+ *     supported: ["4.20", "4.21"],
+ *     newerUnsupported: ["4.22"],
+ *     olderOutOfScope: ["4.17", "4.18", "4.19"],
+ *     invalid: []
+ *   }
+ */
+export function classifyChannels(upstreamChannels) {
+  const supported = [];
+  const newerUnsupported = [];
+  const olderOutOfScope = [];
+  const invalid = [];
+
+  const latestSupported = SUPPORTED_MINORS.sort((a, b) => compareVersions(b, a))[0]; // Descending, pick first
+
+  for (const channel of upstreamChannels || []) {
+    // Validate format (must be X.Y)
+    if (!/^\d+\.\d+$/.test(channel)) {
+      invalid.push(channel);
+      continue;
+    }
+
+    if (SUPPORTED_MINORS.includes(channel)) {
+      supported.push(channel);
+    } else {
+      // Not supported - is it newer or older than our support range?
+      const comparison = compareVersions(channel, latestSupported);
+      if (comparison > 0) {
+        // Newer than latest supported
+        newerUnsupported.push(channel);
+      } else {
+        // Older than supported range
+        olderOutOfScope.push(channel);
+      }
+    }
+  }
+
+  return { supported, newerUnsupported, olderOutOfScope, invalid };
+}
+
+/**
  * Filter Cincinnati channels to only application-supported versions.
- * Cincinnati may expose 4.22 before the app supports it.
+ * Backward compatibility wrapper for classifyChannels.
  * @param {string[]} upstreamChannels - Channels from Cincinnati (e.g. ["4.20", "4.21", "4.22"])
  * @returns {{supported: string[], unsupported: string[]}}
  */
 export function filterSupportedChannels(upstreamChannels) {
-  const supported = [];
-  const unsupported = [];
-
-  for (const channel of upstreamChannels || []) {
-    if (SUPPORTED_MINORS.includes(channel)) {
-      supported.push(channel);
-    } else {
-      unsupported.push(channel);
-    }
-  }
-
-  return { supported, unsupported };
+  const { supported, newerUnsupported, olderOutOfScope, invalid } = classifyChannels(upstreamChannels);
+  // Combine all non-supported into 'unsupported' for backward compatibility
+  return {
+    supported,
+    unsupported: [...newerUnsupported, ...olderOutOfScope, ...invalid]
+  };
 }
 
 /**
