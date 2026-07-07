@@ -44,14 +44,12 @@ async function pollJobUntilTerminal(jobId, { timeoutMs = 120000 } = {}) {
 }
 
 const BlueprintStep = () => {
-  const { state, updateState, runtimeInfo } = useApp();
+  const { state, updateState } = useApp();
   const blueprint = state.blueprint;
   const release = state.release;
   const version = state.version || {};
   const locked = blueprint?.confirmed;
   const releaseLocked = version?.versionConfirmed ?? release?.confirmed;
-  const operatorManaged = runtimeInfo?.operatorManaged || false;
-  const pullSecretMounted = runtimeInfo?.pullSecretMounted || false;
 
   const [channels, setChannels] = useState([]);
   const [patches, setPatches] = useState([]);
@@ -537,20 +535,7 @@ const BlueprintStep = () => {
 
         <section className="card pull-secret-section">
           <h3>Red Hat pull secret</h3>
-          {operatorManaged && pullSecretMounted ? (
-            <div style={{
-              display: "inline-block",
-              marginBottom: 10,
-              padding: "8px 12px",
-              borderRadius: 4,
-              fontSize: "0.9rem",
-              background: "var(--success-bg, #d4edda)",
-              border: "1px solid var(--success-border, #c3e6cb)",
-              color: "var(--success-text, #155724)"
-            }}>
-              ✓ Pull secret loaded from OpenShift (operator-managed)
-            </div>
-          ) : mountedSecretBadge && blueprintPullSecretTrimmed ? (
+          {mountedSecretBadge && blueprintPullSecretTrimmed && (
             <div style={{
               display: "inline-block",
               marginBottom: 10,
@@ -563,57 +548,49 @@ const BlueprintStep = () => {
             }}>
               Pre-populated from a mounted pull secret file — you can override or clear this.
             </div>
-          ) : null}
-          {operatorManaged && pullSecretMounted ? (
-            <p className="note" style={{ marginTop: 10 }}>
-              This application is running in operator-managed mode. The Red Hat pull secret has been automatically mounted by the OpenShift operator and will be used for all operator catalog scans and mirroring operations. No manual entry required.
-            </p>
-          ) : (
-            <>
-              <div className="pull-secret-layout">
-                <div className="pull-secret-left">
-                  <SecretInput
-                    value={blueprintPullSecretRaw}
-                    onChange={(v) => {
-                      if (!v.trim()) setMountedSecretBadge(false);
-                      updateBlueprint({ blueprintPullSecretEphemeral: v });
-                    }}
-                    label="Pull secret (JSON)"
-                    labelEmphasis="Pull secret (JSON)"
-                    labelHint="Not stored or exported. Optional; required only if you plan to include Operators in your mirror."
-                    getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
-                    errorMessage={blueprintPullSecretError || undefined}
-                    disabled={locked}
-                    placeholder="Paste, drag and drop, or upload a Red Hat pull secret"
-                    rows={8}
-                    aria-label="Red Hat pull secret JSON"
-                  />
-                </div>
-                <div className="pull-secret-right">
-                  <p className="note note-prominent pull-secret-helper">
-                    Optional. Only required if you plan to include Operators in your mirror. Used only to fetch the latest Operator catalog metadata from Red Hat. Not stored or transmitted anywhere except to authenticate those requests.
-                  </p>
-                  {blueprintPullSecretTrimmed ? (
-                    <div className="blueprint-retain-row" style={{ marginTop: 16, width: "max-content", maxWidth: "100%" }}>
-                      <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>
-                        Retain pull secret for use on subsequent pages (kept in memory only; never saved or exported).
-                      </span>
-                      <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(blueprint?.blueprintRetainPullSecret)}
-                          onChange={(e) => updateBlueprint({ blueprintRetainPullSecret: e.target.checked })}
-                          disabled={locked}
-                          aria-describedby="retain-pull-secret-desc"
-                        />
-                        <span id="retain-pull-secret-desc" aria-hidden="true" />
-                      </label>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </>
           )}
+          <div className="pull-secret-layout">
+            <div className="pull-secret-left">
+              <SecretInput
+                value={blueprintPullSecretRaw}
+                onChange={(v) => {
+                  if (!v.trim()) setMountedSecretBadge(false);
+                  updateBlueprint({ blueprintPullSecretEphemeral: v });
+                }}
+                label="Pull secret (JSON)"
+                labelEmphasis="Pull secret (JSON)"
+                labelHint="Not stored or exported. Optional; required only if you plan to include Operators in your mirror."
+                getPullSecretUrl="https://console.redhat.com/openshift/downloads#tool-pull-secret"
+                errorMessage={blueprintPullSecretError || undefined}
+                disabled={locked}
+                placeholder="Paste, drag and drop, or upload a Red Hat pull secret"
+                rows={8}
+                aria-label="Red Hat pull secret JSON"
+              />
+            </div>
+            <div className="pull-secret-right">
+              <p className="note note-prominent pull-secret-helper">
+                Optional. Only required if you plan to include Operators in your mirror. Used only to fetch the latest Operator catalog metadata from Red Hat. Not stored or transmitted anywhere except to authenticate those requests.
+              </p>
+              {blueprintPullSecretTrimmed ? (
+                <div className="blueprint-retain-row" style={{ marginTop: 16, width: "max-content", maxWidth: "100%" }}>
+                  <span className="credentials-mirror-label" style={{ display: "block", marginBottom: 6 }}>
+                    Retain pull secret for use on subsequent pages (kept in memory only; never saved or exported).
+                  </span>
+                  <label className="toggle-row" style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(blueprint?.blueprintRetainPullSecret)}
+                      onChange={(e) => updateBlueprint({ blueprintRetainPullSecret: e.target.checked })}
+                      disabled={locked}
+                      aria-describedby="retain-pull-secret-desc"
+                    />
+                    <span id="retain-pull-secret-desc" aria-hidden="true" />
+                  </label>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </section>
       </div>
     </div>

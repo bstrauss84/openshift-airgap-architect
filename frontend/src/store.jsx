@@ -46,10 +46,6 @@ const useAppProvider = () => {
     return saved ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(true);
-  const [runtimeInfo, setRuntimeInfo] = useState({
-    operatorManaged: false,
-    pullSecretMounted: false
-  });
 
   useEffect(() => {
     apiFetch("/api/state")
@@ -58,18 +54,6 @@ const useAppProvider = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(getStateForPersistence(data)));
       })
       .finally(() => setLoading(false));
-
-    // Fetch operator-managed status
-    apiFetch("/api/runtime/operator-managed")
-      .then((data) => {
-        setRuntimeInfo({
-          operatorManaged: data.operatorManaged || false,
-          pullSecretMounted: data.pullSecretMounted || false
-        });
-      })
-      .catch(() => {
-        // Silently fail if endpoint not available (backwards compatibility)
-      });
   }, []);
 
   useEffect(() => {
@@ -77,7 +61,7 @@ const useAppProvider = () => {
     const toPersist = getStateForPersistence(state);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersist));
     const timeout = setTimeout(() => {
-      apiFetch?.("/api/state", { method: "POST", body: JSON.stringify(toPersist) })?.catch(() => {});
+      apiFetch("/api/state", { method: "POST", body: JSON.stringify(toPersist) }).catch(() => {});
     }, 600);
     return () => clearTimeout(timeout);
   }, [state]);
@@ -111,7 +95,7 @@ const useAppProvider = () => {
     return next;
   };
 
-  return { state, setState, updateState, loading, startOver, runtimeInfo };
+  return { state, setState, updateState, loading, startOver };
 };
 
 const AppProvider = ({ children }) => {

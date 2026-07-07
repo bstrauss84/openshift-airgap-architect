@@ -190,7 +190,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     const state = stateForNetworkingStep({
       blueprint: { ...stateForNetworkingStep().blueprint, platform: "Bare Metal" },
       methodology: { method: "Agent-Based Installer" },
-      hostInventory: { ...(stateForNetworkingStep().hostInventory || {}), nodes: [], ipStackMode: 'dual-stack', apiVip: "", ingressVip: "", apiVipV6: "", ingressVipV6: "" }
+      hostInventory: { ...(stateForNetworkingStep().hostInventory || {}), nodes: [], enableIpv6: true, apiVip: "", ingressVip: "", apiVipV6: "", ingressVipV6: "" }
     });
 
     const { container } = render(
@@ -210,7 +210,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     const state = stateForNetworkingStep({
       blueprint: { ...stateForNetworkingStep().blueprint, platform: "Bare Metal" },
       methodology: { method: "Agent-Based Installer" },
-      hostInventory: { ...(stateForNetworkingStep().hostInventory || {}), nodes: [], ipStackMode: 'ipv4', apiVip: "", ingressVip: "" }
+      hostInventory: { ...(stateForNetworkingStep().hostInventory || {}), nodes: [], enableIpv6: false, apiVip: "", ingressVip: "" }
     });
 
     const { container } = render(
@@ -281,7 +281,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       blueprint: { ...stateForNetworkingStep().blueprint, platform: "VMware vSphere" },
       methodology: { method: "Agent-Based Installer" },
       hostInventory: {
-        ipStackMode: 'dual-stack',
+        enableIpv6: true,
         schemaVersion: 2,
         nodes: [
           { role: "master", hostname: "m-0" },
@@ -337,7 +337,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
         platform: "IBM Cloud"
       },
       methodology: { method: "IPI" },
-      hostInventory: { ipStackMode: 'ipv4' },
+      hostInventory: { enableIpv6: true },
       globalStrategy: {
         ...(stateForNetworkingStep().globalStrategy || {}),
         networking: {
@@ -382,7 +382,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
           serviceNetworkCidr: "172.30.0.0/16"
         }
       },
-      hostInventory: { ipStackMode: 'dual-stack', apiVip: "", ingressVip: "" }
+      hostInventory: { enableIpv6: true, apiVip: "", ingressVip: "" }
     });
     const updateState = vi.fn();
     render(

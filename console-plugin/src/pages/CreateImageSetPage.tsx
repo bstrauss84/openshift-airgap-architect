@@ -12,7 +12,7 @@ import {
 import { useHistory } from 'react-router-dom';
 import { AppProvider, useApp } from '../AppProvider';
 import { ReleaseSelectionStep } from '../components/ReleaseSelectionStep';
-import { OperatorsSelectionStep } from '../components/OperatorsSelectionStep';
+import { OperatorsSelectionStepWithScan } from '../components/OperatorsSelectionStepWithScan';
 import { AdditionalImagesStep } from '../components/AdditionalImagesStep';
 import { CreateCollectionPipelineStep } from '../components/CreateCollectionPipelineStep';
 
@@ -29,7 +29,7 @@ const CreateImageSetWizard: React.FC = () => {
     },
     {
       name: 'Operators',
-      component: <OperatorsSelectionStep />,
+      component: <OperatorsSelectionStepWithScan />,
       canJumpTo: currentStep >= 1
     },
     {

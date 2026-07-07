@@ -57,30 +57,9 @@ function buildWizardRowsFromMap(stepMap) {
 /**
  * @param {object} state - app state
  * @param {object} stepMap - API step map (may be empty before load)
- * @param {object} runtimeInfo - runtime information (operatorManaged, etc.)
  * @returns {{ id: string, label: string, subSteps: object[] }[]}
  */
-export function computeVisibleWizardRows(state, stepMap, runtimeInfo = {}) {
-  const connectivity = state?.docs?.connectivity;
-
-  // Connected mode: simplified flow for imageset-config (+ collection pipeline if operator-managed)
-  if (connectivity === "connected") {
-    const baseSteps = [
-      { id: "release-selection", label: "Release Selection", subSteps: [] },
-      { id: "operators", label: "Operators", subSteps: [] },
-      { id: "imageset-config", label: "ImageSet Configuration", subSteps: [] },
-      { id: "review", label: "Review Config", subSteps: [] }
-    ];
-
-    // Only add run-collection step if running in operator-managed mode
-    if (runtimeInfo?.operatorManaged) {
-      baseSteps.push({ id: "run-collection", label: "Run Collection", subSteps: [] });
-    }
-
-    return baseSteps;
-  }
-
-  // Disconnected mode: existing logic
+export function computeVisibleWizardRows(state, stepMap) {
   const map = stepMap || {};
   const segmentedFlowV1 = state?.ui?.segmentedFlowV1 === true;
   const hostInventoryV2Enabled = state?.ui?.hostInventoryV2 === true;

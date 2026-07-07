@@ -31,9 +31,6 @@ import ConnectivityMirroringStep from "./steps/ConnectivityMirroringStep.jsx";
 import TrustProxyStep from "./steps/TrustProxyStep.jsx";
 import PlatformSpecificsStep from "./steps/PlatformSpecificsStep.jsx";
 import HostsInventorySegmentStep from "./steps/HostsInventorySegmentStep.jsx";
-import ReleaseSelectionStep from "./steps/ReleaseSelectionStep.jsx";
-import ImageSetConfigStep from "./steps/ImageSetConfigStep.jsx";
-import RunCollectionStep from "./steps/RunCollectionStep.jsx";
 import ScenarioHeaderPanel from "./components/ScenarioHeaderPanel.jsx";
 import ToolsDrawer from "./components/ToolsDrawer.jsx";
 import FeedbackDrawer from "./components/FeedbackDrawer.jsx";
@@ -82,10 +79,7 @@ const COMPONENT_MAP = {
   "connectivity-mirroring": ConnectivityMirroringStep,
   "trust-proxy": TrustProxyStep,
   "platform-specifics": PlatformSpecificsStep,
-  "hosts-inventory": HostsInventorySegmentStep,
-  "release-selection": ReleaseSelectionStep,
-  "imageset-config": ImageSetConfigStep,
-  "run-collection": RunCollectionStep
+  "hosts-inventory": HostsInventorySegmentStep
 };
 
 const FALLBACK_WIZARD_STEPS = [
@@ -181,7 +175,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppShell = () => {
-  const { state, loading, startOver, updateState, setState, runtimeInfo } = useApp();
+  const { state, loading, startOver, updateState, setState } = useApp();
   const [active, setActive] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showReleaseWarning, setShowReleaseWarning] = useState(false);
@@ -301,19 +295,16 @@ const AppShell = () => {
   }, [state]);
   const segmentedFlowV1 = state?.ui?.segmentedFlowV1 === true;
   const visibleSteps = useMemo(() => {
-    const rows = computeVisibleWizardRows(state, stepMap || {}, runtimeInfo);
+    const rows = computeVisibleWizardRows(state, stepMap || {});
     return rows.map((s) => ({
       ...s,
       component: COMPONENT_MAP[s.id] || (() => <PlaceholderCard title={s.label} />)
     }));
-  }, [state, stepMap, runtimeInfo]);
+  }, [state, stepMap]);
 
-  const connectivity = state?.docs?.connectivity;
-  const isConnectedMode = connectivity === "connected";
-
-  const foundationalLocked = isConnectedMode
-    ? Boolean(state?.version?.versionConfirmed ?? state?.release?.confirmed)
-    : Boolean(state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed));
+  const foundationalLocked = Boolean(
+    state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed)
+  );
 
   const sidebarSteps = useMemo(
     () => {
@@ -477,29 +468,9 @@ const AppShell = () => {
   }, [visibleSteps.length, active]);
 
   // Route guard: before lock, only Blueprint and Operations are allowed (Operations for Cincinnati job logs).
-  // In connected mode, only release-selection is the foundational step.
   useEffect(() => {
     if (showLanding || !state?.ui) return;
     if (foundationalLocked) return;
-
-    // Connected mode: allow release-selection and operations before lock
-    if (isConnectedMode) {
-      const currentId = visibleSteps[active]?.id;
-      const allowedPreLock = currentId === "release-selection" || currentId === "operations";
-      if (!allowedPreLock) {
-        const releaseIndex = visibleSteps.findIndex((s) => s.id === "release-selection");
-        if (releaseIndex >= 0) {
-          setActive(releaseIndex);
-          updateState({ ui: { ...state.ui, activeStepId: "release-selection" } });
-          setLockToast("Lock your release selection to continue.");
-          const t = setTimeout(() => setLockToast(""), 4000);
-          return () => clearTimeout(t);
-        }
-      }
-      return;
-    }
-
-    // Disconnected mode: only Blueprint and Operations allowed before lock
     const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
     if (blueprintIndex < 0) return;
     const currentId = visibleSteps[active]?.id;
@@ -511,7 +482,7 @@ const AppShell = () => {
       const t = setTimeout(() => setLockToast(""), 4000);
       return () => clearTimeout(t);
     }
-  }, [showLanding, state, foundationalLocked, active, visibleSteps, updateState, isConnectedMode]);
+  }, [showLanding, state, foundationalLocked, active, visibleSteps, updateState]);
 
   // Required-field highlighting (Workstream D): when landing on a step with errors, show highlights; clear when step has no errors.
   useEffect(() => {
@@ -626,14 +597,9 @@ metadata:
     // 0ms delay for regular field edits (immediate feedback)
     const delay = (methodologyChanged || isImporting) ? 150 : 0;
 
-    // Create controller ref so cleanup can abort it
-    let controller = null;
+    const controller = new AbortController();
 
     const timer = setTimeout(() => {
-      // Create AbortController here, inside setTimeout, so it's only created
-      // when we're actually about to make the request
-      controller = new AbortController();
-
       setPreviewError("");
       setPreviewLoading(true);
 
@@ -681,10 +647,7 @@ metadata:
     // Cleanup: clear timer and abort request on dependency change
     return () => {
       clearTimeout(timer);
-      // Only abort if controller was actually created (setTimeout fired)
-      if (controller) {
-        controller.abort();
-      }
+      controller.abort();
     };
   }, [
     showPreview,
@@ -767,51 +730,27 @@ metadata:
   const attemptNavigate = (nextIndex) => {
     const index = Math.max(0, Math.min(nextIndex, visibleSteps.length - 1));
     const targetStepId = visibleSteps[index]?.id;
+    const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
 
     if (!foundationalLocked) {
-      if (isConnectedMode) {
-        // Connected mode: only allow release-selection and operations before lock
-        if (targetStepId !== "release-selection" && targetStepId !== "operations") {
-          setLockToast("Lock your release selection to continue.");
-          setTimeout(() => setLockToast(""), 4000);
-          const releaseIndex = visibleSteps.findIndex((s) => s.id === "release-selection");
-          if (active !== releaseIndex && releaseIndex >= 0) setActive(releaseIndex);
-          return;
-        }
-        setLockToast("");
-      } else {
-        // Disconnected mode: only allow blueprint and operations before lock
-        const blueprintIndex = visibleSteps.findIndex((s) => s.id === "blueprint");
-        if (targetStepId !== "blueprint" && targetStepId !== "operations") {
-          setLockToast("Lock your foundational selections to continue.");
-          setTimeout(() => setLockToast(""), 4000);
-          if (active !== blueprintIndex && blueprintIndex >= 0) setActive(blueprintIndex);
-          return;
-        }
-        setLockToast("");
+      if (targetStepId !== "blueprint" && targetStepId !== "operations") {
+        setLockToast("Lock your foundational selections to continue.");
+        setTimeout(() => setLockToast(""), 4000);
+        if (active !== blueprintIndex) setActive(blueprintIndex);
+        return;
       }
+      setLockToast("");
     }
 
     if (index <= active) {
       setActiveStep(index);
       return;
     }
-
     const currentStep = visibleSteps[active]?.id;
-
-    // Show lock warning when trying to navigate forward from foundational step
-    if (isConnectedMode) {
-      if (currentStep === "release-selection" && !foundationalLocked && targetStepId !== "operations") {
-        setPendingNavIndex(index);
-        setShowCoreLockWarning(true);
-        return;
-      }
-    } else {
-      if (currentStep === "blueprint" && !foundationalLocked && targetStepId !== "operations") {
-        setPendingNavIndex(index);
-        setShowCoreLockWarning(true);
-        return;
-      }
+    if (currentStep === "blueprint" && !foundationalLocked && targetStepId !== "operations") {
+      setPendingNavIndex(index);
+      setShowCoreLockWarning(true);
+      return;
     }
     const result = validateStep(state, currentStep);
     const hasErrors = result.errors?.length > 0;
@@ -822,10 +761,6 @@ metadata:
   const back = () => {
     if (active === 0) {
       setShowLanding(true);
-      // Also update backend state so it stays in sync
-      updateState({
-        ui: { ...state.ui, showLanding: true }
-      });
     } else {
       setActiveStep(active - 1);
     }
@@ -1007,7 +942,7 @@ metadata:
       ui.segmentedFlowV1 == null
         ? { ...baseState, ui: { ...ui, segmentedFlowV1: true } }
         : baseState;
-    const rows = computeVisibleWizardRows(rowState, stepMap || {}, runtimeInfo);
+    const rows = computeVisibleWizardRows(rowState, stepMap || {});
     const stepIds = rows.map((r) => r.id);
     const reviewFlags = reconcileReviewFlagsForImportedState(rowState, stepIds);
     const merged = { ...rowState, reviewFlags };

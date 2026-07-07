@@ -1,38 +1,21 @@
 /**
  * OpenShift Airgap Architect - Landing Page
  *
- * Landing page with mode selection cards for connected vs disconnected flows.
- * Detects operator-managed mode and recommends connected flow when appropriate.
+ * Landing page with path selection cards: Install (primary), Upgrade, Operator mirroring.
+ * Install CTA shows "Start new install" or "Continue install" based on progress state.
  *
  * @author Bill Strauss
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React from "react";
-import { useApp } from "./store.jsx";
 
+/**
+ * Landing page with three path cards: Install (primary), Upgrade, Operator mirroring (disabled).
+ * Install CTA shows "Start new install" or "Continue install" in a footer rail; onStartInstall is
+ * called when the user clicks the Install card (parent decides step index).
+ */
 const LandingPage = ({ hasProgress, onStartInstall }) => {
-  const context = useApp();
-  const runtimeInfo = context?.runtimeInfo || {};
-  const updateState = context?.updateState || (() => {});
-  const operatorManaged = runtimeInfo?.operatorManaged || false;
-  const pullSecretMounted = runtimeInfo?.pullSecretMounted || false;
-
-  const startConnectedFlow = () => {
-    updateState({
-      docs: { connectivity: "connected" },
-      ui: { showLanding: false, activeStepId: "release-selection" }
-    });
-  };
-
-  const startDisconnectedFlow = () => {
-    updateState({
-      docs: { connectivity: "fully-disconnected" },
-      ui: { showLanding: false, activeStepId: "blueprint" }
-    });
-    if (onStartInstall) onStartInstall();
-  };
-
   const footerCtaText = hasProgress ? "Continue install →" : "Start new install →";
 
   return (
@@ -44,53 +27,52 @@ const LandingPage = ({ hasProgress, onStartInstall }) => {
       <div className="landing-cards">
         <button
           type="button"
-          className={`landing-card landing-card-connected ${operatorManaged && pullSecretMounted ? "landing-card-recommended" : ""}`}
-          onClick={startConnectedFlow}
-          aria-label="Generate ImageSet Configuration"
-        >
-          {operatorManaged && pullSecretMounted && (
-            <span className="landing-card-badge landing-card-badge-success">✓ Detected - Recommended</span>
-          )}
-          <div className="landing-card-inner">
-            <div className="landing-card-top">
-              <div className="landing-card-icon">📋</div>
-              <h2 className="landing-card-title">Generate ImageSet Configuration</h2>
-              <p className="landing-card-subtitle">Connected mode</p>
-            </div>
-            <p className="landing-card-desc">
-              I'm running on a connected OpenShift cluster and want to select operators for mirroring to a disconnected environment.
-            </p>
-            <ul className="landing-card-features">
-              <li>Select operators from live Red Hat catalogs</li>
-              <li>Generate imageset-config.yaml only</li>
-              <li>Simplified 4-step workflow</li>
-            </ul>
-          </div>
-        </button>
-
-        <button
-          type="button"
           className="landing-card landing-card-install"
-          onClick={startDisconnectedFlow}
+          onClick={onStartInstall}
           aria-label={footerCtaText}
         >
           <div className="landing-card-inner">
             <div className="landing-card-top">
-              <div className="landing-card-icon">🏗️</div>
-              <h2 className="landing-card-title">Build Disconnected Cluster</h2>
+              <h2 className="landing-card-title">Install</h2>
               <p className="landing-card-subtitle">Net-new disconnected install</p>
             </div>
             <p className="landing-card-desc">
-              I want to generate install-config, agent-config, and imageset-config for deploying a new OpenShift cluster in an airgapped environment.
+              Create a new OpenShift cluster in an air-gapped environment. Configure blueprint, release,
+              methodology, operators, and generate install assets.
             </p>
-            <ul className="landing-card-features">
-              <li>Full platform and networking configuration</li>
-              <li>Generate all deployment configs</li>
-              <li>Run oc-mirror from the wizard</li>
-            </ul>
             <div className="landing-card-footer-rail">{footerCtaText}</div>
           </div>
         </button>
+
+        <div className="landing-card landing-card-upgrade landing-card-coming-soon" aria-disabled="true">
+          <span className="landing-card-badge">Coming soon</span>
+          <div className="landing-card-inner">
+            <div className="landing-card-top">
+              <h2 className="landing-card-title">Upgrade</h2>
+              <p className="landing-card-subtitle">Platform & operator updates</p>
+            </div>
+            <p className="landing-card-desc">
+              Upgrade an existing disconnected cluster or operator set. Plan and apply platform or
+              operator updates from your mirror.
+            </p>
+            <p className="landing-card-note">Not available in this build.</p>
+          </div>
+        </div>
+
+        <div className="landing-card landing-card-operator landing-card-coming-soon" aria-disabled="true">
+          <span className="landing-card-badge">Coming soon</span>
+          <div className="landing-card-inner">
+            <div className="landing-card-top">
+              <h2 className="landing-card-title">Operator mirroring</h2>
+              <p className="landing-card-subtitle">Mirror and catalog</p>
+            </div>
+            <p className="landing-card-desc">
+              Mirror content and build catalogs without a full install workflow. Use when you need to
+              sync images or manage operator catalogs.
+            </p>
+            <p className="landing-card-note">Not available in this build.</p>
+          </div>
+        </div>
       </div>
     </div>
   );

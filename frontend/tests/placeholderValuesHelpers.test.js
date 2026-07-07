@@ -15,7 +15,7 @@ import {
 describe("placeholderValuesHelpers", () => {
   it("applyPlaceholderValuesToHostInventory populates sensitive hostInventory fields", () => {
     const hostInventory = {
-      ipStackMode: 'dual-stack',
+      enableIpv6: true,
       nodes: [
         {
           role: "master",

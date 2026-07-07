@@ -136,11 +136,12 @@ ${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.na
         spec: {
           imageSetConfig: imageSetYAML,
           storage: {
-            pvc: {
-              storageClass: 'gp3-csi',
-              size: '100Gi'
+            output: {
+              pvc: `collection-${release.channel || '4.x'}-output`
             }
-          }
+          },
+          pvcSize: '100Gi',
+          pvcStorageClass: 'gp3-csi'
         }
       };
 

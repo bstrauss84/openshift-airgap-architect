@@ -4,8 +4,6 @@ import react from "@vitejs/plugin-react";
 const viteAllowedHosts = () => {
   const raw = process.env.VITE_ALLOWED_HOSTS;
   if (typeof raw !== "string") return null;
-  // Support wildcard "all" to accept any hostname (useful for OpenShift routes with dynamic hostnames)
-  if (raw.trim() === "all") return "all";
   const list = raw
     .split(",")
     .map((h) => h.trim())
@@ -29,9 +27,6 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    environmentOptions: {
-      jsdom: { url: "http://localhost" }
-    },
     setupFiles: ["./tests/setup.js"],
     include: ["src/**/*.{test,spec}.{js,jsx}", "tests/**/*.{test,spec}.{js,jsx}"]
   }
