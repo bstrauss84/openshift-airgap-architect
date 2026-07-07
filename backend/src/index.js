@@ -2940,6 +2940,27 @@ app.get("/api/aws/ami", async (req, res) => {
   }
 });
 
+/**
+ * DOC-102 Slice 5F.13: Shared unsupported-version assertion
+ * Throws UNSUPPORTED_VERSION error before artifact builders execute.
+ * @param {object} v3State - Migrated v3 state
+ * @throws {Error} with code='UNSUPPORTED_VERSION', requestedVersion, supportedVersions
+ */
+function assertSupportedOpenShiftVersion(v3State) {
+  const version = getOpenShiftMinorFromState(v3State) || "4.0";
+
+  if (!isSupportedMinor(version)) {
+    const error = new Error(
+      `OpenShift ${version} is not supported by this version of OpenShift Airgap Architect. ` +
+      `Supported versions: ${SUPPORTED_MINORS.join(', ')}`
+    );
+    error.code = 'UNSUPPORTED_VERSION';
+    error.requestedVersion = version;
+    error.supportedVersions = SUPPORTED_MINORS;
+    throw error;
+  }
+}
+
 const buildPreviewFiles = (state) => {
   // DOC-101 Phase 1 Slice 5: State schema migration at generation boundary
   // Migrate v1/v2 state to v3 before generation
@@ -2953,19 +2974,11 @@ const buildPreviewFiles = (state) => {
 
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) return null;
-  const version = getOpenShiftMinorFromState(v3State) || "4.0";
 
   // DOC-102 Slice 5F.13: Unsupported version boundary - reject before generation
-  if (!isSupportedMinor(version)) {
-    const error = new Error(
-      `OpenShift ${version} is not supported by this version of OpenShift Airgap Architect. ` +
-      `Supported versions: ${SUPPORTED_MINORS.join(', ')}`
-    );
-    error.code = 'UNSUPPORTED_VERSION';
-    error.requestedVersion = version;
-    error.supportedVersions = SUPPORTED_MINORS;
-    throw error;
-  }
+  assertSupportedOpenShiftVersion(v3State);
+
+  const version = getOpenShiftMinorFromState(v3State) || "4.0";
   const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
@@ -3143,6 +3156,9 @@ const buildBundleZip = async (state, res) => {
     res.status(400).json({ error: "Version not confirmed." });
     return;
   }
+
+  // DOC-102 Slice 5F.13: Unsupported version boundary - reject before bundle builders
+  assertSupportedOpenShiftVersion(v3State);
 
   const version = getOpenShiftMinorFromState(v3State) || "4.0";
 
@@ -3439,6 +3455,15 @@ app.get("/api/fs/ls", (req, res) => {
 });
 
 const handleBundleZipError = (res, error) => {
+  // DOC-102 Slice 5F.13: Handle unsupported version errors from bundle generation
+  if (error.code === 'UNSUPPORTED_VERSION') {
+    return res.status(422).json({
+      error: error.message,
+      code: error.code,
+      requestedVersion: error.requestedVersion,
+      supportedVersions: error.supportedVersions
+    });
+  }
   if (error instanceof TrustAnalysisHashMismatchError) {
     return res.status(409).json({
       error: error.message,

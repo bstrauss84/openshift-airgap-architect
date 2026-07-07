@@ -234,23 +234,29 @@ const VersionSupportGate = ({ children }) => {
               type="button"
               className="secondary"
               onClick={() => {
-                // Update both canonical v3 and legacy state atomically
+                // DOC-102 Slice 5F.13: Clean canonical v3 state - remove all legacy version fields
+                // After recovery, no canonical, derived, or legacy field may retain unsupported version
                 updateState({
                   version: {
-                    ...(state.version || {}),
+                    _schemaVersion: 3,
                     selectedMinor: newestSupported,
                     selectedPatch: null,
                     selectedChannel: `stable-${newestSupported}`,
                     locked: false,
                     lockTimestamp: null,
                     selectionTimestamp: Date.now(),
-                    _schemaVersion: 3
+                    // Explicitly neutralize legacy fields - do NOT spread old version
+                    selectedVersion: null,
+                    versionConfirmed: false,
+                    confirmedByUser: false
                   },
                   release: {
-                    ...state.release,
                     channel: newestSupported,
                     patchVersion: null,
-                    confirmed: false
+                    confirmed: false,
+                    // Explicitly clear legacy release fields
+                    followLatestMinor: false,
+                    selectedVersion: null
                   }
                 });
               }}

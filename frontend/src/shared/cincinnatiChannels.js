@@ -55,7 +55,8 @@ export function classifyChannels(upstreamChannels) {
   const olderOutOfScope = [];
   const invalid = [];
 
-  const latestSupported = SUPPORTED_MINORS.sort((a, b) => compareVersions(b, a))[0]; // Descending, pick first
+  // CRITICAL: Never mutate frozen SUPPORTED_MINORS - copy first
+  const latestSupported = [...SUPPORTED_MINORS].sort((a, b) => compareVersions(b, a))[0]; // Descending, pick first
 
   for (const channel of upstreamChannels || []) {
     // Validate format (must be X.Y)

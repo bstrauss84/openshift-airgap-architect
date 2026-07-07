@@ -22,43 +22,38 @@ import * as catalogPaths from '../src/catalogPaths.js';
 import * as cincinnatiChannels from '../src/shared/cincinnatiChannels.js';
 import { SUPPORTED_MINORS } from '../src/shared/versionPolicy.js';
 
-// Mock API fetch
+// Mock API fetch with proper response structure
 global.fetch = async (url) => {
+  const mockResponse = (data, ok = true, status = 200) => ({
+    ok,
+    status,
+    statusText: ok ? 'OK' : 'Not Found',
+    json: async () => data,
+    text: async () => JSON.stringify(data)
+  });
+
   if (url.includes('/api/cincinnati/channels')) {
-    return {
-      ok: true,
-      json: async () => ({
-        channels: ['4.20', '4.21', '4.22'], // Cincinnati returns 4.22 (unsupported)
-        timestamp: Date.now(),
-      }),
-    };
+    return mockResponse({
+      channels: ['4.20', '4.21', '4.22'], // Cincinnati returns 4.22 (unsupported)
+      timestamp: Date.now(),
+    });
   }
   if (url.includes('/api/cincinnati/patches')) {
-    return {
-      ok: true,
-      json: async () => ({
-        versions: ['4.21.5', '4.21.4'],
-        timestamp: Date.now(),
-      }),
-    };
+    return mockResponse({
+      versions: ['4.21.5', '4.21.4'],
+      timestamp: Date.now(),
+    });
   }
   if (url.includes('/api/cincinnati/update')) {
-    return {
-      ok: true,
-      json: async () => ({
-        channels: ['4.20', '4.21', '4.22'],
-        timestamp: Date.now(),
-      }),
-    };
+    return mockResponse({
+      channels: ['4.20', '4.21', '4.22'],
+      timestamp: Date.now(),
+    });
   }
   if (url.includes('/api/secrets/rh-pull-secret')) {
-    return {
-      ok: false,
-      status: 404,
-      json: async () => ({ error: 'Not found' }),
-    };
+    return mockResponse({ error: 'Not found' }, false, 404);
   }
-  return { ok: false, status: 404 };
+  return mockResponse({}, false, 404);
 };
 
 function MockAppProvider({ children, state }) {

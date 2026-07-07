@@ -50,8 +50,17 @@ function minorFromPatch(patchVersion, selectedVersion) {
 }
 
 export function getOpenShiftMinorFromSources(release = {}, version = {}) {
+  // DOC-102 Slice 5F.13: Canonical v3 precedence - version.selectedMinor takes priority
+  // Precedence: version.selectedMinor → release.channel → patches → selectedVersion
+  const fromSelectedMinor = version.selectedMinor ? parseMinorVersionCore(version.selectedMinor) : null;
+  if (fromSelectedMinor) return fromSelectedMinor;
+
   const fromCh = parseChannelMinor(release.channel);
   if (fromCh) return fromCh;
+
+  const fromSelectedPatch = version.selectedPatch ? parseMinorVersionCore(version.selectedPatch) : null;
+  if (fromSelectedPatch) return fromSelectedPatch;
+
   return minorFromPatch(release.patchVersion, version.selectedVersion);
 }
 
