@@ -10,8 +10,8 @@
  */
 
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import App from '../src/App.jsx';
 import { validateManualOpenShiftRelease } from '../src/validation.js';
 import { classifyChannels, getNewestSupportedChannel } from '../src/shared/cincinnatiChannels.js';
@@ -88,6 +88,12 @@ describe('Complete unsupported version recovery', () => {
   beforeEach(() => {
     localStorage.clear();
     testContext = 'default';
+    vi.clearAllTimers();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
   });
 
   it('Cincinnati classification: 4.17-4.19 = older, 4.20-4.21 = supported, 4.22 = newer', () => {
@@ -129,23 +135,23 @@ describe('Complete unsupported version recovery', () => {
     // Set test context so fetch mock returns 4.22 state
     testContext = 'persisted-4.22';
 
-    const { container } = render(<App />);
+    render(<App />);
 
-    // Wait for app to finish loading state from localStorage
+    // Wait for app to finish loading state
     await waitFor(() => {
-      // Should NOT show "Loading..."
       expect(screen.queryByText(/Loading Airgap Architect/i)).toBeNull();
     }, { timeout: 3000 });
 
-    // Debug: log what's actually rendered
-    if (process.env.DEBUG_TESTS) {
-      console.log('Rendered HTML:', container.innerHTML);
-    }
+    // Should show VersionSupportGate recovery UI as an alert
+    const alert = await screen.findByRole('alert');
+    expect(alert).toBeInTheDocument();
 
-    // Should show VersionSupportGate recovery UI
-    expect(screen.getByText(/Unsupported OpenShift Version/i)).toBeInTheDocument();
-    expect(screen.getByText(/4\.22/)).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`Supported versions.*${SUPPORTED_MINORS.join(', ')}`))).toBeInTheDocument();
+    // Check alert contains expected content
+    expect(alert).toHaveTextContent(/Unsupported OpenShift Version/i);
+    expect(alert).toHaveTextContent(/4\.22/);
+    expect(alert).toHaveTextContent(/Supported versions:/i);
+    expect(alert).toHaveTextContent(/4\.20/);
+    expect(alert).toHaveTextContent(/4\.21/);
 
     // Should NOT show generic "Something went wrong"
     expect(screen.queryByText(/Something went wrong/i)).toBeNull();
@@ -160,12 +166,14 @@ describe('Complete unsupported version recovery', () => {
 
     render(<App />);
 
-    // Wait for app to load
-    await waitFor(() => {
-      expect(screen.queryByText(/Unsupported OpenShift Version/i)).toBeNull();
-    }, { timeout: 3000 });
+    // Wait for positive normal application signal after hydration (landing page)
+    await screen.findByText(/disconnected install/i);
 
-    // App should render normally
+    // Recovery UI should be absent
+    expect(screen.queryByText(/Unsupported OpenShift Version/i)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    // Generic error should be absent
     expect(screen.queryByText(/Something went wrong/i)).toBeNull();
   });
 });

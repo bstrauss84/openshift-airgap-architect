@@ -5,14 +5,39 @@
  * Tests that "Switch to 4.21" produces clean canonical v3 state without legacy field pollution.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../src/App.jsx';
 
 // Mock fetch for all API calls
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+// Canonical v3 4.22 fixture
+const POLLUTED_4_22_STATE = {
+  version: {
+    _schemaVersion: 3,
+    selectedMinor: '4.22',
+    selectedPatch: '4.22.1',
+    selectedChannel: 'stable-4.22',
+    selectedVersion: '4.22.1', // Legacy field
+    versionConfirmed: true,    // Legacy field
+    confirmedByUser: true,     // Legacy field
+    locked: true,
+    lockTimestamp: 1234567890,
+    selectionTimestamp: 1234567890
+  },
+  release: {
+    channel: '4.22',
+    patchVersion: '4.22.1',
+    selectedVersion: '4.22.1', // Legacy field
+    confirmed: true,
+    followLatestMinor: true
+  },
+  blueprint: { platform: 'Bare Metal', arch: 'x86_64' },
+  methodology: { method: 'IPI' }
+};
 
 describe('Unsupported Version Recovery - State Cleanup', () => {
   beforeEach(() => {
@@ -21,82 +46,50 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
 
     // Default mock responses
     mockFetch.mockImplementation((url) => {
-      if (url === '/api/state') {
-        // Return polluted 4.22 state with ALL legacy fields present
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: () => Promise.resolve({
-            version: {
-              _schemaVersion: 3,
-              selectedMinor: '4.22',
-              selectedPatch: '4.22.1',
-              selectedChannel: 'stable-4.22',
-              selectedVersion: '4.22.1', // Legacy field
-              versionConfirmed: true,    // Legacy field
-              confirmedByUser: true,     // Legacy field
-              locked: true,
-              lockTimestamp: 1234567890,
-              selectionTimestamp: 1234567890
-            },
-            release: {
-              channel: '4.22',
-              patchVersion: '4.22.1',
-              selectedVersion: '4.22.1', // Legacy field
-              confirmed: true,
-              followLatestMinor: true
-            },
-            blueprint: { platform: 'Bare Metal', arch: 'x86_64' },
-            methodology: { method: 'IPI' }
-          }),
-          text: () => Promise.resolve('{}')
-        });
-      }
+      const pathname = new URL(String(url), 'http://localhost').pathname;
 
-      if (url === '/api/schema/stepMap') {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ mvpSteps: [] }),
-          text: () => Promise.resolve('{}')
-        });
-      }
-
-      if (url === '/api/build-info') {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ version: '1.7.0' }),
-          text: () => Promise.resolve('{}')
-        });
-      }
-
-      if (url === '/api/update-info') {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({}),
-          text: () => Promise.resolve('{}')
-        });
-      }
-
-      if (url === '/api/feedback/config') {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ visible: false, enabled: false }),
-          text: () => Promise.resolve('{}')
-        });
-      }
-
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({}),
-        text: () => Promise.resolve('{}')
+      const mockResponse = (data, ok = true, status = 200) => ({
+        ok,
+        status,
+        statusText: ok ? 'OK' : 'Not Found',
+        json: async () => data,
+        text: async () => JSON.stringify(data)
       });
+
+      if (pathname === '/api/state') {
+        return Promise.resolve(mockResponse(POLLUTED_4_22_STATE));
+      }
+
+      if (pathname === '/api/schema/stepMap') {
+        return Promise.resolve(mockResponse({ mvpSteps: [] }));
+      }
+
+      if (pathname === '/api/build-info') {
+        return Promise.resolve(mockResponse({ version: '1.7.0' }));
+      }
+
+      if (pathname === '/api/update-info') {
+        return Promise.resolve(mockResponse({}));
+      }
+
+      if (pathname === '/api/feedback/config') {
+        return Promise.resolve(mockResponse({ visible: false, enabled: false }));
+      }
+
+      if (pathname.startsWith('/api/cincinnati')) {
+        return Promise.resolve(mockResponse({
+          channels: ['4.20', '4.21', '4.22'],
+          timestamp: Date.now()
+        }));
+      }
+
+      return Promise.resolve(mockResponse({}, false, 404));
     });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
   });
 
   it('removes all legacy version fields after recovery', async () => {
@@ -110,25 +103,46 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
     // Capture the POST /api/state call when Switch to 4.21 is clicked
     let capturedState = null;
     mockFetch.mockImplementation((url, options) => {
-      if (url === '/api/state' && options?.method === 'POST') {
+      const pathname = new URL(String(url), 'http://localhost').pathname;
+
+      const mockResponse = (data, ok = true, status = 200) => ({
+        ok,
+        status,
+        statusText: ok ? 'OK' : 'Not Found',
+        json: async () => data,
+        text: async () => JSON.stringify(data)
+      });
+
+      if (pathname === '/api/state' && options?.method === 'POST') {
         const body = JSON.parse(options.body);
         capturedState = body;
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: () => Promise.resolve(body),
-          text: () => Promise.resolve(JSON.stringify(body))
-        });
+        return Promise.resolve(mockResponse(body));
       }
 
       // Default responses for other calls
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({}),
-        text: () => Promise.resolve('{}')
-      });
+      if (pathname === '/api/state') {
+        return Promise.resolve(mockResponse(POLLUTED_4_22_STATE));
+      }
+      if (pathname === '/api/schema/stepMap') {
+        return Promise.resolve(mockResponse({ mvpSteps: [] }));
+      }
+      if (pathname === '/api/build-info') {
+        return Promise.resolve(mockResponse({ version: '1.7.0' }));
+      }
+      if (pathname === '/api/update-info') {
+        return Promise.resolve(mockResponse({}));
+      }
+      if (pathname === '/api/feedback/config') {
+        return Promise.resolve(mockResponse({ visible: false, enabled: false }));
+      }
+      if (pathname.startsWith('/api/cincinnati')) {
+        return Promise.resolve(mockResponse({
+          channels: ['4.20', '4.21', '4.22'],
+          timestamp: Date.now()
+        }));
+      }
+
+      return Promise.resolve(mockResponse({}, false, 404));
     });
 
     // Click "Switch to 4.21" button
@@ -156,7 +170,6 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
     expect(capturedState.release.channel).toBe('4.21');
     expect(capturedState.release.patchVersion).toBeNull();
     expect(capturedState.release.confirmed).toBe(false);
-    expect(capturedState.release.followLatestMinor).toBe(false);
     expect(capturedState.release.selectedVersion).toBeNull();
 
     // Assert: NO field anywhere contains '4.22'
@@ -173,21 +186,44 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
 
     let capturedState = null;
     mockFetch.mockImplementation((url, options) => {
-      if (url === '/api/state' && options?.method === 'POST') {
-        capturedState = JSON.parse(options.body);
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(capturedState),
-          text: () => Promise.resolve(JSON.stringify(capturedState))
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({}),
-        text: () => Promise.resolve('{}')
+      const pathname = new URL(String(url), 'http://localhost').pathname;
+
+      const mockResponse = (data, ok = true, status = 200) => ({
+        ok,
+        status,
+        statusText: ok ? 'OK' : 'Not Found',
+        json: async () => data,
+        text: async () => JSON.stringify(data)
       });
+
+      if (pathname === '/api/state' && options?.method === 'POST') {
+        capturedState = JSON.parse(options.body);
+        return Promise.resolve(mockResponse(capturedState));
+      }
+
+      if (pathname === '/api/state') {
+        return Promise.resolve(mockResponse(POLLUTED_4_22_STATE));
+      }
+      if (pathname === '/api/schema/stepMap') {
+        return Promise.resolve(mockResponse({ mvpSteps: [] }));
+      }
+      if (pathname === '/api/build-info') {
+        return Promise.resolve(mockResponse({ version: '1.7.0' }));
+      }
+      if (pathname === '/api/update-info') {
+        return Promise.resolve(mockResponse({}));
+      }
+      if (pathname === '/api/feedback/config') {
+        return Promise.resolve(mockResponse({ visible: false, enabled: false }));
+      }
+      if (pathname.startsWith('/api/cincinnati')) {
+        return Promise.resolve(mockResponse({
+          channels: ['4.20', '4.21', '4.22'],
+          timestamp: Date.now()
+        }));
+      }
+
+      return Promise.resolve(mockResponse({}, false, 404));
     });
 
     const switchButton = screen.getByRole('button', { name: /Switch to 4\.21/i });

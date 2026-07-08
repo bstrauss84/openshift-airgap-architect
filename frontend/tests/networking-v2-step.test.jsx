@@ -7,8 +7,8 @@
  */
 
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent, within, cleanup } from "@testing-library/react";
 import App from "../src/App.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
@@ -60,6 +60,7 @@ function stateForNetworkingStep(overrides = {}) {
 describe("Networking replacement step (Phase 5 Prompt F)", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.mocked(apiFetch).mockReset();
     vi.mocked(apiFetch).mockImplementation((path, opts) => {
       if (path === "/api/state") {
         const body = opts?.body ? JSON.parse(opts.body) : stateWithSegmentedFlow(true);
@@ -67,6 +68,10 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       }
       return Promise.resolve({});
     });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("renders Networking step when segmented flow ON and user navigates to Networking", async () => {
@@ -394,7 +399,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     expect(screen.getAllByPlaceholderText("fd02::/112").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("when scenario is aws-govcloud-ipi, Networking step shows full form (A2 tab relevance)", async () => {
+  it("when scenario is aws-govcloud-ipi, Networking step shows full form (A2 tab relevance)", () => {
     const state = stateForNetworkingStep({
       blueprint: {
         ...stateWithBlueprintCompleteMethodologyIncomplete().blueprint,
@@ -402,17 +407,16 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       },
       methodology: { method: "IPI" }
     });
-    vi.mocked(apiFetch).mockImplementation((path, opts) => {
-      if (path === "/api/state") {
-        return Promise.resolve(opts?.body ? JSON.parse(opts.body) : state);
-      }
-      return Promise.resolve({});
-    });
-    render(<App />);
-    await waitFor(() => {
-      const clusterHeadings = screen.getAllByRole("heading", { name: /Cluster Networking/i });
-      expect(clusterHeadings.length).toBeGreaterThanOrEqual(1);
-    });
+    expect(getScenarioId(state)).toBe("aws-govcloud-ipi");
+    const requiredPaths = getRequiredParamsForOutput("aws-govcloud-ipi", "install-config.yaml");
+    expect(Array.isArray(requiredPaths)).toBe(true);
+
+    render(
+      <AppContext.Provider value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+        <NetworkingV2Step />
+      </AppContext.Provider>
+    );
+
     expect(screen.getAllByPlaceholderText("10.90.0.0/24").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByPlaceholderText("10.128.0.0/14").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByPlaceholderText("172.30.0.0/16").length).toBeGreaterThanOrEqual(1);
