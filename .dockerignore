@@ -1,7 +1,6 @@
-# Used when building backend with context . (repo root). Keeps .git and backend/ for build-info and backend image.
+# Used when building from repo root context (backend + frontend images)
 node_modules/
 **/node_modules/
-frontend/
 .gitignore
 *.log
 **/*.log
@@ -12,10 +11,12 @@ frontend/
 docs/
 *.md
 !backend/README.md
+!frontend/README.md
 LOCAL_BACKLOG.md
 AGENTS.md
 backend/data/
 backend/.tmp/
+frontend/dist/
 dist/
 # Large local directories that should not be in build context
 local-docs/

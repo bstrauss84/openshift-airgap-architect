@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, develop]
   pull_request:
-    branches: [master, main]
+    branches: [master, main, develop]
 
 jobs:
   build-and-test:
@@ -64,6 +64,26 @@ jobs:
 
       - name: Validate param catalog authority (docs index, catalogs, parity, NMState guards)
         run: node scripts/validate-param-authority.js
+
+      - name: Validate frontend container layout (static checks)
+        run: node scripts/validate-frontend-container-layout.mjs
+
+      - name: Frontend container smoke test (runtime import resolution)
+        run: |
+          set -o pipefail
+          echo "Building and testing frontend container with Docker..."
+          CONTAINER_ENGINE=docker bash scripts/smoke-frontend-container.sh 2>&1 | tee /tmp/oaa-frontend-container-smoke.log
+        env:
+          SMOKE_PORT: 5174
+
+      - name: Upload container smoke logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-smoke-logs
+          path: |
+            /tmp/oaa-frontend-container-smoke.log
+          retention-days: 7
 
   secrets:
     runs-on: ubuntu-latest

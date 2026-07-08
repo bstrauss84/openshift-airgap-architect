@@ -5,12 +5,16 @@ FROM registry.access.redhat.com/ubi9/nodejs-20
 USER root
 RUN mkdir -p /app && chown -R 1001:0 /app
 WORKDIR /app
-COPY --chown=1001:0 package.json package-lock.json* ./
+COPY --chown=1001:0 frontend/package.json frontend/package-lock.json ./frontend/
+WORKDIR /app/frontend
 USER 1001
-RUN npm install
+RUN npm ci
 USER root
-COPY --chown=1001:0 . .
+WORKDIR /app
+COPY --chown=1001:0 frontend/ ./frontend/
+COPY --chown=1001:0 shared/ ./shared/
 USER 1001
 
 EXPOSE 5173
+WORKDIR /app/frontend
 CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]

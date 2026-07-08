@@ -46,7 +46,7 @@ Kubernetes or OpenShift cluster using [Kustomize](https://kustomize.io/).
 podman build -t localhost/openshift-airgap-architect-backend:latest \
   -f backend/Containerfile .
 podman build -t localhost/openshift-airgap-architect-frontend:latest \
-  -f frontend/Containerfile frontend/
+  -f frontend/Containerfile .
 
 # 2. Populate the Secret with your pull secret
 #    Edit manifests/base/secret.yaml and paste your pull secret JSON into

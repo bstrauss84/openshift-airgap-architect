@@ -1,5 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const viteAllowedHosts = () => {
   const raw = process.env.VITE_ALLOWED_HOSTS;
@@ -23,7 +27,15 @@ export default defineConfig({
     port: 5173,
     // When the dev server is reached via a hostname other than localhost (e.g. reverse proxy),
     // set VITE_ALLOWED_HOSTS (see docker-compose.yml / compose.override.yml). Unset or empty = Vite defaults.
-    ...(allowedHosts ? { allowedHosts } : {})
+    ...(allowedHosts ? { allowedHosts } : {}),
+    fs: {
+      // Allow Vite to serve files from frontend workspace and sibling shared/ directory.
+      // In containerized builds, /app/frontend and /app/shared are siblings.
+      allow: [
+        __dirname,
+        path.resolve(__dirname, "../shared")
+      ]
+    }
   },
   test: {
     environment: "jsdom",
