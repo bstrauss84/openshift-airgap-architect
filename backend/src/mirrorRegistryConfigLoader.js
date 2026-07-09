@@ -12,6 +12,7 @@
 
 import fs from 'node:fs';
 import logger from './logger.js';
+import { loadMirrorSources } from './idmsParser.js';
 
 /**
  * Loads mirror registry configuration from mounted file.
@@ -26,13 +27,15 @@ import logger from './logger.js';
  *   "password": "secret",
  *   "tlsVerify": false,
  *   "caCertPath": "/path/to/ca.pem",
+ *   "idmsPath": "/path/to/idms-oc-mirror.yaml",
+ *   "itmsPath": "/path/to/itms-oc-mirror.yaml",
  *   "sslType": "self-signed",
  *   "installedAt": "2026-07-08T15:58:54Z",
  *   "dataPath": "/opt/quay",
  *   "type": "quay"
  * }
  *
- * @returns {Object|null} State augmentation object or null if config not found/invalid
+ * @returns {Object|null} Object with {state, pullSecret} or null if config not found/invalid
  */
 export function loadMirrorRegistryConfig() {
   const configPath = process.env.MIRROR_REGISTRY_CONFIG;
@@ -75,31 +78,47 @@ export function loadMirrorRegistryConfig() {
     // Build registry FQDN from hostname:port
     const registryFqdn = `${config.hostname}:${config.port}`;
 
+    // Load mirror sources from IDMS/ITMS files if provided
+    const sources = loadMirrorSources(config.idmsPath, config.itmsPath);
+    const hasMirrorSources = sources.length > 0;
+
+    // If no IDMS/ITMS files, use default sources with actual registry FQDN
+    const mirrorSources = hasMirrorSources ? sources : [
+      { source: "quay.io/openshift-release-dev/ocp-release", mirrors: [`${registryFqdn}/ocp-release`] },
+      { source: "quay.io/openshift-release-dev/ocp-v4.0-art-dev", mirrors: [`${registryFqdn}/ocp-v4.0-art-dev`] }
+    ];
+
     logger.info({
       tag: 'startup',
       registryFqdn,
       username: config.username,
       hasCaCert: !!caPem,
-      tlsVerify: config.tlsVerify !== false // Log if TLS verification is disabled
+      tlsVerify: config.tlsVerify !== false, // Log if TLS verification is disabled
+      sourcesCount: mirrorSources.length,
+      sourcesFrom: hasMirrorSources ? 'IDMS/ITMS' : 'defaults'
     }, 'Mirror registry config loaded successfully');
 
     return {
-      credentials: {
-        usingMirrorRegistry: true,
-        mirrorRegistryPullSecret: pullSecret,
-        mirrorRegistryUnauthenticated: false
-      },
-      trust: {
-        mirrorRegistryUsesPrivateCa: !!caPem,
-        mirrorRegistryCaPem: caPem
-      },
-      globalStrategy: {
-        mirroring: {
-          registryFqdn: registryFqdn
+      pullSecret: pullSecret, // Return separately to store in memory, not in database
+      state: {
+        credentials: {
+          usingMirrorRegistry: true,
+          mirrorRegistryUnauthenticated: false
+          // mirrorRegistryPullSecret intentionally omitted - stored in memory only
+        },
+        trust: {
+          mirrorRegistryUsesPrivateCa: !!caPem,
+          mirrorRegistryCaPem: caPem
+        },
+        globalStrategy: {
+          mirroring: {
+            registryFqdn: registryFqdn,
+            sources: mirrorSources
+          }
+        },
+        ui: {
+          mirrorConfigPreloaded: true
         }
-      },
-      ui: {
-        mirrorConfigPreloaded: true
       }
     };
   } catch (err) {

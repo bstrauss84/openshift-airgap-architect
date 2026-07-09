@@ -94,13 +94,20 @@ export function computeVisibleWizardRows(state, stepMap) {
       label: def.label,
       subSteps: []
     }));
+
+    // Hide "Operators" and "Run oc-mirror" steps when mirror config is pre-loaded
+    // (operators defined in imageset-config.yaml, mirroring already completed)
+    const mirrorConfigPreloaded = state?.ui?.mirrorConfigPreloaded === true;
+    const showOperators = !mirrorConfigPreloaded;
+    const showRunOcMirror = !mirrorConfigPreloaded;
+
     const steps = [
       blueprintStep || FALLBACK_WIZARD_ROWS[0],
       methodologyStep || FALLBACK_WIZARD_ROWS[1],
       ...replacementRows,
-      operatorsStep || FALLBACK_WIZARD_ROWS[4],
+      ...(showOperators ? [operatorsStep || FALLBACK_WIZARD_ROWS[4]] : []),
       reviewStep || FALLBACK_WIZARD_ROWS[5],
-      runOcMirrorStep || FALLBACK_WIZARD_ROWS[6],
+      ...(showRunOcMirror ? [runOcMirrorStep || FALLBACK_WIZARD_ROWS[6]] : []),
       operationsStep || FALLBACK_WIZARD_ROWS[7]
     ];
     return steps.map((s, i) => ({
