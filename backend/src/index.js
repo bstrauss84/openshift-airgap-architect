@@ -1212,6 +1212,13 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     patch.credentials = nextCreds;
   }
   const merged = updateState(patch);
+
+  // Inject mounted mirror pull secret in response (same as GET /api/state)
+  if (mountedMirrorPullSecret && merged.ui?.mirrorConfigPreloaded) {
+    merged.credentials = merged.credentials || {};
+    merged.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
   res.json(merged);
 });
 
