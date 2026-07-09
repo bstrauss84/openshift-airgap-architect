@@ -3121,7 +3121,8 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     const child = spawn(installerPath, ["agent", "create", "image", "--dir", workDir], {
       env: {
         ...process.env,
-        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin"
+        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+        HOME: workDir // Set HOME to work directory so .cache is writable
       }
     });
 
