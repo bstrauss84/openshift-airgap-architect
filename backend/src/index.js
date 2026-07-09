@@ -3104,11 +3104,10 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
     appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
 
-    const installerInfo = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
-    const installerPath = installerInfo.path;
+    const installerPath = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
 
-    if (!fs.existsSync(installerPath)) {
-      throw new Error(`openshift-install binary not found at ${installerPath}`);
+    if (!installerPath || !fs.existsSync(installerPath)) {
+      throw new Error(`openshift-install binary not found at ${installerPath || 'undefined'}`);
     }
 
     appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
