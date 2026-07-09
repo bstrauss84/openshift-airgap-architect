@@ -110,6 +110,8 @@ import {
 } from "./trustAnalysis/index.js";
 import { validateAllFiles } from "./yamlValidator.js";
 import { detectScenarioId } from "./catalogValidator.js";
+import { loadMirrorRegistryConfig } from "./mirrorRegistryConfigLoader.js";
+import { loadImageSetConfig } from "./imageSetConfigParser.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -304,16 +306,17 @@ if (process.env.NODE_ENV !== "test") {
   logFeedbackStartupStatus();
 }
 
-const defaultState = () => ({
-  runId: nanoid(),
-  blueprint: {
-    arch: "x86_64",
-    platform: "Bare Metal",
-    baseDomain: "example.com",
-    clusterName: "airgap-cluster",
-    confirmed: false,
-    confirmationTimestamp: null
-  },
+const defaultState = () => {
+  const baseState = {
+    runId: nanoid(),
+    blueprint: {
+      arch: "x86_64",
+      platform: "Bare Metal",
+      baseDomain: "example.com",
+      clusterName: "airgap-cluster",
+      confirmed: false,
+      confirmationTimestamp: null
+    },
   release: {
     channel: null,
     patchVersion: null,
@@ -499,13 +502,43 @@ const defaultState = () => ({
     strictArchive: false,
     lastRunJobId: null
   },
-  ui: {
-    activeStepId: "blueprint",
-    visitedSteps: {},
-    completedSteps: {},
-    segmentedFlowV1: true
+    ui: {
+      activeStepId: "blueprint",
+      visitedSteps: {},
+      completedSteps: {},
+      segmentedFlowV1: true
+    }
+  };
+
+  // Pre-load mirror registry config if mounted
+  const mirrorConfig = loadMirrorRegistryConfig();
+  if (mirrorConfig) {
+    // Deep merge mirror config into base state
+    baseState.credentials = { ...baseState.credentials, ...mirrorConfig.credentials };
+    baseState.trust = { ...baseState.trust, ...mirrorConfig.trust };
+    baseState.globalStrategy.mirroring = {
+      ...baseState.globalStrategy.mirroring,
+      ...mirrorConfig.globalStrategy.mirroring
+    };
+    baseState.ui = { ...baseState.ui, ...mirrorConfig.ui };
   }
-});
+
+  // Pre-load imageset config if mounted
+  const imagesetConfig = loadImageSetConfig();
+  if (imagesetConfig) {
+    baseState.release = { ...baseState.release, ...imagesetConfig.release };
+    baseState.version = { ...baseState.version, ...imagesetConfig.version };
+    baseState.blueprint = { ...baseState.blueprint, ...imagesetConfig.blueprint };
+    if (imagesetConfig.mirrorWorkflow) {
+      baseState.mirrorWorkflow = {
+        ...baseState.mirrorWorkflow,
+        ...imagesetConfig.mirrorWorkflow
+      };
+    }
+  }
+
+  return baseState;
+};
 
 const ensureState = () => {
   const existing = getState();
