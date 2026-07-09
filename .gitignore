@@ -81,6 +81,7 @@ docs/e2e-examples/nmstate/
 
 # Local/internal scratch and exports (not for public repo)
 archive/
+.archive/
 thread-export-bundle/
 frontend/dist/
 frontend/src/*.NULL_GUARD_EDITS.md
