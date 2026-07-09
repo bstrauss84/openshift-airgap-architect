@@ -3063,9 +3063,10 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     previewState.fieldManual = { enabled: false };
 
     // Inject ephemeral pull secret if available (from mirror registry config)
-    if (mountedMirrorPullSecret && state.credentials?.usingMirrorRegistry) {
+    if (mountedMirrorPullSecret && state.ui?.mirrorConfigPreloaded) {
       if (!previewState.credentials) previewState.credentials = {};
       previewState.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+      appendJobOutput(jobId, "✓ Injected mirror registry pull secret from mounted config\n");
     }
 
     const installConfig = buildInstallConfig(previewState);
