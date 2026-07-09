@@ -1,8 +1,33 @@
 /**
  * OpenShift Airgap Architect - ImageSet Config Parser
  *
- * Loads imageset-config.yaml and extracts OpenShift version information.
- * Parses mirror.platform.channels to pre-populate Blueprint step version selection.
+ * **Feature:** Run inside mirror operator collection bundle
+ *
+ * Loads imageset-config.yaml from mirror operator collection bundle and extracts OpenShift
+ * version information. This pre-populates the Blueprint step with the mirrored version,
+ * ensuring the wizard generates configs for the exact OpenShift version that was mirrored
+ * on the low-side.
+ *
+ * When IMAGESET_CONFIG environment variable is set:
+ * - Parses mirror.platform.channels array to extract channel name and version
+ * - Supports minVersion, maxVersion, or shortestPath version fields
+ * - Uses first channel if multiple channels are defined
+ * - Sets blueprint.mirrorBundleDetected flag to show "Pre-configured" badge
+ *
+ * **Example imageset-config.yaml structure:**
+ * ```yaml
+ * kind: ImageSetConfiguration
+ * apiVersion: mirror.openshift.io/v1alpha2
+ * mirror:
+ *   platform:
+ *     channels:
+ *       - name: stable-4.14
+ *         minVersion: 4.14.10
+ *         maxVersion: 4.14.15
+ * ```
+ *
+ * @see docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md - Complete user guide
+ * @see CLAUDE.md - Developer documentation (Mirror Operator Bundle Workflow section)
  *
  * @author Bill Strauss
  *

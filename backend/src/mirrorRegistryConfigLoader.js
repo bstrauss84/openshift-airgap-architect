@@ -1,9 +1,27 @@
 /**
  * OpenShift Airgap Architect - Mirror Registry Config Loader
  *
- * Loads mirror registry configuration from mounted file at backend startup.
- * Auto-generates pull secret from username/password and loads CA certificate PEM.
+ * **Feature:** Run inside mirror operator collection bundle
+ *
+ * Loads mirror registry configuration from mounted file at backend startup for high-side
+ * (air-gapped) deployments. This enables a two-side workflow:
+ *
+ * Low-side (connected): Mirror OpenShift content, generate config files
+ * High-side (air-gapped): Deploy wizard with mounted configs, wizard auto-populates everything
+ *
+ * When MIRROR_REGISTRY_CONFIG environment variable is set:
+ * - Auto-generates pull secret from username/password (base64 encoded)
+ * - Auto-loads CA certificate from caCertPath file
+ * - Extracts mirror sources from IDMS/ITMS YAML files
+ * - Returns {pullSecret, state} to separate ephemeral credential from persisted state
+ *
+ * Pull secret is stored in memory-only (mountedMirrorPullSecret variable in index.js),
+ * never persisted to database, and injected at runtime when serving state or generating YAML.
+ *
  * Follows pattern similar to mounted Red Hat pull secret detection (index.js lines 247-269).
+ *
+ * @see docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md - Complete user guide
+ * @see CLAUDE.md - Developer documentation (Mirror Operator Bundle Workflow section)
  *
  * @author Bill Strauss
  *
