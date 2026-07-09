@@ -5,9 +5,9 @@
  * Backend mirror of frontend canonical precedence tests.
  */
 
-const assert = require('node:assert/strict');
-const { describe, it } = require('node:test');
-const { getOpenShiftMinorFromSources, getOpenShiftMinorFromState } = require('../src/openShiftMinor.js');
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { getOpenShiftMinorFromSources, getOpenShiftMinorFromState } from '../src/openShiftMinor.js';
 
 describe('OpenShift Minor - Canonical v3 Precedence (Backend)', () => {
   it('version.selectedMinor takes precedence over release.channel (4.22 conflict)', () => {

@@ -122,8 +122,8 @@ describe("State Validation Tests", () => {
       assert.strictEqual(state.release.channel, "4.21");
     });
 
-    it("derives release.channel from patchVersion when channel is null on confirm", async () => {
-      await fetch(`${baseURL}/api/state`, {
+    it("rejects explicit null channel even when patchVersion is present", async () => {
+      const response = await fetch(`${baseURL}/api/state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -131,9 +131,16 @@ describe("State Validation Tests", () => {
           version: { selectedVersion: "4.21.3", versionConfirmed: true }
         })
       });
-      const response = await fetch(`${baseURL}/api/state`);
-      const state = await response.json();
-      assert.strictEqual(state.release.channel, "4.21");
+
+      assert.strictEqual(
+        response.status,
+        400,
+        "Should reject explicit null channel even when patchVersion could backfill"
+      );
+
+      const error = await response.json();
+      assert.ok(error.error.includes("Validation failed"));
+      assert.ok(error.details[0].path === "release.channel");
     });
 
     it("normalizes legacy stable-* channel string to minor-only", async () => {
@@ -148,6 +155,73 @@ describe("State Validation Tests", () => {
       assert.strictEqual(response.status, 200);
       const state = await response.json();
       assert.strictEqual(state.release.channel, "4.20");
+    });
+
+    it("allows omitted channel to preserve existing persisted channel", async () => {
+      // First, set a valid confirmed state with channel 4.21
+      await fetch(`${baseURL}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          release: { confirmed: true, channel: "4.21", patchVersion: "4.21.3" }
+        })
+      });
+
+      // Then send a patch with confirmed=true but channel omitted (not explicitly null)
+      const response = await fetch(`${baseURL}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          release: { confirmed: true }
+        })
+      });
+
+      assert.strictEqual(response.status, 200, "Omitted channel should preserve existing state");
+      const state = await response.json();
+      assert.strictEqual(state.release.channel, "4.21", "Omitted channel should preserve existing channel");
+      assert.strictEqual(state.release.confirmed, true);
+    });
+
+    it("preserves explicit stable-4.20 without overwriting with persisted 4.21", async () => {
+      // First, set state with canonical version.selectedMinor = 4.21
+      await fetch(`${baseURL}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          version: {
+            _schemaVersion: 3,
+            selectedMinor: "4.21",
+            selectedPatch: "4.21.5",
+            locked: true
+          },
+          release: { confirmed: true, channel: "4.21", patchVersion: "4.21.5" }
+        })
+      });
+
+      // Verify state has 4.21
+      let state = await (await fetch(`${baseURL}/api/state`)).json();
+      assert.strictEqual(state.version.selectedMinor, "4.21");
+      assert.strictEqual(state.release.channel, "4.21");
+
+      // Now send incoming legacy update with stable-4.20
+      const response = await fetch(`${baseURL}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          release: { confirmed: true, channel: "stable-4.20", patchVersion: "4.20.8" },
+          version: { selectedVersion: "4.20.8", versionConfirmed: true }
+        })
+      });
+
+      assert.strictEqual(response.status, 200);
+      state = await response.json();
+
+      // Critical: incoming stable-4.20 should normalize to 4.20, not be overwritten by persisted 4.21
+      assert.strictEqual(
+        state.release.channel,
+        "4.20",
+        "Explicit incoming stable-4.20 should normalize to 4.20, not become persisted 4.21"
+      );
     });
   });
 

@@ -4,10 +4,10 @@
  * DOC-102 Slice 5F.13: assertSupportedOpenShiftVersion must reject 4.22 before builders execute.
  */
 
-const assert = require('node:assert/strict');
-const { describe, it } = require('node:test');
-const { SUPPORTED_MINORS, isSupportedMinor } = require('../src/versionPolicy.js');
-const { getOpenShiftMinorFromState } = require('../src/openShiftMinor.js');
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { SUPPORTED_MINORS, isSupportedMinor } from '../src/versionPolicy.js';
+import { getOpenShiftMinorFromState } from '../src/openShiftMinor.js';
 
 describe('Unsupported Version - Shared Assertion Logic', () => {
 

@@ -283,5 +283,67 @@ describe("Critical Workflow Integration Tests", () => {
       assert.ok(error.error.includes("Validation failed"));
       assert.ok(error.details[0].path === "release.channel");
     });
+
+    it("should block explicit null channel even when patchVersion is present", async () => {
+      const response = await fetch(`${baseURL}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          release: { confirmed: true, channel: null, patchVersion: "4.21.5" },
+          version: { selectedVersion: null }
+        })
+      });
+
+      assert.strictEqual(
+        response.status,
+        400,
+        "Should reject explicit null channel even when patchVersion could backfill"
+      );
+
+      const error = await response.json();
+      assert.ok(error.error.includes("Validation failed"));
+      assert.ok(error.details[0].path === "release.channel");
+    });
+
+    it("should block explicit null channel even when version.selectedPatch is present", async () => {
+      const response = await fetch(`${baseURL}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          release: { confirmed: true, channel: null, patchVersion: null },
+          version: { selectedPatch: "4.21.5", selectedVersion: null }
+        })
+      });
+
+      assert.strictEqual(
+        response.status,
+        400,
+        "Should reject explicit null channel even when selectedPatch could backfill"
+      );
+
+      const error = await response.json();
+      assert.ok(error.error.includes("Validation failed"));
+      assert.ok(error.details[0].path === "release.channel");
+    });
+
+    it("should block explicit empty string channel with confirmed=true", async () => {
+      const response = await fetch(`${baseURL}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          release: { confirmed: true, channel: "", patchVersion: "4.21.5" }
+        })
+      });
+
+      assert.strictEqual(
+        response.status,
+        400,
+        "Should reject explicit empty string channel"
+      );
+
+      const error = await response.json();
+      assert.ok(error.error.includes("Validation failed"));
+      assert.ok(error.details[0].path === "release.channel");
+    });
   });
 });

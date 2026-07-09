@@ -503,25 +503,64 @@ const updateState = (patch) => {
   return merged;
 };
 
-/** Merge-aware: fills canonical minor in release.channel when null/empty or legacy stable-* (avoids vnull operator catalogs). */
+/**
+ * Normalizes incoming release.channel in partial state updates.
+ *
+ * CRITICAL SEMANTICS:
+ * - Explicit incoming channel values (even stable-4.20) must be preserved and normalized to their own minor.
+ * - Only OMITTED or empty incoming channels should be backfilled from other sources.
+ * - Persisted canonical version.selectedMinor must NOT overwrite an explicit incoming legacy channel update.
+ *
+ * Normalization rules:
+ * - If incoming channel is explicit (present in patch), normalize stable-* prefix to minor-only.
+ * - If incoming channel is omitted or empty, backfill from patchVersion or selectedVersion in the patch.
+ * - Do NOT backfill from persisted state during normalization (migration handles cross-state precedence).
+ *
+ * @param {object} patch - Incoming partial state update
+ */
 function applyReleaseChannelNormalization(patch) {
   if (!patch?.release || typeof patch.release !== "object") return;
-  const current = getState();
-  if (!current) return;
-  const curRel = current.release || {};
-  const curVer = current.version || {};
-  const effective = { ...curRel, ...patch.release };
-  const effVer = patch.version && typeof patch.version === "object" ? { ...curVer, ...patch.version } : curVer;
-  const minor = getOpenShiftMinorFromSources(effective, effVer);
-  if (!minor) return;
-  const ch = effective.channel;
-  const needs =
-    ch === null ||
-    ch === undefined ||
-    ch === "" ||
-    (typeof ch === "string" && /^stable-/i.test(String(ch).trim()));
-  if (needs) {
-    patch.release = { ...patch.release, channel: minor };
+
+  const incomingChannel = patch.release.channel;
+  const hasExplicitChannel = "channel" in patch.release;
+
+  // Case 1: Explicit incoming channel (including null) - normalize stable-* prefix only
+  if (hasExplicitChannel && incomingChannel !== null && incomingChannel !== undefined && incomingChannel !== "") {
+    const channelStr = String(incomingChannel).trim();
+    if (channelStr && channelStr.toLowerCase() !== "null") {
+      // Strip stable- prefix if present, delegate minor extraction to shared utility
+      const stripped = channelStr.replace(/^stable-/i, "");
+      // Only normalize if it's a valid version format
+      try {
+        const minor = getOpenShiftMinorFromSources({ channel: stripped }, {});
+        if (minor) {
+          patch.release.channel = minor;
+        }
+      } catch {
+        // Leave malformed channel as-is for validation to catch
+      }
+    }
+    return;
+  }
+
+  // Case 2: Incoming channel is omitted, null, undefined, or empty - backfill from patch sources only
+  if (!hasExplicitChannel || incomingChannel === null || incomingChannel === undefined || incomingChannel === "") {
+    // Build effective version from PATCH only (do not merge with persisted state yet)
+    const patchVersion = patch.version && typeof patch.version === "object" ? patch.version : {};
+
+    // Try to derive minor from incoming patch fields only
+    const minor = getOpenShiftMinorFromSources(
+      { patchVersion: patch.release.patchVersion, selectedVersion: null },
+      {
+        selectedMinor: null, // Do not use persisted canonical here
+        selectedPatch: patchVersion.selectedPatch,
+        selectedVersion: patchVersion.selectedVersion
+      }
+    );
+
+    if (minor) {
+      patch.release = { ...patch.release, channel: minor };
+    }
   }
 }
 
@@ -1075,12 +1114,13 @@ app.get("/api/state", (req, res) => {
 
 app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
   const patch = req.body || {};
-  applyReleaseChannelNormalization(patch);
 
   // CRITICAL VALIDATION: Prevent state corruption where release is confirmed without channel
-  // Only validate if BOTH confirmed=true AND channel is explicitly null in the patch
+  // This validation MUST run BEFORE normalization to catch explicit null confirmed channel
+  // Explicit null/empty channel with confirmed=true is ALWAYS rejected, even if patchVersion could backfill
   if (patch?.release?.confirmed === true && "channel" in patch.release) {
-    if (patch.release.channel === null || patch.release.channel === undefined || patch.release.channel === "") {
+    const incomingChannel = patch.release.channel;
+    if (incomingChannel === null || incomingChannel === undefined || incomingChannel === "") {
       return res.status(400).json({
         error: "Validation failed",
         details: [{
@@ -1090,6 +1130,9 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
       });
     }
   }
+
+  // Apply normalization after validation passes
+  applyReleaseChannelNormalization(patch);
 
   // CRITICAL VALIDATION: Prevent version confirmation without selectedVersion
   // Only validate if confirmed AND selectedVersion is explicitly null in the patch
