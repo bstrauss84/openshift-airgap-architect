@@ -5,8 +5,11 @@ description = "Test fixtures, mock data, schema placeholders; OKD dummy pull sec
 paths = [
   "frontend/tests/fixtures/",
   "backend/mock-data/",
+  "backend/test/fixtures/",
+  "backend/test/.*test\\.js$",
   "schema/"
 ]
 # OKD-documented dummy for unauthenticated registry (https://github.com/orgs/okd-project/discussions/1930).
 # Only this exact value is allowlisted; no other pull-secret content is permitted.
-stopwords = ["aWQ6cGFzcwo="]
+# Test password "secret123" is a fake credential used in unit tests only.
+stopwords = ["aWQ6cGFzcwo=", "secret123"]

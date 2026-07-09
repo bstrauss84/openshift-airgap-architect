@@ -3104,6 +3104,13 @@ app.get("/api/generate", (req, res) => {
 app.post("/api/generate", validateBody(generateSchema), (req, res) => {
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+
+  // Inject mounted mirror pull secret (held in memory, never persisted to database)
+  if (mountedMirrorPullSecret && parsed.state.ui?.mirrorConfigPreloaded) {
+    parsed.state.credentials = parsed.state.credentials || {};
+    parsed.state.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
   try {
     const connectivity = parsed.state.docs?.connectivity;
 
