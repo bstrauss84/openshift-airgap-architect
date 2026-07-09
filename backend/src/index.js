@@ -52,6 +52,7 @@ import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { SUPPORTED_MINORS, isSupportedMinor } from "./versionPolicy.js";
+import { sanitizeStateForPersistence } from "./stateSanitizer.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -1200,20 +1201,25 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     });
   }
 
-  // Migration validation succeeded - now safe to persist
+  // Migration validation succeeded - sanitize credentials before persistence
+  // Security: Strip credentials from state before writing to SQLite
+  // Sanitization happens AFTER migration/validation to preserve credential presence during validation
+  // but BEFORE setState to prevent credentials from reaching persistent storage
+  const sanitized = sanitizeStateForPersistence(migrationResult.migrated);
+
   if (migrationResult.wasV1 || migrationResult.wasV2) {
-    // v1/v2 → v3 migration: persist the migrated state
+    // v1/v2 → v3 migration: persist the sanitized migrated state
     logger.info(
       { wasV1: migrationResult.wasV1, wasV2: migrationResult.wasV2 },
       "State migrated to v3 at /api/state boundary"
     );
-    setState(migrationResult.migrated);
-    res.json(migrationResult.migrated);
+    setState(sanitized);
+    res.json(migrationResult.migrated);  // Return unsanitized to client (client may need credentials in memory)
   } else {
-    // Already v3 and valid: persist the canonical v3 state from migration result
+    // Already v3 and valid: persist the sanitized canonical v3 state from migration result
     // This ensures legacy confirmation fields (versionConfirmed, confirmedByUser) are canonicalized to locked
-    setState(migrationResult.migrated);
-    res.json(migrationResult.migrated);
+    setState(sanitized);
+    res.json(migrationResult.migrated);  // Return unsanitized to client (client may need credentials in memory)
   }
 });
 
