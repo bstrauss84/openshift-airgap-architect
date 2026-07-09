@@ -31,6 +31,7 @@ import GlobalStrategyStep from "./steps/GlobalStrategyStep.jsx";
 import OperatorsStep from "./steps/OperatorsStep.jsx";
 import ReviewStep from "./steps/ReviewStep.jsx";
 import RunOcMirrorStep from "./steps/RunOcMirrorStep.jsx";
+import GenerateAgentIsoStep from "./steps/GenerateAgentIsoStep.jsx";
 import OperationsStep from "./steps/OperationsStep.jsx";
 import IdentityAccessStep from "./steps/IdentityAccessStep.jsx";
 import NetworkingV2Step from "./steps/NetworkingV2Step.jsx";
@@ -104,6 +105,7 @@ const COMPONENT_MAP = {
   operators: OperatorsStep,
   "review-generate": ReviewStep,
   review: ReviewStep,
+  "generate-agent-iso": GenerateAgentIsoStep,
   "run-oc-mirror": RunOcMirrorStep,
   operations: OperationsStep,
   "identity-access": IdentityAccessStep,
