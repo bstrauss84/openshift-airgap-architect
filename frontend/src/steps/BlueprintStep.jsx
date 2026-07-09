@@ -9,6 +9,7 @@ import ReleaseSelector from "../components/ReleaseSelector.jsx";
 import { useOpenShiftRelease } from "../hooks/useOpenShiftRelease.js";
 import { listArchSupportForBlueprint, renderableArchitectures } from "../archSupportResolver.js";
 import { reconcileMethodForPlatform } from "../../../shared/installMethods.js";
+import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -69,6 +70,7 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   const version = state.version || {};
   const locked = blueprint?.confirmed;
   const releaseLocked = getVersionLocked(state);
+  const mirrorBundleDetected = blueprint?.mirrorBundleDetected ?? false;
 
   // Release selection is shared with Mirroring (useOpenShiftRelease). This
   // adapter reproduces Blueprint's previous writes exactly, including the
@@ -266,6 +268,11 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
           </div>
         </section>
 
+        {mirrorBundleDetected && (
+          <PreloadedConfigBanner
+            message="OpenShift version pre-selected from imageset-config.yaml. This matches the mirrored content."
+          />
+        )}
         <ReleaseSelector
           selection={releaseSelection}
           release={release}

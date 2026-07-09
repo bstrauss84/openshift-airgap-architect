@@ -18,6 +18,7 @@ import Banner from "../components/Banner.jsx";
 import CommaListInput from "../components/CommaListInput.jsx";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
 
 const INSTALL_CONFIG = "install-config.yaml";
 const AGENT_CONFIG = "agent-config.yaml";
@@ -77,6 +78,7 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
   const pullSecretPlaceholder = creds.pullSecretPlaceholder || "";
   const mirrorRegistryPullSecret = creds.mirrorRegistryPullSecret || "";
   const defaultRegistryFqdn = "registry.local:5000";
+  const mirrorConfigPreloaded = state.ui?.mirrorConfigPreloaded ?? false;
 
   // Keep UI gating consistent with backend output gating.
   const redHatHasContent = pullSecretPlaceholder.trim() && pullSecretPlaceholder.trim() !== "{\"auths\":{}}";
@@ -195,6 +197,12 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
               </div>
             </div>
             <div className="card-body">
+              {mirrorConfigPreloaded && (
+                <PreloadedConfigBanner
+                  message="Mirror registry URL and configuration were pre-loaded from a mounted config file."
+                />
+              )}
+
               <FieldLabelWithInfo
                 label="Local Registry FQDN"
                 hint={`Fully qualified domain name and port of your local mirror registry.
@@ -218,22 +226,28 @@ registry.corp.local:5000`}
                 <input
                   value={localRegistryFqdn}
                   onChange={(e) => {
-                    setLocalRegistryFqdn(e.target.value);
-                    setRegistryFqdnTouched(true);
+                    if (!mirrorConfigPreloaded) {
+                      setLocalRegistryFqdn(e.target.value);
+                      setRegistryFqdnTouched(true);
+                    }
                   }}
                   onFocus={(e) => {
                     // Auto-select pre-populated default value on first focus
-                    if (!registryFqdnTouched && localRegistryFqdn) {
+                    if (!registryFqdnTouched && localRegistryFqdn && !mirrorConfigPreloaded) {
                       e.target.select();
                     }
                   }}
                   onBlur={(e) => {
-                    const trimmed = e.target.value.trim();
-                    if (trimmed !== mirroring.registryFqdn) {
-                      handleRegistryFqdnChange(trimmed);
+                    if (!mirrorConfigPreloaded) {
+                      const trimmed = e.target.value.trim();
+                      if (trimmed !== mirroring.registryFqdn) {
+                        handleRegistryFqdnChange(trimmed);
+                      }
                     }
                   }}
-                  placeholder="registry.corp.local:5000"
+                  disabled={mirrorConfigPreloaded}
+                  className={mirrorConfigPreloaded ? "readonly-input" : ""}
+                  placeholder={mirrorConfigPreloaded ? "Pre-configured from mounted config" : "registry.corp.local:5000"}
                 />
               </FieldLabelWithInfo>
               {mirrorFqdnDerivationWarning ? <div className="note warning">{mirrorFqdnDerivationWarning}</div> : null}
