@@ -5781,31 +5781,41 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     fs.writeFileSync(agentConfigPath, agentConfig, "utf8");
     appendJobOutput(jobId, `✓ Wrote agent-config.yaml (${Buffer.byteLength(agentConfig)} bytes)\n\n`);
 
-    updateJob(jobId, { progress: 30, message: "Downloading openshift-install binary..." });
+    updateJob(jobId, { progress: 30, message: "Resolving openshift-install binary..." });
 
-    // Resolve binary parameters — v3 state schema uses version.selectedPatch / release.patchVersion
-    const version = state.version?.selectedPatch || state.release?.patchVersion
-      || state.blueprint?.version || state.release?.version;
-    if (!version) {
-      throw new Error("OpenShift version not configured");
+    // Check for pre-mounted openshift-install binary (high-side / import-script bundle scenario)
+    const mountedInstallerPath = path.join(dataDir, "openshift-install");
+    let installerPath;
+
+    if (fs.existsSync(mountedInstallerPath)) {
+      appendJobOutput(jobId, `✓ Using pre-mounted openshift-install binary: ${mountedInstallerPath}\n\n`);
+      installerPath = mountedInstallerPath;
+    } else {
+      // Fallback to downloading (low-side scenario with internet access)
+      // v3 state schema: version lives at state.version.selectedPatch / state.release.patchVersion
+      const version = state.version?.selectedPatch || state.release?.patchVersion
+        || state.blueprint?.version || state.release?.version;
+      if (!version) {
+        throw new Error("OpenShift version not configured");
+      }
+
+      const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
+      const useFips = state.blueprint?.fipsMode === true;
+
+      appendJobOutput(jobId, `Resolving openshift-install binary...\n`);
+      appendJobOutput(jobId, `  Version: ${version}\n`);
+      appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
+      appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
+
+      const installerInfo = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
+      installerPath = installerInfo.path;
+
+      if (!installerPath || !fs.existsSync(installerPath)) {
+        throw new Error(`openshift-install binary not found at ${installerPath || 'undefined'}`);
+      }
+
+      appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
     }
-
-    const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
-    const useFips = state.blueprint?.fipsMode === true;
-
-    appendJobOutput(jobId, `Resolving openshift-install binary...\n`);
-    appendJobOutput(jobId, `  Version: ${version}\n`);
-    appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
-    appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
-
-    const installerInfo = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
-    const installerPath = installerInfo.path;
-
-    if (!fs.existsSync(installerPath)) {
-      throw new Error(`openshift-install binary not found at ${installerPath}`);
-    }
-
-    appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
 
     // Generic bootstrap manifest injection — operator-agnostic.
     // Silvermatic or any other operator sets BOOTSTRAP_MANIFESTS_DIR to a path
