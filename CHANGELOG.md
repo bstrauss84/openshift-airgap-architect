@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v2.0.0 Work in Progress
+
+### Breaking Changes
+
+**Version Support Scope:** OpenShift Airgap Architect v2.0.0 supports exactly:
+- **4.20** (baseline)
+- **4.21** (current)
+- **4.22 is unsupported** — unsupported-version HTTP boundaries enforced (HTTP 422 UNSUPPORTED_VERSION)
+
+### Added
+
+**Architecture Foundation (Slice 5A-5F):**
+- Version-aware catalog structure (frontend versioned catalog loading with blocking behavior)
+- 4.21 catalog baseline and high-confidence parameters (7 core params + 4 manual-review params)
+- 4.21 docs index and field guide (validated, no fallback permitted)
+- Canonical version state handling (backend state migration and validation)
+- Unsupported-version recovery UI (4.22 → 4.21 with "Switch to 4.21" button)
+
+### Fixed
+
+**Backend:**
+- Canonical version state handling repaired (commit 60862a0)
+- Frontend shared-module container runtime fixed (commit db4a526)
+- Unsupported-version HTTP boundaries enforced (commit d995e2f)
+
+**Frontend:**
+- Minor-version frontend coverage stabilized (commit 9b3327e)
+- Unsupported-version recovery button styling fixed (commit 2c15e82)
+
+### Security
+
+- Backend dependency vulnerabilities remediated (commit 436135f — undici updated)
+- Backend credential persistence sanitized (commit f1f50a2 — platform/BMC/proxy credentials)
+
 ## [1.7.0] - 2026-05-28
 
 ### Fixed

@@ -47,7 +47,7 @@ OpenShift Airgap Architect guides you through scenario-based configuration (Bare
 - **FIELD_MANUAL.md** — A compartmentalized, scenario-specific field guide with numbered, actionable sections drawn from OCP 4.17–4.20 documentation, tailored to your exact configuration (platform, connectivity, FIPS, proxy, NTP, mirroring, operators, and specific values like cluster name, VIPs, and registry FQDN). Each section cites official Red Hat doc sources.
 - **NTP MachineConfigs** — When NTP servers are set (e.g. `99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`)
 
-The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns generated YAML with the docs for the selected version.
+The app uses official OpenShift 4.20–4.21 parameter catalogs and aligns generated YAML with the docs for the selected version.
 
 <a id="who-its-for"></a>
 ## Who it's for
@@ -60,7 +60,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 ## Key features
 
 - **Scenario-driven UI** — Pick install method (e.g. Agent-Based, vSphere IPI); the wizard shows only relevant steps and fields
-- **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.17–4.20)
+- **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.20–4.21)
 - **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion. Helpers generate pull secrets and SSH keypairs locally and are not stored (see [Identity & Access](#screenshots) and [Mirror secret helper](#screenshots)).
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
@@ -1104,7 +1104,10 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 
 See [CHANGELOG.md](CHANGELOG.md) for version history, new features, bug fixes, and breaking changes.
 
-Current version: **1.5.0**
+Current version: **v2.0.0-dev** (work in progress)
+
+- **v2.0.0** — Version-awareness architecture foundation complete. Supports OpenShift 4.20 (baseline) and 4.21 (current). 4.22 is unsupported.
+- **v1.7.0** — Latest stable v1.x release (2026-05-28)
 
 <a id="license-and-contributing"></a>
 ## License and contributing
