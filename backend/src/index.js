@@ -3015,11 +3015,12 @@ const buildPreviewFiles = (state) => {
 
   const v3State = stateMigrationResult.migrated;
 
+  // DOC-102 Slice 5F.13: Unsupported version boundary - check support BEFORE confirmation
+  // An unconfirmed 4.22 state must throw UNSUPPORTED_VERSION, not return null
+  assertSupportedOpenShiftVersion(v3State);
+
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) return null;
-
-  // DOC-102 Slice 5F.13: Unsupported version boundary - reject before generation
-  assertSupportedOpenShiftVersion(v3State);
 
   const version = getOpenShiftMinorFromState(v3State) || "4.0";
   const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
@@ -3194,14 +3195,15 @@ const buildBundleZip = async (state, res) => {
 
   const v3State = stateMigrationResult.migrated;
 
+  // DOC-102 Slice 5F.13: Unsupported version boundary - check support BEFORE confirmation
+  // An unconfirmed 4.22 state must return 422 UNSUPPORTED_VERSION, not "version not confirmed"
+  assertSupportedOpenShiftVersion(v3State);
+
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) {
     res.status(400).json({ error: "Version not confirmed." });
     return;
   }
-
-  // DOC-102 Slice 5F.13: Unsupported version boundary - reject before bundle builders
-  assertSupportedOpenShiftVersion(v3State);
 
   const version = getOpenShiftMinorFromState(v3State) || "4.0";
 
@@ -3530,6 +3532,31 @@ app.post("/api/bundle.prepare", validateBody(bundlePrepareSchema), (req, res) =>
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
   const state = parsed.state;
+
+  // DOC-102 Slice 5F.13: Unsupported version guard before bundle.prepare
+  // Migrate to v3 and check support before issuing token
+  try {
+    const stateMigrationResult = migrateStateToV3(state);
+    if (stateMigrationResult.error) {
+      return res.status(400).json({
+        error: "State migration failed",
+        details: [{ path: "state._schemaVersion", message: stateMigrationResult.error }]
+      });
+    }
+    const v3State = stateMigrationResult.migrated;
+    assertSupportedOpenShiftVersion(v3State);
+  } catch (error) {
+    if (error.code === 'UNSUPPORTED_VERSION') {
+      return res.status(422).json({
+        error: error.message,
+        code: error.code,
+        requestedVersion: error.requestedVersion,
+        supportedVersions: error.supportedVersions
+      });
+    }
+    return res.status(500).json({ error: String(error?.message || error) });
+  }
+
   purgeExpiredBundleStates();
 
   // Security: Prevent memory exhaustion from excessive pending bundle requests
