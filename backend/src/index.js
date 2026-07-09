@@ -3576,23 +3576,34 @@ const buildBundleZip = async (state, res) => {
   }
   if (state.exportOptions?.includeInstaller) {
     try {
-      const version = state.release?.patchVersion;
-      if (!version) {
-        throw new Error("Version not selected.");
-      }
+      // Check for pre-mounted binary first (high-side scenario)
+      const mountedInstallerPath = path.join(dataDir, "openshift-install");
+      let installerPath;
 
-      const useFips = state.exportOptions?.installerUseFips || false;
-      const platformArch = state.exportOptions?.installerPlatformArch || ""; // "" means default
-
-      // Download (or retrieve from cache) the requested binary variant
-      const installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
-
-      if (fs.existsSync(installerPath)) {
-        // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
-        const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
-        archive.file(installerPath, { name: `tools/${binaryName}` });
+      if (fs.existsSync(mountedInstallerPath)) {
+        // Use pre-mounted binary from mirror operator bundle
+        installerPath = mountedInstallerPath;
+        archive.file(installerPath, { name: "tools/openshift-install" });
       } else {
-        throw new Error("Binary not found after download");
+        // Fallback to downloading (low-side scenario with internet access)
+        const version = state.release?.patchVersion;
+        if (!version) {
+          throw new Error("Version not selected.");
+        }
+
+        const useFips = state.exportOptions?.installerUseFips || false;
+        const platformArch = state.exportOptions?.installerPlatformArch || ""; // "" means default
+
+        // Download (or retrieve from cache) the requested binary variant
+        installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
+
+        if (fs.existsSync(installerPath)) {
+          // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
+          const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
+          archive.file(installerPath, { name: `tools/${binaryName}` });
+        } else {
+          throw new Error("Binary not found after download");
+        }
       }
     } catch (error) {
       archive.append(
@@ -3603,18 +3614,27 @@ const buildBundleZip = async (state, res) => {
   }
   if (state.exportOptions?.includeMirrorRegistry) {
     try {
-      const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
-      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
-      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
-      const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
+      // Skip download if mirror config is pre-loaded (high-side scenario - registry already deployed)
+      const mirrorConfigPreloaded = state.ui?.mirrorConfigPreloaded === true;
+      if (mirrorConfigPreloaded) {
+        archive.append(
+          `Mirror registry already deployed on high-side.\nNo need to include mirror-registry.tar.gz in export bundle.\n`,
+          { name: "tools/mirror-registry.SKIPPED.txt" }
+        );
+      } else {
+        // Low-side scenario: download mirror-registry.tar.gz for deployment
+        const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
+        const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
+        const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
+        const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
 
-      // Ensure cache directory exists
-      fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
+        // Ensure cache directory exists
+        fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
 
-      // Download if not already cached or if cached file is invalid
-      const needsDownload = !fs.existsSync(mirrorRegistryPath) || fs.statSync(mirrorRegistryPath).size === 0;
+        // Download if not already cached or if cached file is invalid
+        const needsDownload = !fs.existsSync(mirrorRegistryPath) || fs.statSync(mirrorRegistryPath).size === 0;
 
-      if (needsDownload) {
+        if (needsDownload) {
         // Use Node's built-in fetch which handles redirects automatically (301, 302, 307, 308)
         const response = await fetch(mirrorRegistryUrl);
         if (!response.ok) {
@@ -3635,14 +3655,15 @@ const buildBundleZip = async (state, res) => {
         logger.info({ tag: "mirror-registry", filename: mirrorRegistryFilename, sizeMB: (stat.size / 1024 / 1024).toFixed(2) }, "Mirror registry downloaded");
       }
 
-      if (fs.existsSync(mirrorRegistryPath)) {
-        const stat = fs.statSync(mirrorRegistryPath);
-        if (stat.size > 0) {
-          archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
-        } else {
-          throw new Error("Cached file is 0 bytes (corrupt)");
+        if (fs.existsSync(mirrorRegistryPath)) {
+          const stat = fs.statSync(mirrorRegistryPath);
+          if (stat.size > 0) {
+            archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
+          } else {
+            throw new Error("Cached file is 0 bytes (corrupt)");
+          }
         }
-      }
+      } // End low-side scenario
     } catch (error) {
       const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
       const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
