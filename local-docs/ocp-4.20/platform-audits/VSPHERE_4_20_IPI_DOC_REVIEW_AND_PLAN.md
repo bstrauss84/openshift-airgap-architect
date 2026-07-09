@@ -399,9 +399,9 @@ Every install-config example or snippet relevant to vSphere IPI is listed below 
 - **Git commands (do not run):** LOCAL_BACKLOG.md is gitignored; commit only the working doc and catalog.
   ```bash
   git status
-  git diff docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
+  git diff local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
   git diff frontend/src/data/catalogs/vsphere-ipi.json
-  git add docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md frontend/src/data/catalogs/vsphere-ipi.json
+  git add local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md frontend/src/data/catalogs/vsphere-ipi.json
   git commit -m "vSphere 4.20 IPI: Phase B deep reconciliation + Phase C metadata hardening (plan-level)"
   git push
   ```
@@ -755,7 +755,7 @@ The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete.
 | data/docs-index/4.20.json | vsphere-ipi: notes and tags refined; installation-config-parameters-vsphere entry ensured with tags (vsphere, failure-domains, vcenters). Optional: add sub-scenario doc entries. |
 | frontend/src/data/docs-index/4.20.json | Sync from canonical (if docs-index updated). |
 | frontend/src/data/catalogs/vsphere-ipi.json | Params reconciliation: add machine-pool params (clusterOSImage, osDisk.diskSizeGB, cpus, coresPerSocket, memoryMB; dataDisks Tech Preview); add deprecated/conditionals metadata where missing. |
-| docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md | Created (this file). |
+| local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md | Created (this file). |
 | scripts/ or docs/ | Optional: scenario-doc-mapping helper script; PARAMS_RECONCILIATION_CHECKLIST.md. |
 
 ---
@@ -786,10 +786,10 @@ The implementation pass for vSphere 4.20 IPI per §6, §6.13–6.17 is complete.
 ```bash
 # Review (this pass: working doc only)
 git status
-git diff docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
+git diff local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
 
 # Commit (when ready) — implementation-plan tightening pass
-git add docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
+git add local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md
 git commit -m "vSphere 4.20 IPI: implementation-plan tightening (field/gate matrix, UI/backend spec, test plan)"
 
 # Push (when ready)

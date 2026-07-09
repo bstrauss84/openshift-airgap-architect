@@ -29,7 +29,7 @@ Working record for the Bare Metal / 4.20 / Agent-based Installer scenario truth 
 | Docs-index (frontend) | `frontend/src/data/docs-index/4.20.json` | Yes |
 | DATA_AND_FRONTEND_COPIES.md | `docs/DATA_AND_FRONTEND_COPIES.md` | Yes |
 | PARAMS_CATALOG_RULES.md | `docs/PARAMS_CATALOG_RULES.md` | Yes |
-| Bare Metal Agent working doc | `docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` | Yes (this file) |
+| Bare Metal Agent working doc | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` | Yes (this file) |
 
 ## Doc tree / mapping (Phase A)
 

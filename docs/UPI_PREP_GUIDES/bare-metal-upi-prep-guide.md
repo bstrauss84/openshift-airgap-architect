@@ -41,7 +41,7 @@ Bare Metal UPI installations require manual provisioning of ALL infrastructure c
 **Reference documentation:**
 - OpenShift 4.20 Installing on bare metal: User-provisioned infrastructure  
   https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure
-- Deep application documentation: `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
+- Deep application documentation: `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
 
 ---
 
@@ -716,7 +716,7 @@ After completing all checklists and validations:
 ## Related Documentation
 
 - **Application docs:**
-  - [BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md) - Deep technical review
+  - [BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../../local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md) - Deep technical review
   - [SCENARIOS_BARE_METAL_FAMILY.md](../SCENARIOS_BARE_METAL_FAMILY.md) - Scenario family overview
   - [DISCONNECTED_SCENARIO_MATRIX.md](../DISCONNECTED_SCENARIO_MATRIX.md) - Disconnected deployment support
   - [PLATFORM_NONE_SUPPORT_BOUNDARIES.md](../PLATFORM_NONE_SUPPORT_BOUNDARIES.md) - When to use platform: none

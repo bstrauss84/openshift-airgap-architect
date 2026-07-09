@@ -42,16 +42,16 @@ It centralizes the large vSphere doc set without deleting any detail docs.
 
 | Scenario ID | Install method | Canonical docs-index status | Primary deep doc |
 |---|---|---|---|
-| `vsphere-agent` | Agent-based | Present in docs-index | `docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
-| `vsphere-ipi` | IPI | Present in docs-index | `docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
-| `vsphere-upi` | UPI | Present in docs-index | `docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md` |
+| `vsphere-agent` | Agent-based | Present in docs-index | `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
+| `vsphere-ipi` | IPI | Present in docs-index | `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
+| `vsphere-upi` | UPI | Present in docs-index | `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md` |
 
 <a id="deep-working-docs-authoritative-for-detail"></a>
 ## Deep working docs (authoritative for detail)
 
-- `docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
-- `docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
-- `docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
+- `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
+- `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
+- `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
 
 <a id="scenario-truth-sections"></a>
 ## Scenario truth sections
@@ -86,9 +86,9 @@ It centralizes the large vSphere doc set without deleting any detail docs.
 
 | Artifact | Why still relevant | Validation basis |
 |---|---|---|
-| `VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` | Most complete IPI scenario truth and implementation sync narrative | Current code truth table and phase sections |
-| `VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md` | UPI-specific doc mapping and conditional rules | Phase A mapping and scenario scope sections |
-| `VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` | Agent-based vSphere-specific caveats and coverage decisions | Top-level status/caveat statements |
+| `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` | Most complete IPI scenario truth and implementation sync narrative | Current code truth table and phase sections |
+| `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md` | UPI-specific doc mapping and conditional rules | Phase A mapping and scenario scope sections |
+| `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` | Agent-based vSphere-specific caveats and coverage decisions | Top-level status/caveat statements |
 | `VSPHERE_4_20_IPI_STRUCTURAL_AUDIT.md` | Structural validation evidence for completed IPI behavior | Itemized audit sections |
 | `VSPHERE_FINAL_VERIFICATION.md` | Final verification snapshot and evidence checklist | Phase tables and deliverable checklist |
 | `VSPHERE_IPI_UPI_AUDIT_AND_PLAN.md` | Cross-method synthesis and implementation context | status line and discrepancy sections |

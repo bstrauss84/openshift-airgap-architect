@@ -43,7 +43,7 @@ vSphere UPI installations require manual provisioning of virtual machines and su
 **Reference documentation:**
 - OpenShift 4.20 Installing on VMware vSphere: User-provisioned infrastructure  
   https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/user-provisioned-infrastructure
-- Deep application documentation: `docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
+- Deep application documentation: `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
 
 ---
 
@@ -877,7 +877,7 @@ After completing all checklists and validations:
 ## Related Documentation
 
 - **Application docs:**
-  - [VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md) - Deep technical review
+  - [VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../../local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md) - Deep technical review
   - [SCENARIOS_VSPHERE_FAMILY.md](../SCENARIOS_VSPHERE_FAMILY.md) - Scenario family overview
   - [DISCONNECTED_SCENARIO_MATRIX.md](../DISCONNECTED_SCENARIO_MATRIX.md) - Disconnected deployment support
   - [PLATFORM_NONE_SUPPORT_BOUNDARIES.md](../PLATFORM_NONE_SUPPORT_BOUNDARIES.md) - When to use platform: none (vSphere Agent SNO only)

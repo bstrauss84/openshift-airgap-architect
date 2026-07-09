@@ -244,13 +244,13 @@
 
 **Suggested backlog entry:**
 
-- **vSphere 4.20 UPI first-pass (scenario truth):** Docs-index and params aligned to docs.redhat.com 4.20. UPI: no apiVIPs/ingressVIPs/topology.template (doc 9.1.4); vcenters, failureDomains, diskType, legacy flat supported; publish External only. AS-IS: UI and backend already correct (no VIPs for UPI; IPI-only sections gated). Optional: docs-index note for UPI sample sections; catalog conditionals for publish and legacy. See `docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`.
+- **vSphere 4.20 UPI first-pass (scenario truth):** Docs-index and params aligned to docs.redhat.com 4.20. UPI: no apiVIPs/ingressVIPs/topology.template (doc 9.1.4); vcenters, failureDomains, diskType, legacy flat supported; publish External only. AS-IS: UI and backend already correct (no VIPs for UPI; IPI-only sections gated). Optional: docs-index note for UPI sample sections; catalog conditionals for publish and legacy. See `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`.
 
 ### Exact git review commands (do not run)
 
 ```bash
 git status
-git diff docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md
+git diff local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md
 git diff data/docs-index/4.20.json
 git diff frontend/src/data/catalogs/vsphere-upi.json
 git diff LOCAL_BACKLOG.md

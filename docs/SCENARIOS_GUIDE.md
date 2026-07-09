@@ -39,31 +39,31 @@ Scope: tracked repository docs only. Local and archived docs are triaged through
 
 | Scenario ID | Platform / Method | Family guide | Primary deep doc(s) |
 |---|---|---|---|
-| `bare-metal-agent` | Bare Metal / Agent-based | `docs/SCENARIOS_BARE_METAL_FAMILY.md` | `docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
-| `bare-metal-ipi` | Bare Metal / IPI | `docs/SCENARIOS_BARE_METAL_FAMILY.md` | `docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
-| `bare-metal-upi` | Bare Metal / UPI | `docs/SCENARIOS_BARE_METAL_FAMILY.md` | `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md` |
-| `vsphere-agent` | vSphere / Agent-based | `docs/SCENARIOS_VSPHERE_FAMILY.md` | `docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
-| `vsphere-ipi` | vSphere / IPI | `docs/SCENARIOS_VSPHERE_FAMILY.md` | `docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
-| `vsphere-upi` | vSphere / UPI | `docs/SCENARIOS_VSPHERE_FAMILY.md` | `docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md` |
+| `bare-metal-agent` | Bare Metal / Agent-based | `docs/SCENARIOS_BARE_METAL_FAMILY.md` | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
+| `bare-metal-ipi` | Bare Metal / IPI | `docs/SCENARIOS_BARE_METAL_FAMILY.md` | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
+| `bare-metal-upi` | Bare Metal / UPI | `docs/SCENARIOS_BARE_METAL_FAMILY.md` | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md` |
+| `vsphere-agent` | vSphere / Agent-based | `docs/SCENARIOS_VSPHERE_FAMILY.md` | `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
+| `vsphere-ipi` | vSphere / IPI | `docs/SCENARIOS_VSPHERE_FAMILY.md` | `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
+| `vsphere-upi` | vSphere / UPI | `docs/SCENARIOS_VSPHERE_FAMILY.md` | `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md` |
 | `aws-govcloud-ipi` | AWS GovCloud / IPI | `docs/SCENARIOS_CLOUD_FAMILY.md` | family-level cloud sections + params/docs-index |
 | `aws-govcloud-upi` | AWS GovCloud / UPI | `docs/SCENARIOS_CLOUD_FAMILY.md` | family-level cloud sections + params/docs-index |
 | `azure-government-ipi` | Azure Government / IPI | `docs/SCENARIOS_CLOUD_FAMILY.md` | family-level cloud sections + params/docs-index |
 | `ibm-cloud-ipi` | IBM Cloud / IPI | `docs/SCENARIOS_CLOUD_FAMILY.md` | explicit IBM section in cloud family guide |
-| `nutanix-ipi` | Nutanix / IPI | `docs/SCENARIOS_NUTANIX_FAMILY.md` | `docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
+| `nutanix-ipi` | Nutanix / IPI | `docs/SCENARIOS_NUTANIX_FAMILY.md` | `local-docs/ocp-4.20/platform-audits/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md` |
 
 <a id="family-deep-docs"></a>
 ## Family deep docs
 
 - Bare metal deep docs:
-  - `docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
-  - `docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
-  - `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
+  - `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
+  - `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
+  - `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
 - vSphere deep docs:
-  - `docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
-  - `docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
-  - `docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
+  - `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
+  - `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
+  - `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
 - Nutanix deep docs:
-  - `docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
+  - `local-docs/ocp-4.20/platform-audits/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
 
 <a id="cross-scenario-rules-and-references"></a>
 ## Cross-scenario rules and references

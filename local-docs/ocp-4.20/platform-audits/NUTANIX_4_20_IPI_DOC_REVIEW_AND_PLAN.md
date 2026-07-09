@@ -148,7 +148,7 @@ cd backend && node scripts/validate-e2e-examples.js
 - `docs/e2e-examples/install-config/nutanix-ipi_minimal.yaml` — `credentialsMode` / `publish`, structure vs generator.
 - `docs/DATA_AND_FRONTEND_COPIES.md` — catalog sync example.
 - `frontend/tests/platform-specifics-step.test.jsx` — Nutanix fixture replicas.
-- `docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md` — this document.
+- `local-docs/ocp-4.20/platform-audits/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md` — this document.
 
 *(Use `git diff` for the exact delta in your tree.)*
 
@@ -202,7 +202,7 @@ git diff
 #   docs/e2e-examples/install-config/nutanix-ipi_minimal.yaml \
 #   docs/DATA_AND_FRONTEND_COPIES.md \
 #   frontend/tests/platform-specifics-step.test.jsx \
-#   docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md
+#   local-docs/ocp-4.20/platform-audits/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md
 #
 # git commit -m "Nutanix 4.20 IPI: CCO Manual/publish alignment, catalog+canonical sync, docs-index agent ref, run-oc-mirror footer, working doc"
 # git push

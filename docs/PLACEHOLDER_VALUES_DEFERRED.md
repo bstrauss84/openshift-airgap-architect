@@ -21,5 +21,5 @@
 
 ## Related working docs
 
-- `docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` — implementation vs deferred honesty section.
+- `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` — implementation vs deferred honesty section.
 - `docs/DATA_AND_FRONTEND_COPIES.md` / `docs/PARAMS_CATALOG_RULES.md` — unchanged; future placeholder work must not fork catalogs without syncing.

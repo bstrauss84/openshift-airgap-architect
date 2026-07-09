@@ -340,7 +340,7 @@ ibm-cloud-ipi.json:        ["ibmcloud"]
 **Key quote:**
 > "You must set the platform to `none`. You cannot provide additional platform configuration variables for your platform."
 
-**Application documentation:** docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md (lines 43-91)
+**Application documentation:** local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md (lines 43-91)
 
 **Example YAML:** docs/e2e-examples/install-config/bare-metal-upi_minimal.yaml
 
@@ -353,8 +353,8 @@ ibm-cloud-ipi.json:        ["ibmcloud"]
 **Key rule:** "When masters=1 and workers=0, platform must be none for Agent-based installs"
 
 **Application documentation:** 
-- docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md (lines 111, 207)
-- docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md (lines 101-102)
+- local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md (lines 111, 207)
+- local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md (lines 101-102)
 
 **Example YAML:** docs/e2e-examples/install-config/vsphere-agent_sno.yaml
 
@@ -373,7 +373,7 @@ platform:
 
 **Key point:** Uses `platform: { vsphere: {...} }` for all IPI/UPI multi-node installations
 
-**Application documentation:** docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md, docs/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md
+**Application documentation:** local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md, local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md
 
 **Example YAML:** docs/e2e-examples/install-config/vsphere-upi_minimal.yaml
 

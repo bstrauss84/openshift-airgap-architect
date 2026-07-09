@@ -216,7 +216,7 @@ None **required** for declared scope. Optional follow-ups:
 ```bash
 git status
 git diff --stat
-git add docs/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md frontend/src/steps/NetworkingV2Step.jsx frontend/src/steps/GlobalStrategyStep.jsx frontend/src/steps/HostInventoryV2Step.jsx frontend/src/validation.js frontend/tests/networking-v2-step.test.jsx frontend/tests/hostInventoryV2Validation.test.js frontend/tests/validation-catalog-alignment.test.js frontend/tests/HostInventoryV2Phase43.test.jsx
+git add local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_AGENT_DOC_REVIEW_AND_PLAN.md frontend/src/steps/NetworkingV2Step.jsx frontend/src/steps/GlobalStrategyStep.jsx frontend/src/steps/HostInventoryV2Step.jsx frontend/src/validation.js frontend/tests/networking-v2-step.test.jsx frontend/tests/hostInventoryV2Validation.test.js frontend/tests/validation-catalog-alignment.test.js frontend/tests/HostInventoryV2Phase43.test.jsx
 git commit -m "feat: vsphere-agent scenario (4.20 Agent-based on VMware)"
 git push origin <your-branch>
 ```

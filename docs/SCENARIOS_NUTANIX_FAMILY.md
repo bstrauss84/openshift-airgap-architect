@@ -31,12 +31,12 @@ This family guide isolates Nutanix scenario truth so cloud-family guidance stays
 
 | Scenario ID | Method | Deep tracked doc | Current truth location |
 |---|---|---|---|
-| `nutanix-ipi` | IPI | `docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md` | docs-index + params + Nutanix deep doc |
+| `nutanix-ipi` | IPI | `local-docs/ocp-4.20/platform-audits/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md` | docs-index + params + Nutanix deep doc |
 
 <a id="deep-docs-and-references"></a>
 ## Deep docs and references
 
-- `docs/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
+- `local-docs/ocp-4.20/platform-audits/NUTANIX_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
 - `docs/NEW_SCENARIO_COVERAGE_CHECKLIST.md`
 - `docs/PARAMS_RECONCILIATION_CHECKLIST.md`
 

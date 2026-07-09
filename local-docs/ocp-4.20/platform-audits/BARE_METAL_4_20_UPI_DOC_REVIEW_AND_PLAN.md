@@ -84,7 +84,7 @@ Working record for the Bare Metal / 4.20 / UPI scenario truth and implementation
 | Docs-index (canonical) | `data/docs-index/4.20.json` | Yes |
 | Docs-index (frontend) | `frontend/src/data/docs-index/4.20.json` | Yes |
 | DATA_AND_FRONTEND_COPIES.md | `docs/DATA_AND_FRONTEND_COPIES.md` | Yes |
-| Bare Metal UPI working doc | `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md` | Yes (this file) |
+| Bare Metal UPI working doc | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md` | Yes (this file) |
 
 ## Params / catalog reconciliation (Phase B) — final resolved
 
