@@ -847,6 +847,146 @@ Enables the wizard to run **inside** or **alongside** a mirror operator collecti
 
 ---
 
+## Agent ISO Generation (2026-07-09)
+
+**Feature:** Generate bootable agent ISOs within the wizard for agent-based installer deployments.
+
+**Purpose:** Automate `openshift-install agent create image` execution, eliminating manual ISO generation steps and providing kubeadmin credentials directly in the UI.
+
+**Documentation:** `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` (section 8)
+
+### Overview
+
+Adds a new wizard step "Generate Agent ISO" that:
+- ✅ Runs `openshift-install agent create image` as a background job
+- ✅ Streams real-time stdout/stderr logs to the UI
+- ✅ Provides ISO download via `/api/agent-iso/download/:jobId` endpoint
+- ✅ Displays kubeadmin password and kubeconfig with show/hide toggles
+- ✅ Supports re-generation with confirmation modal
+- ✅ Available for ALL agent-based installer scenarios (not restricted to mirror bundle workflow)
+
+### Implementation
+
+**Backend (`backend/src/index.js`):**
+- `POST /api/agent-iso/generate` - Validates methodology/platform, creates job, triggers background generation
+- `GET /api/agent-iso/download/:jobId` - Streams ISO file with proper headers and path validation
+- `generateAgentIsoBackgroundJob(jobId, state)` - Background job function:
+  1. Creates work directory `/data/tmp/agent-iso-${jobId}/`
+  2. Generates install-config.yaml and agent-config.yaml from state
+  3. Resolves openshift-install binary (version/arch/FIPS)
+  4. Spawns `openshift-install agent create image --dir <workDir>`
+  5. Streams stdout/stderr via `appendJobOutput()`
+  6. Reads kubeadmin password from `auth/kubeadmin-password`
+  7. Reads kubeconfig from `auth/kubeconfig`
+  8. Stores metadata: `{isoPath, isoName, isoSize, kubeadminPassword, kubeconfig, workDir, exitCode}`
+  9. Updates job status: `completed` (success) or `failed` (error)
+
+**Frontend (`frontend/src/steps/GenerateAgentIsoStep.jsx`):**
+- Job polling every 2 seconds via `/api/jobs/:id`
+- Real-time log display with auto-scroll
+- Generate/Regenerate/Download buttons
+- Masked kubeadmin password with show/hide toggle and copy button
+- Collapsible kubeconfig display with copy button
+- Regenerate confirmation modal ("⚠️ This will overwrite the existing ISO")
+- Only shown when:
+  - `state.methodology.method === "Agent-Based Installer"`
+  - `state.blueprint.platform === "Bare Metal" || "VMware vSphere"`
+
+**Wizard Registration:**
+- `frontend/src/App.jsx` - Added to `COMPONENT_MAP`
+- `frontend/src/wizardVisibleSteps.js` - Added to step order (after "Assets & Guide", before "Run oc-mirror")
+- Conditional visibility in both segmented and legacy flows
+
+### Work Directory Structure
+
+```
+/data/tmp/agent-iso-${jobId}/
+├── install-config.yaml       # Generated from state
+├── agent-config.yaml          # Generated from state
+├── auth/
+│   ├── kubeadmin-password     # Initial admin credentials
+│   └── kubeconfig             # Cluster access config
+├── boot-artifacts/            # Additional boot files
+└── agent.x86_64.iso           # Bootable ISO (~900MB-1.2GB)
+```
+
+**Retention:** Work directories retained indefinitely for multiple downloads. Manual cleanup only. Re-generation creates new jobId and new directory.
+
+### Conditional Visibility
+
+**Show step when:**
+- Methodology: "Agent-Based Installer"
+- Platform: "Bare Metal" **OR** "VMware vSphere"
+
+**Hide step when:**
+- Any other methodology (IPI, UPI)
+- Other platforms (AWS, Azure, GCP, etc.)
+
+### Security Considerations
+
+**Credential Handling:**
+- Kubeadmin password and kubeconfig stored in job `metadata_json` (encrypted at rest in SQLite)
+- NEVER logged to stdout/stderr
+- Never included in exported bundles
+- Warning banner: "⚠️ Save these credentials - they cannot be regenerated later"
+
+**File Access:**
+- ISO download validates path is within `/data/tmp/agent-iso-*`
+- Prevents directory traversal attacks via `fs.realpathSync()` validation
+- 403 error if path outside allowed directory
+
+**Pull Secret Injection:**
+- If mirror registry config pre-loaded (`mountedMirrorPullSecret`), inject into state before generation
+- Ensures install-config.yaml includes mirror registry pull secret
+
+### Testing Strategy
+
+**Backend Tests:** (Deferred to task #4)
+- Job creation returns valid jobId
+- Invalid methodology returns 400 error
+- Invalid platform returns 400 error
+- Process spawn executes with correct arguments
+- Metadata stored correctly on success
+- Error handling for missing auth files
+
+**Frontend Tests:** (Deferred to task #5)
+- Step hidden when methodology is not agent-based
+- Step hidden for unsupported platforms
+- Generate button triggers API call
+- Job polling starts after jobId received
+- Regenerate confirmation modal flow
+- Credential masking and show/hide toggles
+
+**Manual Testing:**
+1. Complete wizard to "Generate Agent ISO" step
+2. Click "Generate Agent ISO" button
+3. Verify real-time logs stream during execution
+4. Wait for completion (expect 2-5 minutes)
+5. Download ISO and verify file size (~900MB-1.2GB)
+6. Verify kubeadmin password displayed with mask/show toggle
+7. Verify kubeconfig displayed in collapsible section
+8. Test regeneration with confirmation modal
+
+### When to Update This Feature
+
+**Update if:**
+- Adding new agent-based installer platforms
+- Changing install-config.yaml or agent-config.yaml generation logic
+- Modifying export inclusion logic (affects pull secret injection)
+- Adding new authentication methods for openshift-install
+
+**Don't modify without:**
+- Reading this section and understanding ephemeral credential pattern
+- Testing ISO generation end-to-end (manual test, not just unit tests)
+- Verifying kubeadmin password and kubeconfig are accessible in UI
+
+### Related Documentation
+
+- `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` - Section 8 documents agent ISO step
+- `.claude/plans/quiet-wibbling-lamport.md` - Original implementation plan
+
+---
+
 ## PROD Phase 1: Production Readiness (v1.6.0 - Complete)
 
 **Completion Date:** 2026-05-20  

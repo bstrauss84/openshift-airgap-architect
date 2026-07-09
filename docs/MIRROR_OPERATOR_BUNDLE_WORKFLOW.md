@@ -339,6 +339,15 @@ When mirror registry config is pre-loaded:
    - install-config.yaml includes pull secret when "Include credentials in export" is checked
    - Mirror sources from IDMS/ITMS automatically included
 
+8. **Generate Agent ISO Step** *(Agent-Based Installer only)*
+   - Create bootable ISO containing OpenShift agent installer and configuration
+   - Automated execution of `openshift-install agent create image`
+   - Real-time progress streaming and log output
+   - Download generated ISO file (~900MB-1.2GB)
+   - Display kubeadmin password and kubeconfig
+   - Re-generation capability with confirmation modal
+   - Only shown for Agent-Based Installer on Bare Metal or VMware vSphere platforms
+
 ### What Users Configure
 
 Users focus on cluster-specific settings:

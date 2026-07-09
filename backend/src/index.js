@@ -2945,6 +2945,310 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   res.json({ jobId });
 });
 
+// ===================================================================
+// AGENT ISO GENERATION
+// ===================================================================
+
+app.post("/api/agent-iso/generate", async (req, res) => {
+  const state = ensureState();
+  const methodology = state?.methodology?.method;
+  const platform = state?.blueprint?.platform;
+
+  // Validate methodology and platform
+  if (methodology !== "Agent-Based Installer") {
+    return res.status(400).json({
+      error: "Agent ISO generation only available for Agent-Based Installer deployments"
+    });
+  }
+
+  if (platform !== "Bare Metal" && platform !== "VMware vSphere") {
+    return res.status(400).json({
+      error: "Agent ISO generation only available for Bare Metal or VMware vSphere platforms"
+    });
+  }
+
+  // Create job and return immediately
+  const jobId = createJob("agent-iso-generate", "Initializing agent ISO generation...");
+  res.status(202).json({ jobId });
+
+  // Run generation in background
+  setImmediate(() => {
+    generateAgentIsoBackgroundJob(jobId, state).catch((err) => {
+      appendJobOutput(jobId, `\nUnexpected error: ${err.message}\n`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: `Generation failed: ${err.message}`
+      });
+    });
+  });
+});
+
+app.get("/api/agent-iso/download/:jobId", async (req, res) => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({ error: "Job not found" });
+  }
+
+  if (job.status !== "completed") {
+    return res.status(400).json({ error: "ISO generation not completed yet" });
+  }
+
+  let meta = null;
+  try {
+    meta = job.metadata_json ? JSON.parse(job.metadata_json) : null;
+  } catch (err) {
+    logger.error({ tag: "agent-iso:download", err, jobId }, "Failed to parse job metadata");
+    return res.status(500).json({ error: "Failed to parse job metadata" });
+  }
+
+  if (!meta || !meta.isoPath) {
+    return res.status(404).json({ error: "ISO file path not found in job metadata" });
+  }
+
+  const isoPath = meta.isoPath;
+  const tmpAgentIsoBase = path.join(dataDir, "tmp");
+
+  // Security: Validate that isoPath is within allowed tmp directory
+  const realIsoPath = fs.existsSync(isoPath) ? fs.realpathSync(isoPath) : null;
+  if (!realIsoPath || !realIsoPath.startsWith(tmpAgentIsoBase)) {
+    logger.warn({ tag: "agent-iso:download", jobId, isoPath, realIsoPath }, "Invalid ISO path - directory traversal attempt");
+    return res.status(403).json({ error: "Invalid ISO file path" });
+  }
+
+  if (!fs.existsSync(isoPath)) {
+    return res.status(404).json({ error: "ISO file not found on disk" });
+  }
+
+  const stats = fs.statSync(isoPath);
+  const isoName = meta.isoName || path.basename(isoPath);
+
+  logger.info({ tag: "agent-iso:download", jobId, isoPath, size: stats.size }, "Streaming ISO download");
+
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${isoName}"`);
+  res.setHeader("Content-Length", stats.size);
+
+  const stream = fs.createReadStream(isoPath);
+  stream.pipe(res);
+
+  stream.on("error", (err) => {
+    logger.error({ tag: "agent-iso:download", err, jobId }, "Failed to stream ISO file");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to stream ISO file" });
+    }
+  });
+});
+
+async function generateAgentIsoBackgroundJob(jobId, state) {
+  const tmpDir = path.join(dataDir, "tmp");
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const workDir = path.join(tmpDir, `agent-iso-${jobId}`);
+  fs.mkdirSync(workDir, { recursive: true });
+
+  logger.info({ tag: "agent-iso:generate", jobId, workDir }, "Starting agent ISO generation");
+
+  try {
+    updateJob(jobId, { status: "running", progress: 10, message: "Preparing configuration files..." });
+    appendJobOutput(jobId, "=== OpenShift Agent ISO Generation ===\n");
+    appendJobOutput(jobId, `Work directory: ${workDir}\n\n`);
+
+    // Generate install-config.yaml
+    appendJobOutput(jobId, "Generating install-config.yaml...\n");
+    const previewState = JSON.parse(JSON.stringify(state));
+    previewState.reviewFlags = null;
+    previewState.fieldManual = { enabled: false };
+
+    // Inject ephemeral pull secret if available (from mirror registry config)
+    if (mountedMirrorPullSecret && state.credentials?.usingMirrorRegistry) {
+      if (!previewState.credentials) previewState.credentials = {};
+      previewState.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+    }
+
+    const installConfig = buildInstallConfig(previewState);
+    if (!installConfig) {
+      throw new Error("Failed to generate install-config.yaml");
+    }
+
+    const installConfigPath = path.join(workDir, "install-config.yaml");
+    fs.writeFileSync(installConfigPath, installConfig, "utf8");
+    appendJobOutput(jobId, `✓ Wrote install-config.yaml (${Buffer.byteLength(installConfig)} bytes)\n`);
+
+    // Generate agent-config.yaml
+    appendJobOutput(jobId, "Generating agent-config.yaml...\n");
+    const agentConfig = buildAgentConfig(previewState);
+    if (!agentConfig) {
+      throw new Error("Failed to generate agent-config.yaml - agent-config not supported for this configuration");
+    }
+
+    const agentConfigPath = path.join(workDir, "agent-config.yaml");
+    fs.writeFileSync(agentConfigPath, agentConfig, "utf8");
+    appendJobOutput(jobId, `✓ Wrote agent-config.yaml (${Buffer.byteLength(agentConfig)} bytes)\n\n`);
+
+    updateJob(jobId, { progress: 30, message: "Downloading openshift-install binary..." });
+
+    // Resolve binary parameters
+    const version = state.blueprint?.version || state.release?.version;
+    if (!version) {
+      throw new Error("OpenShift version not configured");
+    }
+
+    const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
+    const useFips = state.blueprint?.fipsMode === true;
+
+    appendJobOutput(jobId, `Resolving openshift-install binary...\n`);
+    appendJobOutput(jobId, `  Version: ${version}\n`);
+    appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
+    appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
+
+    const installerInfo = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
+    const installerPath = installerInfo.path;
+
+    if (!fs.existsSync(installerPath)) {
+      throw new Error(`openshift-install binary not found at ${installerPath}`);
+    }
+
+    appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
+
+    updateJob(jobId, { progress: 50, message: "Running openshift-install agent create image..." });
+    appendJobOutput(jobId, `Executing: ${installerPath} agent create image --dir ${workDir}\n`);
+    appendJobOutput(jobId, `---\n\n`);
+
+    // Spawn openshift-install agent create image
+    const child = spawn(installerPath, ["agent", "create", "image", "--dir", workDir], {
+      env: {
+        ...process.env,
+        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin"
+      }
+    });
+
+    activeProcesses.set(jobId, child);
+
+    child.stdout.on("data", (data) => {
+      appendJobOutput(jobId, data.toString());
+    });
+
+    child.stderr.on("data", (data) => {
+      appendJobOutput(jobId, data.toString());
+    });
+
+    child.on("error", (err) => {
+      appendJobOutput(jobId, `\nProcess error: ${err.message}\n`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: "Failed to spawn openshift-install process"
+      });
+      activeProcesses.delete(jobId);
+    });
+
+    child.on("close", (code) => {
+      activeProcesses.delete(jobId);
+      appendJobOutput(jobId, `\n---\nProcess exited with code ${code}\n`);
+
+      if (code === 0) {
+        try {
+          // Read auth files
+          const authDir = path.join(workDir, "auth");
+          const passwordPath = path.join(authDir, "kubeadmin-password");
+          const kubeconfigPath = path.join(authDir, "kubeconfig");
+
+          if (!fs.existsSync(passwordPath)) {
+            throw new Error("kubeadmin-password file not found in auth directory");
+          }
+          if (!fs.existsSync(kubeconfigPath)) {
+            throw new Error("kubeconfig file not found in auth directory");
+          }
+
+          const kubeadminPassword = fs.readFileSync(passwordPath, "utf8").trim();
+          const kubeconfig = fs.readFileSync(kubeconfigPath, "utf8");
+
+          appendJobOutput(jobId, `✓ Read kubeadmin-password (${kubeadminPassword.length} chars)\n`);
+          appendJobOutput(jobId, `✓ Read kubeconfig (${kubeconfig.length} bytes)\n`);
+
+          // Find ISO file
+          const isoFiles = fs.readdirSync(workDir).filter(f => f.endsWith(".iso"));
+          if (isoFiles.length === 0) {
+            throw new Error("No ISO file found in work directory");
+          }
+
+          const isoName = isoFiles[0];
+          const isoPath = path.join(workDir, isoName);
+          const isoSize = fs.statSync(isoPath).size;
+          const isoSizeMB = Math.round(isoSize / 1024 / 1024);
+
+          appendJobOutput(jobId, `✓ Found ISO: ${isoName} (${isoSizeMB}MB)\n\n`);
+          appendJobOutput(jobId, `=== Generation Complete ===\n`);
+
+          logger.info({
+            tag: "agent-iso:generate",
+            jobId,
+            isoPath,
+            isoSize,
+            workDir
+          }, "Agent ISO generated successfully");
+
+          // Store metadata WITHOUT logging sensitive credentials
+          updateJobMetadata(jobId, {
+            isoPath,
+            isoName,
+            isoSize,
+            kubeadminPassword, // Stored in encrypted DB, never logged
+            kubeconfig, // Stored in encrypted DB, never logged
+            workDir,
+            exitCode: code,
+            finishedAt: Date.now()
+          });
+
+          updateJob(jobId, {
+            status: "completed",
+            progress: 100,
+            message: `ISO generated successfully (${isoSizeMB}MB)`
+          });
+        } catch (err) {
+          logger.error({ tag: "agent-iso:generate", err, jobId }, "Failed to read generated files");
+          appendJobOutput(jobId, `\nError reading generated files: ${err.message}\n`);
+          updateJob(jobId, {
+            status: "failed",
+            progress: 100,
+            message: `Generation completed but files missing: ${err.message}`
+          });
+        }
+      } else {
+        // Parse output for common error patterns
+        const output = getJob(jobId)?.output || "";
+        let errorMessage = `openshift-install exited with code ${code}`;
+
+        if (output.includes("validation failed") || output.includes("invalid")) {
+          errorMessage = "Configuration validation failed - check install-config.yaml and agent-config.yaml";
+        } else if (output.includes("not found")) {
+          errorMessage = "Binary or dependency missing";
+        } else if (output.includes("permission denied")) {
+          errorMessage = "Permission denied - check file/directory permissions";
+        }
+
+        logger.warn({ tag: "agent-iso:generate", jobId, exitCode: code }, errorMessage);
+        updateJob(jobId, {
+          status: "failed",
+          progress: 100,
+          message: errorMessage
+        });
+      }
+    });
+  } catch (err) {
+    logger.error({ tag: "agent-iso:generate", err, jobId }, "Agent ISO generation failed");
+    appendJobOutput(jobId, `\nError: ${err.message}\n${err.stack}\n`);
+    updateJob(jobId, {
+      status: "failed",
+      progress: 100,
+      message: `Generation failed: ${err.message}`
+    });
+  }
+}
+
 app.get("/api/docs", (req, res) => {
   const state = ensureState();
   const version = getOpenShiftMinorFromState(state) || "4.0";
