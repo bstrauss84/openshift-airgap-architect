@@ -212,6 +212,9 @@ const purgeExpiredBundleStates = () => {
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
 
+// Mounted mirror registry pull secret — loaded from config, held in memory only, never persisted.
+let mountedMirrorPullSecret = null;
+
 const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "registry.connect.redhat.com"];
 
 /**
@@ -513,14 +516,17 @@ const defaultState = () => {
   // Pre-load mirror registry config if mounted
   const mirrorConfig = loadMirrorRegistryConfig();
   if (mirrorConfig) {
-    // Deep merge mirror config into base state
-    baseState.credentials = { ...baseState.credentials, ...mirrorConfig.credentials };
-    baseState.trust = { ...baseState.trust, ...mirrorConfig.trust };
+    // Store pull secret in memory only (like mountedRhPullSecret)
+    mountedMirrorPullSecret = mirrorConfig.pullSecret;
+
+    // Deep merge mirror config state (without pull secret)
+    baseState.credentials = { ...baseState.credentials, ...mirrorConfig.state.credentials };
+    baseState.trust = { ...baseState.trust, ...mirrorConfig.state.trust };
     baseState.globalStrategy.mirroring = {
       ...baseState.globalStrategy.mirroring,
-      ...mirrorConfig.globalStrategy.mirroring
+      ...mirrorConfig.state.globalStrategy.mirroring
     };
-    baseState.ui = { ...baseState.ui, ...mirrorConfig.ui };
+    baseState.ui = { ...baseState.ui, ...mirrorConfig.state.ui };
   }
 
   // Pre-load imageset config if mounted
@@ -1137,10 +1143,18 @@ app.get("/api/schema/stepMap", (req, res) => {
 });
 
 app.get("/api/state", (req, res) => {
-  // Security: Never expose credentials via GET endpoint
   const state = ensureState();
-  const sanitized = sanitizeStateForExport(state, { includeCredentials: false });
-  res.json(sanitized);
+
+  // Inject mounted mirror pull secret (held in memory, never persisted to database)
+  if (mountedMirrorPullSecret && state.ui?.mirrorConfigPreloaded) {
+    state.credentials = state.credentials || {};
+    state.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
+  // Don't sanitize credentials for GET /api/state - the frontend needs them during the session
+  // Pull secrets are never persisted to disk (stripped by getStateForPersistence)
+  // Sanitization only happens for export bundles
+  res.json(state);
 });
 
 app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
