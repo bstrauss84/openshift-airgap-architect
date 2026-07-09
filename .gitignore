@@ -142,3 +142,33 @@ backend/tmp-installer-test/
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Test coverage reports
+coverage/
+**/coverage/
+*.lcov
+
+# Research and analysis artifacts (keep local only)
+.research/
+
+# Claude Code user-specific settings (migrated from .git/info/exclude)
+.claude/settings.local.json
+.claude/hooks/*.sh
+!.claude/hooks/shared-*.sh
+
+# Additional temporary editor files
+*.swp
+*.swo
+*~
+.*.sw?
+
+# OS-specific files
+Thumbs.db
+desktop.ini
+
+# Package manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*

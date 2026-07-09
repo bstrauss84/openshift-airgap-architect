@@ -2,6 +2,7 @@
 node_modules/
 **/node_modules/
 .gitignore
+.gitattributes
 *.log
 **/*.log
 .cursor/
@@ -26,3 +27,22 @@ local-docs/
 e2e/
 playwright-report/
 test-results/
+# Test files and coverage
+**/*.test.js
+**/*.test.jsx
+**/*.spec.js
+**/*.spec.jsx
+__tests__/
+coverage/
+**/coverage/
+jest.config.*
+playwright.config.*
+# CI/CD and development tools
+.github/
+.gitlab-ci.yml
+.travis.yml
+.vscode/
+.idea/
+*.code-workspace
+# Git internals
+.git/
