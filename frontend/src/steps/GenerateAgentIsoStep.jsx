@@ -240,9 +240,11 @@ export default function GenerateAgentIsoStep() {
             )}
 
             {/* Streaming logs */}
-            {isRunning && lastRunJob?.output && (
+            {(isRunning || hasFailed) && lastRunJob?.output && (
               <div style={{ marginTop: "1rem" }}>
-                <h4 style={{ marginBottom: "0.5rem" }}>Live Output:</h4>
+                <h4 style={{ marginBottom: "0.5rem" }}>
+                  {isRunning ? "Live Output:" : "Output:"}
+                </h4>
                 <pre
                   ref={logPreRef}
                   style={{
