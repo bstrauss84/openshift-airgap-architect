@@ -156,9 +156,20 @@ describe('Complete unsupported version recovery', () => {
     // Should NOT show generic "Something went wrong"
     expect(screen.queryByText(/Something went wrong/i)).toBeNull();
 
-    // Should show recovery buttons
-    expect(screen.getByRole('button', { name: /Start Over/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Switch to 4\.21/i })).toBeInTheDocument();
+    // Should show recovery buttons - verify they are enabled and usable
+    const startOverButton = screen.getByRole('button', { name: /Start Over/i });
+    const switchButton = screen.getByRole('button', { name: /Switch to 4\.21/i });
+
+    expect(startOverButton).toBeInTheDocument();
+    expect(switchButton).toBeInTheDocument();
+
+    // CRITICAL: Buttons must NOT be disabled (fixes manual screenshot problem)
+    expect(startOverButton).not.toBeDisabled();
+    expect(switchButton).not.toBeDisabled();
+
+    // Buttons must have proper CSS classes (not undefined/secondary)
+    expect(startOverButton.className).toContain('primary');
+    expect(switchButton.className).toContain('ghost');
   });
 
   it('Supported 4.21 state does NOT trigger recovery UI', async () => {

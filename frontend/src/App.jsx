@@ -232,7 +232,7 @@ const VersionSupportGate = ({ children }) => {
             </button>
             <button
               type="button"
-              className="secondary"
+              className="ghost"
               onClick={() => {
                 // DOC-102 Slice 5F.13: Clean canonical v3 state - remove all legacy version fields
                 // After recovery, no canonical, derived, or legacy field may retain unsupported version

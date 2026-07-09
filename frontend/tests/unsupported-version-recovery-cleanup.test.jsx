@@ -100,6 +100,11 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
       expect(screen.queryByText(/Unsupported OpenShift Version/i)).toBeInTheDocument();
     });
 
+    // Verify button is enabled and has proper class (not disabled/white)
+    const switchButton = screen.getByRole('button', { name: /Switch to 4\.21/i });
+    expect(switchButton).not.toBeDisabled();
+    expect(switchButton.className).toContain('ghost');
+
     // Capture the POST /api/state call when Switch to 4.21 is clicked
     let capturedState = null;
     mockFetch.mockImplementation((url, options) => {
@@ -146,7 +151,6 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
     });
 
     // Click "Switch to 4.21" button
-    const switchButton = screen.getByRole('button', { name: /Switch to 4\.21/i });
     await userEvent.click(switchButton);
 
     // Wait for state update POST
