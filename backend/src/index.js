@@ -3096,29 +3096,38 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     fs.writeFileSync(agentConfigPath, agentConfig, "utf8");
     appendJobOutput(jobId, `✓ Wrote agent-config.yaml (${Buffer.byteLength(agentConfig)} bytes)\n\n`);
 
-    updateJob(jobId, { progress: 30, message: "Downloading openshift-install binary..." });
+    updateJob(jobId, { progress: 30, message: "Resolving openshift-install binary..." });
 
-    // Resolve binary parameters
-    const version = state.version?.selectedVersion || state.release?.version;
-    if (!version) {
-      throw new Error("OpenShift version not configured - please select a version on the Blueprint step");
+    // Check for pre-mounted openshift-install binary (high-side scenario)
+    const mountedInstallerPath = path.join(dataDir, "openshift-install");
+    let installerPath;
+
+    if (fs.existsSync(mountedInstallerPath)) {
+      appendJobOutput(jobId, `✓ Using pre-mounted openshift-install binary: ${mountedInstallerPath}\n\n`);
+      installerPath = mountedInstallerPath;
+    } else {
+      // Fallback to downloading (low-side scenario with internet access)
+      const version = state.version?.selectedVersion || state.release?.version;
+      if (!version) {
+        throw new Error("OpenShift version not configured - please select a version on the Blueprint step");
+      }
+
+      const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
+      const useFips = state.blueprint?.fipsMode === true;
+
+      appendJobOutput(jobId, `Resolving openshift-install binary...\n`);
+      appendJobOutput(jobId, `  Version: ${version}\n`);
+      appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
+      appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
+
+      installerPath = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
+
+      if (!installerPath || !fs.existsSync(installerPath)) {
+        throw new Error(`openshift-install binary not found at ${installerPath || 'undefined'}`);
+      }
+
+      appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
     }
-
-    const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
-    const useFips = state.blueprint?.fipsMode === true;
-
-    appendJobOutput(jobId, `Resolving openshift-install binary...\n`);
-    appendJobOutput(jobId, `  Version: ${version}\n`);
-    appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
-    appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
-
-    const installerPath = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
-
-    if (!installerPath || !fs.existsSync(installerPath)) {
-      throw new Error(`openshift-install binary not found at ${installerPath || 'undefined'}`);
-    }
-
-    appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
 
     updateJob(jobId, { progress: 50, message: "Running openshift-install agent create image..." });
     appendJobOutput(jobId, `Executing: ${installerPath} agent create image --dir ${workDir}\n`);
