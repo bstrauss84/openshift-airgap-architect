@@ -3091,9 +3091,9 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     updateJob(jobId, { progress: 30, message: "Downloading openshift-install binary..." });
 
     // Resolve binary parameters
-    const version = state.blueprint?.version || state.release?.version;
+    const version = state.version?.selectedVersion || state.release?.version;
     if (!version) {
-      throw new Error("OpenShift version not configured");
+      throw new Error("OpenShift version not configured - please select a version on the Blueprint step");
     }
 
     const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
