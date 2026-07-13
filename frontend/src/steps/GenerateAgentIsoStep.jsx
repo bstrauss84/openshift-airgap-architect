@@ -14,7 +14,7 @@
  */
 import React, { useEffect, useState, useRef } from "react";
 import { useApp } from "../store.jsx";
-import { apiFetch } from "../api.js";
+import { apiFetch, API_BASE } from "../api.js";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
@@ -89,7 +89,7 @@ export default function GenerateAgentIsoStep() {
         : lastRunJob.metadata_json;
 
       if (meta.isoPath) {
-        const url = `/api/agent-iso/download/${lastRunJob.id}`;
+        const url = `${API_BASE}/api/agent-iso/download/${lastRunJob.id}`;
         const a = document.createElement("a");
         a.href = url;
         a.download = meta.isoName || "agent.x86_64.iso";
