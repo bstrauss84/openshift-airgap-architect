@@ -10,8 +10,8 @@
  */
 import React, { useState, useEffect } from "react";
 import { useApp } from "../store.jsx";
-import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
-import { getCatalogParameters } from "../catalogPaths.js";
+import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
 import { ipv6CidrOverlaps } from "../validation.js";
@@ -362,29 +362,32 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     overlapMessages.push("Cluster network IPv6 CIDR overlaps with service network IPv6 CIDR.");
   }
 
-  const version = getOpenShiftMinorFromState(state) || '4.20';
-  const catalogParams = getCatalogParameters(scenarioId, version) || [];
+  const selectedMinor = getOpenShiftMinorFromState(state) || '4.20';
+  const catalogParams = getCatalogForScenario(scenarioId, selectedMinor) || [];
   const hasNetworkingParam = (path) =>
     catalogParams.some((p) => p.path === path && p.outputFile === INSTALL_CONFIG);
-  const showBareMetalVips = catalogParams.some(
-    (p) =>
-      (p.path === "platform.baremetal.apiVIP" ||
-        p.path === "platform.baremetal.ingressVIP" ||
-        p.path === "platform.baremetal.apiVIPs" ||
-        p.path === "platform.baremetal.ingressVIPs") &&
-      p.outputFile === INSTALL_CONFIG
-  );
-  const showVsphereIpiVips = scenarioId === "vsphere-ipi";
-  const showVsphereAgentVips = catalogParams.some(
-    (p) => p.path === "platform.vsphere.apiVIPs" && p.outputFile === INSTALL_CONFIG
-  );
-  const showNutanixIpiVips = catalogParams.some(
-    (p) => p.path === "platform.nutanix.apiVIP" && p.outputFile === INSTALL_CONFIG
-  );
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+  const showBareMetalVips =
+    isCatalogFieldVisible("platform.baremetal.apiVIP", INSTALL_CONFIG) ||
+    isCatalogFieldVisible("platform.baremetal.ingressVIP", INSTALL_CONFIG) ||
+    isCatalogFieldVisible("platform.baremetal.apiVIPs", INSTALL_CONFIG) ||
+    isCatalogFieldVisible("platform.baremetal.ingressVIPs", INSTALL_CONFIG);
+  const showVsphereIpiApiVips = scenarioId === "vsphere-ipi" && isCatalogFieldVisible("platform.vsphere.apiVIPs", INSTALL_CONFIG);
+  const showVsphereIpiIngressVips = scenarioId === "vsphere-ipi" && isCatalogFieldVisible("platform.vsphere.ingressVIPs", INSTALL_CONFIG);
+  const showVsphereIpiVips = showVsphereIpiApiVips || showVsphereIpiIngressVips;
+  const showVsphereAgentApiVips = isCatalogFieldVisible("platform.vsphere.apiVIPs", INSTALL_CONFIG);
+  const showVsphereAgentIngressVips = isCatalogFieldVisible("platform.vsphere.ingressVIPs", INSTALL_CONFIG);
+  const showVsphereAgentVips = showVsphereAgentApiVips || showVsphereAgentIngressVips;
+  const showNutanixIpiVips = isCatalogFieldVisible("platform.nutanix.apiVIP", INSTALL_CONFIG);
   const showApiIngressVips = showBareMetalVips || showVsphereIpiVips || showVsphereAgentVips || showNutanixIpiVips;
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
-  const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
+  const showServiceNetwork = isCatalogFieldVisible("networking.serviceNetwork", INSTALL_CONFIG);
   // Support both ipStackMode (current) and enableIpv6 (legacy) for backward compatibility
   const ipStackMode = hostInventory.ipStackMode || (hostInventory.enableIpv6 ? 'dual-stack' : 'ipv4');
   const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
@@ -1221,6 +1224,7 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                 ) : showVsphereIpiVips ? (
                   ipStackMode === 'dual-stack' ? (
                     <>
+                      {showVsphereIpiApiVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1279,6 +1283,8 @@ fd00::2`}
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
+                      {showVsphereIpiIngressVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1337,9 +1343,11 @@ fd00::3`}
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
                     </>
                   ) : ipStackMode === 'ipv6' ? (
                     <>
+                      {showVsphereIpiApiVips && (
                       <FieldLabelWithInfo
                         label="API VIPs (IPv6)"
                         hint={`Virtual IP address(es) for the Kubernetes API load balancer (IPv6-only).
@@ -1369,6 +1377,8 @@ fd00::10`}
                           aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereIpiIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIPs (IPv6)"
                         hint={`Virtual IP address(es) for the default Ingress controller load balancer (IPv6-only).
@@ -1398,9 +1408,11 @@ fd00::11`}
                           aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   ) : (
                     <>
+                      {showVsphereIpiApiVips && (
                       <FieldLabelWithInfo
                         label="API VIPs (comma-separated)"
                         hint={`Virtual IP address(es) for the Kubernetes API load balancer.
@@ -1429,6 +1441,8 @@ Comma-separated if multiple (rare)
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereIpiIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIPs (comma-separated)"
                         hint={`Virtual IP address(es) for the default Ingress controller load balancer.
@@ -1457,11 +1471,13 @@ Comma-separated if multiple (rare)
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   )
                 ) : showVsphereAgentVips ? (
                   ipStackMode === 'dual-stack' ? (
                     <>
+                      {showVsphereAgentApiVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1519,6 +1535,8 @@ fd00::1`}>
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
+                      {showVsphereAgentIngressVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1576,9 +1594,11 @@ fd00::2`}>
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
                     </>
                   ) : ipStackMode === 'ipv6' ? (
                     <>
+                      {showVsphereAgentApiVips && (
                       <FieldLabelWithInfo
                         label="API VIP"
                         hint={`Virtual IP address for the Kubernetes API server load balancer (IPv6-only).
@@ -1608,6 +1628,8 @@ fd00::1`}
                           aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereAgentIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={`Virtual IP address for the default ingress router load balancer (IPv6-only).
@@ -1637,9 +1659,11 @@ fd00::2`}
                           aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   ) : (
                     <>
+                      {showVsphereAgentApiVips && (
                       <FieldLabelWithInfo
                         label="API VIP"
                         hint={metaApiVipsVsphere?.description || `Virtual IP address for the Kubernetes API server load balancer (IPv4).
@@ -1668,6 +1692,8 @@ Single IPv4 address
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereAgentIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={metaIngressVipsVsphere?.description || `Virtual IP address for the default ingress router load balancer (IPv4).
@@ -1696,6 +1722,7 @@ Single IPv4 address
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   )
                 ) : showBareMetalVips ? (
