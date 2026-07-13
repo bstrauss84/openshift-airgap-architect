@@ -11,7 +11,9 @@
  */
 import React, { useEffect } from "react";
 import { useApp } from "../store.jsx";
-import { getScenarioId, getParamMeta } from "../catalogResolver.js";
+import { getScenarioId, getParamMeta, getCatalogForScenario } from "../catalogResolver.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
@@ -45,6 +47,16 @@ function deriveRegistryFqdnFromPullSecret(pullSecretJson) {
 export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
+  const selectedMinor = getOpenShiftMinorFromState(state) || "4.20";
+  const catalogParams = getCatalogForScenario(scenarioId, selectedMinor) || [];
+
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+
   const strategy = state.globalStrategy || {};
   const mirroring = strategy.mirroring || {};
   const sources = Array.isArray(mirroring.sources) && mirroring.sources.length > 0
@@ -145,6 +157,8 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
   const metaNtp = getParamMeta(scenarioId, "additionalNTPSources", AGENT_CONFIG, state);
   const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
   const showNtpSection = !isAwsGovCloud;
+  const showImageDigest = isCatalogFieldVisible("imageDigestSources", INSTALL_CONFIG);
+  const showNtpField = isCatalogFieldVisible("additionalNTPSources", AGENT_CONFIG);
 
   return (
     <div className="step">
@@ -166,7 +180,7 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
             </div>
           </Banner>
         ) : null}
-        {showMirroringConfig ? (
+        {showMirroringConfig && showImageDigest ? (
           <section className={`card ${fieldErrors.mirrorSources ? "highlight-errors" : ""}`}>
             <div className="card-header">
               <div>
@@ -290,7 +304,7 @@ registry.corp.local:5000`}
           </section>
         ) : null}
 
-        {showNtpSection ? (
+        {showNtpSection && showNtpField ? (
         <section className="card">
           <div className="card-header">
             <div>

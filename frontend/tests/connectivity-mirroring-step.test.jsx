@@ -6,14 +6,15 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React, { useState } from "react";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within, cleanup } from "@testing-library/react";
 import App from "../src/App.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
 import { validateStep } from "../src/validation.js";
-import { getScenarioId, getParamMeta } from "../src/catalogResolver.js";
+import * as catalogResolver from "../src/catalogResolver.js";
+const { getScenarioId, getParamMeta, getCatalogForScenario } = catalogResolver;
 import ConnectivityMirroringStep from "../src/steps/ConnectivityMirroringStep.jsx";
 import { AppContext } from "../src/store.jsx";
 
@@ -256,5 +257,197 @@ describe("Connectivity & Mirroring replacement step (Phase 5 Prompt H)", () => {
     });
     const result = validateStep(state, "connectivity-mirroring");
     expect(result.errors).toHaveLength(0);
+  });
+});
+
+describe("ConnectivityMirroringStep version-aware catalog access (DOC-102 Slice 5H Chunk 4)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function stateWithMinor(minor, extraOverrides = {}) {
+    const base = stateForConnectivityMirroringStep();
+    return stateForConnectivityMirroringStep({
+      version: { selectedMinor: minor },
+      credentials: {
+        ...base.credentials,
+        usingMirrorRegistry: true,
+        mirrorRegistryPullSecret: '{"auths":{"mirror.corp.local:5000":{}}}'
+      },
+      ...extraOverrides
+    });
+  }
+
+  function renderConnectivityMirroring(state) {
+    const value = {
+      state,
+      updateState: vi.fn(),
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    return render(
+      <AppContext.Provider value={value}>
+        <ConnectivityMirroringStep />
+      </AppContext.Provider>
+    );
+  }
+
+  const SYNTHETIC_CATALOG = [
+    { path: "imageDigestSources", outputFile: "install-config.yaml", supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "array", required: false, default: "not specified in docs", description: "Image digest mirror sources" },
+    { path: "additionalNTPSources", outputFile: "agent-config.yaml", supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "array", required: false, default: "not specified in docs", description: "Additional NTP sources" }
+  ];
+
+  it("requests catalog with '4.20' when state has selectedMinor 4.20", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    const state = stateWithMinor("4.20");
+    renderConnectivityMirroring(state);
+    const catalogCall = spy.mock.calls.find(c => c[0] === getScenarioId(state));
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.20");
+  });
+
+  it("requests catalog with '4.21' when state has selectedMinor 4.21", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    const state = stateWithMinor("4.21");
+    renderConnectivityMirroring(state);
+    const catalogCall = spy.mock.calls.find(c => c[0] === getScenarioId(state));
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.21");
+  });
+
+  it("passes explicit 4.22 to getCatalogForScenario without downgrading", () => {
+    const catalogSpy = vi
+      .spyOn(catalogResolver, "getCatalogForScenario")
+      .mockReturnValue([]);
+    vi.spyOn(catalogResolver, "getParamMeta").mockReturnValue(undefined);
+    const state = stateWithMinor("4.22");
+    renderConnectivityMirroring(state);
+    const catalogCall = catalogSpy.mock.calls.find(
+      (call) => call[0] === getScenarioId(state)
+    );
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.22");
+    expect(catalogCall[1]).not.toBe("4.20");
+    expect(catalogCall[1]).not.toBe("4.21");
+  });
+
+  it("passes state as fourth argument to every getParamMeta call", () => {
+    const metaSpy = vi.spyOn(catalogResolver, "getParamMeta");
+    const state = stateWithMinor("4.20");
+    renderConnectivityMirroring(state);
+    expect(metaSpy.mock.calls.length).toBeGreaterThan(0);
+    for (const call of metaSpy.mock.calls) {
+      expect(call[3]).toBe(state);
+    }
+  });
+
+  it("additionalNTPSources with minVersion 4.21 is absent at selected minor 4.20", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "additionalNTPSources"
+        ? { ...entry, minVersion: "4.21" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20");
+    renderConnectivityMirroring(state);
+    expect(screen.queryByPlaceholderText("time.corp.local,10.90.0.10")).not.toBeInTheDocument();
+  });
+
+  it("additionalNTPSources with minVersion 4.21 is present at selected minor 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "additionalNTPSources"
+        ? { ...entry, minVersion: "4.21" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.21");
+    renderConnectivityMirroring(state);
+    expect(screen.getByPlaceholderText("time.corp.local,10.90.0.10")).toBeInTheDocument();
+  });
+
+  it("sibling imageDigestSources remains visible when additionalNTPSources is version-gated", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "additionalNTPSources"
+        ? { ...entry, minVersion: "4.21" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20");
+    renderConnectivityMirroring(state);
+    expect(screen.getByPlaceholderText("registry.corp.local:5000")).toBeInTheDocument();
+  });
+
+  it("additionalNTPSources with supported-backend-only is absent even when in version range", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "additionalNTPSources"
+        ? { ...entry, supportStatus: "supported-backend-only" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20");
+    renderConnectivityMirroring(state);
+    expect(screen.queryByPlaceholderText("time.corp.local,10.90.0.10")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("registry.corp.local:5000")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Connectivity & Mirroring/i })).toBeInTheDocument();
+  });
+
+  it("omitted catalog field does not render while retained sibling renders", () => {
+    const catalog = SYNTHETIC_CATALOG.filter(entry => entry.path !== "additionalNTPSources");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20");
+    renderConnectivityMirroring(state);
+    expect(screen.queryByPlaceholderText("time.corp.local,10.90.0.10")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("registry.corp.local:5000")).toBeInTheDocument();
+  });
+
+  it("NTP card heading absent when additionalNTPSources hidden; workflow control and mirroring remain", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "additionalNTPSources"
+        ? { ...entry, supportStatus: "supported-backend-only" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20", {
+      globalStrategy: { ntpServers: ["time.corp.local"] },
+      reviewFlags: { "connectivity-mirroring": true }
+    });
+    renderConnectivityMirroring(state);
+    expect(screen.queryByRole("heading", { name: /Time & NTP/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Mirroring Configuration/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Re-evaluate this page/i })).toBeInTheDocument();
+    expect(state.globalStrategy.ntpServers).toEqual(["time.corp.local"]);
+  });
+
+  it("Mirroring card heading absent when imageDigestSources hidden; NTP card and step header remain", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "imageDigestSources"
+        ? { ...entry, supportStatus: "supported-backend-only" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20", {
+      globalStrategy: {
+        mirroring: {
+          registryFqdn: "registry.corp.local:5000",
+          sources: [{ source: "quay.io/openshift-release-dev/ocp-release", mirrors: ["registry.corp.local:5000/ocp-release"] }]
+        }
+      }
+    });
+    renderConnectivityMirroring(state);
+    expect(screen.queryByRole("heading", { name: /Mirroring Configuration/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Time & NTP/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Connectivity & Mirroring/i })).toBeInTheDocument();
+    expect(state.globalStrategy.mirroring.registryFqdn).toBe("registry.corp.local:5000");
+  });
+
+  it.each(["4.20", "4.21"])("real catalog %s: mirroring and NTP controls render", (minor) => {
+    const state = stateWithMinor(minor);
+    renderConnectivityMirroring(state);
+    expect(screen.getByPlaceholderText("registry.corp.local:5000")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("time.corp.local,10.90.0.10")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Mirroring Configuration/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Time & NTP/i })).toBeInTheDocument();
   });
 });
