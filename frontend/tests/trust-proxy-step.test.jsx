@@ -6,13 +6,16 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/react";
 import App from "../src/App.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
 import { validateStep } from "../src/validation.js";
-import { getScenarioId, getParamMeta } from "../src/catalogResolver.js";
+import * as catalogResolver from "../src/catalogResolver.js";
+const { getScenarioId, getParamMeta, getCatalogForScenario } = catalogResolver;
+import { AppContext } from "../src/store.jsx";
+import TrustProxyStep from "../src/steps/TrustProxyStep.jsx";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
@@ -255,5 +258,178 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
     };
     expect(state.reviewFlags["trust-proxy"]).toBe(true);
     expect(state.ui.visitedSteps["trust-proxy"]).toBe(true);
+  });
+});
+
+describe("TrustProxyStep version-aware catalog access (DOC-102 Slice 5H Chunk 3)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function stateWithMinor(minor, extraOverrides = {}) {
+    const base = stateForTrustProxyStep();
+    return stateForTrustProxyStep({
+      version: { selectedMinor: minor },
+      globalStrategy: { ...base.globalStrategy, proxyEnabled: true },
+      ...extraOverrides
+    });
+  }
+
+  function renderTrustProxy(state) {
+    const value = {
+      state,
+      updateState: vi.fn(),
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    return render(
+      <AppContext.Provider value={value}>
+        <TrustProxyStep />
+      </AppContext.Provider>
+    );
+  }
+
+  const SYNTHETIC_CATALOG = [
+    { path: "proxy.httpProxy", outputFile: "install-config.yaml", supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false, default: "not specified in docs", description: "HTTP proxy URL", allowed: "http URL" },
+    { path: "proxy.httpsProxy", outputFile: "install-config.yaml", supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false, default: "not specified in docs", description: "HTTPS proxy URL", allowed: "https URL" },
+    { path: "proxy.noProxy", outputFile: "install-config.yaml", supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false, default: "not specified in docs", description: "No proxy destinations" },
+    { path: "additionalTrustBundle", outputFile: "install-config.yaml", supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false, default: "not specified in docs", description: "PEM trust bundle", allowed: "PEM-encoded X.509 bundle" },
+    { path: "additionalTrustBundlePolicy", outputFile: "install-config.yaml", supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false, default: "Proxyonly", description: "Trust bundle policy", allowed: ["Proxyonly", "Always"] },
+  ];
+
+  it("requests catalog with '4.21' when state has selectedMinor 4.21", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    const state = stateWithMinor("4.21");
+    renderTrustProxy(state);
+    const catalogCall = spy.mock.calls.find(c => c[0] === getScenarioId(state));
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.21");
+  });
+
+  it("requests catalog with '4.20' when state has selectedMinor 4.20", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    const state = stateWithMinor("4.20");
+    renderTrustProxy(state);
+    const catalogCall = spy.mock.calls.find(c => c[0] === getScenarioId(state));
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.20");
+  });
+
+  it("passes explicit 4.22 to getCatalogForScenario without downgrading", () => {
+    const catalogSpy = vi
+      .spyOn(catalogResolver, "getCatalogForScenario")
+      .mockReturnValue([]);
+    vi.spyOn(catalogResolver, "getRequiredParamsForOutput").mockReturnValue([]);
+    vi.spyOn(catalogResolver, "getParamMeta").mockReturnValue(undefined);
+    const state = stateWithMinor("4.22");
+    renderTrustProxy(state);
+    const catalogCall = catalogSpy.mock.calls.find(
+      (call) => call[0] === getScenarioId(state)
+    );
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.22");
+    expect(catalogCall[1]).not.toBe("4.20");
+    expect(catalogCall[1]).not.toBe("4.21");
+  });
+
+  it("passes state as fourth argument to every getParamMeta call", () => {
+    const spy = vi.spyOn(catalogResolver, "getParamMeta");
+    const state = stateWithMinor("4.20");
+    renderTrustProxy(state);
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    for (const call of spy.mock.calls) {
+      expect(call[3]).toBe(state);
+    }
+  });
+
+  it("passes state as third argument to every getRequiredParamsForOutput call", () => {
+    const spy = vi.spyOn(catalogResolver, "getRequiredParamsForOutput");
+    const state = stateWithMinor("4.20");
+    renderTrustProxy(state);
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    for (const call of spy.mock.calls) {
+      expect(call[2]).toBe(state);
+    }
+  });
+
+  it("proxy.httpProxy with minVersion 4.21 is absent at selected minor 4.20", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "proxy.httpProxy"
+        ? { ...entry, minVersion: "4.21" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20");
+    renderTrustProxy(state);
+    expect(screen.queryByPlaceholderText("http://proxy.corp:8080")).not.toBeInTheDocument();
+  });
+
+  it("proxy.httpProxy with minVersion 4.21 is present at selected minor 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "proxy.httpProxy"
+        ? { ...entry, minVersion: "4.21" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.21");
+    renderTrustProxy(state);
+    expect(screen.getByPlaceholderText("http://proxy.corp:8080")).toBeInTheDocument();
+  });
+
+  it("proxy.httpProxy with supported-backend-only is absent even when in version range", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path === "proxy.httpProxy"
+        ? { ...entry, supportStatus: "supported-backend-only" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.21");
+    const { container } = renderTrustProxy(state);
+    expect(screen.queryByPlaceholderText("http://proxy.corp:8080")).not.toBeInTheDocument();
+    // Sibling supported-ui field remains visible
+    expect(screen.getByPlaceholderText(/proxy\.corp:8443/)).toBeInTheDocument();
+    // Grid renders because at least one proxy field is visible
+    expect(container.querySelector(".proxy-fields-grid")).toBeInTheDocument();
+  });
+
+  it("all proxy fields hidden: no empty grid renders, workflow toggle stays visible", () => {
+    const catalog = SYNTHETIC_CATALOG.map(entry =>
+      entry.path.startsWith("proxy.")
+        ? { ...entry, supportStatus: "supported-backend-only" }
+        : entry
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.20");
+    const { container } = renderTrustProxy(state);
+    // Proxy workflow toggle remains visible
+    expect(screen.getByRole("switch", { name: /Enable proxy/i })).toBeInTheDocument();
+    // All three proxy fields are absent
+    expect(screen.queryByPlaceholderText("http://proxy.corp:8080")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/proxy\.corp:8443/)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/\.cluster\.local/)).not.toBeInTheDocument();
+    // Empty grid is not rendered
+    expect(container.querySelector(".proxy-fields-grid")).not.toBeInTheDocument();
+    // Trust-bundle control still renders (component is alive)
+    expect(screen.getByRole("switch", { name: /Mirror registry uses private CA/i })).toBeInTheDocument();
+  });
+
+  it("omitted catalog field does not render while retained sibling renders", () => {
+    const catalog = SYNTHETIC_CATALOG.filter(entry => entry.path !== "proxy.httpProxy");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = stateWithMinor("4.21");
+    renderTrustProxy(state);
+    expect(screen.queryByPlaceholderText("http://proxy.corp:8080")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/proxy\.corp:8443/)).toBeInTheDocument();
+  });
+
+  it.each(["4.20", "4.21"])("real catalog %s: proxy and trust controls render", (minor) => {
+    const state = stateWithMinor(minor);
+    renderTrustProxy(state);
+    expect(screen.getByPlaceholderText("http://proxy.corp:8080")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/proxy\.corp:8443/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/\.cluster\.local/)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /Mirror registry uses private CA/i })).toBeInTheDocument();
   });
 });
