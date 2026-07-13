@@ -12,6 +12,7 @@
  */
 
 import { getCatalogForScenario } from './catalogPaths';
+import { isParamSupportedForVersion } from '../../shared/versionUtils.js';
 
 const NOT_SPECIFIED = "not specified in docs";
 
@@ -103,6 +104,32 @@ export function getParamMeta(scenarioId, path, outputFile, version = '4.20') {
     // Ensure default is null when undefined
     default: meta.default !== undefined ? meta.default : null
   };
+}
+
+/**
+ * Returns whether a catalog parameter should be visible (renderable) in the UI
+ * for the given OpenShift minor version.
+ *
+ * Checks:
+ * 1. Param and selectedMinor are present
+ * 2. supportStatus is present and is supported-ui or deprecated-supported
+ * 3. minVersion is present
+ * 4. Version range: minVersion <= selectedMinor <= maxVersion
+ *
+ * This defines default automatic eligibility for standard user-editable
+ * catalog fields. It must not automatically remove an existing deliberate
+ * control until that component is explicitly migrated and tested.
+ *
+ * @param {Object} param - Full catalog parameter object (with supportStatus, minVersion, maxVersion)
+ * @param {string} selectedMinor - OpenShift minor version (e.g., "4.20", "4.21") — REQUIRED, no default
+ * @returns {boolean}
+ */
+export function isParamVisibleForVersion(param, selectedMinor) {
+  if (!param || !selectedMinor) return false;
+  const status = param.supportStatus;
+  if (status !== 'supported-ui' && status !== 'deprecated-supported') return false;
+  if (!param.minVersion) return false;
+  return isParamSupportedForVersion(param, selectedMinor);
 }
 
 /**
