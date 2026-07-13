@@ -11,8 +11,9 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../store.jsx";
-import { getScenarioId } from "../hostInventoryV2Helpers.js";
-import { getFieldMeta } from "../catalogFieldMeta.js";
+import { getScenarioId, getParamMeta, getCatalogForScenario } from "../catalogResolver.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { isValidPullSecret, isValidSshPublicKey } from "../validation.js";
 import { apiFetch } from "../api.js";
 import SecretInput from "../components/SecretInput.jsx";
@@ -26,9 +27,9 @@ import Switch from "../components/Switch.jsx";
  */
 export default function IdentityAccessStep({ previewControls, previewEnabled, highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
-  const platform = state.blueprint?.platform;
-  const method = state.methodology?.method;
-  const scenarioId = getScenarioId(platform, method);
+  const scenarioId = getScenarioId(state);
+  const selectedMinor = getOpenShiftMinorFromState(state) || "4.20";
+  const catalogParams = getCatalogForScenario(scenarioId, selectedMinor) || [];
   const strategy = state.globalStrategy || {};
   const mirroring = strategy.mirroring || {};
 
@@ -95,10 +96,25 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   }, [anyModalOpen]);
 
   const installConfig = "install-config.yaml";
-  const metaName = getFieldMeta(scenarioId, installConfig, "metadata.name");
-  const metaBaseDomain = getFieldMeta(scenarioId, installConfig, "baseDomain");
-  const metaPullSecret = getFieldMeta(scenarioId, installConfig, "pullSecret");
-  const metaSshKey = getFieldMeta(scenarioId, installConfig, "sshKey");
+
+  // Deliberate exceptions: metadata.name (supported-derived) and fips (supported-backend-only)
+  // are product controls that bypass generic catalog visibility.
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+
+  const showBaseDomain = isCatalogFieldVisible("baseDomain", installConfig);
+  const showPullSecret = isCatalogFieldVisible("pullSecret", installConfig);
+  const showSshKey = isCatalogFieldVisible("sshKey", installConfig);
+  const showAccessCredentials = showPullSecret || showSshKey;
+
+  const metaName = getParamMeta(scenarioId, "metadata.name", installConfig, state);
+  const metaBaseDomain = getParamMeta(scenarioId, "baseDomain", installConfig, state);
+  const metaPullSecret = getParamMeta(scenarioId, "pullSecret", installConfig, state);
+  const metaSshKey = getParamMeta(scenarioId, "sshKey", installConfig, state);
 
   const activePullSecret = usingMirrorRegistry ? mirrorRegistryPullSecret : pullSecretPlaceholder;
   const pullSecretCheck = isValidPullSecret(activePullSecret);
@@ -312,6 +328,7 @@ dev-ocp`}
                 aria-invalid={fieldErrors.clusterName ? "true" : "false"}
               />
             </FieldLabelWithInfo>
+            {showBaseDomain && (
             <FieldLabelWithInfo
               label="Base Domain"
               hint={`DNS domain suffix for your cluster.
@@ -371,9 +388,11 @@ ocp.company.com`}
                 aria-invalid={fieldErrors.baseDomain ? "true" : "false"}
               />
             </FieldLabelWithInfo>
+            )}
           </div>
         </section>
 
+        {showAccessCredentials && (
         <section className={`card ${fieldErrors.pullSecret ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
@@ -382,6 +401,8 @@ ocp.company.com`}
             </div>
           </div>
           <div className="card-body">
+            {showPullSecret && (
+            <>
             <div
               className="credentials-mirror-checkbox-grid"
               style={{
@@ -618,7 +639,10 @@ If you selected "Anonymous pulls" above, this field is auto-filled with an OKD-d
                 );
               })()}
             </div>
+            </>
+            )}
 
+            {showSshKey && (
             <div className="credentials-field-constrained">
               <FieldLabelWithInfo
                 label="SSH Public Key"
@@ -673,8 +697,10 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJqfh... user@hostname`}
                 </button>
               </div>
             </div>
+            )}
           </div>
         </section>
+        )}
 
         <section className="card">
           <div className="card-header">
