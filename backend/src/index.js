@@ -1436,6 +1436,12 @@ app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
       }
     });
   }
+
+  if (mountedMirrorPullSecret && next.ui?.mirrorConfigPreloaded) {
+    next.credentials = next.credentials || {};
+    next.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
   res.json(next);
 });
 
