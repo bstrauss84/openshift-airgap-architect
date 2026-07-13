@@ -13,6 +13,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { formatMACAsYouType } from "../formatUtils.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
@@ -72,7 +73,8 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || "";
   const arch = state.blueprint?.arch || "x86_64";
   const versionConfirmed = getVersionLocked(state);
-  const catalogParams = getCatalogForScenario(scenarioId) || [];
+  const selectedMinor = getOpenShiftMinorFromState(state) || "4.20";
+  const catalogParams = getCatalogForScenario(scenarioId, selectedMinor) || [];
   const showAwsGovcloudSection = catalogParams.some(
     (p) => p.path === "platform.aws.region" && p.outputFile === INSTALL_CONFIG
   );
@@ -267,57 +269,60 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showAgentOptionsSection = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && catalogParams.some(
     (p) => p.path === "bootArtifactsBaseURL" && p.outputFile === AGENT_CONFIG
   );
-  const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG);
-  const requiredPathsAgent = getRequiredParamsForOutput(scenarioId, AGENT_CONFIG) || [];
+  const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG, state);
+  const requiredPathsAgent = getRequiredParamsForOutput(scenarioId, AGENT_CONFIG, state) || [];
   const isRequiredAgent = (path) => requiredPathsAgent.includes(path);
-  const metaAwsRegion = getParamMeta(scenarioId, "platform.aws.region", INSTALL_CONFIG);
-  const metaAwsHostedZone = getParamMeta(scenarioId, "platform.aws.hostedZone", INSTALL_CONFIG);
-  const metaAwsHostedZoneRole = getParamMeta(scenarioId, "platform.aws.hostedZoneRole", INSTALL_CONFIG);
-  const metaAwsLbType = getParamMeta(scenarioId, "platform.aws.lbType", INSTALL_CONFIG);
-  const metaAwsSubnets = getParamMeta(scenarioId, "platform.aws.vpc.subnets", INSTALL_CONFIG);
-  const metaAwsAmiID = getParamMeta(scenarioId, "platform.aws.amiID", INSTALL_CONFIG);
-  const metaControlPlaneAwsType = getParamMeta(scenarioId, "controlPlane.platform.aws.type", INSTALL_CONFIG);
-  const metaComputeAwsType = getParamMeta(scenarioId, "compute[].platform.aws.type", INSTALL_CONFIG);
-  const metaPublish = getParamMeta(scenarioId, "publish", INSTALL_CONFIG);
-  const metaCredentialsMode = getParamMeta(scenarioId, "credentialsMode", INSTALL_CONFIG);
+  const metaAwsRegion = getParamMeta(scenarioId, "platform.aws.region", INSTALL_CONFIG, state);
+  const metaAwsHostedZone = getParamMeta(scenarioId, "platform.aws.hostedZone", INSTALL_CONFIG, state);
+  const metaAwsHostedZoneRole = getParamMeta(scenarioId, "platform.aws.hostedZoneRole", INSTALL_CONFIG, state);
+  const metaAwsLbType = getParamMeta(scenarioId, "platform.aws.lbType", INSTALL_CONFIG, state);
+  const metaAwsSubnets = getParamMeta(scenarioId, "platform.aws.vpc.subnets", INSTALL_CONFIG, state);
+  const metaAwsAmiID = getParamMeta(scenarioId, "platform.aws.amiID", INSTALL_CONFIG, state);
+  const metaControlPlaneAwsType = getParamMeta(scenarioId, "controlPlane.platform.aws.type", INSTALL_CONFIG, state);
+  const metaComputeAwsType = getParamMeta(scenarioId, "compute[].platform.aws.type", INSTALL_CONFIG, state);
+  const metaPublish = getParamMeta(scenarioId, "publish", INSTALL_CONFIG, state);
+  const metaCredentialsMode = getParamMeta(scenarioId, "credentialsMode", INSTALL_CONFIG, state);
 
   /** Azure Government IPI: show when catalog has platform.azure.cloudName. */
   const showAzureGovSection = catalogParams.some(
     (p) => p.path === "platform.azure.cloudName" && p.outputFile === INSTALL_CONFIG
   );
-  const metaAzureCloudName = getParamMeta(scenarioId, "platform.azure.cloudName", INSTALL_CONFIG);
-  const metaAzureRegion = getParamMeta(scenarioId, "platform.azure.region", INSTALL_CONFIG);
-  const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG);
-  const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG);
+  const metaAzureCloudName = getParamMeta(scenarioId, "platform.azure.cloudName", INSTALL_CONFIG, state);
+  const metaAzureRegion = getParamMeta(scenarioId, "platform.azure.region", INSTALL_CONFIG, state);
+  const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG, state);
+  const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG, state);
 
   /** IBM Cloud IPI: show when catalog has platform.ibmcloud.region. */
   const showIbmCloudSection = catalogParams.some(
     (p) => p.path === "platform.ibmcloud.region" && p.outputFile === INSTALL_CONFIG
   );
-  const metaIbmRegion = getParamMeta(scenarioId, "platform.ibmcloud.region", INSTALL_CONFIG);
-  const metaIbmResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.resourceGroupName", INSTALL_CONFIG);
-  const metaIbmNetworkResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.networkResourceGroupName", INSTALL_CONFIG);
-  const metaIbmVpcName = getParamMeta(scenarioId, "platform.ibmcloud.vpcName", INSTALL_CONFIG);
-  const metaIbmControlPlaneSubnets = getParamMeta(scenarioId, "platform.ibmcloud.controlPlaneSubnets", INSTALL_CONFIG);
-  const metaIbmComputeSubnets = getParamMeta(scenarioId, "platform.ibmcloud.computeSubnets", INSTALL_CONFIG);
-  const metaIbmServiceEndpoints = getParamMeta(scenarioId, "platform.ibmcloud.serviceEndpoints", INSTALL_CONFIG);
-  const metaIbmType = getParamMeta(scenarioId, "platform.ibmcloud.type", INSTALL_CONFIG);
-  const metaIbmDedicatedHostsProfile = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.profile", INSTALL_CONFIG);
-  const metaIbmDedicatedHostsName = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.name", INSTALL_CONFIG);
+  const metaIbmRegion = getParamMeta(scenarioId, "platform.ibmcloud.region", INSTALL_CONFIG, state);
+  const metaIbmResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.resourceGroupName", INSTALL_CONFIG, state);
+  const metaIbmNetworkResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.networkResourceGroupName", INSTALL_CONFIG, state);
+  const metaIbmVpcName = getParamMeta(scenarioId, "platform.ibmcloud.vpcName", INSTALL_CONFIG, state);
+  const metaIbmControlPlaneSubnets = getParamMeta(scenarioId, "platform.ibmcloud.controlPlaneSubnets", INSTALL_CONFIG, state);
+  const metaIbmComputeSubnets = getParamMeta(scenarioId, "platform.ibmcloud.computeSubnets", INSTALL_CONFIG, state);
+  const metaIbmServiceEndpoints = getParamMeta(scenarioId, "platform.ibmcloud.serviceEndpoints", INSTALL_CONFIG, state);
+  const metaIbmType = getParamMeta(scenarioId, "platform.ibmcloud.type", INSTALL_CONFIG, state);
+  const metaIbmDedicatedHostsProfile = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.profile", INSTALL_CONFIG, state);
+  const metaIbmDedicatedHostsName = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.name", INSTALL_CONFIG, state);
   const metaIbmDefaultMachineBootVolumeKey = getParamMeta(
     scenarioId,
     "platform.ibmcloud.defaultMachinePlatform.bootVolume.encryptionKey",
-    INSTALL_CONFIG
+    INSTALL_CONFIG,
+    state
   );
   const metaIbmControlPlaneBootVolumeKey = getParamMeta(
     scenarioId,
     "controlPlane.platform.ibmcloud.bootVolume.encryptionKey",
-    INSTALL_CONFIG
+    INSTALL_CONFIG,
+    state
   );
   const metaIbmComputeBootVolumeKey = getParamMeta(
     scenarioId,
     "compute[].platform.ibmcloud.bootVolume.encryptionKey",
-    INSTALL_CONFIG
+    INSTALL_CONFIG,
+    state
   );
   const ibmVpcMode = platformConfig.ibmcloud?.vpcMode || "existing-vpc";
   const isIbmExistingVpcMode = ibmVpcMode === "existing-vpc";
@@ -347,12 +352,12 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     (p) => (p.path === "platform.nutanix.prismCentral" || p.path === "platform.nutanix.subnet") && p.outputFile === INSTALL_CONFIG
   );
   const updateNutanix = (patch) => updatePlatformConfig({ nutanix: { ...(platformConfig.nutanix || {}), ...patch } });
-  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.address", INSTALL_CONFIG);
-  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.port", INSTALL_CONFIG);
-  const metaNutanixUsername = getParamMeta(scenarioId, "platform.nutanix.prismCentral.username", INSTALL_CONFIG);
-  const metaNutanixPassword = getParamMeta(scenarioId, "platform.nutanix.prismCentral.password", INSTALL_CONFIG);
-  const metaNutanixSubnet = getParamMeta(scenarioId, "platform.nutanix.subnet", INSTALL_CONFIG);
-  const metaNutanixClusterName = getParamMeta(scenarioId, "platform.nutanix.clusterName", INSTALL_CONFIG);
+  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.address", INSTALL_CONFIG, state);
+  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.port", INSTALL_CONFIG, state);
+  const metaNutanixUsername = getParamMeta(scenarioId, "platform.nutanix.prismCentral.username", INSTALL_CONFIG, state);
+  const metaNutanixPassword = getParamMeta(scenarioId, "platform.nutanix.prismCentral.password", INSTALL_CONFIG, state);
+  const metaNutanixSubnet = getParamMeta(scenarioId, "platform.nutanix.subnet", INSTALL_CONFIG, state);
+  const metaNutanixClusterName = getParamMeta(scenarioId, "platform.nutanix.clusterName", INSTALL_CONFIG, state);
 
   /** vSphere IPI/UPI: show when catalog has platform.vsphere params. */
   const showVsphereIpiSection = catalogParams.some(
@@ -362,11 +367,11 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showFailureDomainsSection = scenarioId === "vsphere-ipi" && catalogParams.some(
     (p) => p.path === "platform.vsphere.failureDomains" && p.outputFile === INSTALL_CONFIG
   );
-  const metaVsphereVcenter = getParamMeta(scenarioId, "platform.vsphere.vcenter", INSTALL_CONFIG);
-  const metaVsphereDatacenter = getParamMeta(scenarioId, "platform.vsphere.datacenter", INSTALL_CONFIG);
-  const metaVsphereDefaultDatastore = getParamMeta(scenarioId, "platform.vsphere.defaultDatastore", INSTALL_CONFIG);
-  const metaVsphereDiskType = getParamMeta(scenarioId, "platform.vsphere.diskType", INSTALL_CONFIG);
-  const requiredPathsInstall = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
+  const metaVsphereVcenter = getParamMeta(scenarioId, "platform.vsphere.vcenter", INSTALL_CONFIG, state);
+  const metaVsphereDatacenter = getParamMeta(scenarioId, "platform.vsphere.datacenter", INSTALL_CONFIG, state);
+  const metaVsphereDefaultDatastore = getParamMeta(scenarioId, "platform.vsphere.defaultDatastore", INSTALL_CONFIG, state);
+  const metaVsphereDiskType = getParamMeta(scenarioId, "platform.vsphere.diskType", INSTALL_CONFIG, state);
+  const requiredPathsInstall = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG, state) || [];
   const isRequiredInstall = (path) => requiredPathsInstall.includes(path);
 
   const failureDomains = Array.isArray(platformConfig.vsphere?.failureDomains) ? platformConfig.vsphere.failureDomains : [];
@@ -395,12 +400,12 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showProvisioningNetworkSection = scenarioId === "bare-metal-ipi" && catalogParams.some(
     (p) => p.path === "platform.baremetal.provisioningNetwork" && p.outputFile === INSTALL_CONFIG
   );
-  const metaProvisioningNetwork = getParamMeta(scenarioId, "platform.baremetal.provisioningNetwork", INSTALL_CONFIG);
-  const metaProvisioningCIDR = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkCIDR", INSTALL_CONFIG);
-  const metaProvisioningInterface = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkInterface", INSTALL_CONFIG);
-  const metaProvisioningDHCPRange = getParamMeta(scenarioId, "platform.baremetal.provisioningDHCPRange", INSTALL_CONFIG);
-  const metaClusterProvisioningIP = getParamMeta(scenarioId, "platform.baremetal.clusterProvisioningIP", INSTALL_CONFIG);
-  const metaProvisioningMAC = getParamMeta(scenarioId, "platform.baremetal.provisioningMACAddress", INSTALL_CONFIG);
+  const metaProvisioningNetwork = getParamMeta(scenarioId, "platform.baremetal.provisioningNetwork", INSTALL_CONFIG, state);
+  const metaProvisioningCIDR = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkCIDR", INSTALL_CONFIG, state);
+  const metaProvisioningInterface = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkInterface", INSTALL_CONFIG, state);
+  const metaProvisioningDHCPRange = getParamMeta(scenarioId, "platform.baremetal.provisioningDHCPRange", INSTALL_CONFIG, state);
+  const metaClusterProvisioningIP = getParamMeta(scenarioId, "platform.baremetal.clusterProvisioningIP", INSTALL_CONFIG, state);
+  const metaProvisioningMAC = getParamMeta(scenarioId, "platform.baremetal.provisioningMACAddress", INSTALL_CONFIG, state);
 
   const provisioningNetworkOptions = Array.isArray(metaProvisioningNetwork?.allowed)
     ? metaProvisioningNetwork.allowed
@@ -417,14 +422,14 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
   const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showFeatureSet || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
 
-  const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG);
-  const metaControlPlaneHyperthreading = getParamMeta(scenarioId, "controlPlane[].hyperthreading", INSTALL_CONFIG);
-  const metaBaselineCapability = getParamMeta(scenarioId, "capabilities.baselineCapabilitySet", INSTALL_CONFIG);
-  const metaAdditionalCapabilities = getParamMeta(scenarioId, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
-  const metaCpuPartitioningMode = getParamMeta(scenarioId, "cpuPartitioningMode", INSTALL_CONFIG);
-  const metaFeatureSet = getParamMeta(scenarioId, "featureSet", INSTALL_CONFIG);
-  const metaFeatureGates = getParamMeta(scenarioId, "featureGates", INSTALL_CONFIG);
-  const metaMinimalISO = getParamMeta(scenarioId, "minimalISO", AGENT_CONFIG);
+  const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG, state);
+  const metaControlPlaneHyperthreading = getParamMeta(scenarioId, "controlPlane[].hyperthreading", INSTALL_CONFIG, state);
+  const metaBaselineCapability = getParamMeta(scenarioId, "capabilities.baselineCapabilitySet", INSTALL_CONFIG, state);
+  const metaAdditionalCapabilities = getParamMeta(scenarioId, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG, state);
+  const metaCpuPartitioningMode = getParamMeta(scenarioId, "cpuPartitioningMode", INSTALL_CONFIG, state);
+  const metaFeatureSet = getParamMeta(scenarioId, "featureSet", INSTALL_CONFIG, state);
+  const metaFeatureGates = getParamMeta(scenarioId, "featureGates", INSTALL_CONFIG, state);
+  const metaMinimalISO = getParamMeta(scenarioId, "minimalISO", AGENT_CONFIG, state);
 
   const hyperthreadingOptions = ["Enabled", "Disabled"];
   const featureSetOptions = ["TechPreviewNoUpgrade", "CustomNoUpgrade", "LatencyMitigating"];

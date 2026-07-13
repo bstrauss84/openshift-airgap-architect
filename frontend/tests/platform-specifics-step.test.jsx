@@ -13,7 +13,8 @@ import App from "../src/App.jsx";
 import { apiFetch } from "../src/api.js";
 import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/minimalState.js";
 import { validateStep } from "../src/validation.js";
-import { getScenarioId, getParamMeta } from "../src/catalogResolver.js";
+import * as catalogResolver from "../src/catalogResolver.js";
+const { getScenarioId, getParamMeta, getCatalogForScenario } = catalogResolver;
 import { AppContext } from "../src/store.jsx";
 import PlatformSpecificsStep from "../src/steps/PlatformSpecificsStep.jsx";
 
@@ -877,5 +878,145 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       );
       expect(screen.queryByRole("heading", { name: /Bare metal IPI — Provisioning network/i })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("PlatformSpecificsStep version-aware catalog access (DOC-102 Slice 5H Chunk 2)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function stateWith421() {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: "4.21" }
+    };
+  }
+
+  function stateWith420() {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: "4.20" }
+    };
+  }
+
+  function stateWith422() {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: "4.22" }
+    };
+  }
+
+  it("requests catalog with '4.21' when state has selectedMinor 4.21", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    const state = stateWith421();
+    const value = {
+      state,
+      updateState: vi.fn(),
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    const catalogCall = spy.mock.calls.find(c => c[0] === getScenarioId(state));
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.21");
+  });
+
+  it("requests catalog with '4.20' when state has selectedMinor 4.20", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    const state = stateWith420();
+    const value = {
+      state,
+      updateState: vi.fn(),
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    const catalogCall = spy.mock.calls.find(c => c[0] === getScenarioId(state));
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.20");
+  });
+
+  it("passes explicit 4.22 to getCatalogForScenario without downgrading", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    const state = stateWith422();
+    const scenarioId = getScenarioId(state);
+    try {
+      const value = {
+        state,
+        updateState: vi.fn(),
+        loading: false,
+        startOver: vi.fn(),
+        setState: vi.fn()
+      };
+      render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+    } catch {
+      // 4.22 is unsupported, so getCatalogForScenario may throw UnsupportedVersionError
+    }
+    const catalogCall = spy.mock.calls.find(c => c[0] === scenarioId);
+    expect(catalogCall).toBeDefined();
+    expect(catalogCall[1]).toBe("4.22");
+    expect(catalogCall[1]).not.toBe("4.20");
+    expect(catalogCall[1]).not.toBe("4.21");
+  });
+
+  it("passes state as fourth argument to every getParamMeta call", () => {
+    const spy = vi.spyOn(catalogResolver, "getParamMeta");
+    const state = stateForPlatformSpecificsStep();
+    const value = {
+      state,
+      updateState: vi.fn(),
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    for (const call of spy.mock.calls) {
+      expect(call[3]).toBe(state);
+    }
+  });
+
+  it("passes state as third argument to every getRequiredParamsForOutput call", () => {
+    const requiredSpy = vi.spyOn(catalogResolver, "getRequiredParamsForOutput");
+    const state = stateForPlatformSpecificsStep();
+    const value = {
+      state,
+      updateState: vi.fn(),
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    expect(requiredSpy.mock.calls.length).toBeGreaterThan(0);
+    for (const call of requiredSpy.mock.calls) {
+      expect(call[2]).toBe(state);
+    }
   });
 });
