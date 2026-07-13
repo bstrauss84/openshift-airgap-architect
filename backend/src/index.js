@@ -2606,9 +2606,14 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
 
   const v3State = stateMigrationResult.migrated;
 
-  const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
+  // Version must be locked before running oc-mirror
+  // Check canonical v3 version.locked field (primary) with backward-compatible fallback to release.confirmed
+  const versionLocked = v3State.version?.locked;
+  const releaseConfirmed = v3State.release?.confirmed;
+  const confirmed = versionLocked ?? releaseConfirmed;
+
   if (!confirmed) {
-    return res.status(400).json({ error: "Version not confirmed." });
+    return res.status(400).json({ error: "Version must be confirmed before running oc-mirror" });
   }
   const body = req.body || {};
   const mode = body.mode || "mirrorToDisk";

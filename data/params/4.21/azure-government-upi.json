@@ -1484,7 +1484,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },
@@ -1512,7 +1512,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },
@@ -1540,7 +1540,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },
@@ -1568,7 +1568,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },

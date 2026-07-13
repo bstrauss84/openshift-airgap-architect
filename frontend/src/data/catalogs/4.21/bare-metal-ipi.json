@@ -2117,7 +2117,7 @@
           "note": "Evidence-based investigation completed 2026-06-30"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },
@@ -2162,7 +2162,7 @@
           "note": "Evidence-based investigation completed 2026-06-30"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },

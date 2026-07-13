@@ -157,12 +157,12 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(dnsRecordsType).toBeDefined();
         expect(dnsRecordsType.minVersion).toBe('4.21');
         expect(dnsRecordsType.maxVersion).toBe(null);
-        expect(dnsRecordsType.supportStatus).toBe('catalog-only');
+        expect(dnsRecordsType.supportStatus).toBe('supported-backend-only');
 
         expect(bmcVerifyCA).toBeDefined();
         expect(bmcVerifyCA.minVersion).toBe('4.21');
         expect(bmcVerifyCA.maxVersion).toBe(null);
-        expect(bmcVerifyCA.supportStatus).toBe('catalog-only');
+        expect(bmcVerifyCA.supportStatus).toBe('supported-backend-only');
       });
     });
 
@@ -176,7 +176,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(dnsRecordsType).toBeDefined();
         expect(dnsRecordsType.minVersion).toBe('4.21');
         expect(dnsRecordsType.maxVersion).toBe(null);
-        expect(dnsRecordsType.supportStatus).toBe('catalog-only');
+        expect(dnsRecordsType.supportStatus).toBe('supported-backend-only');
       });
     });
 
@@ -188,7 +188,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(dnsRecordsType).toBeDefined();
       expect(dnsRecordsType.minVersion).toBe('4.21');
       expect(dnsRecordsType.maxVersion).toBe(null);
-      expect(dnsRecordsType.supportStatus).toBe('catalog-only');
+      expect(dnsRecordsType.supportStatus).toBe('supported-backend-only');
     });
 
     it('all 7 high-confidence params (Slice 5B) have catalog-only supportStatus', () => {
@@ -205,7 +205,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(highConfParams).toHaveLength(7);
 
       highConfParams.forEach(p => {
-        expect(p.supportStatus).toBe('catalog-only');
+        expect(p.supportStatus).toBe('supported-backend-only');
       });
     });
 
@@ -225,7 +225,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(manualReviewParams).toHaveLength(4);
 
       manualReviewParams.forEach(p => {
-        expect(p.supportStatus).toBe('catalog-only');
+        expect(p.supportStatus).toBe('supported-backend-only');
         expect(p.outputFile).toBe('install-config.yaml');
       });
     });

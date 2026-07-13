@@ -481,7 +481,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },
@@ -509,7 +509,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },
@@ -537,7 +537,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "catalog-only",
+      "supportStatus": "supported-backend-only",
       "minVersion": "4.21",
       "maxVersion": null
     },
@@ -1523,7 +1523,7 @@
       "allowed": "list of objects with id (optional roles per 4.20 doc)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per OpenShift 4.20. Omit for installer-provisioned VPC. If any role is set, each subnet must have ≥1 role and required roles (ClusterNode, IngressControllerLB, etc.) must be covered; ControlPlaneExternalLB not required when publish=Internal.",
+      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per OpenShift 4.20. Omit for installer-provisioned VPC. If any role is set, each subnet must have \u22651 role and required roles (ClusterNode, IngressControllerLB, etc.) must be covered; ControlPlaneExternalLB not required when publish=Internal.",
       "applies_to": [
         "aws-govcloud-ipi"
       ],
