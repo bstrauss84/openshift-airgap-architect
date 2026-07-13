@@ -2568,6 +2568,12 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
   });
 
   child.on("close", (code) => {
+    const currentRetryJob = getJob(retryJobId);
+    if (currentRetryJob?.status === "cancelled") {
+      activeProcesses.delete(retryJobId);
+      cleanupRegistriesDDir(registriesDDir);
+      return;
+    }
     const finishedAt = Date.now();
     const artifactsBaseDir = resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath);
     const clusterResourcesPath = artifactsBaseDir
@@ -2836,6 +2842,14 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     if (authFile) safeUnlink(authFile);
   });
   child.on("close", (code) => {
+    const currentJob = getJob(jobId);
+    if (currentJob?.status === "cancelled") {
+      activeProcesses.delete(jobId);
+      if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
+      safeUnlink(configPathToUse);
+      if (authFile) safeUnlink(authFile);
+      return;
+    }
     const finishedAt = Date.now();
     const artifactsBaseDir = resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath);
     const clusterResourcesPath = artifactsBaseDir
