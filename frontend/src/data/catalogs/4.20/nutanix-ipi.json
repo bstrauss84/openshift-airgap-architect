@@ -244,7 +244,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
@@ -480,7 +480,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },

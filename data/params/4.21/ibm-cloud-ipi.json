@@ -287,7 +287,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
@@ -566,7 +566,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },

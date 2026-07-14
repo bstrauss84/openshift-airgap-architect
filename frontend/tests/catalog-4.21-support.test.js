@@ -265,6 +265,69 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     });
   });
 
+  describe('Hyperthreading supportStatus reconciliation (Slice 5H R1)', () => {
+    const scenarios = [
+      'bare-metal-agent', 'bare-metal-ipi', 'bare-metal-upi',
+      'vsphere-agent', 'vsphere-ipi', 'vsphere-upi',
+      'aws-govcloud-ipi', 'aws-govcloud-upi',
+      'azure-government-ipi', 'azure-government-upi',
+      'ibm-cloud-ipi', 'nutanix-ipi'
+    ];
+    const versions = ['4.20', '4.21'];
+    const htPaths = ['compute[].hyperthreading', 'controlPlane[].hyperthreading'];
+
+    versions.forEach(version => {
+      describe(`${version} catalogs`, () => {
+        scenarios.forEach(scenario => {
+          htPaths.forEach(htPath => {
+            it(`${scenario} has exactly one ${htPath} entry with supportStatus=supported-ui`, () => {
+              const params = getCatalogForScenario(scenario, version);
+              const matches = params.filter(
+                p => p.path === htPath && p.outputFile === 'install-config.yaml'
+              );
+              expect(matches).toHaveLength(1);
+              expect(matches[0].supportStatus).toBe('supported-ui');
+              expect(matches[0].minVersion).toBe('4.20');
+              expect(matches[0].maxVersion).toBe(null);
+            });
+          });
+        });
+      });
+    });
+
+    it('no scenario silently omits either hyperthreading field', () => {
+      versions.forEach(version => {
+        scenarios.forEach(scenario => {
+          const params = getCatalogForScenario(scenario, version);
+          htPaths.forEach(htPath => {
+            const match = params.find(
+              p => p.path === htPath && p.outputFile === 'install-config.yaml'
+            );
+            expect(match).toBeDefined();
+          });
+        });
+      });
+    });
+
+    it('4.20 and 4.21 have identical hyperthreading metadata', () => {
+      scenarios.forEach(scenario => {
+        htPaths.forEach(htPath => {
+          const params420 = getCatalogForScenario(scenario, '4.20');
+          const params421 = getCatalogForScenario(scenario, '4.21');
+          const entry420 = params420.find(
+            p => p.path === htPath && p.outputFile === 'install-config.yaml'
+          );
+          const entry421 = params421.find(
+            p => p.path === htPath && p.outputFile === 'install-config.yaml'
+          );
+          expect(entry420.supportStatus).toBe(entry421.supportStatus);
+          expect(entry420.minVersion).toBe(entry421.minVersion);
+          expect(entry420.maxVersion).toBe(entry421.maxVersion);
+        });
+      });
+    });
+  });
+
   describe('No deferred platforms/scenarios added', () => {
     it('PowerVC catalogs do not exist', () => {
       expect(() => getCatalogForScenario('powervc-ipi', '4.21'))
