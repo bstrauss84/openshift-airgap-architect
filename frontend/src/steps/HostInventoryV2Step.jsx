@@ -25,8 +25,9 @@ import {
   getNextEnoName
 } from "../hostInventoryV2Helpers.js";
 import { getCatalogPaths } from "../catalogPaths.js";
+import { getCatalogForScenario } from "../catalogResolver.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
-import { getFieldMeta } from "../catalogFieldMeta.js";
+import { getFieldMeta, isParamVisibleForVersion } from "../catalogFieldMeta.js";
 import {
   getCatalogValidationForInventoryV2,
   mergeNodeValidation
@@ -132,8 +133,16 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     () => getSectionOrderForRender(true, scenarioId),
     [scenarioId]
   );
-  const version = useMemo(() => getOpenShiftMinorFromState(state) || '4.20', [state?.release?.patchVersion, state?.release?.channel, state?.version?.selectedVersion]);
+  const version = getOpenShiftMinorFromState(state) || '4.20';
   const catalogPaths = useMemo(() => getCatalogPaths(scenarioId, version), [scenarioId, version]);
+  const catalogParams = useMemo(() => getCatalogForScenario(scenarioId, version), [scenarioId, version]);
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, version);
+  };
+  const showBootArtifactsBaseURL = isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG);
   const sectionOrderSet = useMemo(() => new Set(sectionOrder), [sectionOrder]);
 
   const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT, version), [scenarioId, version]);
@@ -598,6 +607,7 @@ wipefs -a /dev/sdX`}</pre>
           if (sectionId === SECTION_IDS.AGENT_OPTIONS) {
             if (state?.ui?.segmentedFlowV1 === true) return null;
             if (!isAgentInventoryScenario) return null;
+            if (!showBootArtifactsBaseURL) return null;
             return (
               <section key={sectionId} className="card host-inventory-v2-section" data-section={sectionId}>
                 <div className="host-inventory-v2-section-heading">

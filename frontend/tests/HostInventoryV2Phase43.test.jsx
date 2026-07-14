@@ -13,12 +13,14 @@
  */
 
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, act, waitFor, within } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, act, waitFor, within, cleanup } from "@testing-library/react";
 import { getScenarioId } from "../src/hostInventoryV2Helpers.js";
 import { validateStep } from "../src/validation.js";
 import { AppContext } from "../src/store.jsx";
 import HostInventoryV2Step from "../src/steps/HostInventoryV2Step.jsx";
+import * as catalogPathsModule from "../src/catalogPaths.js";
+import * as catalogResolver from "../src/catalogResolver.js";
 
 const baseState = {
   blueprint: { platform: "Bare Metal" },
@@ -225,6 +227,245 @@ describe("Phase 4.3: enum field renders as select when allowed list present", ()
     expect(
       within(drawer).getByText(/Bulk .*Apply settings to other nodes.* is not available while editing an arbiter/i)
     ).toBeTruthy();
+  });
+});
+
+describe("Phase 4.3: HostInventoryV2 metadata-based field visibility (DOC-102 Slice 5H Chunk 7)", () => {
+  const AC = "agent-config.yaml";
+  const BOOT_URL_PLACEHOLDER = "https://example.com/agent-artifacts or leave empty";
+  const AGENT_OPTIONS_HEADING = "Agent options";
+  const AGENT_OPTIONS_SECTION = "agentOptions";
+
+  const SYNTHETIC_CATALOG = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"], required: false },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+  ];
+
+  function renderInventoryV2(stateOverride) {
+    return render(
+      <MockAppProvider stateOverride={stateOverride}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+  }
+
+  function RerendererProvider({ children, initialState }) {
+    const [current, setCurrent] = React.useState(initialState);
+    const value = {
+      state: current,
+      updateState: () => {},
+      loading: false,
+      startOver: vi.fn(),
+      __setCurrent: setCurrent
+    };
+    return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("requests raw catalog with '4.20' when state has selectedMinor 4.20", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    const call = spy.mock.calls.find((c) => c[0] === "bare-metal-agent");
+    expect(call).toBeTruthy();
+    expect(call[1]).toBe("4.20");
+  });
+
+  it("requests raw catalog with '4.21' when state has selectedMinor 4.21", () => {
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+    renderInventoryV2({ version: { selectedMinor: "4.21" } });
+    const call = spy.mock.calls.find((c) => c[0] === "bare-metal-agent");
+    expect(call).toBeTruthy();
+    expect(call[1]).toBe("4.21");
+  });
+
+  it("passes explicit 4.22 to getCatalogForScenario without downgrading", () => {
+    const catalogSpy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue([]);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue([]);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set());
+    renderInventoryV2({ version: { selectedMinor: "4.22" } });
+    const call = catalogSpy.mock.calls.find((c) => c[0] === "bare-metal-agent");
+    expect(call).toBeTruthy();
+    expect(call[1]).toBe("4.22");
+    expect(call[1]).not.toBe("4.20");
+    expect(call[1]).not.toBe("4.21");
+  });
+
+  it("bootArtifactsBaseURL with minVersion 4.21: input and Agent Options section absent at 4.20", () => {
+    const catalog = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const { container } = renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByText(AGENT_OPTIONS_HEADING)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    expect(container.querySelector('[data-section="nodeGrid"]')).toBeTruthy();
+  });
+
+  it("bootArtifactsBaseURL with minVersion 4.21: input and Agent Options section present at 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const { container } = renderInventoryV2({ version: { selectedMinor: "4.21" } });
+    expect(screen.getByPlaceholderText(BOOT_URL_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText(AGENT_OPTIONS_HEADING)).toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeTruthy();
+  });
+
+  it("Role selector and hostname input remain visible when bootArtifactsBaseURL is version-gated and section hidden", () => {
+    const catalog = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const { container } = renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    const tile = screen.getByText(/master-0/i);
+    fireEvent.click(tile);
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel).toBeTruthy();
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText("e.g. master-0, arbiter-0")).toBeInTheDocument();
+  });
+
+  it("bootArtifactsBaseURL with supported-backend-only: input and section absent, Role visible", () => {
+    const catalog = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const { container } = renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByText(AGENT_OPTIONS_HEADING)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    expect(container.querySelector('[data-section="nodeGrid"]')).toBeTruthy();
+    const tile = screen.getByText(/master-0/i);
+    fireEvent.click(tile);
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel).toBeTruthy();
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+  });
+
+  it("missing bootArtifactsBaseURL entry: input and section absent, node grid visible", () => {
+    const catalog = SYNTHETIC_CATALOG.filter((e) => e.path !== "bootArtifactsBaseURL");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const { container } = renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByText(AGENT_OPTIONS_HEADING)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    expect(container.querySelector('[data-section="nodeGrid"]')).toBeTruthy();
+  });
+
+  it("existing bootArtifactsBaseURL value unchanged when section hidden, section absent", () => {
+    const catalog = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        bootArtifactsBaseURL: "https://my-custom-url.example.com/artifacts"
+      }
+    };
+    const { container } = renderInventoryV2(state);
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByText(AGENT_OPTIONS_HEADING)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    expect(state.hostInventory.bootArtifactsBaseURL).toBe("https://my-custom-url.example.com/artifacts");
+  });
+
+  it.each(["4.20", "4.21"])("real catalog %s: Role selector remains visible (exception preserved)", (version) => {
+    renderInventoryV2({ version: { selectedMinor: version } });
+    const tile = screen.getByText(/master-0/i);
+    fireEvent.click(tile);
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel).toBeTruthy();
+    const select = roleLabel.parentElement?.querySelector("select");
+    expect(select).toBeTruthy();
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.value);
+    expect(options).toContain("master");
+    expect(options).toContain("worker");
+  });
+
+  it("Role selector remains visible while Agent Options section is hidden", () => {
+    const catalog = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const { container } = renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    const tile = screen.getByText(/master-0/i);
+    fireEvent.click(tile);
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel).toBeTruthy();
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+  });
+
+  it.each(["4.20", "4.21"])("real catalog %s: Agent Options section and bootArtifactsBaseURL present", (version) => {
+    const { container } = renderInventoryV2({ version: { selectedMinor: version } });
+    expect(screen.getByPlaceholderText(BOOT_URL_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText(AGENT_OPTIONS_HEADING)).toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeTruthy();
+  });
+
+  it("unrelated node grid control still behaves as before when Agent Options section is hidden", () => {
+    const catalog = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const { container } = renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    const tile = screen.getByText(/master-0/i);
+    expect(tile).toBeTruthy();
+    fireEvent.click(tile);
+    const hostnameInput = screen.getByPlaceholderText("e.g. master-0, arbiter-0");
+    expect(hostnameInput).toBeInTheDocument();
+    expect(hostnameInput.value).toBe("master-0");
+  });
+
+  it("mounted version change: section appears when selectedMinor changes from 4.20 to 4.21", () => {
+    const catalog421 = SYNTHETIC_CATALOG.map((e) =>
+      e.path === "bootArtifactsBaseURL" ? { ...e, minVersion: "4.21" } : e
+    );
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog421);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    const { container } = render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    expect(screen.queryByPlaceholderText(BOOT_URL_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeNull();
+    act(() => {
+      setCurrentFn((prev) => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expect(screen.getByPlaceholderText(BOOT_URL_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText(AGENT_OPTIONS_HEADING)).toBeInTheDocument();
+    expect(container.querySelector(`[data-section="${AGENT_OPTIONS_SECTION}"]`)).toBeTruthy();
+    const calls = spy.mock.calls.filter((c) => c[0] === "bare-metal-agent");
+    const versions = calls.map((c) => c[1]);
+    expect(versions).toContain("4.20");
+    expect(versions).toContain("4.21");
   });
 });
 
