@@ -469,6 +469,217 @@ describe("Phase 4.3: HostInventoryV2 metadata-based field visibility (DOC-102 Sl
   });
 });
 
+describe("Phase 4.3: HostInventoryV2 hostname visibility (DOC-102 Slice 5H Chunk 8)", () => {
+  const AC = "agent-config.yaml";
+  const HOSTNAME_PLACEHOLDER = "e.g. master-0, arbiter-0";
+  const FQDN_ARIA = "Use FQDN for hostname";
+  const DNS_PLACEHOLDER = "192.168.1.10,192.168.1.11";
+
+  const SYNTHETIC_CATALOG_BASE = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"], required: false },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+  ];
+
+  function renderInventoryV2(stateOverride) {
+    return render(
+      <MockAppProvider stateOverride={stateOverride}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  // --- 1. minVersion visibility ---
+  it("hostname absent at 4.20 when synthetic minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_BASE.map((e) =>
+      e.path === "hosts[].hostname" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    const tile = screen.getByText(/master-0/i);
+    fireEvent.click(tile);
+    expect(screen.queryByPlaceholderText(HOSTNAME_PLACEHOLDER)).not.toBeInTheDocument();
+  });
+
+  it("hostname present at 4.21 when synthetic minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_BASE.map((e) =>
+      e.path === "hosts[].hostname" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    renderInventoryV2({ version: { selectedMinor: "4.21" } });
+    const tile = screen.getByText(/master-0/i);
+    fireEvent.click(tile);
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+  });
+
+  it("Role select present at both 4.20 and 4.21 when hostname has minVersion 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_BASE.map((e) =>
+      e.path === "hosts[].hostname" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+
+    renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    fireEvent.click(screen.getByText(/master-0/i));
+    const roleLabel420 = screen.getByText(/^Role/);
+    expect(roleLabel420.parentElement?.querySelector("select")).toBeTruthy();
+    cleanup();
+
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    renderInventoryV2({ version: { selectedMinor: "4.21" } });
+    fireEvent.click(screen.getByText(/master-0/i));
+    const roleLabel421 = screen.getByText(/^Role/);
+    expect(roleLabel421.parentElement?.querySelector("select")).toBeTruthy();
+  });
+
+  // --- 2. Non-renderable status ---
+  it("hostname absent when supportStatus is supported-backend-only; Role and DNS remain", () => {
+    const catalog = SYNTHETIC_CATALOG_BASE.map((e) =>
+      e.path === "hosts[].hostname" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    fireEvent.click(screen.getByText(/master-0/i));
+    expect(screen.queryByPlaceholderText(HOSTNAME_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(FQDN_ARIA)).not.toBeInTheDocument();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(DNS_PLACEHOLDER)).toBeInTheDocument();
+  });
+
+  // --- 3. Missing entry ---
+  it("hostname absent when hosts[].hostname omitted from catalog; Role remains", () => {
+    const catalog = SYNTHETIC_CATALOG_BASE.filter((e) => e.path !== "hosts[].hostname");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    fireEvent.click(screen.getByText(/master-0/i));
+    expect(screen.queryByPlaceholderText(HOSTNAME_PLACEHOLDER)).not.toBeInTheDocument();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+  });
+
+  // --- 4. State preservation ---
+  it("stored hostname unchanged when field is hidden via metadata", () => {
+    const catalog = SYNTHETIC_CATALOG_BASE.map((e) =>
+      e.path === "hosts[].hostname" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const state = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: [
+          { ...baseState.hostInventory.nodes[0], hostname: "my-custom-host" }
+        ]
+      }
+    };
+    renderInventoryV2(state);
+    fireEvent.click(screen.getByText(/my-custom-host/i));
+    expect(screen.queryByPlaceholderText(HOSTNAME_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(state.hostInventory.nodes[0].hostname).toBe("my-custom-host");
+  });
+
+  // --- 5. Mounted version change ---
+  it("hostname appears on mounted version change 4.20→4.21 without remount", () => {
+    const catalog = SYNTHETIC_CATALOG_BASE.map((e) =>
+      e.path === "hosts[].hostname" ? { ...e, minVersion: "4.21" } : e
+    );
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    fireEvent.click(screen.getByText(/master-0/i));
+    expect(screen.queryByPlaceholderText(HOSTNAME_PLACEHOLDER)).not.toBeInTheDocument();
+    act(() => {
+      setCurrentFn((prev) => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    const calls = spy.mock.calls.filter((c) => c[0] === "bare-metal-agent");
+    const versions = calls.map((c) => c[1]);
+    expect(versions).toContain("4.20");
+    expect(versions).toContain("4.21");
+  });
+
+  // --- 6. Real-catalog regression ---
+  it.each(["4.20", "4.21"])("real catalog bare-metal-agent %s: hostname input renders", (version) => {
+    renderInventoryV2({ version: { selectedMinor: version } });
+    fireEvent.click(screen.getByText(/master-0/i));
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+  });
+
+  it("real catalog vsphere-agent 4.20: hostname input renders", () => {
+    const vsphereState = {
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: [
+          {
+            ...baseState.hostInventory.nodes[0],
+            hostname: "vsphere-master-0"
+          }
+        ]
+      }
+    };
+    renderInventoryV2(vsphereState);
+    fireEvent.click(screen.getByText(/vsphere-master-0/i));
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+  });
+
+  it("real catalog vsphere-agent 4.21: hostname input renders", () => {
+    const vsphereState = {
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: "4.21" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: [
+          {
+            ...baseState.hostInventory.nodes[0],
+            hostname: "vsphere-master-0"
+          }
+        ]
+      }
+    };
+    renderInventoryV2(vsphereState);
+    fireEvent.click(screen.getByText(/vsphere-master-0/i));
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+  });
+
+  // --- 7. Chunk 7 and scope containment ---
+  it("Role, bootArtifactsBaseURL, and DNS controls remain; no other field received new gating", () => {
+    renderInventoryV2({ version: { selectedMinor: "4.20" } });
+    fireEvent.click(screen.getByText(/master-0/i));
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(DNS_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+  });
+});
+
 describe("Phase 4.3: legacy inventory step unaffected when flags OFF", () => {
   it("validateStep('inventory') does not depend on catalog merge (same shape, no inventory-v2 path)", () => {
     const state = {

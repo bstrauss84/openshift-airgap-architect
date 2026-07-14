@@ -143,6 +143,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     return isParamVisibleForVersion(param, version);
   };
   const showBootArtifactsBaseURL = isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG);
+  const showAgentHostname = isCatalogFieldVisible("hosts[].hostname", AGENT_CONFIG);
   const sectionOrderSet = useMemo(() => new Set(sectionOrder), [sectionOrder]);
 
   const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT, version), [scenarioId, version]);
@@ -839,6 +840,7 @@ wipefs -a /dev/sdX`}</pre>
                           selectedIndex={selectedIndex}
                           mergedNodeValidation={mergedNodeValidation}
                           enableIpv6={enableIpv6}
+                          showHostname={showAgentHostname}
                           showAgentDay2InstallConfigBmc={showAgentDay2InstallConfigBmc}
                           showAdvancedDrawer={showAdvancedDrawer}
                           advancedOpen={advancedOpen}

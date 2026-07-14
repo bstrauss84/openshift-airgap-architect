@@ -48,6 +48,7 @@ export function NodeDrawerAgentContent({
   mergedNodeValidation,
   enableIpv6,
   effectiveHostname,
+  showHostname,
   showAgentDay2InstallConfigBmc,
   showAdvancedDrawer,
   advancedOpen,
@@ -116,24 +117,28 @@ export function NodeDrawerAgentContent({
             <div className="note warning">{mergedNodeValidation[selectedIndex].fieldErrors.role}</div>
           ) : null}
         </label>
-        <label>
-          Hostname{" "}
-          <input
-            value={selectedNode.hostname || ""}
-            onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })}
-            placeholder="e.g. master-0, arbiter-0"
-            aria-required="true"
-          />
-        </label>
-        <label className="host-inventory-v2-checkbox-label">
-          <input
-            type="checkbox"
-            checked={!!selectedNode.hostnameUseFqdn}
-            onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })}
-            aria-label="Use FQDN for hostname"
-          />
-          {" "}Use FQDN (shortname.baseDomain)
-        </label>
+        {showHostname !== false && (
+          <>
+            <label>
+              Hostname{" "}
+              <input
+                value={selectedNode.hostname || ""}
+                onChange={(e) => updateNode(selectedIndex, { hostname: e.target.value })}
+                placeholder="e.g. master-0, arbiter-0"
+                aria-required="true"
+              />
+            </label>
+            <label className="host-inventory-v2-checkbox-label">
+              <input
+                type="checkbox"
+                checked={!!selectedNode.hostnameUseFqdn}
+                onChange={(e) => updateNode(selectedIndex, { hostnameUseFqdn: e.target.checked })}
+                aria-label="Use FQDN for hostname"
+              />
+              {" "}Use FQDN (shortname.baseDomain)
+            </label>
+          </>
+        )}
       </div>
 
       {/* Root Device Hints - hide for arbiter */}
