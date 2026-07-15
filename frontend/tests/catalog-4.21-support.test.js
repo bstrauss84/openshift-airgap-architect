@@ -328,6 +328,72 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     });
   });
 
+  describe('AWS worker instance-type supportStatus reconciliation (R2)', () => {
+    const awsIpiScenarios = ['aws-govcloud-ipi'];
+    const versions = ['4.20', '4.21'];
+    const targetPath = 'compute[].platform.aws.type';
+    const targetOutputFile = 'install-config.yaml';
+
+    versions.forEach(version => {
+      awsIpiScenarios.forEach(scenario => {
+        it(`${version} ${scenario} has exactly one ${targetPath} entry with supportStatus=supported-ui`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(
+            p => p.path === targetPath && p.outputFile === targetOutputFile
+          );
+          expect(matches).toHaveLength(1);
+          expect(matches[0].supportStatus).toBe('supported-ui');
+          expect(matches[0].minVersion).toBe('4.20');
+          expect(matches[0].maxVersion).toBe(null);
+        });
+      });
+    });
+
+    it('4.20 and 4.21 have identical AWS worker instance-type metadata', () => {
+      awsIpiScenarios.forEach(scenario => {
+        const params420 = getCatalogForScenario(scenario, '4.20');
+        const params421 = getCatalogForScenario(scenario, '4.21');
+        const entry420 = params420.find(
+          p => p.path === targetPath && p.outputFile === targetOutputFile
+        );
+        const entry421 = params421.find(
+          p => p.path === targetPath && p.outputFile === targetOutputFile
+        );
+        expect(entry420.supportStatus).toBe(entry421.supportStatus);
+        expect(entry420.minVersion).toBe(entry421.minVersion);
+        expect(entry420.maxVersion).toBe(entry421.maxVersion);
+      });
+    });
+
+    it('compute[].platform.aws.type is absent from every non-AWS scenario catalog', () => {
+      const nonAwsScenarios = [
+        'bare-metal-agent', 'bare-metal-ipi', 'bare-metal-upi',
+        'vsphere-agent', 'vsphere-ipi', 'vsphere-upi',
+        'azure-government-ipi', 'azure-government-upi',
+        'ibm-cloud-ipi', 'nutanix-ipi'
+      ];
+      versions.forEach(version => {
+        nonAwsScenarios.forEach(scenario => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(
+            p => p.path === targetPath && p.outputFile === targetOutputFile
+          );
+          expect(matches).toHaveLength(0);
+        });
+      });
+    });
+
+    it('compute[].platform.aws.type is absent from UPI catalogs (IPI-only parameter)', () => {
+      versions.forEach(version => {
+        const params = getCatalogForScenario('aws-govcloud-upi', version);
+        const matches = params.filter(
+          p => p.path === targetPath && p.outputFile === targetOutputFile
+        );
+        expect(matches).toHaveLength(0);
+      });
+    });
+  });
+
   describe('No deferred platforms/scenarios added', () => {
     it('PowerVC catalogs do not exist', () => {
       expect(() => getCatalogForScenario('powervc-ipi', '4.21'))

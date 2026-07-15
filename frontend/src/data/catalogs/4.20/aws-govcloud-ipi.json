@@ -318,7 +318,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
