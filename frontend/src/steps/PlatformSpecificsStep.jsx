@@ -272,10 +272,8 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     [selectedVersion, arch, updateAws]
   );
 
-  /** Agent options (boot artifacts etc.) for agent-based scenarios that expose agent-config params in catalog. */
-  const showAgentOptionsSection = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && catalogParams.some(
-    (p) => p.path === "bootArtifactsBaseURL" && p.outputFile === AGENT_CONFIG
-  );
+  const isAgentScenario = scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent";
+  const showBootArtifactsBaseURL = isAgentScenario && isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG);
   const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG, state);
   const requiredPathsAgent = getRequiredParamsForOutput(scenarioId, AGENT_CONFIG, state) || [];
   const isRequiredAgent = (path) => requiredPathsAgent.includes(path);
@@ -427,10 +425,10 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showCpuPartitioningMode = isCatalogFieldVisible("cpuPartitioningMode", INSTALL_CONFIG);
   const showFeatureSet = isCatalogFieldVisible("featureSet", INSTALL_CONFIG);
   const showFeatureGates = isCatalogFieldVisible("featureGates", INSTALL_CONFIG);
-  const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
+  const showMinimalISO = isAgentScenario && isCatalogFieldVisible("minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
-  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showFeatureSet || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
+  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showFeatureSet || showMinimalISO || showBootArtifactsBaseURL || showVsphereIpiSection;
 
   const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG, state);
   const metaControlPlaneHyperthreading = getParamMeta(scenarioId, "controlPlane[].hyperthreading", INSTALL_CONFIG, state);
@@ -4264,7 +4262,7 @@ external-br (descriptive name)`}
         {showAdvancedSection && (
           <CollapsibleSection
             title="Advanced"
-            subtitle={`${showVsphereLegacyFolderResourcePool ? "vSphere folder/resource pool (legacy placement only), " : ""}${showAgentOptionsSection ? "Agent boot artifacts, " : ""}Hyperthreading, capabilities, CPU partitioning, minimal ISO (catalog-driven).`}
+            subtitle={`${showVsphereLegacyFolderResourcePool ? "vSphere folder/resource pool (legacy placement only), " : ""}${showBootArtifactsBaseURL ? "Agent boot artifacts, " : ""}Hyperthreading, capabilities, CPU partitioning, minimal ISO (catalog-driven).`}
             defaultCollapsed={true}
           >
                 <div className="field-grid" style={{ marginTop: 12 }}>
@@ -4340,7 +4338,7 @@ Only when you cannot use failure domains and need basic resource pool assignment
                       </FieldLabelWithInfo>
                     </>
                   )}
-                  {showAgentOptionsSection && (
+                  {showBootArtifactsBaseURL && (
                     <FieldLabelWithInfo
                       label="Boot artifacts base URL"
                       hint={`Base URL where Agent-based installer boot artifacts are hosted for network boot installation.
@@ -4794,7 +4792,7 @@ See OpenShift 4.20 documentation for full list of available feature gates and th
           </CollapsibleSection>
         )}
 
-        {scenarioId && !showAgentOptionsSection && !showProvisioningNetworkSection && !showAdvancedSection && !showVsphereIpiSection && (
+        {scenarioId && !showBootArtifactsBaseURL && !showProvisioningNetworkSection && !showAdvancedSection && !showVsphereIpiSection && (
           <section className="card">
             <div className="card-body">
               <p className="note">

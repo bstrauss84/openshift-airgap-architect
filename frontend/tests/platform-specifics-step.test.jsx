@@ -2596,3 +2596,521 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V4", () => {
     });
   });
 });
+
+describe("DOC-102 Slice 5H PlatformSpecifics Visibility V5", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const INSTALL_CONFIG = "install-config.yaml";
+  const AGENT_CONFIG = "agent-config.yaml";
+
+  function makeBootArtifactsEntry(overrides = {}) {
+    return {
+      path: "bootArtifactsBaseURL",
+      outputFile: AGENT_CONFIG,
+      type: "string",
+      allowed: "not specified in docs",
+      default: "not specified in docs",
+      required: false,
+      description: "Boot artifacts base URL",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeMinimalISOEntry(overrides = {}) {
+    return {
+      path: "minimalISO",
+      outputFile: AGENT_CONFIG,
+      type: "bool",
+      allowed: [true, false],
+      default: false,
+      required: false,
+      description: "Use minimal ISO",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeHtEntry(path, overrides = {}) {
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["Enabled", "Disabled"],
+      default: "not specified in docs",
+      required: false,
+      description: "Hyperthreading",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeCapEntry(path, overrides = {}) {
+    const defaults = path === "capabilities.baselineCapabilitySet"
+      ? { type: "string", allowed: ["None", "v4.11", "v4.12", "v4.20", "vCurrent"], default: "vCurrent" }
+      : { type: "array", allowed: "not specified in docs", default: "not specified in docs" };
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      required: false,
+      description: path,
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...defaults,
+      ...overrides
+    };
+  }
+
+  function makeCpuPartitioningEntry(overrides = {}) {
+    return {
+      path: "cpuPartitioningMode",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["None", "AllNodes"],
+      default: "None",
+      required: false,
+      description: "CPU partitioning mode",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeFeatureSetEntry(overrides = {}) {
+    return {
+      path: "featureSet",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["TechPreviewNoUpgrade", "CustomNoUpgrade", "LatencyMitigating"],
+      default: "not specified in docs",
+      required: false,
+      description: "Feature set",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function syntheticCatalog(overrides = {}) {
+    const entries = [
+      makeHtEntry("compute[].hyperthreading"),
+      makeHtEntry("controlPlane[].hyperthreading"),
+      makeCapEntry("capabilities.baselineCapabilitySet"),
+      makeCapEntry("capabilities.additionalEnabledCapabilities"),
+      makeCpuPartitioningEntry(),
+      makeFeatureSetEntry(),
+    ];
+    const boot = overrides.bootArtifacts !== undefined ? overrides.bootArtifacts : makeBootArtifactsEntry();
+    const iso = overrides.minimalISO !== undefined ? overrides.minimalISO : makeMinimalISOEntry();
+    if (boot) entries.push(boot);
+    if (iso) entries.push(iso);
+    return entries;
+  }
+
+  function stateForVersion(minor, overrides = {}) {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor },
+      ...overrides
+    };
+  }
+
+  function renderWithState(state) {
+    const updateState = vi.fn();
+    const value = {
+      state,
+      updateState,
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    const result = render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    return { result, updateState };
+  }
+
+  function expandAdvanced() {
+    const advBtn = screen.queryByRole("button", { name: /Advanced/i });
+    if (advBtn) fireEvent.click(advBtn);
+  }
+
+  function findBootArtifactsInput() {
+    return screen.queryByPlaceholderText("https://example.com/agent-artifacts or leave empty");
+  }
+
+  function findMinimalISOSwitch() {
+    return screen.queryByRole("switch", { name: "Use minimal ISO" });
+  }
+
+  function findSelectInFieldWrapper(labelText) {
+    const label = screen.queryByText(labelText);
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("select");
+  }
+
+  describe("1. Real catalog regressions", () => {
+    it.each([
+      ["4.20", "bare-metal-agent"],
+      ["4.21", "bare-metal-agent"],
+      ["4.20", "vsphere-agent"],
+      ["4.21", "vsphere-agent"],
+    ])("%s %s: boot artifacts input and minimal ISO switch render", (version, scenario) => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion(version);
+      if (scenario === "vsphere-agent") {
+        state.blueprint = { ...state.blueprint, platform: "VMware vSphere" };
+      }
+      renderWithState(state);
+      expandAdvanced();
+      expect(findBootArtifactsInput()).not.toBeNull();
+      expect(findMinimalISOSwitch()).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === scenario);
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe(version);
+    });
+  });
+
+  describe("2. Structural scenario boundary", () => {
+    it("bare-metal-ipi: boot artifacts and minimal ISO absent even with eligible synthetic entries", () => {
+      const catalog = syntheticCatalog();
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20");
+      state.methodology = { method: "IPI" };
+      renderWithState(state);
+      expandAdvanced();
+      expect(findBootArtifactsInput()).toBeNull();
+      expect(findMinimalISOSwitch()).toBeNull();
+    });
+  });
+
+  describe("3. Boot artifacts minVersion gating", () => {
+    it("at 4.20: boot artifacts absent when requiring 4.21; minimal ISO present; prior cohorts remain", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.21" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findBootArtifactsInput()).toBeNull();
+      expect(findMinimalISOSwitch()).not.toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+    });
+
+    it("at 4.21: boot artifacts appears; minimal ISO remains", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.21" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.21"));
+      expandAdvanced();
+      expect(findBootArtifactsInput()).not.toBeNull();
+      expect(findMinimalISOSwitch()).not.toBeNull();
+    });
+  });
+
+  describe("4. Minimal ISO minVersion gating", () => {
+    it("at 4.20: minimal ISO absent when requiring 4.21; boot artifacts present", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.20" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findMinimalISOSwitch()).toBeNull();
+      expect(findBootArtifactsInput()).not.toBeNull();
+    });
+
+    it("at 4.21: minimal ISO appears; boot artifacts remains", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.20" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.21"));
+      expandAdvanced();
+      expect(findMinimalISOSwitch()).not.toBeNull();
+      expect(findBootArtifactsInput()).not.toBeNull();
+    });
+  });
+
+  describe("5. Non-renderable status", () => {
+    it.each([
+      ["bootArtifactsBaseURL", { bootArtifacts: makeBootArtifactsEntry({ supportStatus: "supported-backend-only" }) }],
+      ["minimalISO", { minimalISO: makeMinimalISOEntry({ supportStatus: "supported-backend-only" }) }],
+    ])("%s: supported-backend-only hides only that control; sibling and prior cohorts remain; Advanced visible", (field, overrides) => {
+      const catalog = syntheticCatalog(overrides);
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      if (field === "bootArtifactsBaseURL") {
+        expect(findBootArtifactsInput()).toBeNull();
+        expect(findMinimalISOSwitch()).not.toBeNull();
+      } else {
+        expect(findMinimalISOSwitch()).toBeNull();
+        expect(findBootArtifactsInput()).not.toBeNull();
+      }
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      expect(screen.queryByRole("button", { name: /Advanced/i })).not.toBeNull();
+    });
+  });
+
+  describe("6. Missing entries", () => {
+    it.each([
+      ["bootArtifactsBaseURL", { bootArtifacts: null }],
+      ["minimalISO", { minimalISO: null }],
+    ])("%s: omitted entry hides that control; sibling remains; no fallback", (field, overrides) => {
+      const catalog = syntheticCatalog(overrides);
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      if (field === "bootArtifactsBaseURL") {
+        expect(findBootArtifactsInput()).toBeNull();
+        expect(findMinimalISOSwitch()).not.toBeNull();
+      } else {
+        expect(findMinimalISOSwitch()).toBeNull();
+        expect(findBootArtifactsInput()).not.toBeNull();
+      }
+    });
+  });
+
+  describe("7. Both Agent controls unavailable", () => {
+    it("both non-renderable: neither control renders; no empty Agent wrapper; Advanced visible via prior cohorts", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ supportStatus: "supported-backend-only" }),
+        minimalISO: makeMinimalISOEntry({ supportStatus: "supported-backend-only" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findBootArtifactsInput()).toBeNull();
+      expect(screen.queryByText("Boot artifacts base URL")).toBeNull();
+      expect(findMinimalISOSwitch()).toBeNull();
+      expect(document.querySelector(".platform-specifics-advanced-option-row")).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      expect(screen.queryByRole("button", { name: /Advanced/i })).not.toBeNull();
+    });
+  });
+
+  describe("8. Boot artifacts hidden-state preservation", () => {
+    it("seeded URL preserved when field hidden; input absent; updateState not called", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.21" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20", {
+        hostInventory: {
+          ...stateForPlatformSpecificsStep().hostInventory,
+          schemaVersion: 2,
+          nodes: [],
+          bootArtifactsBaseURL: "https://artifacts.example.test/agent"
+        }
+      });
+      const { updateState } = renderWithState(state);
+      expandAdvanced();
+      expect(findBootArtifactsInput()).toBeNull();
+      expect(state.hostInventory.bootArtifactsBaseURL).toBe("https://artifacts.example.test/agent");
+      expect(updateState).not.toHaveBeenCalled();
+    });
+
+    it("on mounted 4.20→4.21 update: input appears with seeded URL; getCatalogForScenario receives both versions", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.21" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.20" })
+      });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog);
+
+      const hostInventory = {
+        ...stateForPlatformSpecificsStep().hostInventory,
+        schemaVersion: 2,
+        nodes: [],
+        bootArtifactsBaseURL: "https://artifacts.example.test/agent"
+      };
+      const state420 = stateForVersion("4.20", { hostInventory });
+      const updateState = vi.fn();
+      const { rerender } = render(
+        <AppContext.Provider value={{ state: state420, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+      expect(findBootArtifactsInput()).toBeNull();
+
+      const state421 = stateForVersion("4.21", { hostInventory });
+      rerender(
+        <AppContext.Provider value={{ state: state421, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      const input = findBootArtifactsInput();
+      expect(input).not.toBeNull();
+      expect(input.value).toBe("https://artifacts.example.test/agent");
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.20");
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.21");
+    });
+  });
+
+  describe("9. Minimal ISO hidden-state preservation", () => {
+    it("seeded minimalISO=true preserved when field hidden; switch absent; updateState not called", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.20" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20", {
+        hostInventory: {
+          ...stateForPlatformSpecificsStep().hostInventory,
+          schemaVersion: 2,
+          nodes: [],
+          minimalISO: true
+        }
+      });
+      const { updateState } = renderWithState(state);
+      expandAdvanced();
+      expect(findMinimalISOSwitch()).toBeNull();
+      expect(state.hostInventory.minimalISO).toBe(true);
+      expect(updateState).not.toHaveBeenCalled();
+    });
+
+    it("on mounted 4.20→4.21 update: switch appears checked; sibling and prior cohorts remain", () => {
+      const catalog = syntheticCatalog({
+        bootArtifacts: makeBootArtifactsEntry({ minVersion: "4.20" }),
+        minimalISO: makeMinimalISOEntry({ minVersion: "4.21" })
+      });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog);
+
+      const hostInventory = {
+        ...stateForPlatformSpecificsStep().hostInventory,
+        schemaVersion: 2,
+        nodes: [],
+        minimalISO: true
+      };
+      const state420 = stateForVersion("4.20", { hostInventory });
+      const updateState = vi.fn();
+      const { rerender } = render(
+        <AppContext.Provider value={{ state: state420, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+      expect(findMinimalISOSwitch()).toBeNull();
+      expect(findBootArtifactsInput()).not.toBeNull();
+
+      const state421 = stateForVersion("4.21", { hostInventory });
+      rerender(
+        <AppContext.Provider value={{ state: state421, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      const sw = findMinimalISOSwitch();
+      expect(sw).not.toBeNull();
+      expect(sw.getAttribute("aria-checked")).toBe("true");
+      expect(findBootArtifactsInput()).not.toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+    });
+  });
+
+  describe("10. Existing interaction containment", () => {
+    it("editing boot artifacts changes local input; blur invokes inventory update; toggling minimal ISO invokes update", () => {
+      const state = stateForVersion("4.20");
+      const updateState = vi.fn();
+      const value = {
+        state,
+        updateState,
+        loading: false,
+        startOver: vi.fn(),
+        setState: vi.fn()
+      };
+      render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+
+      const bootInput = findBootArtifactsInput();
+      expect(bootInput).not.toBeNull();
+      fireEvent.change(bootInput, { target: { value: "https://new.example.test/boot" } });
+      expect(bootInput.value).toBe("https://new.example.test/boot");
+      expect(updateState).not.toHaveBeenCalled();
+
+      fireEvent.blur(bootInput);
+      expect(updateState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hostInventory: expect.objectContaining({
+            bootArtifactsBaseURL: "https://new.example.test/boot"
+          })
+        })
+      );
+
+      updateState.mockClear();
+      const sw = findMinimalISOSwitch();
+      expect(sw).not.toBeNull();
+      fireEvent.click(sw);
+      expect(updateState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hostInventory: expect.objectContaining({
+            minimalISO: true
+          })
+        })
+      );
+    });
+  });
+
+  describe("11. Prior-cohort containment", () => {
+    it.each([
+      ["4.20"],
+      ["4.21"],
+    ])("real catalogs bare-metal-agent %s: HT, capabilities, CPU partitioning, feature set, feature gates (CustomNoUpgrade) remain", (version) => {
+      const state = stateForVersion(version, {
+        platformConfig: { featureSet: "CustomNoUpgrade", featureGates: "Gate=true" }
+      });
+      renderWithState(state);
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(screen.queryByPlaceholderText("e.g. baremetal, marketplace")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      const fgLabel = screen.queryByText(/Feature gates/);
+      expect(fgLabel).not.toBeNull();
+      const fgWrapper = fgLabel.closest(".field-with-info-row");
+      expect(fgWrapper.querySelector("textarea")).not.toBeNull();
+    });
+  });
+});
