@@ -424,7 +424,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showBaselineCapabilitySet = isCatalogFieldVisible("capabilities.baselineCapabilitySet", INSTALL_CONFIG);
   const showAdditionalEnabledCapabilities = isCatalogFieldVisible("capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCapabilities = showBaselineCapabilitySet || showAdditionalEnabledCapabilities;
-  const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
+  const showCpuPartitioningMode = isCatalogFieldVisible("cpuPartitioningMode", INSTALL_CONFIG);
   const showFeatureSet = hasParam(catalogParams, "featureSet", INSTALL_CONFIG);
   const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */

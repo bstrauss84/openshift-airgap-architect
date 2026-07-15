@@ -1835,7 +1835,7 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V2", () => {
       expandAdvanced();
       expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
       expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
-      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
       expect(screen.getByText(/Use minimal ISO/i)).toBeInTheDocument();
       expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
     });
@@ -1847,8 +1847,273 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V2", () => {
       expandAdvanced();
       expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
       expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
-      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
       expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+    });
+  });
+});
+
+describe("DOC-102 Slice 5H PlatformSpecifics Visibility V3", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const INSTALL_CONFIG = "install-config.yaml";
+  const AGENT_CONFIG = "agent-config.yaml";
+
+  function makeCpuPartitioningEntry(overrides = {}) {
+    return {
+      path: "cpuPartitioningMode",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["None", "AllNodes"],
+      default: "None",
+      required: false,
+      description: "CPU partitioning mode",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeHtEntry(path, overrides = {}) {
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["Enabled", "Disabled"],
+      default: "not specified in docs",
+      required: false,
+      description: "Hyperthreading",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeCapEntry(path, overrides = {}) {
+    const defaults = path === "capabilities.baselineCapabilitySet"
+      ? { type: "string", allowed: ["None", "v4.11", "v4.12", "v4.20", "vCurrent"], default: "vCurrent" }
+      : { type: "array", allowed: "not specified in docs", default: "not specified in docs" };
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      required: false,
+      description: path,
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...defaults,
+      ...overrides
+    };
+  }
+
+  function syntheticCatalog(overrides = {}) {
+    const entries = [
+      makeHtEntry("compute[].hyperthreading"),
+      makeHtEntry("controlPlane[].hyperthreading"),
+      makeCapEntry("capabilities.baselineCapabilitySet"),
+      makeCapEntry("capabilities.additionalEnabledCapabilities"),
+    ];
+    const cpu = overrides.cpu !== undefined ? overrides.cpu : makeCpuPartitioningEntry();
+    if (cpu) entries.push(cpu);
+    return entries;
+  }
+
+  function stateForVersion(minor, platformConfigOverrides = {}) {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor },
+      platformConfig: { ...base.platformConfig, ...platformConfigOverrides }
+    };
+  }
+
+  function renderWithState(state) {
+    const updateState = vi.fn();
+    const value = {
+      state,
+      updateState,
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    const result = render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    return { result, updateState };
+  }
+
+  function expandAdvanced() {
+    const advBtn = screen.queryByRole("button", { name: /Advanced/i });
+    if (advBtn) fireEvent.click(advBtn);
+  }
+
+  function findSelectInFieldWrapper(labelText) {
+    const label = screen.queryByText(labelText);
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("select");
+  }
+
+  function findAdditionalInput() {
+    return screen.queryByPlaceholderText("e.g. baremetal, marketplace");
+  }
+
+  describe("1. Real-catalog regressions", () => {
+    it.each([
+      ["4.20", "bare-metal-agent", {}],
+      ["4.21", "bare-metal-agent", {}],
+      ["4.20", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+      ["4.21", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+    ])("%s %s: CPU partitioning select renders and catalog receives version", (version, scenario, stateOverrides) => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion(version);
+      Object.assign(state, stateOverrides);
+      renderWithState(state);
+      expandAdvanced();
+      const cpuSelect = findSelectInFieldWrapper("CPU partitioning mode");
+      expect(cpuSelect).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === scenario);
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe(version);
+    });
+  });
+
+  describe("2. minVersion gating", () => {
+    it("at 4.20: CPU partitioning absent when requiring 4.21; HT and capabilities remain; Advanced visible", () => {
+      const catalog = syntheticCatalog({ cpu: makeCpuPartitioningEntry({ minVersion: "4.21" }) });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findAdditionalInput()).not.toBeNull();
+      expect(screen.queryByRole("button", { name: /Advanced/i })).not.toBeNull();
+    });
+
+    it("at 4.21: CPU partitioning appears when requiring 4.21; prior-cohort controls remain", () => {
+      const catalog = syntheticCatalog({ cpu: makeCpuPartitioningEntry({ minVersion: "4.21" }) });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.21"));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findAdditionalInput()).not.toBeNull();
+    });
+  });
+
+  describe("3. Non-renderable status", () => {
+    it("supported-backend-only hides CPU partitioning; HT, capabilities, Advanced remain", () => {
+      const catalog = syntheticCatalog({ cpu: makeCpuPartitioningEntry({ supportStatus: "supported-backend-only" }) });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findAdditionalInput()).not.toBeNull();
+    });
+  });
+
+  describe("4. Missing entry", () => {
+    it("omitted cpuPartitioningMode: select absent; no fallback restores it; prior cohorts remain", () => {
+      const catalog = syntheticCatalog({ cpu: null });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+    });
+  });
+
+  describe("5. Hidden-state preservation", () => {
+    it("seeded cpuPartitioningMode value preserved when field is hidden; updateState not called", () => {
+      const catalog = syntheticCatalog({ cpu: makeCpuPartitioningEntry({ minVersion: "4.21" }) });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20", { cpuPartitioningMode: "AllNodes" });
+      const { updateState } = renderWithState(state);
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).toBeNull();
+      expect(state.platformConfig.cpuPartitioningMode).toBe("AllNodes");
+      expect(updateState).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("6. Mounted version change", () => {
+    it("CPU partitioning appears on version change 4.20→4.21; value preserved; prior cohorts persist; both versions received", () => {
+      const catalog = syntheticCatalog({ cpu: makeCpuPartitioningEntry({ minVersion: "4.21" }) });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog);
+
+      const state420 = stateForVersion("4.20", { cpuPartitioningMode: "AllNodes" });
+      const updateState = vi.fn();
+      const { rerender } = render(
+        <AppContext.Provider value={{ state: state420, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+
+      const state421 = stateForVersion("4.21", { cpuPartitioningMode: "AllNodes" });
+      rerender(
+        <AppContext.Provider value={{ state: state421, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      const cpuSelect = findSelectInFieldWrapper("CPU partitioning mode");
+      expect(cpuSelect).not.toBeNull();
+      expect(cpuSelect.value).toBe("AllNodes");
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.20");
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.21");
+    });
+  });
+
+  describe("7. Advanced-section containment", () => {
+    it("CPU partitioning hidden but Advanced remains with prior-cohort controls; no empty wrapper", () => {
+      const catalog = syntheticCatalog({ cpu: makeCpuPartitioningEntry({ supportStatus: "supported-backend-only" }) });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(screen.queryByText("CPU partitioning mode")).not.toBeInTheDocument();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+    });
+  });
+
+  describe("8. Prior-cohort containment", () => {
+    it.each([
+      ["4.20"],
+      ["4.21"],
+    ])("real catalogs bare-metal-agent %s: HT, capabilities, feature set, boot artifacts remain", (version) => {
+      renderWithState(stateForVersion(version));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findAdditionalInput()).not.toBeNull();
+      expect(screen.getByText(/Use minimal ISO/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
     });
   });
 });
