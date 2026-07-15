@@ -7,9 +7,9 @@ import {
   BreadcrumbItem,
   Button,
   Wizard,
-  WizardStep
+  WizardStep,
+  Alert
 } from '@patternfly/react-core';
-import { Alert } from '@patternfly/react-core/dist/dynamic/components/Alert';
 import { useHistory } from 'react-router-dom';
 import { AppProvider, useApp } from '../AppProvider';
 import { ReleaseSelectionStep } from '../components/ReleaseSelectionStep';
