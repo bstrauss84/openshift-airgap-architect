@@ -20,22 +20,7 @@ import {
   Td
 } from '@patternfly/react-table';
 import { useHistory } from 'react-router-dom';
-
-interface CollectionPipeline {
-  metadata: {
-    name: string;
-    namespace: string;
-    creationTimestamp: string;
-  };
-  status?: {
-    phase: string;
-    version?: string;
-    startTime?: string;
-    completionTime?: string;
-    pipelineRunRef?: string;
-    bundleUrl?: string;
-  };
-}
+import { CollectionPipeline } from '../types';
 
 export const CollectionPipelineList: React.FC = () => {
   const history = useHistory();
@@ -154,6 +139,7 @@ export const CollectionPipelineList: React.FC = () => {
             <Thead>
               <Tr>
                 <Th>Name</Th>
+                <Th>Type</Th>
                 <Th>Status</Th>
                 <Th>Version</Th>
                 <Th>Created</Th>
@@ -177,6 +163,21 @@ export const CollectionPipelineList: React.FC = () => {
                     >
                       {pipeline.metadata.name}
                     </a>
+                  </Td>
+                  <Td>
+                    <span
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        background: pipeline.spec?.parentPipeline ? '#d1ecf1' : '#e8e8e8',
+                        color: pipeline.spec?.parentPipeline ? '#0c5460' : '#151515'
+                      }}
+                      title={pipeline.spec?.parentPipeline ? `Parent: ${pipeline.spec.parentPipeline}` : ''}
+                    >
+                      {pipeline.spec?.parentPipeline ? 'Update' : 'Base'}
+                    </span>
                   </Td>
                   <Td>
                     <span
@@ -211,15 +212,23 @@ export const CollectionPipelineList: React.FC = () => {
                   <Td>{formatTimestamp(pipeline.status?.completionTime)}</Td>
                   <Td>
                     {(pipeline.status?.phase === 'Complete' || pipeline.status?.phase === 'Succeeded') ? (
-                      <Button
-                        variant="link"
-                        icon={<DownloadIcon />}
-                        onClick={() => handleDownload(pipeline.metadata.name)}
-                        isLoading={downloadingPipeline === pipeline.metadata.name}
-                        isDisabled={downloadingPipeline !== null}
-                      >
-                        {downloadingPipeline === pipeline.metadata.name ? 'Generating URL...' : 'Download Bundle'}
-                      </Button>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <Button
+                          variant="link"
+                          icon={<DownloadIcon />}
+                          onClick={() => handleDownload(pipeline.metadata.name)}
+                          isLoading={downloadingPipeline === pipeline.metadata.name}
+                          isDisabled={downloadingPipeline !== null}
+                        >
+                          {downloadingPipeline === pipeline.metadata.name ? 'Generating URL...' : 'Download Bundle'}
+                        </Button>
+                        <Button
+                          variant="link"
+                          onClick={() => history.push(`/airgap-architect/imagesets/create?parentPipeline=${pipeline.metadata.name}`)}
+                        >
+                          Create Update Bundle
+                        </Button>
+                      </div>
                     ) : (
                       <span style={{ color: '#6a6e73', fontSize: '0.875rem' }}>-</span>
                     )}

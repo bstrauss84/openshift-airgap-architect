@@ -9,6 +9,7 @@ import {
   Wizard,
   WizardStep
 } from '@patternfly/react-core';
+import { Alert } from '@patternfly/react-core/dist/dynamic/components/Alert';
 import { useHistory } from 'react-router-dom';
 import { AppProvider, useApp } from '../AppProvider';
 import { ReleaseSelectionStep } from '../components/ReleaseSelectionStep';
@@ -17,9 +18,18 @@ import { AdditionalImagesStep } from '../components/AdditionalImagesStep';
 import { CreateCollectionPipelineStep } from '../components/CreateCollectionPipelineStep';
 
 const CreateImageSetWizard: React.FC = () => {
-  const { state } = useApp();
+  const { state, updateState } = useApp();
   const history = useHistory();
   const [currentStep, setCurrentStep] = React.useState(0);
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const parentPipelineName = searchParams.get('parentPipeline') || null;
+
+  React.useEffect(() => {
+    if (parentPipelineName) {
+      updateState({ parentPipeline: parentPipelineName });
+    }
+  }, [parentPipelineName]);
 
   const steps = [
     {
@@ -77,14 +87,24 @@ const CreateImageSetWizard: React.FC = () => {
           <BreadcrumbItem to="#" onClick={() => history.push('/airgap-architect')}>
             Airgap Architect
           </BreadcrumbItem>
-          <BreadcrumbItem isActive>Create Collection Pipeline</BreadcrumbItem>
+          <BreadcrumbItem isActive>
+            {parentPipelineName ? 'Create Update Bundle' : 'Create Collection Pipeline'}
+          </BreadcrumbItem>
         </Breadcrumb>
         <Title headingLevel="h1" size="2xl">
-          Create Collection Pipeline
+          {parentPipelineName ? 'Create Update Bundle' : 'Create Collection Pipeline'}
         </Title>
         <Content component="p">
-          Create a new mirroring collection pipeline for disconnected OpenShift.
+          {parentPipelineName
+            ? `Create a delta update bundle based on "${parentPipelineName}". Only new or changed images will be collected.`
+            : 'Create a new mirroring collection pipeline for disconnected OpenShift.'}
         </Content>
+        {parentPipelineName && (
+          <Alert variant="info" title="Delta Collection" isInline style={{ marginTop: '1rem' }}>
+            This pipeline will reuse the oc-mirror cache from the parent pipeline, collecting only
+            updated content. The resulting bundle will be smaller and faster to produce.
+          </Alert>
+        )}
       </PageSection>
 
       <PageSection>

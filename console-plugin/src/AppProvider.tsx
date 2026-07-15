@@ -28,7 +28,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     version: {},
     operators: {},
     imagesetConfig: {},
-    ui: {}
+    ui: {},
+    parentPipeline: null
   });
 
   const updateState = React.useCallback((patch: Partial<AppState>) => {

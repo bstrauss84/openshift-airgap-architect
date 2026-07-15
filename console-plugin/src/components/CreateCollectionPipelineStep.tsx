@@ -13,6 +13,7 @@ import { CodeBlock } from '@patternfly/react-core/dist/dynamic/components/CodeBl
 import { CodeBlockCode } from '@patternfly/react-core/dist/dynamic/components/CodeBlock';
 import { useApp } from '../AppProvider';
 import { useHistory } from 'react-router-dom';
+import { generateChildName, getCsrfToken } from '../utils/pipeline-helpers';
 
 export const CreateCollectionPipelineStep: React.FC = () => {
   const { state } = useApp();
@@ -20,6 +21,7 @@ export const CreateCollectionPipelineStep: React.FC = () => {
   const release = state.release || {};
   const operators = state.operators || {};
   const additionalImages = state.additionalImages || {};
+  const parentPipeline = state.parentPipeline || null;
 
   const [creating, setCreating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -122,11 +124,12 @@ ${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.na
     setError(null);
 
     try {
-      // Create CollectionPipeline CR via Kubernetes API
-      const pipelineName = `collection-${Date.now()}`;
+      const pipelineName = parentPipeline
+        ? generateChildName(parentPipeline)
+        : `collection-${Date.now()}`;
       const namespace = 'mirror-operator-system';
 
-      const collectionPipeline = {
+      const collectionPipeline: Record<string, any> = {
         apiVersion: 'mirror.mirror.mathianasj.github.com/v1',
         kind: 'CollectionPipeline',
         metadata: {
@@ -141,25 +144,17 @@ ${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.na
             }
           },
           pvcSize: '100Gi',
-          pvcStorageClass: 'gp3-csi'
+          pvcStorageClass: 'gp3-csi',
+          ...(parentPipeline ? { parentPipeline } : {})
         }
       };
 
-      // Get CSRF token from cookie for OpenShift Console
-      // Note: The cookie value might be URL-encoded, so decode it
-      const csrfCookie = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('csrf-token='));
-
-      const csrfToken = csrfCookie
-        ? decodeURIComponent(csrfCookie.split('=')[1])
-        : undefined;
+      const csrfToken = getCsrfToken();
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
-      // OpenShift Console requires X-CSRFToken header (case-sensitive)
       if (csrfToken) {
         headers['X-CSRFToken'] = csrfToken;
       }
@@ -216,14 +211,26 @@ ${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.na
   return (
     <div>
       <Content>
-        <Content component="h2">Review and Create</Content>
+        <Content component="h2">{parentPipeline ? 'Review and Create Update Bundle' : 'Review and Create'}</Content>
         <Content component="p">
-          Review the ImageSetConfiguration that will be used for mirroring.
+          {parentPipeline
+            ? 'Review the ImageSetConfiguration for this delta update bundle.'
+            : 'Review the ImageSetConfiguration that will be used for mirroring.'}
         </Content>
       </Content>
 
       <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
         <h4>Configuration Summary:</h4>
+        {parentPipeline && (
+          <>
+            <p>
+              <strong>Type:</strong> Delta / Update Collection
+            </p>
+            <p>
+              <strong>Parent Pipeline:</strong> {parentPipeline}
+            </p>
+          </>
+        )}
         <p>
           <strong>OpenShift Version:</strong> {release.patchVersion} (channel: stable-{release.channel})
         </p>
@@ -264,7 +271,7 @@ ${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.na
           isDisabled={creating}
           icon={creating ? <Spinner size="md" /> : undefined}
         >
-          {creating ? 'Creating...' : 'Create Collection Pipeline'}
+          {creating ? 'Creating...' : parentPipeline ? 'Create Update Bundle' : 'Create Collection Pipeline'}
         </Button>
       </div>
     </div>

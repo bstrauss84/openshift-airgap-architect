@@ -26,35 +26,7 @@ import ExternalLinkAltIcon from '@patternfly/react-icons/dist/dynamic/icons/exte
 import CheckCircleIcon from '@patternfly/react-icons/dist/dynamic/icons/check-circle-icon';
 import InProgressIcon from '@patternfly/react-icons/dist/dynamic/icons/in-progress-icon';
 import ExclamationCircleIcon from '@patternfly/react-icons/dist/dynamic/icons/exclamation-circle-icon';
-
-interface CollectionPipeline {
-  metadata: {
-    name: string;
-    namespace: string;
-    creationTimestamp: string;
-  };
-  spec?: {
-    imageSetConfig?: string;
-    storage?: {
-      output?: {
-        pvc?: string;
-      };
-    };
-    pvcSize?: string;
-    pvcStorageClass?: string;
-  };
-  status?: {
-    phase: string;
-    version?: string;
-    startTime?: string;
-    completionTime?: string;
-    pipelineRunRef?: string;
-    bundleUrl?: string;
-    signatureUrl?: string;
-    sbomUrl?: string;
-    configMapRef?: string;
-  };
-}
+import { CollectionPipeline } from '../types';
 
 interface PipelineRun {
   metadata: {
@@ -430,9 +402,19 @@ export const CollectionPipelineDetail: React.FC = () => {
             </Title>
             <Content component="p">Collection Pipeline Details</Content>
           </div>
-          <Button variant="secondary" onClick={() => history.push('/airgap-architect')}>
-            Back to List
-          </Button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {isComplete && (
+              <Button
+                variant="primary"
+                onClick={() => history.push(`/airgap-architect/imagesets/create?parentPipeline=${pipeline.metadata.name}`)}
+              >
+                Create Update Bundle
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => history.push('/airgap-architect')}>
+              Back to List
+            </Button>
+          </div>
         </div>
       </PageSection>
 
@@ -507,6 +489,58 @@ export const CollectionPipelineDetail: React.FC = () => {
                     >
                       {pipeline.status.pipelineRunRef} <ExternalLinkAltIcon />
                     </a>
+                  </DescriptionListDescription>
+                </DescriptionListGroup>
+              )}
+            </DescriptionList>
+          </CardBody>
+        </Card>
+
+        {/* Lineage Card */}
+        <Card style={{ marginBottom: '1rem' }}>
+          <CardTitle>Lineage</CardTitle>
+          <CardBody>
+            <DescriptionList isHorizontal>
+              <DescriptionListGroup>
+                <DescriptionListTerm>Type</DescriptionListTerm>
+                <DescriptionListDescription>
+                  {pipeline.spec?.parentPipeline ? 'Delta / Update Collection' : 'Base Collection'}
+                </DescriptionListDescription>
+              </DescriptionListGroup>
+              {pipeline.spec?.parentPipeline && (
+                <>
+                  <DescriptionListGroup>
+                    <DescriptionListTerm>Parent Pipeline</DescriptionListTerm>
+                    <DescriptionListDescription>
+                      <a
+                        href={`/airgap-architect/collections/${pipeline.spec.parentPipeline}`}
+                        style={{ color: '#0066cc', textDecoration: 'none' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          history.push(`/airgap-architect/collections/${pipeline.spec!.parentPipeline}`);
+                        }}
+                      >
+                        {pipeline.spec.parentPipeline}
+                      </a>
+                    </DescriptionListDescription>
+                  </DescriptionListGroup>
+                  {pipeline.status?.parentPipelineVersion && (
+                    <DescriptionListGroup>
+                      <DescriptionListTerm>Parent Version</DescriptionListTerm>
+                      <DescriptionListDescription>
+                        {pipeline.status.parentPipelineVersion}
+                      </DescriptionListDescription>
+                    </DescriptionListGroup>
+                  )}
+                </>
+              )}
+              {pipeline.status?.workingPvcName && (
+                <DescriptionListGroup>
+                  <DescriptionListTerm>Working PVC</DescriptionListTerm>
+                  <DescriptionListDescription>
+                    {pipeline.status.workingPvcName}
                   </DescriptionListDescription>
                 </DescriptionListGroup>
               )}
