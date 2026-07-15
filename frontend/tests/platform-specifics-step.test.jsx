@@ -1500,7 +1500,7 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V1", () => {
       expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
     });
 
-    it("no other PlatformSpecifics field received new metadata gating (capabilities still use hasParam)", () => {
+    it("no other PlatformSpecifics field received new metadata gating beyond hyperthreading and capabilities", () => {
       const catalog = syntheticCatalog({
         compute: makeHyperthreadingEntry("compute[].hyperthreading"),
         controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
@@ -1510,6 +1510,345 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V1", () => {
       expandAdvanced();
       expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
       expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+    });
+  });
+});
+
+describe("DOC-102 Slice 5H PlatformSpecifics Visibility V2", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const INSTALL_CONFIG = "install-config.yaml";
+
+  function makeBaselineEntry(overrides = {}) {
+    return {
+      path: "capabilities.baselineCapabilitySet",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["None", "v4.11", "v4.12", "v4.20", "vCurrent"],
+      default: "vCurrent",
+      required: false,
+      description: "Baseline capability set",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeAdditionalEntry(overrides = {}) {
+    return {
+      path: "capabilities.additionalEnabledCapabilities",
+      outputFile: INSTALL_CONFIG,
+      type: "array",
+      allowed: "not specified in docs",
+      default: "not specified in docs",
+      required: false,
+      description: "Additional enabled capabilities",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeHtEntry(path, overrides = {}) {
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["Enabled", "Disabled"],
+      default: "not specified in docs",
+      required: false,
+      description: "Hyperthreading",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function syntheticCatalog(overrides = {}) {
+    const entries = [
+      makeHtEntry("compute[].hyperthreading"),
+      makeHtEntry("controlPlane[].hyperthreading"),
+      {
+        path: "cpuPartitioningMode",
+        outputFile: INSTALL_CONFIG,
+        type: "string",
+        allowed: ["None", "AllNodes"],
+        default: "None",
+        required: false,
+        description: "CPU partitioning mode",
+        supportStatus: "supported-ui",
+        minVersion: "4.20",
+        maxVersion: null
+      },
+    ];
+    const baseline = overrides.baseline !== undefined ? overrides.baseline : makeBaselineEntry();
+    const additional = overrides.additional !== undefined ? overrides.additional : makeAdditionalEntry();
+    if (baseline) entries.push(baseline);
+    if (additional) entries.push(additional);
+    return entries;
+  }
+
+  function stateForVersion(minor, platformConfigOverrides = {}) {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor },
+      platformConfig: { ...base.platformConfig, ...platformConfigOverrides }
+    };
+  }
+
+  function renderWithState(state) {
+    const updateState = vi.fn();
+    const value = {
+      state,
+      updateState,
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    const result = render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    return { result, updateState };
+  }
+
+  function expandAdvanced() {
+    const advBtn = screen.queryByRole("button", { name: /Advanced/i });
+    if (advBtn) fireEvent.click(advBtn);
+  }
+
+  function findBaselineSelect() {
+    const label = screen.queryByText("Baseline capability set");
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("select");
+  }
+
+  function findAdditionalInput() {
+    return screen.queryByPlaceholderText("e.g. baremetal, marketplace");
+  }
+
+  function findSelectInFieldWrapper(labelText) {
+    const label = screen.queryByText(labelText);
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("select");
+  }
+
+  describe("1. Real-catalog regression", () => {
+    it.each([
+      ["4.20", "bare-metal-agent", {}],
+      ["4.21", "bare-metal-agent", {}],
+      ["4.20", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+      ["4.21", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+    ])("%s %s: both capabilities controls render and catalog receives version", (version, scenario, stateOverrides) => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion(version);
+      Object.assign(state, stateOverrides);
+      renderWithState(state);
+      expandAdvanced();
+      expect(findBaselineSelect()).not.toBeNull();
+      expect(findAdditionalInput()).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === scenario);
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe(version);
+    });
+  });
+
+  describe("2. Baseline minVersion gating", () => {
+    it.each([
+      ["4.20", false],
+      ["4.21", true],
+    ])("at %s: baseline visible=%s, additional present, HT present (baseline requires 4.21)", (version, baselineExpected) => {
+      const catalog = syntheticCatalog({
+        baseline: makeBaselineEntry({ minVersion: "4.21" }),
+        additional: makeAdditionalEntry({ minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion(version));
+      expandAdvanced();
+      if (baselineExpected) {
+        expect(findBaselineSelect()).not.toBeNull();
+      } else {
+        expect(findBaselineSelect()).toBeNull();
+      }
+      expect(findAdditionalInput()).not.toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+    });
+  });
+
+  describe("3. Additional-capabilities minVersion gating", () => {
+    it.each([
+      ["4.20", false],
+      ["4.21", true],
+    ])("at %s: additional visible=%s, baseline present (additional requires 4.21)", (version, additionalExpected) => {
+      const catalog = syntheticCatalog({
+        baseline: makeBaselineEntry({ minVersion: "4.20" }),
+        additional: makeAdditionalEntry({ minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion(version));
+      expandAdvanced();
+      expect(findBaselineSelect()).not.toBeNull();
+      if (additionalExpected) {
+        expect(findAdditionalInput()).not.toBeNull();
+      } else {
+        expect(findAdditionalInput()).toBeNull();
+      }
+    });
+  });
+
+  describe("4. Non-renderable status", () => {
+    it.each([
+      ["baseline", { baseline: makeBaselineEntry({ supportStatus: "supported-backend-only" }) }],
+      ["additional", { additional: makeAdditionalEntry({ supportStatus: "supported-backend-only" }) }],
+    ])("%s: supported-backend-only hides only that control; sibling, HT, CPU partitioning remain", (field, overrides) => {
+      const catalog = syntheticCatalog(overrides);
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      if (field === "baseline") {
+        expect(findBaselineSelect()).toBeNull();
+        expect(findAdditionalInput()).not.toBeNull();
+      } else {
+        expect(findAdditionalInput()).toBeNull();
+        expect(findBaselineSelect()).not.toBeNull();
+      }
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+    });
+  });
+
+  describe("5. Missing entry", () => {
+    it.each([
+      ["baseline", { baseline: null }],
+      ["additional", { additional: null }],
+    ])("%s: omitted entry hides that field; sibling remains, no fallback", (field, overrides) => {
+      const catalog = syntheticCatalog(overrides);
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      if (field === "baseline") {
+        expect(findBaselineSelect()).toBeNull();
+        expect(findAdditionalInput()).not.toBeNull();
+      } else {
+        expect(findAdditionalInput()).toBeNull();
+        expect(findBaselineSelect()).not.toBeNull();
+      }
+    });
+  });
+
+  describe("6. Empty-group prevention", () => {
+    it("both non-renderable: neither control nor label exists, Advanced remains", () => {
+      const catalog = syntheticCatalog({
+        baseline: makeBaselineEntry({ supportStatus: "supported-backend-only" }),
+        additional: makeAdditionalEntry({ supportStatus: "supported-backend-only" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findBaselineSelect()).toBeNull();
+      expect(findAdditionalInput()).toBeNull();
+      expect(screen.queryByText("Baseline capability set")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Additional enabled capabilities/)).not.toBeInTheDocument();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+    });
+  });
+
+  describe("7. State preservation", () => {
+    it("hidden baseline retains state value; updateState not called", () => {
+      const catalog = syntheticCatalog({
+        baseline: makeBaselineEntry({ minVersion: "4.21" }),
+        additional: makeAdditionalEntry({ minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20", {
+        baselineCapabilitySet: "None",
+        additionalEnabledCapabilities: ["Console", "Ingress"]
+      });
+      const { updateState } = renderWithState(state);
+      expandAdvanced();
+      expect(findBaselineSelect()).toBeNull();
+      expect(state.platformConfig.baselineCapabilitySet).toBe("None");
+      expect(updateState).not.toHaveBeenCalled();
+      expect(findAdditionalInput()).not.toBeNull();
+    });
+  });
+
+  describe("8. Mounted version change", () => {
+    it("hidden baseline appears on version change; stored value shown; sibling and HT persist; both versions received", () => {
+      const catalog = syntheticCatalog({
+        baseline: makeBaselineEntry({ minVersion: "4.21" }),
+        additional: makeAdditionalEntry({ minVersion: "4.20" })
+      });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog);
+      const state420 = stateForVersion("4.20", {
+        baselineCapabilitySet: "None",
+        additionalEnabledCapabilities: ["Console"]
+      });
+      const updateState = vi.fn();
+      const { rerender } = render(
+        <AppContext.Provider value={{ state: state420, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+      expect(findBaselineSelect()).toBeNull();
+      expect(findAdditionalInput()).not.toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+
+      const state421 = stateForVersion("4.21", {
+        baselineCapabilitySet: "None",
+        additionalEnabledCapabilities: ["Console"]
+      });
+      rerender(
+        <AppContext.Provider value={{ state: state421, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      const baselineSelect = findBaselineSelect();
+      expect(baselineSelect).not.toBeNull();
+      expect(baselineSelect.value).toBe("None");
+      expect(findAdditionalInput()).not.toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.20");
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.21");
+    });
+  });
+
+  describe("9. Prior-cohort containment", () => {
+    it("real catalogs bare-metal-agent: HT selects, CPU partitioning, boot artifacts, minimal ISO visible", () => {
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+      expect(screen.getByText(/Use minimal ISO/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    });
+
+    it("real catalogs bare-metal-ipi: HT selects, CPU partitioning, feature set visible", () => {
+      const state = stateForVersion("4.20");
+      state.methodology = { method: "IPI" };
+      renderWithState(state);
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
     });
   });
 });

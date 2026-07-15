@@ -421,7 +421,9 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   /** Advanced (gap remediation): show only when catalog has any of these params for this scenario. */
   const showComputeHyperthreading = isCatalogFieldVisible("compute[].hyperthreading", INSTALL_CONFIG);
   const showControlPlaneHyperthreading = isCatalogFieldVisible("controlPlane[].hyperthreading", INSTALL_CONFIG);
-  const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
+  const showBaselineCapabilitySet = isCatalogFieldVisible("capabilities.baselineCapabilitySet", INSTALL_CONFIG);
+  const showAdditionalEnabledCapabilities = isCatalogFieldVisible("capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
+  const showCapabilities = showBaselineCapabilitySet || showAdditionalEnabledCapabilities;
   const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
   const showFeatureSet = hasParam(catalogParams, "featureSet", INSTALL_CONFIG);
   const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
@@ -4488,6 +4490,7 @@ Leave 'Not set' (enabled) for general-purpose clusters`}
                   )}
                   {showCapabilities && (
                     <>
+                      {showBaselineCapabilitySet && (
                       <FieldLabelWithInfo
                         label="Baseline capability set (optional)"
                         hint={`Defines the baseline set of OpenShift capabilities (cluster features) enabled at installation time.
@@ -4541,6 +4544,8 @@ Leave 'Not set' for normal clusters`}
                           ))}
                         </select>
                       </FieldLabelWithInfo>
+                      )}
+                      {showAdditionalEnabledCapabilities && (
                       <FieldLabelWithInfo
                         label="Additional enabled capabilities (optional, comma-separated)"
                         hint={`List of specific OpenShift capabilities to enable beyond the baseline capability set, allowing fine-grained control over which optional cluster features are installed.
@@ -4599,6 +4604,7 @@ Console, Marketplace, Insights (minimal + marketplace)`}
                           placeholder="e.g. baremetal, marketplace"
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   )}
                   {showCpuPartitioningMode && (
