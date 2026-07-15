@@ -2117,3 +2117,482 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V3", () => {
     });
   });
 });
+
+describe("DOC-102 Slice 5H PlatformSpecifics Visibility V4", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const INSTALL_CONFIG = "install-config.yaml";
+
+  function makeFeatureSetEntry(overrides = {}) {
+    return {
+      path: "featureSet",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["TechPreviewNoUpgrade", "CustomNoUpgrade", "LatencyMitigating"],
+      default: "not specified in docs",
+      required: false,
+      description: "Feature set",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeFeatureGatesEntry(overrides = {}) {
+    return {
+      path: "featureGates",
+      outputFile: INSTALL_CONFIG,
+      type: "array",
+      allowed: "not specified in docs",
+      default: "not specified in docs",
+      required: false,
+      description: "Feature gates",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeHtEntry(path, overrides = {}) {
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["Enabled", "Disabled"],
+      default: "not specified in docs",
+      required: false,
+      description: "Hyperthreading",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeCapEntry(path, overrides = {}) {
+    const defaults = path === "capabilities.baselineCapabilitySet"
+      ? { type: "string", allowed: ["None", "v4.11", "v4.12", "v4.20", "vCurrent"], default: "vCurrent" }
+      : { type: "array", allowed: "not specified in docs", default: "not specified in docs" };
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      required: false,
+      description: path,
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...defaults,
+      ...overrides
+    };
+  }
+
+  function makeCpuPartitioningEntry(overrides = {}) {
+    return {
+      path: "cpuPartitioningMode",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["None", "AllNodes"],
+      default: "None",
+      required: false,
+      description: "CPU partitioning mode",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function syntheticCatalog(overrides = {}) {
+    const entries = [
+      makeHtEntry("compute[].hyperthreading"),
+      makeHtEntry("controlPlane[].hyperthreading"),
+      makeCapEntry("capabilities.baselineCapabilitySet"),
+      makeCapEntry("capabilities.additionalEnabledCapabilities"),
+      makeCpuPartitioningEntry(),
+    ];
+    const fs = overrides.featureSet !== undefined ? overrides.featureSet : makeFeatureSetEntry();
+    const fg = overrides.featureGates !== undefined ? overrides.featureGates : makeFeatureGatesEntry();
+    if (fs) entries.push(fs);
+    if (fg) entries.push(fg);
+    return entries;
+  }
+
+  function stateForVersion(minor, platformConfigOverrides = {}) {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor },
+      platformConfig: { ...base.platformConfig, ...platformConfigOverrides }
+    };
+  }
+
+  function renderWithState(state) {
+    const updateState = vi.fn();
+    const value = {
+      state,
+      updateState,
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    const result = render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    return { result, updateState };
+  }
+
+  function expandAdvanced() {
+    const advBtn = screen.queryByRole("button", { name: /Advanced/i });
+    if (advBtn) fireEvent.click(advBtn);
+  }
+
+  function findSelectInFieldWrapper(labelText) {
+    const label = screen.queryByText(labelText);
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("select");
+  }
+
+  function findFeatureGatesTextarea() {
+    const label = screen.queryByText(/Feature gates/);
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("textarea");
+  }
+
+  describe("1. Real-catalog regression", () => {
+    it.each([
+      ["4.20", "bare-metal-agent", {}],
+      ["4.21", "bare-metal-agent", {}],
+      ["4.20", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+      ["4.21", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+    ])("%s %s: Feature set select renders and catalog receives version", (version, scenario, stateOverrides) => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion(version);
+      Object.assign(state, stateOverrides);
+      renderWithState(state);
+      expandAdvanced();
+      const fsSelect = findSelectInFieldWrapper("Feature set");
+      expect(fsSelect).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === scenario);
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe(version);
+    });
+
+    it.each([
+      ["4.20", "bare-metal-agent", {}],
+      ["4.21", "bare-metal-agent", {}],
+      ["4.20", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+      ["4.21", "bare-metal-ipi", { methodology: { method: "IPI" } }],
+    ])("%s %s: Feature gates textarea renders when featureSet=CustomNoUpgrade", (version, scenario, stateOverrides) => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion(version, { featureSet: "CustomNoUpgrade" });
+      Object.assign(state, stateOverrides);
+      renderWithState(state);
+      expandAdvanced();
+      expect(findFeatureGatesTextarea()).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === scenario);
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe(version);
+    });
+  });
+
+  describe("2. Feature set minVersion gating", () => {
+    it.each([
+      ["4.20", false],
+      ["4.21", true],
+    ])("at %s: featureSet visible=%s; featureGates follows parent availability", (version, expected) => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry({ minVersion: "4.21" }),
+        featureGates: makeFeatureGatesEntry({ minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion(version, {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "ExampleGate=true"
+      });
+      renderWithState(state);
+      expandAdvanced();
+      if (expected) {
+        expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+        expect(findFeatureGatesTextarea()).not.toBeNull();
+      } else {
+        expect(findSelectInFieldWrapper("Feature set")).toBeNull();
+        expect(findFeatureGatesTextarea()).toBeNull();
+      }
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(screen.queryByRole("button", { name: /Advanced/i })).not.toBeNull();
+      expect(state.platformConfig.featureSet).toBe("CustomNoUpgrade");
+      expect(state.platformConfig.featureGates).toBe("ExampleGate=true");
+    });
+
+    it("at 4.21: stored values are retained and displayed", () => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry({ minVersion: "4.21" }),
+        featureGates: makeFeatureGatesEntry({ minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.21", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "ExampleGate=true"
+      });
+      renderWithState(state);
+      expandAdvanced();
+      const fsSelect = findSelectInFieldWrapper("Feature set");
+      expect(fsSelect).not.toBeNull();
+      expect(fsSelect.value).toBe("CustomNoUpgrade");
+      const fgTextarea = findFeatureGatesTextarea();
+      expect(fgTextarea).not.toBeNull();
+      expect(fgTextarea.value).toBe("ExampleGate=true");
+    });
+  });
+
+  describe("3. Feature gates minVersion gating", () => {
+    it.each([
+      ["4.20", false],
+      ["4.21", true],
+    ])("at %s: featureGates visible=%s when requiring 4.21; featureSet present", (version, fgExpected) => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry({ minVersion: "4.20" }),
+        featureGates: makeFeatureGatesEntry({ minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion(version, {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "SomeGate=false"
+      });
+      renderWithState(state);
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      if (fgExpected) {
+        expect(findFeatureGatesTextarea()).not.toBeNull();
+        expect(findFeatureGatesTextarea().value).toBe("SomeGate=false");
+      } else {
+        expect(findFeatureGatesTextarea()).toBeNull();
+        expect(state.platformConfig.featureGates).toBe("SomeGate=false");
+      }
+    });
+  });
+
+  describe("4. Existing value condition", () => {
+    it.each([
+      ["TechPreviewNoUpgrade", false],
+      ["CustomNoUpgrade", true],
+    ])("featureSet=%s: featureGates visible=%s (metadata-eligible but business rule applies)", (fsValue, fgExpected) => {
+      const catalog = syntheticCatalog();
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20", { featureSet: fsValue }));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      if (fgExpected) {
+        expect(findFeatureGatesTextarea()).not.toBeNull();
+      } else {
+        expect(findFeatureGatesTextarea()).toBeNull();
+      }
+    });
+  });
+
+  describe("5. Non-renderable Feature set", () => {
+    it("supported-backend-only featureSet: both controls absent; prior cohorts visible; stored values unchanged; updateState not called", () => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry({ supportStatus: "supported-backend-only" }),
+        featureGates: makeFeatureGatesEntry()
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "Gate=true"
+      });
+      const { updateState } = renderWithState(state);
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Feature set")).toBeNull();
+      expect(findFeatureGatesTextarea()).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(state.platformConfig.featureSet).toBe("CustomNoUpgrade");
+      expect(state.platformConfig.featureGates).toBe("Gate=true");
+      expect(updateState).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("6. Non-renderable Feature gates", () => {
+    it("supported-backend-only featureGates: featureSet remains; featureGates absent; prior cohorts remain; stored value unchanged", () => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry(),
+        featureGates: makeFeatureGatesEntry({ supportStatus: "supported-backend-only" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "SomeGate=true"
+      });
+      renderWithState(state);
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      expect(findFeatureGatesTextarea()).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(state.platformConfig.featureGates).toBe("SomeGate=true");
+    });
+  });
+
+  describe("7. Missing entries", () => {
+    it.each([
+      ["featureSet", { featureSet: null, featureGates: makeFeatureGatesEntry() }],
+      ["featureGates", { featureSet: makeFeatureSetEntry(), featureGates: null }],
+    ])("missing %s: parent-child rules apply, no fallback restores the field", (missing, overrides) => {
+      const catalog = syntheticCatalog(overrides);
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = stateForVersion("4.20", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "G=true"
+      });
+      renderWithState(state);
+      expandAdvanced();
+      if (missing === "featureSet") {
+        expect(findSelectInFieldWrapper("Feature set")).toBeNull();
+        expect(findFeatureGatesTextarea()).toBeNull();
+      } else {
+        expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+        expect(findFeatureGatesTextarea()).toBeNull();
+      }
+    });
+  });
+
+  describe("8. Mounted version changes", () => {
+    it("Feature set becomes eligible at 4.21: controls appear without remounting; stored values retained", () => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry({ minVersion: "4.21" }),
+        featureGates: makeFeatureGatesEntry({ minVersion: "4.20" })
+      });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog);
+
+      const state420 = stateForVersion("4.20", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "Gate=true"
+      });
+      const updateState = vi.fn();
+      const { rerender } = render(
+        <AppContext.Provider value={{ state: state420, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Feature set")).toBeNull();
+      expect(findFeatureGatesTextarea()).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+
+      const state421 = stateForVersion("4.21", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "Gate=true"
+      });
+      rerender(
+        <AppContext.Provider value={{ state: state421, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      const fsSelect = findSelectInFieldWrapper("Feature set");
+      expect(fsSelect).not.toBeNull();
+      expect(fsSelect.value).toBe("CustomNoUpgrade");
+      expect(findFeatureGatesTextarea()).not.toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.20");
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.21");
+    });
+
+    it("Feature gates becomes eligible at 4.21 while Feature set remains eligible: textarea appears on version change", () => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry({ minVersion: "4.20" }),
+        featureGates: makeFeatureGatesEntry({ minVersion: "4.21" })
+      });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog);
+
+      const state420 = stateForVersion("4.20", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "Gate=true"
+      });
+      const updateState = vi.fn();
+      const { rerender } = render(
+        <AppContext.Provider value={{ state: state420, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      expect(findFeatureGatesTextarea()).toBeNull();
+
+      const state421 = stateForVersion("4.21", {
+        featureSet: "CustomNoUpgrade",
+        featureGates: "Gate=true"
+      });
+      rerender(
+        <AppContext.Provider value={{ state: state421, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      const fgTextarea = findFeatureGatesTextarea();
+      expect(fgTextarea).not.toBeNull();
+      expect(fgTextarea.value).toBe("Gate=true");
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.20");
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.21");
+    });
+  });
+
+  describe("9. Advanced-section containment", () => {
+    it("entire Feature cohort ineligible: no Feature wrappers remain; Advanced visible via prior cohorts", () => {
+      const catalog = syntheticCatalog({
+        featureSet: makeFeatureSetEntry({ supportStatus: "supported-backend-only" }),
+        featureGates: makeFeatureGatesEntry({ supportStatus: "supported-backend-only" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20", { featureSet: "CustomNoUpgrade" }));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Feature set")).toBeNull();
+      expect(screen.queryByText("Feature set")).not.toBeInTheDocument();
+      expect(findFeatureGatesTextarea()).toBeNull();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+    });
+  });
+
+  describe("10. Prior-cohort containment", () => {
+    it.each([
+      ["4.20"],
+      ["4.21"],
+    ])("real catalogs bare-metal-agent %s: HT, capabilities, CPU partitioning, boot artifacts remain", (version) => {
+      renderWithState(stateForVersion(version));
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(screen.queryByPlaceholderText("e.g. baremetal, marketplace")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(screen.getByText(/Use minimal ISO/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    });
+  });
+});

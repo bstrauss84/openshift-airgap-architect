@@ -425,7 +425,8 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showAdditionalEnabledCapabilities = isCatalogFieldVisible("capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCapabilities = showBaselineCapabilitySet || showAdditionalEnabledCapabilities;
   const showCpuPartitioningMode = isCatalogFieldVisible("cpuPartitioningMode", INSTALL_CONFIG);
-  const showFeatureSet = hasParam(catalogParams, "featureSet", INSTALL_CONFIG);
+  const showFeatureSet = isCatalogFieldVisible("featureSet", INSTALL_CONFIG);
+  const showFeatureGates = isCatalogFieldVisible("featureGates", INSTALL_CONFIG);
   const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
@@ -4723,7 +4724,7 @@ Leave 'Not set' for standard production clusters`}
                       </select>
                     </FieldLabelWithInfo>
                   )}
-                  {showFeatureSet && platformConfig.featureSet === "CustomNoUpgrade" && (
+                  {showFeatureSet && showFeatureGates && platformConfig.featureSet === "CustomNoUpgrade" && (
                     <FieldLabelWithInfo
                       label="Feature gates (required when CustomNoUpgrade)"
                       hint={`Individual feature gate overrides when using CustomNoUpgrade feature set.
