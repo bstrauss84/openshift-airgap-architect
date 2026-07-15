@@ -14,6 +14,7 @@ import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
 import { formatMACAsYouType } from "../formatUtils.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
@@ -75,6 +76,12 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const versionConfirmed = getVersionLocked(state);
   const selectedMinor = getOpenShiftMinorFromState(state) || "4.20";
   const catalogParams = getCatalogForScenario(scenarioId, selectedMinor) || [];
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
   const showAwsGovcloudSection = catalogParams.some(
     (p) => p.path === "platform.aws.region" && p.outputFile === INSTALL_CONFIG
   );
@@ -412,8 +419,8 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     : ["Managed", "Unmanaged", "Disabled"];
 
   /** Advanced (gap remediation): show only when catalog has any of these params for this scenario. */
-  const showComputeHyperthreading = hasParam(catalogParams, "compute[].hyperthreading", INSTALL_CONFIG);
-  const showControlPlaneHyperthreading = hasParam(catalogParams, "controlPlane[].hyperthreading", INSTALL_CONFIG);
+  const showComputeHyperthreading = isCatalogFieldVisible("compute[].hyperthreading", INSTALL_CONFIG);
+  const showControlPlaneHyperthreading = isCatalogFieldVisible("controlPlane[].hyperthreading", INSTALL_CONFIG);
   const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
   const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
   const showFeatureSet = hasParam(catalogParams, "featureSet", INSTALL_CONFIG);

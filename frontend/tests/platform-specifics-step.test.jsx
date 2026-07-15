@@ -1020,3 +1020,496 @@ describe("PlatformSpecificsStep version-aware catalog access (DOC-102 Slice 5H C
     }
   });
 });
+
+describe("DOC-102 Slice 5H PlatformSpecifics Visibility V1", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const INSTALL_CONFIG = "install-config.yaml";
+  const AGENT_CONFIG = "agent-config.yaml";
+
+  function makeHyperthreadingEntry(path, overrides = {}) {
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["Enabled", "Disabled"],
+      default: "not specified in docs",
+      required: false,
+      description: "Hyperthreading control",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeCapabilitiesEntry() {
+    return {
+      path: "capabilities.baselineCapabilitySet",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["None", "v4.11", "v4.12", "v4.20", "vCurrent"],
+      default: "vCurrent",
+      required: false,
+      description: "Baseline capability set",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null
+    };
+  }
+
+  function makeCpuPartitioningEntry() {
+    return {
+      path: "cpuPartitioningMode",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["None", "AllNodes"],
+      default: "None",
+      required: false,
+      description: "CPU partitioning mode",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null
+    };
+  }
+
+  function syntheticCatalog(overrides = {}) {
+    const computeEntry = overrides.compute !== undefined
+      ? overrides.compute
+      : makeHyperthreadingEntry("compute[].hyperthreading");
+    const controlPlaneEntry = overrides.controlPlane !== undefined
+      ? overrides.controlPlane
+      : makeHyperthreadingEntry("controlPlane[].hyperthreading");
+    const entries = [
+      makeCapabilitiesEntry(),
+      makeCpuPartitioningEntry(),
+    ];
+    if (computeEntry) entries.push(computeEntry);
+    if (controlPlaneEntry) entries.push(controlPlaneEntry);
+    return entries;
+  }
+
+  function stateForVersion(minor, platformConfigOverrides = {}) {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor },
+      platformConfig: { ...base.platformConfig, ...platformConfigOverrides }
+    };
+  }
+
+  function renderWithState(state) {
+    const updateState = vi.fn();
+    const value = {
+      state,
+      updateState,
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    const result = render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    return { result, updateState };
+  }
+
+  function expandAdvanced() {
+    const advBtn = screen.queryByRole("button", { name: /Advanced/i });
+    if (advBtn) fireEvent.click(advBtn);
+  }
+
+  function findSelectInFieldWrapper(labelText) {
+    const label = screen.queryByText(labelText);
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("select");
+  }
+
+  describe("1. Real catalog regressions", () => {
+    it("bare-metal-agent 4.20: both hyperthreading selects render", () => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion("4.20");
+      renderWithState(state);
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === "bare-metal-agent");
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe("4.20");
+    });
+
+    it("bare-metal-agent 4.21: both hyperthreading selects render", () => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion("4.21");
+      renderWithState(state);
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === "bare-metal-agent");
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe("4.21");
+    });
+
+    it.each(["4.20", "4.21"])("aws-govcloud-ipi %s: both hyperthreading selects render", (version) => {
+      vi.mocked(apiFetch).mockResolvedValue({});
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = stateForVersion(version, {});
+      state.blueprint = { ...state.blueprint, platform: "AWS GovCloud" };
+      state.methodology = { method: "IPI" };
+      renderWithState(state);
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+      const catalogCall = spy.mock.calls.find(c => c[0] === "aws-govcloud-ipi");
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe(version);
+    });
+
+    it("bare-metal-ipi 4.20: both hyperthreading selects render", () => {
+      const state = stateForVersion("4.20");
+      state.methodology = { method: "IPI" };
+      renderWithState(state);
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+    });
+  });
+
+  describe("2. Compute minVersion gating", () => {
+    it("compute select absent at 4.20 when compute requires 4.21", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).toBeNull();
+    });
+
+    it("control-plane select present at 4.20 when compute requires 4.21", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+    });
+
+    it("compute select present at 4.21 when compute requires 4.21", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.21"));
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+    });
+
+    it("control-plane select remains present at 4.21", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { minVersion: "4.20" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.21"));
+      expandAdvanced();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+    });
+
+    it("another Advanced field remains visible when compute is hidden", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
+    });
+  });
+
+  describe("3. Control-plane minVersion gating", () => {
+    it("control-plane select absent at 4.20 when control-plane requires 4.21", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.20" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).toBeNull();
+    });
+
+    it("compute select present at 4.20 when control-plane requires 4.21", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.20" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+    });
+
+    it("both selects present at 4.21 when control-plane requires 4.21", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.20" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { minVersion: "4.21" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.21"));
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+    });
+  });
+
+  describe("4. Non-renderable status", () => {
+    it("compute select disappears with supported-backend-only status; control-plane remains", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { supportStatus: "supported-backend-only" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).toBeNull();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+      expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
+    });
+
+    it("control-plane select disappears with supported-backend-only status; compute remains", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading"),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { supportStatus: "supported-backend-only" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).toBeNull();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+    });
+
+    it("Advanced section is not empty when both hyperthreading controls are non-renderable", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { supportStatus: "supported-backend-only" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading", { supportStatus: "supported-backend-only" })
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+    });
+  });
+
+  describe("5. Missing entry", () => {
+    it("compute select absent when compute entry is omitted; control-plane remains", () => {
+      const catalog = syntheticCatalog({
+        compute: null,
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).toBeNull();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).not.toBeNull();
+    });
+
+    it("control-plane select absent when control-plane entry is omitted; compute remains", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading"),
+        controlPlane: null
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      const cpSelect = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect).toBeNull();
+      const computeSelect = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect).not.toBeNull();
+    });
+  });
+
+  describe("6. Hidden-state preservation", () => {
+    it("stored value is unchanged when field is hidden; select reappears with original value on version update", () => {
+      const catalog420 = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
+      });
+      const catalog421 = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
+      });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog420);
+
+      const state420 = stateForVersion("4.20", {
+        computeHyperthreading: "Disabled",
+        controlPlaneHyperthreading: "Enabled"
+      });
+      const { updateState } = renderWithState(state420);
+      expandAdvanced();
+
+      const computeSelect420 = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect420).toBeNull();
+      expect(state420.platformConfig.computeHyperthreading).toBe("Disabled");
+      expect(updateState).not.toHaveBeenCalled();
+
+      cleanup();
+      spy.mockReturnValue(catalog421);
+      const state421 = stateForVersion("4.21", {
+        computeHyperthreading: "Disabled",
+        controlPlaneHyperthreading: "Enabled"
+      });
+      renderWithState(state421);
+      expandAdvanced();
+
+      const computeSelect421 = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect421).not.toBeNull();
+      expect(computeSelect421.value).toBe("Disabled");
+    });
+  });
+
+  describe("7. Mounted selected-minor change", () => {
+    it("compute appears when mounted provider state changes from 4.20 to 4.21", () => {
+      const catalog420 = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
+      });
+      const catalog421 = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading", { minVersion: "4.21" }),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
+      });
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog420);
+
+      const state420 = stateForVersion("4.20", { computeHyperthreading: "Disabled" });
+      const updateState = vi.fn();
+      const providerValue420 = {
+        state: state420,
+        updateState,
+        loading: false,
+        startOver: vi.fn(),
+        setState: vi.fn()
+      };
+      const { rerender } = render(
+        <AppContext.Provider value={providerValue420}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expandAdvanced();
+
+      const computeSelect420 = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect420).toBeNull();
+      const cpSelect420 = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect420).not.toBeNull();
+
+      spy.mockReturnValue(catalog421);
+      const state421 = stateForVersion("4.21", { computeHyperthreading: "Disabled" });
+      const providerValue421 = {
+        state: state421,
+        updateState,
+        loading: false,
+        startOver: vi.fn(),
+        setState: vi.fn()
+      };
+      rerender(
+        <AppContext.Provider value={providerValue421}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+
+      const computeSelect421 = findSelectInFieldWrapper("Compute hyperthreading");
+      expect(computeSelect421).not.toBeNull();
+      expect(computeSelect421.value).toBe("Disabled");
+      const cpSelect421 = findSelectInFieldWrapper("Control plane hyperthreading");
+      expect(cpSelect421).not.toBeNull();
+
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.20");
+      expect(spy).toHaveBeenCalledWith("bare-metal-agent", "4.21");
+    });
+  });
+
+  describe("9. Prior behavior containment", () => {
+    it("bare-metal-agent 4.20: capabilities, cpuPartitioningMode, and minimalISO remain visible", () => {
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+      expect(screen.getByText(/Use minimal ISO/i)).toBeInTheDocument();
+    });
+
+    it("bare-metal-ipi 4.20: capabilities, cpuPartitioningMode, and Feature set select remain visible", () => {
+      const state = stateForVersion("4.20");
+      state.methodology = { method: "IPI" };
+      renderWithState(state);
+      expandAdvanced();
+      expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+      const featureSetSelect = findSelectInFieldWrapper("Feature set");
+      expect(featureSetSelect).not.toBeNull();
+    });
+
+    it("aws-govcloud-ipi 4.20: capabilities and cpuPartitioningMode remain visible", () => {
+      vi.mocked(apiFetch).mockResolvedValue({});
+      const state = stateForVersion("4.20");
+      state.blueprint = { ...state.blueprint, platform: "AWS GovCloud" };
+      state.methodology = { method: "IPI" };
+      renderWithState(state);
+      expandAdvanced();
+      expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+    });
+
+    it("bare-metal-agent 4.20: boot artifacts remain visible", () => {
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    });
+
+    it("no other PlatformSpecifics field received new metadata gating (capabilities still use hasParam)", () => {
+      const catalog = syntheticCatalog({
+        compute: makeHyperthreadingEntry("compute[].hyperthreading"),
+        controlPlane: makeHyperthreadingEntry("controlPlane[].hyperthreading")
+      });
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      renderWithState(stateForVersion("4.20"));
+      expandAdvanced();
+      expect(screen.getByText(/Baseline capability set/)).toBeInTheDocument();
+      expect(screen.getByText(/CPU partitioning mode/)).toBeInTheDocument();
+    });
+  });
+});
