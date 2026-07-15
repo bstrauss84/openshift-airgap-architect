@@ -3114,3 +3114,382 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V5", () => {
     });
   });
 });
+
+describe("DOC-102 Slice 5H PlatformSpecifics Visibility V6", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const INSTALL_CONFIG = "install-config.yaml";
+
+  function makeAwsWorkerTypeEntry(overrides = {}) {
+    return {
+      path: "compute[].platform.aws.type",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: "EC2 instance type",
+      default: "not specified in docs",
+      required: false,
+      description: "EC2 instance type for compute (worker) machines (IPI).",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...overrides
+    };
+  }
+
+  function makeAwsRegionEntry() {
+    return {
+      path: "platform.aws.region",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: "not specified in docs",
+      default: "not specified in docs",
+      required: true,
+      description: "AWS GovCloud region",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null
+    };
+  }
+
+  function makeHtEntry(path) {
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["Enabled", "Disabled"],
+      default: "not specified in docs",
+      required: false,
+      description: "Hyperthreading",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null
+    };
+  }
+
+  function makeCapEntry(path) {
+    const defaults = path === "capabilities.baselineCapabilitySet"
+      ? { type: "string", allowed: ["None", "v4.11", "v4.12", "v4.20", "vCurrent"], default: "vCurrent" }
+      : { type: "array", allowed: "not specified in docs", default: "not specified in docs" };
+    return {
+      path,
+      outputFile: INSTALL_CONFIG,
+      required: false,
+      description: path,
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null,
+      ...defaults
+    };
+  }
+
+  function makeCpuPartitioningEntry() {
+    return {
+      path: "cpuPartitioningMode",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["None", "AllNodes"],
+      default: "None",
+      required: false,
+      description: "CPU partitioning mode",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null
+    };
+  }
+
+  function makeFeatureSetEntry() {
+    return {
+      path: "featureSet",
+      outputFile: INSTALL_CONFIG,
+      type: "string",
+      allowed: ["TechPreviewNoUpgrade", "CustomNoUpgrade", "LatencyMitigating"],
+      default: "not specified in docs",
+      required: false,
+      description: "Feature set",
+      supportStatus: "supported-ui",
+      minVersion: "4.20",
+      maxVersion: null
+    };
+  }
+
+  function syntheticAwsIpiCatalog(workerEntry) {
+    const entries = [
+      makeAwsRegionEntry(),
+      makeHtEntry("compute[].hyperthreading"),
+      makeHtEntry("controlPlane[].hyperthreading"),
+      makeCapEntry("capabilities.baselineCapabilitySet"),
+      makeCapEntry("capabilities.additionalEnabledCapabilities"),
+      makeCpuPartitioningEntry(),
+      makeFeatureSetEntry(),
+    ];
+    if (workerEntry) entries.push(workerEntry);
+    return entries;
+  }
+
+  function awsIpiState(minor, platformConfigOverrides = {}) {
+    const base = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },
+      methodology: { method: "IPI" }
+    });
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor },
+      platformConfig: { ...base.platformConfig, ...platformConfigOverrides }
+    };
+  }
+
+  function awsUpiState(minor) {
+    const base = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },
+      methodology: { method: "UPI" }
+    });
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor }
+    };
+  }
+
+  function renderWithState(state) {
+    const updateState = vi.fn();
+    const value = {
+      state,
+      updateState,
+      loading: false,
+      startOver: vi.fn(),
+      setState: vi.fn()
+    };
+    const result = render(
+      <AppContext.Provider value={value}>
+        <PlatformSpecificsStep />
+      </AppContext.Provider>
+    );
+    return { result, updateState };
+  }
+
+  function findWorkerInput() {
+    return screen.queryByPlaceholderText("e.g. m5.large");
+  }
+
+  function findWorkerLabel() {
+    return screen.queryByText("Worker instance type (optional)");
+  }
+
+  function findSelectInFieldWrapper(labelText) {
+    const label = screen.queryByText(labelText);
+    if (!label) return null;
+    const wrapper = label.closest(".field-with-info-row");
+    if (!wrapper) return null;
+    return wrapper.querySelector("select");
+  }
+
+  function expandAdvanced() {
+    const advBtn = screen.queryByRole("button", { name: /Advanced/i });
+    if (advBtn) fireEvent.click(advBtn);
+  }
+
+  describe("1. Real-catalog regressions", () => {
+    it.each(["4.20", "4.21"])("aws-govcloud-ipi %s: worker instance-type input renders with datalist", (version) => {
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      const state = awsIpiState(version);
+      renderWithState(state);
+      const input = findWorkerInput();
+      expect(input).not.toBeNull();
+      expect(input.getAttribute("list")).toBe("aws-govcloud-instance-types");
+      const catalogCall = spy.mock.calls.find(c => c[0] === "aws-govcloud-ipi");
+      expect(catalogCall).toBeDefined();
+      expect(catalogCall[1]).toBe(version);
+    });
+  });
+
+  describe("2. Structural UPI boundary", () => {
+    it("aws-govcloud-upi: worker input absent even with eligible synthetic entry", () => {
+      const catalog = syntheticAwsIpiCatalog(makeAwsWorkerTypeEntry());
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = awsUpiState("4.20");
+      renderWithState(state);
+      expect(findWorkerInput()).toBeNull();
+      expect(findWorkerLabel()).toBeNull();
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("3. minVersion gating", () => {
+    it("at 4.20: worker input and label absent when requiring 4.21; AWS region input remains; prior cohorts remain", () => {
+      const catalog = syntheticAwsIpiCatalog(makeAwsWorkerTypeEntry({ minVersion: "4.21" }));
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = awsIpiState("4.20");
+      renderWithState(state);
+      expect(findWorkerInput()).toBeNull();
+      expect(findWorkerLabel()).toBeNull();
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /AWS GovCloud IPI/i })).toBeInTheDocument();
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+    });
+
+    it("at 4.21: worker input appears with datalist; AWS region input remains", () => {
+      const catalog = syntheticAwsIpiCatalog(makeAwsWorkerTypeEntry({ minVersion: "4.21" }));
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = awsIpiState("4.21");
+      renderWithState(state);
+      const input = findWorkerInput();
+      expect(input).not.toBeNull();
+      expect(input.getAttribute("list")).toBe("aws-govcloud-instance-types");
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("4. Non-renderable status", () => {
+    it("supported-backend-only: worker input and label absent; AWS region input remains; prior cohorts remain", () => {
+      const catalog = syntheticAwsIpiCatalog(makeAwsWorkerTypeEntry({ supportStatus: "supported-backend-only" }));
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = awsIpiState("4.20");
+      renderWithState(state);
+      expect(findWorkerInput()).toBeNull();
+      expect(findWorkerLabel()).toBeNull();
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+    });
+  });
+
+  describe("5. Missing entry", () => {
+    it("omitted entry: worker input and label absent; AWS region input remains; no fallback", () => {
+      const catalog = syntheticAwsIpiCatalog(null);
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = awsIpiState("4.20");
+      renderWithState(state);
+      expect(findWorkerInput()).toBeNull();
+      expect(findWorkerLabel()).toBeNull();
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+    });
+  });
+
+  describe("6. Wrong output file", () => {
+    it("eligible entry with wrong outputFile: worker input and label absent; AWS region input remains", () => {
+      const catalog = syntheticAwsIpiCatalog(makeAwsWorkerTypeEntry({ outputFile: "agent-config.yaml" }));
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = awsIpiState("4.20");
+      renderWithState(state);
+      expect(findWorkerInput()).toBeNull();
+      expect(findWorkerLabel()).toBeNull();
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("7. Hidden-state preservation", () => {
+    it("seeded workerInstanceType preserved when field hidden; updateState and updateAws not called", () => {
+      const catalog = syntheticAwsIpiCatalog(makeAwsWorkerTypeEntry({ minVersion: "4.21" }));
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+      const state = awsIpiState("4.20", {
+        aws: { region: "us-gov-west-1", workerInstanceType: "m6i.2xlarge" }
+      });
+      const { updateState } = renderWithState(state);
+      expect(findWorkerInput()).toBeNull();
+      expect(state.platformConfig.aws.workerInstanceType).toBe("m6i.2xlarge");
+      expect(updateState).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("8. Mounted version change", () => {
+    it("worker input appears on 4.20→4.21 without remounting; seeded value shown; datalist intact; getCatalogForScenario receives both versions", () => {
+      const catalog = syntheticAwsIpiCatalog(makeAwsWorkerTypeEntry({ minVersion: "4.21" }));
+      const spy = vi.spyOn(catalogResolver, "getCatalogForScenario");
+      spy.mockReturnValue(catalog);
+
+      const state420 = awsIpiState("4.20", {
+        aws: { region: "us-gov-west-1", workerInstanceType: "m6i.2xlarge" }
+      });
+      const updateState = vi.fn();
+      const { rerender } = render(
+        <AppContext.Provider value={{ state: state420, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      expect(findWorkerInput()).toBeNull();
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+
+      const state421 = awsIpiState("4.21", {
+        aws: { region: "us-gov-west-1", workerInstanceType: "m6i.2xlarge" }
+      });
+      rerender(
+        <AppContext.Provider value={{ state: state421, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+      const input = findWorkerInput();
+      expect(input).not.toBeNull();
+      expect(input.value).toBe("m6i.2xlarge");
+      expect(input.getAttribute("list")).toBe("aws-govcloud-instance-types");
+      expect(screen.getByLabelText(/AWS GovCloud region/i)).toBeInTheDocument();
+      expect(spy).toHaveBeenCalledWith("aws-govcloud-ipi", "4.20");
+      expect(spy).toHaveBeenCalledWith("aws-govcloud-ipi", "4.21");
+    });
+  });
+
+  describe("9. Existing interaction containment", () => {
+    it("typing updates local input; no persistent state on typing; blur invokes updateAws", () => {
+      const state = awsIpiState("4.20");
+      const updateState = vi.fn();
+      const value = {
+        state,
+        updateState,
+        loading: false,
+        startOver: vi.fn(),
+        setState: vi.fn()
+      };
+      render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+
+      const input = findWorkerInput();
+      expect(input).not.toBeNull();
+      fireEvent.change(input, { target: { value: "c5.2xlarge" } });
+      expect(input.value).toBe("c5.2xlarge");
+      expect(updateState).not.toHaveBeenCalled();
+
+      fireEvent.blur(input);
+      expect(updateState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platformConfig: expect.objectContaining({
+            aws: expect.objectContaining({
+              workerInstanceType: "c5.2xlarge"
+            })
+          })
+        })
+      );
+    });
+  });
+
+  describe("10. Prior-cohort containment", () => {
+    it("representative V1–V5 controls remain unaffected in bare-metal-agent 4.20", () => {
+      const state = stateForPlatformSpecificsStep();
+      state.version = { ...state.version, selectedMinor: "4.20" };
+      renderWithState(state);
+      expandAdvanced();
+      expect(findSelectInFieldWrapper("Compute hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Control plane hyperthreading")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Baseline capability set")).not.toBeNull();
+      expect(screen.queryByPlaceholderText("e.g. baremetal, marketplace")).not.toBeNull();
+      expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
+      expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
+      expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    });
+  });
+});

@@ -285,6 +285,9 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const metaAwsAmiID = getParamMeta(scenarioId, "platform.aws.amiID", INSTALL_CONFIG, state);
   const metaControlPlaneAwsType = getParamMeta(scenarioId, "controlPlane.platform.aws.type", INSTALL_CONFIG, state);
   const metaComputeAwsType = getParamMeta(scenarioId, "compute[].platform.aws.type", INSTALL_CONFIG, state);
+  const showAwsWorkerInstanceType =
+    scenarioId === "aws-govcloud-ipi" &&
+    isCatalogFieldVisible("compute[].platform.aws.type", INSTALL_CONFIG);
   const metaPublish = getParamMeta(scenarioId, "publish", INSTALL_CONFIG, state);
   const metaCredentialsMode = getParamMeta(scenarioId, "credentialsMode", INSTALL_CONFIG, state);
 
@@ -850,6 +853,7 @@ subnet-0def456abc789 (us-east-1b)`}
                           style={{ maxWidth: "280px" }}
                         />
                       </FieldLabelWithInfo>
+                      {showAwsWorkerInstanceType && (
                       <FieldLabelWithInfo
                         label="Worker instance type (optional)"
                         hint={`AWS EC2 instance type to use for worker (compute) nodes. Leave blank to use OpenShift installer defaults (typically m5.large - 2 vCPUs, 8 GB RAM). Worker nodes run your application workloads (pods, containers) - they do NOT run control plane services.
@@ -871,6 +875,7 @@ subnet-0def456abc789 (us-east-1b)`}
                           style={{ maxWidth: "280px" }}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </div>
                     <h4 className="platform-specifics-subsection">Root volume (optional)</h4>
                     <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
