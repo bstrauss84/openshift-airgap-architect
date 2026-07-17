@@ -49,6 +49,7 @@ export function NodeDrawerAgentContent({
   enableIpv6,
   effectiveHostname,
   showHostname,
+  showDns = true,
   showAgentDay2InstallConfigBmc,
   showAdvancedDrawer,
   advancedOpen,
@@ -732,30 +733,32 @@ Lab environment, simple failover → active-backup`}
       </div>
 
       {/* DNS Configuration */}
-      <div className="workflow-group">
-        <div className="workflow-group-header">
-          <div className="workflow-group-title">DNS Configuration</div>
-        </div>
-        <div className="workflow-group-modes">
-          <div className="field-grid">
-            <label>
-              DNS servers{" "}
-              <input
-                value={selectedNode.dnsServers || ""}
-                onChange={(e) => updateNode(selectedIndex, { dnsServers: e.target.value })}
-                placeholder="192.168.1.10,192.168.1.11"
-              />
-            </label>
-            <label>
-              DNS search{" "}
-              <input
-                value={selectedNode.dnsSearch || ""}
-                onChange={(e) => updateNode(selectedIndex, { dnsSearch: e.target.value })}
-              />
-            </label>
+      {showDns !== false && (
+        <div className="workflow-group">
+          <div className="workflow-group-header">
+            <div className="workflow-group-title">DNS Configuration</div>
+          </div>
+          <div className="workflow-group-modes">
+            <div className="field-grid">
+              <label>
+                DNS servers{" "}
+                <input
+                  value={selectedNode.dnsServers || ""}
+                  onChange={(e) => updateNode(selectedIndex, { dnsServers: e.target.value })}
+                  placeholder="192.168.1.10,192.168.1.11"
+                />
+              </label>
+              <label>
+                DNS search{" "}
+                <input
+                  value={selectedNode.dnsSearch || ""}
+                  onChange={(e) => updateNode(selectedIndex, { dnsSearch: e.target.value })}
+                />
+              </label>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* BMC Configuration (Day-2 seed, optional) */}
       {showAgentDay2InstallConfigBmc && (

@@ -240,6 +240,7 @@ describe("Phase 4.3: HostInventoryV2 metadata-based field visibility (DOC-102 Sl
     { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
     { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"], required: false },
     { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
   ];
 
   function renderInventoryV2(stateOverride) {
@@ -479,6 +480,7 @@ describe("Phase 4.3: HostInventoryV2 hostname visibility (DOC-102 Slice 5H Chunk
     { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
     { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"], required: false },
     { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
   ];
 
   function renderInventoryV2(stateOverride) {
@@ -677,6 +679,222 @@ describe("Phase 4.3: HostInventoryV2 hostname visibility (DOC-102 Slice 5H Chunk
     expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(DNS_PLACEHOLDER)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+  });
+});
+
+describe("DOC-102 Slice 5H Host Inventory H4 DNS visibility", () => {
+  const AC = "agent-config.yaml";
+  const DNS_SERVERS_PLACEHOLDER = "192.168.1.10,192.168.1.11";
+  const HOSTNAME_PLACEHOLDER = "e.g. master-0, arbiter-0";
+
+  const SYNTHETIC_CATALOG_DNS = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"] },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+  ];
+
+  function renderWithCatalog(catalog, stateOverride) {
+    if (catalog) {
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    }
+    return render(
+      <MockAppProvider stateOverride={stateOverride}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+  }
+
+  function openDrawer() {
+    fireEvent.click(screen.getByText(/master-0/i));
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("supported parent renders the complete DNS group", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_DNS, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByLabelText(/DNS search/)).toBeInTheDocument();
+  });
+
+  it("non-renderable parent hides the complete DNS group", () => {
+    const catalog = SYNTHETIC_CATALOG_DNS.map(e =>
+      e.path === "hosts[].networkConfig.dns-resolver" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("DNS Configuration")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/DNS search/)).not.toBeInTheDocument();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+  });
+
+  it("missing parent hides the complete DNS group", () => {
+    const catalog = SYNTHETIC_CATALOG_DNS.filter(e => e.path !== "hosts[].networkConfig.dns-resolver");
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("DNS Configuration")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/DNS search/)).not.toBeInTheDocument();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+  });
+
+  it("version eligibility: hidden at 4.20 when parent minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_DNS.map(e =>
+      e.path === "hosts[].networkConfig.dns-resolver" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("DNS Configuration")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/DNS search/)).not.toBeInTheDocument();
+  });
+
+  it("version eligibility: visible at 4.21 when parent minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_DNS.map(e =>
+      e.path === "hosts[].networkConfig.dns-resolver" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByLabelText(/DNS search/)).toBeInTheDocument();
+  });
+
+  it("mounted version transition: DNS group appears when version changes from 4.20 to 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_DNS.map(e =>
+      e.path === "hosts[].networkConfig.dns-resolver" ? { ...e, minVersion: "4.21" } : e
+    );
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expect(screen.queryByText("DNS Configuration")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/DNS search/)).not.toBeInTheDocument();
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByLabelText(/DNS search/)).toBeInTheDocument();
+    const calls = spy.mock.calls.filter(c => c[0] === "bare-metal-agent");
+    const versions = calls.map(c => c[1]);
+    expect(versions).toContain("4.20");
+    expect(versions).toContain("4.21");
+  });
+
+  it("state preservation: DNS values remain in state while UI is hidden", () => {
+    const catalog = SYNTHETIC_CATALOG_DNS.map(e =>
+      e.path === "hosts[].networkConfig.dns-resolver" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    const stateWithDns = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: [
+          { ...baseState.hostInventory.nodes[0], dnsServers: "10.0.0.1,10.0.0.2", dnsSearch: "example.com,test.local" }
+        ]
+      }
+    };
+    renderWithCatalog(catalog, stateWithDns);
+    openDrawer();
+    expect(screen.queryByText("DNS Configuration")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(stateWithDns.hostInventory.nodes[0].dnsServers).toBe("10.0.0.1,10.0.0.2");
+    expect(stateWithDns.hostInventory.nodes[0].dnsSearch).toBe("example.com,test.local");
+  });
+
+  it("atomicity: no metadata condition renders one DNS child without the other", () => {
+    const conditions = [
+      { label: "supported", catalog: SYNTHETIC_CATALOG_DNS, expectVisible: true },
+      { label: "backend-only", catalog: SYNTHETIC_CATALOG_DNS.map(e =>
+        e.path === "hosts[].networkConfig.dns-resolver" ? { ...e, supportStatus: "supported-backend-only" } : e
+      ), expectVisible: false },
+      { label: "missing", catalog: SYNTHETIC_CATALOG_DNS.filter(e =>
+        e.path !== "hosts[].networkConfig.dns-resolver"
+      ), expectVisible: false },
+      { label: "version-ineligible", catalog: SYNTHETIC_CATALOG_DNS.map(e =>
+        e.path === "hosts[].networkConfig.dns-resolver" ? { ...e, minVersion: "4.21" } : e
+      ), expectVisible: false },
+    ];
+    for (const { label, catalog, expectVisible } of conditions) {
+      cleanup();
+      vi.restoreAllMocks();
+      renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+      openDrawer();
+      const headingPresent = !!screen.queryByText("DNS Configuration");
+      const serversPresent = !!screen.queryByPlaceholderText(DNS_SERVERS_PLACEHOLDER);
+      const searchPresent = !!screen.queryByLabelText(/DNS search/);
+      expect(headingPresent).toBe(expectVisible);
+      expect(serversPresent).toBe(expectVisible);
+      expect(searchPresent).toBe(expectVisible);
+      expect(serversPresent).toBe(searchPresent);
+    }
+  });
+
+  it("no child-leaf dependency: parent visible even when child entries are absent", () => {
+    const catalogWithoutChildren = SYNTHETIC_CATALOG_DNS.filter(e =>
+      e.path !== "hosts[].networkConfig.dns-resolver.config.server" &&
+      e.path !== "hosts[].networkConfig.dns-resolver.config.search"
+    );
+    renderWithCatalog(catalogWithoutChildren, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByLabelText(/DNS search/)).toBeInTheDocument();
+  });
+
+  it.each([
+    ["bare-metal-agent", "Bare Metal", "4.20"],
+    ["bare-metal-agent", "Bare Metal", "4.21"],
+    ["vsphere-agent", "VMware vSphere", "4.20"],
+    ["vsphere-agent", "VMware vSphere", "4.21"],
+  ])("real catalog %s %s: DNS Configuration renders", (scenarioLabel, platform, version) => {
+    const stateOverride = {
+      blueprint: { platform },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: version },
+    };
+    renderWithCatalog(null, stateOverride);
+    openDrawer();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(DNS_SERVERS_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByLabelText(/DNS search/)).toBeInTheDocument();
+  });
+
+  it("scope containment: Role, Hostname, Root Device Hints, and primary networking not newly gated", () => {
+    renderWithCatalog(null, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText("Root Device Hints")).toBeInTheDocument();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
   });
 });
 
