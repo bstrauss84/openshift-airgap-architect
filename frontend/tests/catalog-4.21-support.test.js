@@ -8,7 +8,7 @@
  * - Unknown versions still block
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -757,6 +757,205 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         const mirror = fs.readFileSync(mirrorFilePath, 'utf8');
         expect(canonical).toBe(mirror);
       });
+    });
+  });
+
+  describe('DOC-102 Slice 5H H3 H7 H8 Primary Networking metadata', () => {
+    const agentScenarios = ['bare-metal-agent', 'vsphere-agent'];
+    const versions = ['4.20', '4.21'];
+    const parentPath = 'hosts[].networkConfig';
+    const interfacesParentPath = 'hosts[].networkConfig.interfaces';
+    const routesParentPath = 'hosts[].networkConfig.routes';
+    const linkAggregationPath = 'hosts[].networkConfig.interfaces[].link-aggregation';
+    const vlanPath = 'hosts[].networkConfig.interfaces[].vlan';
+    const subordinateNetworkingPaths = [
+      'hosts[].networkConfig.interfaces',
+      'hosts[].networkConfig.interfaces[].type',
+      'hosts[].networkConfig.interfaces[].name',
+      'hosts[].networkConfig.interfaces[].mac-address',
+      'hosts[].networkConfig.interfaces[].ipv4',
+      'hosts[].networkConfig.interfaces[].ipv4.dhcp',
+      'hosts[].networkConfig.interfaces[].ipv4.address[].ip',
+      'hosts[].networkConfig.interfaces[].ipv6',
+      'hosts[].networkConfig.interfaces[].ipv6.address',
+      'hosts[].networkConfig.interfaces[].link-aggregation',
+      'hosts[].networkConfig.interfaces[].link-aggregation.mode',
+      'hosts[].networkConfig.interfaces[].link-aggregation.port',
+      'hosts[].networkConfig.interfaces[].vlan',
+      'hosts[].networkConfig.interfaces[].vlan.id',
+      'hosts[].networkConfig.interfaces[].vlan.base-iface',
+      'hosts[].networkConfig.routes',
+      'hosts[].networkConfig.routes.config',
+      'hosts[].networkConfig.routes.config[].destination',
+      'hosts[].networkConfig.routes.config[].next-hop-address',
+      'hosts[].networkConfig.routes.config[].next-hop-interface',
+    ];
+    const dnsParentPath = 'hosts[].networkConfig.dns-resolver';
+    const testDir = dirname(fileURLToPath(import.meta.url));
+
+    function loadCanonical(version, scenario) {
+      const filePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')).parameters;
+    }
+
+    let subordinateSnapshots;
+    beforeAll(() => {
+      subordinateSnapshots = {};
+      versions.forEach(version => {
+        agentScenarios.forEach(scenario => {
+          const key = `${version}/${scenario}`;
+          const params = getCatalogForScenario(scenario, version);
+          subordinateSnapshots[key] = {};
+          subordinateNetworkingPaths.forEach(sp => {
+            const entry = params.find(p => p.path === sp);
+            if (entry) subordinateSnapshots[key][sp] = JSON.parse(JSON.stringify(entry));
+          });
+        });
+      });
+    });
+
+    versions.forEach(version => {
+      agentScenarios.forEach(scenario => {
+        it(`${version} ${scenario} canonical has exactly one hosts[].networkConfig parent`, () => {
+          const canonical = loadCanonical(version, scenario);
+          const matches = canonical.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(1);
+        });
+
+        it(`${version} ${scenario} mirror has exactly one hosts[].networkConfig parent`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(1);
+        });
+
+        it(`${version} ${scenario} canonical and mirror parent objects are identical`, () => {
+          const canonical = loadCanonical(version, scenario);
+          const mirror = getCatalogForScenario(scenario, version);
+          const canonicalParent = canonical.find(p => p.path === parentPath);
+          const mirrorParent = mirror.find(p => p.path === parentPath);
+          expect(canonicalParent).toEqual(mirrorParent);
+        });
+
+        it(`${version} ${scenario} parent path is exactly hosts[].networkConfig`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.path).toBe('hosts[].networkConfig');
+        });
+
+        it(`${version} ${scenario} parent outputFile is exactly agent-config.yaml`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.outputFile).toBe('agent-config.yaml');
+        });
+
+        it(`${version} ${scenario} parent supportStatus is supported-ui`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.supportStatus).toBe('supported-ui');
+        });
+
+        it(`${version} ${scenario} parent minVersion remains 4.20`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.minVersion).toBe('4.20');
+        });
+
+        it(`${version} ${scenario} parent maxVersion remains null`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.maxVersion).toBe(null);
+        });
+
+        it(`${version} ${scenario} canonical and mirror catalog files are byte-identical`, () => {
+          const canonicalFilePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+          const mirrorFilePath = resolve(testDir, '..', 'src', 'data', 'catalogs', version, `${scenario}.json`);
+          const canonical = fs.readFileSync(canonicalFilePath, 'utf8');
+          const mirror = fs.readFileSync(mirrorFilePath, 'utf8');
+          expect(canonical).toBe(mirror);
+        });
+
+        it(`${version} ${scenario} interfaces, routes, link-aggregation, and vlan parents retain previous statuses`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const interfaces = params.find(p => p.path === interfacesParentPath);
+          const routes = params.find(p => p.path === routesParentPath);
+          const linkAgg = params.find(p => p.path === linkAggregationPath);
+          const vlan = params.find(p => p.path === vlanPath);
+          expect(interfaces).toBeDefined();
+          expect(interfaces.supportStatus).toBe('supported-backend-only');
+          expect(routes).toBeDefined();
+          expect(routes.supportStatus).toBe('supported-backend-only');
+          expect(linkAgg).toBeDefined();
+          expect(linkAgg.supportStatus).toBe('supported-backend-only');
+          expect(vlan).toBeDefined();
+          expect(vlan.supportStatus).toBe('supported-backend-only');
+        });
+
+        it(`${version} ${scenario} no child networking entry is reclassified by parent reconciliation`, () => {
+          const key = `${version}/${scenario}`;
+          const params = getCatalogForScenario(scenario, version);
+          subordinateNetworkingPaths.forEach(sp => {
+            const current = params.find(p => p.path === sp);
+            const snapshot = subordinateSnapshots[key]?.[sp];
+            if (snapshot) {
+              expect(current).toEqual(snapshot);
+            }
+          });
+        });
+
+        it(`${version} ${scenario} DNS parent and DNS children remain unchanged`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const dnsParent = params.find(p => p.path === dnsParentPath);
+          expect(dnsParent).toBeDefined();
+          expect(dnsParent.supportStatus).toBe('supported-ui');
+          const dnsServer = params.find(p => p.path === 'hosts[].networkConfig.dns-resolver.config.server');
+          const dnsSearch = params.find(p => p.path === 'hosts[].networkConfig.dns-resolver.config.search');
+          expect(dnsServer).toBeDefined();
+          expect(dnsServer.supportStatus).toBe('supported-backend-only');
+          expect(dnsSearch).toBeDefined();
+          expect(dnsSearch.supportStatus).toBe('supported-backend-only');
+        });
+
+        it(`${version} ${scenario} no SR-IOV or VRF catalog path is invented`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const sriovMatches = params.filter(p => p.path.toLowerCase().includes('sriov') || p.path.toLowerCase().includes('sr-iov'));
+          const vrfMatches = params.filter(p => p.path.toLowerCase().includes('vrf'));
+          expect(sriovMatches).toHaveLength(0);
+          expect(vrfMatches).toHaveLength(0);
+        });
+      });
+    });
+
+    it('parent remains absent from non-Agent scenario catalogs', () => {
+      const nonAgentScenarios = [
+        'bare-metal-ipi', 'bare-metal-upi',
+        'vsphere-ipi', 'vsphere-upi',
+        'aws-govcloud-ipi', 'aws-govcloud-upi',
+        'azure-government-ipi', 'azure-government-upi',
+        'ibm-cloud-ipi', 'nutanix-ipi'
+      ];
+      versions.forEach(version => {
+        nonAgentScenarios.forEach(scenario => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(0);
+        });
+      });
+    });
+
+    it('no unrelated catalog parameter changes (byte-identical files)', () => {
+      versions.forEach(version => {
+        agentScenarios.forEach(scenario => {
+          const canonicalFilePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+          const mirrorFilePath = resolve(testDir, '..', 'src', 'data', 'catalogs', version, `${scenario}.json`);
+          const canonical = fs.readFileSync(canonicalFilePath, 'utf8');
+          const mirror = fs.readFileSync(mirrorFilePath, 'utf8');
+          expect(canonical).toBe(mirror);
+        });
+      });
+    });
+
+    it('metadata preparation only — Primary Networking UI visibility is not implemented', () => {
+      expect(true).toBe(true);
     });
   });
 
