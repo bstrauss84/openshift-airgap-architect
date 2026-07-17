@@ -1285,6 +1285,527 @@ describe("DOC-102 Slice 5H Host Inventory H5 Root Device Hints visibility", () =
   });
 });
 
+describe("DOC-102 Slice 5H Host Inventory H2 BMC workflow visibility", () => {
+  const AC = "agent-config.yaml";
+  const IC = "install-config.yaml";
+  const BMC_WRAPPER = "BMC Configuration (Day-2 Seed)";
+  const BMC_ADDR_PH = "redfish+http://192.168.1.1/...";
+  const BOOT_MAC_PH = "52:54:00:aa:bb:cc";
+  const HOSTNAME_PLACEHOLDER = "e.g. master-0, arbiter-0";
+
+  const bmcNode = (hostname, mac) => ({
+    role: "master",
+    hostname,
+    rootDevice: "",
+    dnsServers: "",
+    dnsSearch: "",
+    bmc: { address: "", username: "", password: "", bootMACAddress: "", disableCertificateVerification: false },
+    primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: mac }, bond: {}, vlan: {}, advanced: {} }
+  });
+
+  const BMC_NODES = [
+    bmcNode("master-0", "52:54:00:aa:11:01"),
+    bmcNode("master-1", "52:54:00:aa:11:02"),
+    bmcNode("master-2", "52:54:00:aa:11:03"),
+  ];
+
+  const BMC_ELIGIBLE_OVERRIDE = {
+    hostInventory: {
+      ...baseState.hostInventory,
+      nodes: BMC_NODES,
+      includeBareMetalDay2InInstallConfig: true,
+    },
+  };
+
+  const SYNTHETIC_CATALOG_BMC = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"] },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "platform.baremetal.hosts[].bmc", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "platform.baremetal.hosts[].bootMACAddress", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+  ];
+
+  function renderWithCatalog(catalog, stateOverride) {
+    if (catalog) {
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    }
+    return render(
+      <MockAppProvider stateOverride={{ ...BMC_ELIGIBLE_OVERRIDE, ...stateOverride }}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+  }
+
+  function openDrawer() {
+    fireEvent.click(screen.getByText(/master-0/i));
+  }
+
+  function expectBmcCorePresent() {
+    expect(screen.getByPlaceholderText(BMC_ADDR_PH)).toBeInTheDocument();
+    expect(screen.getByLabelText(/BMC username/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/BMC password/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Disable BMC certificate verification/)).toBeInTheDocument();
+  }
+
+  function expectBmcCoreAbsent() {
+    expect(screen.queryByPlaceholderText(BMC_ADDR_PH)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/BMC username/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/BMC password/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Disable BMC certificate verification/)).not.toBeInTheDocument();
+  }
+
+  function expectBootMacPresent() {
+    expect(screen.getByPlaceholderText(BOOT_MAC_PH)).toBeInTheDocument();
+  }
+
+  function expectBootMacAbsent() {
+    expect(screen.queryByPlaceholderText(BOOT_MAC_PH)).not.toBeInTheDocument();
+  }
+
+  function expectWrapperPresent() {
+    expect(screen.getByText(BMC_WRAPPER)).toBeInTheDocument();
+  }
+
+  function expectWrapperAbsent() {
+    expect(screen.queryByText(BMC_WRAPPER)).not.toBeInTheDocument();
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("core visible + Boot MAC visible: wrapper and all five controls render", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_BMC, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+  });
+
+  it("core visible + Boot MAC hidden (supported-backend-only): wrapper and four BMC core, no Boot MAC", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e =>
+      e.path === "platform.baremetal.hosts[].bootMACAddress" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacAbsent();
+  });
+
+  it("core visible + Boot MAC hidden (missing entry): wrapper and four BMC core, no Boot MAC", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.filter(e => e.path !== "platform.baremetal.hosts[].bootMACAddress");
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacAbsent();
+  });
+
+  it("core hidden (supported-backend-only) + Boot MAC visible: wrapper and Boot MAC only", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e =>
+      e.path === "platform.baremetal.hosts[].bmc" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCoreAbsent();
+    expectBootMacPresent();
+  });
+
+  it("core hidden (missing entry) + Boot MAC visible: wrapper and Boot MAC only", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.filter(e => e.path !== "platform.baremetal.hosts[].bmc");
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCoreAbsent();
+    expectBootMacPresent();
+  });
+
+  it("both hidden (supported-backend-only): no wrapper, all five absent", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e => {
+      if (e.path === "platform.baremetal.hosts[].bmc") return { ...e, supportStatus: "supported-backend-only" };
+      if (e.path === "platform.baremetal.hosts[].bootMACAddress") return { ...e, supportStatus: "supported-backend-only" };
+      return e;
+    });
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperAbsent();
+    expectBmcCoreAbsent();
+    expectBootMacAbsent();
+  });
+
+  it("both hidden (missing entries): no wrapper, all five absent", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.filter(e =>
+      e.path !== "platform.baremetal.hosts[].bmc" && e.path !== "platform.baremetal.hosts[].bootMACAddress"
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperAbsent();
+    expectBmcCoreAbsent();
+    expectBootMacAbsent();
+  });
+
+  it("credential-pair atomicity: username present == password present under every metadata condition", () => {
+    const conditions = [
+      { label: "both visible", catalog: SYNTHETIC_CATALOG_BMC },
+      { label: "core visible, boot mac hidden", catalog: SYNTHETIC_CATALOG_BMC.filter(e => e.path !== "platform.baremetal.hosts[].bootMACAddress") },
+      { label: "core hidden, boot mac visible", catalog: SYNTHETIC_CATALOG_BMC.map(e =>
+        e.path === "platform.baremetal.hosts[].bmc" ? { ...e, supportStatus: "supported-backend-only" } : e
+      ) },
+      { label: "both hidden", catalog: SYNTHETIC_CATALOG_BMC.filter(e =>
+        e.path !== "platform.baremetal.hosts[].bmc" && e.path !== "platform.baremetal.hosts[].bootMACAddress"
+      ) },
+    ];
+    for (const { label, catalog } of conditions) {
+      cleanup();
+      vi.restoreAllMocks();
+      renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+      openDrawer();
+      const usernamePresent = !!screen.queryByLabelText(/BMC username/);
+      const passwordPresent = !!screen.queryByLabelText(/BMC password/);
+      expect(usernamePresent).toBe(passwordPresent);
+    }
+  });
+
+  it("independent version eligibility: BMC core 4.20, Boot MAC 4.21 — at 4.20 only BMC core renders", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e => {
+      if (e.path === "platform.baremetal.hosts[].bmc") return { ...e, minVersion: "4.20" };
+      if (e.path === "platform.baremetal.hosts[].bootMACAddress") return { ...e, minVersion: "4.21" };
+      return e;
+    });
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacAbsent();
+  });
+
+  it("independent version eligibility: BMC core 4.20, Boot MAC 4.21 — at 4.21 both render", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e => {
+      if (e.path === "platform.baremetal.hosts[].bmc") return { ...e, minVersion: "4.20" };
+      if (e.path === "platform.baremetal.hosts[].bootMACAddress") return { ...e, minVersion: "4.21" };
+      return e;
+    });
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+  });
+
+  it("independent version eligibility reversed: Boot MAC 4.20, BMC core 4.21 — at 4.20 only Boot MAC renders", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e => {
+      if (e.path === "platform.baremetal.hosts[].bmc") return { ...e, minVersion: "4.21" };
+      if (e.path === "platform.baremetal.hosts[].bootMACAddress") return { ...e, minVersion: "4.20" };
+      return e;
+    });
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCoreAbsent();
+    expectBootMacPresent();
+  });
+
+  it("independent version eligibility reversed: Boot MAC 4.20, BMC core 4.21 — at 4.21 both render", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e => {
+      if (e.path === "platform.baremetal.hosts[].bmc") return { ...e, minVersion: "4.21" };
+      if (e.path === "platform.baremetal.hosts[].bootMACAddress") return { ...e, minVersion: "4.20" };
+      return e;
+    });
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+  });
+
+  it("mounted version transition: partially eligible at 4.20, fully eligible at 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e => {
+      if (e.path === "platform.baremetal.hosts[].bmc") return { ...e, minVersion: "4.20" };
+      if (e.path === "platform.baremetal.hosts[].bootMACAddress") return { ...e, minVersion: "4.21" };
+      return e;
+    });
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const initialState = { ...baseState, ...BMC_ELIGIBLE_OVERRIDE, version: { selectedMinor: "4.20" } };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacAbsent();
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+    const calls = spy.mock.calls.filter(c => c[0] === "bare-metal-agent");
+    const versions = calls.map(c => c[1]);
+    expect(versions).toContain("4.20");
+    expect(versions).toContain("4.21");
+  });
+
+  it("structural: scenario not bare-metal-agent hides wrapper even with both metadata visible", () => {
+    const stateOverride = {
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: BMC_NODES,
+        includeBareMetalDay2InInstallConfig: true,
+      },
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_BMC, stateOverride);
+    openDrawer();
+    expectWrapperAbsent();
+    expectBmcCoreAbsent();
+    expectBootMacAbsent();
+  });
+
+  it("structural: SNO topology hides wrapper even with both metadata visible", () => {
+    const snoNodes = [bmcNode("master-0", "52:54:00:aa:11:01")];
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: snoNodes,
+        includeBareMetalDay2InInstallConfig: true,
+      },
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_BMC, stateOverride);
+    openDrawer();
+    expectWrapperAbsent();
+    expectBmcCoreAbsent();
+    expectBootMacAbsent();
+  });
+
+  it("structural: includeBareMetalDay2InInstallConfig false hides wrapper even with both metadata visible", () => {
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: BMC_NODES,
+        includeBareMetalDay2InInstallConfig: false,
+      },
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_BMC, stateOverride);
+    openDrawer();
+    expectWrapperAbsent();
+    expectBmcCoreAbsent();
+    expectBootMacAbsent();
+  });
+
+  it("structural: all prerequisites true with both metadata visible renders wrapper", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_BMC, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+  });
+
+  it("state preservation: BMC and Boot MAC values remain while hidden and reappear", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e => {
+      if (e.path === "platform.baremetal.hosts[].bmc") return { ...e, minVersion: "4.21" };
+      if (e.path === "platform.baremetal.hosts[].bootMACAddress") return { ...e, minVersion: "4.21" };
+      return e;
+    });
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const nodeWithValues = {
+      ...BMC_NODES[0],
+      bmc: {
+        address: "redfish+https://10.0.0.1/redfish/v1/Systems/1",
+        username: "test-admin",
+        password: "test-secret-42",
+        bootMACAddress: "aa:bb:cc:dd:ee:ff",
+        disableCertificateVerification: true,
+      },
+    };
+    const initialState = {
+      ...baseState,
+      ...BMC_ELIGIBLE_OVERRIDE,
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...BMC_ELIGIBLE_OVERRIDE.hostInventory,
+        nodes: [nodeWithValues, BMC_NODES[1], BMC_NODES[2]],
+      },
+    };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expectWrapperAbsent();
+    expectBmcCoreAbsent();
+    expectBootMacAbsent();
+    expect(initialState.hostInventory.nodes[0].bmc.address).toBe("redfish+https://10.0.0.1/redfish/v1/Systems/1");
+    expect(initialState.hostInventory.nodes[0].bmc.username).toBe("test-admin");
+    expect(initialState.hostInventory.nodes[0].bmc.password).toBe("test-secret-42");
+    expect(initialState.hostInventory.nodes[0].bmc.bootMACAddress).toBe("aa:bb:cc:dd:ee:ff");
+    expect(initialState.hostInventory.nodes[0].bmc.disableCertificateVerification).toBe(true);
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+    expect(screen.getByPlaceholderText(BMC_ADDR_PH).value).toBe("redfish+https://10.0.0.1/redfish/v1/Systems/1");
+    expect(screen.getByLabelText(/BMC username/).value).toBe("test-admin");
+    expect(screen.getByPlaceholderText(BOOT_MAC_PH).value).toBe("aa:bb:cc:dd:ee:ff");
+  });
+
+  it("state preservation: hide BMC core while Boot MAC visible, core values unchanged", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e =>
+      e.path === "platform.baremetal.hosts[].bmc" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    const nodeWithValues = {
+      ...BMC_NODES[0],
+      bmc: {
+        address: "redfish+https://10.0.0.2/redfish/v1/Systems/1",
+        username: "bmc-user-test",
+        password: "bmc-pass-test",
+        bootMACAddress: "11:22:33:44:55:66",
+        disableCertificateVerification: true,
+      },
+    };
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...BMC_ELIGIBLE_OVERRIDE.hostInventory,
+        nodes: [nodeWithValues, BMC_NODES[1], BMC_NODES[2]],
+      },
+    };
+    renderWithCatalog(catalog, stateOverride);
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCoreAbsent();
+    expectBootMacPresent();
+    expect(stateOverride.hostInventory.nodes[0].bmc.address).toBe("redfish+https://10.0.0.2/redfish/v1/Systems/1");
+    expect(stateOverride.hostInventory.nodes[0].bmc.username).toBe("bmc-user-test");
+    expect(stateOverride.hostInventory.nodes[0].bmc.password).toBe("bmc-pass-test");
+    expect(stateOverride.hostInventory.nodes[0].bmc.disableCertificateVerification).toBe(true);
+  });
+
+  it("state preservation: hide Boot MAC while BMC core visible, Boot MAC value unchanged", () => {
+    const catalog = SYNTHETIC_CATALOG_BMC.map(e =>
+      e.path === "platform.baremetal.hosts[].bootMACAddress" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    const nodeWithValues = {
+      ...BMC_NODES[0],
+      bmc: {
+        address: "redfish+https://10.0.0.3/redfish/v1/Systems/1",
+        username: "admin-test",
+        password: "pass-test",
+        bootMACAddress: "aa:bb:cc:11:22:33",
+        disableCertificateVerification: false,
+      },
+    };
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...BMC_ELIGIBLE_OVERRIDE.hostInventory,
+        nodes: [nodeWithValues, BMC_NODES[1], BMC_NODES[2]],
+      },
+    };
+    renderWithCatalog(catalog, stateOverride);
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacAbsent();
+    expect(stateOverride.hostInventory.nodes[0].bmc.bootMACAddress).toBe("aa:bb:cc:11:22:33");
+  });
+
+  it("no child-leaf dependency: parent BMC and Boot MAC entries only, no child paths, all render", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_BMC, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+  });
+
+  it.each(["4.20", "4.21"])("real catalog bare-metal-agent %s: BMC workflow renders with structural eligibility", (version) => {
+    renderWithCatalog(null, { version: { selectedMinor: version } });
+    openDrawer();
+    expectWrapperPresent();
+    expectBmcCorePresent();
+    expectBootMacPresent();
+  });
+
+  it("real catalog: SNO hides BMC workflow", () => {
+    const snoNodes = [bmcNode("master-0", "52:54:00:aa:11:01")];
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: snoNodes,
+        includeBareMetalDay2InInstallConfig: true,
+      },
+    };
+    renderWithCatalog(null, stateOverride);
+    openDrawer();
+    expectWrapperAbsent();
+  });
+
+  it("real catalog: non-bare-metal-agent scenario hides BMC workflow", () => {
+    const stateOverride = {
+      blueprint: { platform: "VMware vSphere" },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: "4.20" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        nodes: BMC_NODES,
+        includeBareMetalDay2InInstallConfig: true,
+      },
+    };
+    renderWithCatalog(null, stateOverride);
+    openDrawer();
+    expectWrapperAbsent();
+  });
+
+  it("scope containment: H2-V does not newly gate Role, Hostname, DNS, Root Device Hints, or Primary Network", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_BMC, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByText("Root Device Hints")).toBeInTheDocument();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+  });
+});
+
 describe("Phase 4.3: legacy inventory step unaffected when flags OFF", () => {
   it("validateStep('inventory') does not depend on catalog merge (same shape, no inventory-v2 path)", () => {
     const state = {

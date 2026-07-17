@@ -52,6 +52,8 @@ export function NodeDrawerAgentContent({
   showDns = true,
   showRootDeviceHints = true,
   showAgentDay2InstallConfigBmc,
+  showBmcCore = true,
+  showBootMac = true,
   showAdvancedDrawer,
   advancedOpen,
   setAdvancedOpen,
@@ -762,7 +764,7 @@ Lab environment, simple failover → active-backup`}
       )}
 
       {/* BMC Configuration (Day-2 seed, optional) */}
-      {showAgentDay2InstallConfigBmc && (
+      {showAgentDay2InstallConfigBmc && (showBmcCore !== false || showBootMac !== false) && (
         <>
           <div className="divider" />
           <div className="workflow-group">
@@ -776,51 +778,57 @@ Lab environment, simple failover → active-backup`}
             </div>
             <div className="workflow-group-modes">
               <div className="field-grid">
-                <label>
-                  BMC address{" "}
-                  <input
-                    value={selectedNode.bmc?.address || ""}
-                    onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })}
-                    placeholder="redfish+http://192.168.1.1/..."
-                  />
-                </label>
-                <label>
-                  BMC username{" "}
-                  <input
-                    autoComplete="off"
-                    value={selectedNode.bmc?.username || ""}
-                    onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, username: e.target.value } })}
-                  />
-                </label>
-                <label>
-                  BMC password{" "}
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={selectedNode.bmc?.password || ""}
-                    onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, password: e.target.value } })}
-                  />
-                </label>
-                <label>
-                  Boot MAC{" "}
-                  <input
-                    value={selectedNode.bmc?.bootMACAddress || ""}
-                    onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })}
-                    onBlur={(e) => {
-                      const v = normalizeMAC(e.target.value);
-                      if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } });
-                    }}
-                    placeholder="52:54:00:aa:bb:cc"
-                  />
-                </label>
-                <label className="host-inventory-v2-checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={selectedNode.bmc?.disableCertificateVerification === true}
-                    onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, disableCertificateVerification: e.target.checked } })}
-                  />
-                  {" "}Disable BMC certificate verification (e.g. self-signed)
-                </label>
+                {showBmcCore !== false && (
+                  <>
+                    <label>
+                      BMC address{" "}
+                      <input
+                        value={selectedNode.bmc?.address || ""}
+                        onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, address: e.target.value } })}
+                        placeholder="redfish+http://192.168.1.1/..."
+                      />
+                    </label>
+                    <label>
+                      BMC username{" "}
+                      <input
+                        autoComplete="off"
+                        value={selectedNode.bmc?.username || ""}
+                        onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, username: e.target.value } })}
+                      />
+                    </label>
+                    <label>
+                      BMC password{" "}
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        value={selectedNode.bmc?.password || ""}
+                        onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, password: e.target.value } })}
+                      />
+                    </label>
+                    <label className="host-inventory-v2-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={selectedNode.bmc?.disableCertificateVerification === true}
+                        onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, disableCertificateVerification: e.target.checked } })}
+                      />
+                      {" "}Disable BMC certificate verification (e.g. self-signed)
+                    </label>
+                  </>
+                )}
+                {showBootMac !== false && (
+                  <label>
+                    Boot MAC{" "}
+                    <input
+                      value={selectedNode.bmc?.bootMACAddress || ""}
+                      onChange={(e) => updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: formatMACAsYouType(e.target.value) } })}
+                      onBlur={(e) => {
+                        const v = normalizeMAC(e.target.value);
+                        if (v && v !== e.target.value) updateNode(selectedIndex, { bmc: { ...selectedNode.bmc, bootMACAddress: v } });
+                      }}
+                      placeholder="52:54:00:aa:bb:cc"
+                    />
+                  </label>
+                )}
               </div>
             </div>
           </div>
