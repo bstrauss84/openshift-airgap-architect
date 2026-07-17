@@ -50,6 +50,7 @@ export function NodeDrawerAgentContent({
   effectiveHostname,
   showHostname,
   showDns = true,
+  showRootDeviceHints = true,
   showAgentDay2InstallConfigBmc,
   showAdvancedDrawer,
   advancedOpen,
@@ -143,7 +144,7 @@ export function NodeDrawerAgentContent({
       </div>
 
       {/* Root Device Hints - hide for arbiter */}
-      {selectedNode.role !== "arbiter" && (
+      {showRootDeviceHints !== false && selectedNode.role !== "arbiter" && (
         <div className="workflow-group">
           <div className="workflow-group-header">
             <div className="workflow-group-title">Root Device Hints</div>

@@ -898,6 +898,393 @@ describe("DOC-102 Slice 5H Host Inventory H4 DNS visibility", () => {
   });
 });
 
+describe("DOC-102 Slice 5H Host Inventory H5 Root Device Hints visibility", () => {
+  const AC = "agent-config.yaml";
+  const HOSTNAME_PLACEHOLDER = "e.g. master-0, arbiter-0";
+  const RDH_HEADING = "Root Device Hints";
+  const RDH_INPUT_PLACEHOLDERS = [
+    "/dev/disk/by-path/... or /dev/sda",
+    "0:0:0:0",
+    "INTEL SSDPE...",
+    "ATA, NVMe, Samsung...",
+    "S3Z9...",
+    "0x5000...",
+    "e.g. 100",
+  ];
+  const RDH_ROTATIONAL_OPTION = "false (SSD/NVMe)";
+
+  const SYNTHETIC_CATALOG_RDH = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"] },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+  ];
+
+  function expectRdhPresent() {
+    expect(screen.getByText(RDH_HEADING)).toBeInTheDocument();
+    for (const ph of RDH_INPUT_PLACEHOLDERS) {
+      expect(screen.getByPlaceholderText(ph)).toBeInTheDocument();
+    }
+    expect(screen.getByText(RDH_ROTATIONAL_OPTION)).toBeInTheDocument();
+  }
+
+  function expectRdhAbsent() {
+    expect(screen.queryByText(RDH_HEADING)).not.toBeInTheDocument();
+    for (const ph of RDH_INPUT_PLACEHOLDERS) {
+      expect(screen.queryByPlaceholderText(ph)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText(RDH_ROTATIONAL_OPTION)).not.toBeInTheDocument();
+  }
+
+  function renderWithCatalog(catalog, stateOverride) {
+    if (catalog) {
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    }
+    return render(
+      <MockAppProvider stateOverride={stateOverride}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+  }
+
+  function openDrawer() {
+    fireEvent.click(screen.getByText(/master-0/i));
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("supported parent renders the complete workflow", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_RDH, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectRdhPresent();
+  });
+
+  it("non-renderable parent hides the complete workflow", () => {
+    const catalog = SYNTHETIC_CATALOG_RDH.map(e =>
+      e.path === "hosts[].rootDeviceHints" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectRdhAbsent();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+  });
+
+  it("missing parent hides the complete workflow", () => {
+    const catalog = SYNTHETIC_CATALOG_RDH.filter(e => e.path !== "hosts[].rootDeviceHints");
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectRdhAbsent();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+  });
+
+  it("version eligibility: hidden at 4.20 when parent minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_RDH.map(e =>
+      e.path === "hosts[].rootDeviceHints" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectRdhAbsent();
+  });
+
+  it("version eligibility: visible at 4.21 when parent minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_RDH.map(e =>
+      e.path === "hosts[].rootDeviceHints" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expectRdhPresent();
+  });
+
+  it("mounted version transition: workflow appears when version changes from 4.20 to 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_RDH.map(e =>
+      e.path === "hosts[].rootDeviceHints" ? { ...e, minVersion: "4.21" } : e
+    );
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expectRdhAbsent();
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expectRdhPresent();
+    const calls = spy.mock.calls.filter(c => c[0] === "bare-metal-agent");
+    const versions = calls.map(c => c[1]);
+    expect(versions).toContain("4.20");
+    expect(versions).toContain("4.21");
+  });
+
+  it("state preservation: values remain while hidden and reappear when eligible", () => {
+    const catalog = SYNTHETIC_CATALOG_RDH.map(e =>
+      e.path === "hosts[].rootDeviceHints" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const nodeWithValues = {
+      ...baseState.hostInventory.nodes[0],
+      rootDevice: "/dev/disk/by-path/pci-0000:00:1f.2-ata-1",
+      rootDeviceHintHctl: "1:0:0:0",
+      rootDeviceHintModel: "INTEL SSDPE",
+      rootDeviceHintVendor: "ATA",
+      rootDeviceHintSerialNumber: "S3Z9NX0M123456",
+      rootDeviceHintWwn: "0x5000c500a1b2c3d4",
+      rootDeviceHintMinSizeGb: "100",
+      rootDeviceHintRotational: "false",
+    };
+    const initialState = {
+      ...baseState,
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [nodeWithValues] }
+    };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expectRdhAbsent();
+    expect(initialState.hostInventory.nodes[0].rootDevice).toBe("/dev/disk/by-path/pci-0000:00:1f.2-ata-1");
+    expect(initialState.hostInventory.nodes[0].rootDeviceHintHctl).toBe("1:0:0:0");
+    expect(initialState.hostInventory.nodes[0].rootDeviceHintModel).toBe("INTEL SSDPE");
+    expect(initialState.hostInventory.nodes[0].rootDeviceHintVendor).toBe("ATA");
+    expect(initialState.hostInventory.nodes[0].rootDeviceHintSerialNumber).toBe("S3Z9NX0M123456");
+    expect(initialState.hostInventory.nodes[0].rootDeviceHintWwn).toBe("0x5000c500a1b2c3d4");
+    expect(initialState.hostInventory.nodes[0].rootDeviceHintMinSizeGb).toBe("100");
+    expect(initialState.hostInventory.nodes[0].rootDeviceHintRotational).toBe("false");
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expectRdhPresent();
+    expect(screen.getByPlaceholderText("/dev/disk/by-path/... or /dev/sda").value).toBe("/dev/disk/by-path/pci-0000:00:1f.2-ata-1");
+    expect(screen.getByPlaceholderText("0:0:0:0").value).toBe("1:0:0:0");
+    expect(screen.getByPlaceholderText("INTEL SSDPE...").value).toBe("INTEL SSDPE");
+    expect(screen.getByPlaceholderText("ATA, NVMe, Samsung...").value).toBe("ATA");
+    expect(screen.getByPlaceholderText("S3Z9...").value).toBe("S3Z9NX0M123456");
+    expect(screen.getByPlaceholderText("0x5000...").value).toBe("0x5000c500a1b2c3d4");
+    expect(screen.getByPlaceholderText("e.g. 100").value).toBe("100");
+  });
+
+  it("atomicity: under every metadata condition, either all eight controls render or none", () => {
+    const conditions = [
+      { label: "supported", catalog: SYNTHETIC_CATALOG_RDH, expectVisible: true },
+      { label: "backend-only", catalog: SYNTHETIC_CATALOG_RDH.map(e =>
+        e.path === "hosts[].rootDeviceHints" ? { ...e, supportStatus: "supported-backend-only" } : e
+      ), expectVisible: false },
+      { label: "missing", catalog: SYNTHETIC_CATALOG_RDH.filter(e =>
+        e.path !== "hosts[].rootDeviceHints"
+      ), expectVisible: false },
+      { label: "version-ineligible", catalog: SYNTHETIC_CATALOG_RDH.map(e =>
+        e.path === "hosts[].rootDeviceHints" ? { ...e, minVersion: "4.21" } : e
+      ), expectVisible: false },
+    ];
+    for (const { label, catalog, expectVisible } of conditions) {
+      cleanup();
+      vi.restoreAllMocks();
+      renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+      openDrawer();
+      const headingPresent = !!screen.queryByText(RDH_HEADING);
+      const allInputsPresent = RDH_INPUT_PLACEHOLDERS.every(ph => !!screen.queryByPlaceholderText(ph));
+      const noInputsPresent = RDH_INPUT_PLACEHOLDERS.every(ph => !screen.queryByPlaceholderText(ph));
+      const rotationalPresent = !!screen.queryByText(RDH_ROTATIONAL_OPTION);
+      expect(headingPresent).toBe(expectVisible);
+      expect(rotationalPresent).toBe(expectVisible);
+      if (expectVisible) {
+        expect(allInputsPresent).toBe(true);
+      } else {
+        expect(noInputsPresent).toBe(true);
+      }
+    }
+  });
+
+  it("no child-leaf dependency: parent supported with no child entries, all eight controls render", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_RDH, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expectRdhPresent();
+  });
+
+  it("arbiter exclusion preserved: supported parent, arbiter node hides workflow", () => {
+    const arbiterNode = {
+      role: "arbiter",
+      hostname: "arbiter-0",
+      rootDevice: "",
+      dnsServers: "",
+      dnsSearch: "",
+      bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+      primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:02" }, bond: {}, vlan: {}, advanced: {} }
+    };
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [{ ...baseState.hostInventory.nodes[0] }, arbiterNode] }
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_RDH, stateOverride);
+    fireEvent.click(screen.getByText(/arbiter-0/i));
+    expectRdhAbsent();
+  });
+
+  it("arbiter-to-non-arbiter transition: workflow appears when role changes", () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(SYNTHETIC_CATALOG_RDH);
+    const arbiterNode = {
+      role: "arbiter",
+      hostname: "arbiter-0",
+      rootDevice: "/dev/sda",
+      rootDeviceHintHctl: "0:0:0:0",
+      rootDeviceHintModel: "",
+      rootDeviceHintVendor: "",
+      rootDeviceHintSerialNumber: "",
+      rootDeviceHintWwn: "",
+      rootDeviceHintMinSizeGb: "",
+      rootDeviceHintRotational: "",
+      dnsServers: "",
+      dnsSearch: "",
+      bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+      primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:01" }, bond: {}, vlan: {}, advanced: {} }
+    };
+    const masterNode = {
+      ...baseState.hostInventory.nodes[0],
+      primary: { ...baseState.hostInventory.nodes[0].primary, ethernet: { ...baseState.hostInventory.nodes[0].primary.ethernet, macAddress: "52:54:00:aa:11:02" } }
+    };
+    const initialState = {
+      ...baseState,
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [masterNode, arbiterNode] }
+    };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    fireEvent.click(screen.getByText(/arbiter-0/i));
+    expectRdhAbsent();
+    act(() => {
+      setCurrentFn(prev => ({
+        ...prev,
+        hostInventory: {
+          ...prev.hostInventory,
+          nodes: [
+            prev.hostInventory.nodes[0],
+            { ...prev.hostInventory.nodes[1], role: "worker" }
+          ]
+        }
+      }));
+    });
+    expectRdhPresent();
+    expect(screen.getByPlaceholderText("/dev/disk/by-path/... or /dev/sda").value).toBe("/dev/sda");
+    expect(screen.getByPlaceholderText("0:0:0:0").value).toBe("0:0:0:0");
+  });
+
+  it("metadata cannot override structural exclusion: arbiter hidden with supported parent and eligible version", () => {
+    const arbiterNode = {
+      role: "arbiter",
+      hostname: "arbiter-0",
+      rootDevice: "",
+      dnsServers: "",
+      dnsSearch: "",
+      bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+      primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:02" }, bond: {}, vlan: {}, advanced: {} }
+    };
+    const stateOverride = {
+      version: { selectedMinor: "4.21" },
+      hostInventory: { ...baseState.hostInventory, nodes: [{ ...baseState.hostInventory.nodes[0] }, arbiterNode] }
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_RDH, stateOverride);
+    fireEvent.click(screen.getByText(/arbiter-0/i));
+    expectRdhAbsent();
+  });
+
+  it.each([
+    ["bare-metal-agent", "Bare Metal", "4.20"],
+    ["bare-metal-agent", "Bare Metal", "4.21"],
+    ["vsphere-agent", "VMware vSphere", "4.20"],
+    ["vsphere-agent", "VMware vSphere", "4.21"],
+  ])("real catalog %s %s: Root Device Hints renders for non-arbiter", (scenarioLabel, platform, version) => {
+    const stateOverride = {
+      blueprint: { platform },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: version },
+    };
+    renderWithCatalog(null, stateOverride);
+    openDrawer();
+    expectRdhPresent();
+  });
+
+  it("real catalog: arbiter node does not render Root Device Hints workflow", () => {
+    const arbiterNode = {
+      role: "arbiter",
+      hostname: "arbiter-0",
+      rootDevice: "",
+      dnsServers: "",
+      dnsSearch: "",
+      bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+      primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:02" }, bond: {}, vlan: {}, advanced: {} }
+    };
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [{ ...baseState.hostInventory.nodes[0] }, arbiterNode] }
+    };
+    renderWithCatalog(null, stateOverride);
+    fireEvent.click(screen.getByText(/arbiter-0/i));
+    expectRdhAbsent();
+  });
+
+  it("scope containment: Role, Hostname, DNS, and Primary Network not newly gated", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_RDH, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+  });
+});
+
 describe("Phase 4.3: legacy inventory step unaffected when flags OFF", () => {
   it("validateStep('inventory') does not depend on catalog merge (same shape, no inventory-v2 path)", () => {
     const state = {
