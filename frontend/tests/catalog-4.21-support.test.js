@@ -626,6 +626,140 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     });
   });
 
+  describe('DOC-102 Slice 5H Host Inventory H2 Boot MAC metadata', () => {
+    const versions = ['4.20', '4.21'];
+    const bootMacPath = 'platform.baremetal.hosts[].bootMACAddress';
+    const bmcParentPath = 'platform.baremetal.hosts[].bmc';
+    const bmcChildren = [
+      { path: 'platform.baremetal.hosts[].bmc.address', expectedStatus: 'supported-backend-only' },
+      { path: 'platform.baremetal.hosts[].bmc.username', expectedStatus: 'supported-ui' },
+      { path: 'platform.baremetal.hosts[].bmc.password', expectedStatus: 'supported-ui' },
+      { path: 'platform.baremetal.hosts[].bmc.disableCertificateVerification', expectedStatus: 'supported-backend-only' },
+    ];
+    const testDir = dirname(fileURLToPath(import.meta.url));
+
+    function loadCanonical(version) {
+      const filePath = resolve(testDir, '..', '..', 'data', 'params', version, 'bare-metal-agent.json');
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')).parameters;
+    }
+
+    versions.forEach(version => {
+      it(`${version} bare-metal-agent canonical has exactly one Boot MAC entry`, () => {
+        const canonical = loadCanonical(version);
+        const matches = canonical.filter(p => p.path === bootMacPath);
+        expect(matches).toHaveLength(1);
+      });
+
+      it(`${version} bare-metal-agent mirror has exactly one Boot MAC entry`, () => {
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        const matches = mirror.filter(p => p.path === bootMacPath);
+        expect(matches).toHaveLength(1);
+      });
+
+      it(`${version} bare-metal-agent canonical and mirror Boot MAC entries are identical`, () => {
+        const canonical = loadCanonical(version);
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        const canonicalMatches = canonical.filter(p => p.path === bootMacPath);
+        const mirrorMatches = mirror.filter(p => p.path === bootMacPath);
+        expect(canonicalMatches).toHaveLength(1);
+        expect(mirrorMatches).toHaveLength(1);
+        expect(canonicalMatches[0]).toEqual(mirrorMatches[0]);
+      });
+
+      it(`${version} bare-metal-agent Boot MAC has correct path, outputFile, and supportStatus`, () => {
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        const entry = mirror.find(p => p.path === bootMacPath);
+        expect(entry.path).toBe('platform.baremetal.hosts[].bootMACAddress');
+        expect(entry.outputFile).toBe('install-config.yaml');
+        expect(entry.supportStatus).toBe('supported-ui');
+      });
+
+      it(`${version} bare-metal-agent Boot MAC minVersion is 4.20`, () => {
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        const entry = mirror.find(p => p.path === bootMacPath);
+        expect(entry.minVersion).toBe('4.20');
+      });
+
+      it(`${version} bare-metal-agent Boot MAC maxVersion is null`, () => {
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        const entry = mirror.find(p => p.path === bootMacPath);
+        expect(entry.maxVersion).toBe(null);
+      });
+
+      it(`${version} bare-metal-agent BMC parent has one canonical and one mirror entry with supported-ui`, () => {
+        const canonical = loadCanonical(version);
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        const canonicalMatches = canonical.filter(p => p.path === bmcParentPath);
+        const mirrorMatches = mirror.filter(p => p.path === bmcParentPath);
+        expect(canonicalMatches).toHaveLength(1);
+        expect(mirrorMatches).toHaveLength(1);
+        expect(canonicalMatches[0].supportStatus).toBe('supported-ui');
+        expect(mirrorMatches[0].supportStatus).toBe('supported-ui');
+      });
+
+      it(`${version} bare-metal-agent each BMC child has one canonical and one mirror entry with correct supportStatus`, () => {
+        const canonical = loadCanonical(version);
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        bmcChildren.forEach(({ path, expectedStatus }) => {
+          const canonicalMatches = canonical.filter(p => p.path === path);
+          const mirrorMatches = mirror.filter(p => p.path === path);
+          expect(canonicalMatches).toHaveLength(1);
+          expect(mirrorMatches).toHaveLength(1);
+          expect(canonicalMatches[0]).toEqual(mirrorMatches[0]);
+          expect(canonicalMatches[0].supportStatus).toBe(expectedStatus);
+        });
+      });
+
+      it(`${version} bare-metal-agent BMC username and password are both supported-ui`, () => {
+        const mirror = getCatalogForScenario('bare-metal-agent', version);
+        const username = mirror.find(p => p.path === 'platform.baremetal.hosts[].bmc.username');
+        const password = mirror.find(p => p.path === 'platform.baremetal.hosts[].bmc.password');
+        expect(username).toBeDefined();
+        expect(username.supportStatus).toBe('supported-ui');
+        expect(password).toBeDefined();
+        expect(password.supportStatus).toBe('supported-ui');
+      });
+    });
+
+    it('bare-metal-ipi has exactly one Boot MAC with supported-backend-only per version', () => {
+      versions.forEach(version => {
+        const params = getCatalogForScenario('bare-metal-ipi', version);
+        const matches = params.filter(p => p.path === bootMacPath);
+        expect(matches).toHaveLength(1);
+        expect(matches[0].supportStatus).toBe('supported-backend-only');
+      });
+    });
+
+    it('Boot MAC is absent or not supported-ui in every other non-bare-metal-agent scenario', () => {
+      const otherScenarios = [
+        'bare-metal-upi',
+        'vsphere-agent', 'vsphere-ipi', 'vsphere-upi',
+        'aws-govcloud-ipi', 'aws-govcloud-upi',
+        'azure-government-ipi', 'azure-government-upi',
+        'ibm-cloud-ipi', 'nutanix-ipi'
+      ];
+      versions.forEach(version => {
+        otherScenarios.forEach(scenario => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(
+            p => p.path === bootMacPath && p.supportStatus === 'supported-ui'
+          );
+          expect(matches).toHaveLength(0);
+        });
+      });
+    });
+
+    it('canonical and mirror files are byte-identical for both versions', () => {
+      versions.forEach(version => {
+        const canonicalFilePath = resolve(testDir, '..', '..', 'data', 'params', version, 'bare-metal-agent.json');
+        const mirrorFilePath = resolve(testDir, '..', 'src', 'data', 'catalogs', version, 'bare-metal-agent.json');
+        const canonical = fs.readFileSync(canonicalFilePath, 'utf8');
+        const mirror = fs.readFileSync(mirrorFilePath, 'utf8');
+        expect(canonical).toBe(mirror);
+      });
+    });
+  });
+
   describe('No deferred platforms/scenarios added', () => {
     it('PowerVC catalogs do not exist', () => {
       expect(() => getCatalogForScenario('powervc-ipi', '4.21'))
