@@ -475,6 +475,157 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     });
   });
 
+  describe('DOC-102 Slice 5H Host Inventory H5 Root Device Hints metadata', () => {
+    const agentScenarios = ['bare-metal-agent', 'vsphere-agent'];
+    const versions = ['4.20', '4.21'];
+    const parentPath = 'hosts[].rootDeviceHints';
+    const childPaths = [
+      'hosts[].rootDeviceHints.deviceName',
+      'hosts[].rootDeviceHints.hctl',
+      'hosts[].rootDeviceHints.model',
+      'hosts[].rootDeviceHints.vendor',
+      'hosts[].rootDeviceHints.serialNumber',
+      'hosts[].rootDeviceHints.wwn',
+      'hosts[].rootDeviceHints.minSizeGigabytes',
+      'hosts[].rootDeviceHints.rotational',
+    ];
+    const testDir = dirname(fileURLToPath(import.meta.url));
+
+    function loadCanonical(version, scenario) {
+      const filePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')).parameters;
+    }
+
+    versions.forEach(version => {
+      agentScenarios.forEach(scenario => {
+        it(`${version} ${scenario} canonical has exactly one parent entry`, () => {
+          const canonical = loadCanonical(version, scenario);
+          const matches = canonical.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(1);
+        });
+
+        it(`${version} ${scenario} mirror has exactly one parent entry`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(1);
+        });
+
+        it(`${version} ${scenario} canonical and mirror parent entries are identical`, () => {
+          const canonical = loadCanonical(version, scenario);
+          const mirror = getCatalogForScenario(scenario, version);
+          const canonicalParent = canonical.find(p => p.path === parentPath);
+          const mirrorParent = mirror.find(p => p.path === parentPath);
+          expect(canonicalParent).toEqual(mirrorParent);
+        });
+
+        it(`${version} ${scenario} parent path is hosts[].rootDeviceHints`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.path).toBe('hosts[].rootDeviceHints');
+        });
+
+        it(`${version} ${scenario} parent outputFile is agent-config.yaml`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.outputFile).toBe('agent-config.yaml');
+        });
+
+        it(`${version} ${scenario} parent supportStatus is supported-ui`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.supportStatus).toBe('supported-ui');
+        });
+
+        it(`${version} ${scenario} parent minVersion remains 4.20`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.minVersion).toBe('4.20');
+        });
+
+        it(`${version} ${scenario} parent maxVersion remains null`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const parent = params.find(p => p.path === parentPath);
+          expect(parent.maxVersion).toBe(null);
+        });
+
+        it(`${version} ${scenario} all eight child paths exist exactly once`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          childPaths.forEach(cp => {
+            const matches = params.filter(p => p.path === cp);
+            expect(matches).toHaveLength(1);
+          });
+        });
+
+        it(`${version} ${scenario} child entries unchanged from canonical pre-reconciliation`, () => {
+          const canonical = loadCanonical(version, scenario);
+          const mirror = getCatalogForScenario(scenario, version);
+          childPaths.forEach(cp => {
+            const canonicalChild = canonical.find(p => p.path === cp);
+            const mirrorChild = mirror.find(p => p.path === cp);
+            expect(canonicalChild).toEqual(mirrorChild);
+          });
+        });
+
+        it(`${version} ${scenario} no child is reclassified to supported-ui`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          childPaths.forEach(cp => {
+            const child = params.find(p => p.path === cp);
+            expect(child.supportStatus).toBe('supported-backend-only');
+          });
+        });
+
+        it(`${version} ${scenario} no unexpected Root Device Hints child exists`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const allRdh = params.filter(p =>
+            p.path.startsWith('hosts[].rootDeviceHints.') &&
+            p.outputFile === 'agent-config.yaml'
+          );
+          expect(allRdh).toHaveLength(8);
+          allRdh.forEach(entry => {
+            expect(childPaths).toContain(entry.path);
+          });
+        });
+
+        it(`${version} ${scenario} canonical and mirror files are byte-identical`, () => {
+          const canonicalFilePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+          const mirrorFilePath = resolve(testDir, '..', 'src', 'data', 'catalogs', version, `${scenario}.json`);
+          const canonical = fs.readFileSync(canonicalFilePath, 'utf8');
+          const mirror = fs.readFileSync(mirrorFilePath, 'utf8');
+          expect(canonical).toBe(mirror);
+        });
+      });
+    });
+
+    it('parent is absent from non-Agent scenario catalogs', () => {
+      const nonAgentScenarios = [
+        'bare-metal-ipi', 'bare-metal-upi',
+        'vsphere-ipi', 'vsphere-upi',
+        'aws-govcloud-ipi', 'aws-govcloud-upi',
+        'azure-government-ipi', 'azure-government-upi',
+        'ibm-cloud-ipi', 'nutanix-ipi'
+      ];
+      versions.forEach(version => {
+        nonAgentScenarios.forEach(scenario => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(0);
+        });
+      });
+    });
+
+    it('no unrelated catalog parameter changes', () => {
+      versions.forEach(version => {
+        agentScenarios.forEach(scenario => {
+          const canonicalFilePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+          const mirrorFilePath = resolve(testDir, '..', 'src', 'data', 'catalogs', version, `${scenario}.json`);
+          const canonical = fs.readFileSync(canonicalFilePath, 'utf8');
+          const mirror = fs.readFileSync(mirrorFilePath, 'utf8');
+          expect(canonical).toBe(mirror);
+        });
+      });
+    });
+  });
+
   describe('No deferred platforms/scenarios added', () => {
     it('PowerVC catalogs do not exist', () => {
       expect(() => getCatalogForScenario('powervc-ipi', '4.21'))
