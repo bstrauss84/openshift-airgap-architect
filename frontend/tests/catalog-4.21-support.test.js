@@ -9,6 +9,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import { getCatalogForScenario } from '../src/catalogPaths.js';
 
 describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
@@ -390,6 +393,84 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
           p => p.path === targetPath && p.outputFile === targetOutputFile
         );
         expect(matches).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('DOC-102 Slice 5H Host Inventory H4 DNS metadata', () => {
+    const agentScenarios = ['bare-metal-agent', 'vsphere-agent'];
+    const versions = ['4.20', '4.21'];
+    const parentPath = 'hosts[].networkConfig.dns-resolver';
+    const childServerPath = 'hosts[].networkConfig.dns-resolver.config.server';
+    const childSearchPath = 'hosts[].networkConfig.dns-resolver.config.search';
+    const configPath = 'hosts[].networkConfig.dns-resolver.config';
+    const testDir = dirname(fileURLToPath(import.meta.url));
+
+    function loadCanonical(version, scenario) {
+      const filePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')).parameters;
+    }
+
+    versions.forEach(version => {
+      agentScenarios.forEach(scenario => {
+        it(`${version} ${scenario} has exactly one DNS parent with supportStatus=supported-ui`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(1);
+          expect(matches[0].supportStatus).toBe('supported-ui');
+          expect(matches[0].minVersion).toBe('4.20');
+          expect(matches[0].maxVersion).toBe(null);
+          expect(matches[0].outputFile).toBe('agent-config.yaml');
+          expect(matches[0].path).toBe(parentPath);
+        });
+
+        it(`${version} ${scenario} canonical has exactly one DNS parent identical to mirror`, () => {
+          const canonical = loadCanonical(version, scenario);
+          const mirror = getCatalogForScenario(scenario, version);
+          const canonicalMatches = canonical.filter(p => p.path === parentPath);
+          const mirrorMatches = mirror.filter(p => p.path === parentPath);
+          expect(canonicalMatches).toHaveLength(1);
+          expect(mirrorMatches).toHaveLength(1);
+          expect(canonicalMatches[0]).toEqual(mirrorMatches[0]);
+        });
+
+        it(`${version} ${scenario} DNS child entries remain supported-backend-only`, () => {
+          const params = getCatalogForScenario(scenario, version);
+          const server = params.find(p => p.path === childServerPath);
+          const search = params.find(p => p.path === childSearchPath);
+          const config = params.find(p => p.path === configPath);
+          expect(server).toBeDefined();
+          expect(server.supportStatus).toBe('supported-backend-only');
+          expect(search).toBeDefined();
+          expect(search.supportStatus).toBe('supported-backend-only');
+          expect(config).toBeDefined();
+          expect(config.supportStatus).toBe('supported-backend-only');
+        });
+
+        it(`${version} ${scenario} canonical and mirror catalogs are byte-identical`, () => {
+          const canonicalFilePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+          const mirrorFilePath = resolve(testDir, '..', 'src', 'data', 'catalogs', version, `${scenario}.json`);
+          const canonical = fs.readFileSync(canonicalFilePath, 'utf8');
+          const mirror = fs.readFileSync(mirrorFilePath, 'utf8');
+          expect(canonical).toBe(mirror);
+        });
+      });
+    });
+
+    it('DNS parent is absent from non-agent scenario catalogs', () => {
+      const nonAgentScenarios = [
+        'bare-metal-ipi', 'bare-metal-upi',
+        'vsphere-ipi', 'vsphere-upi',
+        'aws-govcloud-ipi', 'aws-govcloud-upi',
+        'azure-government-ipi', 'azure-government-upi',
+        'ibm-cloud-ipi', 'nutanix-ipi'
+      ];
+      versions.forEach(version => {
+        nonAgentScenarios.forEach(scenario => {
+          const params = getCatalogForScenario(scenario, version);
+          const matches = params.filter(p => p.path === parentPath);
+          expect(matches).toHaveLength(0);
+        });
       });
     });
   });

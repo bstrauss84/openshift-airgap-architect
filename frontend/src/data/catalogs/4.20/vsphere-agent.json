@@ -1014,7 +1014,7 @@
           "url": "https://nmstate.io/examples.html"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
