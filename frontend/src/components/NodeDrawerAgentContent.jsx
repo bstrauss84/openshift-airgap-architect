@@ -54,6 +54,7 @@ export function NodeDrawerAgentContent({
   showAgentDay2InstallConfigBmc,
   showBmcCore = true,
   showBootMac = true,
+  showPrimaryNetwork = true,
   showAdvancedDrawer,
   advancedOpen,
   setAdvancedOpen,
@@ -326,7 +327,7 @@ Ensure OS is installed on SSD, not spinning disks`}
       )}
 
       {/* Primary Network */}
-      <div className="workflow-group">
+      {showPrimaryNetwork !== false && (<div className="workflow-group">
         <div className="workflow-group-header">
           <div className="workflow-group-title">Primary Network</div>
           <div className="workflow-group-description">Cluster networking interface configuration</div>
@@ -733,7 +734,7 @@ Lab environment, simple failover → active-backup`}
             </div>
           )}
         </div>
-      </div>
+      </div>)}
 
       {/* DNS Configuration */}
       {showDns !== false && (
@@ -842,7 +843,7 @@ Lab environment, simple failover → active-backup`}
       )}
 
       {/* Advanced - MOVED BEFORE Additional Interfaces, hidden for arbiter */}
-      {showAdvancedDrawer && !isArbiterDrawer && (
+      {showAdvancedDrawer && !isArbiterDrawer && showPrimaryNetwork !== false && (
         <>
           <div className="divider" />
           <div className="workflow-group">

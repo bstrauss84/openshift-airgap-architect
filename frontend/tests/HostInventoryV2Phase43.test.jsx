@@ -917,6 +917,7 @@ describe("DOC-102 Slice 5H Host Inventory H5 Root Device Hints visibility", () =
     { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"] },
     { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
   ];
@@ -1321,6 +1322,7 @@ describe("DOC-102 Slice 5H Host Inventory H2 BMC workflow visibility", () => {
     { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"] },
     { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "platform.baremetal.hosts[].bmc", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
@@ -1803,6 +1805,495 @@ describe("DOC-102 Slice 5H Host Inventory H2 BMC workflow visibility", () => {
     expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
     expect(screen.getByText("Root Device Hints")).toBeInTheDocument();
     expect(screen.getByText("Primary Network")).toBeInTheDocument();
+  });
+});
+
+describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
+  const AC = "agent-config.yaml";
+  const IC = "install-config.yaml";
+  const HOSTNAME_PLACEHOLDER = "e.g. master-0, arbiter-0";
+
+  const SYNTHETIC_CATALOG_NET = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"] },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+  ];
+
+  function renderWithCatalog(catalog, stateOverride) {
+    if (catalog) {
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    }
+    return render(
+      <MockAppProvider stateOverride={stateOverride}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+  }
+
+  function openDrawer() {
+    fireEvent.click(screen.getByText(/master-0/i));
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  // --- Visibility ---
+
+  it("supported parent renders the Primary Network heading and baseline controls", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_NET, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Single NIC ethernet")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("DHCP")).toBeInTheDocument();
+  });
+
+  it("supported-backend-only parent hides the entire main Primary Network editor", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.map(e =>
+      e.path === "hosts[].networkConfig" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    expect(screen.queryByText("Primary Interface Type")).not.toBeInTheDocument();
+    expect(screen.queryByText("IP assignment")).not.toBeInTheDocument();
+  });
+
+  it("missing parent hides the entire main Primary Network editor", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.filter(e => e.path !== "hosts[].networkConfig");
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    expect(screen.queryByText("Primary Interface Type")).not.toBeInTheDocument();
+  });
+
+  it("version eligibility: hidden at 4.20 when parent minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.map(e =>
+      e.path === "hosts[].networkConfig" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+  });
+
+  it("version eligibility: visible at 4.21 when parent minVersion is 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.map(e =>
+      e.path === "hosts[].networkConfig" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+  });
+
+  it("mounted transition from 4.20 to 4.21 updates visibility and resolver receives both versions", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.map(e =>
+      e.path === "hosts[].networkConfig" ? { ...e, minVersion: "4.21" } : e
+    );
+    const spy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+    const calls = spy.mock.calls.filter(c => c[0] === "bare-metal-agent");
+    const versions = calls.map(c => c[1]);
+    expect(versions).toContain("4.20");
+    expect(versions).toContain("4.21");
+  });
+
+  it("no networking child metadata entries are required", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.filter(e =>
+      !e.path.startsWith("hosts[].networkConfig.")
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+  });
+
+  it("unsupported 4.22 remains rejected deterministically", () => {
+    const assert422Rejected = () => {
+      let error;
+      try {
+        catalogPathsModule.getCatalogForScenario("bare-metal-agent", "4.22");
+        throw new Error("Expected UnsupportedVersionError but call succeeded");
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toBeInstanceOf(catalogPathsModule.UnsupportedVersionError);
+      expect(error.requestedVersion).toBe("4.22");
+      expect(error.supportedVersions).toEqual(["4.20", "4.21"]);
+      expect(error.message).toContain("4.20");
+      expect(error.message).toContain("4.21");
+      expect(error.message).toContain("not supported");
+    };
+    assert422Rejected();
+    assert422Rejected();
+  });
+
+  // --- Mode coverage ---
+
+  it("ethernet mode: renders interface name and MAC", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_NET, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.getByPlaceholderText("eno0")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("52:54:00:aa:11:01")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("eno0").value).toBe("eth0");
+    expect(screen.getByPlaceholderText("52:54:00:aa:11:01").value).toBe("52:54:00:aa:11:01");
+  });
+
+  it("bond mode: renders bond name, mode, member name, and member MAC", () => {
+    const bondNode = {
+      ...baseState.hostInventory.nodes[0],
+      primary: {
+        type: "bond", mode: "dhcp",
+        ethernet: { name: "eno1", macAddress: "" },
+        bond: { name: "bond0", mode: "802.3ad", slaves: [
+          { name: "eth0", macAddress: "52:54:00:bb:22:01" },
+          { name: "eth1", macAddress: "52:54:00:bb:22:02" }
+        ]},
+        vlan: {}, advanced: {}
+      }
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_NET, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [bondNode] }
+    });
+    openDrawer();
+    expect(screen.getByPlaceholderText("bond0")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("bond0").value).toBe("bond0");
+    const bondModeSelect = document.querySelector(".bond-mode-select");
+    expect(bondModeSelect).toBeTruthy();
+    expect(bondModeSelect.value).toBe("802.3ad");
+    expect(screen.getByText("Bond member 1")).toBeInTheDocument();
+    expect(screen.getByText("Bond member 2")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("52:54:00:bb:22:01")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("52:54:00:bb:22:02")).toBeInTheDocument();
+  });
+
+  it("vlan-on-ethernet mode: renders VLAN ID, VLAN name, and ethernet controls", () => {
+    const vlanEthNode = {
+      ...baseState.hostInventory.nodes[0],
+      primary: {
+        type: "vlan-on-ethernet", mode: "dhcp",
+        ethernet: { name: "eno1", macAddress: "52:54:00:aa:11:01" },
+        bond: {}, vlan: { id: "100", name: "" }, advanced: {}
+      }
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_NET, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [vlanEthNode] }
+    });
+    openDrawer();
+    expect(screen.getByPlaceholderText("eno0")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("eno0").value).toBe("eno1");
+    expect(screen.getByPlaceholderText("52:54:00:aa:11:01")).toBeInTheDocument();
+    const vlanIdInput = screen.getByPlaceholderText("100");
+    expect(vlanIdInput).toBeInTheDocument();
+    expect(vlanIdInput.value).toBe("100");
+    const vlanNameInput = screen.getByLabelText(/VLAN name/);
+    expect(vlanNameInput).toBeInTheDocument();
+    expect(vlanNameInput.value).toBe("eno1.100");
+  });
+
+  it("vlan-on-bond mode: renders VLAN ID, VLAN name, and bond controls", () => {
+    const vlanBondNode = {
+      ...baseState.hostInventory.nodes[0],
+      primary: {
+        type: "vlan-on-bond", mode: "dhcp",
+        ethernet: { name: "eno1", macAddress: "" },
+        bond: { name: "bond0", mode: "active-backup", slaves: [
+          { name: "eth0", macAddress: "52:54:00:cc:33:01" },
+          { name: "eth1", macAddress: "52:54:00:cc:33:02" }
+        ]},
+        vlan: { id: "200", name: "" }, advanced: {}
+      }
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_NET, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [vlanBondNode] }
+    });
+    openDrawer();
+    expect(screen.getByPlaceholderText("bond0")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("bond0").value).toBe("bond0");
+    const bondModeSelect = document.querySelector(".bond-mode-select");
+    expect(bondModeSelect).toBeTruthy();
+    expect(bondModeSelect.value).toBe("active-backup");
+    const vlanIdInput = screen.getByPlaceholderText("100");
+    expect(vlanIdInput).toBeInTheDocument();
+    expect(vlanIdInput.value).toBe("200");
+    const vlanNameInput = screen.getByLabelText(/VLAN name/);
+    expect(vlanNameInput).toBeInTheDocument();
+    expect(vlanNameInput.value).toBe("bond0.200");
+  });
+
+  it("static mode: renders IPv4 CIDR, IPv4 gateway, IPv6 CIDR, and IPv6 gateway", () => {
+    const staticNode = {
+      ...baseState.hostInventory.nodes[0],
+      primary: {
+        type: "ethernet", mode: "static",
+        ethernet: { name: "eno1", macAddress: "52:54:00:aa:11:01" },
+        bond: {}, vlan: {},
+        ipv4Cidr: "", ipv4Gateway: "", ipv6Cidr: "", ipv6Gateway: "",
+        advanced: {}
+      }
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_NET, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, ipStackMode: "dual-stack", nodes: [staticNode] }
+    });
+    openDrawer();
+    expect(screen.getByPlaceholderText("192.168.1.20/24")).toBeInTheDocument();
+    expect(screen.getByLabelText(/IPv4 gateway/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/IPv6 CIDR/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/IPv6 gateway/)).toBeInTheDocument();
+  });
+
+  // --- Primary advanced coverage ---
+
+  it("showPrimaryNetwork controls primary MTU, routes, route fields", () => {
+    const nodeWithRoutes = {
+      ...baseState.hostInventory.nodes[0],
+      primary: {
+        ...baseState.hostInventory.nodes[0].primary,
+        advanced: {
+          mtu: "9000",
+          routes: [{ destination: "10.0.0.0/24", nextHopAddress: "192.168.1.254", nextHopInterface: "bond0" }]
+        }
+      }
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_NET, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [nodeWithRoutes] }
+    });
+    openDrawer();
+    fireEvent.click(screen.getByLabelText("Expand Advanced"));
+    expect(screen.getByPlaceholderText("1500")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("1500").value).toBe("9000");
+    expect(screen.getByDisplayValue("10.0.0.0/24")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("192.168.1.254")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("bond0")).toBeInTheDocument();
+  });
+
+  it("when hidden: primary advanced absent, Additional Interfaces present, additional controls not newly gated", async () => {
+    const catalog = SYNTHETIC_CATALOG_NET.map(e =>
+      e.path === "hosts[].networkConfig" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    function StatefulProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      const value = {
+        state: current,
+        updateState: (patch) => setCurrent(prev => ({ ...prev, ...patch })),
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <StatefulProvider>
+        <HostInventoryV2Step />
+      </StatefulProvider>
+    );
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Expand Advanced")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("1500")).not.toBeInTheDocument();
+    expect(screen.queryByText("Additional Routes")).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Add Interface"));
+    });
+    expect(screen.getByText("Interface 1")).toBeInTheDocument();
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    const typeLabel = within(ifaceSection).getByText("Type");
+    expect(typeLabel).toBeInTheDocument();
+    const typeSelect = typeLabel.closest("label").querySelector("select");
+    expect(typeSelect).toBeTruthy();
+    expect(typeSelect.value).toBe("ethernet");
+    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
+    expect(within(ifaceSection).getByPlaceholderText("eth2")).toBeInTheDocument();
+    expect(within(ifaceSection).getByPlaceholderText("52:54:00:aa:11:03")).toBeInTheDocument();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+  });
+
+  // --- State preservation ---
+
+  it("state preservation: values remain while hidden and reappear when eligible", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.map(e =>
+      e.path === "hosts[].networkConfig" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const fullNode = {
+      role: "master",
+      hostname: "master-0",
+      rootDevice: "",
+      dnsServers: "",
+      dnsSearch: "",
+      bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+      primary: {
+        type: "bond", mode: "static",
+        ethernet: { name: "eno1", macAddress: "52:54:00:aa:11:01" },
+        bond: { name: "bond0", mode: "802.3ad", slaves: [
+          { name: "eth0", macAddress: "52:54:00:bb:22:01" },
+          { name: "eth1", macAddress: "52:54:00:bb:22:02" }
+        ]},
+        vlan: { id: "100", name: "bond0.100" },
+        ipv4Cidr: "192.168.1.20/24",
+        ipv4Gateway: "192.168.1.1",
+        ipv6Cidr: "fd00::14/64",
+        ipv6Gateway: "fd00::1",
+        advanced: {
+          mtu: "9000",
+          routes: [{ destination: "10.0.0.0/24", nextHopAddress: "192.168.1.254", nextHopInterface: "bond0" }]
+        }
+      }
+    };
+    const initialState = {
+      ...baseState,
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, ipStackMode: "dual-stack", nodes: [fullNode] }
+    };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: () => {},
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    expect(initialState.hostInventory.nodes[0].primary.type).toBe("bond");
+    expect(initialState.hostInventory.nodes[0].primary.mode).toBe("static");
+    expect(initialState.hostInventory.nodes[0].primary.ethernet.name).toBe("eno1");
+    expect(initialState.hostInventory.nodes[0].primary.ethernet.macAddress).toBe("52:54:00:aa:11:01");
+    expect(initialState.hostInventory.nodes[0].primary.bond.name).toBe("bond0");
+    expect(initialState.hostInventory.nodes[0].primary.bond.mode).toBe("802.3ad");
+    expect(initialState.hostInventory.nodes[0].primary.bond.slaves).toHaveLength(2);
+    expect(initialState.hostInventory.nodes[0].primary.bond.slaves[0].name).toBe("eth0");
+    expect(initialState.hostInventory.nodes[0].primary.bond.slaves[0].macAddress).toBe("52:54:00:bb:22:01");
+    expect(initialState.hostInventory.nodes[0].primary.vlan.id).toBe("100");
+    expect(initialState.hostInventory.nodes[0].primary.vlan.name).toBe("bond0.100");
+    expect(initialState.hostInventory.nodes[0].primary.ipv4Cidr).toBe("192.168.1.20/24");
+    expect(initialState.hostInventory.nodes[0].primary.ipv4Gateway).toBe("192.168.1.1");
+    expect(initialState.hostInventory.nodes[0].primary.ipv6Cidr).toBe("fd00::14/64");
+    expect(initialState.hostInventory.nodes[0].primary.ipv6Gateway).toBe("fd00::1");
+    expect(initialState.hostInventory.nodes[0].primary.advanced.mtu).toBe("9000");
+    expect(initialState.hostInventory.nodes[0].primary.advanced.routes[0].destination).toBe("10.0.0.0/24");
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("bond0")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("bond0").value).toBe("bond0");
+    const bondModeSelect = document.querySelector(".bond-mode-select");
+    expect(bondModeSelect).toBeTruthy();
+    expect(bondModeSelect.value).toBe("802.3ad");
+    expect(screen.getByText("Bond member 1")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("192.168.1.20/24").value).toBe("192.168.1.20/24");
+    expect(screen.getByLabelText(/IPv4 gateway/).value).toBe("192.168.1.1");
+    expect(screen.getByLabelText(/IPv6 CIDR/).value).toBe("fd00::14/64");
+    expect(screen.getByLabelText(/IPv6 gateway/).value).toBe("fd00::1");
+    fireEvent.click(screen.getByLabelText("Expand Advanced"));
+    expect(screen.getByPlaceholderText("1500").value).toBe("9000");
+    expect(screen.getByDisplayValue("10.0.0.0/24")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("192.168.1.254")).toBeInTheDocument();
+  });
+
+  // --- Scope containment ---
+
+  it("when hidden: Role, Hostname, DNS, Root Device Hints, and Additional Interfaces remain", () => {
+    const catalog = SYNTHETIC_CATALOG_NET.map(e =>
+      e.path === "hosts[].networkConfig" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByText("Root Device Hints")).toBeInTheDocument();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+  });
+
+  it("when hidden: BMC remains when structurally eligible", () => {
+    const bmcMkNode = (hostname, mac) => ({
+      role: "master", hostname,
+      rootDevice: "", dnsServers: "", dnsSearch: "",
+      bmc: { address: "", username: "", password: "", bootMACAddress: "", disableCertificateVerification: false },
+      primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: mac }, bond: {}, vlan: {}, advanced: {} }
+    });
+    const catalog = [
+      ...SYNTHETIC_CATALOG_NET.map(e =>
+        e.path === "hosts[].networkConfig" ? { ...e, supportStatus: "supported-backend-only" } : e
+      ),
+      { path: "platform.baremetal.hosts[].bmc", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+      { path: "platform.baremetal.hosts[].bootMACAddress", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    ];
+    const nodes = [bmcMkNode("master-0", "52:54:00:aa:11:01"), bmcMkNode("master-1", "52:54:00:aa:11:02"), bmcMkNode("master-2", "52:54:00:aa:11:03")];
+    renderWithCatalog(catalog, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes, includeBareMetalDay2InInstallConfig: true }
+    });
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    expect(screen.getByText("BMC Configuration (Day-2 Seed)")).toBeInTheDocument();
+  });
+
+  // --- Real-catalog tests ---
+
+  it.each([
+    ["bare-metal-agent", "Bare Metal", "4.20"],
+    ["bare-metal-agent", "Bare Metal", "4.21"],
+    ["vsphere-agent", "VMware vSphere", "4.20"],
+    ["vsphere-agent", "VMware vSphere", "4.21"],
+  ])("real catalog %s %s: Primary Network, Advanced, and Additional Interfaces render", (scenarioLabel, platform, version) => {
+    const stateOverride = {
+      blueprint: { platform },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: version },
+    };
+    renderWithCatalog(null, stateOverride);
+    openDrawer();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+    expect(screen.getByLabelText("Expand Advanced")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Expand Advanced"));
+    expect(screen.getByPlaceholderText("1500")).toBeInTheDocument();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
   });
 });
 
