@@ -5,8 +5,9 @@
 - **Register ID:** H1-P
 - **Type:** Host Inventory Slice 5H Persistence Register
 - **Date:** 2026-07-17
+- **Last updated:** 2026-07-21
 - **Branch:** develop
-- **Latest commit:** e19a832 DOC-102: Enforce AWS worker instance type visibility
+- **Latest commit:** fac3c79 DOC-102: Enforce Host Inventory primary networking visibility
 - **Scope:** Host Inventory Agent Drawer (NodeDrawerAgentContent.jsx + HostInventoryV2Step.jsx)
 - **Scenarios:** bare-metal-agent, vsphere-agent
 - **Constraint:** Planning and tracking register only. No production code, tests, or catalogs modified.
@@ -29,10 +30,10 @@
 
 ### Gate design decisions
 
-- **root_device_hints:** Parent gate on hosts[].rootDeviceHints (accepted design, ready for reconciliation)
-- **dns:** Parent gate on hosts[].networkConfig.dns-resolver (accepted design, ready for reconciliation)
-- **bmc:** Parent gate on platform.baremetal.hosts[].bmc (undecided — Boot MAC separate path)
-- **networking:** Undecided (shared primary/additional path constraint HB-002)
+- **root_device_hints:** Parent gate on hosts[].rootDeviceHints (committed, 7b3c12a)
+- **dns:** Parent gate on hosts[].networkConfig.dns-resolver (committed, 6a208bc)
+- **bmc:** Parent gate on platform.baremetal.hosts[].bmc (committed, 6ac0668). Boot MAC: independent gate on platform.baremetal.hosts[].bootMACAddress. Wrapper: union under Day-2 structural eligibility. Username/password atomic.
+- **networking:** Parent gate on hosts[].networkConfig (committed, fac3c79). Applies to primary component boundary only. Does not gate Additional Interfaces.
 
 ### Semantic class definitions
 
@@ -59,7 +60,7 @@
 ## Corrected Counts
 
 - **Interactive controls:** 59
-- **Accepted completions:** 3
+- **Accepted completions:** 36
 - **Composite groups:** 13
 - **Structural controls:** 39
 - **Blockers:** 4
@@ -70,18 +71,18 @@
 | Class | Count |
 |-------|-------|
 | A | 2 |
-| B | 11 |
+| B | 34 |
 | C | 3 |
-| F | 43 |
+| F | 20 |
 | **Total** | **59** |
 
 ### Disposition totals
 
 | Disposition | Count |
 |------------|-------|
-| blocked-by-gate-design | 38 |
-| completed | 3 |
-| open-metadata-reconciliation | 10 |
+| blocked-by-gate-design | 15 |
+| completed | 36 |
+| open-metadata-reconciliation | 0 |
 | preserved-exception | 1 |
 | structural | 3 |
 | unresolved-Class-F | 4 |
@@ -93,6 +94,39 @@
 |---------|-------|--------|-----------------|-------|
 | HI-002 | Hostname input | 9632caf | `isCatalogFieldVisible("hosts[].hostname", AGENT_CONFIG)` | 12 |
 | HI-003 | FQDN checkbox | 9632caf | `shares hostname gate (showHostname prop)` | 12 |
+| HI-004 | Root device — deviceName | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-005 | Root device — hctl | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-006 | Root device — model | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-007 | Root device — vendor | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-008 | Root device — serialNumber | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-009 | Root device — wwn | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-010 | Root device — minSizeGb | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-011 | Root device — rotational | 7b3c12a | `shares rootDeviceHints parent gate (showRootDeviceHints prop)` | 18 |
+| HI-012 | Primary interface type select | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-013 | Primary IP assignment select | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-014 | Primary ethernet name | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-015 | Primary ethernet MAC | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-016 | Primary bond name | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-017 | Primary bond mode select | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-018 | Primary bond member name | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-019 | Primary bond member MAC | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-020 | Primary VLAN ID | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-021 | Primary VLAN name | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-022 | Primary IPv4 CIDR | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-023 | Primary IPv4 gateway | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-024 | Primary IPv6 CIDR | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-025 | Primary IPv6 gateway | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-026 | DNS servers | 6a208bc | `shares dns-resolver parent gate (showDns prop)` | 14 |
+| HI-027 | DNS search | 6a208bc | `shares dns-resolver parent gate (showDns prop)` | 14 |
+| HI-028 | BMC address | 6ac0668 | `shares bmc parent gate (showBmcCore prop)` | 26 |
+| HI-029 | BMC username | 6ac0668 | `shares bmc parent gate (showBmcCore prop)` | 26 |
+| HI-030 | BMC password | 6ac0668 | `shares bmc parent gate (showBmcCore prop)` | 26 |
+| HI-031 | Boot MAC | 6ac0668 | `isCatalogFieldVisible("platform.baremetal.hosts[].bootMACAddress", INSTALL_CONFIG)` | 26 |
+| HI-032 | BMC disable cert verification | 6ac0668 | `shares bmc parent gate (showBmcCore prop)` | 26 |
+| HI-033 | Primary MTU | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-034 | Primary route destination | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-035 | Primary route next-hop address | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-036 | Primary route next-hop interface | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
 | HI-056 | Boot artifacts base URL | e939a41 | `isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG)` | 16 |
 
 ## Interactive Controls
@@ -102,39 +136,39 @@
 | HI-001 | Role select | F | preserved-exception | H9 | `hosts[].role` | agent-config.yaml |
 | HI-002 | Hostname input | A | completed | — | `hosts[].hostname` | agent-config.yaml |
 | HI-003 | FQDN checkbox | B | completed | — | — | agent-config.yaml |
-| HI-004 | Root device — deviceName | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.deviceName` | agent-config.yaml |
-| HI-005 | Root device — hctl | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.hctl` | agent-config.yaml |
-| HI-006 | Root device — model | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.model` | agent-config.yaml |
-| HI-007 | Root device — vendor | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.vendor` | agent-config.yaml |
-| HI-008 | Root device — serialNumber | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.serialNumber` | agent-config.yaml |
-| HI-009 | Root device — wwn | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.wwn` | agent-config.yaml |
-| HI-010 | Root device — minSizeGb | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.minSizeGigabytes` | agent-config.yaml |
-| HI-011 | Root device — rotational | B | open-metadata-reconciliation | H5 | `hosts[].rootDeviceHints.rotational` | agent-config.yaml |
-| HI-012 | Primary interface type select | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.interfaces[].type` | agent-config.yaml |
-| HI-013 | Primary IP assignment select | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.interfaces[].ipv4.dhcp` | agent-config.yaml |
-| HI-014 | Primary ethernet name | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-015 | Primary ethernet MAC | F | blocked-by-gate-design | H3 | `hosts[].interfaces[].macAddress` | agent-config.yaml |
-| HI-016 | Primary bond name | F | blocked-by-gate-design | H7 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-017 | Primary bond mode select | F | blocked-by-gate-design | H7 | `hosts[].networkConfig.interfaces[].link-aggregation.mode` | agent-config.yaml |
-| HI-018 | Primary bond member name | F | blocked-by-gate-design | H7 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-019 | Primary bond member MAC | F | blocked-by-gate-design | H7 | `hosts[].interfaces[].macAddress` | agent-config.yaml |
-| HI-020 | Primary VLAN ID | F | blocked-by-gate-design | H8 | `hosts[].networkConfig.interfaces[].vlan.id` | agent-config.yaml |
-| HI-021 | Primary VLAN name | F | blocked-by-gate-design | H8 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-022 | Primary IPv4 CIDR | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.interfaces[].ipv4.address[].ip` | agent-config.yaml |
-| HI-023 | Primary IPv4 gateway | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.routes.config[].next-hop-address` | agent-config.yaml |
-| HI-024 | Primary IPv6 CIDR | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.interfaces[].ipv6.address` | agent-config.yaml |
-| HI-025 | Primary IPv6 gateway | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.routes.config[].next-hop-address` | agent-config.yaml |
-| HI-026 | DNS servers | B | open-metadata-reconciliation | H4 | `hosts[].networkConfig.dns-resolver.config.server` | agent-config.yaml |
-| HI-027 | DNS search | B | open-metadata-reconciliation | H4 | `hosts[].networkConfig.dns-resolver.config.search` | agent-config.yaml |
-| HI-028 | BMC address | F | blocked-by-gate-design | H2 | `platform.baremetal.hosts[].bmc.address` | install-config.yaml |
-| HI-029 | BMC username | F | blocked-by-gate-design | H2 | `platform.baremetal.hosts[].bmc.username` | install-config.yaml |
-| HI-030 | BMC password | F | blocked-by-gate-design | H2 | `platform.baremetal.hosts[].bmc.password` | install-config.yaml |
-| HI-031 | Boot MAC | F | blocked-by-gate-design | H2 | `platform.baremetal.hosts[].bootMACAddress` | install-config.yaml |
-| HI-032 | BMC disable cert verification | F | blocked-by-gate-design | H2 | `platform.baremetal.hosts[].bmc.disableCertificateVerification` | install-config.yaml |
-| HI-033 | Primary MTU | F | blocked-by-gate-design | H3 | — | agent-config.yaml |
-| HI-034 | Primary route destination | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.routes.config[].destination` | agent-config.yaml |
-| HI-035 | Primary route next-hop address | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.routes.config[].next-hop-address` | agent-config.yaml |
-| HI-036 | Primary route next-hop interface | F | blocked-by-gate-design | H3 | `hosts[].networkConfig.routes.config[].next-hop-interface` | agent-config.yaml |
+| HI-004 | Root device — deviceName | B | completed | — | `hosts[].rootDeviceHints.deviceName` | agent-config.yaml |
+| HI-005 | Root device — hctl | B | completed | — | `hosts[].rootDeviceHints.hctl` | agent-config.yaml |
+| HI-006 | Root device — model | B | completed | — | `hosts[].rootDeviceHints.model` | agent-config.yaml |
+| HI-007 | Root device — vendor | B | completed | — | `hosts[].rootDeviceHints.vendor` | agent-config.yaml |
+| HI-008 | Root device — serialNumber | B | completed | — | `hosts[].rootDeviceHints.serialNumber` | agent-config.yaml |
+| HI-009 | Root device — wwn | B | completed | — | `hosts[].rootDeviceHints.wwn` | agent-config.yaml |
+| HI-010 | Root device — minSizeGb | B | completed | — | `hosts[].rootDeviceHints.minSizeGigabytes` | agent-config.yaml |
+| HI-011 | Root device — rotational | B | completed | — | `hosts[].rootDeviceHints.rotational` | agent-config.yaml |
+| HI-012 | Primary interface type select | B | completed | — | `hosts[].networkConfig.interfaces[].type` | agent-config.yaml |
+| HI-013 | Primary IP assignment select | B | completed | — | `hosts[].networkConfig.interfaces[].ipv4.dhcp` | agent-config.yaml |
+| HI-014 | Primary ethernet name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-015 | Primary ethernet MAC | B | completed | — | `hosts[].interfaces[].macAddress` | agent-config.yaml |
+| HI-016 | Primary bond name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-017 | Primary bond mode select | B | completed | — | `hosts[].networkConfig.interfaces[].link-aggregation.mode` | agent-config.yaml |
+| HI-018 | Primary bond member name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-019 | Primary bond member MAC | B | completed | — | `hosts[].interfaces[].macAddress` | agent-config.yaml |
+| HI-020 | Primary VLAN ID | B | completed | — | `hosts[].networkConfig.interfaces[].vlan.id` | agent-config.yaml |
+| HI-021 | Primary VLAN name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-022 | Primary IPv4 CIDR | B | completed | — | `hosts[].networkConfig.interfaces[].ipv4.address[].ip` | agent-config.yaml |
+| HI-023 | Primary IPv4 gateway | B | completed | — | `hosts[].networkConfig.routes.config[].next-hop-address` | agent-config.yaml |
+| HI-024 | Primary IPv6 CIDR | B | completed | — | `hosts[].networkConfig.interfaces[].ipv6.address` | agent-config.yaml |
+| HI-025 | Primary IPv6 gateway | B | completed | — | `hosts[].networkConfig.routes.config[].next-hop-address` | agent-config.yaml |
+| HI-026 | DNS servers | B | completed | — | `hosts[].networkConfig.dns-resolver.config.server` | agent-config.yaml |
+| HI-027 | DNS search | B | completed | — | `hosts[].networkConfig.dns-resolver.config.search` | agent-config.yaml |
+| HI-028 | BMC address | B | completed | — | `platform.baremetal.hosts[].bmc.address` | install-config.yaml |
+| HI-029 | BMC username | B | completed | — | `platform.baremetal.hosts[].bmc.username` | install-config.yaml |
+| HI-030 | BMC password | B | completed | — | `platform.baremetal.hosts[].bmc.password` | install-config.yaml |
+| HI-031 | Boot MAC | B | completed | — | `platform.baremetal.hosts[].bootMACAddress` | install-config.yaml |
+| HI-032 | BMC disable cert verification | B | completed | — | `platform.baremetal.hosts[].bmc.disableCertificateVerification` | install-config.yaml |
+| HI-033 | Primary MTU | B | completed | — | — | agent-config.yaml |
+| HI-034 | Primary route destination | B | completed | — | `hosts[].networkConfig.routes.config[].destination` | agent-config.yaml |
+| HI-035 | Primary route next-hop address | B | completed | — | `hosts[].networkConfig.routes.config[].next-hop-address` | agent-config.yaml |
+| HI-036 | Primary route next-hop interface | B | completed | — | `hosts[].networkConfig.routes.config[].next-hop-interface` | agent-config.yaml |
 | HI-037 | Additional interface type select | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].type` | agent-config.yaml |
 | HI-038 | Additional interface IP assignment select | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].ipv4.dhcp` | agent-config.yaml |
 | HI-039 | Additional ethernet name | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
@@ -166,39 +200,39 @@
 | HI-001 | Role select | F | preserved-exception | H9 |
 | HI-002 | Hostname input | A | completed | — |
 | HI-003 | FQDN checkbox | B | completed | — |
-| HI-004 | Root device — deviceName | B | open-metadata-reconciliation | H5 |
-| HI-005 | Root device — hctl | B | open-metadata-reconciliation | H5 |
-| HI-006 | Root device — model | B | open-metadata-reconciliation | H5 |
-| HI-007 | Root device — vendor | B | open-metadata-reconciliation | H5 |
-| HI-008 | Root device — serialNumber | B | open-metadata-reconciliation | H5 |
-| HI-009 | Root device — wwn | B | open-metadata-reconciliation | H5 |
-| HI-010 | Root device — minSizeGb | B | open-metadata-reconciliation | H5 |
-| HI-011 | Root device — rotational | B | open-metadata-reconciliation | H5 |
-| HI-012 | Primary interface type select | F | blocked-by-gate-design | H3 |
-| HI-013 | Primary IP assignment select | F | blocked-by-gate-design | H3 |
-| HI-014 | Primary ethernet name | F | blocked-by-gate-design | H3 |
-| HI-015 | Primary ethernet MAC | F | blocked-by-gate-design | H3 |
-| HI-016 | Primary bond name | F | blocked-by-gate-design | H7 |
-| HI-017 | Primary bond mode select | F | blocked-by-gate-design | H7 |
-| HI-018 | Primary bond member name | F | blocked-by-gate-design | H7 |
-| HI-019 | Primary bond member MAC | F | blocked-by-gate-design | H7 |
-| HI-020 | Primary VLAN ID | F | blocked-by-gate-design | H8 |
-| HI-021 | Primary VLAN name | F | blocked-by-gate-design | H8 |
-| HI-022 | Primary IPv4 CIDR | F | blocked-by-gate-design | H3 |
-| HI-023 | Primary IPv4 gateway | F | blocked-by-gate-design | H3 |
-| HI-024 | Primary IPv6 CIDR | F | blocked-by-gate-design | H3 |
-| HI-025 | Primary IPv6 gateway | F | blocked-by-gate-design | H3 |
-| HI-026 | DNS servers | B | open-metadata-reconciliation | H4 |
-| HI-027 | DNS search | B | open-metadata-reconciliation | H4 |
-| HI-028 | BMC address | F | blocked-by-gate-design | H2 |
-| HI-029 | BMC username | F | blocked-by-gate-design | H2 |
-| HI-030 | BMC password | F | blocked-by-gate-design | H2 |
-| HI-031 | Boot MAC | F | blocked-by-gate-design | H2 |
-| HI-032 | BMC disable cert verification | F | blocked-by-gate-design | H2 |
-| HI-033 | Primary MTU | F | blocked-by-gate-design | H3 |
-| HI-034 | Primary route destination | F | blocked-by-gate-design | H3 |
-| HI-035 | Primary route next-hop address | F | blocked-by-gate-design | H3 |
-| HI-036 | Primary route next-hop interface | F | blocked-by-gate-design | H3 |
+| HI-004 | Root device — deviceName | B | completed | — |
+| HI-005 | Root device — hctl | B | completed | — |
+| HI-006 | Root device — model | B | completed | — |
+| HI-007 | Root device — vendor | B | completed | — |
+| HI-008 | Root device — serialNumber | B | completed | — |
+| HI-009 | Root device — wwn | B | completed | — |
+| HI-010 | Root device — minSizeGb | B | completed | — |
+| HI-011 | Root device — rotational | B | completed | — |
+| HI-012 | Primary interface type select | B | completed | — |
+| HI-013 | Primary IP assignment select | B | completed | — |
+| HI-014 | Primary ethernet name | B | completed | — |
+| HI-015 | Primary ethernet MAC | B | completed | — |
+| HI-016 | Primary bond name | B | completed | — |
+| HI-017 | Primary bond mode select | B | completed | — |
+| HI-018 | Primary bond member name | B | completed | — |
+| HI-019 | Primary bond member MAC | B | completed | — |
+| HI-020 | Primary VLAN ID | B | completed | — |
+| HI-021 | Primary VLAN name | B | completed | — |
+| HI-022 | Primary IPv4 CIDR | B | completed | — |
+| HI-023 | Primary IPv4 gateway | B | completed | — |
+| HI-024 | Primary IPv6 CIDR | B | completed | — |
+| HI-025 | Primary IPv6 gateway | B | completed | — |
+| HI-026 | DNS servers | B | completed | — |
+| HI-027 | DNS search | B | completed | — |
+| HI-028 | BMC address | B | completed | — |
+| HI-029 | BMC username | B | completed | — |
+| HI-030 | BMC password | B | completed | — |
+| HI-031 | Boot MAC | B | completed | — |
+| HI-032 | BMC disable cert verification | B | completed | — |
+| HI-033 | Primary MTU | B | completed | — |
+| HI-034 | Primary route destination | B | completed | — |
+| HI-035 | Primary route next-hop address | B | completed | — |
+| HI-036 | Primary route next-hop interface | B | completed | — |
 | HI-037 | Additional interface type select | F | blocked-by-gate-design | H6 |
 | HI-038 | Additional interface IP assignment select | F | blocked-by-gate-design | H6 |
 | HI-039 | Additional ethernet name | F | blocked-by-gate-design | H6 |
@@ -236,53 +270,52 @@
 
 - **Children:** HI-004, HI-005, HI-006, HI-007, HI-008, HI-009, HI-010, HI-011
 - **Candidate parent:** `hosts[].rootDeviceHints`
-- **Gate model:** parent (chosen, not committed)
+- **Gate model:** parent (committed, 7b3c12a)
 - **Atomicity:** atomic — all 8 hints share identical supportStatus (supported-backend-only) and lifecycle
 
 ### HG-003 — BMC
 
 - **Children:** HI-028, HI-029, HI-030, HI-032
 - **Candidate parent:** `platform.baremetal.hosts[].bmc`
-- **Gate model:** parent (undecided — Boot MAC has separate path)
-- **Atomicity:** non-atomic — Boot MAC (HI-031) has separate catalog path with potentially different lifecycle
-- **Blockers:** HB-003
+- **Gate model:** parent (committed, 6ac0668 — BMC core parent + independent Boot MAC gate, wrapper union)
+- **Atomicity:** non-atomic — Boot MAC (HI-031) has separate catalog path (resolved: both bmc and bootMACAddress now supported-ui, HB-003 resolved 6ac0668)
 
 ### HG-004 — Primary networking
 
 - **Children:** HI-012, HI-013, HI-014, HI-015, HI-022, HI-023, HI-024, HI-025, HI-033, HI-034, HI-035, HI-036
-- **Candidate parent:** `hosts[].networkConfig.interfaces`
-- **Gate model:** undecided (shared with additional interfaces — HB-002)
+- **Candidate parent:** `hosts[].networkConfig`
+- **Gate model:** parent (committed, fac3c79 — hosts[].networkConfig at primary component boundary)
 - **Atomicity:** non-atomic — children span supported-ui (dhcp) and supported-backend-only; MTU has no catalog entry
-- **Blockers:** HB-002
+- **Parent evidence:** hosts[].networkConfig is supported-ui in Bare Metal Agent and vSphere Agent, versions 4.20 and 4.21, with canonical/mirror identity.
 
 ### HG-005 — Primary bond
 
 - **Children:** HI-016, HI-017, HI-018, HI-019
-- **Candidate parent:** `hosts[].networkConfig.interfaces[].link-aggregation`
-- **Gate model:** undecided (part of shared networking schema — HB-002)
+- **Candidate parent:** `hosts[].networkConfig`
+- **Gate model:** parent (committed, fac3c79 — shares hosts[].networkConfig parent gate at primary component boundary)
 - **Atomicity:** atomic — all bond fields share lifecycle
-- **Blockers:** HB-002
+- **Parent evidence:** hosts[].networkConfig is supported-ui in Bare Metal Agent and vSphere Agent, versions 4.20 and 4.21, with canonical/mirror identity.
 
 ### HG-006 — Primary VLAN
 
 - **Children:** HI-020, HI-021
-- **Candidate parent:** `hosts[].networkConfig.interfaces[].vlan`
-- **Gate model:** undecided (part of shared networking schema — HB-002)
+- **Candidate parent:** `hosts[].networkConfig`
+- **Gate model:** parent (committed, fac3c79 — shares hosts[].networkConfig parent gate at primary component boundary)
 - **Atomicity:** atomic — VLAN ID and name share lifecycle
-- **Blockers:** HB-002
+- **Parent evidence:** hosts[].networkConfig is supported-ui in Bare Metal Agent and vSphere Agent, versions 4.20 and 4.21, with canonical/mirror identity.
 
 ### HG-007 — DNS
 
 - **Children:** HI-026, HI-027
 - **Candidate parent:** `hosts[].networkConfig.dns-resolver`
-- **Gate model:** parent (chosen, not committed)
+- **Gate model:** parent (committed, 6a208bc)
 - **Atomicity:** atomic — both DNS fields share lifecycle
 
 ### HG-008 — Additional interfaces
 
 - **Children:** HI-037, HI-038, HI-039, HI-040, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055
 - **Candidate parent:** `hosts[].networkConfig.interfaces`
-- **Gate model:** undecided (shares catalog path with primary — HB-002; contains Class F VRF — HB-001)
+- **Gate model:** undecided (Additional Interface architecture unresolved — HB-001 VRF generation, HB-002 additional scope)
 - **Atomicity:** non-atomic — Class F VRF controls alongside functional controls
 - **Blockers:** HB-001, HB-002
 
@@ -359,19 +392,21 @@ generate.js:1394-1431 additional-interface loop does not read iface.advanced.vrf
 
 ### HB-002 — Shared primary/additional networking gate constraint
 
-Primary and additional interface editors both represent entries under hosts[].networkConfig.interfaces[]. A catalog path for an array element is expected to apply to every rendered instance. Primary and additional UI layout alone does not justify inventing separate catalog paths. All instances must use consistent metadata eligibility. Routes may require their own parent: hosts[].networkConfig.routes. Exact interfaces-parent versus leaf-gate architecture remains unresolved.
+PARTIALLY RESOLVED (primary networking committed, fac3c79). Primary Networking, primary Bond, and primary VLAN were completed through component-scoped use of hosts[].networkConfig. Additional Interfaces remain unresolved: the hosts[].networkConfig.interfaces catalog path applies to every rendered instance, and Additional Interface visibility requires its own design decision after HB-001 VRF generation is fixed.
 
+- **Status:** partially-resolved
 - **Severity:** gate-design-blocker
-- **Affected:** HG-004, HG-005, HG-006, HG-008, HG-009, HG-010, HI-012, HI-013, HI-014, HI-015, HI-022, HI-023, HI-024, HI-025, HI-033, HI-034, HI-035, HI-036, HI-037, HI-038, HI-039, HI-040, HI-047, HI-048, HI-049
-- **Resolution:** Design decision needed: (a) gate at hosts[].networkConfig level affecting all networking, (b) introduce primary/additional catalog path distinction, or (c) gate at component level outside catalog system.
+- **Affected:** HG-008, HG-009, HG-010, HI-037, HI-038, HI-039, HI-040, HI-041, HI-042, HI-043, HI-044, HI-045, HI-046, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055
+- **Resolution:** Resolve Additional Interfaces using the existing hosts[].networkConfig.interfaces parent after HB-001 VRF generation is fixed, without changing the completed Primary Networking gate.
 
 ### HB-003 — Boot MAC versus BMC lifecycle
 
-Boot MAC (HI-031) has catalog path platform.baremetal.hosts[].bootMACAddress (supported-backend-only), separate from bmc parent path platform.baremetal.hosts[].bmc (supported-ui). Version lifecycles could diverge — bootMACAddress could be removed or changed independently from bmc. Cannot assume BMC parent gate covers Boot MAC unless lifecycle convergence is explicitly documented.
+RESOLVED. Metadata reconciliation: cb8c253 (bootMACAddress supportStatus changed to supported-ui). Visibility implementation: 6ac0668. Historical concern: Boot MAC (HI-031) had catalog path platform.baremetal.hosts[].bootMACAddress with supported-backend-only, separate from bmc parent platform.baremetal.hosts[].bmc (supported-ui). Both are now supported-ui.
 
+- **Status:** resolved
 - **Severity:** gate-design-blocker
-- **Affected:** HI-028, HI-029, HI-030, HI-031, HI-032, HG-003
-- **Resolution:** Decide: (a) independent gate for bootMACAddress, (b) documented shared-workflow gate with bmc parent with evidence that lifecycles will not diverge, or (c) reconcile bootMACAddress supportStatus to supported-ui and gate with bmc.
+- **Affected:** (none)
+- **Resolution:** Accepted implementation: independent BMC-core gate, independent Boot-MAC gate, wrapper union under existing Day-2 structural eligibility, username/password atomic.
 
 ### HB-004 — Replication of metadata-hidden field values
 
@@ -455,23 +490,25 @@ Latent compatibility/safety concern, not currently proven destructive for the 4.
 
 | Cohort | Name | Status | Controls |
 |--------|------|--------|----------|
-| H2 | BMC | blocked-by-gate-design | 5 (HI-028, HI-029, HI-030, HI-031, HI-032) |
-| H3 | Primary networking | blocked-by-gate-design | 12 (HI-012, HI-013, HI-014, HI-015, HI-022, HI-023, HI-024, HI-025, HI-033, HI-034, HI-035, HI-036) |
-| H4 | DNS | ready-for-reconciliation | 2 (HI-026, HI-027) |
-| H5 | Root-device hints | ready-for-reconciliation | 8 (HI-004, HI-005, HI-006, HI-007, HI-008, HI-009, HI-010, HI-011) |
+| H2 | BMC | completed | 5 (HI-028, HI-029, HI-030, HI-031, HI-032) |
+| H3 | Primary networking | completed | 12 (HI-012, HI-013, HI-014, HI-015, HI-022, HI-023, HI-024, HI-025, HI-033, HI-034, HI-035, HI-036) |
+| H4 | DNS | completed | 2 (HI-026, HI-027) |
+| H5 | Root-device hints | completed | 8 (HI-004, HI-005, HI-006, HI-007, HI-008, HI-009, HI-010, HI-011) |
 | H6 | Additional interfaces | blocked-by-Class-F | 13 (HI-037, HI-038, HI-039, HI-040, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055) |
-| H7 | Bond | blocked-by-gate-design | 8 (HI-016, HI-017, HI-018, HI-019, HI-041, HI-042, HI-043, HI-044) |
-| H8 | VLAN | blocked-by-gate-design | 4 (HI-020, HI-021, HI-045, HI-046) |
-| H9 | Closeout | blocked-by-Class-F | 4 (HI-001, HI-057, HI-058, HI-059) |
+| H7 | Bond | primary-complete-additional-deferred | 8 (HI-016, HI-017, HI-018, HI-019, HI-041, HI-042, HI-043, HI-044) |
+| H8 | VLAN | primary-complete-additional-deferred | 4 (HI-020, HI-021, HI-045, HI-046) |
+| H9 | Closeout | blocked-by-Class-F/open-closeout | 4 (HI-001, HI-057, HI-058, HI-059) |
 
 ## Next Actions
 
-1. H4 DNS reconciliation: change hosts[].networkConfig.dns-resolver supportStatus to supported-ui in all applicable catalogs
-2. H5 Root-device hints reconciliation: change hosts[].rootDeviceHints supportStatus to supported-backend-only→supported-ui in all applicable catalogs
-3. H2 BMC gate design: decide BMC-core vs Boot-MAC lifecycle convergence
-4. H3/H7/H8 Networking gate design: resolve shared primary/additional interfaces parent-gate architecture (HB-002)
-5. H6 VRF generation: fix additional-interface VRF generation gap (HB-001) before additional-interface cohort can proceed
-6. H9 Closeout: resolve HI-001 taxonomy debt; address HB-004 replication safety
+1. H6 Additional Interfaces architecture and generation resolution
+2. HB-001 VRF generation decision
+3. Additional Interface MTU and SR-IOV metadata/generation reconciliation
+4. Additional Bond and VLAN visibility
+5. HB-004 replication safety
+6. H9 final closeout
+7. Slice 5I version-aware validation
+8. Slice 5J version-aware generation
 
 ---
 

@@ -3,8 +3,9 @@
     "register_id": "H1-P",
     "report_type": "Host Inventory Slice 5H Persistence Register",
     "date": "2026-07-17",
+    "last_updated": "2026-07-21",
     "branch": "develop",
-    "latest_commit": "e19a832 DOC-102: Enforce AWS worker instance type visibility",
+    "latest_commit": "fac3c79 DOC-102: Enforce Host Inventory primary networking visibility",
     "scope": "Host Inventory Agent Drawer (NodeDrawerAgentContent.jsx + HostInventoryV2Step.jsx)",
     "scenarios": [
       "bare-metal-agent",
@@ -27,10 +28,10 @@
     "canonical_mirror_identity": "All 4 catalog pairs verified byte-identical",
     "constraint": "Planning and tracking register only. No production code, tests, or catalogs modified.",
     "gate_design_decisions": {
-      "root_device_hints": "Parent gate on hosts[].rootDeviceHints (accepted design, ready for reconciliation)",
-      "dns": "Parent gate on hosts[].networkConfig.dns-resolver (accepted design, ready for reconciliation)",
-      "bmc": "Parent gate on platform.baremetal.hosts[].bmc (undecided \u2014 Boot MAC separate path)",
-      "networking": "Undecided (shared primary/additional path constraint HB-002)"
+      "root_device_hints": "Parent gate on hosts[].rootDeviceHints (committed, 7b3c12a)",
+      "dns": "Parent gate on hosts[].networkConfig.dns-resolver (committed, 6a208bc)",
+      "bmc": "Parent gate on platform.baremetal.hosts[].bmc (committed, 6ac0668). Boot MAC: independent gate on platform.baremetal.hosts[].bootMACAddress. Wrapper: union under Day-2 structural eligibility. Username/password atomic.",
+      "networking": "Parent gate on hosts[].networkConfig (committed, fac3c79). Applies to primary component boundary only. Does not gate Additional Interfaces."
     },
     "semantic_class_definitions": {
       "A": "independently editable catalog leaf",
@@ -71,6 +72,270 @@
       "commit": "e939a41",
       "gate_expression": "isCatalogFieldVisible(\"bootArtifactsBaseURL\", AGENT_CONFIG)",
       "tests": 16
+    },
+    {
+      "control_id": "HI-004",
+      "label": "Root device — deviceName",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-005",
+      "label": "Root device — hctl",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-006",
+      "label": "Root device — model",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-007",
+      "label": "Root device — vendor",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-008",
+      "label": "Root device — serialNumber",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-009",
+      "label": "Root device — wwn",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-010",
+      "label": "Root device — minSizeGb",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-011",
+      "label": "Root device — rotational",
+      "commit": "7b3c12a",
+      "reconciliation_commit": "463e509",
+      "gate_expression": "shares rootDeviceHints parent gate (showRootDeviceHints prop)",
+      "tests": 18
+    },
+    {
+      "control_id": "HI-026",
+      "label": "DNS servers",
+      "commit": "6a208bc",
+      "reconciliation_commit": "802a8c2",
+      "gate_expression": "shares dns-resolver parent gate (showDns prop)",
+      "tests": 14
+    },
+    {
+      "control_id": "HI-027",
+      "label": "DNS search",
+      "commit": "6a208bc",
+      "reconciliation_commit": "802a8c2",
+      "gate_expression": "shares dns-resolver parent gate (showDns prop)",
+      "tests": 14
+    },
+    {
+      "control_id": "HI-028",
+      "label": "BMC address",
+      "commit": "6ac0668",
+      "reconciliation_commit": "cb8c253",
+      "gate_expression": "shares bmc parent gate (showBmcCore prop)",
+      "tests": 26
+    },
+    {
+      "control_id": "HI-029",
+      "label": "BMC username",
+      "commit": "6ac0668",
+      "reconciliation_commit": "cb8c253",
+      "gate_expression": "shares bmc parent gate (showBmcCore prop)",
+      "tests": 26
+    },
+    {
+      "control_id": "HI-030",
+      "label": "BMC password",
+      "commit": "6ac0668",
+      "reconciliation_commit": "cb8c253",
+      "gate_expression": "shares bmc parent gate (showBmcCore prop)",
+      "tests": 26
+    },
+    {
+      "control_id": "HI-032",
+      "label": "BMC disable cert verification",
+      "commit": "6ac0668",
+      "reconciliation_commit": "cb8c253",
+      "gate_expression": "shares bmc parent gate (showBmcCore prop)",
+      "tests": 26
+    },
+    {
+      "control_id": "HI-031",
+      "label": "Boot MAC",
+      "commit": "6ac0668",
+      "reconciliation_commit": "cb8c253",
+      "gate_expression": "isCatalogFieldVisible(\"platform.baremetal.hosts[].bootMACAddress\", INSTALL_CONFIG)",
+      "tests": 26
+    },
+    {
+      "control_id": "HI-012",
+      "label": "Primary interface type select",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-013",
+      "label": "Primary IP assignment select",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-014",
+      "label": "Primary ethernet name",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-015",
+      "label": "Primary ethernet MAC",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-016",
+      "label": "Primary bond name",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-017",
+      "label": "Primary bond mode select",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-018",
+      "label": "Primary bond member name",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-019",
+      "label": "Primary bond member MAC",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-020",
+      "label": "Primary VLAN ID",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-021",
+      "label": "Primary VLAN name",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-022",
+      "label": "Primary IPv4 CIDR",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-023",
+      "label": "Primary IPv4 gateway",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-024",
+      "label": "Primary IPv6 CIDR",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-025",
+      "label": "Primary IPv6 gateway",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-033",
+      "label": "Primary MTU",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-034",
+      "label": "Primary route destination",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-035",
+      "label": "Primary route next-hop address",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
+    },
+    {
+      "control_id": "HI-036",
+      "label": "Primary route next-hop interface",
+      "commit": "fac3c79",
+      "reconciliation_commit": "5d9d984",
+      "gate_expression": "shares networkConfig parent gate (showPrimaryNetwork prop)",
+      "tests": 22
     }
   ],
   "interactive_controls": [
@@ -259,7 +524,7 @@
     },
     {
       "id": "HI-004",
-      "label": "Root device \u2014 deviceName",
+      "label": "Root device — deviceName",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 175,
       "source_end_line": 179,
@@ -330,13 +595,13 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-005",
-      "label": "Root device \u2014 hctl",
+      "label": "Root device — hctl",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 193,
       "source_end_line": 196,
@@ -407,13 +672,13 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-006",
-      "label": "Root device \u2014 model",
+      "label": "Root device — model",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 213,
       "source_end_line": 217,
@@ -484,13 +749,13 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-007",
-      "label": "Root device \u2014 vendor",
+      "label": "Root device — vendor",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 230,
       "source_end_line": 234,
@@ -561,13 +826,13 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-008",
-      "label": "Root device \u2014 serialNumber",
+      "label": "Root device — serialNumber",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 250,
       "source_end_line": 254,
@@ -638,13 +903,13 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-009",
-      "label": "Root device \u2014 wwn",
+      "label": "Root device — wwn",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 270,
       "source_end_line": 274,
@@ -715,13 +980,13 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-010",
-      "label": "Root device \u2014 minSizeGb",
+      "label": "Root device — minSizeGb",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 291,
       "source_end_line": 295,
@@ -792,13 +1057,13 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-011",
-      "label": "Root device \u2014 rotational",
+      "label": "Root device — rotational",
       "source_file": "frontend/src/components/NodeDrawerAgentContent.jsx",
       "source_start_line": 310,
       "source_end_line": 317,
@@ -869,9 +1134,9 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5",
-      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only, all 4 catalogs). Intended parent gate hosts[].rootDeviceHints is also supported-backend-only. Gate design chosen (parent model) but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].rootDeviceHints). Semantic class describes architecture, not commit status. Reconciliation required: change parent supportStatus from supported-backend-only to supported-ui. Do not independently gate the eight child controls. Preserve existing arbiter structural exclusion."
     },
     {
       "id": "HI-012",
@@ -942,9 +1207,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "Catalog leaf exists (supported-backend-only). Shared networking gate design unresolved (HB-002). Cannot be A while shared-gate design is unresolved."
     },
     {
@@ -1015,9 +1280,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "Catalog leaf exists (supported-ui). Shared networking gate design unresolved (HB-002). Cannot be independently gated while shared-gate is undecided."
     },
     {
@@ -1089,9 +1354,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002)."
     },
     {
@@ -1164,9 +1429,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Separate hosts[].interfaces path from networkConfig path."
     },
     {
@@ -1238,9 +1503,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002)."
     },
     {
@@ -1313,9 +1578,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002)."
     },
     {
@@ -1387,9 +1652,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Per-member template control. Shared networking gate design unresolved (HB-002)."
     },
     {
@@ -1462,9 +1727,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Separate hosts[].interfaces path. Per-member template control."
     },
     {
@@ -1537,9 +1802,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H8",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002)."
     },
     {
@@ -1611,9 +1876,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H8",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. VLAN iface name. Shared networking gate design unresolved."
     },
     {
@@ -1684,9 +1949,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002)."
     },
     {
@@ -1757,9 +2022,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Emitted as 0.0.0.0/0 route. Shared networking gate design unresolved."
     },
     {
@@ -1830,9 +2095,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Parent ipv6 is supported-ui. Shared networking gate unresolved."
     },
     {
@@ -1902,9 +2167,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Emitted as ::/0 route. Shared networking gate unresolved."
     },
     {
@@ -1978,9 +2243,9 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H4",
-      "risk_notes": "Catalog leaf exists (supported-backend-only). Intended parent gate hosts[].networkConfig.dns-resolver chosen but not committed. F until gate committed. CORRECTED H1-P: Reclassified F\u2192B. The child has an identified parent gate (hosts[].networkConfig.dns-resolver). Reconciliation required: change DNS parent supportStatus to supported-ui; gate the DNS group atomically; do not independently split servers and search domains."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only). Intended parent gate hosts[].networkConfig.dns-resolver chosen but not committed. F until gate committed. CORRECTED H1-P: Reclassified F→B. The child has an identified parent gate (hosts[].networkConfig.dns-resolver). Reconciliation required: change DNS parent supportStatus to supported-ui; gate the DNS group atomically; do not independently split servers and search domains."
     },
     {
       "id": "HI-027",
@@ -2052,9 +2317,9 @@
         }
       },
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H4",
-      "risk_notes": "Catalog leaf exists (supported-backend-only). Intended parent gate dns-resolver chosen but not committed. F until committed. CORRECTED H1-P: Reclassified F\u2192B. See HI-026 correction."
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "Catalog leaf exists (supported-backend-only). Intended parent gate dns-resolver chosen but not committed. F until committed. CORRECTED H1-P: Reclassified F→B. See HI-026 correction."
     },
     {
       "id": "HI-028",
@@ -2128,9 +2393,9 @@
           "canonical_mirror_identical": null
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only in bare-metal-agent. Not applicable to vsphere-agent. BMC parent gate design undecided (HB-003)."
     },
     {
@@ -2201,9 +2466,9 @@
           "canonical_mirror_identical": null
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-ui in bare-metal-agent. BMC parent gate design undecided (HB-003). Boot MAC lifecycle divergence prevents committing parent gate."
     },
     {
@@ -2274,9 +2539,9 @@
           "canonical_mirror_identical": null
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-ui in bare-metal-agent. BMC parent gate design undecided (HB-003)."
     },
     {
@@ -2310,8 +2575,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -2320,8 +2585,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -2347,10 +2612,10 @@
           "canonical_mirror_identical": null
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2",
-      "risk_notes": "supported-backend-only. SEPARATE catalog path from platform.baremetal.hosts[].bmc. Independent lifecycle not resolved (HB-003)."
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
+      "risk_notes": "supported-ui (updated cb8c253). Separate catalog path from platform.baremetal.hosts[].bmc. Independent gate resolved (HB-003 resolved, 6ac0668)."
     },
     {
       "id": "HI-032",
@@ -2420,9 +2685,9 @@
           "canonical_mirror_identical": null
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only in bare-metal-agent. BMC parent gate design undecided (HB-003)."
     },
     {
@@ -2452,9 +2717,9 @@
       "catalog_output_file": null,
       "catalog_representation": "missing",
       "catalog_evidence": null,
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "No catalog parameter exists. Generates correctly to NMState. Cannot be A (no catalog leaf). No proven parent gate. F until catalog entry created or parent gate committed. H1-P NOTE: Kept Class F. No independent catalog leaf exists. May become Class B children under a proven interfaces parent gate once the shared parent-gate decision is accepted."
     },
     {
@@ -2527,9 +2792,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002). Per-route template control."
     },
     {
@@ -2602,9 +2867,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002). Per-route template control."
     },
     {
@@ -2677,9 +2942,9 @@
           "canonical_mirror_identical": true
         }
       },
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3",
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null,
       "risk_notes": "supported-backend-only. Shared networking gate design unresolved (HB-002). Per-route template control."
     },
     {
@@ -3687,7 +3952,7 @@
       "structural_condition": "!isArbiterDrawer && additionalAdvancedOpen[ifaceIndex]",
       "output_artifact": "none",
       "emitted_schema_path": "none (not generated for additional interfaces)",
-      "generator_location": "MISSING \u2014 generate.js:1394-1431 does not read iface.advanced.vrf",
+      "generator_location": "MISSING — generate.js:1394-1431 does not read iface.advanced.vrf",
       "validation_locations": [],
       "existing_tests": [
         "frontend/tests/HostInventoryV2Phase42.test.jsx",
@@ -3816,7 +4081,7 @@
         "bare-metal-agent",
         "vsphere-agent"
       ],
-      "structural_condition": "showBootArtifactsBaseURL (isCatalogFieldVisible(\"bootArtifactsBaseURL\", AGENT_CONFIG)) \u2014 catalog-gated via commit e939a41",
+      "structural_condition": "showBootArtifactsBaseURL (isCatalogFieldVisible(\"bootArtifactsBaseURL\", AGENT_CONFIG)) — catalog-gated via commit e939a41",
       "output_artifact": "agent-config.yaml",
       "emitted_schema_path": "bootArtifactsBaseURL",
       "generator_location": "backend/src/generate.js:1058,1067",
@@ -3890,8 +4155,8 @@
       ],
       "structural_condition": "nodes.length === 0",
       "output_artifact": "none",
-      "emitted_schema_path": "none (workflow input \u2014 determines number of hosts[] entries)",
-      "generator_location": "N/A \u2014 workflow control",
+      "emitted_schema_path": "none (workflow input — determines number of hosts[] entries)",
+      "generator_location": "N/A — workflow control",
       "validation_locations": [],
       "existing_tests": [
         "frontend/tests/HostInventoryV2Phase42.test.jsx",
@@ -3923,7 +4188,7 @@
       "structural_condition": "nodes.length === 0 && !(isAgentInventoryScenario && countControlPlane === 1)",
       "output_artifact": "none",
       "emitted_schema_path": "none (workflow input)",
-      "generator_location": "N/A \u2014 workflow control",
+      "generator_location": "N/A — workflow control",
       "validation_locations": [],
       "existing_tests": [
         "frontend/tests/HostInventoryV2Phase42.test.jsx",
@@ -3955,7 +4220,7 @@
       "structural_condition": "nodes.length === 0 && !(isAgentInventoryScenario && countControlPlane === 1)",
       "output_artifact": "none",
       "emitted_schema_path": "none (workflow input)",
-      "generator_location": "N/A \u2014 workflow control",
+      "generator_location": "N/A — workflow control",
       "validation_locations": [],
       "existing_tests": [
         "frontend/tests/HostInventoryV2Phase42.test.jsx",
@@ -4028,7 +4293,7 @@
       "existing_structural_gate": "showHostname !== false (isCatalogFieldVisible(\"hosts[].hostname\", AGENT_CONFIG))",
       "proposed_metadata_gate": "Already implemented and committed (9632caf)",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "atomic \u2014 FQDN shares hostname lifecycle and gate",
+      "atomicity_decision": "atomic — FQDN shares hostname lifecycle and gate",
       "blocker_ids": []
     },
     {
@@ -4088,11 +4353,11 @@
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "parent (chosen, not committed)",
+      "gate_model": "parent (committed, 7b3c12a)",
       "existing_structural_gate": "selectedNode.role !== \"arbiter\"",
       "proposed_metadata_gate": "Gate on parent hosts[].rootDeviceHints after supportStatus reconciliation. NOT YET COMMITTED.",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "atomic \u2014 all 8 hints share identical supportStatus (supported-backend-only) and lifecycle",
+      "atomicity_decision": "atomic — all 8 hints share identical supportStatus (supported-backend-only) and lifecycle",
       "blocker_ids": []
     },
     {
@@ -4148,14 +4413,12 @@
           "canonical_mirror_identical": null
         }
       },
-      "gate_model": "parent (undecided \u2014 Boot MAC has separate path)",
+      "gate_model": "parent (committed, 6ac0668 — BMC core parent + independent Boot MAC gate, wrapper union)",
       "existing_structural_gate": "showAgentDay2InstallConfigBmc",
       "proposed_metadata_gate": "Gate on parent bmc (supported-ui). UNDECIDED due to Boot MAC separate lifecycle (HB-003).",
       "can_child_lifecycles_diverge": true,
-      "atomicity_decision": "non-atomic \u2014 Boot MAC (HI-031) has separate catalog path with potentially different lifecycle",
-      "blocker_ids": [
-        "HB-003"
-      ]
+      "atomicity_decision": "non-atomic — Boot MAC (HI-031) has separate catalog path with potentially different lifecycle",
+      "blocker_ids": []
     },
     {
       "id": "HG-004",
@@ -4174,15 +4437,15 @@
         "HI-035",
         "HI-036"
       ],
-      "candidate_parent_catalog_path": "hosts[].networkConfig.interfaces",
+      "candidate_parent_catalog_path": "hosts[].networkConfig",
       "parent_output_file": "agent-config.yaml",
       "parent_catalog_evidence": {
         "bare-metal-agent@4.20": {
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4191,8 +4454,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4201,8 +4464,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4211,21 +4474,19 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "undecided (shared with additional interfaces \u2014 HB-002)",
+      "gate_model": "parent (committed, fac3c79 — hosts[].networkConfig at primary component boundary)",
       "existing_structural_gate": "none (always rendered within drawer)",
-      "proposed_metadata_gate": "Blocked: parent hosts[].networkConfig.interfaces is supported-backend-only AND shared with additional interfaces",
+      "proposed_metadata_gate": "Committed: component-scoped use of hosts[].networkConfig parent gate (showPrimaryNetwork prop)",
       "can_child_lifecycles_diverge": true,
-      "atomicity_decision": "non-atomic \u2014 children span supported-ui (dhcp) and supported-backend-only; MTU has no catalog entry",
-      "blocker_ids": [
-        "HB-002"
-      ]
+      "atomicity_decision": "non-atomic — children span supported-ui (dhcp) and supported-backend-only; MTU has no catalog entry",
+      "blocker_ids": []
     },
     {
       "id": "HG-005",
@@ -4236,15 +4497,15 @@
         "HI-018",
         "HI-019"
       ],
-      "candidate_parent_catalog_path": "hosts[].networkConfig.interfaces[].link-aggregation",
+      "candidate_parent_catalog_path": "hosts[].networkConfig",
       "parent_output_file": "agent-config.yaml",
       "parent_catalog_evidence": {
         "bare-metal-agent@4.20": {
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4253,8 +4514,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4263,8 +4524,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4273,21 +4534,19 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "undecided (part of shared networking schema \u2014 HB-002)",
+      "gate_model": "parent (committed, fac3c79 — shares hosts[].networkConfig parent gate at primary component boundary)",
       "existing_structural_gate": "primary.type === \"bond\" || primary.type === \"vlan-on-bond\"",
-      "proposed_metadata_gate": "Blocked: parent is supported-backend-only, shared gate unresolved",
+      "proposed_metadata_gate": "Committed: shares hosts[].networkConfig parent gate (showPrimaryNetwork prop)",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "atomic \u2014 all bond fields share lifecycle",
-      "blocker_ids": [
-        "HB-002"
-      ]
+      "atomicity_decision": "atomic — all bond fields share lifecycle",
+      "blocker_ids": []
     },
     {
       "id": "HG-006",
@@ -4296,15 +4555,15 @@
         "HI-020",
         "HI-021"
       ],
-      "candidate_parent_catalog_path": "hosts[].networkConfig.interfaces[].vlan",
+      "candidate_parent_catalog_path": "hosts[].networkConfig",
       "parent_output_file": "agent-config.yaml",
       "parent_catalog_evidence": {
         "bare-metal-agent@4.20": {
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4313,8 +4572,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4323,8 +4582,8 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
@@ -4333,21 +4592,19 @@
           "applicable": true,
           "canonical_match_count": 1,
           "mirror_match_count": 1,
-          "canonical_support_status": "supported-backend-only",
-          "mirror_support_status": "supported-backend-only",
+          "canonical_support_status": "supported-ui",
+          "mirror_support_status": "supported-ui",
           "min_version": "4.20",
           "max_version": null,
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "undecided (part of shared networking schema \u2014 HB-002)",
+      "gate_model": "parent (committed, fac3c79 — shares hosts[].networkConfig parent gate at primary component boundary)",
       "existing_structural_gate": "primary.type === \"vlan-on-ethernet\" || primary.type === \"vlan-on-bond\"",
-      "proposed_metadata_gate": "Blocked: parent is supported-backend-only, shared gate unresolved",
+      "proposed_metadata_gate": "Committed: shares hosts[].networkConfig parent gate (showPrimaryNetwork prop)",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "atomic \u2014 VLAN ID and name share lifecycle",
-      "blocker_ids": [
-        "HB-002"
-      ]
+      "atomicity_decision": "atomic — VLAN ID and name share lifecycle",
+      "blocker_ids": []
     },
     {
       "id": "HG-007",
@@ -4400,11 +4657,11 @@
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "parent (chosen, not committed)",
+      "gate_model": "parent (committed, 6a208bc)",
       "existing_structural_gate": "none (always rendered)",
       "proposed_metadata_gate": "Gate on parent hosts[].networkConfig.dns-resolver after supportStatus reconciliation. NOT YET COMMITTED.",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "atomic \u2014 both DNS fields share lifecycle",
+      "atomicity_decision": "atomic — both DNS fields share lifecycle",
       "blocker_ids": []
     },
     {
@@ -4469,11 +4726,11 @@
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "undecided (shares catalog path with primary \u2014 HB-002; contains Class F VRF \u2014 HB-001)",
+      "gate_model": "undecided (Additional Interface architecture unresolved — HB-001 VRF generation, HB-002 additional scope)",
       "existing_structural_gate": "!isArbiterDrawer",
       "proposed_metadata_gate": "Blocked: shared catalog path and VRF generation gap",
       "can_child_lifecycles_diverge": true,
-      "atomicity_decision": "non-atomic \u2014 Class F VRF controls alongside functional controls",
+      "atomicity_decision": "non-atomic — Class F VRF controls alongside functional controls",
       "blocker_ids": [
         "HB-001",
         "HB-002"
@@ -4532,7 +4789,7 @@
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "undecided (part of shared networking schema \u2014 HB-002)",
+      "gate_model": "undecided (part of shared networking schema — HB-002)",
       "existing_structural_gate": "!isArbiterDrawer && (type === 'bond' || type === 'vlan-on-bond')",
       "proposed_metadata_gate": "Blocked: parent is supported-backend-only, shared gate unresolved",
       "can_child_lifecycles_diverge": false,
@@ -4592,7 +4849,7 @@
           "canonical_mirror_identical": true
         }
       },
-      "gate_model": "undecided (part of shared networking schema \u2014 HB-002)",
+      "gate_model": "undecided (part of shared networking schema — HB-002)",
       "existing_structural_gate": "!isArbiterDrawer && (type === 'vlan-on-ethernet' || type === 'vlan-on-bond')",
       "proposed_metadata_gate": "Blocked: parent is supported-backend-only, shared gate unresolved",
       "can_child_lifecycles_diverge": false,
@@ -4615,7 +4872,7 @@
       "existing_structural_gate": "!isArbiterDrawer && additionalAdvancedOpen[ifaceIndex]",
       "proposed_metadata_gate": "Blocked: no catalog parameter for SR-IOV",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "atomic \u2014 enabled checkbox and totalVfs share lifecycle",
+      "atomicity_decision": "atomic — enabled checkbox and totalVfs share lifecycle",
       "blocker_ids": []
     },
     {
@@ -4630,11 +4887,11 @@
       "candidate_parent_catalog_path": null,
       "parent_output_file": null,
       "parent_catalog_evidence": null,
-      "gate_model": "N/A (Class F \u2014 no catalog, no generation)",
+      "gate_model": "N/A (Class F — no catalog, no generation)",
       "existing_structural_gate": "!isArbiterDrawer && additionalAdvancedOpen[ifaceIndex]",
-      "proposed_metadata_gate": "Blocked: Class F \u2014 no catalog parameter and no generation for additional interfaces",
+      "proposed_metadata_gate": "Blocked: Class F — no catalog parameter and no generation for additional interfaces",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "atomic \u2014 all 4 VRF controls are Class F together",
+      "atomicity_decision": "atomic — all 4 VRF controls are Class F together",
       "blocker_ids": [
         "HB-001"
       ]
@@ -4648,9 +4905,9 @@
       "parent_catalog_evidence": null,
       "gate_model": "N/A (structural workflow)",
       "existing_structural_gate": "showReplicate && sectionOrderSet.has(SECTION_IDS.REPLICATE_MODAL)",
-      "proposed_metadata_gate": "N/A \u2014 structural. Blocker: replication can copy values for metadata-hidden fields.",
+      "proposed_metadata_gate": "N/A — structural. Blocker: replication can copy values for metadata-hidden fields.",
       "can_child_lifecycles_diverge": false,
-      "atomicity_decision": "structural \u2014 modal is a workflow element",
+      "atomicity_decision": "structural — modal is a workflow element",
       "blocker_ids": [
         "HB-004"
       ]
@@ -4669,56 +4926,49 @@
         "HG-012"
       ],
       "severity": "Class-F-blocker",
-      "resolution": "Either add VRF generation to additional-interface loop in generate.js or remove VRF UI from additional interface advanced section."
+      "resolution": "Either add VRF generation to additional-interface loop in generate.js or remove VRF UI from additional interface advanced section.",
+      "status": "open"
     },
     {
       "id": "HB-002",
       "title": "Shared primary/additional networking gate constraint",
-      "description": "Primary and additional interface editors both represent entries under hosts[].networkConfig.interfaces[]. A catalog path for an array element is expected to apply to every rendered instance. Primary and additional UI layout alone does not justify inventing separate catalog paths. All instances must use consistent metadata eligibility. Routes may require their own parent: hosts[].networkConfig.routes. Exact interfaces-parent versus leaf-gate architecture remains unresolved.",
+      "description": "PARTIALLY RESOLVED (primary networking committed, fac3c79). Primary Networking, primary Bond, and primary VLAN were completed through component-scoped use of hosts[].networkConfig. Additional Interfaces remain unresolved: the hosts[].networkConfig.interfaces catalog path applies to every rendered instance, and Additional Interface visibility requires its own design decision after HB-001 VRF generation is fixed.",
       "affected_ids": [
-        "HG-004",
-        "HG-005",
-        "HG-006",
         "HG-008",
         "HG-009",
         "HG-010",
-        "HI-012",
-        "HI-013",
-        "HI-014",
-        "HI-015",
-        "HI-022",
-        "HI-023",
-        "HI-024",
-        "HI-025",
-        "HI-033",
-        "HI-034",
-        "HI-035",
-        "HI-036",
         "HI-037",
         "HI-038",
         "HI-039",
         "HI-040",
+        "HI-041",
+        "HI-042",
+        "HI-043",
+        "HI-044",
+        "HI-045",
+        "HI-046",
         "HI-047",
         "HI-048",
-        "HI-049"
+        "HI-049",
+        "HI-050",
+        "HI-051",
+        "HI-052",
+        "HI-053",
+        "HI-054",
+        "HI-055"
       ],
       "severity": "gate-design-blocker",
-      "resolution": "Design decision needed: (a) gate at hosts[].networkConfig level affecting all networking, (b) introduce primary/additional catalog path distinction, or (c) gate at component level outside catalog system."
+      "resolution": "Resolve Additional Interfaces using the existing hosts[].networkConfig.interfaces parent after HB-001 VRF generation is fixed, without changing the completed Primary Networking gate.",
+      "status": "partially-resolved"
     },
     {
       "id": "HB-003",
       "title": "Boot MAC versus BMC lifecycle",
-      "description": "Boot MAC (HI-031) has catalog path platform.baremetal.hosts[].bootMACAddress (supported-backend-only), separate from bmc parent path platform.baremetal.hosts[].bmc (supported-ui). Version lifecycles could diverge \u2014 bootMACAddress could be removed or changed independently from bmc. Cannot assume BMC parent gate covers Boot MAC unless lifecycle convergence is explicitly documented.",
-      "affected_ids": [
-        "HI-028",
-        "HI-029",
-        "HI-030",
-        "HI-031",
-        "HI-032",
-        "HG-003"
-      ],
+      "description": "RESOLVED. Metadata reconciliation: cb8c253 (bootMACAddress supportStatus changed to supported-ui). Visibility implementation: 6ac0668. Historical concern: Boot MAC (HI-031) had catalog path platform.baremetal.hosts[].bootMACAddress with supported-backend-only, separate from bmc parent platform.baremetal.hosts[].bmc (supported-ui). Both are now supported-ui.",
+      "affected_ids": [],
       "severity": "gate-design-blocker",
-      "resolution": "Decide: (a) independent gate for bootMACAddress, (b) documented shared-workflow gate with bmc parent with evidence that lifecycles will not diverge, or (c) reconcile bootMACAddress supportStatus to supported-ui and gate with bmc."
+      "resolution": "Accepted implementation: independent BMC-core gate, independent Boot-MAC gate, wrapper union under existing Day-2 structural eligibility, username/password atomic.",
+      "status": "resolved"
     },
     {
       "id": "HB-004",
@@ -4728,7 +4978,8 @@
         "HG-013"
       ],
       "severity": "closeout-blocker",
-      "resolution": "Filter REPLICATE_OPTIONS by current visibility state before rendering. Add version-aware replication that skips fields whose catalog metadata indicates they should be hidden for the selected version/scenario."
+      "resolution": "Filter REPLICATE_OPTIONS by current visibility state before rendering. Add version-aware replication that skips fields whose catalog metadata indicates they should be hidden for the selected version/scenario.",
+      "status": "open"
     }
   ],
   "structural_controls": [
@@ -5118,21 +5369,21 @@
   ],
   "corrected_counts": {
     "interactive_controls": 59,
-    "accepted_completion": 3,
+    "accepted_completion": 36,
     "composite_groups": 13,
     "structural_controls": 39,
     "blockers": 4,
     "excluded_candidates": 5,
     "semantic_class_totals": {
       "A": 2,
-      "B": 11,
+      "B": 34,
       "C": 3,
-      "F": 43
+      "F": 20
     },
     "disposition_totals": {
-      "blocked-by-gate-design": 38,
-      "completed": 3,
-      "open-metadata-reconciliation": 10,
+      "blocked-by-gate-design": 15,
+      "completed": 36,
+      "open-metadata-reconciliation": 0,
       "preserved-exception": 1,
       "structural": 3,
       "unresolved-Class-F": 4
@@ -5166,7 +5417,7 @@
   "cohort_readiness": {
     "H2": {
       "name": "BMC",
-      "status": "blocked-by-gate-design",
+      "status": "completed",
       "controls": [
         "HI-028",
         "HI-029",
@@ -5177,7 +5428,7 @@
     },
     "H3": {
       "name": "Primary networking",
-      "status": "blocked-by-gate-design",
+      "status": "completed",
       "controls": [
         "HI-012",
         "HI-013",
@@ -5195,7 +5446,7 @@
     },
     "H4": {
       "name": "DNS",
-      "status": "ready-for-reconciliation",
+      "status": "completed",
       "controls": [
         "HI-026",
         "HI-027"
@@ -5203,7 +5454,7 @@
     },
     "H5": {
       "name": "Root-device hints",
-      "status": "ready-for-reconciliation",
+      "status": "completed",
       "controls": [
         "HI-004",
         "HI-005",
@@ -5236,7 +5487,7 @@
     },
     "H7": {
       "name": "Bond",
-      "status": "blocked-by-gate-design",
+      "status": "primary-complete-additional-deferred",
       "controls": [
         "HI-016",
         "HI-017",
@@ -5250,7 +5501,7 @@
     },
     "H8": {
       "name": "VLAN",
-      "status": "blocked-by-gate-design",
+      "status": "primary-complete-additional-deferred",
       "controls": [
         "HI-020",
         "HI-021",
@@ -5260,7 +5511,7 @@
     },
     "H9": {
       "name": "Closeout",
-      "status": "blocked-by-Class-F",
+      "status": "blocked-by-Class-F/open-closeout",
       "controls": [
         "HI-001",
         "HI-057",
@@ -5270,12 +5521,14 @@
     }
   },
   "next_actions": [
-    "H4 DNS reconciliation: change hosts[].networkConfig.dns-resolver supportStatus to supported-ui in all applicable catalogs",
-    "H5 Root-device hints reconciliation: change hosts[].rootDeviceHints supportStatus to supported-backend-only\u2192supported-ui in all applicable catalogs",
-    "H2 BMC gate design: decide BMC-core vs Boot-MAC lifecycle convergence",
-    "H3/H7/H8 Networking gate design: resolve shared primary/additional interfaces parent-gate architecture (HB-002)",
-    "H6 VRF generation: fix additional-interface VRF generation gap (HB-001) before additional-interface cohort can proceed",
-    "H9 Closeout: resolve HI-001 taxonomy debt; address HB-004 replication safety"
+    "H6 Additional Interfaces architecture and generation resolution",
+    "HB-001 VRF generation decision",
+    "Additional Interface MTU and SR-IOV metadata/generation reconciliation",
+    "Additional Bond and VLAN visibility",
+    "HB-004 replication safety",
+    "H9 final closeout",
+    "Slice 5I version-aware validation",
+    "Slice 5J version-aware generation"
   ],
   "completion_register": [
     {
@@ -5301,234 +5554,234 @@
     },
     {
       "control_id": "HI-004",
-      "label": "Root device \u2014 deviceName",
+      "label": "Root device — deviceName",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-005",
-      "label": "Root device \u2014 hctl",
+      "label": "Root device — hctl",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-006",
-      "label": "Root device \u2014 model",
+      "label": "Root device — model",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-007",
-      "label": "Root device \u2014 vendor",
+      "label": "Root device — vendor",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-008",
-      "label": "Root device \u2014 serialNumber",
+      "label": "Root device — serialNumber",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-009",
-      "label": "Root device \u2014 wwn",
+      "label": "Root device — wwn",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-010",
-      "label": "Root device \u2014 minSizeGb",
+      "label": "Root device — minSizeGb",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-011",
-      "label": "Root device \u2014 rotational",
+      "label": "Root device — rotational",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H5"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-012",
       "label": "Primary interface type select",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-013",
       "label": "Primary IP assignment select",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-014",
       "label": "Primary ethernet name",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-015",
       "label": "Primary ethernet MAC",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-016",
       "label": "Primary bond name",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-017",
       "label": "Primary bond mode select",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-018",
       "label": "Primary bond member name",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-019",
       "label": "Primary bond member MAC",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H7"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-020",
       "label": "Primary VLAN ID",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H8"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-021",
       "label": "Primary VLAN name",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H8"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-022",
       "label": "Primary IPv4 CIDR",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-023",
       "label": "Primary IPv4 gateway",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-024",
       "label": "Primary IPv6 CIDR",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-025",
       "label": "Primary IPv6 gateway",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-026",
       "label": "DNS servers",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H4"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-027",
       "label": "DNS search",
       "semantic_class": "B",
-      "disposition": "open-metadata-reconciliation",
-      "recommended_cohort": "H4"
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-028",
       "label": "BMC address",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-029",
       "label": "BMC username",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-030",
       "label": "BMC password",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-031",
       "label": "Boot MAC",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-032",
       "label": "BMC disable cert verification",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H2"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-033",
       "label": "Primary MTU",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-034",
       "label": "Primary route destination",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-035",
       "label": "Primary route next-hop address",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-036",
       "label": "Primary route next-hop interface",
-      "semantic_class": "F",
-      "disposition": "blocked-by-gate-design",
-      "recommended_cohort": "H3"
+      "semantic_class": "B",
+      "disposition": "completed",
+      "recommended_cohort": null
     },
     {
       "control_id": "HI-037",
