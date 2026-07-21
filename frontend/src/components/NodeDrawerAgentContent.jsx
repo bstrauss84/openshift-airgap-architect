@@ -55,6 +55,7 @@ export function NodeDrawerAgentContent({
   showBmcCore = true,
   showBootMac = true,
   showPrimaryNetwork = true,
+  showAdditionalInterfaces = true,
   showAdvancedDrawer,
   advancedOpen,
   setAdvancedOpen,
@@ -944,7 +945,7 @@ Destination: 10.0.0.0/24, Next Hop: 192.168.1.1`}
       )}
 
       {/* Additional Interfaces - MOVED AFTER Advanced, hidden for arbiter */}
-      {!isArbiterDrawer && (
+      {!isArbiterDrawer && showAdditionalInterfaces !== false && (
         <>
           <div className="divider" />
           <h4>

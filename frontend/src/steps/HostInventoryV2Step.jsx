@@ -149,6 +149,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const showAgentBmcCore = isCatalogFieldVisible("platform.baremetal.hosts[].bmc", INSTALL_CONFIG);
   const showAgentBootMac = isCatalogFieldVisible("platform.baremetal.hosts[].bootMACAddress", INSTALL_CONFIG);
   const showAgentPrimaryNetwork = isCatalogFieldVisible("hosts[].networkConfig", AGENT_CONFIG);
+  const showAdditionalInterfaces = isCatalogFieldVisible("hosts[].networkConfig.interfaces", AGENT_CONFIG);
   const sectionOrderSet = useMemo(() => new Set(sectionOrder), [sectionOrder]);
 
   const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT, version), [scenarioId, version]);
@@ -852,6 +853,7 @@ wipefs -a /dev/sdX`}</pre>
                           showBmcCore={showAgentBmcCore}
                           showBootMac={showAgentBootMac}
                           showPrimaryNetwork={showAgentPrimaryNetwork}
+                          showAdditionalInterfaces={showAdditionalInterfaces}
                           showAdvancedDrawer={showAdvancedDrawer}
                           advancedOpen={advancedOpen}
                           setAdvancedOpen={setAdvancedOpen}

@@ -1820,6 +1820,7 @@ describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
     { path: "hosts[].networkConfig", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
     { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.interfaces", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
   ];
 
   function renderWithCatalog(catalog, stateOverride) {
@@ -2293,6 +2294,545 @@ describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
     expect(screen.getByLabelText("Expand Advanced")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Expand Advanced"));
     expect(screen.getByPlaceholderText("1500")).toBeInTheDocument();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+  });
+});
+
+describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
+  const AC = "agent-config.yaml";
+  const IC = "install-config.yaml";
+  const HOSTNAME_PLACEHOLDER = "e.g. master-0, arbiter-0";
+
+  const SYNTHETIC_CATALOG_AI = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker", "arbiter"] },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.interfaces", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "platform.baremetal.hosts[].bmc", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "platform.baremetal.hosts[].bootMACAddress", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+  ];
+
+  const fullAdditionalInterface = {
+    type: "ethernet",
+    mode: "static",
+    ipv4Cidr: "10.10.10.5/24",
+    ipv4Gateway: "10.10.10.1",
+    ipv6Cidr: "fd01::5/64",
+    ipv6Gateway: "fd01::1",
+    ethernet: { name: "eno99", macAddress: "52:54:00:ff:ee:dd" },
+    bond: {
+      name: "bond7",
+      mode: "802.3ad",
+      slaves: [
+        { name: "eth10", macAddress: "52:54:00:dd:cc:bb" },
+        { name: "eth11", macAddress: "52:54:00:dd:cc:cc" }
+      ]
+    },
+    vlan: { id: "777", baseIface: "eno99", name: "eno99.777" },
+    advanced: {
+      mtu: "9216",
+      sriov: { enabled: true, totalVfs: "16" },
+      vrf: { enabled: true, name: "vrf-test", tableId: "200", ports: "eno99,bond7" },
+      routes: [{ destination: "172.16.0.0/12", nextHopAddress: "10.10.10.254", nextHopInterface: "eno99" }]
+    }
+  };
+
+  const nodeWithFullAdditional = {
+    role: "master",
+    hostname: "master-0",
+    rootDevice: "",
+    dnsServers: "",
+    dnsSearch: "",
+    bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+    primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:01" }, bond: {}, vlan: {}, advanced: {} },
+    additionalInterfaces: [fullAdditionalInterface]
+  };
+
+  function renderWithCatalog(catalog, stateOverride) {
+    if (catalog) {
+      vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    }
+    return render(
+      <MockAppProvider stateOverride={stateOverride}>
+        <HostInventoryV2Step />
+      </MockAppProvider>
+    );
+  }
+
+  function openDrawer() {
+    fireEvent.click(screen.getByText(/master-0/i));
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  // --- A. Visibility decision tests ---
+
+  it("A1: supported-ui, minVersion 4.20, no maxVersion — visible at 4.20", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_AI, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+  });
+
+  it("A1: supported-ui, minVersion 4.20, no maxVersion — visible at 4.21", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_AI, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+  });
+
+  it("A2: supported-backend-only — hidden", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e =>
+      e.path === "hosts[].networkConfig.interfaces" ? { ...e, supportStatus: "supported-backend-only" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("Add Interface")).not.toBeInTheDocument();
+  });
+
+  it("A3: missing exact parent entry — hidden", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.filter(e => e.path !== "hosts[].networkConfig.interfaces");
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("Add Interface")).not.toBeInTheDocument();
+  });
+
+  it("A4: minVersion 4.21 — hidden at 4.20", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e =>
+      e.path === "hosts[].networkConfig.interfaces" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.queryByText("Add Interface")).not.toBeInTheDocument();
+  });
+
+  it("A4: minVersion 4.21 — visible at 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e =>
+      e.path === "hosts[].networkConfig.interfaces" ? { ...e, minVersion: "4.21" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+  });
+
+  it("A5: maxVersion 4.20 — visible at 4.20", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e =>
+      e.path === "hosts[].networkConfig.interfaces" ? { ...e, maxVersion: "4.20" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+  });
+
+  it("A5: maxVersion 4.20 — hidden at 4.21", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e =>
+      e.path === "hosts[].networkConfig.interfaces" ? { ...e, maxVersion: "4.20" } : e
+    );
+    renderWithCatalog(catalog, { version: { selectedMinor: "4.21" } });
+    openDrawer();
+    expect(screen.queryByText("Add Interface")).not.toBeInTheDocument();
+  });
+
+  // --- B. Independent Primary and Additional gates ---
+
+  it("B1: Primary visible, Additional hidden — Primary Network visible, Additional absent", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e => {
+      if (e.path === "hosts[].networkConfig") return { ...e, supportStatus: "supported-ui" };
+      if (e.path === "hosts[].networkConfig.interfaces") return { ...e, supportStatus: "supported-backend-only" };
+      return e;
+    });
+    const stateOverride = {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [nodeWithFullAdditional] }
+    };
+    renderWithCatalog(catalog, stateOverride);
+    openDrawer();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+    expect(screen.getByLabelText("Expand Advanced")).toBeInTheDocument();
+    expect(screen.queryByText("Add Interface")).not.toBeInTheDocument();
+    expect(screen.queryByText("Interface 1")).not.toBeInTheDocument();
+  });
+
+  it("B2: Primary hidden, Additional visible — Primary absent, Additional present and functional", async () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e => {
+      if (e.path === "hosts[].networkConfig") return { ...e, supportStatus: "supported-backend-only" };
+      if (e.path === "hosts[].networkConfig.interfaces") return { ...e, supportStatus: "supported-ui" };
+      return e;
+    });
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    function StatefulProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      const value = {
+        state: current,
+        updateState: (patch) => setCurrent(prev => ({ ...prev, ...patch })),
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <StatefulProvider>
+        <HostInventoryV2Step />
+      </StatefulProvider>
+    );
+    openDrawer();
+    expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Expand Advanced")).not.toBeInTheDocument();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Add Interface"));
+    });
+    expect(screen.getByText("Interface 1")).toBeInTheDocument();
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    const typeLabel = within(ifaceSection).getByText("Type");
+    expect(typeLabel).toBeInTheDocument();
+    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
+  });
+
+  // --- C. All 19 controls are inside the gate ---
+
+  it("C1: Ethernet DHCP — HI-037 type, HI-038 IP assignment, HI-039 Ethernet name, HI-040 Ethernet MAC", async () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(SYNTHETIC_CATALOG_AI);
+    const initialState = { ...baseState, version: { selectedMinor: "4.20" } };
+    function StatefulProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      const value = {
+        state: current,
+        updateState: (patch) => setCurrent(prev => ({ ...prev, ...patch })),
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <StatefulProvider>
+        <HostInventoryV2Step />
+      </StatefulProvider>
+    );
+    openDrawer();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Add Interface"));
+    });
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    const typeLabel = within(ifaceSection).getByText("Type");
+    const typeSelect = typeLabel.closest("label").querySelector("select");
+    expect(typeSelect).toBeTruthy();
+    expect(typeSelect.value).toBe("ethernet");
+    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
+    expect(within(ifaceSection).getByText("Ethernet Interface Name")).toBeInTheDocument();
+    expect(within(ifaceSection).getByText("Ethernet MAC Address")).toBeInTheDocument();
+  });
+
+  it("C2: Bond — HI-041 Bond name, HI-042 Bond mode, HI-043 member name, HI-044 member MAC", async () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(SYNTHETIC_CATALOG_AI);
+    const bondIface = {
+      type: "bond",
+      mode: "dhcp",
+      ipv4Cidr: "", ipv4Gateway: "", ipv6Cidr: "", ipv6Gateway: "",
+      ethernet: { name: "eno0", macAddress: "" },
+      bond: {
+        name: "bond1",
+        mode: "802.3ad",
+        slaves: [
+          { name: "eth5", macAddress: "52:54:00:c1:c2:c3" },
+          { name: "eth6", macAddress: "52:54:00:c4:c5:c6" }
+        ]
+      },
+      vlan: { id: "", baseIface: "", name: "" },
+      advanced: { mtu: "1500", sriov: { enabled: false, totalVfs: "" }, vrf: { enabled: false, name: "vrf0", tableId: "100", ports: "" }, routes: [] }
+    };
+    const nodeWithBond = {
+      ...baseState.hostInventory.nodes[0],
+      additionalInterfaces: [bondIface]
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_AI, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [nodeWithBond] }
+    });
+    openDrawer();
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    expect(within(ifaceSection).getByText("Bond Name")).toBeInTheDocument();
+    expect(within(ifaceSection).getByText("Bond Mode")).toBeInTheDocument();
+    const memberIfaceLabels = within(ifaceSection).getAllByText("Bond Member Interface");
+    expect(memberIfaceLabels.length).toBeGreaterThanOrEqual(1);
+    const memberMacLabels = within(ifaceSection).getAllByText("Bond Member MAC");
+    expect(memberMacLabels.length).toBeGreaterThanOrEqual(1);
+    expect(within(ifaceSection).getByDisplayValue("bond1")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("52:54:00:c1:c2:c3")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("52:54:00:c4:c5:c6")).toBeInTheDocument();
+  });
+
+  it("C3: VLAN — HI-045 VLAN ID, HI-046 VLAN name", () => {
+    const vlanIface = {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ipv4Cidr: "", ipv4Gateway: "", ipv6Cidr: "", ipv6Gateway: "",
+      ethernet: { name: "eno5", macAddress: "52:54:00:d1:d2:d3" },
+      bond: { name: "bond0", mode: "active-backup", slaves: [{ name: "eno0", macAddress: "" }, { name: "eno1", macAddress: "" }] },
+      vlan: { id: "300", baseIface: "", name: "eno5.300" },
+      advanced: { mtu: "1500", sriov: { enabled: false, totalVfs: "" }, vrf: { enabled: false, name: "vrf0", tableId: "100", ports: "" }, routes: [] }
+    };
+    const nodeWithVlan = {
+      ...baseState.hostInventory.nodes[0],
+      additionalInterfaces: [vlanIface]
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_AI, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [nodeWithVlan] }
+    });
+    openDrawer();
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    expect(within(ifaceSection).getByDisplayValue("300")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("eno5.300")).toBeInTheDocument();
+  });
+
+  it("C4: Static addressing — HI-047 IPv4 CIDR, HI-048 IPv6 CIDR", () => {
+    const staticIface = {
+      type: "ethernet",
+      mode: "static",
+      ipv4Cidr: "10.20.30.40/24",
+      ipv4Gateway: "",
+      ipv6Cidr: "fd02::40/64",
+      ipv6Gateway: "",
+      ethernet: { name: "eno7", macAddress: "52:54:00:e1:e2:e3" },
+      bond: { name: "bond0", mode: "active-backup", slaves: [] },
+      vlan: { id: "", baseIface: "", name: "" },
+      advanced: { mtu: "1500", sriov: { enabled: false, totalVfs: "" }, vrf: { enabled: false, name: "vrf0", tableId: "100", ports: "" }, routes: [] }
+    };
+    const nodeWithStatic = {
+      ...baseState.hostInventory.nodes[0],
+      additionalInterfaces: [staticIface]
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_AI, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, ipStackMode: "dual-stack", nodes: [nodeWithStatic] }
+    });
+    openDrawer();
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    expect(within(ifaceSection).getByDisplayValue("10.20.30.40/24")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("fd02::40/64")).toBeInTheDocument();
+  });
+
+  it("C5: Advanced — HI-049 MTU, HI-050 SR-IOV, HI-051 Total VFs, HI-052 VRF, HI-053 VRF Name, HI-054 VRF Table ID, HI-055 VRF Ports", () => {
+    const advIface = {
+      type: "ethernet",
+      mode: "dhcp",
+      ipv4Cidr: "", ipv4Gateway: "", ipv6Cidr: "", ipv6Gateway: "",
+      ethernet: { name: "eno8", macAddress: "52:54:00:f1:f2:f3" },
+      bond: { name: "bond0", mode: "active-backup", slaves: [] },
+      vlan: { id: "", baseIface: "", name: "" },
+      advanced: {
+        mtu: "9000",
+        sriov: { enabled: true, totalVfs: "32" },
+        vrf: { enabled: true, name: "vrf-adv", tableId: "500", ports: "eno8,bond0" },
+        routes: []
+      }
+    };
+    const nodeWithAdv = {
+      ...baseState.hostInventory.nodes[0],
+      additionalInterfaces: [advIface]
+    };
+    renderWithCatalog(SYNTHETIC_CATALOG_AI, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [nodeWithAdv] }
+    });
+    openDrawer();
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    fireEvent.click(within(ifaceSection).getByLabelText("Expand Advanced Networking"));
+    expect(within(ifaceSection).getByDisplayValue("9000")).toBeInTheDocument();
+    const sriovCheckboxes = within(ifaceSection).getAllByRole("checkbox");
+    const sriovCheckbox = sriovCheckboxes.find(cb => cb.closest("label")?.textContent?.includes("SR-IOV"));
+    expect(sriovCheckbox).toBeTruthy();
+    expect(sriovCheckbox.checked).toBe(true);
+    expect(within(ifaceSection).getByDisplayValue("32")).toBeInTheDocument();
+    const vrfCheckbox = sriovCheckboxes.find(cb => cb.closest("label")?.textContent?.includes("VRF"));
+    expect(vrfCheckbox).toBeTruthy();
+    expect(vrfCheckbox.checked).toBe(true);
+    expect(within(ifaceSection).getByDisplayValue("vrf-adv")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("500")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("eno8,bond0")).toBeInTheDocument();
+  });
+
+  // --- D. Hidden workflow containment ---
+
+  it("D: pre-seeded full interface hidden — no Additional controls render, Primary remains", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e => {
+      if (e.path === "hosts[].networkConfig.interfaces") return { ...e, supportStatus: "supported-backend-only" };
+      return e;
+    });
+    renderWithCatalog(catalog, {
+      version: { selectedMinor: "4.20" },
+      hostInventory: { ...baseState.hostInventory, nodes: [nodeWithFullAdditional] }
+    });
+    openDrawer();
+    expect(screen.queryByText("Add Interface")).not.toBeInTheDocument();
+    expect(screen.queryByText("Interface 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ethernet Interface Name")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ethernet MAC Address")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bond Name")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bond Mode")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bond Member Interface")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bond Member MAC")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("777")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("eno99.777")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("10.10.10.5/24")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("fd01::5/64")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("9216")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("16")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("vrf-test")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("200")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("eno99,bond7")).not.toBeInTheDocument();
+    expect(screen.queryByText("Advanced Networking")).not.toBeInTheDocument();
+    expect(screen.queryByText("Remove")).not.toBeInTheDocument();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
+  });
+
+  // --- E. State preservation across visibility change ---
+
+  it("E: values preserved across hide/show cycle, no update callback triggered by hiding", () => {
+    const catalog = SYNTHETIC_CATALOG_AI.map(e =>
+      e.path === "hosts[].networkConfig.interfaces" ? { ...e, minVersion: "4.21" } : e
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    const updateState = vi.fn();
+    const initialState = {
+      ...baseState,
+      version: { selectedMinor: "4.21" },
+      hostInventory: {
+        ...baseState.hostInventory,
+        ipStackMode: "dual-stack",
+        nodes: [nodeWithFullAdditional]
+      }
+    };
+    let setCurrentFn;
+    function CapturingProvider({ children }) {
+      const [current, setCurrent] = React.useState(initialState);
+      setCurrentFn = setCurrent;
+      const value = {
+        state: current,
+        updateState: updateState,
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <CapturingProvider>
+        <HostInventoryV2Step />
+      </CapturingProvider>
+    );
+    openDrawer();
+    expect(screen.getByText("Interface 1")).toBeInTheDocument();
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(within(ifaceSection).getByDisplayValue("eno99")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("52:54:00:ff:ee:dd")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("10.10.10.5/24")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("fd01::5/64")).toBeInTheDocument();
+    fireEvent.click(within(ifaceSection).getByLabelText("Expand Advanced Networking"));
+    expect(within(ifaceSection).getByDisplayValue("9216")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("16")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("vrf-test")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("200")).toBeInTheDocument();
+    expect(within(ifaceSection).getByDisplayValue("eno99,bond7")).toBeInTheDocument();
+
+    updateState.mockClear();
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.20" } }));
+    });
+    expect(screen.queryByText("Interface 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add Interface")).not.toBeInTheDocument();
+    expect(updateState).not.toHaveBeenCalled();
+
+    act(() => {
+      setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expect(screen.getByText("Interface 1")).toBeInTheDocument();
+    const restored = screen.getByText("Interface 1").closest("section");
+    expect(restored).toBeTruthy();
+
+    const typeLabel = within(restored).getByText("Type");
+    const typeSelect = typeLabel.closest("label").querySelector("select");
+    expect(typeSelect.value).toBe("ethernet");
+
+    expect(within(restored).getByDisplayValue("eno99")).toBeInTheDocument();
+    expect(within(restored).getByDisplayValue("10.10.10.5/24")).toBeInTheDocument();
+    expect(within(restored).getByDisplayValue("fd01::5/64")).toBeInTheDocument();
+    const advBtn = within(restored).queryByLabelText("Expand Advanced Networking") || within(restored).queryByLabelText("Collapse Advanced Networking");
+    if (advBtn && advBtn.getAttribute("aria-expanded") !== "true") fireEvent.click(advBtn);
+    expect(within(restored).getByDisplayValue("9216")).toBeInTheDocument();
+    expect(within(restored).getByDisplayValue("16")).toBeInTheDocument();
+    expect(within(restored).getByDisplayValue("vrf-test")).toBeInTheDocument();
+    expect(within(restored).getByDisplayValue("200")).toBeInTheDocument();
+    expect(within(restored).getByDisplayValue("eno99,bond7")).toBeInTheDocument();
+  });
+
+  // --- F. Real catalogs ---
+
+  it.each([
+    ["bare-metal-agent", "Bare Metal", "4.20"],
+    ["bare-metal-agent", "Bare Metal", "4.21"],
+    ["vsphere-agent", "VMware vSphere", "4.20"],
+    ["vsphere-agent", "VMware vSphere", "4.21"],
+  ])("F: real catalog %s %s: Additional Interfaces heading, Add Interface, and baseline controls render", async (scenarioLabel, platform, version) => {
+    const stateOverride = {
+      blueprint: { platform },
+      methodology: { method: "Agent-Based Installer" },
+      version: { selectedMinor: version },
+    };
+    function StatefulProvider({ children }) {
+      const [current, setCurrent] = React.useState({ ...baseState, ...stateOverride });
+      const value = {
+        state: current,
+        updateState: (patch) => setCurrent(prev => ({ ...prev, ...patch })),
+        loading: false,
+        startOver: vi.fn()
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(
+      <StatefulProvider>
+        <HostInventoryV2Step />
+      </StatefulProvider>
+    );
+    openDrawer();
+    expect(screen.getByText("Add Interface")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Add Interface"));
+    });
+    const ifaceSection = screen.getByText("Interface 1").closest("section");
+    expect(ifaceSection).toBeTruthy();
+    const typeLabel = within(ifaceSection).getByText("Type");
+    const typeSelect = typeLabel.closest("label").querySelector("select");
+    expect(typeSelect).toBeTruthy();
+    expect(typeSelect.value).toBe("ethernet");
+    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
+  });
+
+  // --- G. Unsupported version regression: 4.22 test runs unchanged ---
+  // (The existing deterministic 4.22 test in the Primary Networking block serves this purpose.)
+
+  // --- Regression boundaries ---
+
+  it("scope containment: Role, Hostname, DNS, Root Device Hints, Primary Network not newly gated", () => {
+    renderWithCatalog(SYNTHETIC_CATALOG_AI, { version: { selectedMinor: "4.20" } });
+    openDrawer();
+    const roleLabel = screen.getByText(/^Role/);
+    expect(roleLabel.parentElement?.querySelector("select")).toBeTruthy();
+    expect(screen.getByPlaceholderText(HOSTNAME_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.getByText("DNS Configuration")).toBeInTheDocument();
+    expect(screen.getByText("Root Device Hints")).toBeInTheDocument();
+    expect(screen.getByText("Primary Network")).toBeInTheDocument();
     expect(screen.getByText("Add Interface")).toBeInTheDocument();
   });
 });
