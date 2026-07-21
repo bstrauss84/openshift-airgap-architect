@@ -20,6 +20,7 @@
   "author": "Bill Strauss",
   "license": "MIT",
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.60.0",
+    "js-yaml": "^5.2.1"
   }
 }

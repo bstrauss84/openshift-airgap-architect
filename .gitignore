@@ -143,6 +143,7 @@ backend/tmp-installer-test/
 test-results/
 playwright-report/
 playwright/.cache/
+e2e-results/
 
 # Test coverage reports
 coverage/

@@ -17,57 +17,40 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  testMatch: '**/*.spec.js',
 
-  // Maximum time one test can run
-  timeout: 90 * 1000, // 90 seconds (some workflows involve state save/load)
+  globalSetup: './e2e/global-setup.js',
 
-  // Retry failed tests once in CI
+  timeout: 120 * 1000,
+
   retries: process.env.CI ? 1 : 0,
 
-  // Run tests in parallel
-  workers: process.env.CI ? 2 : undefined,
+  // Single worker — tests share one backend state store
+  workers: 1,
+  fullyParallel: false,
 
-  // Reporter
-  reporter: process.env.CI ? 'github' : 'list',
+  reporter: process.env.CI
+    ? [['github'], ['html', { open: 'never', outputFolder: 'e2e-results/html-report' }]]
+    : [['list'], ['html', { open: 'never', outputFolder: 'e2e-results/html-report' }]],
 
-  // Shared settings for all tests
+  outputDir: 'e2e-results/artifacts',
+
   use: {
-    // Base URL for navigation
     baseURL: 'http://localhost:5173',
-
-    // Browser context options
-    viewport: { width: 1280, height: 720 },
-
-    // Screenshot on failure
+    viewport: { width: 1440, height: 900 },
+    actionTimeout: 10_000,
     screenshot: 'only-on-failure',
-
-    // Video on failure
     video: 'retain-on-failure',
-
-    // Trace on first retry
     trace: 'on-first-retry',
   },
 
-  // Configure projects for different browsers
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-
-    // Uncomment to test in Firefox and WebKit
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
   ],
 
-  // Web server configuration (optional - for CI)
-  // In local dev, assume frontend/backend are already running via docker compose
   webServer: process.env.CI ? {
     command: 'echo "E2E tests require frontend at :5173 and backend at :4000"',
     url: 'http://localhost:5173',
