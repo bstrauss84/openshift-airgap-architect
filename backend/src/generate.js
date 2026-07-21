@@ -1373,23 +1373,35 @@ const buildNmState = (node) => {
     addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
   }
 
-  const vrfEnabled = primary.advanced?.vrf?.enabled;
-  if (vrfEnabled) {
-    const ports = (primary.advanced?.vrf?.ports || "")
+  const addVrfInterface = (vrfConfig, logicalIfaceName) => {
+    if (!vrfConfig?.enabled) return;
+    const effectiveName = (vrfConfig.name || "").trim();
+    if (!effectiveName) {
+      throw new Error("Enabled VRF interface name must not be blank.");
+    }
+    const rawTableId = String(vrfConfig.tableId ?? "").trim();
+    if (!rawTableId || !Number.isInteger(Number(rawTableId))) {
+      throw new Error(
+        `VRF "${effectiveName}" table ID "${vrfConfig.tableId}" is not a valid integer.`
+      );
+    }
+    const ports = (vrfConfig.ports || "")
       .split(",")
       .map((entry) => entry.trim())
       .filter(Boolean);
-    const vrfPorts = ports.length ? ports : [primaryIfaceName];
+    const vrfPorts = ports.length ? ports : [logicalIfaceName];
     config.interfaces.push({
-      name: primary.advanced?.vrf?.name || "vrf0",
+      name: effectiveName,
       type: "vrf",
       state: "up",
       vrf: {
-        "route-table-id": toNumber(primary.advanced?.vrf?.tableId) || 100,
+        "route-table-id": Number(rawTableId),
         port: vrfPorts
       }
     });
-  }
+  };
+
+  addVrfInterface(primary.advanced?.vrf, primaryIfaceName);
 
   const extraIfaces = node.additionalInterfaces || [];
   extraIfaces.forEach((iface) => {
@@ -1401,15 +1413,18 @@ const buildNmState = (node) => {
     const baseMtu = toNumber(iface.advanced?.mtu);
     const sriovEnabled = iface.advanced?.sriov?.enabled && toNumber(iface.advanced?.sriov?.totalVfs);
     const sriovConfig = sriovEnabled ? { "total-vfs": toNumber(iface.advanced?.sriov?.totalVfs) } : null;
+    let logicalIfaceName = null;
 
     if (iface.type === "ethernet") {
       const eth = addEthernet(iface.ethernet?.name, baseMtu, sriovConfig);
       addIpConfig(eth, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      logicalIfaceName = eth.name;
     }
     if (iface.type === "bond") {
       (iface.bond?.slaves || []).forEach((slave) => addEthernet(slave.name, baseMtu, sriovConfig));
       const bond = addBond(iface.bond || {}, baseMtu);
       addIpConfig(bond, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      logicalIfaceName = bond.name;
     }
     if (iface.type === "vlan-on-ethernet") {
       const eth = addEthernet(iface.ethernet?.name, baseMtu, sriovConfig);
@@ -1418,6 +1433,7 @@ const buildNmState = (node) => {
         baseMtu
       );
       addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      logicalIfaceName = vlan.name;
     }
     if (iface.type === "vlan-on-bond") {
       (iface.bond?.slaves || []).forEach((slave) => addEthernet(slave.name, baseMtu, sriovConfig));
@@ -1427,8 +1443,24 @@ const buildNmState = (node) => {
         baseMtu
       );
       addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      logicalIfaceName = vlan.name;
+    }
+    if (logicalIfaceName) {
+      addVrfInterface(iface.advanced?.vrf, logicalIfaceName);
     }
   });
+
+  const seen = new Set();
+  for (const iface of config.interfaces) {
+    const name = String(iface?.name || "").trim();
+    if (!name) {
+      throw new Error("NMState interface name must not be empty.");
+    }
+    if (seen.has(name)) {
+      throw new Error(`Duplicate NMState interface name "${name}".`);
+    }
+    seen.add(name);
+  }
 
   return config;
 };

@@ -1100,6 +1100,613 @@ describe("validateNode - Host inventory node validation", () => {
       expect(result.errors.filter(e => e.includes("Additional"))).toHaveLength(2);
     });
   });
+
+  describe("VRF cross-field validation", () => {
+    const vrfValidate = (node) => validateNode({
+      node,
+      enableIpv6: false,
+      machineCidr: "10.0.0.0/24",
+      platform: "Bare Metal",
+      method: "Agent-Based Installer",
+      includeCredentials: false
+    });
+
+    it("should error when two Additional Interfaces use identical default VRF names", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } }
+        },
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno3", macAddress: "00:11:22:33:44:67" },
+          advanced: { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } }
+        }
+      ];
+      const result = vrfValidate(node);
+      expect(result.errors.some(e => e.includes('VRF name "vrf0"') && e.includes('already used'))).toBe(true);
+    });
+
+    it("should error when Primary VRF and Additional VRF use the same default name", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } };
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "vrf0", tableId: "200", ports: "" } }
+        }
+      ];
+      const result = vrfValidate(node);
+      expect(result.errors.some(e => e.includes('VRF name "vrf0"') && e.includes('already used'))).toBe(true);
+    });
+
+    it("should error when VRF name collides with an active Ethernet name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "eno2", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eno2"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("should error when VRF name collides with an active Bond name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "bond", mode: "dhcp",
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          advanced: { vrf: { enabled: true, name: "bond1", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "bond1"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("should error when VRF name collides with an active Bond member name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "bond", mode: "dhcp",
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          advanced: { vrf: { enabled: true, name: "eth2", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eth2"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("should error when VRF name collides with a generated VLAN name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200, name: "eno2.200" },
+          advanced: { vrf: { enabled: true, name: "eno2.200", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eno2.200"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("should accept two unique VRF names without errors", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "vrf-a", tableId: "100", ports: "" } }
+        },
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno3", macAddress: "00:11:22:33:44:67" },
+          advanced: { vrf: { enabled: true, name: "vrf-b", tableId: "200", ports: "" } }
+        }
+      ];
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("should accept blank VRF ports without error", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } }
+        }
+      ];
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("should accept explicit VRF ports after trimming", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "  portA , portB  " } }
+        }
+      ];
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("should error when VRF name is blank", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "", tableId: "100", ports: "" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF name is required"))).toBe(true);
+    });
+
+    it("should not validate VRF when disabled", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: false, name: "", tableId: "", ports: "" } }
+        }
+      ];
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("should accept single VRF with default name", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } };
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("should include Primary and Additional active names in same collision set", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "eno1", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eno1"') && e.includes('collides'))).toBe(true);
+    });
+  });
+
+  describe("VRF table-ID normalization (Number.isInteger)", () => {
+    const vrfValidate = (node) => validateNode({
+      node,
+      enableIpv6: false,
+      machineCidr: "10.0.0.0/24",
+      platform: "Bare Metal",
+      method: "Agent-Based Installer",
+      includeCredentials: false
+    });
+
+    it("should accept string '100'", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } };
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("should accept numeric 100", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: 100, ports: "" } };
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("should accept string '0'", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "0", ports: "" } };
+      expect(vrfValidate(node).errors.filter(e => e.includes("table ID"))).toHaveLength(0);
+    });
+
+    it("should accept numeric 0", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: 0, ports: "" } };
+      expect(vrfValidate(node).errors.filter(e => e.includes("table ID"))).toHaveLength(0);
+    });
+
+    it("should reject string '1.5'", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "1.5", ports: "" } };
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF table ID must be a valid integer"))).toBe(true);
+    });
+
+    it("should reject numeric 1.5", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: 1.5, ports: "" } };
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF table ID must be a valid integer"))).toBe(true);
+    });
+
+    it("should reject string 'abc'", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "abc", ports: "" } };
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF table ID must be a valid integer"))).toBe(true);
+    });
+
+    it("should reject empty string", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "", ports: "" } };
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF table ID must be a valid integer"))).toBe(true);
+    });
+
+    it("should reject whitespace-only string", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: "  ", ports: "" } };
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF table ID must be a valid integer"))).toBe(true);
+    });
+
+    it("should reject null", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", tableId: null, ports: "" } };
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF table ID must be a valid integer"))).toBe(true);
+    });
+
+    it("should reject undefined", () => {
+      const node = createValidNode();
+      node.primary.advanced = { vrf: { enabled: true, name: "vrf0", ports: "" } };
+      expect(vrfValidate(node).errors.some(e => e.includes("VRF table ID must be a valid integer"))).toBe(true);
+    });
+  });
+
+  describe("VRF VLAN-name parity (mirrors backend baseIface fallback)", () => {
+    const vrfValidate = (node) => validateNode({
+      node,
+      enableIpv6: false,
+      machineCidr: "10.0.0.0/24",
+      platform: "Bare Metal",
+      method: "Agent-Based Installer",
+      includeCredentials: false
+    });
+
+    it("VLAN-on-Ethernet without vlan.baseIface falls back to ethernet.name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200 },
+          advanced: { vrf: { enabled: true, name: "eno2.200", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eno2.200"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("VLAN-on-Bond without vlan.baseIface falls back to bond.name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-bond", mode: "dhcp",
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          vlan: { id: 300 },
+          advanced: { vrf: { enabled: true, name: "bond1.300", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "bond1.300"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("VLAN-on-Ethernet with vlan.baseIface uses baseIface ahead of ethernet.name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200, baseIface: "custom-base" },
+          advanced: { vrf: { enabled: true, name: "custom-base.200", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "custom-base.200"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("VLAN-on-Bond with vlan.baseIface uses baseIface ahead of bond.name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-bond", mode: "dhcp",
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          vlan: { id: 300, baseIface: "custom-bond-base" },
+          advanced: { vrf: { enabled: true, name: "custom-bond-base.300", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "custom-bond-base.300"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("explicit vlan.name overrides both baseIface and the active Ethernet/Bond name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200, baseIface: "custom-base", name: "my-vlan" },
+          advanced: { vrf: { enabled: true, name: "my-vlan", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "my-vlan"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("VRF name colliding with baseIface-derived VLAN name is rejected", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200, baseIface: "overridden-base" },
+          advanced: { vrf: { enabled: true, name: "overridden-base.200", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "overridden-base.200"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("VRF name matching the ignored active fallback does not falsely collide when baseIface overrides it", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200, baseIface: "custom-base" },
+          advanced: { vrf: { enabled: true, name: "eno2.200", tableId: "100", ports: "portX" } }
+        }
+      ];
+      const result = vrfValidate(node);
+      expect(result.errors.filter(e => e.includes('"eno2.200"') && e.includes('collides'))).toHaveLength(0);
+    });
+
+    it("surrounding whitespace on baseIface is preserved in generated name, then outer trim normalizes", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200, baseIface: "custom-base" },
+          advanced: { vrf: { enabled: true, name: " custom-base.200 ", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "custom-base.200"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("stale Bond mode state remains ignored for VLAN-on-Ethernet, except consumed vlan.baseIface", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          bond: { name: "bond-stale", mode: "active-backup", slaves: [{ name: "s1" }, { name: "s2" }] },
+          vlan: { id: 200 },
+          advanced: { vrf: { enabled: true, name: "bond-stale", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.filter(e => e.includes("collides"))).toHaveLength(0);
+    });
+
+    it("stale standalone Ethernet state remains ignored for VLAN-on-Bond, except consumed vlan.baseIface", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-bond", mode: "dhcp",
+          ethernet: { name: "eth-stale", macAddress: "00:11:22:33:44:66" },
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          vlan: { id: 300 },
+          advanced: { vrf: { enabled: true, name: "eth-stale", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.filter(e => e.includes("collides"))).toHaveLength(0);
+    });
+  });
+
+  describe("VRF active-name-only validation (stale mode state ignored)", () => {
+    const vrfValidate = (node) => validateNode({
+      node,
+      enableIpv6: false,
+      machineCidr: "10.0.0.0/24",
+      platform: "Bare Metal",
+      method: "Agent-Based Installer",
+      includeCredentials: false
+    });
+
+    it("Ethernet mode ignores a stale hidden Bond name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          bond: { name: "bond-stale", mode: "active-backup", slaves: [{ name: "s1" }, { name: "s2" }] },
+          advanced: { vrf: { enabled: true, name: "bond-stale", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.filter(e => e.includes("collides"))).toHaveLength(0);
+    });
+
+    it("Bond mode ignores a stale hidden Ethernet name", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "bond", mode: "dhcp",
+          ethernet: { name: "eth-stale", macAddress: "00:11:22:33:44:66" },
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          advanced: { vrf: { enabled: true, name: "eth-stale", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.filter(e => e.includes("collides"))).toHaveLength(0);
+    });
+
+    it("VLAN-on-Ethernet ignores stale Bond mode state (bond.name/slaves not generated)", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          bond: { name: "bond-stale", mode: "active-backup", slaves: [{ name: "s1" }, { name: "s2" }] },
+          vlan: { id: 200 },
+          advanced: { vrf: { enabled: true, name: "bond-stale", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.filter(e => e.includes("collides"))).toHaveLength(0);
+    });
+
+    it("VLAN-on-Bond ignores stale standalone Ethernet state (ethernet.name not generated as standalone)", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-bond", mode: "dhcp",
+          ethernet: { name: "eth-stale", macAddress: "00:11:22:33:44:66" },
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          vlan: { id: 300 },
+          advanced: { vrf: { enabled: true, name: "eth-stale", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.filter(e => e.includes("collides"))).toHaveLength(0);
+    });
+  });
+
+  describe("VRF normalized-name collision detection", () => {
+    const vrfValidate = (node) => validateNode({
+      node,
+      enableIpv6: false,
+      machineCidr: "10.0.0.0/24",
+      platform: "Bare Metal",
+      method: "Agent-Based Installer",
+      includeCredentials: false
+    });
+
+    it("physical ' eno2 ' collides with VRF 'eno2'", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: " eno2 ", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "eno2", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eno2"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("physical 'eno2' collides with VRF ' eno2 '", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: " eno2 ", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eno2"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("bond ' bond1 ' collides with VRF 'bond1'", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "bond", mode: "dhcp",
+          bond: { name: " bond1 ", mode: "active-backup", slaves: [
+            { name: "eth2", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          advanced: { vrf: { enabled: true, name: "bond1", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "bond1"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("bond member ' eth2 ' collides with VRF 'eth2'", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "bond", mode: "dhcp",
+          bond: { name: "bond1", mode: "active-backup", slaves: [
+            { name: " eth2 ", macAddress: "00:11:22:33:44:77" },
+            { name: "eth3", macAddress: "00:11:22:33:44:78" }
+          ]},
+          advanced: { vrf: { enabled: true, name: "eth2", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eth2"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("explicit VLAN name ' eno2.200 ' collides with VRF 'eno2.200'", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "vlan-on-ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          vlan: { id: 200, name: " eno2.200 " },
+          advanced: { vrf: { enabled: true, name: "eno2.200", tableId: "100", ports: "portX" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "eno2.200"') && e.includes('collides'))).toBe(true);
+    });
+
+    it("two VRF names differing only by surrounding whitespace collide", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } }
+        },
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno3", macAddress: "00:11:22:33:44:67" },
+          advanced: { vrf: { enabled: true, name: " vrf0 ", tableId: "200", ports: "" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.some(e => e.includes('VRF name "vrf0"') && e.includes('already used'))).toBe(true);
+    });
+
+    it("noncolliding normalized names remain valid", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: " eno2 ", macAddress: "00:11:22:33:44:66" },
+          advanced: { vrf: { enabled: true, name: " vrf-a ", tableId: "100", ports: "" } }
+        },
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: " eno3 ", macAddress: "00:11:22:33:44:67" },
+          advanced: { vrf: { enabled: true, name: " vrf-b ", tableId: "200", ports: "" } }
+        }
+      ];
+      expect(vrfValidate(node).errors).toHaveLength(0);
+    });
+
+    it("stale inactive names remain ignored even when trimmed value would collide", () => {
+      const node = createValidNode();
+      node.additionalInterfaces = [
+        {
+          type: "ethernet", mode: "dhcp",
+          ethernet: { name: "eno2", macAddress: "00:11:22:33:44:66" },
+          bond: { name: " vrf0 ", mode: "active-backup", slaves: [{ name: "s1" }, { name: "s2" }] },
+          advanced: { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } }
+        }
+      ];
+      expect(vrfValidate(node).errors.filter(e => e.includes("collides"))).toHaveLength(0);
+    });
+  });
 });
 
 describe("validateHostInventory - Full host inventory validation", () => {

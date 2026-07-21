@@ -507,3 +507,850 @@ test("VLAN ID validation accepts min (1) and max (4094)", () => {
   assert.strictEqual(vlanMin.vlan.id, 1, "VLAN ID 1 should be accepted");
   assert.strictEqual(vlanMax.vlan.id, 4094, "VLAN ID 4094 should be accepted");
 });
+
+/**
+ * DOC-102 Slice 5H: Additional Interface VRF generation tests
+ *
+ * Covers HB-001 resolution — VRF generation for additional interfaces.
+ * Primary VRF generation (already working) is tested for non-regression.
+ */
+
+const VERSIONS = ["4.20", "4.21"];
+
+function stateForVersion(version) {
+  const state = baseStates.bareMetalAgent({
+    version: { selectedMinor: version }
+  });
+  assert.strictEqual(state.version.selectedMinor, version);
+  return state;
+}
+
+const withAdditionalInterface = (state, nodeIndex, iface) => {
+  const nodes = [...(state.hostInventory?.nodes || [])];
+  if (!nodes[nodeIndex]) return state;
+  nodes[nodeIndex] = {
+    ...nodes[nodeIndex],
+    additionalInterfaces: [
+      ...(nodes[nodeIndex].additionalInterfaces || []),
+      iface
+    ]
+  };
+  return { ...state, hostInventory: { ...state.hostInventory, nodes } };
+};
+
+for (const version of VERSIONS) {
+
+  test(`[${version}] Additional Ethernet with VRF generates VRF interface`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth2", macAddress: "52:54:00:cc:dd:01" },
+      advanced: { vrf: { enabled: true, name: "vrf-eth", tableId: "200", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf" && i.name === "vrf-eth");
+    assert.ok(vrfIface, "VRF interface should be generated for additional ethernet");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 200);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["eth2"], "default port should be the ethernet name");
+    assert.ok(yaml.dump(parsed), "generated YAML should parse successfully");
+  });
+
+  test(`[${version}] Additional Bond with VRF generates VRF interface`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "bond",
+      mode: "static",
+      ipv4Cidr: "10.20.0.10/24",
+      bond: {
+        name: "bond1",
+        mode: "active-backup",
+        slaves: [
+          { name: "eth3", macAddress: "52:54:00:cc:dd:03" },
+          { name: "eth4", macAddress: "52:54:00:cc:dd:04" }
+        ]
+      },
+      advanced: { vrf: { enabled: true, name: "vrf-bond", tableId: "300", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf" && i.name === "vrf-bond");
+    assert.ok(vrfIface, "VRF interface should be generated for additional bond");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 300);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["bond1"], "default port should be the bond name");
+  });
+
+  test(`[${version}] Additional VLAN-on-Ethernet with VRF defaults port to VLAN name`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth5", macAddress: "52:54:00:cc:dd:05" },
+      vlan: { id: 200, name: "eth5.200" },
+      advanced: { vrf: { enabled: true, name: "vrf-vlan-eth", tableId: "400", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf" && i.name === "vrf-vlan-eth");
+    assert.ok(vrfIface, "VRF interface should be generated for additional VLAN-on-ethernet");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 400);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["eth5.200"], "default port should be the VLAN interface name");
+  });
+
+  test(`[${version}] Additional VLAN-on-Bond with VRF defaults port to VLAN name`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-bond",
+      mode: "static",
+      ipv4Cidr: "10.30.0.10/24",
+      bond: {
+        name: "bond2",
+        mode: "802.3ad",
+        slaves: [
+          { name: "eth6", macAddress: "52:54:00:cc:dd:06" },
+          { name: "eth7", macAddress: "52:54:00:cc:dd:07" }
+        ]
+      },
+      vlan: { id: 300, name: "bond2.300" },
+      advanced: { vrf: { enabled: true, name: "vrf-vlan-bond", tableId: "500", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf" && i.name === "vrf-vlan-bond");
+    assert.ok(vrfIface, "VRF interface should be generated for additional VLAN-on-bond");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 500);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["bond2.300"], "default port should be the VLAN interface name");
+  });
+
+  test(`[${version}] Explicit VRF ports override default`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth8", macAddress: "52:54:00:cc:dd:08" },
+      advanced: { vrf: { enabled: true, name: "vrf-explicit", tableId: "600", ports: "portA,portB" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf" && i.name === "vrf-explicit");
+    assert.ok(vrfIface);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["portA", "portB"], "explicit ports should override default");
+  });
+
+  test(`[${version}] VRF ports are trimmed`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth9", macAddress: "52:54:00:cc:dd:09" },
+      advanced: { vrf: { enabled: true, name: "vrf-trim", tableId: "100", ports: "  portX , portY  " } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-trim");
+    assert.ok(vrfIface);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["portX", "portY"], "ports should be trimmed");
+  });
+
+  test(`[${version}] Empty port entries are removed from VRF`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth10", macAddress: "52:54:00:cc:dd:10" },
+      advanced: { vrf: { enabled: true, name: "vrf-empty", tableId: "100", ports: "portA,,  ,portB," } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-empty");
+    assert.ok(vrfIface);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["portA", "portB"], "empty entries should be removed");
+    assert.ok(vrfIface.vrf.port.every(p => p && p.trim() !== ""), "no blank or undefined port");
+  });
+
+  test(`[${version}] VRF route-table-id is emitted as a number`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth11", macAddress: "52:54:00:cc:dd:11" },
+      advanced: { vrf: { enabled: true, name: "vrf-num", tableId: "777", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-num");
+    assert.ok(vrfIface);
+    assert.strictEqual(typeof vrfIface.vrf["route-table-id"], "number", "route-table-id should be a number");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 777);
+  });
+
+  test(`[${version}] Disabled VRF emits no VRF interface`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth12", macAddress: "52:54:00:cc:dd:12" },
+      advanced: { vrf: { enabled: false, name: "vrf-off", tableId: "100", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf");
+    assert.strictEqual(vrfIface, undefined, "disabled VRF should not generate a VRF interface");
+  });
+
+  test(`[${version}] Multiple Additional Interfaces produce independent VRF interfaces`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth13", macAddress: "52:54:00:cc:dd:13" },
+      advanced: { vrf: { enabled: true, name: "vrf-a", tableId: "101", ports: "" } }
+    });
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth14", macAddress: "52:54:00:cc:dd:14" },
+      advanced: { vrf: { enabled: true, name: "vrf-b", tableId: "102", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfA = nmstate.interfaces.find(i => i.name === "vrf-a");
+    const vrfB = nmstate.interfaces.find(i => i.name === "vrf-b");
+    assert.ok(vrfA, "first VRF should exist");
+    assert.ok(vrfB, "second VRF should exist");
+    assert.strictEqual(vrfA.vrf["route-table-id"], 101);
+    assert.strictEqual(vrfB.vrf["route-table-id"], 102);
+    assert.deepStrictEqual(vrfA.vrf.port, ["eth13"]);
+    assert.deepStrictEqual(vrfB.vrf.port, ["eth14"]);
+  });
+
+  test(`[${version}] Additional Interface MTU output is unchanged by VRF`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth15", macAddress: "52:54:00:cc:dd:15" },
+      advanced: { mtu: "9000", vrf: { enabled: true, name: "vrf-mtu", tableId: "100", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const ethIface = nmstate.interfaces.find(i => i.name === "eth15" && i.type === "ethernet");
+    assert.ok(ethIface, "ethernet interface should exist");
+    assert.strictEqual(ethIface.mtu, 9000, "MTU should be preserved");
+    const vrfIface = nmstate.interfaces.find(i => i.name === "vrf-mtu");
+    assert.ok(vrfIface, "VRF should also be generated");
+  });
+
+  test(`[${version}] Additional Interface SR-IOV output is unchanged by VRF`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth16", macAddress: "52:54:00:cc:dd:16" },
+      advanced: {
+        sriov: { enabled: true, totalVfs: "8" },
+        vrf: { enabled: true, name: "vrf-sriov", tableId: "100", ports: "" }
+      }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const ethIface = nmstate.interfaces.find(i => i.name === "eth16" && i.type === "ethernet");
+    assert.ok(ethIface, "ethernet interface should exist");
+    assert.strictEqual(ethIface.sriov["total-vfs"], 8, "SR-IOV should be preserved");
+    const vrfIface = nmstate.interfaces.find(i => i.name === "vrf-sriov");
+    assert.ok(vrfIface, "VRF should also be generated");
+  });
+
+  test(`[${version}] Primary VRF output is unchanged`, () => {
+    const state = baseStates.bareMetalAgent({
+      version: { selectedMinor: version },
+      hostInventory: {
+        nodes: [{
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            ethernet: { name: "eno1", macAddress: "52:54:00:aa:bb:01" },
+            mode: "dhcp",
+            advanced: { vrf: { enabled: true, name: "vrf-primary", tableId: "50", ports: "" } }
+          }
+        }],
+        apiVip: "10.90.0.2",
+        ingressVip: "10.90.0.3",
+        ipStackMode: "ipv4"
+      }
+    });
+    assert.strictEqual(state.version.selectedMinor, version);
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf" && i.name === "vrf-primary");
+    assert.ok(vrfIface, "primary VRF should still be generated");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 50);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["eno1"], "primary VRF default port unchanged");
+  });
+
+  test(`[${version}] Existing Primary and Additional Ethernet/Bond/VLAN output is unchanged`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "bond",
+      mode: "dhcp",
+      bond: {
+        name: "bond1",
+        mode: "active-backup",
+        slaves: [
+          { name: "eth20", macAddress: "52:54:00:dd:ee:01" },
+          { name: "eth21", macAddress: "52:54:00:dd:ee:02" }
+        ]
+      },
+      advanced: { vrf: { enabled: false } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const bondIface = nmstate.interfaces.find(i => i.name === "bond1" && i.type === "bond");
+    assert.ok(bondIface, "additional bond should exist");
+    assert.strictEqual(bondIface["link-aggregation"].mode, "active-backup");
+    assert.deepStrictEqual(bondIface["link-aggregation"].port, ["eth20", "eth21"]);
+    const vrfIface = nmstate.interfaces.find(i => i.type === "vrf");
+    assert.strictEqual(vrfIface, undefined, "no VRF should exist when disabled");
+  });
+
+}
+
+test("Blank VRF ports default to logical interface name using actual UI defaults", () => {
+  const vrfDefaults = { enabled: true, name: "vrf0", tableId: "100", ports: "" };
+  let state = stateForVersion("4.21");
+  state = withAdditionalInterface(state, 0, {
+    type: "ethernet",
+    mode: "dhcp",
+    ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:17" },
+    advanced: { vrf: vrfDefaults }
+  });
+  const raw = buildAgentConfig(state);
+  const parsed = yaml.load(raw);
+  const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf0");
+  assert.ok(vrfIface, "VRF interface should exist");
+  assert.ok(vrfIface.vrf.port.length > 0, "should have at least one port");
+  assert.deepStrictEqual(vrfIface.vrf.port, ["eno2"], "blank ports should default to logical interface name");
+  vrfIface.vrf.port.forEach((p, i) => {
+    assert.ok(p !== undefined && p !== null && p !== "", `port[${i}] must not be blank or undefined`);
+  });
+});
+
+/**
+ * VRF table ID integer validation and order-independent duplicate detection.
+ * Parameterized across all supported versions.
+ */
+
+for (const version of VERSIONS) {
+
+  test(`[${version}] Table ID string '100' is accepted and emitted as number 100`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-tid100", tableId: "100", ports: "" } }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-tid100");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 100);
+    assert.strictEqual(typeof vrfIface.vrf["route-table-id"], "number");
+  });
+
+  test(`[${version}] Table ID numeric 100 is accepted and emitted as number 100`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-tid100n", tableId: 100, ports: "" } }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-tid100n");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 100);
+    assert.strictEqual(typeof vrfIface.vrf["route-table-id"], "number");
+  });
+
+  test(`[${version}] Table ID string '0' is accepted and emitted as number 0`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-tid0s", tableId: "0", ports: "" } }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-tid0s");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 0);
+    assert.strictEqual(typeof vrfIface.vrf["route-table-id"], "number");
+  });
+
+  test(`[${version}] Table ID numeric 0 is accepted and emitted as number 0`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-tid0n", tableId: 0, ports: "" } }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-tid0n");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 0);
+    assert.strictEqual(typeof vrfIface.vrf["route-table-id"], "number");
+  });
+
+  test(`[${version}] Table ID '1.5' is rejected as non-integer`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-dec", tableId: "1.5", ports: "" } }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes("not a valid integer"),
+      "decimal table ID must be rejected"
+    );
+  });
+
+  test(`[${version}] Table ID 'abc' is rejected as non-integer`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-abc", tableId: "abc", ports: "" } }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes("not a valid integer"),
+      "alphabetic table ID must be rejected"
+    );
+  });
+
+  test(`[${version}] Table ID '' (empty) is rejected`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-empty", tableId: "", ports: "" } }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes("not a valid integer"),
+      "empty table ID must be rejected"
+    );
+  });
+
+  test(`[${version}] Table ID '  ' (whitespace) is rejected`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "vrf-ws", tableId: "  ", ports: "" } }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes("not a valid integer"),
+      "whitespace-only table ID must be rejected"
+    );
+  });
+
+  test(`[${version}] Blank VRF name on enabled VRF is rejected`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:20" },
+      advanced: { vrf: { enabled: true, name: "", tableId: "100", ports: "" } }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes("must not be blank"),
+      "blank VRF name must be rejected"
+    );
+  });
+
+  test(`[${version}] Primary VRF name collides with a later Additional Ethernet name`, () => {
+    const state = baseStates.bareMetalAgent({
+      version: { selectedMinor: version },
+      hostInventory: {
+        nodes: [{
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            ethernet: { name: "eno1", macAddress: "52:54:00:aa:bb:01" },
+            mode: "dhcp",
+            advanced: { vrf: { enabled: true, name: "eth-mgmt", tableId: "100", ports: "portX" } }
+          },
+          additionalInterfaces: [{
+            type: "ethernet",
+            mode: "dhcp",
+            ethernet: { name: "eth-mgmt", macAddress: "52:54:00:cc:dd:40" }
+          }]
+        }],
+        apiVip: "10.90.0.2",
+        ingressVip: "10.90.0.3",
+        ipStackMode: "ipv4"
+      }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "eth-mgmt"')
+    );
+  });
+
+  test(`[${version}] Primary VRF name collides with a later Additional Bond name`, () => {
+    const state = baseStates.bareMetalAgent({
+      version: { selectedMinor: version },
+      hostInventory: {
+        nodes: [{
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            ethernet: { name: "eno1", macAddress: "52:54:00:aa:bb:01" },
+            mode: "dhcp",
+            advanced: { vrf: { enabled: true, name: "bond-fwd", tableId: "100", ports: "portX" } }
+          },
+          additionalInterfaces: [{
+            type: "bond",
+            mode: "dhcp",
+            bond: {
+              name: "bond-fwd",
+              mode: "active-backup",
+              slaves: [
+                { name: "eth3", macAddress: "52:54:00:cc:dd:41" },
+                { name: "eth4", macAddress: "52:54:00:cc:dd:42" }
+              ]
+            }
+          }]
+        }],
+        apiVip: "10.90.0.2",
+        ingressVip: "10.90.0.3",
+        ipStackMode: "ipv4"
+      }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "bond-fwd"')
+    );
+  });
+
+  test(`[${version}] Primary VRF name collides with a later generated VLAN name`, () => {
+    const state = baseStates.bareMetalAgent({
+      version: { selectedMinor: version },
+      hostInventory: {
+        nodes: [{
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            ethernet: { name: "eno1", macAddress: "52:54:00:aa:bb:01" },
+            mode: "dhcp",
+            advanced: { vrf: { enabled: true, name: "eth5.200", tableId: "100", ports: "portX" } }
+          },
+          additionalInterfaces: [{
+            type: "vlan-on-ethernet",
+            mode: "dhcp",
+            ethernet: { name: "eth5", macAddress: "52:54:00:cc:dd:43" },
+            vlan: { id: 200, name: "eth5.200" }
+          }]
+        }],
+        apiVip: "10.90.0.2",
+        ingressVip: "10.90.0.3",
+        ipStackMode: "ipv4"
+      }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "eth5.200"')
+    );
+  });
+
+  test(`[${version}] Additional #1 VRF collides with Additional #2 Ethernet name`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:50" },
+      advanced: { vrf: { enabled: true, name: "eth-cross", tableId: "100", ports: "portX" } }
+    });
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth-cross", macAddress: "52:54:00:cc:dd:51" }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "eth-cross"')
+    );
+  });
+
+  test(`[${version}] Additional #1 VRF collides with Additional #2 Bond name`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:52" },
+      advanced: { vrf: { enabled: true, name: "bond-cross", tableId: "100", ports: "portX" } }
+    });
+    state = withAdditionalInterface(state, 0, {
+      type: "bond",
+      mode: "dhcp",
+      bond: {
+        name: "bond-cross",
+        mode: "active-backup",
+        slaves: [
+          { name: "eth3", macAddress: "52:54:00:cc:dd:53" },
+          { name: "eth4", macAddress: "52:54:00:cc:dd:54" }
+        ]
+      }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "bond-cross"')
+    );
+  });
+
+  test(`[${version}] Additional #1 VRF collides with Additional #2 VLAN name`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:55" },
+      advanced: { vrf: { enabled: true, name: "eth6.400", tableId: "100", ports: "portX" } }
+    });
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eth6", macAddress: "52:54:00:cc:dd:56" },
+      vlan: { id: 400, name: "eth6.400" }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "eth6.400"')
+    );
+  });
+
+  test(`[${version}] Two physical interfaces with same generated name are rejected`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "dup-nic", macAddress: "52:54:00:cc:dd:60" }
+    });
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "dup-nic", macAddress: "52:54:00:cc:dd:61" }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "dup-nic"')
+    );
+  });
+
+  test(`[${version}] Two unique VRFs and unique physical interfaces generate successfully`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:70" },
+      advanced: { vrf: { enabled: true, name: "vrf-a", tableId: "100", ports: "" } }
+    });
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno3", macAddress: "52:54:00:cc:dd:71" },
+      advanced: { vrf: { enabled: true, name: "vrf-b", tableId: "200", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const nmstate = parsed.hosts[0].networkConfig;
+    const vrfA = nmstate.interfaces.find(i => i.name === "vrf-a");
+    const vrfB = nmstate.interfaces.find(i => i.name === "vrf-b");
+    assert.ok(vrfA, "first VRF should exist");
+    assert.ok(vrfB, "second VRF should exist");
+    assert.deepStrictEqual(vrfA.vrf.port, ["eno2"]);
+    assert.deepStrictEqual(vrfB.vrf.port, ["eno3"]);
+  });
+
+  test(`[${version}] Existing single Primary VRF remains valid`, () => {
+    const state = baseStates.bareMetalAgent({
+      version: { selectedMinor: version },
+      hostInventory: {
+        nodes: [{
+          role: "master",
+          hostname: "master-0",
+          primary: {
+            type: "ethernet",
+            ethernet: { name: "eno1", macAddress: "52:54:00:aa:bb:01" },
+            mode: "dhcp",
+            advanced: { vrf: { enabled: true, name: "vrf-primary", tableId: "50", ports: "" } }
+          }
+        }],
+        apiVip: "10.90.0.2",
+        ingressVip: "10.90.0.3",
+        ipStackMode: "ipv4"
+      }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-primary");
+    assert.ok(vrfIface, "single primary VRF should be valid");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 50);
+    assert.deepStrictEqual(vrfIface.vrf.port, ["eno1"]);
+  });
+
+  test(`[${version}] Existing single Additional VRF remains valid`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:34" },
+      advanced: { vrf: { enabled: true, name: "vrf0", tableId: "100", ports: "" } }
+    });
+    const raw = buildAgentConfig(state);
+    const parsed = yaml.load(raw);
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf0");
+    assert.ok(vrfIface, "single VRF with default name should be valid");
+    assert.deepStrictEqual(vrfIface.vrf.port, ["eno2"]);
+  });
+
+  test(`[${version}] VLAN-on-Ethernet without baseIface uses generated Ethernet name`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:80" },
+      vlan: { id: 200 }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vlanIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.type === "vlan");
+    assert.ok(vlanIface, "VLAN interface should exist");
+    assert.strictEqual(vlanIface.name, "eno2.200");
+  });
+
+  test(`[${version}] VLAN-on-Bond without baseIface uses generated Bond name`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-bond",
+      mode: "dhcp",
+      bond: {
+        name: "bond1",
+        mode: "active-backup",
+        slaves: [
+          { name: "eth2", macAddress: "52:54:00:cc:dd:81" },
+          { name: "eth3", macAddress: "52:54:00:cc:dd:82" }
+        ]
+      },
+      vlan: { id: 300 }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vlanIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.type === "vlan");
+    assert.ok(vlanIface, "VLAN interface should exist");
+    assert.strictEqual(vlanIface.name, "bond1.300");
+  });
+
+  test(`[${version}] VLAN-on-Ethernet with baseIface uses baseIface`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:83" },
+      vlan: { id: 200, baseIface: "custom-base" }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vlanIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.type === "vlan");
+    assert.ok(vlanIface, "VLAN interface should exist");
+    assert.strictEqual(vlanIface.name, "custom-base.200");
+    assert.strictEqual(vlanIface.vlan["base-iface"], "custom-base");
+  });
+
+  test(`[${version}] VLAN-on-Bond with baseIface uses baseIface`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-bond",
+      mode: "dhcp",
+      bond: {
+        name: "bond1",
+        mode: "active-backup",
+        slaves: [
+          { name: "eth2", macAddress: "52:54:00:cc:dd:84" },
+          { name: "eth3", macAddress: "52:54:00:cc:dd:85" }
+        ]
+      },
+      vlan: { id: 300, baseIface: "custom-bond-base" }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vlanIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.type === "vlan");
+    assert.ok(vlanIface, "VLAN interface should exist");
+    assert.strictEqual(vlanIface.name, "custom-bond-base.300");
+    assert.strictEqual(vlanIface.vlan["base-iface"], "custom-bond-base");
+  });
+
+  test(`[${version}] Explicit VLAN name overrides baseIface`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:86" },
+      vlan: { id: 200, baseIface: "custom-base", name: "my-explicit-vlan" }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vlanIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.type === "vlan");
+    assert.ok(vlanIface, "VLAN interface should exist");
+    assert.strictEqual(vlanIface.name, "my-explicit-vlan");
+  });
+
+  test(`[${version}] VRF collision with baseIface-derived VLAN name is rejected by duplicate scan`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:87" },
+      vlan: { id: 200, baseIface: "custom-base" },
+      advanced: { vrf: { enabled: true, name: "custom-base.200", tableId: "100", ports: "portX" } }
+    });
+    assert.throws(
+      () => buildAgentConfig(state),
+      (err) => err.message.includes('Duplicate NMState interface name "custom-base.200"')
+    );
+  });
+
+  test(`[${version}] Unique VRF plus baseIface-derived VLAN generates successfully`, () => {
+    let state = stateForVersion(version);
+    state = withAdditionalInterface(state, 0, {
+      type: "vlan-on-ethernet",
+      mode: "dhcp",
+      ethernet: { name: "eno2", macAddress: "52:54:00:cc:dd:88" },
+      vlan: { id: 200, baseIface: "custom-base" },
+      advanced: { vrf: { enabled: true, name: "vrf-ok", tableId: "100", ports: "" } }
+    });
+    const parsed = yaml.load(buildAgentConfig(state));
+    const vlanIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.type === "vlan");
+    const vrfIface = parsed.hosts[0].networkConfig.interfaces.find(i => i.name === "vrf-ok");
+    assert.ok(vlanIface, "VLAN interface should exist");
+    assert.strictEqual(vlanIface.name, "custom-base.200");
+    assert.ok(vrfIface, "VRF interface should exist");
+    assert.strictEqual(vrfIface.vrf["route-table-id"], 100);
+  });
+
+}

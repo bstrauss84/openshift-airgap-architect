@@ -617,6 +617,88 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
         }
       }
     });
+
+    // VRF cross-field validation: name required, table ID integer, no name collisions.
+    const normalizeGeneratedName = (value) => String(value ?? "").trim();
+
+    const generatedNames = new Set();
+    const vrfEntries = [];
+
+    const effectiveVlanName = (iface) => {
+      const activeBaseName =
+        iface.type === "vlan-on-bond"
+          ? iface.bond?.name
+          : iface.ethernet?.name;
+      const baseName = iface.vlan?.baseIface || activeBaseName;
+      return iface.vlan?.name || (baseName && iface.vlan?.id ? `${baseName}.${iface.vlan.id}` : "");
+    };
+
+    const collectActiveNames = (iface) => {
+      const names = [];
+      if (iface.type === "ethernet") {
+        if (iface.ethernet?.name) names.push(normalizeGeneratedName(iface.ethernet.name));
+      } else if (iface.type === "bond") {
+        if (iface.bond?.name) names.push(normalizeGeneratedName(iface.bond.name));
+        (iface.bond?.slaves || []).forEach(s => { if (s.name) names.push(normalizeGeneratedName(s.name)); });
+      } else if (iface.type === "vlan-on-ethernet") {
+        if (iface.ethernet?.name) names.push(normalizeGeneratedName(iface.ethernet.name));
+        const vn = effectiveVlanName(iface);
+        if (vn) names.push(normalizeGeneratedName(vn));
+      } else if (iface.type === "vlan-on-bond") {
+        if (iface.bond?.name) names.push(normalizeGeneratedName(iface.bond.name));
+        (iface.bond?.slaves || []).forEach(s => { if (s.name) names.push(normalizeGeneratedName(s.name)); });
+        const vn = effectiveVlanName(iface);
+        if (vn) names.push(normalizeGeneratedName(vn));
+      }
+      return names;
+    };
+
+    collectActiveNames(primary).forEach(n => generatedNames.add(n));
+    additional.forEach((iface) => {
+      collectActiveNames(iface).forEach(n => generatedNames.add(n));
+    });
+
+    if (primary.advanced?.vrf?.enabled) {
+      const vrfName = normalizeGeneratedName(primary.advanced.vrf.name);
+      const rawTableId = String(primary.advanced.vrf.tableId ?? "").trim();
+      if (!vrfName) {
+        addError("primary.advanced.vrf.name", "Primary VRF name is required.");
+      }
+      if (rawTableId === "" || !Number.isInteger(Number(rawTableId))) {
+        addError("primary.advanced.vrf.tableId", "Primary VRF table ID must be a valid integer.");
+      }
+      if (vrfName) {
+        vrfEntries.push({ name: vrfName, field: "primary.advanced.vrf.name", label: "Primary" });
+      }
+    }
+
+    additional.forEach((iface, idx) => {
+      if (!iface.advanced?.vrf?.enabled) return;
+      const prefix = `additional.${idx}`;
+      const vrfName = normalizeGeneratedName(iface.advanced.vrf.name);
+      const rawTableId = String(iface.advanced.vrf.tableId ?? "").trim();
+      if (!vrfName) {
+        addError(`${prefix}.advanced.vrf.name`, `Additional interface ${idx + 1} VRF name is required.`);
+      }
+      if (rawTableId === "" || !Number.isInteger(Number(rawTableId))) {
+        addError(`${prefix}.advanced.vrf.tableId`, `Additional interface ${idx + 1} VRF table ID must be a valid integer.`);
+      }
+      if (vrfName) {
+        vrfEntries.push({ name: vrfName, field: `${prefix}.advanced.vrf.name`, label: `Additional interface ${idx + 1}` });
+      }
+    });
+
+    const seenVrfNames = new Map();
+    vrfEntries.forEach(({ name, field, label }) => {
+      if (generatedNames.has(name)) {
+        addError(field, `${label} VRF name "${name}" collides with an existing interface name.`);
+      }
+      if (seenVrfNames.has(name)) {
+        addError(field, `${label} VRF name "${name}" is already used by ${seenVrfNames.get(name)}.`);
+      } else {
+        seenVrfNames.set(name, label);
+      }
+    });
   }
 
   return { errors, warnings, fieldErrors };
