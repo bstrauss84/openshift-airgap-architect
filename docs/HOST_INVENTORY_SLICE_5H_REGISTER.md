@@ -7,7 +7,7 @@
 - **Date:** 2026-07-17
 - **Last updated:** 2026-07-21
 - **Branch:** develop
-- **Latest commit:** fac3c79 DOC-102: Enforce Host Inventory primary networking visibility
+- **Latest commit:** 27445a1 DOC-102: Enforce Host Inventory additional interface visibility
 - **Scope:** Host Inventory Agent Drawer (NodeDrawerAgentContent.jsx + HostInventoryV2Step.jsx)
 - **Scenarios:** bare-metal-agent, vsphere-agent
 - **Constraint:** Planning and tracking register only. No production code, tests, or catalogs modified.
@@ -34,6 +34,7 @@
 - **dns:** Parent gate on hosts[].networkConfig.dns-resolver (committed, 6a208bc)
 - **bmc:** Parent gate on platform.baremetal.hosts[].bmc (committed, 6ac0668). Boot MAC: independent gate on platform.baremetal.hosts[].bootMACAddress. Wrapper: union under Day-2 structural eligibility. Username/password atomic.
 - **networking:** Parent gate on hosts[].networkConfig (committed, fac3c79). Applies to primary component boundary only. Does not gate Additional Interfaces.
+- **additional_interfaces:** Parent gate on hosts[].networkConfig.interfaces (committed, 27445a1). Controls Additional Interfaces section visibility independently of Primary Networking gate.
 
 ### Semantic class definitions
 
@@ -60,7 +61,7 @@
 ## Corrected Counts
 
 - **Interactive controls:** 59
-- **Accepted completions:** 36
+- **Accepted completions:** 55
 - **Composite groups:** 13
 - **Structural controls:** 39
 - **Blockers:** 4
@@ -71,21 +72,21 @@
 | Class | Count |
 |-------|-------|
 | A | 2 |
-| B | 34 |
+| B | 53 |
 | C | 3 |
-| F | 20 |
+| F | 1 |
 | **Total** | **59** |
 
 ### Disposition totals
 
 | Disposition | Count |
 |------------|-------|
-| blocked-by-gate-design | 15 |
-| completed | 36 |
+| blocked-by-gate-design | 0 |
+| completed | 55 |
 | open-metadata-reconciliation | 0 |
 | preserved-exception | 1 |
 | structural | 3 |
-| unresolved-Class-F | 4 |
+| unresolved-Class-F | 0 |
 | **Total** | **59** |
 
 ## Accepted Completion
@@ -127,6 +128,25 @@
 | HI-034 | Primary route destination | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
 | HI-035 | Primary route next-hop address | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
 | HI-036 | Primary route next-hop interface | fac3c79 | `shares networkConfig parent gate (showPrimaryNetwork prop)` | 22 |
+| HI-037 | Additional interface type select | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-038 | Additional interface IP assignment select | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-039 | Additional ethernet name | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-040 | Additional ethernet MAC | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-041 | Additional bond name | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-042 | Additional bond mode select | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-043 | Additional bond member name | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-044 | Additional bond member MAC | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-045 | Additional VLAN ID | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-046 | Additional VLAN name | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-047 | Additional IPv4 CIDR | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-048 | Additional IPv6 CIDR | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-049 | Additional MTU | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-050 | Additional SR-IOV enabled checkbox | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-051 | Additional SR-IOV Total VFs | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-052 | Additional VRF enabled checkbox | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-053 | Additional VRF name | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-054 | Additional VRF table ID | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
+| HI-055 | Additional VRF ports | 27445a1 | `shares hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop)` | 136 |
 | HI-056 | Boot artifacts base URL | e939a41 | `isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG)` | 16 |
 
 ## Interactive Controls
@@ -169,25 +189,25 @@
 | HI-034 | Primary route destination | B | completed | — | `hosts[].networkConfig.routes.config[].destination` | agent-config.yaml |
 | HI-035 | Primary route next-hop address | B | completed | — | `hosts[].networkConfig.routes.config[].next-hop-address` | agent-config.yaml |
 | HI-036 | Primary route next-hop interface | B | completed | — | `hosts[].networkConfig.routes.config[].next-hop-interface` | agent-config.yaml |
-| HI-037 | Additional interface type select | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].type` | agent-config.yaml |
-| HI-038 | Additional interface IP assignment select | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].ipv4.dhcp` | agent-config.yaml |
-| HI-039 | Additional ethernet name | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-040 | Additional ethernet MAC | F | blocked-by-gate-design | H6 | `hosts[].interfaces[].macAddress` | agent-config.yaml |
-| HI-041 | Additional bond name | F | blocked-by-gate-design | H7 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-042 | Additional bond mode select | F | blocked-by-gate-design | H7 | `hosts[].networkConfig.interfaces[].link-aggregation.mode` | agent-config.yaml |
-| HI-043 | Additional bond member name | F | blocked-by-gate-design | H7 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-044 | Additional bond member MAC | F | blocked-by-gate-design | H7 | `hosts[].interfaces[].macAddress` | agent-config.yaml |
-| HI-045 | Additional VLAN ID | F | blocked-by-gate-design | H8 | `hosts[].networkConfig.interfaces[].vlan.id` | agent-config.yaml |
-| HI-046 | Additional VLAN name | F | blocked-by-gate-design | H8 | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
-| HI-047 | Additional IPv4 CIDR | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].ipv4.address[].ip` | agent-config.yaml |
-| HI-048 | Additional IPv6 CIDR | F | blocked-by-gate-design | H6 | `hosts[].networkConfig.interfaces[].ipv6.address` | agent-config.yaml |
-| HI-049 | Additional MTU | F | blocked-by-gate-design | H6 | — | agent-config.yaml |
-| HI-050 | Additional SR-IOV enabled checkbox | F | blocked-by-gate-design | H6 | — | agent-config.yaml |
-| HI-051 | Additional SR-IOV Total VFs | F | blocked-by-gate-design | H6 | — | agent-config.yaml |
-| HI-052 | Additional VRF enabled checkbox | F | unresolved-Class-F | H6 | — | none |
-| HI-053 | Additional VRF name | F | unresolved-Class-F | H6 | — | none |
-| HI-054 | Additional VRF table ID | F | unresolved-Class-F | H6 | — | none |
-| HI-055 | Additional VRF ports | F | unresolved-Class-F | H6 | — | none |
+| HI-037 | Additional interface type select | B | completed | — | `hosts[].networkConfig.interfaces[].type` | agent-config.yaml |
+| HI-038 | Additional interface IP assignment select | B | completed | — | `hosts[].networkConfig.interfaces[].ipv4.dhcp` | agent-config.yaml |
+| HI-039 | Additional ethernet name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-040 | Additional ethernet MAC | B | completed | — | `hosts[].interfaces[].macAddress` | agent-config.yaml |
+| HI-041 | Additional bond name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-042 | Additional bond mode select | B | completed | — | `hosts[].networkConfig.interfaces[].link-aggregation.mode` | agent-config.yaml |
+| HI-043 | Additional bond member name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-044 | Additional bond member MAC | B | completed | — | `hosts[].interfaces[].macAddress` | agent-config.yaml |
+| HI-045 | Additional VLAN ID | B | completed | — | `hosts[].networkConfig.interfaces[].vlan.id` | agent-config.yaml |
+| HI-046 | Additional VLAN name | B | completed | — | `hosts[].networkConfig.interfaces[].name` | agent-config.yaml |
+| HI-047 | Additional IPv4 CIDR | B | completed | — | `hosts[].networkConfig.interfaces[].ipv4.address[].ip` | agent-config.yaml |
+| HI-048 | Additional IPv6 CIDR | B | completed | — | `hosts[].networkConfig.interfaces[].ipv6.address` | agent-config.yaml |
+| HI-049 | Additional MTU | B | completed | — | — | agent-config.yaml |
+| HI-050 | Additional SR-IOV enabled checkbox | B | completed | — | — | agent-config.yaml |
+| HI-051 | Additional SR-IOV Total VFs | B | completed | — | — | agent-config.yaml |
+| HI-052 | Additional VRF enabled checkbox | B | completed | — | — | agent-config.yaml |
+| HI-053 | Additional VRF name | B | completed | — | — | agent-config.yaml |
+| HI-054 | Additional VRF table ID | B | completed | — | — | agent-config.yaml |
+| HI-055 | Additional VRF ports | B | completed | — | — | agent-config.yaml |
 | HI-056 | Boot artifacts base URL | A | completed | — | `bootArtifactsBaseURL` | agent-config.yaml |
 | HI-057 | Control plane count | C | structural | H9 | — | none |
 | HI-058 | Worker count | C | structural | H9 | — | none |
@@ -195,67 +215,67 @@
 
 ## Completion Register
 
-| Control | Label | Class | Disposition | Cohort |
-|---------|-------|-------|-------------|--------|
-| HI-001 | Role select | F | preserved-exception | H9 |
-| HI-002 | Hostname input | A | completed | — |
-| HI-003 | FQDN checkbox | B | completed | — |
-| HI-004 | Root device — deviceName | B | completed | — |
-| HI-005 | Root device — hctl | B | completed | — |
-| HI-006 | Root device — model | B | completed | — |
-| HI-007 | Root device — vendor | B | completed | — |
-| HI-008 | Root device — serialNumber | B | completed | — |
-| HI-009 | Root device — wwn | B | completed | — |
-| HI-010 | Root device — minSizeGb | B | completed | — |
-| HI-011 | Root device — rotational | B | completed | — |
-| HI-012 | Primary interface type select | B | completed | — |
-| HI-013 | Primary IP assignment select | B | completed | — |
-| HI-014 | Primary ethernet name | B | completed | — |
-| HI-015 | Primary ethernet MAC | B | completed | — |
-| HI-016 | Primary bond name | B | completed | — |
-| HI-017 | Primary bond mode select | B | completed | — |
-| HI-018 | Primary bond member name | B | completed | — |
-| HI-019 | Primary bond member MAC | B | completed | — |
-| HI-020 | Primary VLAN ID | B | completed | — |
-| HI-021 | Primary VLAN name | B | completed | — |
-| HI-022 | Primary IPv4 CIDR | B | completed | — |
-| HI-023 | Primary IPv4 gateway | B | completed | — |
-| HI-024 | Primary IPv6 CIDR | B | completed | — |
-| HI-025 | Primary IPv6 gateway | B | completed | — |
-| HI-026 | DNS servers | B | completed | — |
-| HI-027 | DNS search | B | completed | — |
-| HI-028 | BMC address | B | completed | — |
-| HI-029 | BMC username | B | completed | — |
-| HI-030 | BMC password | B | completed | — |
-| HI-031 | Boot MAC | B | completed | — |
-| HI-032 | BMC disable cert verification | B | completed | — |
-| HI-033 | Primary MTU | B | completed | — |
-| HI-034 | Primary route destination | B | completed | — |
-| HI-035 | Primary route next-hop address | B | completed | — |
-| HI-036 | Primary route next-hop interface | B | completed | — |
-| HI-037 | Additional interface type select | F | blocked-by-gate-design | H6 |
-| HI-038 | Additional interface IP assignment select | F | blocked-by-gate-design | H6 |
-| HI-039 | Additional ethernet name | F | blocked-by-gate-design | H6 |
-| HI-040 | Additional ethernet MAC | F | blocked-by-gate-design | H6 |
-| HI-041 | Additional bond name | F | blocked-by-gate-design | H7 |
-| HI-042 | Additional bond mode select | F | blocked-by-gate-design | H7 |
-| HI-043 | Additional bond member name | F | blocked-by-gate-design | H7 |
-| HI-044 | Additional bond member MAC | F | blocked-by-gate-design | H7 |
-| HI-045 | Additional VLAN ID | F | blocked-by-gate-design | H8 |
-| HI-046 | Additional VLAN name | F | blocked-by-gate-design | H8 |
-| HI-047 | Additional IPv4 CIDR | F | blocked-by-gate-design | H6 |
-| HI-048 | Additional IPv6 CIDR | F | blocked-by-gate-design | H6 |
-| HI-049 | Additional MTU | F | blocked-by-gate-design | H6 |
-| HI-050 | Additional SR-IOV enabled checkbox | F | blocked-by-gate-design | H6 |
-| HI-051 | Additional SR-IOV Total VFs | F | blocked-by-gate-design | H6 |
-| HI-052 | Additional VRF enabled checkbox | F | unresolved-Class-F | H6 |
-| HI-053 | Additional VRF name | F | unresolved-Class-F | H6 |
-| HI-054 | Additional VRF table ID | F | unresolved-Class-F | H6 |
-| HI-055 | Additional VRF ports | F | unresolved-Class-F | H6 |
-| HI-056 | Boot artifacts base URL | A | completed | — |
-| HI-057 | Control plane count | C | structural | H9 |
-| HI-058 | Worker count | C | structural | H9 |
-| HI-059 | Infrastructure count | C | structural | H9 |
+| Control | Label | Class | Disposition | Cohort | Output |
+|---------|-------|-------|-------------|--------|--------|
+| HI-001 | Role select | F | preserved-exception | H9 | agent-config.yaml |
+| HI-002 | Hostname input | A | completed | — | agent-config.yaml |
+| HI-003 | FQDN checkbox | B | completed | — | agent-config.yaml |
+| HI-004 | Root device — deviceName | B | completed | — | agent-config.yaml |
+| HI-005 | Root device — hctl | B | completed | — | agent-config.yaml |
+| HI-006 | Root device — model | B | completed | — | agent-config.yaml |
+| HI-007 | Root device — vendor | B | completed | — | agent-config.yaml |
+| HI-008 | Root device — serialNumber | B | completed | — | agent-config.yaml |
+| HI-009 | Root device — wwn | B | completed | — | agent-config.yaml |
+| HI-010 | Root device — minSizeGb | B | completed | — | agent-config.yaml |
+| HI-011 | Root device — rotational | B | completed | — | agent-config.yaml |
+| HI-012 | Primary interface type select | B | completed | — | agent-config.yaml |
+| HI-013 | Primary IP assignment select | B | completed | — | agent-config.yaml |
+| HI-014 | Primary ethernet name | B | completed | — | agent-config.yaml |
+| HI-015 | Primary ethernet MAC | B | completed | — | agent-config.yaml |
+| HI-016 | Primary bond name | B | completed | — | agent-config.yaml |
+| HI-017 | Primary bond mode select | B | completed | — | agent-config.yaml |
+| HI-018 | Primary bond member name | B | completed | — | agent-config.yaml |
+| HI-019 | Primary bond member MAC | B | completed | — | agent-config.yaml |
+| HI-020 | Primary VLAN ID | B | completed | — | agent-config.yaml |
+| HI-021 | Primary VLAN name | B | completed | — | agent-config.yaml |
+| HI-022 | Primary IPv4 CIDR | B | completed | — | agent-config.yaml |
+| HI-023 | Primary IPv4 gateway | B | completed | — | agent-config.yaml |
+| HI-024 | Primary IPv6 CIDR | B | completed | — | agent-config.yaml |
+| HI-025 | Primary IPv6 gateway | B | completed | — | agent-config.yaml |
+| HI-026 | DNS servers | B | completed | — | agent-config.yaml |
+| HI-027 | DNS search | B | completed | — | agent-config.yaml |
+| HI-028 | BMC address | B | completed | — | install-config.yaml |
+| HI-029 | BMC username | B | completed | — | install-config.yaml |
+| HI-030 | BMC password | B | completed | — | install-config.yaml |
+| HI-031 | Boot MAC | B | completed | — | install-config.yaml |
+| HI-032 | BMC disable cert verification | B | completed | — | install-config.yaml |
+| HI-033 | Primary MTU | B | completed | — | agent-config.yaml |
+| HI-034 | Primary route destination | B | completed | — | agent-config.yaml |
+| HI-035 | Primary route next-hop address | B | completed | — | agent-config.yaml |
+| HI-036 | Primary route next-hop interface | B | completed | — | agent-config.yaml |
+| HI-037 | Additional interface type select | B | completed | — | agent-config.yaml |
+| HI-038 | Additional interface IP assignment select | B | completed | — | agent-config.yaml |
+| HI-039 | Additional ethernet name | B | completed | — | agent-config.yaml |
+| HI-040 | Additional ethernet MAC | B | completed | — | agent-config.yaml |
+| HI-041 | Additional bond name | B | completed | — | agent-config.yaml |
+| HI-042 | Additional bond mode select | B | completed | — | agent-config.yaml |
+| HI-043 | Additional bond member name | B | completed | — | agent-config.yaml |
+| HI-044 | Additional bond member MAC | B | completed | — | agent-config.yaml |
+| HI-045 | Additional VLAN ID | B | completed | — | agent-config.yaml |
+| HI-046 | Additional VLAN name | B | completed | — | agent-config.yaml |
+| HI-047 | Additional IPv4 CIDR | B | completed | — | agent-config.yaml |
+| HI-048 | Additional IPv6 CIDR | B | completed | — | agent-config.yaml |
+| HI-049 | Additional MTU | B | completed | — | agent-config.yaml |
+| HI-050 | Additional SR-IOV enabled checkbox | B | completed | — | agent-config.yaml |
+| HI-051 | Additional SR-IOV Total VFs | B | completed | — | agent-config.yaml |
+| HI-052 | Additional VRF enabled checkbox | B | completed | — | agent-config.yaml |
+| HI-053 | Additional VRF name | B | completed | — | agent-config.yaml |
+| HI-054 | Additional VRF table ID | B | completed | — | agent-config.yaml |
+| HI-055 | Additional VRF ports | B | completed | — | agent-config.yaml |
+| HI-056 | Boot artifacts base URL | A | completed | — | agent-config.yaml |
+| HI-057 | Control plane count | C | structural | H9 | none |
+| HI-058 | Worker count | C | structural | H9 | none |
+| HI-059 | Infrastructure count | C | structural | H9 | none |
 
 ## Composite Groups
 
@@ -314,26 +334,31 @@
 ### HG-008 — Additional interfaces
 
 - **Children:** HI-037, HI-038, HI-039, HI-040, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055
-- **Candidate parent:** `hosts[].networkConfig.interfaces`
-- **Gate model:** undecided (Additional Interface architecture unresolved — HB-001 VRF generation, HB-002 additional scope)
-- **Atomicity:** non-atomic — Class F VRF controls alongside functional controls
-- **Blockers:** HB-001, HB-002
+- **Effective visibility parent:** `hosts[].networkConfig.interfaces`
+- **Output file:** agent-config.yaml
+- **Gate model:** parent (committed, 27445a1 visibility, 25c9bf3 reconciliation — hosts[].networkConfig.interfaces at additional interface section boundary; VRF generation prerequisite 4ac41ac)
+- **Atomicity:** non-atomic — VRF controls (HI-052-055) have separate generation lifecycle but share visibility gate
+- **Parent evidence:** hosts[].networkConfig.interfaces is supported-ui in Bare Metal Agent and vSphere Agent, versions 4.20 and 4.21, with canonical/mirror identity.
 
 ### HG-009 — Additional bond
 
 - **Children:** HI-041, HI-042, HI-043, HI-044
-- **Candidate parent:** `hosts[].networkConfig.interfaces[].link-aggregation`
-- **Gate model:** undecided (part of shared networking schema — HB-002)
+- **Effective visibility parent:** `hosts[].networkConfig.interfaces`
+- **Subordinate schema path:** `hosts[].networkConfig.interfaces[].link-aggregation`
+- **Output file:** agent-config.yaml
+- **Gate model:** parent (committed, 27445a1 visibility, 25c9bf3 reconciliation — shares hosts[].networkConfig.interfaces parent gate; subordinate schema path: hosts[].networkConfig.interfaces[].link-aggregation)
 - **Atomicity:** atomic
-- **Blockers:** HB-002
+- **Parent evidence:** hosts[].networkConfig.interfaces is supported-ui in Bare Metal Agent and vSphere Agent, versions 4.20 and 4.21, with canonical/mirror identity.
 
 ### HG-010 — Additional VLAN
 
 - **Children:** HI-045, HI-046
-- **Candidate parent:** `hosts[].networkConfig.interfaces[].vlan`
-- **Gate model:** undecided (part of shared networking schema — HB-002)
+- **Effective visibility parent:** `hosts[].networkConfig.interfaces`
+- **Subordinate schema path:** `hosts[].networkConfig.interfaces[].vlan`
+- **Output file:** agent-config.yaml
+- **Gate model:** parent (committed, 27445a1 visibility, 25c9bf3 reconciliation — shares hosts[].networkConfig.interfaces parent gate; subordinate schema path: hosts[].networkConfig.interfaces[].vlan)
 - **Atomicity:** atomic
-- **Blockers:** HB-002
+- **Parent evidence:** hosts[].networkConfig.interfaces is supported-ui in Bare Metal Agent and vSphere Agent, versions 4.20 and 4.21, with canonical/mirror identity.
 
 ### HG-011 — Additional SR-IOV
 
@@ -384,20 +409,21 @@
 
 ### HB-001 — Additional-interface VRF generation missing
 
-generate.js:1394-1431 additional-interface loop does not read iface.advanced.vrf. Primary VRF generation exists at 1376-1392 but primary has no UI controls. UI collects VRF name/tableId/ports for additional interfaces; values are silently discarded during generation.
+RESOLVED (commit 4ac41ac). generate.js additional-interface loop now reads iface.advanced.vrf. VRF generation added to additional-interface loop. Previously: values were silently discarded during generation.
 
+- **Status:** resolved
 - **Severity:** Class-F-blocker
-- **Affected:** HI-052, HI-053, HI-054, HI-055, HG-012
-- **Resolution:** Either add VRF generation to additional-interface loop in generate.js or remove VRF UI from additional interface advanced section.
+- **Affected:** (none)
+- **Resolution:** VRF generation added to additional-interface loop in generate.js (commit 4ac41ac).
 
 ### HB-002 — Shared primary/additional networking gate constraint
 
-PARTIALLY RESOLVED (primary networking committed, fac3c79). Primary Networking, primary Bond, and primary VLAN were completed through component-scoped use of hosts[].networkConfig. Additional Interfaces remain unresolved: the hosts[].networkConfig.interfaces catalog path applies to every rendered instance, and Additional Interface visibility requires its own design decision after HB-001 VRF generation is fixed.
+RESOLVED. Three-stage resolution: (1) fac3c79 Primary Networking visibility, (2) 25c9bf3 Additional Interfaces metadata reconciliation, (3) 27445a1 Additional Interfaces visibility. Primary Networking uses hosts[].networkConfig parent gate (showPrimaryNetwork prop). Additional Interfaces uses hosts[].networkConfig.interfaces parent gate (showAdditionalInterfaces prop). Gates are independent: hiding primary does not hide additional, and vice versa.
 
-- **Status:** partially-resolved
+- **Status:** resolved
 - **Severity:** gate-design-blocker
-- **Affected:** HG-008, HG-009, HG-010, HI-037, HI-038, HI-039, HI-040, HI-041, HI-042, HI-043, HI-044, HI-045, HI-046, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055
-- **Resolution:** Resolve Additional Interfaces using the existing hosts[].networkConfig.interfaces parent after HB-001 VRF generation is fixed, without changing the completed Primary Networking gate.
+- **Affected:** (none)
+- **Resolution:** Accepted implementation: independent Primary Networking gate (hosts[].networkConfig, fac3c79), independent Additional Interfaces gate (hosts[].networkConfig.interfaces, 25c9bf3 reconciliation, 27445a1 visibility).
 
 ### HB-003 — Boot MAC versus BMC lifecycle
 
@@ -494,21 +520,17 @@ Latent compatibility/safety concern, not currently proven destructive for the 4.
 | H3 | Primary networking | completed | 12 (HI-012, HI-013, HI-014, HI-015, HI-022, HI-023, HI-024, HI-025, HI-033, HI-034, HI-035, HI-036) |
 | H4 | DNS | completed | 2 (HI-026, HI-027) |
 | H5 | Root-device hints | completed | 8 (HI-004, HI-005, HI-006, HI-007, HI-008, HI-009, HI-010, HI-011) |
-| H6 | Additional interfaces | blocked-by-Class-F | 13 (HI-037, HI-038, HI-039, HI-040, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055) |
-| H7 | Bond | primary-complete-additional-deferred | 8 (HI-016, HI-017, HI-018, HI-019, HI-041, HI-042, HI-043, HI-044) |
-| H8 | VLAN | primary-complete-additional-deferred | 4 (HI-020, HI-021, HI-045, HI-046) |
-| H9 | Closeout | blocked-by-Class-F/open-closeout | 4 (HI-001, HI-057, HI-058, HI-059) |
+| H6 | Additional interfaces | completed | 13 (HI-037, HI-038, HI-039, HI-040, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055) |
+| H7 | Bond | completed | 8 (HI-016, HI-017, HI-018, HI-019, HI-041, HI-042, HI-043, HI-044) |
+| H8 | VLAN | completed | 4 (HI-020, HI-021, HI-045, HI-046) |
+| H9 | Closeout | ready-for-closeout | 4 (HI-001, HI-057, HI-058, HI-059) |
 
 ## Next Actions
 
-1. H6 Additional Interfaces architecture and generation resolution
-2. HB-001 VRF generation decision
-3. Additional Interface MTU and SR-IOV metadata/generation reconciliation
-4. Additional Bond and VLAN visibility
-5. HB-004 replication safety
-6. H9 final closeout
-7. Slice 5I version-aware validation
-8. Slice 5J version-aware generation
+1. HB-004 replication safety
+2. H9 final closeout (HI-001, HI-057, HI-058, HI-059)
+3. Slice 5I version-aware validation
+4. Slice 5J version-aware generation
 
 ---
 
