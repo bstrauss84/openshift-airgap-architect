@@ -253,16 +253,92 @@ export const REPLICATE_EXCLUDE_DEFAULT = new Set([
   "primary.bond.slaves"
 ]);
 
+const PRIMARY_NETWORK_KEYS = [
+  "primary.type", "primary.mode", "primary.ipv4Cidr", "primary.ipv6Cidr",
+  "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.vlan", "primary.bond",
+  "primary.advanced", "primary.ethernet.macAddress", "primary.bond.slaves.macAddress"
+];
+
+/**
+ * Compute the set of replication option keys available under current visibility.
+ * When sourceNode is provided, primary networking keys are structurally filtered
+ * based on the source node's type, mode, and IP-stack settings.
+ * @param {object} visibility
+ * @param {boolean} visibility.showIpiDrawer - true when Bare Metal + IPI
+ * @param {boolean} visibility.showAgentHostname - catalog visibility for agent hostname
+ * @param {boolean} visibility.showAgentDns - catalog visibility for agent DNS
+ * @param {boolean} visibility.showAgentRootDeviceHints - catalog visibility for agent root device hints
+ * @param {boolean} visibility.showAgentPrimaryNetwork - catalog visibility for agent primary networking
+ * @param {boolean} visibility.showBmc - true when Bare Metal + IPI
+ * @param {boolean} visibility.showAgentDay2InstallConfigBmc - agent Day-2 structural eligibility
+ * @param {boolean} visibility.showAgentBmcCore - catalog visibility for agent BMC core fields
+ * @param {boolean} visibility.showAgentBootMac - catalog visibility for agent Boot MAC
+ * @param {object} [visibility.sourceNode] - selected source node for structural filtering
+ * @param {boolean} [visibility.enableIpv6] - true when ipv6 or dual-stack
+ * @returns {Set<string>}
+ */
+export function getAvailableReplicateKeys(visibility) {
+  const keys = new Set();
+  const {
+    showIpiDrawer, showAgentHostname, showAgentDns,
+    showAgentRootDeviceHints, showAgentPrimaryNetwork,
+    showBmc,
+    showAgentDay2InstallConfigBmc, showAgentBmcCore, showAgentBootMac,
+    sourceNode, enableIpv6,
+  } = visibility;
+
+  if (showIpiDrawer) {
+    keys.add("hostname");
+    keys.add("hostnameUseFqdn");
+    keys.add("rootDevice");
+    if (showBmc) { keys.add("bmc"); keys.add("bootMACAddress"); }
+  } else {
+    if (showAgentHostname) { keys.add("hostname"); keys.add("hostnameUseFqdn"); }
+    if (showAgentDns) { keys.add("dnsServers"); keys.add("dnsSearch"); }
+    if (showAgentRootDeviceHints) keys.add("rootDevice");
+    if (showAgentPrimaryNetwork) {
+      if (sourceNode) {
+        const type = sourceNode.primary?.type || "ethernet";
+        const mode = sourceNode.primary?.mode || "dhcp";
+        const isEthernet = type === "ethernet" || type === "vlan-on-ethernet";
+        const isBond = type === "bond" || type === "vlan-on-bond";
+        const isVlan = type === "vlan-on-ethernet" || type === "vlan-on-bond";
+        const isStatic = mode === "static";
+        keys.add("primary.type");
+        keys.add("primary.mode");
+        keys.add("primary.advanced");
+        if (isEthernet) keys.add("primary.ethernet.macAddress");
+        if (isBond) { keys.add("primary.bond"); keys.add("primary.bond.slaves.macAddress"); }
+        if (isVlan) keys.add("primary.vlan");
+        if (isStatic) { keys.add("primary.ipv4Cidr"); keys.add("primary.ipv4Gateway"); }
+        if (isStatic && enableIpv6) { keys.add("primary.ipv6Cidr"); keys.add("primary.ipv6Gateway"); }
+      } else {
+        PRIMARY_NETWORK_KEYS.forEach((k) => keys.add(k));
+      }
+    }
+    if (showAgentDay2InstallConfigBmc && showAgentBmcCore) keys.add("bmc");
+    if (showAgentDay2InstallConfigBmc && showAgentBootMac) keys.add("bootMACAddress");
+  }
+  return keys;
+}
+
 /**
  * Apply selected settings from source node to target nodes.
  * Only copies fields that are in selectedFields; never copies hostname/bmc/MACs unless explicitly selected.
+ * Fail-closed: only keys present in both selectedFields and availableKeys are applied.
+ * If availableKeys is missing or not a Set, no fields are applied.
  * @param {object} sourceNode
  * @param {object[]} targetNodes
  * @param {Set<string>} selectedFields - e.g. new Set(["dnsServers", "dnsSearch", "primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Gateway", "primary.ipv6Gateway"])
+ * @param {Set<string>} availableKeys - only keys in this set are applied; required
  * @returns {object[]} new array of target nodes with applied settings
  */
-export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) {
+export function applyReplicateSettings(sourceNode, targetNodes, selectedFields, availableKeys) {
   if (!sourceNode || !targetNodes?.length) return targetNodes;
+
+  const effectiveFields = (availableKeys instanceof Set)
+    ? new Set(Array.from(selectedFields).filter((k) => availableKeys.has(k)))
+    : new Set();
 
   const copyPrimaryShape = (destPrimary, srcPrimary, selectedFieldsForNode) => {
     if (selectedFieldsForNode.has("primary.type")) destPrimary.type = srcPrimary.type;
@@ -307,14 +383,12 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
 
   return targetNodes.map((node) => {
     const next = { ...node };
-    // Arbiter nodes in bare-metal-agent intentionally hide Root device hints and Advanced (MTU/routes).
-    // Even if the modal user checked those copy options, do not apply them to arbiter targets.
     const isArbiterTarget = node?.role === "arbiter";
     const selectedFieldsForNode = isArbiterTarget
       ? new Set(
-        Array.from(selectedFields).filter((k) => k !== "rootDevice" && k !== "primary.advanced")
+        Array.from(effectiveFields).filter((k) => k !== "rootDevice" && k !== "primary.advanced")
       )
-      : selectedFields;
+      : effectiveFields;
     if (selectedFieldsForNode.has("dnsServers")) next.dnsServers = sourceNode.dnsServers ?? "";
     if (selectedFieldsForNode.has("dnsSearch")) next.dnsSearch = sourceNode.dnsSearch ?? "";
     if (selectedFieldsForNode.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
@@ -329,7 +403,20 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
       next.rootDeviceHintMinSizeGb = sourceNode.rootDeviceHintMinSizeGb ?? "";
       next.rootDeviceHintRotational = sourceNode.rootDeviceHintRotational ?? "";
     }
-    if (selectedFieldsForNode.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
+    if (selectedFieldsForNode.has("bmc") || selectedFieldsForNode.has("bootMACAddress")) {
+      const srcBmc = sourceNode.bmc || {};
+      const destBmc = { ...(node.bmc || {}) };
+      if (selectedFieldsForNode.has("bmc")) {
+        destBmc.address = srcBmc.address ?? destBmc.address;
+        destBmc.username = srcBmc.username ?? destBmc.username;
+        destBmc.password = srcBmc.password ?? destBmc.password;
+        destBmc.disableCertificateVerification = srcBmc.disableCertificateVerification ?? destBmc.disableCertificateVerification;
+      }
+      if (selectedFieldsForNode.has("bootMACAddress")) {
+        destBmc.bootMACAddress = srcBmc.bootMACAddress ?? destBmc.bootMACAddress;
+      }
+      next.bmc = destBmc;
+    }
     if (
       [
         "primary.type",

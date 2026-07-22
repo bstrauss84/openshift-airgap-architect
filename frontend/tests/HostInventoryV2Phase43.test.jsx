@@ -2870,3 +2870,267 @@ describe("Phase 4.3: legacy inventory step unaffected when flags OFF", () => {
     expect(Array.isArray(result.errors)).toBe(true);
   });
 });
+
+describe("HB-004 replication modal presentation boundary", () => {
+  const AC = "agent-config.yaml";
+  const IC = "install-config.yaml";
+
+  const FULL_CATALOG = [
+    { path: "bootArtifactsBaseURL", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+    { path: "hosts[].role", outputFile: AC, supportStatus: "supported-backend-only", minVersion: "4.20", maxVersion: null, type: "string", allowed: ["master", "worker"], required: false },
+    { path: "hosts[].hostname", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null, type: "string", required: false },
+    { path: "hosts[].networkConfig.dns-resolver", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].rootDeviceHints", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "hosts[].networkConfig.interfaces", outputFile: AC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "platform.baremetal.hosts[].bmc", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+    { path: "platform.baremetal.hosts[].bootMACAddress", outputFile: IC, supportStatus: "supported-ui", minVersion: "4.20", maxVersion: null },
+  ];
+
+  const twoNodeState = (overrides = {}) => ({
+    ...baseState,
+    blueprint: { platform: "Bare Metal" },
+    methodology: { method: "Agent-Based Installer" },
+    hostInventory: {
+      ...baseState.hostInventory,
+      nodes: [
+        { role: "master", hostname: "master-0", rootDevice: "", dnsServers: "", dnsSearch: "", bmc: { address: "", username: "", password: "", bootMACAddress: "" }, primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:01" }, bond: {}, vlan: {}, advanced: {} } },
+        { role: "worker", hostname: "worker-0", rootDevice: "", dnsServers: "", dnsSearch: "", bmc: { address: "", username: "", password: "", bootMACAddress: "" }, primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "52:54:00:aa:11:02" }, bond: {}, vlan: {}, advanced: {} } },
+      ],
+      includeBareMetalDay2InInstallConfig: true,
+    },
+    ...overrides,
+  });
+
+  function openReplicateModal(container) {
+    const masterTile = Array.from(container.querySelectorAll("button.host-inventory-v2-tile")).find(
+      (b) => b.textContent?.includes("master-0")
+    );
+    fireEvent.click(masterTile);
+    const applyBtn = screen.getByRole("button", { name: /Apply settings to other nodes/i });
+    fireEvent.click(applyBtn);
+    const dialogs = screen.getAllByRole("dialog");
+    const modal = dialogs.find((d) => d.getAttribute("aria-modal") === "true");
+    return modal;
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("visible hostname option is rendered as a checkbox", () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(FULL_CATALOG.map((e) => e.path)));
+    const { container } = render(<MockAppProvider stateOverride={twoNodeState()}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    const hostnameCheckbox = within(modal).getByLabelText(/Hostname \(usually leave unchecked\)/i);
+    expect(hostnameCheckbox).toBeInTheDocument();
+    expect(hostnameCheckbox.type).toBe("checkbox");
+  });
+
+  it("hidden DNS options are absent when showAgentDns is false", () => {
+    const catalog = FULL_CATALOG.filter((e) => e.path !== "hosts[].networkConfig.dns-resolver");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(catalog.map((e) => e.path)));
+    const { container } = render(<MockAppProvider stateOverride={twoNodeState()}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).queryByLabelText(/DNS servers/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/DNS search domains/i)).not.toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Hostname \(usually leave unchecked\)/i)).toBeInTheDocument();
+  });
+
+  it("hidden Primary Networking options are absent when showAgentPrimaryNetwork is false", () => {
+    const catalog = FULL_CATALOG.filter((e) => e.path !== "hosts[].networkConfig");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(catalog.map((e) => e.path)));
+    const { container } = render(<MockAppProvider stateOverride={twoNodeState()}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).queryByLabelText(/Primary interface type/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/IP assignment/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/IPv4 CIDR/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/VLAN settings/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Bond mode/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/MTU, routes/i)).not.toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Hostname \(usually leave unchecked\)/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/DNS servers/i)).toBeInTheDocument();
+  });
+
+  it("BMC visible with Boot MAC hidden renders BMC but not Boot MAC", () => {
+    const catalog = FULL_CATALOG.filter((e) => e.path !== "platform.baremetal.hosts[].bootMACAddress");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(catalog.map((e) => e.path)));
+    const { container } = render(<MockAppProvider stateOverride={twoNodeState()}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).getByLabelText(/BMC credentials/i)).toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Boot MAC address/i)).not.toBeInTheDocument();
+  });
+
+  it("Boot MAC visible with BMC hidden renders Boot MAC but not BMC", () => {
+    const catalog = FULL_CATALOG.filter((e) => e.path !== "platform.baremetal.hosts[].bmc");
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(catalog.map((e) => e.path)));
+    const { container } = render(<MockAppProvider stateOverride={twoNodeState()}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).getByLabelText(/Boot MAC address/i)).toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/BMC credentials/i)).not.toBeInTheDocument();
+  });
+
+  it("unavailable options are absent (not disabled)", () => {
+    const catalog = FULL_CATALOG.filter((e) =>
+      e.path !== "hosts[].networkConfig.dns-resolver" && e.path !== "hosts[].rootDeviceHints"
+    );
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(catalog);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(catalog.map((e) => e.path)));
+    const { container } = render(<MockAppProvider stateOverride={twoNodeState()}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).queryByLabelText(/DNS servers/i)).toBeNull();
+    expect(within(modal).queryByLabelText(/Root device hints/i)).toBeNull();
+    const checkboxes = modal.querySelectorAll('[id^="replicate-field-"]');
+    checkboxes.forEach((cb) => {
+      if (cb.id === "replicate-field-dnsServers" || cb.id === "replicate-field-rootDevice") {
+        throw new Error(`Found disabled checkbox for ${cb.id} — should be absent`);
+      }
+    });
+  });
+
+  it("same-mount rerender with visibility restored makes checkbox reappear", () => {
+    const catalogWithoutDns = FULL_CATALOG.filter((e) => e.path !== "hosts[].networkConfig.dns-resolver");
+    const catalogSpy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalogWithoutDns);
+    const catalogPathsSpy = vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(catalogWithoutDns);
+    const pathsSpy = vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(catalogWithoutDns.map((e) => e.path)));
+
+    const initState = twoNodeState();
+    function RerendererWrapper({ children }) {
+      const [current, setCurrent] = React.useState(initState);
+      const ref = React.useRef(setCurrent);
+      ref.current = setCurrent;
+      React.useEffect(() => { window.__testSetState = ref.current; return () => { delete window.__testSetState; }; }, []);
+      const value = { state: current, updateState: () => {}, loading: false, startOver: vi.fn() };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    const { container } = render(<RerendererWrapper><HostInventoryV2Step /></RerendererWrapper>);
+    const modal1 = openReplicateModal(container);
+    expect(within(modal1).queryByLabelText(/DNS servers/i)).not.toBeInTheDocument();
+
+    catalogSpy.mockReturnValue(FULL_CATALOG);
+    catalogPathsSpy.mockReturnValue(FULL_CATALOG);
+    pathsSpy.mockReturnValue(new Set(FULL_CATALOG.map((e) => e.path)));
+    act(() => {
+      window.__testSetState((prev) => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    const dialogs2 = screen.getAllByRole("dialog");
+    const modal2 = dialogs2.find((d) => d.getAttribute("aria-modal") === "true");
+    expect(within(modal2).getByLabelText(/DNS servers/i)).toBeInTheDocument();
+  });
+
+  it("visibility change within same mount does not call updateInventory", () => {
+    const updateInventoryCalls = [];
+    const catalogWithoutDns = FULL_CATALOG.filter((e) => e.path !== "hosts[].networkConfig.dns-resolver");
+    const catalogSpy = vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(catalogWithoutDns);
+    const catalogPathsSpy = vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(catalogWithoutDns);
+    const pathsSpy = vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(catalogWithoutDns.map((e) => e.path)));
+
+    const initState = twoNodeState();
+    function TrackingWrapper({ children }) {
+      const [current, setCurrent] = React.useState(initState);
+      const ref = React.useRef(setCurrent);
+      ref.current = setCurrent;
+      React.useEffect(() => { window.__testSetState2 = ref.current; return () => { delete window.__testSetState2; }; }, []);
+      const value = {
+        state: current,
+        updateState: (patch) => { updateInventoryCalls.push(patch); },
+        loading: false,
+        startOver: vi.fn(),
+      };
+      return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    }
+    render(<TrackingWrapper><HostInventoryV2Step /></TrackingWrapper>);
+    expect(updateInventoryCalls.length).toBe(0);
+
+    catalogSpy.mockReturnValue(FULL_CATALOG);
+    catalogPathsSpy.mockReturnValue(FULL_CATALOG);
+    pathsSpy.mockReturnValue(new Set(FULL_CATALOG.map((e) => e.path)));
+    act(() => {
+      window.__testSetState2((prev) => ({ ...prev, version: { selectedMinor: "4.21" } }));
+    });
+    expect(updateInventoryCalls.length).toBe(0);
+  });
+
+  it("ethernet + DHCP source: modal shows ethernet MAC but not bond/vlan/ipv4Cidr", () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(FULL_CATALOG.map((e) => e.path)));
+    const state = twoNodeState();
+    state.hostInventory.nodes[0].primary = { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: "" }, bond: {}, vlan: {}, advanced: {} };
+    const { container } = render(<MockAppProvider stateOverride={state}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).getByLabelText(/Primary interface type/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/IP assignment/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Primary ethernet MAC/i)).toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Bond mode/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Bond member MACs/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/VLAN settings/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/IPv4 CIDR/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/IPv6 CIDR/i)).not.toBeInTheDocument();
+  });
+
+  it("bond + DHCP source: modal shows bond fields but not ethernet MAC/vlan/ipv4Cidr", () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(FULL_CATALOG.map((e) => e.path)));
+    const state = twoNodeState();
+    state.hostInventory.nodes[0].primary = { type: "bond", mode: "dhcp", ethernet: { name: "eth0", macAddress: "" }, bond: { name: "bond0", mode: "active-backup", slaves: [] }, vlan: {}, advanced: {} };
+    const { container } = render(<MockAppProvider stateOverride={state}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).getByLabelText(/Primary interface type/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Bond mode/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Bond member MACs/i)).toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Primary ethernet MAC/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/VLAN settings/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/IPv4 CIDR/i)).not.toBeInTheDocument();
+  });
+
+  it("vlan-on-ethernet + static + IPv4: modal shows ethernet MAC + vlan + ipv4; no bond/ipv6", () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(FULL_CATALOG.map((e) => e.path)));
+    const state = twoNodeState();
+    state.hostInventory.nodes[0].primary = { type: "vlan-on-ethernet", mode: "static", ethernet: { name: "eth0", macAddress: "" }, bond: {}, vlan: { id: "100" }, advanced: {} };
+    state.hostInventory.ipStackMode = "ipv4";
+    const { container } = render(<MockAppProvider stateOverride={state}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).getByLabelText(/Primary ethernet MAC/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/VLAN settings/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/IPv4 CIDR/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/IPv4 gateway/i)).toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Bond mode/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/IPv6 CIDR/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/IPv6 gateway/i)).not.toBeInTheDocument();
+  });
+
+  it("vlan-on-bond + static + dual-stack: modal shows bond + vlan + ipv4 + ipv6; no ethernet MAC", () => {
+    vi.spyOn(catalogResolver, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogForScenario").mockReturnValue(FULL_CATALOG);
+    vi.spyOn(catalogPathsModule, "getCatalogPaths").mockReturnValue(new Set(FULL_CATALOG.map((e) => e.path)));
+    const state = twoNodeState();
+    state.hostInventory.nodes[0].primary = { type: "vlan-on-bond", mode: "static", ethernet: {}, bond: { name: "bond0", mode: "active-backup", slaves: [] }, vlan: { id: "200" }, advanced: {} };
+    state.hostInventory.ipStackMode = "dual-stack";
+    const { container } = render(<MockAppProvider stateOverride={state}><HostInventoryV2Step /></MockAppProvider>);
+    const modal = openReplicateModal(container);
+    expect(within(modal).getByLabelText(/Bond mode/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Bond member MACs/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/VLAN settings/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/IPv4 CIDR/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/IPv4 gateway/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/IPv6 CIDR/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/IPv6 gateway/i)).toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Primary ethernet MAC/i)).not.toBeInTheDocument();
+  });
+});

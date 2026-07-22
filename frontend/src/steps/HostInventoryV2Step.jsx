@@ -16,6 +16,7 @@ import {
   generateNodesFromCounts,
   emptyNode,
   applyReplicateSettings,
+  getAvailableReplicateKeys,
   getScenarioId,
   getSectionOrderForRender,
   SECTION_IDS,
@@ -65,7 +66,8 @@ const REPLICATE_OPTIONS = [
   { key: "hostname", label: "Hostname (usually leave unchecked)" },
   { key: "hostnameUseFqdn", label: "Use FQDN for hostname" },
   { key: "rootDevice", label: "Root device hints (usually leave unchecked)" },
-  { key: "bmc", label: "BMC credentials (usually leave unchecked)" }
+  { key: "bmc", label: "BMC credentials (usually leave unchecked)" },
+  { key: "bootMACAddress", label: "Boot MAC address (usually leave unchecked)" }
 ];
 
 /** Compare mode badge: annotates section/field when "Compare legacy vs scenario-aware" is ON. Non-mutating. */
@@ -180,6 +182,18 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const [isResizing, setIsResizing] = useState(false);
   const [copiedGatherCommand, setCopiedGatherCommand] = useState("");
   const containerRef = useRef(null);
+
+  const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
+  const availableReplicateKeys = useMemo(
+    () => getAvailableReplicateKeys({
+      showIpiDrawer, showAgentHostname, showAgentDns,
+      showAgentRootDeviceHints, showAgentPrimaryNetwork,
+      showBmc, showAgentDay2InstallConfigBmc,
+      showAgentBmcCore, showAgentBootMac,
+      sourceNode: selectedNode, enableIpv6,
+    }),
+    [showIpiDrawer, showAgentHostname, showAgentDns, showAgentRootDeviceHints, showAgentPrimaryNetwork, showBmc, showAgentDay2InstallConfigBmc, showAgentBmcCore, showAgentBootMac, selectedNode, enableIpv6]
+  );
 
   const copyGatherCommand = useCallback((key, text) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -365,7 +379,6 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   };
   const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
 
-  const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
   const isArbiterDrawer = (selectedNode?.role || "").trim() === "arbiter";
   /** Bulk replicate must not target arbiter nodes (role-specific inventory). */
   const replicateEligibleTargetIndices = useMemo(() => {
@@ -436,7 +449,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       return;
     }
     const targetNodes = targetIndices.map((i) => nodes[i]);
-    const nextNodes = applyReplicateSettings(source, targetNodes, replicateSelectedFields);
+    const nextNodes = applyReplicateSettings(source, targetNodes, replicateSelectedFields, availableReplicateKeys);
     const next = nodes.map((node, i) => (targetIndices.includes(i) ? nextNodes[targetIndices.indexOf(i)] : node));
     updateInventory({ nodes: next });
     setShowReplicate(false);
@@ -903,7 +916,7 @@ wipefs -a /dev/sdX`}</pre>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
                 <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>Settings to copy</h4>
-                {REPLICATE_OPTIONS.filter((opt) => (opt.key === "bmc" ? showBmc || showAgentDay2InstallConfigBmc : true)).map((opt) => {
+                {REPLICATE_OPTIONS.filter((opt) => availableReplicateKeys.has(opt.key)).map((opt) => {
                   const inputId = `replicate-field-${opt.key}`;
                   const isDisabled = arbiterTargetsSelected && (opt.key === "rootDevice" || opt.key === "primary.advanced");
                   return (
