@@ -5,9 +5,9 @@
 - **Register ID:** H1-P
 - **Type:** Host Inventory Slice 5H Persistence Register
 - **Date:** 2026-07-17
-- **Last updated:** 2026-07-21
+- **Last updated:** 2026-07-22
 - **Branch:** develop
-- **Latest commit:** 27445a1 DOC-102: Enforce Host Inventory additional interface visibility
+- **Latest commit:** 063fcc5 DOC-102: Enforce Host Inventory replication visibility safety
 - **Scope:** Host Inventory Agent Drawer (NodeDrawerAgentContent.jsx + HostInventoryV2Step.jsx)
 - **Scenarios:** bare-metal-agent, vsphere-agent
 - **Constraint:** Planning and tracking register only. No production code, tests, or catalogs modified.
@@ -63,7 +63,7 @@
 - **Interactive controls:** 59
 - **Accepted completions:** 55
 - **Composite groups:** 13
-- **Structural controls:** 39
+- **Structural controls:** 40
 - **Blockers:** 4
 - **Excluded candidates:** 5
 
@@ -381,7 +381,8 @@
 - **Candidate parent:** `None`
 - **Gate model:** N/A (structural workflow)
 - **Atomicity:** structural — modal is a workflow element
-- **Blockers:** HB-004
+- **Blockers:** (none — HB-004 resolved, commit 063fcc5)
+- **Resolution:** Presentation boundary: REPLICATE_OPTIONS filtered through shared availableReplicateKeys (HostInventoryV2Step.jsx:919). Application boundary: applyReplicateSettings intersects selected fields with availableKeys, fails closed on missing/invalid/empty availability (hostInventoryV2Helpers.js:336). Source-structural filtering: getAvailableReplicateKeys (hostInventoryV2Helpers.js:280) filters by interface type, DHCP/static mode, and IPv6 enablement.
 
 ## BMC Sub-Boundaries
 
@@ -436,33 +437,34 @@ RESOLVED. Metadata reconciliation: cb8c253 (bootMACAddress supportStatus changed
 
 ### HB-004 — Replication of metadata-hidden field values
 
-Latent compatibility/safety concern, not currently proven destructive for the 4.20/4.21 catalog pair. applyReplicateSettings (hostInventoryV2Helpers.js:264-353) copies state values directly without checking catalog-based visibility. Sub-cases: (1) same-version hidden-value preservation, (2) scenario-ineligible replication, (3) version-ineligible replication, (4) downstream validation/generation behavior. Does not block H4 or H5.
+RESOLVED (commit 063fcc5). Two enforcement boundaries implemented. Presentation boundary: modal renders only options contained in the shared current availability set (getAvailableReplicateKeys); unavailable options are absent, not merely disabled. Application boundary: applyReplicateSettings (hostInventoryV2Helpers.js:336) intersects selected fields with the supplied current availability set; missing, invalid, or empty availability fails closed; a stale or oversized selected-key set cannot apply structurally or metadata-hidden fields. Source-structural filtering: primary type and mode always available when Primary Networking visible; Advanced available when Primary Networking visible; Ethernet MAC only for Ethernet-family source types; Bond and Bond-member MACs only for Bond-family source types; VLAN only for VLAN source types; IPv4 CIDR and gateway only for static mode; IPv6 CIDR and gateway only for static mode with IPv6 enabled. BMC and Boot MAC remain separate replication keys and separate catalog-visibility decisions.
 
+- **Status:** resolved
 - **Severity:** closeout-blocker
-- **Affected:** HG-013
-- **Resolution:** Filter REPLICATE_OPTIONS by current visibility state before rendering. Add version-aware replication that skips fields whose catalog metadata indicates they should be hidden for the selected version/scenario.
+- **Affected:** (none)
+- **Resolution:** Accepted implementation (commit 063fcc5): presentation boundary filters REPLICATE_OPTIONS through shared availableReplicateKeys policy (HostInventoryV2Step.jsx:919); application boundary intersects selected fields with availableKeys and fails closed on missing/invalid/empty availability (hostInventoryV2Helpers.js:336); source-structural filtering covers interface type, DHCP/static mode, and IPv6 enablement (getAvailableReplicateKeys, hostInventoryV2Helpers.js:280).
 
 ## Structural Controls
 
 | ID | Label | Type | Source | Class |
 |-----|-------|------|--------|-------|
-| HS-001 | Replicate option: DNS servers | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-002 | Replicate option: DNS search domains | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-003 | Replicate option: Primary interface type | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-004 | Replicate option: IP assignment (DHCP/static) | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-005 | Replicate option: IPv4 CIDR | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-006 | Replicate option: IPv6 CIDR | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-007 | Replicate option: IPv4 gateway | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-008 | Replicate option: IPv6 gateway | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-009 | Replicate option: VLAN settings | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-010 | Replicate option: Bond mode and structure (not MACs) | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-011 | Replicate option: MTU, routes, advanced | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-012 | Replicate option: Primary ethernet MAC | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-013 | Replicate option: Bond member MACs | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-014 | Replicate option: Hostname | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-015 | Replicate option: Use FQDN for hostname | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-016 | Replicate option: Root device hints | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
-| HS-017 | Replicate option: BMC credentials | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:51-69 (REPLICATE_OPTIONS), 894-912 (render) | C |
+| HS-001 | Replicate option: DNS servers | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-002 | Replicate option: DNS search domains | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-003 | Replicate option: Primary interface type | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-004 | Replicate option: IP assignment (DHCP/static) | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-005 | Replicate option: IPv4 CIDR | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-006 | Replicate option: IPv6 CIDR | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-007 | Replicate option: IPv4 gateway | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-008 | Replicate option: IPv6 gateway | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-009 | Replicate option: VLAN settings | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-010 | Replicate option: Bond mode and structure (not MACs) | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-011 | Replicate option: MTU, routes, advanced | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-012 | Replicate option: Primary ethernet MAC | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-013 | Replicate option: Bond member MACs | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-014 | Replicate option: Hostname | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-015 | Replicate option: Use FQDN for hostname | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-016 | Replicate option: Root device hints | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
+| HS-017 | Replicate option: BMC credentials | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:52-71 (REPLICATE_OPTIONS), 919 (render) | C |
 | HS-018 | Replicate select-all checkbox | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:917-932 | C |
 | HS-019 | Replicate target node checkbox (per node) | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:939-958 | C |
 | HS-020 | Replicate Apply button | button | frontend/src/steps/HostInventoryV2Step.jsx:963 | C |
@@ -485,6 +487,7 @@ Latent compatibility/safety concern, not currently proven destructive for the 4.
 | HS-037 | Add Interface button (additional) | button | frontend/src/components/NodeDrawerAgentContent.jsx:1207-1209 | C |
 | HS-038 | Remove Interface button (additional) | button | frontend/src/components/NodeDrawerAgentContent.jsx:956-958 | C |
 | HS-039 | Advanced Networking toggle (additional, per interface) | button | frontend/src/components/NodeDrawerAgentContent.jsx:1106-1116 | C |
+| HS-040 | Replicate option: Boot MAC | checkbox | frontend/src/steps/HostInventoryV2Step.jsx:70 (REPLICATE_OPTIONS), 919 (render) | C |
 
 ## Cross-Step Dependencies
 
@@ -523,14 +526,12 @@ Latent compatibility/safety concern, not currently proven destructive for the 4.
 | H6 | Additional interfaces | completed | 13 (HI-037, HI-038, HI-039, HI-040, HI-047, HI-048, HI-049, HI-050, HI-051, HI-052, HI-053, HI-054, HI-055) |
 | H7 | Bond | completed | 8 (HI-016, HI-017, HI-018, HI-019, HI-041, HI-042, HI-043, HI-044) |
 | H8 | VLAN | completed | 4 (HI-020, HI-021, HI-045, HI-046) |
-| H9 | Closeout | ready-for-closeout | 4 (HI-001, HI-057, HI-058, HI-059) |
+| H9 | Closeout | completed | 4 (HI-001, HI-057, HI-058, HI-059) |
 
 ## Next Actions
 
-1. HB-004 replication safety
-2. H9 final closeout (HI-001, HI-057, HI-058, HI-059)
-3. Slice 5I version-aware validation
-4. Slice 5J version-aware generation
+1. Slice 5I version-aware validation
+2. Slice 5J version-aware generation
 
 ---
 

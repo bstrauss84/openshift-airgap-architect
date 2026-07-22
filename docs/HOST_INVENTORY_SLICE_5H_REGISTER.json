@@ -3,9 +3,9 @@
     "register_id": "H1-P",
     "report_type": "Host Inventory Slice 5H Persistence Register",
     "date": "2026-07-17",
-    "last_updated": "2026-07-21",
+    "last_updated": "2026-07-22",
     "branch": "develop",
-    "latest_commit": "27445a1 DOC-102: Enforce Host Inventory additional interface visibility",
+    "latest_commit": "063fcc5 DOC-102: Enforce Host Inventory replication visibility safety",
     "scope": "Host Inventory Agent Drawer (NodeDrawerAgentContent.jsx + HostInventoryV2Step.jsx)",
     "scenarios": [
       "bare-metal-agent",
@@ -5070,12 +5070,10 @@
       "parent_catalog_evidence": null,
       "gate_model": "N/A (structural workflow)",
       "existing_structural_gate": "showReplicate && sectionOrderSet.has(SECTION_IDS.REPLICATE_MODAL)",
-      "proposed_metadata_gate": "N/A \u2014 structural. Blocker: replication can copy values for metadata-hidden fields.",
+      "proposed_metadata_gate": "Resolved. Presentation boundary: REPLICATE_OPTIONS filtered through shared availableReplicateKeys (HostInventoryV2Step.jsx:919). Application boundary: applyReplicateSettings intersects selected fields with availableKeys, fails closed on missing/invalid/empty availability (hostInventoryV2Helpers.js:336). Source-structural filtering: getAvailableReplicateKeys (hostInventoryV2Helpers.js:280) filters by interface type, DHCP/static mode, and IPv6 enablement. Commit 063fcc5.",
       "can_child_lifecycles_diverge": false,
       "atomicity_decision": "structural \u2014 modal is a workflow element",
-      "blocker_ids": [
-        "HB-004"
-      ]
+      "blocker_ids": []
     }
   ],
   "blockers": [
@@ -5109,13 +5107,11 @@
     {
       "id": "HB-004",
       "title": "Replication of metadata-hidden field values",
-      "description": "Latent compatibility/safety concern, not currently proven destructive for the 4.20/4.21 catalog pair. applyReplicateSettings (hostInventoryV2Helpers.js:264-353) copies state values directly without checking catalog-based visibility. Sub-cases: (1) same-version hidden-value preservation, (2) scenario-ineligible replication, (3) version-ineligible replication, (4) downstream validation/generation behavior. Does not block H4 or H5.",
-      "affected_ids": [
-        "HG-013"
-      ],
+      "description": "RESOLVED (commit 063fcc5). Two enforcement boundaries implemented. Presentation boundary: modal renders only options contained in the shared current availability set (getAvailableReplicateKeys); unavailable options are absent, not merely disabled. Application boundary: applyReplicateSettings (hostInventoryV2Helpers.js:336) intersects selected fields with the supplied current availability set; missing, invalid, or empty availability fails closed; a stale or oversized selected-key set cannot apply structurally or metadata-hidden fields. Source-structural filtering: primary type and mode always available when Primary Networking visible; Advanced available when Primary Networking visible; Ethernet MAC only for Ethernet-family source types; Bond and Bond-member MACs only for Bond-family source types; VLAN only for VLAN source types; IPv4 CIDR and gateway only for static mode; IPv6 CIDR and gateway only for static mode with IPv6 enabled. BMC and Boot MAC remain separate replication keys and separate catalog-visibility decisions.",
+      "affected_ids": [],
       "severity": "closeout-blocker",
-      "resolution": "Filter REPLICATE_OPTIONS by current visibility state before rendering. Add version-aware replication that skips fields whose catalog metadata indicates they should be hidden for the selected version/scenario.",
-      "status": "open"
+      "resolution": "Accepted implementation (commit 063fcc5): presentation boundary filters REPLICATE_OPTIONS through shared availableReplicateKeys policy (HostInventoryV2Step.jsx:919); application boundary intersects selected fields with availableKeys and fails closed on missing/invalid/empty availability (hostInventoryV2Helpers.js:336); source-structural filtering covers interface type, DHCP/static mode, and IPv6 enablement (getAvailableReplicateKeys, hostInventoryV2Helpers.js:280).",
+      "status": "resolved"
     }
   ],
   "structural_controls": [
@@ -5123,7 +5119,7 @@
       "id": "HS-001",
       "label": "Replicate option: DNS servers",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: dnsServers"
@@ -5132,7 +5128,7 @@
       "id": "HS-002",
       "label": "Replicate option: DNS search domains",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: dnsSearch"
@@ -5141,7 +5137,7 @@
       "id": "HS-003",
       "label": "Replicate option: Primary interface type",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.type"
@@ -5150,7 +5146,7 @@
       "id": "HS-004",
       "label": "Replicate option: IP assignment (DHCP/static)",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.mode"
@@ -5159,7 +5155,7 @@
       "id": "HS-005",
       "label": "Replicate option: IPv4 CIDR",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.ipv4Cidr"
@@ -5168,7 +5164,7 @@
       "id": "HS-006",
       "label": "Replicate option: IPv6 CIDR",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.ipv6Cidr"
@@ -5177,7 +5173,7 @@
       "id": "HS-007",
       "label": "Replicate option: IPv4 gateway",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.ipv4Gateway"
@@ -5186,7 +5182,7 @@
       "id": "HS-008",
       "label": "Replicate option: IPv6 gateway",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.ipv6Gateway"
@@ -5195,7 +5191,7 @@
       "id": "HS-009",
       "label": "Replicate option: VLAN settings",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.vlan"
@@ -5204,7 +5200,7 @@
       "id": "HS-010",
       "label": "Replicate option: Bond mode and structure (not MACs)",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.bond"
@@ -5213,7 +5209,7 @@
       "id": "HS-011",
       "label": "Replicate option: MTU, routes, advanced",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.advanced"
@@ -5222,7 +5218,7 @@
       "id": "HS-012",
       "label": "Replicate option: Primary ethernet MAC",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.ethernet.macAddress"
@@ -5231,7 +5227,7 @@
       "id": "HS-013",
       "label": "Replicate option: Bond member MACs",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: primary.bond.slaves.macAddress"
@@ -5240,7 +5236,7 @@
       "id": "HS-014",
       "label": "Replicate option: Hostname",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: hostname"
@@ -5249,7 +5245,7 @@
       "id": "HS-015",
       "label": "Replicate option: Use FQDN for hostname",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: hostnameUseFqdn"
@@ -5258,7 +5254,7 @@
       "id": "HS-016",
       "label": "Replicate option: Root device hints",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: rootDevice"
@@ -5267,7 +5263,7 @@
       "id": "HS-017",
       "label": "Replicate option: BMC credentials",
       "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
-      "source_line": "51-69 (REPLICATE_OPTIONS), 894-912 (render)",
+      "source_line": "52-71 (REPLICATE_OPTIONS), 919 (render)",
       "dom_type": "checkbox",
       "semantic_class": "C",
       "notes": "Replicate key: bmc"
@@ -5469,6 +5465,15 @@
       "dom_type": "button",
       "semantic_class": "C",
       "notes": ""
+    },
+    {
+      "id": "HS-040",
+      "label": "Replicate option: Boot MAC",
+      "source_file": "frontend/src/steps/HostInventoryV2Step.jsx",
+      "source_line": "70 (REPLICATE_OPTIONS), 919 (render)",
+      "dom_type": "checkbox",
+      "semantic_class": "C",
+      "notes": "Replicate key: bootMACAddress. Independent visibility from BMC core. Added commit 063fcc5."
     }
   ],
   "excluded_candidates": [
@@ -5507,7 +5512,7 @@
     "interactive_controls": 59,
     "accepted_completion": 55,
     "composite_groups": 13,
-    "structural_controls": 39,
+    "structural_controls": 40,
     "blockers": 4,
     "excluded_candidates": 5,
     "semantic_class_totals": {
@@ -5647,7 +5652,7 @@
     },
     "H9": {
       "name": "Closeout",
-      "status": "ready-for-closeout",
+      "status": "completed",
       "controls": [
         "HI-001",
         "HI-057",
@@ -5657,8 +5662,6 @@
     }
   },
   "next_actions": [
-    "HB-004 replication safety",
-    "H9 final closeout (HI-001, HI-057, HI-058, HI-059)",
     "Slice 5I version-aware validation",
     "Slice 5J version-aware generation"
   ],
