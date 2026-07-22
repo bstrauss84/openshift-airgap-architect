@@ -1,8 +1,8 @@
 /**
  * Create CollectionPipeline Step (Console Plugin Version)
  *
- * Generates and submits a CollectionPipeline CR to trigger mirroring.
- * Supports both catalog-level and package-level operator selections.
+ * Fetches ImageSetConfiguration YAML from the backend and submits
+ * a CollectionPipeline CR to trigger mirroring.
  */
 import * as React from 'react';
 import { Button } from '@patternfly/react-core/dist/dynamic/components/Button';
@@ -12,6 +12,7 @@ import { Content } from '@patternfly/react-core/dist/dynamic/components/Content'
 import { CodeBlock } from '@patternfly/react-core/dist/dynamic/components/CodeBlock';
 import { CodeBlockCode } from '@patternfly/react-core/dist/dynamic/components/CodeBlock';
 import { useApp } from '../AppProvider';
+import { apiFetch } from '../api';
 import { useHistory } from 'react-router-dom';
 import { generateChildName, getCsrfToken } from '../utils/pipeline-helpers';
 
@@ -27,97 +28,40 @@ export const CreateCollectionPipelineStep: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
   const [createdName, setCreatedName] = React.useState<string>('');
+  const [imageSetYAML, setImageSetYAML] = React.useState<string>('');
+  const [generating, setGenerating] = React.useState(false);
+  const [generateError, setGenerateError] = React.useState<string | null>(null);
 
-  // Generate ImageSetConfiguration YAML
-  const generateImageSetConfig = () => {
-    const config: any = {
-      apiVersion: 'mirror.openshift.io/v1alpha2',
-      kind: 'ImageSetConfiguration',
-      mirror: {
-        platform: {
-          channels: [
-            {
-              name: `stable-${release.channel}`,
-              minVersion: release.patchVersion,
-              maxVersion: release.patchVersion
-            }
-          ]
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchImageSetConfig = async () => {
+      setGenerating(true);
+      setGenerateError(null);
+      try {
+        const stateForGenerate = {
+          ...state,
+          docs: { ...state.docs, connectivity: 'connected' },
+        };
+        const data = await apiFetch('/api/generate', {
+          method: 'POST',
+          body: JSON.stringify({ state: stateForGenerate }),
+        });
+        if (!cancelled) {
+          setImageSetYAML(data.files?.['imageset-config.yaml'] || '');
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setGenerateError(err.message || 'Failed to generate ImageSetConfiguration');
+        }
+      } finally {
+        if (!cancelled) {
+          setGenerating(false);
         }
       }
     };
-
-    // Handle operators based on selection mode
-    if (operators.selectionMode === 'catalogs' && operators.fullCatalogs && operators.fullCatalogs.length > 0) {
-      // Full catalog mirroring
-      config.mirror.operators = operators.fullCatalogs.map((cat: any) => ({
-        catalog: `${cat.catalog}:v${release.channel}`
-      }));
-    } else if (operators.selectionMode === 'packages' && operators.operatorsByCatalog) {
-      // Package-level mirroring
-      config.mirror.operators = Object.entries(operators.operatorsByCatalog)
-        .filter(([_, ops]) => (ops as string[]).length > 0)
-        .map(([catalogKey, ops]) => {
-          let catalogImage = '';
-          if (catalogKey === 'redhat') {
-            catalogImage = `registry.redhat.io/redhat/redhat-operator-index:v${release.channel}`;
-          } else if (catalogKey === 'certified') {
-            catalogImage = `registry.redhat.io/redhat/certified-operator-index:v${release.channel}`;
-          } else if (catalogKey === 'community') {
-            catalogImage = `registry.redhat.io/redhat/community-operator-index:v${release.channel}`;
-          }
-          return {
-            catalog: catalogImage,
-            packages: (ops as string[]).map(op => ({ name: op }))
-          };
-        });
-    }
-
-    // Add additional images if provided
-    if (additionalImages.images && additionalImages.images.length > 0) {
-      config.mirror.additionalImages = additionalImages.images.map((img: string) => ({ name: img }));
-    }
-
-    return config;
-  };
-
-  const imageSetConfig = generateImageSetConfig();
-
-  // Generate YAML string
-  const generateYAML = () => {
-    let yaml = `apiVersion: ${imageSetConfig.apiVersion}
-kind: ${imageSetConfig.kind}
-mirror:
-  platform:
-    channels:
-${imageSetConfig.mirror.platform.channels.map((ch: any) =>
-  `      - name: ${ch.name}
-        minVersion: ${ch.minVersion}
-        maxVersion: ${ch.maxVersion}`).join('\n')}`;
-
-    if (imageSetConfig.mirror.operators && imageSetConfig.mirror.operators.length > 0) {
-      yaml += `
-  operators:
-${imageSetConfig.mirror.operators.map((catalog: any) => {
-  if (catalog.packages) {
-    return `    - catalog: ${catalog.catalog}
-      packages:
-${catalog.packages.map((pkg: any) => `        - name: ${pkg.name}`).join('\n')}`;
-  } else {
-    return `    - catalog: ${catalog.catalog}`;
-  }
-}).join('\n')}`;
-    }
-
-    if (imageSetConfig.mirror.additionalImages && imageSetConfig.mirror.additionalImages.length > 0) {
-      yaml += `
-  additionalImages:
-${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.name}`).join('\n')}`;
-    }
-
-    return yaml;
-  };
-
-  const imageSetYAML = generateYAML();
+    fetchImageSetConfig();
+    return () => { cancelled = true; };
+  }, [state.release, state.operators, state.additionalImages, state.imagesetConfig]);
 
   const handleCreate = async () => {
     setCreating(true);
@@ -253,9 +197,22 @@ ${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.na
 
       <div style={{ marginTop: '1rem' }}>
         <h4>ImageSetConfiguration YAML:</h4>
-        <CodeBlock>
-          <CodeBlockCode>{imageSetYAML}</CodeBlockCode>
-        </CodeBlock>
+        {generating && (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <Spinner size="lg" />
+            <p>Generating ImageSetConfiguration...</p>
+          </div>
+        )}
+        {generateError && (
+          <Alert variant="danger" title="Error Generating Configuration" isInline>
+            <p>{generateError}</p>
+          </Alert>
+        )}
+        {!generating && !generateError && imageSetYAML && (
+          <CodeBlock>
+            <CodeBlockCode>{imageSetYAML}</CodeBlockCode>
+          </CodeBlock>
+        )}
       </div>
 
       {error && (
@@ -268,7 +225,7 @@ ${imageSetConfig.mirror.additionalImages.map((img: any) => `    - name: ${img.na
         <Button
           variant="primary"
           onClick={handleCreate}
-          isDisabled={creating}
+          isDisabled={creating || generating || !imageSetYAML}
           icon={creating ? <Spinner size="md" /> : undefined}
         >
           {creating ? 'Creating...' : parentPipeline ? 'Create Update Bundle' : 'Create Collection Pipeline'}

@@ -204,6 +204,18 @@ export const OperatorsSelectionStep: React.FC = () => {
       operatorsByCatalog[catalog] = Array.from(new Set(operatorsByCatalog[catalog]));
     });
 
+    // Build operators.selected[] for backend compatibility
+    const selected: Array<{ name: string; catalogImage: string }> = [];
+    if (mode === 'packages') {
+      Object.entries(operatorsByCatalog).forEach(([catalogId, ops]) => {
+        const catalogDef = CATALOGS.find(c => c.id === catalogId);
+        const catalogImage = catalogDef ? `${catalogDef.catalog}:v${release.channel}` : '';
+        ops.forEach(opName => {
+          selected.push({ name: opName, catalogImage });
+        });
+      });
+    }
+
     updateState({
       operators: {
         selectionMode: mode,
@@ -211,6 +223,7 @@ export const OperatorsSelectionStep: React.FC = () => {
         selectedScenarios: Array.from(scenarios),
         customOperators: customOps,
         operatorsByCatalog: mode === 'packages' ? operatorsByCatalog : {},
+        selected,
         fullCatalogs: mode === 'catalogs' ? CATALOGS.filter(c => catalogs.has(c.id)) : []
       }
     });

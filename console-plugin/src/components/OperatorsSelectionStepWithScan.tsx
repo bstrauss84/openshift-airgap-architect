@@ -282,10 +282,23 @@ export const OperatorsSelectionStepWithScan: React.FC = () => {
     scenarios?: Set<string>
   ) => {
     const operatorsByCatalog: Record<string, string[]> = {};
+    const selected: Array<{ name: string; defaultChannel?: string; catalogImage: string }> = [];
 
     if (mode === 'packages') {
       Object.entries(ops).forEach(([catalogId, opSet]) => {
         operatorsByCatalog[catalogId] = Array.from(opSet);
+        const catalogDef = CATALOGS.find(c => c.id === catalogId);
+        const catalogImage = catalogDef ? `${catalogDef.catalog}:v${release.channel}` : '';
+        const scannedOps = catalogOperators[catalogId] || [];
+
+        Array.from(opSet).forEach(opName => {
+          const scanned = scannedOps.find(o => o.name === opName);
+          selected.push({
+            name: opName,
+            ...(scanned?.defaultChannel ? { defaultChannel: scanned.defaultChannel } : {}),
+            catalogImage
+          });
+        });
       });
     }
 
@@ -296,6 +309,7 @@ export const OperatorsSelectionStepWithScan: React.FC = () => {
         selectedScenarios: scenarios ? Array.from(scenarios) : Array.from(selectedScenarios),
         selectedOperatorsByCatalog: ops,
         operatorsByCatalog,
+        selected,
         fullCatalogs: mode === 'catalogs' ? CATALOGS.filter(c => catalogs.has(c.id)) : []
       }
     });
