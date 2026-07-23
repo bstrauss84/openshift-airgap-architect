@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SUPPORTED_MINORS, isSupportedMinor } from "./versionPolicy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,60 +21,67 @@ const __dirname = path.dirname(__filename);
 // CATALOG LOADING
 // ===================================================================
 
-let catalogCache = null;
+const catalogCache = new Map();
 
-/**
- * Load all parameter catalogs from /data/params/4.20/
- * Caches results for performance.
- *
- * @returns {Object} Map of scenarioId -> catalog object
- */
-function loadCatalogs() {
-  if (catalogCache) return catalogCache;
+function assertCatalogVersion(version) {
+  if (!version || typeof version !== "string" || version.trim() === "") {
+    const err = new Error(
+      `Catalog version is required. Supported versions: ${SUPPORTED_MINORS.join(", ")}`
+    );
+    err.code = "CATALOG_VERSION_REQUIRED";
+    err.requestedVersion = version ?? null;
+    err.supportedVersions = SUPPORTED_MINORS;
+    throw err;
+  }
+  if (!isSupportedMinor(version)) {
+    const err = new Error(
+      `OpenShift ${version} is not supported by this version of OpenShift Airgap Architect. ` +
+      `Supported versions: ${SUPPORTED_MINORS.join(", ")}`
+    );
+    err.code = "UNSUPPORTED_VERSION";
+    err.requestedVersion = version;
+    err.supportedVersions = SUPPORTED_MINORS;
+    throw err;
+  }
+}
 
-  const catalogDir = path.resolve(__dirname, "../../data/params/4.20");
+function loadCatalogs(version) {
+  assertCatalogVersion(version);
 
-  // Check if directory exists before trying to read
+  if (catalogCache.has(version)) return catalogCache.get(version);
+
+  const catalogDir = path.resolve(__dirname, `../../data/params/${version}`);
+
   if (!fs.existsSync(catalogDir)) {
     console.error(`[catalogValidator] Catalog directory not found: ${catalogDir}`);
     console.error(`[catalogValidator] __dirname: ${__dirname}`);
     console.error(`[catalogValidator] Searched path: ${catalogDir}`);
-    // Return empty cache - validation will be skipped
-    catalogCache = {};
-    return catalogCache;
+    const empty = {};
+    catalogCache.set(version, empty);
+    return empty;
   }
 
   const catalogFiles = fs.readdirSync(catalogDir).filter((f) => f.endsWith(".json") && !f.includes(".bak"));
 
-  catalogCache = {};
+  const catalogs = {};
 
   for (const file of catalogFiles) {
     const scenarioId = file.replace(".json", "");
     const content = JSON.parse(fs.readFileSync(path.join(catalogDir, file), "utf8"));
-    catalogCache[scenarioId] = content;
+    catalogs[scenarioId] = content;
   }
 
-  return catalogCache;
+  catalogCache.set(version, catalogs);
+  return catalogs;
 }
 
-/**
- * Get parameter catalog for a specific scenario.
- *
- * @param {string} scenarioId - Scenario identifier (e.g., "bare-metal-ipi")
- * @returns {Object|null} Catalog object or null if not found
- */
-export function getCatalog(scenarioId) {
-  const catalogs = loadCatalogs();
+export function getCatalog(scenarioId, version) {
+  const catalogs = loadCatalogs(version);
   return catalogs[scenarioId] || null;
 }
 
-/**
- * Get all parameter catalogs.
- *
- * @returns {Object} Map of scenarioId -> catalog object
- */
-export function getAllCatalogs() {
-  return loadCatalogs();
+export function getAllCatalogs(version) {
+  return loadCatalogs(version);
 }
 
 // ===================================================================
@@ -150,8 +158,8 @@ function isValuePresent(value) {
  * @param {string} scenarioId - Scenario identifier (e.g., "bare-metal-ipi")
  * @returns {Object} { valid: boolean, errors: Array<{path, message}> }
  */
-export function validateRequiredFields(state, scenarioId) {
-  const catalog = getCatalog(scenarioId);
+export function validateRequiredFields(state, scenarioId, version) {
+  const catalog = getCatalog(scenarioId, version);
   if (!catalog) {
     return { valid: false, errors: [{ path: "catalog", message: `Catalog not found for scenario: ${scenarioId}` }] };
   }
@@ -202,8 +210,8 @@ export function validateRequiredFields(state, scenarioId) {
  * @param {string} scenarioId - Scenario identifier
  * @returns {Object} { valid: boolean, errors: Array<{path, message, allowed}> }
  */
-export function validateEnumValues(state, scenarioId) {
-  const catalog = getCatalog(scenarioId);
+export function validateEnumValues(state, scenarioId, version) {
+  const catalog = getCatalog(scenarioId, version);
   if (!catalog) {
     return { valid: false, errors: [{ path: "catalog", message: `Catalog not found for scenario: ${scenarioId}` }] };
   }
@@ -255,8 +263,8 @@ export function validateEnumValues(state, scenarioId) {
  * @param {string} scenarioId - Scenario identifier
  * @returns {Object} { valid: boolean, errors: Array<{path, message, appliesTo}> }
  */
-export function validateApplicability(state, scenarioId) {
-  const catalog = getCatalog(scenarioId);
+export function validateApplicability(state, scenarioId, version) {
+  const catalog = getCatalog(scenarioId, version);
   if (!catalog) {
     return { valid: false, errors: [{ path: "catalog", message: `Catalog not found for scenario: ${scenarioId}` }] };
   }
@@ -290,10 +298,10 @@ export function validateApplicability(state, scenarioId) {
  * @param {string} scenarioId - Scenario identifier
  * @returns {Object} { valid: boolean, errors: Object<string, Array> }
  */
-export function validateState(state, scenarioId) {
-  const requiredValidation = validateRequiredFields(state, scenarioId);
-  const enumValidation = validateEnumValues(state, scenarioId);
-  const applicabilityValidation = validateApplicability(state, scenarioId);
+export function validateState(state, scenarioId, version) {
+  const requiredValidation = validateRequiredFields(state, scenarioId, version);
+  const enumValidation = validateEnumValues(state, scenarioId, version);
+  const applicabilityValidation = validateApplicability(state, scenarioId, version);
 
   const allErrors = {
     required: requiredValidation.errors,
@@ -384,5 +392,5 @@ export function detectScenarioId(state) {
  * Clear catalog cache (useful for testing).
  */
 export function clearCatalogCache() {
-  catalogCache = null;
+  catalogCache.clear();
 }

@@ -3124,8 +3124,9 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
 
     // Validate generated YAML against parameter catalogs (advisory, non-blocking)
     const scenarioId = detectScenarioId(parsed.state);
+    const catalogMinor = getOpenShiftMinorFromState(parsed.state);
     if (scenarioId) {
-      const validation = validateAllFiles(files, scenarioId);
+      const validation = validateAllFiles(files, scenarioId, catalogMinor);
       if (!validation.valid) {
         logger.warn({
           requestId: req.requestId,
