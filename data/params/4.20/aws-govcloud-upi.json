@@ -1415,14 +1415,14 @@
       "type": "array",
       "allowed": [
         "ClusterNode",
-        "ControlPlaneExternalLB",
+        "BootstrapNode",
         "IngressControllerLB",
-        "WorkerExternalLB",
-        "BootstrapNode"
+        "ControlPlaneExternalLB",
+        "ControlPlaneInternalLB"
       ],
       "default": "decided automatically if not specified",
       "required": false,
-      "description": "Subnet roles for placement of cluster components. Valid roles: ClusterNode (nodes placed here), ControlPlaneExternalLB (external control plane LB), IngressControllerLB (ingress LB), WorkerExternalLB (worker LB), BootstrapNode (bootstrap). If unset on all subnets, installer assigns automatically. Each role must be unique across subnets. Max 5 roles per subnet.",
+      "description": "Subnet roles for placement of cluster components. Valid roles: ClusterNode (nodes placed here), BootstrapNode (bootstrap), IngressControllerLB (ingress LB), ControlPlaneExternalLB (external control plane LB), ControlPlaneInternalLB (internal control plane LB). If unset on all subnets, installer assigns automatically. Each role must be unique across subnets. Max 5 roles per subnet.",
       "applies_to": [
         "aws-govcloud-upi"
       ],

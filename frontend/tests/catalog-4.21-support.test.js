@@ -1093,6 +1093,152 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
 
   });
 
+  describe('DOC-102 Slice 5I T7 Workstream A: 4.21 catalog self-identification', () => {
+    const testDir = dirname(fileURLToPath(import.meta.url));
+    const allScenarios421 = [
+      'aws-govcloud-ipi', 'aws-govcloud-upi',
+      'azure-government-ipi', 'azure-government-upi',
+      'bare-metal-agent', 'bare-metal-ipi', 'bare-metal-upi',
+      'ibm-cloud-ipi', 'nutanix-ipi',
+      'vsphere-agent', 'vsphere-ipi', 'vsphere-upi'
+    ];
+
+    allScenarios421.forEach(scenario => {
+      it(`canonical 4.21/${scenario}.json has top-level version "4.21"`, () => {
+        const filePath = resolve(testDir, '..', '..', 'data', 'params', '4.21', `${scenario}.json`);
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        expect(data.version).toBe('4.21');
+      });
+
+      it(`frontend mirror 4.21/${scenario}.json has top-level version "4.21"`, () => {
+        const filePath = resolve(testDir, '..', 'src', 'data', 'catalogs', '4.21', `${scenario}.json`);
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        expect(data.version).toBe('4.21');
+      });
+
+      it(`canonical and mirror 4.21/${scenario}.json are byte-identical`, () => {
+        const canonicalPath = resolve(testDir, '..', '..', 'data', 'params', '4.21', `${scenario}.json`);
+        const mirrorPath = resolve(testDir, '..', 'src', 'data', 'catalogs', '4.21', `${scenario}.json`);
+        expect(fs.readFileSync(canonicalPath, 'utf8')).toBe(fs.readFileSync(mirrorPath, 'utf8'));
+      });
+    });
+
+    it('all 4.20 catalogs retain top-level version "4.20"', () => {
+      const scenarios420 = [
+        'aws-govcloud-ipi', 'aws-govcloud-upi',
+        'azure-government-ipi', 'azure-government-upi',
+        'bare-metal-agent', 'bare-metal-ipi', 'bare-metal-upi',
+        'ibm-cloud-ipi', 'nutanix-ipi', 'oc-mirror-v2',
+        'vsphere-agent', 'vsphere-ipi', 'vsphere-upi'
+      ];
+      scenarios420.forEach(scenario => {
+        const filePath = resolve(testDir, '..', '..', 'data', 'params', '4.20', `${scenario}.json`);
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        expect(data.version).toBe('4.20');
+      });
+    });
+  });
+
+  describe('DOC-102 Slice 5I T7 Workstream B: AWS GovCloud subnet-role metadata', () => {
+    const testDir = dirname(fileURLToPath(import.meta.url));
+    const expectedAllowed = [
+      'ClusterNode',
+      'BootstrapNode',
+      'IngressControllerLB',
+      'ControlPlaneExternalLB',
+      'ControlPlaneInternalLB'
+    ];
+    const awsCombinations = [
+      { version: '4.20', scenario: 'aws-govcloud-ipi' },
+      { version: '4.20', scenario: 'aws-govcloud-upi' },
+      { version: '4.21', scenario: 'aws-govcloud-ipi' },
+      { version: '4.21', scenario: 'aws-govcloud-upi' },
+    ];
+
+    function loadCanonicalRoles(version, scenario) {
+      const filePath = resolve(testDir, '..', '..', 'data', 'params', version, `${scenario}.json`);
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      return data.parameters.filter(p => p.path === 'platform.aws.vpc.subnets[].roles');
+    }
+
+    function loadMirrorRoles(version, scenario) {
+      const filePath = resolve(testDir, '..', 'src', 'data', 'catalogs', version, `${scenario}.json`);
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      return data.parameters.filter(p => p.path === 'platform.aws.vpc.subnets[].roles');
+    }
+
+    awsCombinations.forEach(({ version, scenario }) => {
+      describe(`${version} ${scenario}`, () => {
+        it('canonical has exactly one platform.aws.vpc.subnets[].roles entry', () => {
+          expect(loadCanonicalRoles(version, scenario)).toHaveLength(1);
+        });
+
+        it('mirror has exactly one platform.aws.vpc.subnets[].roles entry', () => {
+          expect(loadMirrorRoles(version, scenario)).toHaveLength(1);
+        });
+
+        it('canonical has the exact ordered allowed array', () => {
+          const roles = loadCanonicalRoles(version, scenario)[0];
+          expect(roles.allowed).toEqual(expectedAllowed);
+        });
+
+        it('mirror has the exact ordered allowed array', () => {
+          const roles = loadMirrorRoles(version, scenario)[0];
+          expect(roles.allowed).toEqual(expectedAllowed);
+        });
+
+        it('allowed does not contain WorkerExternalLB', () => {
+          const roles = loadCanonicalRoles(version, scenario)[0];
+          expect(roles.allowed).not.toContain('WorkerExternalLB');
+        });
+
+        it('allowed does not contain EdgeNode', () => {
+          const roles = loadCanonicalRoles(version, scenario)[0];
+          expect(roles.allowed).not.toContain('EdgeNode');
+        });
+
+        it('allowed contains ControlPlaneInternalLB', () => {
+          const roles = loadCanonicalRoles(version, scenario)[0];
+          expect(roles.allowed).toContain('ControlPlaneInternalLB');
+        });
+
+        it('description contains ControlPlaneInternalLB', () => {
+          const roles = loadCanonicalRoles(version, scenario)[0];
+          expect(roles.description).toContain('ControlPlaneInternalLB');
+        });
+
+        it('description does not contain WorkerExternalLB', () => {
+          const roles = loadCanonicalRoles(version, scenario)[0];
+          expect(roles.description).not.toContain('WorkerExternalLB');
+        });
+
+        it('canonical and mirror are identical', () => {
+          const canonical = loadCanonicalRoles(version, scenario)[0];
+          const mirror = loadMirrorRoles(version, scenario)[0];
+          expect(canonical).toEqual(mirror);
+        });
+      });
+    });
+
+    it('catalog allowed array matches validation.js AWS_SUBNET_ROLES_ALLOWED constant', async () => {
+      const { AWS_SUBNET_ROLES_ALLOWED } = await import('../src/validation.js');
+      awsCombinations.forEach(({ version, scenario }) => {
+        const roles = loadCanonicalRoles(version, scenario)[0];
+        expect(roles.allowed).toEqual(AWS_SUBNET_ROLES_ALLOWED);
+      });
+    });
+
+    it('catalog allowed array matches PlatformSpecificsStep.jsx AWS_SUBNET_ROLES_ALLOWED constant', () => {
+      const stepSrc = fs.readFileSync(
+        resolve(testDir, '..', 'src', 'steps', 'PlatformSpecificsStep.jsx'), 'utf8'
+      );
+      const match = stepSrc.match(/const AWS_SUBNET_ROLES_ALLOWED\s*=\s*\[([^\]]+)\]/);
+      expect(match).not.toBeNull();
+      const stepAllowed = match[1].split(',').map(s => s.trim().replace(/['"]/g, ''));
+      expect(stepAllowed).toEqual(expectedAllowed);
+    });
+  });
+
   describe('No deferred platforms/scenarios added', () => {
     it('PowerVC catalogs do not exist', () => {
       expect(() => getCatalogForScenario('powervc-ipi', '4.21'))
