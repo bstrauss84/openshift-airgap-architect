@@ -555,4 +555,105 @@ describe("Validation Integration - End-to-End Validation Flow", () => {
       expect(ipv6CidrOverlaps("fd00::/48", "fd01::/48")).toBe(false);
     });
   });
+
+  describe("Nutanix IPI version-neutral validation messages", () => {
+    const makeNutanixState = (overrides = {}) => ({
+      blueprint: { platform: "Nutanix" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        credentialsMode: "Manual",
+        controlPlaneReplicas: 3,
+        nutanix: {
+          endpoint: "prism-central.example.com",
+          username: "admin",
+          password: "secret",
+          subnet: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          apiVIP: "10.0.0.100",
+          ingressVIP: "10.0.0.101",
+        },
+        ...overrides,
+      },
+      exportOptions: { includeCredentials: true },
+    });
+
+    it("credentialsMode Passthrough produces the exact neutral error", () => {
+      const state = makeNutanixState({ credentialsMode: "Passthrough" });
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation."
+      );
+    });
+
+    it("credentialsMode Manual does not produce a credentialsMode error", () => {
+      const state = makeNutanixState({ credentialsMode: "Manual" });
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("credentialsMode Manual"))).toBe(false);
+    });
+
+    it("controlPlaneReplicas 5 produces the exact neutral error", () => {
+      const state = makeNutanixState({ controlPlaneReplicas: 5 });
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters."
+      );
+    });
+
+    it("controlPlaneReplicas 1 does not produce a control-plane replica error", () => {
+      const state = makeNutanixState({ controlPlaneReplicas: 1 });
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("control plane replicas"))).toBe(false);
+    });
+
+    it("controlPlaneReplicas 3 does not produce a control-plane replica error", () => {
+      const state = makeNutanixState({ controlPlaneReplicas: 3 });
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("control plane replicas"))).toBe(false);
+    });
+
+    it("invalid Nutanix config with explicit 4.20 produces neutral messages without version reference", () => {
+      const state = {
+        ...makeNutanixState({ credentialsMode: "Passthrough", controlPlaneReplicas: 5 }),
+        version: { selectedMinor: "4.20", selectedPatch: "4.20.15" },
+      };
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation."
+      );
+      expect(result.errors).toContain(
+        "Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters."
+      );
+      expect(result.errors.some(e => e.includes("OpenShift 4.20"))).toBe(false);
+    });
+
+    it("invalid Nutanix config with explicit 4.21 produces the same neutral messages without version reference", () => {
+      const state = {
+        ...makeNutanixState({ credentialsMode: "Passthrough", controlPlaneReplicas: 5 }),
+        version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      };
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation."
+      );
+      expect(result.errors).toContain(
+        "Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters."
+      );
+      expect(result.errors.some(e => e.includes("OpenShift 4.21"))).toBe(false);
+    });
+
+    it("direct validation with explicit unsupported 4.22 cannot cause version-specific Nutanix messages", () => {
+      const state = {
+        ...makeNutanixState({ credentialsMode: "Passthrough", controlPlaneReplicas: 5 }),
+        version: { selectedMinor: "4.22", selectedPatch: "4.22.0" },
+      };
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("OpenShift 4.22"))).toBe(false);
+    });
+
+    it("validation result remains a flat array of strings", () => {
+      const state = makeNutanixState({ credentialsMode: "Passthrough" });
+      const result = validateStep(state, "networking");
+      expect(Array.isArray(result.errors)).toBe(true);
+      result.errors.forEach(e => expect(typeof e).toBe("string"));
+    });
+  });
 });

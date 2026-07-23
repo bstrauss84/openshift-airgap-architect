@@ -874,14 +874,14 @@ const validatePlatformConfig = (state) => {
     }
     const cmNx = (cfg.credentialsMode || "").trim();
     if (cmNx && cmNx !== "Manual") {
-      errors.push("Nutanix IPI requires credentialsMode Manual (OpenShift 4.20 Installing on Nutanix §1.4).");
+      errors.push("Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation.");
     }
     const cpRep = cfg.controlPlaneReplicas;
     const compRep = cfg.computeReplicas;
     if (cpRep != null && String(cpRep).trim() !== "") {
       const n = Number(cpRep);
       if (n !== 1 && n !== 3) {
-        errors.push("Nutanix IPI supports control plane replicas 3 (standard or compact three-node) or 1 (single-node OpenShift) per OpenShift 4.20 Nutanix install-config parameters.");
+        errors.push("Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters.");
       }
       if (n === 1 && compRep != null && String(compRep).trim() !== "" && Number(compRep) !== 0) {
         errors.push("Single-node OpenShift on Nutanix IPI requires compute (worker) replicas 0.");
