@@ -12,6 +12,7 @@
 
 import { getFieldMeta } from "./catalogFieldMeta.js";
 import { getAgentBasedTopologyErrors } from "./hostInventoryV2Helpers.js";
+import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
 
 /** Catalog path for role: agent-config hosts[].role. */
 const ROLE_PATH_AGENT = "hosts[].role";
@@ -33,6 +34,8 @@ export function getCatalogValidationForInventoryV2(state, scenarioId) {
   const perNode = nodes.map(() => ({ errors: [], warnings: [], fieldErrors: {} }));
 
   if (!scenarioId) return { errors, warnings, perNode };
+
+  const selectedMinor = getOpenShiftMinorFromState(state) ?? undefined;
 
   // Bare metal IPI: install-config platform.baremetal.hosts requires at least one host
   if (scenarioId === "bare-metal-ipi") {
@@ -66,7 +69,7 @@ export function getCatalogValidationForInventoryV2(state, scenarioId) {
   // API/Ingress VIPs are validated on the Networking step; not on Hosts page.
 
   // Enum validation: role must be in catalog allowed list when catalog provides it
-  const roleMeta = getFieldMeta(scenarioId, ROLE_OUTPUT_AGENT, ROLE_PATH_AGENT);
+  const roleMeta = getFieldMeta(scenarioId, ROLE_OUTPUT_AGENT, ROLE_PATH_AGENT, selectedMinor);
   const allowedRoles = Array.isArray(roleMeta?.allowed) ? roleMeta.allowed : null;
 
   nodes.forEach((node, idx) => {
