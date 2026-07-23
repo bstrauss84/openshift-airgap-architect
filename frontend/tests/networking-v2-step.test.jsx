@@ -358,9 +358,9 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
     });
     expect(getScenarioId(state)).toBe("ibm-cloud-ipi");
     const result = validateStep(state, "networking-v2");
-    expect(result.errors).toContain("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
-    expect(result.errors).toContain("IBM Cloud install-config clusterNetwork in OpenShift 4.20 is documented as IPv4 only.");
-    expect(result.errors).toContain("IBM Cloud install-config serviceNetwork in OpenShift 4.20 is documented as IPv4 only.");
+    expect(result.errors).toContain("IBM Cloud install-config networking supports IPv4 addresses only.");
+    expect(result.errors).toContain("IBM Cloud install-config clusterNetwork supports IPv4 addresses only.");
+    expect(result.errors).toContain("IBM Cloud install-config serviceNetwork supports IPv4 addresses only.");
     const { container } = render(
       <AppContext.Provider value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}>
         <NetworkingV2Step />

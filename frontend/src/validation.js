@@ -24,7 +24,7 @@ import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
 
-/** 4.20 doc: valid platform.aws.vpc.subnets[].roles[].type. EdgeNode is Local Zone only — not exposed in app. */
+/** Valid platform.aws.vpc.subnets[].roles[].type values. EdgeNode is Local Zone only and is not exposed in the app. */
 export const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
 /** When roles are specified, these must be assigned to at least one subnet. ControlPlaneExternalLB not required if publish is Internal. */
 export const AWS_SUBNET_ROLES_REQUIRED_EXTERNAL = ["ClusterNode", "IngressControllerLB", "ControlPlaneExternalLB", "BootstrapNode", "ControlPlaneInternalLB"];
@@ -1266,13 +1266,13 @@ const validateNetworkingFormat = (state) => {
     }
   }
   if (scenarioIdNw === "ibm-cloud-ipi" && (networking.machineNetworkV6 || "").trim()) {
-    errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
+    errors.push("IBM Cloud install-config networking supports IPv4 addresses only.");
   }
   if (scenarioIdNw === "ibm-cloud-ipi" && clusterV6) {
-    errors.push("IBM Cloud install-config clusterNetwork in OpenShift 4.20 is documented as IPv4 only.");
+    errors.push("IBM Cloud install-config clusterNetwork supports IPv4 addresses only.");
   }
   if (scenarioIdNw === "ibm-cloud-ipi" && serviceV6) {
-    errors.push("IBM Cloud install-config serviceNetwork in OpenShift 4.20 is documented as IPv4 only.");
+    errors.push("IBM Cloud install-config serviceNetwork supports IPv4 addresses only.");
   }
   if (scenarioIdNw === "nutanix-ipi") {
     const nx = state.platformConfig?.nutanix || {};
@@ -2056,7 +2056,7 @@ const validateStep = (state, stepId) => {
             const requiredSet = (state.platformConfig?.publish || "").toLowerCase() === "internal"
               ? AWS_SUBNET_ROLES_REQUIRED_INTERNAL
               : AWS_SUBNET_ROLES_REQUIRED_EXTERNAL;
-            /* 4.20: when roles specified, each subnet must have ≥1 role; required set must be covered */
+            /* When roles are specified, each subnet must have at least one role and the required set must be covered. */
             for (let i = 0; i < entries.length; i++) {
               if (!(entries[i].id || "").trim()) continue;
               const roles = entries[i].roles || [];
@@ -2068,7 +2068,7 @@ const validateStep = (state, stepId) => {
             const assigned = new Set(entries.flatMap((e) => e.roles || []));
             for (const r of requiredSet) {
               if (!assigned.has(r)) {
-                awsErrors.push(`Subnet roles must include "${r}" on at least one subnet (4.20 doc).`);
+                awsErrors.push(`Subnet roles must include "${r}" on at least one subnet per the OpenShift AWS installation documentation.`);
                 break;
               }
             }
