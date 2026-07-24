@@ -1497,19 +1497,17 @@ const buildImageSetConfig = (state) => {
   const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
   const kubeVirtContainer = Boolean(cfg.kubeVirtContainer);
 
+  const platformChannels = Array.isArray(state.platformChannels) && state.platformChannels.length > 0
+    ? state.platformChannels
+    : [{ name: `stable-${catalogMinor}`, minVersion: version, maxVersion: version }];
+
   const images = {
     apiVersion: "mirror.openshift.io/v2alpha1",
     kind: "ImageSetConfiguration",
     ...(archiveSize ? { archiveSize } : {}),
     mirror: {
       platform: {
-        channels: [
-          {
-            name: `stable-${catalogMinor}`,
-            minVersion: version,
-            maxVersion: version
-          }
-        ],
+        channels: platformChannels,
         ...(includeGraph ? { graph: true } : {})
       },
       operators: [],

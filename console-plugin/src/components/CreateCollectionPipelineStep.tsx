@@ -41,6 +41,9 @@ export const CreateCollectionPipelineStep: React.FC = () => {
         const stateForGenerate = {
           ...state,
           docs: { ...state.docs, connectivity: 'connected' },
+          ...(state.updateChannels?.length > 0
+            ? { platformChannels: state.updateChannels }
+            : {}),
         };
         const data = await apiFetch('/api/generate', {
           method: 'POST',
@@ -61,7 +64,7 @@ export const CreateCollectionPipelineStep: React.FC = () => {
     };
     fetchImageSetConfig();
     return () => { cancelled = true; };
-  }, [state.release, state.operators, state.additionalImages, state.imagesetConfig]);
+  }, [state.release, state.operators, state.additionalImages, state.imagesetConfig, state.updateChannels, state.updateOperators]);
 
   const handleCreate = async () => {
     setCreating(true);
@@ -144,6 +147,11 @@ export const CreateCollectionPipelineStep: React.FC = () => {
   }
 
   // Calculate summary statistics
+  const updateChannels = state.updateChannels || [];
+  const updateOps = state.updateOperators || [];
+  const updateChannelCount = updateChannels.length;
+  const updateOperatorCount = updateOps.reduce((sum: number, cat: any) => sum + (cat.packages?.length || 0), 0);
+
   const operatorCount = operators.selectionMode === 'catalogs'
     ? 0
     : Object.values(operators.operatorsByCatalog || {}).reduce((sum: number, ops: any) => sum + ops.length, 0);
@@ -175,18 +183,32 @@ export const CreateCollectionPipelineStep: React.FC = () => {
             </p>
           </>
         )}
-        <p>
-          <strong>OpenShift Version:</strong> {release.patchVersion} (channel: stable-{release.channel})
-        </p>
-        {operators.selectionMode === 'catalogs' && catalogCount > 0 && (
+        {parentPipeline && updateChannelCount > 0 ? (
           <p>
-            <strong>Catalogs:</strong> {catalogCount} full catalog(s) selected
+            <strong>Platform Channels:</strong> {updateChannelCount} channel entr{updateChannelCount === 1 ? 'y' : 'ies'}
+          </p>
+        ) : (
+          <p>
+            <strong>OpenShift Version:</strong> {release.patchVersion} (channel: stable-{release.channel})
           </p>
         )}
-        {operators.selectionMode === 'packages' && operatorCount > 0 && (
+        {parentPipeline && updateOperatorCount > 0 ? (
           <p>
-            <strong>Operators:</strong> {operatorCount} package(s) selected
+            <strong>Operators:</strong> {updateOperatorCount} package(s) across {updateOps.length} catalog(s)
           </p>
+        ) : (
+          <>
+            {operators.selectionMode === 'catalogs' && catalogCount > 0 && (
+              <p>
+                <strong>Catalogs:</strong> {catalogCount} full catalog(s) selected
+              </p>
+            )}
+            {operators.selectionMode === 'packages' && operatorCount > 0 && (
+              <p>
+                <strong>Operators:</strong> {operatorCount} package(s) selected
+              </p>
+            )}
+          </>
         )}
         {additionalImageCount > 0 && (
           <p>
