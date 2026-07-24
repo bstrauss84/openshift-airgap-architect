@@ -25,7 +25,7 @@ import {
   buildDocumentationSources
 } from "../scenarioSummaryHelpers.js";
 
-import docsIndex420 from "../data/docs-index/4.20.json";
+import { getDocsIndexForState } from "../docsIndexResolver.js";
 
 /**
  * Scenario header panel for the segmented flow: scenario name, OCP version,
@@ -43,7 +43,7 @@ export default function ScenarioHeaderPanel({ state }) {
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
 
-  const docsIndex = docsIndex420;
+  const docsIndex = getDocsIndexForState(state);
   const platform = state?.blueprint?.platform || "";
   const method = state?.methodology?.method || "";
   const scenarioName = [platform, method].filter(Boolean).join(", ") || "—";

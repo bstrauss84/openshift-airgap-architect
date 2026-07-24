@@ -476,38 +476,36 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
   // because they cannot be served by the frontend without additional backend routes or
   // external hosting. Users can access them directly in the repository.
 
-  // Conditional docs based on confirmed configuration
+  // Conditional docs based on confirmed configuration.
+  // Uses docsIndex.baseUrl for version-specific documentation root.
+  const baseUrl = docsIndex?.baseUrl;
 
-  if (confirmedTabs.includes('identity-access')) {
-    // FIPS mode (from globalStrategy, NOT credentials)
+  if (baseUrl && confirmedTabs.includes('identity-access')) {
     if (state.globalStrategy?.fips) {
       docs.push({
         title: 'Enabling FIPS mode',
-        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-fips'
+        url: `${baseUrl}html/installing/installing-fips`
       });
     }
   }
 
-  if (confirmedTabs.includes('networking') || confirmedTabs.includes('networking-v2')) {
-    // Dual-stack networking
+  if (baseUrl && (confirmedTabs.includes('networking') || confirmedTabs.includes('networking-v2'))) {
     if (isDualStack(state)) {
       docs.push({
         title: 'Configuring dual-stack networking',
-        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#configuring-dual-stack-networking_ipi-install-installation-workflow'
+        url: `${baseUrl}html/installing/installing-on-bare-metal#configuring-dual-stack-networking_ipi-install-installation-workflow`
       });
     }
   }
 
-  if (confirmedTabs.includes('connectivity-mirroring')) {
-    // Mirror registry (check credentials.usingMirrorRegistry, not mirroring.useMirrorRegistry)
+  if (baseUrl && confirmedTabs.includes('connectivity-mirroring')) {
     if (state.credentials?.usingMirrorRegistry) {
       docs.push({
         title: 'Mirroring images for a disconnected installation',
-        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/disconnected-installation-mirroring'
+        url: `${baseUrl}html/installing/disconnected-installation-mirroring`
       });
     }
 
-    // NTP servers (from globalStrategy.ntpServers, NOT connectivity.ntpServers)
     const ntpServers = state.globalStrategy?.ntpServers;
     let hasNtp = false;
     if (ntpServers) {
@@ -520,35 +518,32 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     if (hasNtp) {
       docs.push({
         title: 'Configuring NTP servers for disconnected clusters',
-        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/customizing-installation-configuration#installing-customizing'
+        url: `${baseUrl}html/installing/customizing-installation-configuration#installing-customizing`
       });
     }
   }
 
-  if (confirmedTabs.includes('trust-proxy')) {
-    // Proxy (from globalStrategy, NOT strategy)
+  if (baseUrl && confirmedTabs.includes('trust-proxy')) {
     if (state.globalStrategy?.proxyEnabled) {
       docs.push({
         title: 'Configuring corporate proxy for disconnected clusters',
-        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/customizing-installation-configuration#configuring-firewall'
+        url: `${baseUrl}html/installing/customizing-installation-configuration#configuring-firewall`
       });
     }
 
-    // Additional trust bundle (from trust.mirrorRegistryCaPem or trust.proxyCaPem)
     if (state.trust?.mirrorRegistryCaPem || state.trust?.proxyCaPem || state.trust?.additionalTrustBundle) {
       docs.push({
         title: 'Configuring additional trust bundles',
-        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/networking/configuring-a-custom-pki'
+        url: `${baseUrl}html/networking/configuring-a-custom-pki`
       });
     }
   }
 
-  if (confirmedTabs.includes('operators')) {
-    // Operators in disconnected environment
+  if (baseUrl && confirmedTabs.includes('operators')) {
     if (state.operators?.selected?.length > 0) {
       docs.push({
         title: 'Installing Operators in disconnected environments',
-        url: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operators/administrator-tasks#olm-restricted-networks'
+        url: `${baseUrl}html/operators/administrator-tasks#olm-restricted-networks`
       });
     }
   }
