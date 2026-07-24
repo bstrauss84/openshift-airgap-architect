@@ -62,7 +62,16 @@ import {
   updateJobMetadata,
   appendJobOutput
 } from "./utils.js";
-import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
+import {
+  buildAgentConfig,
+  buildFieldManual,
+  buildImageSetConfig,
+  buildInstallConfig,
+  buildNtpMachineConfigs,
+  buildMirrorOperatorCatalogSource,
+  buildMirrorOperatorSubscription,
+  buildDisconnectedPlatform,
+} from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
@@ -3115,6 +3124,33 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     const agentConfigPath = path.join(workDir, "agent-config.yaml");
     fs.writeFileSync(agentConfigPath, agentConfig, "utf8");
     appendJobOutput(jobId, `✓ Wrote agent-config.yaml (${Buffer.byteLength(agentConfig)} bytes)\n\n`);
+
+    // Inject mirror operator manifests into openshift/ directory (mirror bundle workflow only)
+    if (state.ui?.mirrorConfigPreloaded === true) {
+      appendJobOutput(jobId, "Injecting mirror operator bootstrap manifests...\n");
+
+      const openshiftDir = path.join(workDir, "openshift");
+      fs.mkdirSync(openshiftDir, { recursive: true });
+
+      const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn || "registry.local:5000";
+
+      const catalogSourceYaml = buildMirrorOperatorCatalogSource(registryFqdn);
+      const catalogSourcePath = path.join(openshiftDir, "mirror-operator-catalogsource.yaml");
+      fs.writeFileSync(catalogSourcePath, catalogSourceYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/mirror-operator-catalogsource.yaml (${Buffer.byteLength(catalogSourceYaml)} bytes)\n`);
+
+      const subscriptionYaml = buildMirrorOperatorSubscription();
+      const subscriptionPath = path.join(openshiftDir, "mirror-operator-subscription.yaml");
+      fs.writeFileSync(subscriptionPath, subscriptionYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
+
+      const disconnectedPlatformYaml = buildDisconnectedPlatform();
+      const disconnectedPlatformPath = path.join(openshiftDir, "mirror-operator-disconnected-platform.yaml");
+      fs.writeFileSync(disconnectedPlatformPath, disconnectedPlatformYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
+
+      logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator CatalogSource, Subscription, and DisconnectedPlatform manifests");
+    }
 
     updateJob(jobId, { progress: 30, message: "Resolving openshift-install binary..." });
 

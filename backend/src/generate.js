@@ -17,6 +17,12 @@ import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 
+const MIRROR_OPERATOR_ADDITIONAL_IMAGES = [
+  "quay.io/mathianasj/mirror-operator-catalog:v0.0.1",
+  "quay.io/mathianasj/openshift-airgap-architect-frontend:latest",
+  "quay.io/mathianasj/openshift-airgap-architect-backend:latest",
+];
+
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
   const raw = typeof input === "string" ? input : JSON.stringify(input);
@@ -1494,6 +1500,9 @@ const buildImageSetConfig = (state) => {
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
   const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
+  for (const img of MIRROR_OPERATOR_ADDITIONAL_IMAGES) {
+    if (!additionalImages.includes(img)) additionalImages.push(img);
+  }
   const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
   const kubeVirtContainer = Boolean(cfg.kubeVirtContainer);
 
@@ -1922,4 +1931,100 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   return lines.join("\n");
 };
 
-export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs };
+const buildMirrorOperatorCatalogSource = (registryFqdn) => {
+  const fqdn = registryFqdn || "registry.local:5000";
+  const manifest = {
+    apiVersion: "operators.coreos.com/v1alpha1",
+    kind: "CatalogSource",
+    metadata: {
+      name: "mirror-operator-catalog",
+      namespace: "openshift-marketplace",
+    },
+    spec: {
+      displayName: "Mirror Operator",
+      image: `${fqdn}/mathianasj/mirror-operator-catalog:v0.0.1`,
+      publisher: "mathianasj",
+      sourceType: "grpc",
+      updateStrategy: {
+        registryPoll: {
+          interval: "10m",
+        },
+      },
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildMirrorOperatorSubscription = () => {
+  const manifest = {
+    apiVersion: "operators.coreos.com/v1alpha1",
+    kind: "Subscription",
+    metadata: {
+      name: "mirror-operator",
+      namespace: "openshift-operators",
+    },
+    spec: {
+      channel: "alpha",
+      installPlanApproval: "Automatic",
+      name: "mirror-operator",
+      source: "mirror-operator-catalog",
+      sourceNamespace: "openshift-marketplace",
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildDisconnectedPlatform = () => {
+  const manifest = {
+    apiVersion: "mirror.mirror.mathianasj.github.com/v1",
+    kind: "DisconnectedPlatform",
+    metadata: {
+      name: "disconnected-platform-airgapped",
+    },
+    spec: {
+      mode: "airgapped",
+      airgapped: {
+        managementCluster: true,
+        bootstrapEnabled: true,
+        importPath: "/mnt/physical-media",
+        importScanSchedule: "*/30 * * * *",
+        quay: {
+          enabled: true,
+          organizationName: "mirror",
+          storage: {
+            size: "500Gi",
+          },
+        },
+        rhtas: {
+          trustedRootKeys: {
+            name: "rhtas-trusted-root",
+          },
+        },
+      },
+      architect: {
+        enabled: true,
+        frontendImage: "quay.io/mathianasj/openshift-airgap-architect-frontend:latest",
+        backendImage: "quay.io/mathianasj/openshift-airgap-architect-backend:latest",
+        replicas: 1,
+        route: {
+          tls: {
+            termination: "edge",
+          },
+        },
+      },
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+export {
+  buildInstallConfig,
+  buildAgentConfig,
+  buildImageSetConfig,
+  buildFieldManual,
+  buildNtpMachineConfigs,
+  buildMirrorOperatorCatalogSource,
+  buildMirrorOperatorSubscription,
+  buildDisconnectedPlatform,
+  MIRROR_OPERATOR_ADDITIONAL_IMAGES,
+};
