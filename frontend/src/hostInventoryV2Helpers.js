@@ -206,8 +206,8 @@ export function generateNodesFromCounts(controlPlaneCount, workerCount, infraCou
 }
 
 /**
- * OpenShift 4.20 Agent-based install-config: controlPlane.replicas may be 1 (SNO only), 3, 4, or 5,
- * or 2 with exactly one arbiter (installation-config-parameters-agent).
+ * Agent-based install-config topology validation.
+ * Supported: 1 (SNO), 2 with one arbiter, or 3, 4, or 5 (HA).
  * @param {Array<{ role?: string }>} nodes
  * @returns {string[]} topology errors (empty if valid or nodes empty)
  */
@@ -222,7 +222,7 @@ export function getAgentBasedTopologyErrors(nodes) {
 
   if (![1, 2, 3, 4, 5].includes(masters)) {
     errors.push(
-      `Agent-based install-config allows control plane replicas 1 (single-node only), 2 (with one arbiter), 3, 4, or 5 (OpenShift 4.20). Inventory has ${masters} control plane node(s).`
+      `Agent-based install-config allows control plane replicas 1 (single-node only), 2 (with one arbiter), 3, 4, or 5. Inventory has ${masters} control plane node(s).`
     );
   }
   if (masters === 1) {
@@ -237,7 +237,7 @@ export function getAgentBasedTopologyErrors(nodes) {
   }
   if (masters === 2) {
     if (arbiters !== 1) {
-      errors.push("Two control plane nodes require exactly one arbiter node (OpenShift 4.20 Agent-based).");
+      errors.push("Two control plane nodes require exactly one arbiter node (Agent-based).");
     }
   } else if (arbiters > 0) {
     errors.push("Arbiter is only valid when there are exactly two control plane nodes.");

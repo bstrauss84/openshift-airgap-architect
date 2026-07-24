@@ -58,6 +58,54 @@ describe("getAgentBasedTopologyErrors", () => {
   });
 });
 
+describe("getAgentBasedTopologyErrors — 4 and 5 control plane (DOC-102 Slice 5J)", () => {
+  it("4 control-plane without arbiter is valid", () => {
+    const nodes = generateNodesFromCounts(4, 0, 0);
+    expect(getAgentBasedTopologyErrors(nodes)).toEqual([]);
+  });
+
+  it("5 control-plane without arbiter is valid", () => {
+    const nodes = generateNodesFromCounts(5, 0, 0);
+    expect(getAgentBasedTopologyErrors(nodes)).toEqual([]);
+  });
+
+  it("4 control-plane with arbiter is invalid", () => {
+    const nodes = [...generateNodesFromCounts(4, 0, 0), emptyNode("arbiter", 0)];
+    const errors = getAgentBasedTopologyErrors(nodes);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => /arbiter/i.test(e))).toBe(true);
+  });
+
+  it("5 control-plane with arbiter is invalid", () => {
+    const nodes = [...generateNodesFromCounts(5, 0, 0), emptyNode("arbiter", 0)];
+    const errors = getAgentBasedTopologyErrors(nodes);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => /arbiter/i.test(e))).toBe(true);
+  });
+
+  it("6 control-plane remains invalid", () => {
+    const nodes = generateNodesFromCounts(6, 0, 0);
+    const errors = getAgentBasedTopologyErrors(nodes);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some((e) => e.includes("6 control plane"))).toBe(true);
+  });
+
+  it("no topology message is pinned to OpenShift 4.20", () => {
+    const testCases = [
+      generateNodesFromCounts(6, 0, 0),
+      generateNodesFromCounts(2, 0, 0),
+      [...generateNodesFromCounts(1, 1, 0)],
+    ];
+    for (const nodes of testCases) {
+      const errors = getAgentBasedTopologyErrors(nodes);
+      for (const msg of errors) {
+        expect(msg).not.toContain("OpenShift 4.20");
+        expect(msg).not.toContain("4.20");
+      }
+    }
+  });
+});
+
 describe("generateNodesFromCounts", () => {
   it("creates correct number of control plane and worker nodes", () => {
     const nodes = generateNodesFromCounts(3, 2, 0);

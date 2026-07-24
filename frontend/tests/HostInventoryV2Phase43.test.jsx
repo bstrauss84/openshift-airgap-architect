@@ -3134,3 +3134,105 @@ describe("HB-004 replication modal presentation boundary", () => {
     expect(within(modal).queryByLabelText(/Primary ethernet MAC/i)).not.toBeInTheDocument();
   });
 });
+
+describe("Agent topology validateStep — 4 and 5 control plane (DOC-102 Slice 5J)", () => {
+  const minNode = (role, i) => ({
+    role,
+    hostname: `${role}-${i}`,
+    rootDevice: "",
+    dnsServers: "",
+    dnsSearch: "",
+    bmc: { address: "", username: "", password: "", bootMACAddress: "" },
+    primary: { type: "ethernet", mode: "dhcp", ethernet: { name: "eth0", macAddress: `52:54:00:aa:${String(i).padStart(2, "0")}:01` }, bond: {}, vlan: {}, advanced: {} }
+  });
+
+  const agentState = (nodes) => ({
+    ...baseState,
+    blueprint: { platform: "Bare Metal" },
+    methodology: { method: "Agent-Based Installer" },
+    hostInventory: {
+      ...baseState.hostInventory,
+      nodes
+    }
+  });
+
+  const ipiState = (nodes) => ({
+    ...baseState,
+    blueprint: { platform: "Bare Metal" },
+    methodology: { method: "IPI" },
+    hostInventory: {
+      ...baseState.hostInventory,
+      nodes
+    }
+  });
+
+  it("4 control-plane nodes pass the topology gate", () => {
+    const nodes = Array.from({ length: 4 }, (_, i) => minNode("master", i));
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    const topoErrors = result.errors.filter((e) => /control plane|topology|SNO|arbiter/i.test(e));
+    expect(topoErrors).toEqual([]);
+  });
+
+  it("5 control-plane nodes pass the topology gate", () => {
+    const nodes = Array.from({ length: 5 }, (_, i) => minNode("master", i));
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    const topoErrors = result.errors.filter((e) => /control plane|topology|SNO|arbiter/i.test(e));
+    expect(topoErrors).toEqual([]);
+  });
+
+  it("4 control-plane nodes plus an arbiter fail", () => {
+    const nodes = [
+      ...Array.from({ length: 4 }, (_, i) => minNode("master", i)),
+      minNode("arbiter", 0)
+    ];
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    expect(result.errors.some((e) => /4 control plane nodes must not include arbiter/i.test(e))).toBe(true);
+  });
+
+  it("5 control-plane nodes plus an arbiter fail", () => {
+    const nodes = [
+      ...Array.from({ length: 5 }, (_, i) => minNode("master", i)),
+      minNode("arbiter", 0)
+    ];
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    expect(result.errors.some((e) => /5 control plane nodes must not include arbiter/i.test(e))).toBe(true);
+  });
+
+  it("6 control-plane nodes fail with updated supported-topologies message", () => {
+    const nodes = Array.from({ length: 6 }, (_, i) => minNode("master", i));
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    expect(result.errors.some((e) => /3, 4, or 5/.test(e))).toBe(true);
+  });
+
+  it("SNO remains valid with zero workers and zero arbiters", () => {
+    const nodes = [minNode("master", 0)];
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    const topoErrors = result.errors.filter((e) => /control plane|topology|SNO|arbiter|worker/i.test(e));
+    expect(topoErrors).toEqual([]);
+  });
+
+  it("2 control-plane remains valid with exactly one arbiter", () => {
+    const nodes = [minNode("master", 0), minNode("master", 1), minNode("arbiter", 0)];
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    const topoErrors = result.errors.filter((e) => /control plane|topology|SNO|arbiter/i.test(e));
+    expect(topoErrors).toEqual([]);
+  });
+
+  it("3 control-plane remains valid without an arbiter", () => {
+    const nodes = Array.from({ length: 3 }, (_, i) => minNode("master", i));
+    const result = validateStep(agentState(nodes), "inventory-v2");
+    const topoErrors = result.errors.filter((e) => /control plane|topology|SNO|arbiter/i.test(e));
+    expect(topoErrors).toEqual([]);
+  });
+
+  it("Bare Metal IPI remains restricted to exactly 3 control-plane nodes", () => {
+    const nodes4 = Array.from({ length: 4 }, (_, i) => minNode("master", i));
+    const result4 = validateStep(ipiState(nodes4), "inventory-v2");
+    expect(result4.errors.some((e) => /only 3 control plane/i.test(e))).toBe(true);
+
+    const nodes3 = Array.from({ length: 3 }, (_, i) => minNode("master", i));
+    const result3 = validateStep(ipiState(nodes3), "inventory-v2");
+    const ipiTopoErrors = result3.errors.filter((e) => /control plane/i.test(e));
+    expect(ipiTopoErrors).toEqual([]);
+  });
+});
