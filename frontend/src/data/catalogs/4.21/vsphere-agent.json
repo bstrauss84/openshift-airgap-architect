@@ -2398,7 +2398,7 @@
       "allowed": "OVNKubernetesConfig object with ipv4, ipv6, policyAuditConfig fields",
       "default": "not specified in docs",
       "required": false,
-      "description": "Configuration for OVN-Kubernetes CNI plugin (default network plugin for OpenShift 4.20). Only applies when networking.networkType is OVNKubernetes.",
+      "description": "Configuration for OVN-Kubernetes CNI plugin (the default network plugin for OpenShift Container Platform). Only applies when networking.networkType is OVNKubernetes.",
       "applies_to": [
         "vsphere-agent"
       ],

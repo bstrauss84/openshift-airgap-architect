@@ -1127,7 +1127,7 @@
       "allowed": "OVNKubernetesConfig object with ipv4, ipv6, policyAuditConfig fields",
       "default": "not specified in docs",
       "required": false,
-      "description": "Configuration for OVN-Kubernetes CNI plugin (default network plugin for OpenShift 4.20). Only applies when networking.networkType is OVNKubernetes.",
+      "description": "Configuration for OVN-Kubernetes CNI plugin (the default network plugin for OpenShift Container Platform). Only applies when networking.networkType is OVNKubernetes.",
       "applies_to": [
         "aws-govcloud-upi"
       ],
@@ -1451,10 +1451,10 @@
       "path": "platform.aws.vpc.subnets",
       "outputFile": "install-config.yaml",
       "type": "array",
-      "allowed": "list of objects with id (optional roles per 4.20 doc)",
+      "allowed": "list of objects with id (optional roles per the install-config reference)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per 4.20. Required for UPI in existing VPC. If any role is set, each subnet must have \u22651 role and required role coverage applies.",
+      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per the install-config reference. Required for UPI in existing VPC. If any role is set, each subnet must have \u22651 role and required role coverage applies.",
       "applies_to": [
         "aws-govcloud-upi"
       ],

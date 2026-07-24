@@ -543,7 +543,7 @@
       ],
       "default": "not specified in docs",
       "required": false,
-      "description": "Number of control plane machines for Nutanix IPI: 3 for standard or compact three-node (with compute.replicas 0), or 1 for single-node OpenShift (OpenShift 4.20 Nutanix install-config).",
+      "description": "Number of control plane machines for Nutanix IPI: 3 for standard or compact three-node (with compute.replicas 0), or 1 for single-node OpenShift (per the Nutanix install-config reference).",
       "applies_to": [
         "nutanix-ipi"
       ],
@@ -1034,7 +1034,7 @@
       "allowed": "OVNKubernetesConfig object with ipv4, ipv6, policyAuditConfig fields",
       "default": "not specified in docs",
       "required": false,
-      "description": "Configuration for OVN-Kubernetes CNI plugin (default network plugin for OpenShift 4.20). Only applies when networking.networkType is OVNKubernetes.",
+      "description": "Configuration for OVN-Kubernetes CNI plugin (the default network plugin for OpenShift Container Platform). Only applies when networking.networkType is OVNKubernetes.",
       "applies_to": [
         "nutanix-ipi"
       ],

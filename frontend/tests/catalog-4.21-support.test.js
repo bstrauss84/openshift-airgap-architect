@@ -1239,6 +1239,95 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     });
   });
 
+  describe('DOC-102 Slice 5I T8 (Reduced): proven-safe catalog text corrections', () => {
+    const testDir = dirname(fileURLToPath(import.meta.url));
+    const allScenarios = [
+      'aws-govcloud-ipi', 'aws-govcloud-upi',
+      'azure-government-ipi', 'azure-government-upi',
+      'bare-metal-agent', 'bare-metal-ipi', 'bare-metal-upi',
+      'ibm-cloud-ipi', 'nutanix-ipi',
+      'vsphere-agent', 'vsphere-ipi', 'vsphere-upi'
+    ];
+
+    function loadParams(scenario) {
+      const filePath = resolve(testDir, '..', '..', 'data', 'params', '4.21', `${scenario}.json`);
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')).parameters;
+    }
+
+    const ACCEPTED_OVN_DESCRIPTION = 'Configuration for OVN-Kubernetes CNI plugin (the default network plugin for OpenShift Container Platform). Only applies when networking.networkType is OVNKubernetes.';
+
+    const ACCEPTED_CHANGES = [
+      { scenario: 'aws-govcloud-ipi', path: 'platform.aws.vpc.subnets', field: 'description', value: 'Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per the install-config reference. Omit for installer-provisioned VPC. If any role is set, each subnet must have ≥1 role and required roles (ClusterNode, IngressControllerLB, etc.) must be covered; ControlPlaneExternalLB not required when publish=Internal.' },
+      { scenario: 'aws-govcloud-ipi', path: 'platform.aws.vpc.subnets', field: 'allowed', value: 'list of objects with id (optional roles per the install-config reference)' },
+      { scenario: 'aws-govcloud-upi', path: 'platform.aws.vpc.subnets', field: 'description', value: 'Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per the install-config reference. Required for UPI in existing VPC. If any role is set, each subnet must have ≥1 role and required role coverage applies.' },
+      { scenario: 'aws-govcloud-upi', path: 'platform.aws.vpc.subnets', field: 'allowed', value: 'list of objects with id (optional roles per the install-config reference)' },
+      { scenario: 'ibm-cloud-ipi', path: 'networking.clusterNetwork[].cidr', field: 'description', value: 'Pod network CIDR block. IPv4 only for IBM Cloud.' },
+      { scenario: 'nutanix-ipi', path: 'controlPlane[].replicas', field: 'description', value: 'Number of control plane machines for Nutanix IPI: 3 for standard or compact three-node (with compute.replicas 0), or 1 for single-node OpenShift (per the Nutanix install-config reference).' },
+    ];
+
+    describe('accepted OVN-Kubernetes description (all 12 scenarios)', () => {
+      allScenarios.forEach(scenario => {
+        it(`${scenario} networking.ovnKubernetesConfig description`, () => {
+          const p = loadParams(scenario).find(p => p.path === 'networking.ovnKubernetesConfig');
+          expect(p).toBeDefined();
+          expect(p.description).toBe(ACCEPTED_OVN_DESCRIPTION);
+        });
+      });
+    });
+
+    describe('accepted non-OVN field changes (6 values)', () => {
+      ACCEPTED_CHANGES.forEach(({ scenario, path, field, value }) => {
+        it(`${scenario} ${path} ${field}`, () => {
+          const p = loadParams(scenario).find(p => p.path === path);
+          expect(p).toBeDefined();
+          expect(p[field]).toBe(value);
+        });
+      });
+    });
+
+    describe('preservation guards', () => {
+      it('exactly 1026 minVersion "4.20" occurrences across all 4.21 catalogs', () => {
+        let total = 0;
+        allScenarios.forEach(scenario => {
+          total += loadParams(scenario).filter(p => p.minVersion === '4.20').length;
+        });
+        expect(total).toBe(1026);
+      });
+
+      it('exactly 2 v4.20 capability enum values in bare-metal-ipi and bare-metal-upi', () => {
+        let total = 0;
+        ['bare-metal-ipi', 'bare-metal-upi'].forEach(scenario => {
+          total += loadParams(scenario).filter(p =>
+            Array.isArray(p.allowed) && p.allowed.includes('v4.20')
+          ).length;
+        });
+        expect(total).toBe(2);
+      });
+
+      it('exactly 24 "absent in 4.20" historical comparison notes', () => {
+        let total = 0;
+        allScenarios.forEach(scenario => {
+          loadParams(scenario).forEach(p => {
+            (p.citations || []).forEach(c => {
+              if (c.note && c.note.includes('absent in 4.20')) total++;
+            });
+          });
+        });
+        expect(total).toBe(24);
+      });
+    });
+
+    describe('canonical-mirror parity', () => {
+      allScenarios.forEach(scenario => {
+        it(`${scenario} canonical and mirror are byte-identical`, () => {
+          const canonicalPath = resolve(testDir, '..', '..', 'data', 'params', '4.21', `${scenario}.json`);
+          const mirrorPath = resolve(testDir, '..', 'src', 'data', 'catalogs', '4.21', `${scenario}.json`);
+          expect(fs.readFileSync(canonicalPath, 'utf8')).toBe(fs.readFileSync(mirrorPath, 'utf8'));
+        });
+      });
+    });
+  });
+
   describe('No deferred platforms/scenarios added', () => {
     it('PowerVC catalogs do not exist', () => {
       expect(() => getCatalogForScenario('powervc-ipi', '4.21'))
