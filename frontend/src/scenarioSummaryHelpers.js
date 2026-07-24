@@ -477,33 +477,27 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
   // external hosting. Users can access them directly in the repository.
 
   // Conditional docs based on confirmed configuration.
-  // Uses docsIndex.baseUrl for version-specific documentation root.
-  const baseUrl = docsIndex?.baseUrl;
+  // URLs come from verified sharedDocs entries in the versioned docs-index.
+  const sharedUrl = (docId) => getSharedDocUrl(docsIndex, docId);
 
-  if (baseUrl && confirmedTabs.includes('identity-access')) {
+  if (confirmedTabs.includes('identity-access')) {
     if (state.globalStrategy?.fips) {
-      docs.push({
-        title: 'Enabling FIPS mode',
-        url: `${baseUrl}html/installing/installing-fips`
-      });
+      const url = sharedUrl('installing-fips');
+      if (url) docs.push({ title: 'Enabling FIPS mode', url });
     }
   }
 
-  if (baseUrl && (confirmedTabs.includes('networking') || confirmedTabs.includes('networking-v2'))) {
+  if (confirmedTabs.includes('networking') || confirmedTabs.includes('networking-v2')) {
     if (isDualStack(state)) {
-      docs.push({
-        title: 'Configuring dual-stack networking',
-        url: `${baseUrl}html/installing/installing-on-bare-metal#configuring-dual-stack-networking_ipi-install-installation-workflow`
-      });
+      const url = sharedUrl('configuring-dual-stack');
+      if (url) docs.push({ title: 'Configuring dual-stack networking', url });
     }
   }
 
-  if (baseUrl && confirmedTabs.includes('connectivity-mirroring')) {
+  if (confirmedTabs.includes('connectivity-mirroring')) {
     if (state.credentials?.usingMirrorRegistry) {
-      docs.push({
-        title: 'Mirroring images for a disconnected installation',
-        url: `${baseUrl}html/installing/disconnected-installation-mirroring`
-      });
+      const url = sharedUrl('about-oc-mirror-v2');
+      if (url) docs.push({ title: 'Mirroring images for a disconnected installation', url });
     }
 
     const ntpServers = state.globalStrategy?.ntpServers;
@@ -516,35 +510,27 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
       }
     }
     if (hasNtp) {
-      docs.push({
-        title: 'Configuring NTP servers for disconnected clusters',
-        url: `${baseUrl}html/installing/customizing-installation-configuration#installing-customizing`
-      });
+      const url = sharedUrl('configuring-ntp-chrony');
+      if (url) docs.push({ title: 'Configuring NTP servers for disconnected clusters', url });
     }
   }
 
-  if (baseUrl && confirmedTabs.includes('trust-proxy')) {
+  if (confirmedTabs.includes('trust-proxy')) {
     if (state.globalStrategy?.proxyEnabled) {
-      docs.push({
-        title: 'Configuring corporate proxy for disconnected clusters',
-        url: `${baseUrl}html/installing/customizing-installation-configuration#configuring-firewall`
-      });
+      const url = sharedUrl('configuring-cluster-wide-proxy');
+      if (url) docs.push({ title: 'Configuring corporate proxy for disconnected clusters', url });
     }
 
     if (state.trust?.mirrorRegistryCaPem || state.trust?.proxyCaPem || state.trust?.additionalTrustBundle) {
-      docs.push({
-        title: 'Configuring additional trust bundles',
-        url: `${baseUrl}html/networking/configuring-a-custom-pki`
-      });
+      const url = sharedUrl('configuring-custom-pki');
+      if (url) docs.push({ title: 'Configuring additional trust bundles', url });
     }
   }
 
-  if (baseUrl && confirmedTabs.includes('operators')) {
+  if (confirmedTabs.includes('operators')) {
     if (state.operators?.selected?.length > 0) {
-      docs.push({
-        title: 'Installing Operators in disconnected environments',
-        url: `${baseUrl}html/operators/administrator-tasks#olm-restricted-networks`
-      });
+      const url = sharedUrl('olm-restricted-networks');
+      if (url) docs.push({ title: 'Installing Operators in disconnected environments', url });
     }
   }
 
@@ -564,6 +550,12 @@ function isDualStack(state) {
   const hasV6 = Boolean(net.clusterNetworkCidrV6 || net.machineNetworkV6);
 
   return hasV4 && hasV6;
+}
+
+function getSharedDocUrl(docsIndex, docId) {
+  if (!docsIndex?.sharedDocs) return null;
+  const entry = docsIndex.sharedDocs.find(d => d.id === docId);
+  return entry?.url || null;
 }
 
 /**

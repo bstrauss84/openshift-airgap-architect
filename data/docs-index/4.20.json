@@ -761,6 +761,46 @@
       "configTypes": ["agent-config"],
       "tags": ["networking", "nmstate"],
       "notes": "Host Network Management API; agent-config hosts[].networkConfig structure."
+    },
+    {
+      "id": "installing-fips",
+      "title": "Support for FIPS cryptography",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-fips",
+      "configTypes": ["install-config"],
+      "tags": ["fips", "security"],
+      "notes": "Chapter 4 of Installation overview; FIPS mode enablement and requirements."
+    },
+    {
+      "id": "configuring-dual-stack",
+      "title": "Configuring dual-stack networking",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure",
+      "configTypes": ["install-config"],
+      "tags": ["networking", "dual-stack", "ipv6"],
+      "notes": "Bare metal UPI chapter covers dual-stack networking configuration."
+    },
+    {
+      "id": "configuring-ntp-chrony",
+      "title": "Configuring NTP with chrony",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer",
+      "configTypes": ["agent-config"],
+      "tags": ["ntp", "chrony", "disconnected"],
+      "notes": "Agent-based installer preparation; includes chrony NTP configuration for disconnected clusters."
+    },
+    {
+      "id": "configuring-cluster-wide-proxy",
+      "title": "Configuring the cluster-wide proxy during installation",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic#installation-configure-proxy_installing-platform-agnostic",
+      "configTypes": ["install-config"],
+      "tags": ["proxy", "firewall", "disconnected"],
+      "notes": "Platform-agnostic install chapter; proxy configuration section with verified fragment anchor."
+    },
+    {
+      "id": "olm-restricted-networks",
+      "title": "Using Operator Lifecycle Manager on restricted networks",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operators/administrator-tasks#olm-restricted-networks",
+      "configTypes": ["other"],
+      "tags": ["operators", "olm", "disconnected", "restricted-network"],
+      "notes": "OLM on restricted networks; operator catalog mirroring and installation in disconnected environments."
     }
   ]
 }

@@ -22,6 +22,12 @@ import {
   buildOperatorsSummary,
   buildDocumentationSources
 } from '../src/scenarioSummaryHelpers.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import docsIndex420 from '../src/data/docs-index/4.20.json';
+import docsIndex421 from '../src/data/docs-index/4.21.json';
+
+const HELPERS_SOURCE_PATH = resolve('src/scenarioSummaryHelpers.js');
 
 // Mock getScenarioId to avoid importing the whole helper
 vi.mock('../src/hostInventoryV2Helpers.js', () => ({
@@ -485,10 +491,10 @@ describe('Scenario Summary Helpers', () => {
         methodology: { method: 'IPI' },
         globalStrategy: { fips: true }
       };
-      const docsIndex = { baseUrl: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/' };
-      const docs = buildDocumentationSources(state, ['identity-access'], docsIndex);
+      const docs = buildDocumentationSources(state, ['identity-access'], docsIndex420);
       const fipsDoc = docs.find(d => d.title === 'Enabling FIPS mode');
       expect(fipsDoc).toBeDefined();
+      expect(fipsDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-fips');
     });
 
     it('adds dual-stack doc when dual-stack configured and networking confirmed', () => {
@@ -502,22 +508,22 @@ describe('Scenario Summary Helpers', () => {
           }
         }
       };
-      const docsIndex = { baseUrl: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/' };
-      const docs = buildDocumentationSources(state, ['networking-v2'], docsIndex);
+      const docs = buildDocumentationSources(state, ['networking-v2'], docsIndex420);
       const dualStackDoc = docs.find(d => d.title === 'Configuring dual-stack networking');
       expect(dualStackDoc).toBeDefined();
+      expect(dualStackDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure');
     });
 
     it('adds mirror registry doc when mirror registry used and connectivity confirmed', () => {
       const state = {
-        blueprint: { platform: 'VMware vSphere' },
-        methodology: { method: 'IPI' },
+        blueprint: { platform: 'Generic' },
+        methodology: { method: 'Generic' },
         credentials: { usingMirrorRegistry: true }
       };
-      const docsIndex = { baseUrl: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/' };
-      const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex);
+      const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
       const mirrorDoc = docs.find(d => d.title === 'Mirroring images for a disconnected installation');
       expect(mirrorDoc).toBeDefined();
+      expect(mirrorDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index');
     });
 
     it('adds proxy doc when proxy enabled and trust-proxy confirmed', () => {
@@ -526,10 +532,10 @@ describe('Scenario Summary Helpers', () => {
         methodology: { method: 'IPI' },
         globalStrategy: { proxyEnabled: true }
       };
-      const docsIndex = { baseUrl: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/' };
-      const docs = buildDocumentationSources(state, ['trust-proxy'], docsIndex);
+      const docs = buildDocumentationSources(state, ['trust-proxy'], docsIndex420);
       const proxyDoc = docs.find(d => d.title === 'Configuring corporate proxy for disconnected clusters');
       expect(proxyDoc).toBeDefined();
+      expect(proxyDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic#installation-configure-proxy_installing-platform-agnostic');
     });
 
     it('deduplicates docs by URL', () => {
@@ -553,38 +559,52 @@ describe('Scenario Summary Helpers', () => {
   });
 
   describe('Version-aware conditional documentation links (DOC-102 Slice 5J)', () => {
-    const BASE_URL_420 = 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/';
-    const BASE_URL_421 = 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/';
-
-    const docsIndex420 = {
-      version: '4.20',
-      baseUrl: BASE_URL_420,
-      scenarios: {
-        'bare-metal-agent': {
-          docs: [{ title: 'Agent installer', url: `${BASE_URL_420}html/installing_an_on-premise_cluster_with_the_agent-based_installer/` }]
-        }
-      }
-    };
-
-    const docsIndex421 = {
-      version: '4.21',
-      baseUrl: BASE_URL_421,
-      scenarios: {
-        'bare-metal-agent': {
-          docs: [{ title: 'Agent installer', url: `${BASE_URL_421}html/installing_an_on-premise_cluster_with_the_agent-based_installer/` }]
-        }
-      }
-    };
-
-    const CONDITIONAL_LINK_TITLES = [
-      'Enabling FIPS mode',
-      'Configuring dual-stack networking',
-      'Mirroring images for a disconnected installation',
-      'Configuring NTP servers for disconnected clusters',
-      'Configuring corporate proxy for disconnected clusters',
-      'Configuring additional trust bundles',
-      'Installing Operators in disconnected environments'
+    const CONDITIONAL_LINK_EXPECTATIONS = [
+      {
+        title: 'Enabling FIPS mode',
+        docId: 'installing-fips',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-fips',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installation_overview/installing-fips',
+      },
+      {
+        title: 'Configuring dual-stack networking',
+        docId: 'configuring-dual-stack',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_bare_metal/user-provisioned-infrastructure',
+      },
+      {
+        title: 'Mirroring images for a disconnected installation',
+        docId: 'about-oc-mirror-v2',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/index',
+      },
+      {
+        title: 'Configuring NTP servers for disconnected clusters',
+        docId: 'configuring-ntp-chrony',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer',
+      },
+      {
+        title: 'Configuring corporate proxy for disconnected clusters',
+        docId: 'configuring-cluster-wide-proxy',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic#installation-configure-proxy_installing-platform-agnostic',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic#installation-configure-proxy_installing-platform-agnostic',
+      },
+      {
+        title: 'Configuring additional trust bundles',
+        docId: 'configuring-custom-pki',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/configuring-certificates',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/security_and_compliance/configuring-certificates',
+      },
+      {
+        title: 'Installing Operators in disconnected environments',
+        docId: 'olm-restricted-networks',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operators/administrator-tasks#olm-restricted-networks',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/operators/administrator-tasks#olm-restricted-networks',
+      },
     ];
+
+    const CONDITIONAL_LINK_TITLES = CONDITIONAL_LINK_EXPECTATIONS.map(e => e.title);
 
     function stateWithAllConditionals() {
       return {
@@ -607,56 +627,87 @@ describe('Scenario Summary Helpers', () => {
 
     const ALL_TABS = ['identity-access', 'networking-v2', 'connectivity-mirroring', 'trust-proxy', 'operators'];
 
-    describe.each(CONDITIONAL_LINK_TITLES)('%s', (title) => {
-      it('4.20 index → URL contains the exact 4.20 documentation root', () => {
-        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex420);
+    function stateWithAllConditionalsNoScenario() {
+      return {
+        ...stateWithAllConditionals(),
+        blueprint: { platform: 'Generic' },
+        methodology: { method: 'Generic' },
+      };
+    }
+
+    describe.each(CONDITIONAL_LINK_EXPECTATIONS)('$title', ({ title, url420, url421 }) => {
+      it('4.20 index → exact verified URL', () => {
+        const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex420);
         const doc = docs.find(d => d.title === title);
         expect(doc).toBeDefined();
-        expect(doc.url).toContain(BASE_URL_420);
+        expect(doc.url).toBe(url420);
+        expect(doc.url).toContain('/4.20/');
         expect(doc.url).not.toContain('/4.21/');
       });
 
-      it('4.21 index → URL contains the exact 4.21 documentation root', () => {
-        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex421);
+      it('4.21 index → exact verified URL', () => {
+        const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex421);
         const doc = docs.find(d => d.title === title);
         expect(doc).toBeDefined();
-        expect(doc.url).toContain(BASE_URL_421);
+        expect(doc.url).toBe(url421);
+        expect(doc.url).toContain('/4.21/');
         expect(doc.url).not.toContain('/4.20/');
       });
 
       it('null index → link is not added', () => {
-        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, null);
+        const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, null);
         const doc = docs.find(d => d.title === title);
         expect(doc).toBeUndefined();
       });
     });
 
+    it('all 7 conditional docs present with 4.20 index', () => {
+      const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex420);
+      for (const { title } of CONDITIONAL_LINK_EXPECTATIONS) {
+        expect(docs.find(d => d.title === title)).toBeDefined();
+      }
+    });
+
+    it('all 7 conditional docs present with 4.21 index', () => {
+      const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex421);
+      for (const { title } of CONDITIONAL_LINK_EXPECTATIONS) {
+        expect(docs.find(d => d.title === title)).toBeDefined();
+      }
+    });
+
     it('base scenario documentation uses the selected index', () => {
       const docs420 = buildDocumentationSources(stateWithAllConditionals(), [], docsIndex420);
-      const scenarioDoc420 = docs420.find(d => d.title === 'Agent installer');
-      expect(scenarioDoc420).toBeDefined();
-      expect(scenarioDoc420.url).toContain('/4.20/');
+      const scenarioDocs420 = docs420.filter(d => !CONDITIONAL_LINK_TITLES.includes(d.title));
+      expect(scenarioDocs420.length).toBeGreaterThan(0);
+      for (const d of scenarioDocs420) {
+        expect(d.url).toContain('/4.20/');
+        expect(d.url).not.toContain('/4.21/');
+      }
 
       const docs421 = buildDocumentationSources(stateWithAllConditionals(), [], docsIndex421);
-      const scenarioDoc421 = docs421.find(d => d.title === 'Agent installer');
-      expect(scenarioDoc421).toBeDefined();
-      expect(scenarioDoc421.url).toContain('/4.21/');
+      const scenarioDocs421 = docs421.filter(d => !CONDITIONAL_LINK_TITLES.includes(d.title));
+      expect(scenarioDocs421.length).toBeGreaterThan(0);
+      for (const d of scenarioDocs421) {
+        expect(d.url).toContain('/4.21/');
+        expect(d.url).not.toContain('/4.20/');
+      }
     });
 
     it('deduplication still works with version-aware links', () => {
+      const fipsUrl = docsIndex420.sharedDocs.find(d => d.id === 'installing-fips').url;
       const indexWithDupe = {
         ...docsIndex420,
         scenarios: {
           'bare-metal-agent': {
             docs: [
-              { title: 'Enabling FIPS mode', url: `${BASE_URL_420}html/installing/installing-fips` }
+              { title: 'Enabling FIPS mode', url: fipsUrl }
             ]
           }
         }
       };
       const state = stateWithAllConditionals();
       const docs = buildDocumentationSources(state, ['identity-access'], indexWithDupe);
-      const fipsDocs = docs.filter(d => d.title === 'Enabling FIPS mode');
+      const fipsDocs = docs.filter(d => d.url === fipsUrl);
       expect(fipsDocs).toHaveLength(1);
     });
 
@@ -665,11 +716,48 @@ describe('Scenario Summary Helpers', () => {
       expect(docs).toHaveLength(0);
     });
 
-    it('docsIndex with no baseUrl produces no conditional docs', () => {
-      const indexNoBase = { version: '4.20', scenarios: { 'bare-metal-agent': { docs: [{ title: 'test', url: 'https://example.com' }] } } };
-      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, indexNoBase);
+    it('docsIndex with no sharedDocs produces no conditional docs', () => {
+      const indexNoShared = {
+        version: '4.20',
+        scenarios: {
+          'bare-metal-agent': {
+            docs: [{ title: 'test', url: 'https://example.com' }]
+          }
+        }
+      };
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, indexNoShared);
       const conditionalTitles = docs.filter(d => CONDITIONAL_LINK_TITLES.includes(d.title));
       expect(conditionalTitles).toHaveLength(0);
+    });
+
+    it('missing sharedDocs mapping adds no conditional link', () => {
+      const indexPartialShared = {
+        version: '4.20',
+        sharedDocs: [
+          { id: 'installing-fips', title: 'FIPS', url: 'https://example.com/fips' }
+        ],
+        scenarios: { 'bare-metal-agent': { docs: [] } }
+      };
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, indexPartialShared);
+      const fipsDoc = docs.find(d => d.title === 'Enabling FIPS mode');
+      expect(fipsDoc).toBeDefined();
+      const otherConditionals = docs.filter(d =>
+        CONDITIONAL_LINK_TITLES.includes(d.title) && d.title !== 'Enabling FIPS mode'
+      );
+      expect(otherConditionals).toHaveLength(0);
+    });
+  });
+
+  describe('Source contract: no baseUrl suffix concatenation (DOC-102)', () => {
+    it('production code does not concatenate ${baseUrl}html/ for conditional links', () => {
+      const source = readFileSync(HELPERS_SOURCE_PATH, 'utf-8');
+      expect(source).not.toMatch(/\$\{baseUrl\}html\//);
+    });
+
+    it('production code uses getSharedDocUrl for all conditional doc lookups', () => {
+      const source = readFileSync(HELPERS_SOURCE_PATH, 'utf-8');
+      expect(source).toMatch(/getSharedDocUrl/);
+      expect(source).toMatch(/sharedUrl\(/);
     });
   });
 
