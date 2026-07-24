@@ -19,8 +19,24 @@ import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 
 const MIRROR_OPERATOR_ADDITIONAL_IMAGES = [
   "quay.io/mathianasj/mirror-operator-catalog:v0.0.1",
+  "quay.io/mathianasj/mirror-operator:latest",
   "quay.io/mathianasj/openshift-airgap-architect-frontend:latest",
   "quay.io/mathianasj/openshift-airgap-architect-backend:latest",
+  "quay.io/mathianasj/openshift-airgap-architect-console-plugin:latest",
+  "quay.io/mathianasj/oc-mirror:v2",
+  "quay.io/skopeo/stable:latest",
+  "amazon/aws-cli:latest",
+  "registry.access.redhat.com/ubi9/ubi:latest",
+  "registry.access.redhat.com/ubi9/ubi-minimal:latest",
+];
+
+const MIRROR_OPERATOR_DEPENDENT_OPERATORS = [
+  { name: "openshift-pipelines-operator-rh", channel: "latest", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "quay-operator", channel: "stable-3.13", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhbk-operator", channel: "stable-v24", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhtas-operator", channel: "stable", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhtpa-operator", channel: "stable-v1.1", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "advanced-cluster-management", channel: "release-2.17", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
 ];
 
 const normalizePullSecretString = (input) => {
@@ -1500,8 +1516,10 @@ const buildImageSetConfig = (state) => {
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
   const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
-  for (const img of MIRROR_OPERATOR_ADDITIONAL_IMAGES) {
-    if (!additionalImages.includes(img)) additionalImages.push(img);
+  if (state.mirrorOperatorPipeline) {
+    for (const img of MIRROR_OPERATOR_ADDITIONAL_IMAGES) {
+      if (!additionalImages.includes(img)) additionalImages.push(img);
+    }
   }
   const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
   const kubeVirtContainer = Boolean(cfg.kubeVirtContainer);
@@ -1540,6 +1558,18 @@ const buildImageSetConfig = (state) => {
       name: op.name,
       channels: [channel]
     });
+  }
+  if (state.mirrorOperatorPipeline) {
+    for (const dep of MIRROR_OPERATOR_DEPENDENT_OPERATORS) {
+      const catalogImage = `${dep.catalog}:v${catalogMinor}`;
+      if (!byCatalog.has(catalogImage)) {
+        byCatalog.set(catalogImage, []);
+      }
+      const existing = byCatalog.get(catalogImage);
+      if (!existing.some((p) => p.name === dep.name)) {
+        existing.push({ name: dep.name, channels: [{ name: dep.channel }] });
+      }
+    }
   }
   for (const [catalog, packages] of byCatalog.entries()) {
     images.mirror.operators.push({ catalog, packages });
@@ -2027,4 +2057,5 @@ export {
   buildMirrorOperatorSubscription,
   buildDisconnectedPlatform,
   MIRROR_OPERATOR_ADDITIONAL_IMAGES,
+  MIRROR_OPERATOR_DEPENDENT_OPERATORS,
 };

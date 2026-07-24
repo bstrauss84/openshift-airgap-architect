@@ -36,6 +36,7 @@ export const CreateCollectionPipelineStep: React.FC = () => {
         const stateForGenerate = {
           ...state,
           docs: { ...state.docs, connectivity: 'connected' },
+          mirrorOperatorPipeline: true,
           ...(state.updateChannels?.length > 0
             ? { platformChannels: state.updateChannels }
             : {}),
