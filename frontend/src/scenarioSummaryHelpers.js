@@ -487,13 +487,6 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
     }
   }
 
-  if (confirmedTabs.includes('networking') || confirmedTabs.includes('networking-v2')) {
-    if (isDualStack(state)) {
-      const url = sharedUrl('configuring-dual-stack');
-      if (url) docs.push({ title: 'Configuring dual-stack networking', url });
-    }
-  }
-
   if (confirmedTabs.includes('connectivity-mirroring')) {
     if (state.credentials?.usingMirrorRegistry) {
       const url = sharedUrl('about-oc-mirror-v2');
@@ -509,7 +502,7 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
         hasNtp = ntpServers.trim().length > 0;
       }
     }
-    if (hasNtp) {
+    if (hasNtp && scenarioId?.endsWith('-agent')) {
       const url = sharedUrl('configuring-ntp-chrony');
       if (url) docs.push({ title: 'Configuring NTP servers for disconnected clusters', url });
     }
@@ -536,20 +529,6 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
 
   // Deduplicate by URL
   return deduplicateByUrl(docs);
-}
-
-/**
- * Check if dual-stack networking is configured.
- * Read from globalStrategy.networking!
- */
-function isDualStack(state) {
-  const net = state?.globalStrategy?.networking;
-  if (!net) return false;
-
-  const hasV4 = Boolean(net.clusterNetworkCidr || net.machineNetworkV4);
-  const hasV6 = Boolean(net.clusterNetworkCidrV6 || net.machineNetworkV6);
-
-  return hasV4 && hasV6;
 }
 
 function getSharedDocUrl(docsIndex, docId) {

@@ -33,7 +33,9 @@ const HELPERS_SOURCE_PATH = resolve('src/scenarioSummaryHelpers.js');
 vi.mock('../src/hostInventoryV2Helpers.js', () => ({
   getScenarioId: (platform, method) => {
     if (platform === 'VMware vSphere' && method === 'IPI') return 'vsphere-ipi';
+    if (platform === 'VMware vSphere' && method === 'Agent-Based Installer') return 'vsphere-agent';
     if (platform === 'Bare Metal' && method === 'Agent-Based Installer') return 'bare-metal-agent';
+    if (platform === 'Bare Metal' && method === 'IPI') return 'bare-metal-ipi';
     return null;
   }
 }));
@@ -497,7 +499,7 @@ describe('Scenario Summary Helpers', () => {
       expect(fipsDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-fips');
     });
 
-    it('adds dual-stack doc when dual-stack configured and networking confirmed', () => {
+    it('dual-stack doc is suppressed even when dual-stack networking is configured', () => {
       const state = {
         blueprint: { platform: 'VMware vSphere' },
         methodology: { method: 'IPI' },
@@ -510,20 +512,19 @@ describe('Scenario Summary Helpers', () => {
       };
       const docs = buildDocumentationSources(state, ['networking-v2'], docsIndex420);
       const dualStackDoc = docs.find(d => d.title === 'Configuring dual-stack networking');
-      expect(dualStackDoc).toBeDefined();
-      expect(dualStackDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure');
+      expect(dualStackDoc).toBeUndefined();
     });
 
-    it('adds mirror registry doc when mirror registry used and connectivity confirmed', () => {
+    it('adds mirror registry doc when mirror registry used and connectivity confirmed (bare-metal-agent)', () => {
       const state = {
-        blueprint: { platform: 'Generic' },
-        methodology: { method: 'Generic' },
+        blueprint: { platform: 'Bare Metal' },
+        methodology: { method: 'Agent-Based Installer' },
         credentials: { usingMirrorRegistry: true }
       };
       const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
       const mirrorDoc = docs.find(d => d.title === 'Mirroring images for a disconnected installation');
       expect(mirrorDoc).toBeDefined();
-      expect(mirrorDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index');
+      expect(mirrorDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2');
     });
 
     it('adds proxy doc when proxy enabled and trust-proxy confirmed', () => {
@@ -567,16 +568,10 @@ describe('Scenario Summary Helpers', () => {
         url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installation_overview/installing-fips',
       },
       {
-        title: 'Configuring dual-stack networking',
-        docId: 'configuring-dual-stack',
-        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/user-provisioned-infrastructure',
-        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_bare_metal/user-provisioned-infrastructure',
-      },
-      {
         title: 'Mirroring images for a disconnected installation',
         docId: 'about-oc-mirror-v2',
-        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index',
-        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/index',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/about-installing-oc-mirror-v2',
       },
       {
         title: 'Configuring NTP servers for disconnected clusters',
@@ -593,14 +588,14 @@ describe('Scenario Summary Helpers', () => {
       {
         title: 'Configuring additional trust bundles',
         docId: 'configuring-custom-pki',
-        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/configuring-certificates',
-        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/security_and_compliance/configuring-certificates',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/configuring_network_settings/configuring-a-custom-pki',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/configuring_network_settings/configuring-a-custom-pki',
       },
       {
         title: 'Installing Operators in disconnected environments',
         docId: 'olm-restricted-networks',
-        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operators/administrator-tasks#olm-restricted-networks',
-        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/operators/administrator-tasks#olm-restricted-networks',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/olm-restricted-networks',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/olm-restricted-networks',
       },
     ];
 
@@ -627,17 +622,9 @@ describe('Scenario Summary Helpers', () => {
 
     const ALL_TABS = ['identity-access', 'networking-v2', 'connectivity-mirroring', 'trust-proxy', 'operators'];
 
-    function stateWithAllConditionalsNoScenario() {
-      return {
-        ...stateWithAllConditionals(),
-        blueprint: { platform: 'Generic' },
-        methodology: { method: 'Generic' },
-      };
-    }
-
     describe.each(CONDITIONAL_LINK_EXPECTATIONS)('$title', ({ title, url420, url421 }) => {
-      it('4.20 index → exact verified URL', () => {
-        const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex420);
+      it('4.20 index → exact verified URL (bare-metal-agent)', () => {
+        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex420);
         const doc = docs.find(d => d.title === title);
         expect(doc).toBeDefined();
         expect(doc.url).toBe(url420);
@@ -645,8 +632,8 @@ describe('Scenario Summary Helpers', () => {
         expect(doc.url).not.toContain('/4.21/');
       });
 
-      it('4.21 index → exact verified URL', () => {
-        const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex421);
+      it('4.21 index → exact verified URL (bare-metal-agent)', () => {
+        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex421);
         const doc = docs.find(d => d.title === title);
         expect(doc).toBeDefined();
         expect(doc.url).toBe(url421);
@@ -655,21 +642,21 @@ describe('Scenario Summary Helpers', () => {
       });
 
       it('null index → link is not added', () => {
-        const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, null);
+        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, null);
         const doc = docs.find(d => d.title === title);
         expect(doc).toBeUndefined();
       });
     });
 
-    it('all 7 conditional docs present with 4.20 index', () => {
-      const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex420);
+    it('all 6 conditional docs present with 4.20 index (bare-metal-agent)', () => {
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex420);
       for (const { title } of CONDITIONAL_LINK_EXPECTATIONS) {
         expect(docs.find(d => d.title === title)).toBeDefined();
       }
     });
 
-    it('all 7 conditional docs present with 4.21 index', () => {
-      const docs = buildDocumentationSources(stateWithAllConditionalsNoScenario(), ALL_TABS, docsIndex421);
+    it('all 6 conditional docs present with 4.21 index (bare-metal-agent)', () => {
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex421);
       for (const { title } of CONDITIONAL_LINK_EXPECTATIONS) {
         expect(docs.find(d => d.title === title)).toBeDefined();
       }
@@ -745,6 +732,50 @@ describe('Scenario Summary Helpers', () => {
         CONDITIONAL_LINK_TITLES.includes(d.title) && d.title !== 'Enabling FIPS mode'
       );
       expect(otherConditionals).toHaveLength(0);
+    });
+
+    describe('NTP doc restricted to Agent-based scenarios', () => {
+      const ntpTitle = 'Configuring NTP servers for disconnected clusters';
+
+      it('NTP doc appears for bare-metal-agent', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeDefined();
+      });
+
+      it('NTP doc appears for vsphere-agent', () => {
+        const state = {
+          blueprint: { platform: 'VMware vSphere' },
+          methodology: { method: 'Agent-Based Installer' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeDefined();
+      });
+
+      it('NTP doc suppressed for vsphere-ipi despite NTP servers configured', () => {
+        const state = {
+          blueprint: { platform: 'VMware vSphere' },
+          methodology: { method: 'IPI' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeUndefined();
+      });
+
+      it('NTP doc suppressed for bare-metal-ipi despite NTP servers configured', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'IPI' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeUndefined();
+      });
     });
   });
 

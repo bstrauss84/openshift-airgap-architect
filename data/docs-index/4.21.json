@@ -593,7 +593,7 @@
     {
       "id": "about-oc-mirror-v2",
       "title": "About oc-mirror (v2)",
-      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/index",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/about-installing-oc-mirror-v2",
       "configTypes": [
         "imageset-config"
       ],
@@ -603,12 +603,12 @@
         "proxy",
         "trust-bundle"
       ],
-      "notes": "Mirroring and disconnected install; imageset-config. Disconnected environments book covers mirroring and restricted-network install."
+      "notes": "Chapter 5: Mirroring images for a disconnected installation by using the oc-mirror plugin v2. imageset-config generation."
     },
     {
       "id": "configuring-custom-pki",
       "title": "Configuring custom PKI",
-      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/security_and_compliance/configuring-certificates",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/configuring_network_settings/configuring-a-custom-pki",
       "configTypes": [
         "install-config"
       ],
@@ -616,7 +616,7 @@
         "proxy",
         "trust-bundle"
       ],
-      "notes": "Custom PKI and trust bundles for install."
+      "notes": "Chapter 6: Configuring a custom PKI. Documents additionalTrustBundle for proxy and mirror-registry CA injection at install time."
     },
     {
       "id": "installing-platform-agnostic",
@@ -669,14 +669,6 @@
       "notes": "Chapter 4 of Installation overview; FIPS mode enablement and requirements."
     },
     {
-      "id": "configuring-dual-stack",
-      "title": "Configuring dual-stack networking",
-      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_bare_metal/user-provisioned-infrastructure",
-      "configTypes": ["install-config"],
-      "tags": ["networking", "dual-stack", "ipv6"],
-      "notes": "Bare metal UPI chapter covers dual-stack networking configuration."
-    },
-    {
       "id": "configuring-ntp-chrony",
       "title": "Configuring NTP with chrony",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer",
@@ -695,10 +687,10 @@
     {
       "id": "olm-restricted-networks",
       "title": "Using Operator Lifecycle Manager on restricted networks",
-      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/operators/administrator-tasks#olm-restricted-networks",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/olm-restricted-networks",
       "configTypes": ["other"],
       "tags": ["operators", "olm", "disconnected", "restricted-network"],
-      "notes": "OLM on restricted networks; operator catalog mirroring and installation in disconnected environments."
+      "notes": "Chapter 10: Using Operator Lifecycle Manager in disconnected environments. Catalog mirroring and restricted-network operator installation."
     }
   ]
 }
