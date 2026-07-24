@@ -40,6 +40,34 @@ export const CreateCollectionPipelineStep: React.FC = () => {
             ? { platformChannels: state.updateChannels }
             : {}),
         };
+
+        // Replicate operators across all platform channel minor versions
+        // Parent operators may only have v4.21 catalogs; adding stable-4.22
+        // requires v4.22 catalog entries for the same operators
+        if (state.updateChannels?.length > 0 && stateForGenerate.operators?.selected?.length > 0) {
+          const channelMinors = new Set(
+            state.updateChannels.map((ch: any) => ch.name.replace('stable-', ''))
+          );
+          const expandedSelected: any[] = [];
+          const seenCombos = new Set<string>();
+
+          for (const op of stateForGenerate.operators.selected) {
+            for (const minor of channelMinors) {
+              const baseCatalog = op.catalogImage.replace(/:v[\d.]+$/, '');
+              const newCatalogImage = `${baseCatalog}:v${minor}`;
+              const key = `${newCatalogImage}:${op.name}`;
+              if (!seenCombos.has(key)) {
+                seenCombos.add(key);
+                expandedSelected.push({ ...op, catalogImage: newCatalogImage });
+              }
+            }
+          }
+
+          stateForGenerate.operators = {
+            ...stateForGenerate.operators,
+            selected: expandedSelected,
+          };
+        }
         const data = await apiFetch('/api/generate', {
           method: 'POST',
           body: JSON.stringify({ state: stateForGenerate }),
