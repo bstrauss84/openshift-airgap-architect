@@ -88,17 +88,18 @@ export const UpdateReleaseChannelsStep: React.FC = () => {
   const handleAddChannel = () => {
     if (!selectedChannel || !selectedVersion) return;
 
+    const channelName = selectedChannel.startsWith('stable-') ? selectedChannel : `stable-${selectedChannel}`;
     const exists = updateChannels.some(
-      (ch) => ch.name === selectedChannel && ch.minVersion === selectedVersion
+      (ch) => ch.name === channelName && ch.minVersion === selectedVersion
     );
     if (exists) {
-      setDuplicateError(`${selectedChannel} @ ${selectedVersion} is already in the list.`);
+      setDuplicateError(`${channelName} @ ${selectedVersion} is already in the list.`);
       return;
     }
 
     setDuplicateError('');
     const newChannel: PlatformChannel = {
-      name: selectedChannel,
+      name: channelName,
       minVersion: selectedVersion,
       maxVersion: selectedVersion,
     };
@@ -210,14 +211,14 @@ export const UpdateReleaseChannelsStep: React.FC = () => {
                       isExpanded={channelOpen}
                       style={{ minWidth: '200px' }}
                     >
-                      {selectedChannel || 'Select a channel'}
+                      {selectedChannel ? `stable-${selectedChannel}` : 'Select a channel'}
                     </MenuToggle>
                   )}
                 >
                   <SelectList>
                     {channels.map((channel) => (
                       <SelectOption key={channel} value={channel}>
-                        {channel}
+                        {`stable-${channel}`}
                       </SelectOption>
                     ))}
                   </SelectList>
