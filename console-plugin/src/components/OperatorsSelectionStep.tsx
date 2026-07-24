@@ -5,11 +5,7 @@
  * Operator bundles synchronized with frontend scenarios.
  */
 import * as React from 'react';
-import { Form, FormGroup, FormSection } from '@patternfly/react-core/dist/dynamic/components/Form';
-import { Checkbox } from '@patternfly/react-core/dist/dynamic/components/Checkbox';
-import { Radio } from '@patternfly/react-core/dist/dynamic/components/Radio';
-import { TextInput } from '@patternfly/react-core/dist/dynamic/components/TextInput';
-import { Content } from '@patternfly/react-core/dist/dynamic/components/Content';
+import { Form, FormGroup, FormSection, Checkbox, Radio, TextInput, Content } from '@patternfly/react-core';
 import { useApp } from '../AppProvider';
 
 // Catalog options (matches frontend catalogImages)

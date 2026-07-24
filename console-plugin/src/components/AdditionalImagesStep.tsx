@@ -4,10 +4,7 @@
  * Allows users to specify additional container images to mirror.
  */
 import * as React from 'react';
-import { Form } from '@patternfly/react-core/dist/dynamic/components/Form';
-import { FormGroup } from '@patternfly/react-core/dist/dynamic/components/Form';
-import { TextArea } from '@patternfly/react-core/dist/dynamic/components/TextArea';
-import { Content } from '@patternfly/react-core/dist/dynamic/components/Content';
+import { Form, FormGroup, TextArea, Content } from '@patternfly/react-core';
 import { useApp } from '../AppProvider';
 
 export const AdditionalImagesStep: React.FC = () => {

@@ -10,8 +10,7 @@ import {
   Spinner,
   TextInput,
 } from '@patternfly/react-core';
-import TrashIcon from '@patternfly/react-icons/dist/dynamic/icons/trash-icon';
-import PlusCircleIcon from '@patternfly/react-icons/dist/dynamic/icons/plus-circle-icon';
+import { TrashIcon, PlusCircleIcon } from '@patternfly/react-icons';
 import { useApp } from '../AppProvider';
 import { OperatorCatalog, OperatorPackage } from '../utils/imageset-config-types';
 

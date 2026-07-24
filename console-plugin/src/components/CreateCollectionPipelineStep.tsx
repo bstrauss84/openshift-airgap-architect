@@ -5,12 +5,7 @@
  * a CollectionPipeline CR to trigger mirroring.
  */
 import * as React from 'react';
-import { Button } from '@patternfly/react-core/dist/dynamic/components/Button';
-import { Alert } from '@patternfly/react-core/dist/dynamic/components/Alert';
-import { Spinner } from '@patternfly/react-core/dist/dynamic/components/Spinner';
-import { Content } from '@patternfly/react-core/dist/dynamic/components/Content';
-import { CodeBlock } from '@patternfly/react-core/dist/dynamic/components/CodeBlock';
-import { CodeBlockCode } from '@patternfly/react-core/dist/dynamic/components/CodeBlock';
+import { Button, Alert, Spinner, Content, CodeBlock, CodeBlockCode } from '@patternfly/react-core';
 import { useApp } from '../AppProvider';
 import { apiFetch } from '../api';
 import { useHistory } from 'react-router-dom';

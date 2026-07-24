@@ -10,22 +10,15 @@
  */
 import * as React from 'react';
 import { useParams, useHistory } from 'react-router-dom';
-import { PageSection } from '@patternfly/react-core/dist/dynamic/components/Page';
-import { Title } from '@patternfly/react-core/dist/dynamic/components/Title';
-import { Content } from '@patternfly/react-core/dist/dynamic/components/Content';
-import { Button } from '@patternfly/react-core/dist/dynamic/components/Button';
-import { Alert } from '@patternfly/react-core/dist/dynamic/components/Alert';
-import { Spinner } from '@patternfly/react-core/dist/dynamic/components/Spinner';
-import { Card, CardBody, CardTitle } from '@patternfly/react-core/dist/dynamic/components/Card';
-import { DescriptionList, DescriptionListGroup, DescriptionListTerm, DescriptionListDescription } from '@patternfly/react-core/dist/dynamic/components/DescriptionList';
-import { CodeBlock, CodeBlockCode } from '@patternfly/react-core/dist/dynamic/components/CodeBlock';
-import { List, ListItem } from '@patternfly/react-core/dist/dynamic/components/List';
+import {
+  PageSection, Title, Content, Button, Alert, Spinner,
+  Card, CardBody, CardTitle,
+  DescriptionList, DescriptionListGroup, DescriptionListTerm, DescriptionListDescription,
+  CodeBlock, CodeBlockCode,
+  List, ListItem,
+} from '@patternfly/react-core';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table';
-import DownloadIcon from '@patternfly/react-icons/dist/dynamic/icons/download-icon';
-import ExternalLinkAltIcon from '@patternfly/react-icons/dist/dynamic/icons/external-link-alt-icon';
-import CheckCircleIcon from '@patternfly/react-icons/dist/dynamic/icons/check-circle-icon';
-import InProgressIcon from '@patternfly/react-icons/dist/dynamic/icons/in-progress-icon';
-import ExclamationCircleIcon from '@patternfly/react-icons/dist/dynamic/icons/exclamation-circle-icon';
+import { DownloadIcon, ExternalLinkAltIcon, CheckCircleIcon, InProgressIcon, ExclamationCircleIcon } from '@patternfly/react-icons';
 import { CollectionPipeline } from '../types';
 
 interface PipelineRun {

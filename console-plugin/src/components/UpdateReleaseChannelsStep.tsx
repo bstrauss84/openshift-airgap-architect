@@ -13,8 +13,7 @@ import {
   Spinner,
 } from '@patternfly/react-core';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table';
-import TrashIcon from '@patternfly/react-icons/dist/dynamic/icons/trash-icon';
-import PlusCircleIcon from '@patternfly/react-icons/dist/dynamic/icons/plus-circle-icon';
+import { TrashIcon, PlusCircleIcon } from '@patternfly/react-icons';
 import { useApp } from '../AppProvider';
 import { apiFetch } from '../api';
 import { PlatformChannel } from '../utils/imageset-config-types';

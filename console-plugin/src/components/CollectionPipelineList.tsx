@@ -4,13 +4,8 @@
  * Lists and monitors CollectionPipeline resources.
  */
 import * as React from 'react';
-import { PageSection } from '@patternfly/react-core/dist/dynamic/components/Page';
-import { Title } from '@patternfly/react-core/dist/dynamic/components/Title';
-import { Content } from '@patternfly/react-core/dist/dynamic/components/Content';
-import { Button } from '@patternfly/react-core/dist/dynamic/components/Button';
-import { Alert } from '@patternfly/react-core/dist/dynamic/components/Alert';
-import { Spinner } from '@patternfly/react-core/dist/dynamic/components/Spinner';
-import DownloadIcon from '@patternfly/react-icons/dist/dynamic/icons/download-icon';
+import { PageSection, Title, Content, Button, Alert, Spinner } from '@patternfly/react-core';
+import { DownloadIcon } from '@patternfly/react-icons';
 import {
   Table,
   Thead,
