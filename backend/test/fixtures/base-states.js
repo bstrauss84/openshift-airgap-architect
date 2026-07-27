@@ -15,6 +15,19 @@
  * Minimal state - bare minimum for buildInstallConfig
  */
 export const minimal = (overrides = {}) => ({
+  version: {
+    _schemaVersion: 3,
+    selectedMinor: "4.20",
+    selectedPatch: "4.20.8",
+    locked: true,
+    ...overrides.version
+  },
+  release: {
+    channel: "4.20",
+    patchVersion: "4.20.8",
+    confirmed: true,
+    ...overrides.release
+  },
   blueprint: {
     platform: "Bare Metal",
     baseDomain: "example.com",

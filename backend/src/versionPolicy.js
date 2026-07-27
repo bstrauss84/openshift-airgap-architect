@@ -10,6 +10,8 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
+import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
+
 // Application-supported OpenShift minors (requires audited catalogs, Field Guide, validation, generation contract)
 // Cincinnati availability is NOT the same as application support
 const SUPPORTED_MINORS = Object.freeze(["4.20", "4.21"]);
@@ -47,4 +49,29 @@ const getTrustBundlePolicies = (version) => {
   return [];
 };
 
-export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies };
+function assertSupportedOpenShiftMinorForGeneration(state) {
+  const minor = getOpenShiftMinorFromState(state);
+  if (!minor) {
+    const err = new Error(
+      `OpenShift version could not be determined from state. ` +
+      `Supported versions: ${SUPPORTED_MINORS.join(", ")}`
+    );
+    err.code = "UNSUPPORTED_VERSION";
+    err.requestedVersion = null;
+    err.supportedVersions = SUPPORTED_MINORS;
+    throw err;
+  }
+  if (!isSupportedMinor(minor)) {
+    const err = new Error(
+      `OpenShift ${minor} is not supported by this version of OpenShift Airgap Architect. ` +
+      `Supported versions: ${SUPPORTED_MINORS.join(", ")}`
+    );
+    err.code = "UNSUPPORTED_VERSION";
+    err.requestedVersion = minor;
+    err.supportedVersions = SUPPORTED_MINORS;
+    throw err;
+  }
+  return minor;
+}
+
+export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies, assertSupportedOpenShiftMinorForGeneration };

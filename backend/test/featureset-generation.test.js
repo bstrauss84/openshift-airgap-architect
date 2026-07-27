@@ -16,6 +16,8 @@ import yaml from "js-yaml";
 
 // Minimal state for bare-metal-ipi scenario
 const createMinimalState = (platformConfig = {}) => ({
+  version: { _schemaVersion: 3, selectedMinor: "4.20", selectedPatch: "4.20.8", locked: true },
+  release: { channel: "4.20", patchVersion: "4.20.8", confirmed: true },
   blueprint: {
     baseDomain: "example.com",
     clusterName: "test-cluster",

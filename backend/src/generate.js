@@ -12,7 +12,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import yaml from "js-yaml";
-import { getTrustBundlePolicies } from "./versionPolicy.js";
+import { getTrustBundlePolicies, assertSupportedOpenShiftMinorForGeneration } from "./versionPolicy.js";
 import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
@@ -116,6 +116,8 @@ const effectiveHostname = (node, baseDomain) => {
 
 // Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
+  assertSupportedOpenShiftMinorForGeneration(state);
+
   const mirror = state.globalStrategy?.mirroring || {};
   const imageDigestSources = mirror.sources?.map((s) => ({
     source: s.source,
