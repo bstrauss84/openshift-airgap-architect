@@ -14,43 +14,46 @@
 /**
  * Minimal state - bare minimum for buildInstallConfig
  */
-export const minimal = (overrides = {}) => ({
-  version: {
-    _schemaVersion: 3,
-    selectedMinor: "4.20",
-    selectedPatch: "4.20.8",
-    locked: true,
-    ...overrides.version
-  },
-  release: {
-    channel: "4.20",
-    patchVersion: "4.20.8",
-    confirmed: true,
-    ...overrides.release
-  },
-  blueprint: {
-    platform: "Bare Metal",
-    baseDomain: "example.com",
-    clusterName: "test-cluster",
-    ...overrides.blueprint
-  },
-  methodology: {
-    method: "Agent-Based Installer",
-    ...overrides.methodology
-  },
-  globalStrategy: {
-    networking: {},
-    ...overrides.globalStrategy
-  },
-  credentials: {
-    ...overrides.credentials
-  },
-  hostInventory: {
-    nodes: [],
-    ...overrides.hostInventory
-  },
-  ...overrides
-});
+export const minimal = (overrides = {}) => {
+  const { version, release, blueprint, methodology, globalStrategy, credentials, hostInventory, ...rest } = overrides;
+  return {
+    version: {
+      _schemaVersion: 3,
+      selectedMinor: "4.20",
+      selectedPatch: "4.20.8",
+      locked: true,
+      ...version
+    },
+    release: {
+      channel: "4.20",
+      patchVersion: "4.20.8",
+      confirmed: true,
+      ...release
+    },
+    blueprint: {
+      platform: "Bare Metal",
+      baseDomain: "example.com",
+      clusterName: "test-cluster",
+      ...blueprint
+    },
+    methodology: {
+      method: "Agent-Based Installer",
+      ...methodology
+    },
+    globalStrategy: {
+      networking: {},
+      ...globalStrategy
+    },
+    credentials: {
+      ...credentials
+    },
+    hostInventory: {
+      nodes: [],
+      ...hostInventory
+    },
+    ...rest
+  };
+};
 
 /**
  * Bare Metal Agent-Based Installer

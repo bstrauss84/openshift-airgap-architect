@@ -51,7 +51,7 @@ import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js
 import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
-import { SUPPORTED_MINORS, isSupportedMinor } from "./versionPolicy.js";
+import { assertSupportedOpenShiftMinorForGeneration } from "./versionPolicy.js";
 import { sanitizeStateForPersistence } from "./stateSanitizer.js";
 import {
   validateBody,
@@ -2994,25 +2994,8 @@ app.get("/api/aws/ami", async (req, res) => {
   }
 });
 
-/**
- * DOC-102 Slice 5F.13: Shared unsupported-version assertion
- * Throws UNSUPPORTED_VERSION error before artifact builders execute.
- * @param {object} v3State - Migrated v3 state
- * @throws {Error} with code='UNSUPPORTED_VERSION', requestedVersion, supportedVersions
- */
 function assertSupportedOpenShiftVersion(v3State) {
-  const version = getOpenShiftMinorFromState(v3State) || "4.0";
-
-  if (!isSupportedMinor(version)) {
-    const error = new Error(
-      `OpenShift ${version} is not supported by this version of OpenShift Airgap Architect. ` +
-      `Supported versions: ${SUPPORTED_MINORS.join(', ')}`
-    );
-    error.code = 'UNSUPPORTED_VERSION';
-    error.requestedVersion = version;
-    error.supportedVersions = SUPPORTED_MINORS;
-    throw error;
-  }
+  assertSupportedOpenShiftMinorForGeneration(v3State);
 }
 
 const buildPreviewFiles = (state) => {

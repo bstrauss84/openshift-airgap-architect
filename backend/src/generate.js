@@ -116,7 +116,7 @@ const effectiveHostname = (node, baseDomain) => {
 
 // Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
-  assertSupportedOpenShiftMinorForGeneration(state);
+  const selectedMinor = assertSupportedOpenShiftMinorForGeneration(state);
 
   const mirror = state.globalStrategy?.mirroring || {};
   const imageDigestSources = mirror.sources?.map((s) => ({
@@ -494,13 +494,9 @@ const buildInstallConfig = (state) => {
     };
   }
 
-  // Mirror-source key pivot: 4.14+ uses imageDigestSources; 4.13 and below use imageContentSources.
-  const parsedVersion = String(state.blueprint?.version || "").match(/^(\d+)\.(\d+)/);
-  const major = parsedVersion ? Number(parsedVersion[1]) : NaN;
-  const minor = parsedVersion ? Number(parsedVersion[2]) : NaN;
-  const useImageDigestSources = !Number.isFinite(major)
-    ? true
-    : (major > 4 || (major === 4 && Number.isFinite(minor) && minor >= 14));
+  // Mirror-source key pivot: all supported minors (4.20+) use imageDigestSources.
+  // selectedMinor is validated above — always ≥ 4.14.
+  const useImageDigestSources = true;
 
   // Only emit mirror mapping into install-config when mirror registry is actually in use.
   if (useMirrorPath && Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
@@ -978,8 +974,7 @@ const buildInstallConfig = (state) => {
   const trustBundle = resolveTrustBundleForGeneration(state);
   if (trustBundle) {
     installConfig.additionalTrustBundle = trustBundle;
-    const versionForPolicy = (state.release?.patchVersion || state.version?.selectedVersion || "").trim();
-    const versionPolicies = getTrustBundlePolicies(versionForPolicy);
+    const versionPolicies = getTrustBundlePolicies(selectedMinor);
     const allowedPolicies = versionPolicies.length ? versionPolicies : FALLBACK_TRUST_BUNDLE_POLICIES;
     const requested = normalizeAdditionalTrustBundlePolicy(trust.additionalTrustBundlePolicy);
     const mirrorPemBlocks = extractPemBlocks(trust.mirrorRegistryCaPem);

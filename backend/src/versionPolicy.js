@@ -49,29 +49,24 @@ const getTrustBundlePolicies = (version) => {
   return [];
 };
 
+function buildUnsupportedVersionError(requestedVersion) {
+  const msg = requestedVersion
+    ? `OpenShift ${requestedVersion} is not supported by this version of OpenShift Airgap Architect. ` +
+      `Supported versions: ${SUPPORTED_MINORS.join(", ")}`
+    : `OpenShift version could not be determined from state. ` +
+      `Supported versions: ${SUPPORTED_MINORS.join(", ")}`;
+  const err = new Error(msg);
+  err.code = "UNSUPPORTED_VERSION";
+  err.requestedVersion = requestedVersion ?? null;
+  err.supportedVersions = SUPPORTED_MINORS;
+  return err;
+}
+
 function assertSupportedOpenShiftMinorForGeneration(state) {
   const minor = getOpenShiftMinorFromState(state);
-  if (!minor) {
-    const err = new Error(
-      `OpenShift version could not be determined from state. ` +
-      `Supported versions: ${SUPPORTED_MINORS.join(", ")}`
-    );
-    err.code = "UNSUPPORTED_VERSION";
-    err.requestedVersion = null;
-    err.supportedVersions = SUPPORTED_MINORS;
-    throw err;
-  }
-  if (!isSupportedMinor(minor)) {
-    const err = new Error(
-      `OpenShift ${minor} is not supported by this version of OpenShift Airgap Architect. ` +
-      `Supported versions: ${SUPPORTED_MINORS.join(", ")}`
-    );
-    err.code = "UNSUPPORTED_VERSION";
-    err.requestedVersion = minor;
-    err.supportedVersions = SUPPORTED_MINORS;
-    throw err;
-  }
+  if (!minor) throw buildUnsupportedVersionError(null);
+  if (!isSupportedMinor(minor)) throw buildUnsupportedVersionError(minor);
   return minor;
 }
 
-export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies, assertSupportedOpenShiftMinorForGeneration };
+export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies, buildUnsupportedVersionError, assertSupportedOpenShiftMinorForGeneration };

@@ -16,8 +16,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import http from "node:http";
+import yaml from "js-yaml";
 import { buildInstallConfig } from "../src/generate.js";
-import { assertSupportedOpenShiftMinorForGeneration, SUPPORTED_MINORS, isSupportedMinor } from "../src/versionPolicy.js";
+import { assertSupportedOpenShiftMinorForGeneration, SUPPORTED_MINORS, isSupportedMinor, buildUnsupportedVersionError } from "../src/versionPolicy.js";
+import { minimal } from "./fixtures/base-states.js";
 import { app } from "../src/index.js";
 
 const makeState = (versionOverrides = {}) => ({
@@ -390,5 +392,201 @@ describe("HTTP install-config generation - missing and malformed version", () =>
       () => buildInstallConfig(state),
       (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.22"
     );
+  });
+});
+
+// ===================================================================
+// Stale-field conflict tests
+// ===================================================================
+
+describe("stale-field conflict tests", () => {
+  it("stale blueprint.version does not override canonical selectedMinor for mirror-source pivot", () => {
+    const state = makeState();
+    state.blueprint.version = "4.13.32";
+    const result = buildInstallConfig(state);
+    const config = yaml.load(result);
+    assert.strictEqual(config.imageContentSources, undefined, "stale 4.13 blueprint.version must not trigger imageContentSources");
+  });
+
+  it("stale release.patchVersion with valid selectedMinor still produces correct output", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.0" },
+      release: { channel: "4.21", patchVersion: "4.20.99" },
+    });
+    const result = buildInstallConfig(state);
+    assert.ok(typeof result === "string");
+    assert.ok(result.includes("apiVersion: v1"));
+  });
+
+  it("contradictory version fields resolve via canonical precedence", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.20.8" },
+      release: { channel: "4.20", patchVersion: "4.20.8" },
+    });
+    const result = assertSupportedOpenShiftMinorForGeneration(state);
+    assert.strictEqual(result, "4.21", "selectedMinor takes precedence per v3 canonical order");
+  });
+});
+
+// ===================================================================
+// Canonical error-construction helper tests
+// ===================================================================
+
+describe("buildUnsupportedVersionError canonical helper", () => {
+  it("produces error with correct shape for null requested version", () => {
+    const err = buildUnsupportedVersionError(null);
+    assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
+    assert.strictEqual(err.requestedVersion, null);
+    assert.deepStrictEqual(err.supportedVersions, SUPPORTED_MINORS);
+    assert.ok(err.message.includes("could not be determined"));
+  });
+
+  it("produces error with correct shape for specific version", () => {
+    const err = buildUnsupportedVersionError("4.19");
+    assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
+    assert.strictEqual(err.requestedVersion, "4.19");
+    assert.deepStrictEqual(err.supportedVersions, SUPPORTED_MINORS);
+    assert.ok(err.message.includes("4.19"));
+  });
+
+  it("route-level and generation-level assertions share the same error shape", () => {
+    const genErr = (() => {
+      try { assertSupportedOpenShiftMinorForGeneration({}); } catch (e) { return e; }
+    })();
+    assert.strictEqual(genErr.code, "UNSUPPORTED_VERSION");
+    assert.strictEqual(genErr.requestedVersion, null);
+    assert.deepStrictEqual(genErr.supportedVersions, SUPPORTED_MINORS);
+  });
+});
+
+// ===================================================================
+// Fixture isolation tests
+// ===================================================================
+
+describe("fixture isolation", () => {
+  it("minimal() returns fresh objects on each call", () => {
+    const a = minimal();
+    const b = minimal();
+    assert.notStrictEqual(a, b);
+    assert.notStrictEqual(a.version, b.version);
+    assert.notStrictEqual(a.release, b.release);
+  });
+
+  it("minimal() overrides do not clobber merged nested objects", () => {
+    const state = minimal({ version: { selectedMinor: "4.21" } });
+    assert.strictEqual(state.version.selectedMinor, "4.21");
+    assert.strictEqual(state.version._schemaVersion, 3, "base _schemaVersion must survive override");
+    assert.strictEqual(state.version.locked, true, "base locked must survive override");
+    assert.strictEqual(state.version.selectedPatch, "4.20.8", "base selectedPatch must survive when not overridden");
+  });
+
+  it("minimal() rest overrides add new top-level keys without clobbering nested", () => {
+    const state = minimal({
+      trust: { mirrorRegistryCaPem: "FAKE" },
+      version: { selectedMinor: "4.21" }
+    });
+    assert.strictEqual(state.trust.mirrorRegistryCaPem, "FAKE");
+    assert.strictEqual(state.version.selectedMinor, "4.21");
+    assert.strictEqual(state.version._schemaVersion, 3);
+  });
+});
+
+// ===================================================================
+// Valid-output regression proofs (normalized parsed output)
+// ===================================================================
+
+describe("valid-output regression proofs", () => {
+  it("Bare Metal Agent-Based: produces correct structure", () => {
+    const state = makeState();
+    const result = buildInstallConfig(state);
+    const config = yaml.load(result);
+    assert.strictEqual(config.apiVersion, "v1");
+    assert.strictEqual(config.baseDomain, "example.com");
+    assert.strictEqual(config.metadata.name, "test-cluster");
+    assert.strictEqual(config.networking.networkType, "OVNKubernetes");
+    assert.ok(Array.isArray(config.networking.machineNetwork));
+    assert.strictEqual(config.networking.machineNetwork[0].cidr, "192.168.1.0/24");
+    assert.ok(Array.isArray(config.networking.clusterNetwork));
+    assert.ok(Array.isArray(config.networking.serviceNetwork));
+    assert.strictEqual(config.compute[0].name, "worker");
+    assert.strictEqual(config.controlPlane.name, "master");
+  });
+
+  it("AWS GovCloud IPI: produces correct platform.aws structure", () => {
+    const state = makeState();
+    state.blueprint.platform = "AWS GovCloud";
+    state.methodology.method = "IPI";
+    state.platformConfig = {
+      aws: { region: "us-gov-west-1", hostedZone: "Z123456" }
+    };
+    const result = buildInstallConfig(state);
+    const config = yaml.load(result);
+    assert.strictEqual(config.apiVersion, "v1");
+    assert.strictEqual(config.platform.aws.region, "us-gov-west-1");
+    assert.strictEqual(config.platform.aws.hostedZone, "Z123456");
+    assert.strictEqual(config.imageContentSources, undefined);
+  });
+
+  it("vSphere IPI: produces correct platform.vsphere structure", () => {
+    const state = makeState();
+    state.blueprint.platform = "VMware vSphere";
+    state.methodology.method = "IPI";
+    state.platformConfig = {
+      vsphere: {
+        placementMode: "legacy",
+        vcenter: "vcenter.local",
+        datacenter: "DC1",
+        cluster: "Cluster1",
+        datastore: "DS1",
+        network: "VM Network"
+      }
+    };
+    const result = buildInstallConfig(state);
+    const config = yaml.load(result);
+    assert.strictEqual(config.apiVersion, "v1");
+    assert.ok(config.platform.vsphere);
+    assert.ok(Array.isArray(config.platform.vsphere.vcenters));
+    assert.strictEqual(config.platform.vsphere.vcenters[0].server, "vcenter.local");
+    assert.strictEqual(config.publish, "External");
+  });
+
+  it("mirror-registry state: emits imageDigestSources (never imageContentSources)", () => {
+    const sources = [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }];
+    const state = makeState();
+    state.globalStrategy.mirroring = { registryFqdn: "registry.local:5000", sources };
+    state.credentials = {
+      usingMirrorRegistry: true,
+      mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"dGVzdDp0ZXN0"}}}'
+    };
+    const result = buildInstallConfig(state);
+    const config = yaml.load(result);
+    assert.ok(Array.isArray(config.imageDigestSources));
+    assert.strictEqual(config.imageDigestSources.length, 1);
+    assert.strictEqual(config.imageContentSources, undefined);
+  });
+
+  it("trust-bundle state: emits additionalTrustBundle with correct policy", () => {
+    const state = makeState();
+    state.trust = {
+      mirrorRegistryCaPem: "-----BEGIN CERTIFICATE-----\nMIIFAKE=\n-----END CERTIFICATE-----",
+    };
+    const result = buildInstallConfig(state);
+    const config = yaml.load(result);
+    assert.ok(typeof config.additionalTrustBundle === "string");
+    assert.ok(config.additionalTrustBundle.includes("BEGIN CERTIFICATE"));
+    assert.strictEqual(config.additionalTrustBundlePolicy, "Always");
+  });
+
+  it("4.21 state produces valid output with correct structure", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    const result = buildInstallConfig(state);
+    const config = yaml.load(result);
+    assert.strictEqual(config.apiVersion, "v1");
+    assert.strictEqual(config.baseDomain, "example.com");
+    assert.strictEqual(config.controlPlane.replicas, 3);
+    assert.strictEqual(config.imageContentSources, undefined);
   });
 });
