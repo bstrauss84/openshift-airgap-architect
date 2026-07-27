@@ -489,8 +489,8 @@ export function buildDocumentationSources(state, confirmedTabs, docsIndex) {
 
   if (confirmedTabs.includes('connectivity-mirroring')) {
     if (state.credentials?.usingMirrorRegistry) {
-      const url = sharedUrl('about-oc-mirror-v2');
-      if (url) docs.push({ title: 'Mirroring images for a disconnected installation', url });
+      const url = sharedUrl('about-disconnected-installation-mirroring');
+      if (url) docs.push({ title: 'About disconnected installation mirroring', url });
     }
 
     const ntpServers = state.globalStrategy?.ntpServers;

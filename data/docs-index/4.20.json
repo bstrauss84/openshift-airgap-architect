@@ -719,6 +719,19 @@
       "notes": "Chapter 5: Mirroring images for a disconnected installation by using the oc-mirror plugin v2. imageset-config generation."
     },
     {
+      "id": "about-disconnected-installation-mirroring",
+      "title": "About disconnected installation mirroring",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-mirroring-disconnected-about",
+      "configTypes": [
+        "install-config"
+      ],
+      "tags": [
+        "mirroring",
+        "disconnected"
+      ],
+      "notes": "Chapter 3: About disconnected installation mirroring. Tool-neutral overview covering oc-mirror and oc adm approaches."
+    },
+    {
       "id": "configuring-custom-pki",
       "title": "Configuring custom PKI",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/configuring_network_settings/configuring-a-custom-pki",

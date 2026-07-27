@@ -515,16 +515,16 @@ describe('Scenario Summary Helpers', () => {
       expect(dualStackDoc).toBeUndefined();
     });
 
-    it('adds mirror registry doc when mirror registry used and connectivity confirmed (bare-metal-agent)', () => {
+    it('adds neutral mirroring doc when mirror registry used and connectivity confirmed (bare-metal-agent)', () => {
       const state = {
         blueprint: { platform: 'Bare Metal' },
         methodology: { method: 'Agent-Based Installer' },
         credentials: { usingMirrorRegistry: true }
       };
       const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
-      const mirrorDoc = docs.find(d => d.title === 'Mirroring images for a disconnected installation');
+      const mirrorDoc = docs.find(d => d.title === 'About disconnected installation mirroring');
       expect(mirrorDoc).toBeDefined();
-      expect(mirrorDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2');
+      expect(mirrorDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-mirroring-disconnected-about');
     });
 
     it('adds proxy doc when proxy enabled and trust-proxy confirmed', () => {
@@ -568,10 +568,10 @@ describe('Scenario Summary Helpers', () => {
         url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installation_overview/installing-fips',
       },
       {
-        title: 'Mirroring images for a disconnected installation',
-        docId: 'about-oc-mirror-v2',
-        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/about-installing-oc-mirror-v2',
-        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/about-installing-oc-mirror-v2',
+        title: 'About disconnected installation mirroring',
+        docId: 'about-disconnected-installation-mirroring',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-mirroring-disconnected-about',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/installing-mirroring-disconnected-about',
       },
       {
         title: 'Configuring NTP servers for disconnected clusters',
@@ -775,6 +775,75 @@ describe('Scenario Summary Helpers', () => {
         };
         const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
         expect(docs.find(d => d.title === ntpTitle)).toBeUndefined();
+      });
+    });
+
+    describe('Neutral mirroring mapping (generic boolean condition)', () => {
+      const neutralTitle = 'About disconnected installation mirroring';
+      const ocMirrorV2Title = 'About oc-mirror (v2)';
+
+      it('generic usingMirrorRegistry returns neutral 4.20 URL, not oc-mirror-v2', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        const neutralDoc = docs.find(d => d.title === neutralTitle);
+        expect(neutralDoc).toBeDefined();
+        expect(neutralDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-mirroring-disconnected-about');
+        const v2Doc = docs.find(d => d.title === ocMirrorV2Title);
+        expect(v2Doc).toBeUndefined();
+      });
+
+      it('generic usingMirrorRegistry returns neutral 4.21 URL, not oc-mirror-v2', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex421);
+        const neutralDoc = docs.find(d => d.title === neutralTitle);
+        expect(neutralDoc).toBeDefined();
+        expect(neutralDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/installing-mirroring-disconnected-about');
+        expect(neutralDoc.url).toContain('/4.21/');
+        expect(neutralDoc.url).not.toContain('/4.20/');
+      });
+
+      it('about-oc-mirror-v2 sharedDocs entry remains in each index', () => {
+        const v2Entry420 = docsIndex420.sharedDocs.find(d => d.id === 'about-oc-mirror-v2');
+        expect(v2Entry420).toBeDefined();
+        expect(v2Entry420.url).toContain('/4.20/');
+        const v2Entry421 = docsIndex421.sharedDocs.find(d => d.id === 'about-oc-mirror-v2');
+        expect(v2Entry421).toBeDefined();
+        expect(v2Entry421.url).toContain('/4.21/');
+      });
+
+      it('null index adds no mirroring link', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], null);
+        expect(docs.find(d => d.title === neutralTitle)).toBeUndefined();
+      });
+
+      it('index missing neutral mapping adds no mirroring link', () => {
+        const indexWithoutNeutral = {
+          version: '4.20',
+          sharedDocs: [
+            { id: 'about-oc-mirror-v2', title: ocMirrorV2Title, url: 'https://example.com/v2' }
+          ],
+          scenarios: { 'bare-metal-agent': { docs: [] } }
+        };
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], indexWithoutNeutral);
+        expect(docs.find(d => d.title === neutralTitle)).toBeUndefined();
       });
     });
   });
