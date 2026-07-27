@@ -494,17 +494,9 @@ const buildInstallConfig = (state) => {
     };
   }
 
-  // Mirror-source key pivot: all supported minors (4.20+) use imageDigestSources.
-  // selectedMinor is validated above — always ≥ 4.14.
-  const useImageDigestSources = true;
-
-  // Only emit mirror mapping into install-config when mirror registry is actually in use.
+  // All supported minors (4.20+) use imageDigestSources exclusively.
   if (useMirrorPath && Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
-    if (useImageDigestSources) {
-      installConfig.imageDigestSources = imageDigestSources;
-    } else {
-      installConfig.imageContentSources = imageDigestSources;
-    }
+    installConfig.imageDigestSources = imageDigestSources;
   }
 
   if (state.blueprint?.platform === "AWS GovCloud" || state.blueprint?.platform === "Azure Government") {

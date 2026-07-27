@@ -568,4 +568,59 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
       }
     });
   });
+
+  describe('HTTP error parity across routes', () => {
+    it('GET /api/generate and POST /api/generate return identical error shape for 4.22', async () => {
+      const { server, baseUrl } = await createTestServer();
+      try {
+        await fetch(`${baseUrl}/api/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(confirmed422State)
+        });
+        const getRes = await fetch(`${baseUrl}/api/generate`);
+        const getBody = await getRes.json();
+
+        const postRes = await fetch(`${baseUrl}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: confirmed422State })
+        });
+        const postBody = await postRes.json();
+
+        assert.strictEqual(getRes.status, postRes.status);
+        assert.strictEqual(getBody.code, postBody.code);
+        assert.strictEqual(getBody.requestedVersion, postBody.requestedVersion);
+        assert.deepStrictEqual(getBody.supportedVersions, postBody.supportedVersions);
+      } finally {
+        server.close();
+      }
+    });
+
+    it('POST /api/generate and POST /api/bundle.prepare return identical error shape for 4.22', async () => {
+      const { server, baseUrl } = await createTestServer();
+      try {
+        const genRes = await fetch(`${baseUrl}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: confirmed422State })
+        });
+        const genBody = await genRes.json();
+
+        const bundleRes = await fetch(`${baseUrl}/api/bundle.prepare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: confirmed422State })
+        });
+        const bundleBody = await bundleRes.json();
+
+        assert.strictEqual(genRes.status, bundleRes.status);
+        assert.strictEqual(genBody.code, bundleBody.code);
+        assert.strictEqual(genBody.requestedVersion, bundleBody.requestedVersion);
+        assert.deepStrictEqual(genBody.supportedVersions, bundleBody.supportedVersions);
+      } finally {
+        server.close();
+      }
+    });
+  });
 });

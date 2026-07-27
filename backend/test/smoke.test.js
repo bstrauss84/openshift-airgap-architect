@@ -13,9 +13,9 @@ import { buildInstallConfig, buildAgentConfig, buildFieldManual } from "../src/g
 import { getTrustBundlePolicies } from "../src/versionPolicy.js";
 import { baseStates, builders } from "./fixtures/index.js";
 
-const supportedVersionState = () => ({
-  version: { _schemaVersion: 3, selectedMinor: "4.20", selectedPatch: "4.20.8", locked: true },
-  release: { channel: "4.20", patchVersion: "4.20.8", confirmed: true },
+const supportedVersionState = (minor = "4.20", patch = "4.20.8") => ({
+  version: { _schemaVersion: 3, selectedMinor: minor, selectedPatch: patch, locked: true },
+  release: { channel: minor, patchVersion: patch, confirmed: true },
 });
 
 test("buildInstallConfig returns install config shape", () => {

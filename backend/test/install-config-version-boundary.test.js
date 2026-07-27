@@ -492,42 +492,298 @@ describe("fixture isolation", () => {
 });
 
 // ===================================================================
-// Valid-output regression proofs (normalized parsed output)
+// Correction B: Parameterized mirror behavior tests
 // ===================================================================
 
-describe("valid-output regression proofs", () => {
-  it("Bare Metal Agent-Based: produces correct structure", () => {
+describe("mirror-source pivot: imageDigestSources only", () => {
+  const mirrorSources = [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }];
+
+  for (const minor of ["4.20", "4.21"]) {
+    it(`${minor} emits imageDigestSources, never imageContentSources`, () => {
+      const state = makeState({
+        version: { selectedMinor: minor, selectedPatch: `${minor}.8` },
+        release: { channel: minor, patchVersion: `${minor}.8` },
+      });
+      state.globalStrategy.mirroring = { registryFqdn: "registry.local:5000", sources: mirrorSources };
+      state.credentials = {
+        usingMirrorRegistry: true,
+        mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"dGVzdDp0ZXN0"}}}',
+      };
+      const config = yaml.load(buildInstallConfig(state));
+      assert.ok(Array.isArray(config.imageDigestSources), `${minor}: imageDigestSources must be array`);
+      assert.strictEqual(config.imageDigestSources.length, 1);
+      assert.deepStrictEqual(config.imageDigestSources[0], mirrorSources[0]);
+      assert.strictEqual(config.imageContentSources, undefined, `${minor}: imageContentSources must be absent`);
+    });
+  }
+
+  it("stale blueprint.version 4.13.32 does not trigger imageContentSources", () => {
     const state = makeState();
-    const result = buildInstallConfig(state);
-    const config = yaml.load(result);
-    assert.strictEqual(config.apiVersion, "v1");
-    assert.strictEqual(config.baseDomain, "example.com");
-    assert.strictEqual(config.metadata.name, "test-cluster");
-    assert.strictEqual(config.networking.networkType, "OVNKubernetes");
-    assert.ok(Array.isArray(config.networking.machineNetwork));
-    assert.strictEqual(config.networking.machineNetwork[0].cidr, "192.168.1.0/24");
-    assert.ok(Array.isArray(config.networking.clusterNetwork));
-    assert.ok(Array.isArray(config.networking.serviceNetwork));
-    assert.strictEqual(config.compute[0].name, "worker");
-    assert.strictEqual(config.controlPlane.name, "master");
+    state.blueprint.version = "4.13.32";
+    state.globalStrategy.mirroring = { registryFqdn: "registry.local:5000", sources: mirrorSources };
+    state.credentials = {
+      usingMirrorRegistry: true,
+      mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"dGVzdDp0ZXN0"}}}',
+    };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.ok(Array.isArray(config.imageDigestSources));
+    assert.strictEqual(config.imageContentSources, undefined, "stale 4.13 must not trigger imageContentSources");
   });
 
-  it("AWS GovCloud IPI: produces correct platform.aws structure", () => {
+  it("4.21 with stale blueprint.version 4.13.32 emits imageDigestSources", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    state.blueprint.version = "4.13.32";
+    state.globalStrategy.mirroring = { registryFqdn: "registry.local:5000", sources: mirrorSources };
+    state.credentials = {
+      usingMirrorRegistry: true,
+      mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"dGVzdDp0ZXN0"}}}',
+    };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.ok(Array.isArray(config.imageDigestSources));
+    assert.strictEqual(config.imageContentSources, undefined);
+  });
+});
+
+// ===================================================================
+// Correction C: Trust-bundle policy canonical minor proof
+// ===================================================================
+
+describe("trust-bundle policy uses canonical minor", () => {
+  const certPem = (label) => `-----BEGIN CERTIFICATE-----\n${label}\n-----END CERTIFICATE-----`;
+
+  it("4.20 trust-bundle config has correct policy via canonical minor", () => {
     const state = makeState();
-    state.blueprint.platform = "AWS GovCloud";
-    state.methodology.method = "IPI";
-    state.platformConfig = {
-      aws: { region: "us-gov-west-1", hostedZone: "Z123456" }
+    state.trust = { mirrorRegistryCaPem: certPem("TESTCERT420") };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.strictEqual(config.additionalTrustBundlePolicy, "Always");
+    assert.ok(config.additionalTrustBundle.includes("TESTCERT420"));
+  });
+
+  it("4.21 trust-bundle config has correct policy via canonical minor", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    state.trust = { mirrorRegistryCaPem: certPem("TESTCERT421") };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.strictEqual(config.additionalTrustBundlePolicy, "Always");
+    assert.ok(config.additionalTrustBundle.includes("TESTCERT421"));
+  });
+
+  it("coherent 4.20 and 4.21 trust configs differ only in certificate content", () => {
+    const state420 = makeState();
+    state420.trust = { mirrorRegistryCaPem: certPem("TESTCERT420") };
+    const config420 = yaml.load(buildInstallConfig(state420));
+
+    const state421 = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    state421.trust = { mirrorRegistryCaPem: certPem("TESTCERT421") };
+    const config421 = yaml.load(buildInstallConfig(state421));
+
+    assert.strictEqual(config420.additionalTrustBundlePolicy, config421.additionalTrustBundlePolicy);
+    assert.notStrictEqual(config420.additionalTrustBundle, config421.additionalTrustBundle);
+  });
+
+  it("contradictory selectedMinor=4.21 + channel=4.20: policy resolves via canonical 4.21", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.20", patchVersion: "4.21.5" },
+    });
+    state.trust = { mirrorRegistryCaPem: certPem("CONTRADICT") };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.strictEqual(config.additionalTrustBundlePolicy, "Always");
+  });
+});
+
+// ===================================================================
+// Correction D: Canonical precedence both directions
+// ===================================================================
+
+describe("canonical precedence both directions", () => {
+  it("selectedMinor=4.21 + channel=4.20 resolves to 4.21", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.20", patchVersion: "4.20.8" },
+    });
+    const result = assertSupportedOpenShiftMinorForGeneration(state);
+    assert.strictEqual(result, "4.21");
+  });
+
+  it("selectedMinor=4.20 + channel=4.21 resolves to 4.20", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.20", selectedPatch: "4.20.8" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    const result = assertSupportedOpenShiftMinorForGeneration(state);
+    assert.strictEqual(result, "4.20");
+  });
+
+  it("selectedMinor=4.21 + channel=4.20 produces valid install-config", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.20", patchVersion: "4.20.8" },
+    });
+    const config = yaml.load(buildInstallConfig(state));
+    assert.strictEqual(config.apiVersion, "v1");
+    assert.strictEqual(config.baseDomain, "example.com");
+  });
+
+  it("selectedMinor=4.20 + channel=4.21 produces valid install-config", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.20", selectedPatch: "4.20.8" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    const config = yaml.load(buildInstallConfig(state));
+    assert.strictEqual(config.apiVersion, "v1");
+    assert.strictEqual(config.baseDomain, "example.com");
+  });
+});
+
+// ===================================================================
+// Correction F: Fixture isolation and coherence proofs
+// ===================================================================
+
+describe("fixture isolation and coherence", () => {
+  it("minimal() returns fresh objects on each call", () => {
+    const a = minimal();
+    const b = minimal();
+    assert.notStrictEqual(a, b);
+    assert.notStrictEqual(a.version, b.version);
+    assert.notStrictEqual(a.release, b.release);
+  });
+
+  it("minimal() overrides do not clobber merged nested objects", () => {
+    const state = minimal({ version: { selectedMinor: "4.21" } });
+    assert.strictEqual(state.version.selectedMinor, "4.21");
+    assert.strictEqual(state.version._schemaVersion, 3, "base _schemaVersion must survive override");
+    assert.strictEqual(state.version.locked, true, "base locked must survive override");
+    assert.strictEqual(state.version.selectedPatch, "4.20.8", "base selectedPatch must survive when not overridden");
+  });
+
+  it("minimal() rest overrides add new top-level keys without clobbering nested", () => {
+    const state = minimal({
+      trust: { mirrorRegistryCaPem: "FAKE" },
+      version: { selectedMinor: "4.21" }
+    });
+    assert.strictEqual(state.trust.mirrorRegistryCaPem, "FAKE");
+    assert.strictEqual(state.version.selectedMinor, "4.21");
+    assert.strictEqual(state.version._schemaVersion, 3);
+  });
+
+  it("makeState version/release overrides are coherent with canonical resolution", () => {
+    const state420 = makeState();
+    assert.strictEqual(assertSupportedOpenShiftMinorForGeneration(state420), "4.20");
+
+    const state421 = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    assert.strictEqual(assertSupportedOpenShiftMinorForGeneration(state421), "4.21");
+  });
+
+  it("makeState default produces buildable install-config", () => {
+    const state = makeState();
+    const result = buildInstallConfig(state);
+    assert.ok(typeof result === "string");
+    const config = yaml.load(result);
+    assert.strictEqual(config.apiVersion, "v1");
+  });
+
+  it("minimal() 4.21 override produces buildable install-config", () => {
+    const state = minimal({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    state.credentials = { sshPublicKey: "ssh-rsa AAAA" };
+    state.globalStrategy = {
+      networking: {
+        networkType: "OVNKubernetes",
+        machineNetworkV4: "192.168.1.0/24",
+        clusterNetworkCidr: "10.128.0.0/14",
+        clusterNetworkHostPrefix: 23,
+        serviceNetworkCidr: "172.30.0.0/16",
+      },
     };
     const result = buildInstallConfig(state);
     const config = yaml.load(result);
     assert.strictEqual(config.apiVersion, "v1");
-    assert.strictEqual(config.platform.aws.region, "us-gov-west-1");
-    assert.strictEqual(config.platform.aws.hostedZone, "Z123456");
-    assert.strictEqual(config.imageContentSources, undefined);
+  });
+});
+
+// ===================================================================
+// Correction G: Complete normalized-output regression (deepStrictEqual)
+// ===================================================================
+
+describe("normalized-output regression (full deepStrictEqual)", () => {
+  const baseBmAgent = {
+    apiVersion: "v1",
+    baseDomain: "example.com",
+    metadata: { name: "test-cluster" },
+    compute: [{ name: "worker", replicas: 0, architecture: "amd64" }],
+    controlPlane: { name: "master", replicas: 3, architecture: "amd64" },
+    networking: {
+      networkType: "OVNKubernetes",
+      machineNetwork: [{ cidr: "192.168.1.0/24" }],
+      clusterNetwork: [{ cidr: "10.128.0.0/14", hostPrefix: 23 }],
+      serviceNetwork: ["172.30.0.0/16"],
+    },
+    platform: { baremetal: {} },
+    pullSecret: '{"auths":{}}',
+    sshKey: "ssh-rsa AAAA",
+  };
+
+  it("BM Agent 4.20: full deepStrictEqual", () => {
+    const state = makeState();
+    state.credentials = { sshPublicKey: "ssh-rsa AAAA", pullSecret: '{"auths":{}}' };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, baseBmAgent);
   });
 
-  it("vSphere IPI: produces correct platform.vsphere structure", () => {
+  it("BM Agent 4.21: full deepStrictEqual", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    state.credentials = { sshPublicKey: "ssh-rsa AAAA", pullSecret: '{"auths":{}}' };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, baseBmAgent);
+  });
+
+  it("AWS GovCloud IPI 4.20: full deepStrictEqual", () => {
+    const state = makeState();
+    state.blueprint.platform = "AWS GovCloud";
+    state.methodology.method = "IPI";
+    state.platformConfig = { aws: { region: "us-gov-west-1" } };
+    state.credentials = { sshPublicKey: "ssh-rsa AAAA", pullSecret: '{"auths":{}}' };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, {
+      ...baseBmAgent,
+      platform: { aws: { region: "us-gov-west-1" } },
+    });
+  });
+
+  it("AWS GovCloud IPI 4.21: full deepStrictEqual", () => {
+    const state = makeState({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      release: { channel: "4.21", patchVersion: "4.21.5" },
+    });
+    state.blueprint.platform = "AWS GovCloud";
+    state.methodology.method = "IPI";
+    state.platformConfig = { aws: { region: "us-gov-west-1" } };
+    state.credentials = { sshPublicKey: "ssh-rsa AAAA", pullSecret: '{"auths":{}}' };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, {
+      ...baseBmAgent,
+      platform: { aws: { region: "us-gov-west-1" } },
+    });
+  });
+
+  it("vSphere IPI 4.20: full deepStrictEqual", () => {
     const state = makeState();
     state.blueprint.platform = "VMware vSphere";
     state.methodology.method = "IPI";
@@ -538,55 +794,88 @@ describe("valid-output regression proofs", () => {
         datacenter: "DC1",
         cluster: "Cluster1",
         datastore: "DS1",
-        network: "VM Network"
-      }
+        network: "VM Network",
+      },
     };
-    const result = buildInstallConfig(state);
-    const config = yaml.load(result);
-    assert.strictEqual(config.apiVersion, "v1");
-    assert.ok(config.platform.vsphere);
-    assert.ok(Array.isArray(config.platform.vsphere.vcenters));
-    assert.strictEqual(config.platform.vsphere.vcenters[0].server, "vcenter.local");
-    assert.strictEqual(config.publish, "External");
+    state.credentials = { sshPublicKey: "ssh-rsa AAAA", pullSecret: '{"auths":{}}' };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, {
+      ...baseBmAgent,
+      platform: {
+        vsphere: {
+          vcenters: [{
+            server: "vcenter.local",
+            user: "",
+            password: "",
+            datacenters: ["DC1"],
+            port: 443,
+          }],
+          failureDomains: [{
+            name: "fd-0",
+            region: "DC1",
+            zone: "Cluster1",
+            server: "vcenter.local",
+            topology: {
+              datacenter: "DC1",
+              computeCluster: "Cluster1",
+              datastore: "DS1",
+              networks: ["VM Network"],
+            },
+          }],
+        },
+      },
+      publish: "External",
+    });
   });
 
-  it("mirror-registry state: emits imageDigestSources (never imageContentSources)", () => {
-    const sources = [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }];
+  it("mirror 4.20: full deepStrictEqual", () => {
+    const mirrorSources = [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }];
     const state = makeState();
-    state.globalStrategy.mirroring = { registryFqdn: "registry.local:5000", sources };
+    state.globalStrategy.mirroring = { registryFqdn: "registry.local:5000", sources: mirrorSources };
     state.credentials = {
+      sshPublicKey: "ssh-rsa AAAA",
+      pullSecret: '{"auths":{}}',
       usingMirrorRegistry: true,
-      mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"dGVzdDp0ZXN0"}}}'
+      mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"dGVzdDp0ZXN0"}}}',
     };
-    const result = buildInstallConfig(state);
-    const config = yaml.load(result);
-    assert.ok(Array.isArray(config.imageDigestSources));
-    assert.strictEqual(config.imageDigestSources.length, 1);
-    assert.strictEqual(config.imageContentSources, undefined);
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, {
+      ...baseBmAgent,
+      imageDigestSources: [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }],
+    });
   });
 
-  it("trust-bundle state: emits additionalTrustBundle with correct policy", () => {
-    const state = makeState();
-    state.trust = {
-      mirrorRegistryCaPem: "-----BEGIN CERTIFICATE-----\nMIIFAKE=\n-----END CERTIFICATE-----",
-    };
-    const result = buildInstallConfig(state);
-    const config = yaml.load(result);
-    assert.ok(typeof config.additionalTrustBundle === "string");
-    assert.ok(config.additionalTrustBundle.includes("BEGIN CERTIFICATE"));
-    assert.strictEqual(config.additionalTrustBundlePolicy, "Always");
-  });
-
-  it("4.21 state produces valid output with correct structure", () => {
+  it("mirror 4.21: full deepStrictEqual", () => {
+    const mirrorSources = [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }];
     const state = makeState({
       version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
       release: { channel: "4.21", patchVersion: "4.21.5" },
     });
-    const result = buildInstallConfig(state);
-    const config = yaml.load(result);
-    assert.strictEqual(config.apiVersion, "v1");
-    assert.strictEqual(config.baseDomain, "example.com");
-    assert.strictEqual(config.controlPlane.replicas, 3);
-    assert.strictEqual(config.imageContentSources, undefined);
+    state.globalStrategy.mirroring = { registryFqdn: "registry.local:5000", sources: mirrorSources };
+    state.credentials = {
+      sshPublicKey: "ssh-rsa AAAA",
+      pullSecret: '{"auths":{}}',
+      usingMirrorRegistry: true,
+      mirrorRegistryPullSecret: '{"auths":{"registry.local:5000":{"auth":"dGVzdDp0ZXN0"}}}',
+    };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, {
+      ...baseBmAgent,
+      imageDigestSources: [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }],
+    });
+  });
+
+  it("trust 4.20: full deepStrictEqual", () => {
+    const state = makeState();
+    state.trust = {
+      mirrorRegistryCaPem: "-----BEGIN CERTIFICATE-----\nTESTCERT420\n-----END CERTIFICATE-----\n",
+    };
+    state.credentials = { sshPublicKey: "ssh-rsa AAAA", pullSecret: '{"auths":{}}' };
+    const config = yaml.load(buildInstallConfig(state));
+    assert.deepStrictEqual(config, {
+      ...baseBmAgent,
+      additionalTrustBundle: "-----BEGIN CERTIFICATE-----\nTESTCERT420\n-----END CERTIFICATE-----\n",
+      additionalTrustBundlePolicy: "Always",
+    });
   });
 });
