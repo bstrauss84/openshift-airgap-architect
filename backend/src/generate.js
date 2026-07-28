@@ -1568,7 +1568,8 @@ const buildImageSetConfig = (state) => {
       const existing = byCatalog.get(catalogImage);
       if (!existing.some((p) => p.name === dep.name)) {
         const entry = { name: dep.name };
-        if (dep.channel) entry.channels = [{ name: dep.channel }];
+        const resolvedChannel = dep.channel || (state._operatorChannelMap && state._operatorChannelMap.get(dep.name));
+        if (resolvedChannel) entry.channels = [{ name: resolvedChannel }];
         existing.push(entry);
       }
     }

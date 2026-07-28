@@ -3540,6 +3540,26 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
 
     // Connected mode: ONLY generate imageset-config
     if (connectivity === "connected") {
+      // Enrich operators with defaultChannel from scan cache when missing
+      if (parsed.state.mirrorOperatorPipeline) {
+        const catalogMinor = getOpenShiftMinorFromState(parsed.state);
+        if (catalogMinor) {
+          const scanData = getResults(catalogMinor, "redhat");
+          if (scanData?.results) {
+            const channelMap = new Map(scanData.results.map((r) => [r.name, r.defaultChannel]));
+            // Enrich user-selected operators
+            if (parsed.state.operators?.selected) {
+              for (const op of parsed.state.operators.selected) {
+                if (!op.defaultChannel && channelMap.has(op.name)) {
+                  op.defaultChannel = channelMap.get(op.name);
+                }
+              }
+            }
+            // Attach scan channel map for dependent operator resolution
+            parsed.state._operatorChannelMap = channelMap;
+          }
+        }
+      }
       const imagesetConfig = buildImageSetConfig(parsed.state);
       return res.json({
         files: {
