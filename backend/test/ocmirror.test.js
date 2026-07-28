@@ -79,7 +79,7 @@ test("POST /api/ocmirror/run without version confirmed returns 400", async () =>
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        version: { versionConfirmed: false },
+        version: { _schemaVersion: 3, locked: false },
         release: { confirmed: false }
       })
     });
@@ -98,6 +98,81 @@ test("POST /api/ocmirror/run without version confirmed returns 400", async () =>
     assert.strictEqual(res.status, 400);
     const data = await res.json();
     assert.ok(data.error);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/ocmirror/run with v3 locked:false after prior locked:true still returns 400", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: true, selectedMinor: "4.20", selectedPatch: "4.20.8" },
+        release: { channel: "4.20", patchVersion: "4.20.8", confirmed: true }
+      })
+    });
+    const midState = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(midState.version?.locked, true, "State should be locked after first POST");
+
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: false },
+        release: { confirmed: false }
+      })
+    });
+    const afterState = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(afterState.version?.locked, false, "State should be unlocked after second POST with locked:false");
+
+    const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "mirrorToDisk",
+        archivePath: "/tmp/arch",
+        workspacePath: "/tmp/ws",
+        cachePath: "/tmp/cache",
+        configSourceType: "generated",
+        authSource: "env"
+      })
+    });
+    assert.strictEqual(res.status, 400, "oc-mirror run must return 400 when version is explicitly unlocked");
+    const data = await res.json();
+    assert.ok(data.error);
+  } finally {
+    server.close();
+  }
+});
+
+test("v3 state merge: locked:false overwrites leaked locked:true via deepMerge", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: true, selectedMinor: "4.21", selectedPatch: "4.21.5" },
+        release: { channel: "4.21", patchVersion: "4.21.5", confirmed: true }
+      })
+    });
+
+    await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: false },
+        release: { confirmed: false }
+      })
+    });
+
+    const state = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(state.version?.locked, false, "locked:false must override leaked locked:true");
+    assert.strictEqual(state.version?._schemaVersion, 3, "Schema version must remain v3");
+    assert.strictEqual(state.release?.confirmed, false, "release.confirmed must sync with locked:false");
   } finally {
     server.close();
   }

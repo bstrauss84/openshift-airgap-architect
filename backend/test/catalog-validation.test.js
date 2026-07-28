@@ -212,39 +212,6 @@ test("getCatalog: empty string version throws CATALOG_VERSION_REQUIRED", () => {
 
 // ===================================================================
 // REQUIRED FIELDS VALIDATION TESTS (UI STATE - ABANDONED APPROACH)
-// ===================================================================
-//
-// NOTE: These tests validate UI state structure against catalogs.
-// This approach was explored but abandoned in favor of YAML validation
-// (see yamlValidator.js and yaml-validation.test.js).
-//
-// The catalog parameter paths are designed for YAML structure, not UI state.
-// Mapping UI state → catalog paths is complex and error-prone.
-//
-// Current validation strategy: Validate generated YAML (not UI state).
-// See backend/src/yamlValidator.js for the active implementation.
-//
-// These tests are kept for reference but may fail as they test incomplete code.
-// ===================================================================
-
-test.skip("validateRequiredFields: passes when all required fields present", () => {
-  const state = {
-    blueprint: {
-      baseDomain: "example.com",
-      clusterName: "test-cluster",
-      platform: "Bare Metal",
-    },
-    identity: {
-      pullSecret: '{"auths":{}}',
-      sshKey: "ssh-rsa AAAA...",
-    },
-  };
-
-  const result = validateRequiredFields(state, "bare-metal-ipi", "4.20");
-  assert.strictEqual(result.valid, true);
-  assert.strictEqual(result.errors.length, 0);
-});
-
 test("validateRequiredFields: fails when required field missing", () => {
   const state = {
     blueprint: {
@@ -312,22 +279,6 @@ test("validateEnumValues: passes when enum value is in allowed list", () => {
 
   const result = validateEnumValues(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, true);
-});
-
-test.skip("validateEnumValues: fails when enum value not in allowed list", () => {
-  const state = {
-    networking: {
-      networkType: "InvalidNetworkType",  // Not in allowed list
-    },
-  };
-
-  const result = validateEnumValues(state, "bare-metal-ipi", "4.20");
-  assert.strictEqual(result.valid, false);
-
-  const error = result.errors.find((e) => e.path === "networking.networkType");
-  assert.ok(error);
-  assert.ok(error.message.includes("Invalid value"));
-  assert.ok(Array.isArray(error.allowed));
 });
 
 test("validateEnumValues: skips empty values (required validation handles)", () => {
@@ -436,27 +387,6 @@ test("validateState: reports total error count", () => {
   const result = validateState(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, false);
   assert.ok(result.totalErrors > 0);
-});
-
-test.skip("validateState: valid state has zero total errors", () => {
-  const state = {
-    blueprint: {
-      baseDomain: "example.com",
-      clusterName: "test-cluster",
-      platform: "Bare Metal",
-    },
-    identity: {
-      pullSecret: '{"auths":{}}',
-      sshKey: "ssh-rsa AAAA...",
-    },
-    networking: {
-      networkType: "OVNKubernetes",
-    },
-  };
-
-  const result = validateState(state, "bare-metal-ipi", "4.20");
-  assert.strictEqual(result.totalErrors, 0);
-  assert.strictEqual(result.valid, true);
 });
 
 // ===================================================================
