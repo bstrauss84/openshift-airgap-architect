@@ -24,6 +24,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 test("Path Traversal: should block access to /etc/passwd", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
@@ -33,7 +37,7 @@ test("Path Traversal: should block access to /etc/passwd", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -46,7 +50,7 @@ test("Path Traversal: should block access to /etc directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -59,7 +63,7 @@ test("Path Traversal: should block access to /root directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -72,7 +76,7 @@ test("Path Traversal: should block path traversal attempts with ../", async () =
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -85,7 +89,7 @@ test("Path Traversal: should block path traversal from /data with ../", async ()
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -96,7 +100,7 @@ test("Path Traversal: should allow access to /tmp", async () => {
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -108,7 +112,7 @@ test("Path Traversal: should allow access to DATA_DIR", async () => {
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -120,7 +124,7 @@ test("Path Traversal: should allow access to subdirectories within DATA_DIR", as
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -131,7 +135,7 @@ test("Path Traversal: should allow access to subdirectories within /tmp", async 
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -144,7 +148,7 @@ test("Path Traversal: should block access to /home directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -157,7 +161,7 @@ test("Path Traversal: should block access to /var directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -170,7 +174,7 @@ test("Path Traversal: should block access to /proc directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -183,7 +187,7 @@ test("Path Traversal: should block access to /sys directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -196,7 +200,7 @@ test("Path Traversal: should block URL-encoded path traversal attempts", async (
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -210,7 +214,7 @@ test("Path Traversal: should handle default path (root) by blocking it", async (
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -249,7 +253,7 @@ test("SSH Algorithm Validation: should reject invalid algorithm", async () => {
       assert.ok(data.details.some(d => d.path === "algorithm"));
     }
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -264,7 +268,7 @@ test("SSH Algorithm Validation: should accept ed25519", async () => {
     // Should succeed or fail with generation error, but NOT 400 validation error
     assert.notStrictEqual(res.status, 400);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -279,7 +283,7 @@ test("SSH Algorithm Validation: should accept rsa", async () => {
     // Should succeed or fail with generation error, but NOT 400 validation error
     assert.notStrictEqual(res.status, 400);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -294,6 +298,6 @@ test("SSH Algorithm Validation: should accept ecdsa", async () => {
     // Should succeed or fail with generation error, but NOT 400 validation error
     assert.notStrictEqual(res.status, 400);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });

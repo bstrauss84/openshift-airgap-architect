@@ -21,6 +21,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 test("GET /api/ready returns ready:true when DB is readable", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
@@ -29,7 +33,7 @@ test("GET /api/ready returns ready:true when DB is readable", async () => {
     const data = await res.json();
     assert.strictEqual(data.ready, true);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -44,7 +48,7 @@ test("GET /api/build-info returns gitSha, buildTime, repo, branch", async () => 
     assert.ok("repo" in data);
     assert.ok("branch" in data);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -61,7 +65,7 @@ test("GET /api/update-info when CHECK_UPDATES=false returns enabled:false", asyn
   } finally {
     if (prev !== undefined) process.env.CHECK_UPDATES = prev;
     else delete process.env.CHECK_UPDATES;
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -95,7 +99,7 @@ test("GET /api/update-info when APP_GIT_SHA is unknown returns isOutdated:false 
     globalThis.fetch = originalFetch;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -129,7 +133,7 @@ test("GET /api/update-info when enabled and latest differs returns isOutdated:tr
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -162,7 +166,7 @@ test("GET /api/update-info when enabled and latest same returns isOutdated:false
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -197,7 +201,7 @@ test("update-info cache prevents repeated GitHub fetches", async () => {
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -232,6 +236,6 @@ test("update-info caches failure and returns error", async () => {
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    server.close();
+    await closeServer(server);
   }
 });

@@ -26,6 +26,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 // Unit tests for stripProxyCredentials
 test("stripProxyCredentials removes credentials from http proxy URL", () => {
   const result = stripProxyCredentials("http://user:pass@proxy.example.com:8080");
@@ -332,7 +336,7 @@ test("POST /api/state does not persist pull secret auths", async () => {
     const body = await postRes.json();
     assert.ok(body.error.includes("Credentials should not be included"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -363,7 +367,7 @@ test("POST /api/state does not persist vSphere password", async () => {
     assert.strictEqual(persistedState?.platformConfig?.vsphere?.password, undefined);
     assert.strictEqual(persistedState?.platformConfig?.vsphere?.username, undefined);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -397,7 +401,7 @@ test("POST /api/state does not persist BMC credentials but preserves BMC address
     assert.strictEqual(persistedState?.hostInventory?.nodes[0]?.bmc?.username, undefined);
     assert.strictEqual(persistedState?.hostInventory?.nodes[0]?.bmc?.password, undefined);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -423,7 +427,7 @@ test("POST /api/state strips proxy URL credentials but preserves scheme/host/por
     assert.strictEqual(persistedState?.globalStrategy?.proxies?.httpProxy, "http://proxy.corp.com:8080/");
     assert.strictEqual(persistedState?.globalStrategy?.proxies?.httpsProxy, "https://10.0.0.1:3128/");
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -449,7 +453,7 @@ test("POST /api/state accepts supported 4.20 state", async () => {
     const body = await res.json();
     assert.strictEqual(body.version.selectedMinor, "4.20");
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -475,6 +479,6 @@ test("POST /api/state accepts supported 4.21 state", async () => {
     const body = await res.json();
     assert.strictEqual(body.version.selectedMinor, "4.21");
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });

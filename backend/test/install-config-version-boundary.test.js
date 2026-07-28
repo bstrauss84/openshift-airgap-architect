@@ -72,6 +72,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 // ===================================================================
 // assertSupportedOpenShiftMinorForGeneration - direct unit tests
 // ===================================================================
@@ -331,7 +335,7 @@ describe("HTTP install-config generation - missing and malformed version", () =>
       assert.strictEqual(body.code, "UNSUPPORTED_VERSION");
       assert.ok(Array.isArray(body.supportedVersions));
     } finally {
-      server.close();
+      await closeServer(server);
     }
   });
 
@@ -355,7 +359,7 @@ describe("HTTP install-config generation - missing and malformed version", () =>
       const body = await res.json();
       assert.strictEqual(body.code, "UNSUPPORTED_VERSION");
     } finally {
-      server.close();
+      await closeServer(server);
     }
   });
 
@@ -379,7 +383,7 @@ describe("HTTP install-config generation - missing and malformed version", () =>
       assert.ok(body.supportedVersions.includes("4.20"));
       assert.ok(body.supportedVersions.includes("4.21"));
     } finally {
-      server.close();
+      await closeServer(server);
     }
   });
 

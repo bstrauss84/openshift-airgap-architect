@@ -1,0 +1,69 @@
+{
+  "commits": {
+    "146239c": {
+      "description": "DOC-102: Use neutral mirroring documentation (baseline)",
+      "skip": 8,
+      "todo": 0,
+      "only": 0,
+      "forceExit": 0,
+      "breakdown": {
+        "catalog-validation.test.js": { "skip": 3, "reason": "obsolete UI-state validation tests" },
+        "nic-bond-vlan-ipv6.test.js": { "skip": 5, "reason": "deferred NIC features without backlog IDs" }
+      }
+    },
+    "86b5a4e": {
+      "description": "DOC-102: Enforce install-config version boundary",
+      "skip": 8,
+      "todo": 0,
+      "only": 0,
+      "forceExit": 0,
+      "breakdown": "same as 146239c"
+    },
+    "734bc27": {
+      "description": "DOC-102: Complete install-config version boundary",
+      "skip": 8,
+      "todo": 0,
+      "only": 0,
+      "forceExit": 0,
+      "breakdown": "same as 146239c"
+    },
+    "2ae92b0": {
+      "description": "DOC-102: Prove install-config version boundary",
+      "skip": 8,
+      "todo": 0,
+      "only": 0,
+      "forceExit": 0,
+      "breakdown": "same as 146239c"
+    },
+    "c77369e": {
+      "description": "DOC-102: Restore backend test integrity",
+      "skip": 5,
+      "todo": 0,
+      "only": 0,
+      "forceExit": 0,
+      "breakdown": {
+        "catalog-validation.test.js": { "skip": 0, "reason": "3 obsolete tests removed" },
+        "nic-bond-vlan-ipv6.test.js": { "skip": 5, "reason": "5 deferred NIC features allowlisted" }
+      }
+    },
+    "HEAD (this commit)": {
+      "description": "DOC-102: Complete backend test integrity",
+      "skip": 0,
+      "todo": 5,
+      "only": 0,
+      "forceExit": 0,
+      "breakdown": {
+        "nic-bond-vlan-ipv6.test.js": {
+          "todo": 5,
+          "items": [
+            "[DOC-123] generates multiple bonds on same node",
+            "[DOC-123] generates multiple VLANs on same bond",
+            "[DOC-124] dual-stack with asymmetric VIPs (IPv4 ingress only)",
+            "[DOC-125] static IPv4 with DHCP IPv6 on same interface",
+            "[DOC-126] generates routes with IPv6 destinations"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -21,6 +21,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 test("GET /api/bundle.zip without token returns 400", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
@@ -29,7 +33,7 @@ test("GET /api/bundle.zip without token returns 400", async () => {
     const body = await res.json();
     assert.ok(String(body.error || "").includes("token"));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -45,7 +49,7 @@ test("POST /api/generate rejects array state", async () => {
     const body = await res.json();
     assert.ok(String(body.error || "").length > 0);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -59,6 +63,6 @@ test("POST /api/bundle.prepare rejects array state", async () => {
     });
     assert.strictEqual(res.status, 400);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });

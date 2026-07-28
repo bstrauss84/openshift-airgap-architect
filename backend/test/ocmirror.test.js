@@ -28,9 +28,23 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
+async function resetState(baseUrl) {
+  const res = await fetch(`${baseUrl}/api/start-over`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cancelRunningOcMirror: false })
+  });
+  assert.strictEqual(res.status, 200, "State reset via /api/start-over must succeed");
+}
+
 test("POST /api/ocmirror/preflight with invalid mode returns 400", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
+    await resetState(baseUrl);
     const res = await fetch(`${baseUrl}/api/ocmirror/preflight`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,13 +54,14 @@ test("POST /api/ocmirror/preflight with invalid mode returns 400", async () => {
     const data = await res.json();
     assert.ok(data.error);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
 test("POST /api/ocmirror/preflight returns shape with blockers and checks", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
+    await resetState(baseUrl);
     const res = await fetch(`${baseUrl}/api/ocmirror/preflight`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -68,14 +83,15 @@ test("POST /api/ocmirror/preflight returns shape with blockers and checks", asyn
     assert.ok("auth" in data.checks);
     assert.ok("registryUrl" in data.checks);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
 test("POST /api/ocmirror/run without version confirmed returns 400", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
-    await fetch(`${baseUrl}/api/state`, {
+    await resetState(baseUrl);
+    const setupRes = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -83,6 +99,7 @@ test("POST /api/ocmirror/run without version confirmed returns 400", async () =>
         release: { confirmed: false }
       })
     });
+    assert.strictEqual(setupRes.status, 200, "State setup must succeed");
     const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -99,14 +116,15 @@ test("POST /api/ocmirror/run without version confirmed returns 400", async () =>
     const data = await res.json();
     assert.ok(data.error);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
 test("POST /api/ocmirror/run with v3 locked:false after prior locked:true still returns 400", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
-    await fetch(`${baseUrl}/api/state`, {
+    await resetState(baseUrl);
+    const lockRes = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -114,10 +132,11 @@ test("POST /api/ocmirror/run with v3 locked:false after prior locked:true still 
         release: { channel: "4.20", patchVersion: "4.20.8", confirmed: true }
       })
     });
+    assert.strictEqual(lockRes.status, 200, "Lock state setup must succeed");
     const midState = await (await fetch(`${baseUrl}/api/state`)).json();
     assert.strictEqual(midState.version?.locked, true, "State should be locked after first POST");
 
-    await fetch(`${baseUrl}/api/state`, {
+    const unlockRes = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -125,6 +144,7 @@ test("POST /api/ocmirror/run with v3 locked:false after prior locked:true still 
         release: { confirmed: false }
       })
     });
+    assert.strictEqual(unlockRes.status, 200, "Unlock state setup must succeed");
     const afterState = await (await fetch(`${baseUrl}/api/state`)).json();
     assert.strictEqual(afterState.version?.locked, false, "State should be unlocked after second POST with locked:false");
 
@@ -144,14 +164,15 @@ test("POST /api/ocmirror/run with v3 locked:false after prior locked:true still 
     const data = await res.json();
     assert.ok(data.error);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
 test("v3 state merge: locked:false overwrites leaked locked:true via deepMerge", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
-    await fetch(`${baseUrl}/api/state`, {
+    await resetState(baseUrl);
+    const lockRes = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -159,8 +180,9 @@ test("v3 state merge: locked:false overwrites leaked locked:true via deepMerge",
         release: { channel: "4.21", patchVersion: "4.21.5", confirmed: true }
       })
     });
+    assert.strictEqual(lockRes.status, 200, "Lock state setup must succeed");
 
-    await fetch(`${baseUrl}/api/state`, {
+    const unlockRes = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -168,13 +190,14 @@ test("v3 state merge: locked:false overwrites leaked locked:true via deepMerge",
         release: { confirmed: false }
       })
     });
+    assert.strictEqual(unlockRes.status, 200, "Unlock state setup must succeed");
 
     const state = await (await fetch(`${baseUrl}/api/state`)).json();
     assert.strictEqual(state.version?.locked, false, "locked:false must override leaked locked:true");
     assert.strictEqual(state.version?._schemaVersion, 3, "Schema version must remain v3");
     assert.strictEqual(state.release?.confirmed, false, "release.confirmed must sync with locked:false");
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -182,19 +205,17 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocmirror-test-"));
   const { server, baseUrl } = await createTestServer();
   try {
-    // Use legacy v2-ish state to prove migration works
-    // This tests that the migration helper correctly converts legacy fields to v3
+    await resetState(baseUrl);
     const stateUpdateRes = await fetch(`${baseUrl}/api/state`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        version: { versionConfirmed: true }, // Legacy v2 field
+        version: { versionConfirmed: true },
         release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
       })
     });
     assert.strictEqual(stateUpdateRes.status, 200, "State update should succeed");
 
-    // Verify the state was migrated to v3 with locked=true
     const stateGetRes = await fetch(`${baseUrl}/api/state`);
     const currentState = await stateGetRes.json();
     assert.strictEqual(currentState.version?.locked, true, "Legacy versionConfirmed should migrate to locked:true");
@@ -212,7 +233,6 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
         authSource: "env"
       })
     });
-    // If test fails, capture error response for diagnosis
     if (res.status !== 200) {
       const errorBody = await res.json();
       assert.fail(`Expected 200, got ${res.status}. Error: ${errorBody.error || JSON.stringify(errorBody)}`);
@@ -233,7 +253,7 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
     try {
       fs.rmSync(tmpDir, { recursive: true });
     } catch {}
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -277,7 +297,7 @@ test("POST /api/start-over cancels running oc-mirror jobs", async () => {
     assert.strictEqual(job.status, "cancelled");
     assert.match(job.message || "", /Start Over/i);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -313,4 +333,222 @@ test("updateJob redacts direct output writes", () => {
   assert.match(job.output, /token=\[REDACTED\]/);
   assert.ok(!job.output.includes("s3cr3t"));
   assert.ok(!job.output.includes("abc123"));
+});
+
+test("isolation: fresh start-over produces unlocked state", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const state = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(state.version?.locked, undefined, "Fresh state should have no locked field");
+    assert.strictEqual(state.version?.versionConfirmed, false, "Fresh state should have versionConfirmed false");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("isolation: no cross-test state leakage after lock and reset", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const lockRes = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: true, selectedMinor: "4.21" },
+        release: { confirmed: true }
+      })
+    });
+    assert.strictEqual(lockRes.status, 200);
+    const lockedState = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(lockedState.version?.locked, true, "State should be locked");
+
+    await resetState(baseUrl);
+    const freshState = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(freshState.version?.locked, undefined, "After reset, locked should not persist");
+    assert.strictEqual(freshState.version?.versionConfirmed, false, "After reset, versionConfirmed should be false");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("isolation: oc-mirror run returns 400 for unlocked state after reset", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "mirrorToDisk",
+        archivePath: "/tmp/arch",
+        workspacePath: "/tmp/ws",
+        cachePath: "/tmp/cache",
+        configSourceType: "generated",
+        authSource: "env"
+      })
+    });
+    assert.strictEqual(res.status, 400, "Unlocked state after reset must return 400");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("isolation: separate servers share state but reset isolates them", async () => {
+  const s1 = await createTestServer();
+  const s2 = await createTestServer();
+  try {
+    await resetState(s1.baseUrl);
+    const lockRes = await fetch(`${s1.baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: true, selectedMinor: "4.20" },
+        release: { confirmed: true }
+      })
+    });
+    assert.strictEqual(lockRes.status, 200);
+
+    const s2State = await (await fetch(`${s2.baseUrl}/api/state`)).json();
+    assert.strictEqual(s2State.version?.locked, true, "Server 2 sees state set by server 1 (shared SQLite)");
+
+    await resetState(s2.baseUrl);
+    const s1State = await (await fetch(`${s1.baseUrl}/api/state`)).json();
+    assert.strictEqual(s1State.version?.locked, undefined, "After reset via server 2, server 1 also sees clean state");
+  } finally {
+    await closeServer(s1.server);
+    await closeServer(s2.server);
+  }
+});
+
+test("legacy contract: versionConfirmed:true on fresh state migrates to locked:true", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const res = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: true },
+        release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const state = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(state.version?.locked, true, "Legacy versionConfirmed:true must migrate to locked:true");
+    assert.strictEqual(state.version?._schemaVersion, 3, "Must be schema v3");
+    assert.strictEqual(state.version?.versionConfirmed, undefined, "Legacy field must be cleared");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("legacy contract: versionConfirmed:false on fresh state keeps unlocked", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const res = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: false },
+        release: { confirmed: false }
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const state = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(state.version?.locked, false, "Legacy versionConfirmed:false must result in locked:false");
+    assert.strictEqual(state.version?.versionConfirmed, undefined, "Legacy field must be cleared");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("legacy contract: versionConfirmed:false CANNOT unlock v3 locked:true (OR semantics)", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const lockRes = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: true, selectedMinor: "4.20" },
+        release: { confirmed: true }
+      })
+    });
+    assert.strictEqual(lockRes.status, 200);
+
+    const legacyRes = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: false },
+        release: { confirmed: false }
+      })
+    });
+    assert.strictEqual(legacyRes.status, 200);
+
+    const state = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(state.version?.locked, true,
+      "Legacy versionConfirmed:false CANNOT unlock v3 locked:true — OR semantics preserve lock");
+    assert.strictEqual(state.version?.versionConfirmed, undefined, "Legacy field must be cleared");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("legacy contract: only explicit v3 locked:false can unlock", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const lockRes = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: true, selectedMinor: "4.20" },
+        release: { confirmed: true }
+      })
+    });
+    assert.strictEqual(lockRes.status, 200);
+
+    const unlockRes = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: false },
+        release: { confirmed: false }
+      })
+    });
+    assert.strictEqual(unlockRes.status, 200);
+
+    const state = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(state.version?.locked, false,
+      "Explicit v3 locked:false MUST unlock — this is the only unlock path");
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("legacy contract: complete v2 state with all confirmation fields migrates correctly", async () => {
+  const { server, baseUrl } = await createTestServer();
+  try {
+    await resetState(baseUrl);
+    const res = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { versionConfirmed: true, confirmedByUser: true, selectedVersion: "4.20.8" },
+        release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
+      })
+    });
+    assert.strictEqual(res.status, 200);
+    const state = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.strictEqual(state.version?.locked, true, "Both legacy fields true → locked:true");
+    assert.strictEqual(state.version?._schemaVersion, 3);
+    assert.strictEqual(state.version?.versionConfirmed, undefined, "versionConfirmed cleared");
+    assert.strictEqual(state.version?.confirmedByUser, undefined, "confirmedByUser cleared");
+    assert.strictEqual(state.release?.confirmed, true, "release.confirmed synced from locked");
+  } finally {
+    await closeServer(server);
+  }
 });

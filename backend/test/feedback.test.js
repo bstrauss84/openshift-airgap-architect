@@ -23,6 +23,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 function withEnv(env, fn) {
   const prev = new Map();
   Object.keys(env).forEach((k) => prev.set(k, process.env[k]));
@@ -66,7 +70,7 @@ test("GET /api/feedback/config returns disabled when feedback mode disabled", as
         assert.strictEqual(data.enabled, false);
         assert.strictEqual(data.visible, false);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));
@@ -87,7 +91,7 @@ test("GET /api/feedback/config is hidden when high-side/disconnected mode is set
         assert.strictEqual(data.visible, false);
         assert.match(String(data.reason || ""), /high-side/i);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));
@@ -108,7 +112,7 @@ test("GET /api/feedback/config returns github mode by default", async () =>
         assert.strictEqual(data.visible, true);
         assert.strictEqual(data.mode, "github");
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));
@@ -127,7 +131,7 @@ test("GET /api/feedback/challenge returns token when enabled", async () =>
         assert.ok(data.token);
         assert.ok(data.expiresAt > data.issuedAt);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));
@@ -172,7 +176,7 @@ test("POST /api/feedback/submit returns GitHub issue draft in github mode", asyn
         assert.match(String(data.issueDraft?.markdown || ""), /## Metadata/);
         assert.ok(data.handoff?.payload?.submissionId);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));
@@ -212,7 +216,7 @@ test("POST /api/feedback/submit returns offline handoff payload in offline mode"
         assert.strictEqual(data.mode, "offline");
         assert.ok(data.handoff?.issueDraft?.markdown);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));
@@ -243,7 +247,7 @@ test("POST /api/feedback/submit rejects honeypot submissions", async () =>
         });
         assert.strictEqual(res.status, 400);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));
@@ -294,7 +298,7 @@ test("POST /api/feedback/submit rate limits repeated submissions", async () =>
         });
         assert.strictEqual(second.status, 429);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     }
   ));

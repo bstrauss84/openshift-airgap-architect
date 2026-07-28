@@ -13,6 +13,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 const TEST_CA_PEM = `-----BEGIN CERTIFICATE-----
 MIIB2zCCAXGgAwIBAgIUUhR5wAiV3f2t7X4yD9WQ0Kd9w4YwCgYIKoZIzj0EAwIw
 EzERMA8GA1UEAwwIdGVzdC1yb290MB4XDTI0MDEwMTAwMDAwMFoXDTM0MDEwMTAw
@@ -53,7 +57,7 @@ test("POST /api/trust/analyze returns analysis payload", async () => {
     assert.ok(data.analysis.currentSelectionSummary);
     assert.ok(Array.isArray(data.analysis.certs));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -89,7 +93,7 @@ test("POST /api/trust/analyze verify if ca bundle value exceeds documented and A
     assert.ok(data.analysis.currentSelectionSummary.thresholds);
     assert.ok(["within_recommended", "caution_exceeded", "hard_max_exceeded"].includes(data.analysis.currentSelectionSummary.thresholdBand));
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 
@@ -131,7 +135,7 @@ test("POST /api/generate rejects stale reduced trust selection", async () => {
     assert.strictEqual(data.code, "TRUST_ANALYSIS_HASH_MISMATCH");
     assert.strictEqual(data.analysisHashMismatch, true);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });
 

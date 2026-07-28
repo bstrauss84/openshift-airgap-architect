@@ -21,6 +21,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 test("bundle token remains valid for repeated GETs during TTL", async () => {
   const { server, baseUrl } = await createTestServer();
   try {
@@ -54,6 +58,6 @@ test("bundle token remains valid for repeated GETs during TTL", async () => {
     const noToken = await fetch(`${baseUrl}/api/bundle.zip`);
     assert.strictEqual(noToken.status, 400);
   } finally {
-    server.close();
+    await closeServer(server);
   }
 });

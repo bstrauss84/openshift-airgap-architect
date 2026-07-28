@@ -27,6 +27,10 @@ function createTestServer() {
   });
 }
 
+function closeServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}
+
 /**
  * Assert HTTP 422 UNSUPPORTED_VERSION response shape.
  */
@@ -213,7 +217,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -235,7 +239,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -264,7 +268,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -292,7 +296,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
   });
@@ -310,7 +314,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -330,7 +334,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -356,7 +360,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -382,7 +386,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
   });
@@ -401,7 +405,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assertUnsupportedVersionResponse(body);
         assert.strictEqual(body.token, undefined, 'Must not issue token for unsupported version');
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -422,7 +426,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assertUnsupportedVersionResponse(body);
         assert.strictEqual(body.token, undefined, 'Must not issue token for unsupported version');
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -448,7 +452,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -474,7 +478,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
   });
@@ -492,7 +496,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -512,7 +516,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -538,7 +542,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -564,7 +568,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
   });
@@ -593,7 +597,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assert.strictEqual(getBody.requestedVersion, postBody.requestedVersion);
         assert.deepStrictEqual(getBody.supportedVersions, postBody.supportedVersions);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
 
@@ -619,7 +623,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assert.strictEqual(genBody.requestedVersion, bundleBody.requestedVersion);
         assert.deepStrictEqual(genBody.supportedVersions, bundleBody.supportedVersions);
       } finally {
-        server.close();
+        await closeServer(server);
       }
     });
   });

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_DIR = __dirname;
+const BACKLOG_PATH = path.resolve(__dirname, "../../docs/BACKLOG_STATUS.md");
 
 const FORBIDDEN_PATTERNS = [
   { name: "test.only", pattern: /\btest\.only\s*\(/g },
@@ -19,40 +20,27 @@ const SKIP_PATTERNS = [
   { name: "test.skip", pattern: /\btest\.skip\s*\(/g },
   { name: "it.skip", pattern: /\bit\.skip\s*\(/g },
   { name: "describe.skip", pattern: /\bdescribe\.skip\s*\(/g },
-  { name: "test.todo", pattern: /\btest\.todo\s*\(/g },
-  { name: "it.todo", pattern: /\bit\.todo\s*\(/g },
 ];
 
-const ALLOWED_SKIPS = [
-  {
-    file: "nic-bond-vlan-ipv6.test.js",
-    tests: [
-      "generates multiple bonds on same node",
-      "generates multiple VLANs on same bond",
-      "dual-stack with asymmetric VIPs (IPv4 ingress only)",
-      "static IPv4 with DHCP IPv6 on same interface",
-      "generates routes with IPv6 destinations",
-    ],
-    reason: "Deferred: secondary interface support not yet implemented in generate.js (governance gap — no backlog IDs)",
-  },
-];
+const TODO_PATTERN = /\btest\.todo\s*\(\s*["'`](\[([A-Z]+-\d+)\])\s+.+\s*-\s+.+["'`]\s*\)/g;
+const TODO_RAW_PATTERN = /\btest\.todo\s*\(/g;
+const TODO_WITH_CALLBACK = /\btest\.todo\s*\(\s*["'`].*["'`]\s*,/g;
 
-function getAllowedSkipCount() {
-  let count = 0;
-  for (const entry of ALLOWED_SKIPS) {
-    count += entry.tests.length;
-  }
-  return count;
-}
+const BACKLOG_ID_PATTERN = /^\[([A-Z]+-\d+)\]/;
 
-function isAllowedSkip(fileName, line) {
-  for (const entry of ALLOWED_SKIPS) {
-    if (fileName !== entry.file) continue;
-    for (const testName of entry.tests) {
-      if (line.includes(testName)) return true;
+function loadBacklogIds() {
+  const content = fs.readFileSync(BACKLOG_PATH, "utf8");
+  const ids = new Map();
+  const rowPattern = /\|\s*(DOC-\d+|PHX-\d+|PROD-\d+|DEF-\d+|LOG-\d+|DB-[A-Z]+-\d+|LOCAL\s*#\d+)\s*\|[^|]*\|\s*(\S+)\s*\|/g;
+  let match;
+  while ((match = rowPattern.exec(content)) !== null) {
+    const id = match[1].trim();
+    const status = match[2].trim();
+    if (!ids.has(id)) {
+      ids.set(id, status);
     }
   }
-  return false;
+  return ids;
 }
 
 function scanFile(filePath) {
@@ -75,10 +63,62 @@ function scanFile(filePath) {
     for (const { name, pattern } of SKIP_PATTERNS) {
       pattern.lastIndex = 0;
       if (pattern.test(line)) {
-        if (!isAllowedSkip(fileName, line)) {
-          violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
-        }
+        violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
       }
+    }
+  }
+
+  return violations;
+}
+
+function validateTodos(filePath, backlogIds) {
+  const content = fs.readFileSync(filePath, "utf8");
+  const fileName = path.basename(filePath);
+  const lines = content.split("\n");
+  const violations = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+
+    TODO_RAW_PATTERN.lastIndex = 0;
+    if (!TODO_RAW_PATTERN.test(line)) continue;
+
+    TODO_WITH_CALLBACK.lastIndex = 0;
+    if (TODO_WITH_CALLBACK.test(line)) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-with-callback",
+        text: line.trim(), reason: "test.todo must not have an executable callback"
+      });
+      continue;
+    }
+
+    const idMatch = line.match(/\btest\.todo\s*\(\s*["'`]\[([A-Z]+-\d+)\]\s+.+\s*-\s+.+["'`]\s*\)/);
+    if (!idMatch) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-bad-format",
+        text: line.trim(),
+        reason: 'test.todo must match format: test.todo("[ID] name - reason")'
+      });
+      continue;
+    }
+
+    const id = idMatch[1];
+    if (!backlogIds.has(id)) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-unknown-id",
+        text: line.trim(), reason: `Backlog ID ${id} not found in BACKLOG_STATUS.md`
+      });
+      continue;
+    }
+
+    const status = backlogIds.get(id);
+    if (status === "verified_done" || status === "obsolete") {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-resolved-id",
+        text: line.trim(),
+        reason: `Backlog ID ${id} has status '${status}' — todo should be implemented or removed`
+      });
     }
   }
 
@@ -103,9 +143,7 @@ function scanContentString(content, fileName) {
     for (const { name, pattern } of SKIP_PATTERNS) {
       pattern.lastIndex = 0;
       if (pattern.test(line)) {
-        if (!isAllowedSkip(fileName, line)) {
-          violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
-        }
+        violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
       }
     }
   }
@@ -113,16 +151,67 @@ function scanContentString(content, fileName) {
   return violations;
 }
 
+function validateTodoString(content, fileName, backlogIds) {
+  const lines = content.split("\n");
+  const violations = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+
+    TODO_RAW_PATTERN.lastIndex = 0;
+    if (!TODO_RAW_PATTERN.test(line)) continue;
+
+    TODO_WITH_CALLBACK.lastIndex = 0;
+    if (TODO_WITH_CALLBACK.test(line)) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-with-callback",
+        text: line.trim(), reason: "test.todo must not have an executable callback"
+      });
+      continue;
+    }
+
+    const idMatch = line.match(/\btest\.todo\s*\(\s*["'`]\[([A-Z]+-\d+)\]\s+.+\s*-\s+.+["'`]\s*\)/);
+    if (!idMatch) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-bad-format",
+        text: line.trim(),
+        reason: 'test.todo must match format: test.todo("[ID] name - reason")'
+      });
+      continue;
+    }
+
+    const id = idMatch[1];
+    if (!backlogIds.has(id)) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-unknown-id",
+        text: line.trim(), reason: `Backlog ID ${id} not found in BACKLOG_STATUS.md`
+      });
+      continue;
+    }
+
+    const status = backlogIds.get(id);
+    if (status === "verified_done" || status === "obsolete") {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-resolved-id",
+        text: line.trim(),
+        reason: `Backlog ID ${id} has status '${status}' — todo should be implemented or removed`
+      });
+    }
+  }
+
+  return violations;
+}
+
 describe("test-integrity guard", () => {
-  it("no test file contains unauthorized skip, only, todo, or force-exit markers", () => {
+  it("no test file contains unauthorized skip, only, or force-exit markers", () => {
     const testFiles = fs.readdirSync(TEST_DIR)
       .filter(f => f.endsWith(".test.js") && f !== "test-integrity.test.js");
 
     const allViolations = [];
     for (const file of testFiles) {
       const filePath = path.join(TEST_DIR, file);
-      const violations = scanFile(filePath);
-      allViolations.push(...violations);
+      allViolations.push(...scanFile(filePath));
     }
 
     if (allViolations.length > 0) {
@@ -131,31 +220,42 @@ describe("test-integrity guard", () => {
         .join("\n");
       assert.fail(
         `Found ${allViolations.length} unauthorized test marker(s):\n${report}\n\n` +
-        "To allow a skip, add it to ALLOWED_SKIPS in test-integrity.test.js with justification."
+        "All executable skips must be converted to test.todo with a backlog ID."
       );
     }
   });
 
-  it("allowed skips count matches actual skips in allowlisted files", () => {
-    const expectedCount = getAllowedSkipCount();
-    let actualCount = 0;
+  it("all test.todo entries have valid backlog IDs with acceptable status", () => {
+    const backlogIds = loadBacklogIds();
+    assert.ok(backlogIds.size > 0, "Should load backlog IDs from BACKLOG_STATUS.md");
 
-    for (const entry of ALLOWED_SKIPS) {
-      const filePath = path.join(TEST_DIR, entry.file);
-      if (!fs.existsSync(filePath)) continue;
-      const content = fs.readFileSync(filePath, "utf8");
-      for (const { pattern } of SKIP_PATTERNS) {
-        pattern.lastIndex = 0;
-        const matches = content.match(pattern);
-        if (matches) actualCount += matches.length;
-      }
+    const testFiles = fs.readdirSync(TEST_DIR)
+      .filter(f => f.endsWith(".test.js") && f !== "test-integrity.test.js");
+
+    const allViolations = [];
+    for (const file of testFiles) {
+      const filePath = path.join(TEST_DIR, file);
+      allViolations.push(...validateTodos(filePath, backlogIds));
     }
 
-    assert.strictEqual(
-      actualCount,
-      expectedCount,
-      `Allowlist expects ${expectedCount} skips but found ${actualCount}. Update ALLOWED_SKIPS if skips were added or removed.`
-    );
+    if (allViolations.length > 0) {
+      const report = allViolations
+        .map(v => `  ${v.file}:${v.line} [${v.marker}] ${v.reason}\n    ${v.text}`)
+        .join("\n");
+      assert.fail(
+        `Found ${allViolations.length} test.todo violation(s):\n${report}`
+      );
+    }
+  });
+
+  it("backlog ID loader finds expected IDs", () => {
+    const backlogIds = loadBacklogIds();
+    assert.ok(backlogIds.has("DOC-123"), "Should find DOC-123");
+    assert.ok(backlogIds.has("DOC-124"), "Should find DOC-124");
+    assert.ok(backlogIds.has("DOC-125"), "Should find DOC-125");
+    assert.ok(backlogIds.has("DOC-126"), "Should find DOC-126");
+    assert.strictEqual(backlogIds.get("DOC-123"), "deferred");
+    assert.strictEqual(backlogIds.get("DOC-124"), "deferred");
   });
 
   describe("self-tests with synthetic content", () => {
@@ -166,7 +266,7 @@ describe("test-integrity guard", () => {
       assert.strictEqual(violations[0].marker, "test.only");
     });
 
-    it("detects test.skip in synthetic content (not allowlisted)", () => {
+    it("detects test.skip in synthetic content", () => {
       const content = 'test.skip("some test", () => {});';
       const violations = scanContentString(content, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
@@ -187,18 +287,6 @@ describe("test-integrity guard", () => {
       assert.strictEqual(violations[0].marker, "--test-force-exit");
     });
 
-    it("allows NIC skips in allowlisted file", () => {
-      const content = 'test.skip("generates multiple bonds on same node", () => {});';
-      const violations = scanContentString(content, "nic-bond-vlan-ipv6.test.js");
-      assert.strictEqual(violations.length, 0);
-    });
-
-    it("rejects NIC skip text in non-allowlisted file", () => {
-      const content = 'test.skip("generates multiple bonds on same node", () => {});';
-      const violations = scanContentString(content, "other.test.js");
-      assert.strictEqual(violations.length, 1);
-    });
-
     it("clean content produces zero violations", () => {
       const content = [
         'import { test } from "node:test";',
@@ -206,6 +294,68 @@ describe("test-integrity guard", () => {
       ].join("\n");
       const violations = scanContentString(content, "clean.test.js");
       assert.strictEqual(violations.length, 0);
+    });
+
+    it("accepts valid test.todo with known deferred backlog ID", () => {
+      const content = 'test.todo("[DOC-123] generates multiple bonds on same node - secondary interface support not yet implemented");';
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 0);
+    });
+
+    it("accepts valid test.todo with active backlog ID", () => {
+      const content = 'test.todo("[DOC-120] some feature - not yet implemented");';
+      const backlogIds = new Map([["DOC-120", "active"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 0);
+    });
+
+    it("rejects test.todo with unknown backlog ID", () => {
+      const content = 'test.todo("[DOC-999] some test - reason");';
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-unknown-id");
+    });
+
+    it("rejects test.todo with verified_done backlog ID", () => {
+      const content = 'test.todo("[DOC-074] ipv6 test - done feature");';
+      const backlogIds = new Map([["DOC-074", "verified_done"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-resolved-id");
+    });
+
+    it("rejects test.todo with obsolete backlog ID", () => {
+      const content = 'test.todo("[DOC-101] old item - should be removed");';
+      const backlogIds = new Map([["DOC-101", "obsolete"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-resolved-id");
+    });
+
+    it("rejects test.todo missing backlog ID prefix", () => {
+      const content = 'test.todo("some test without ID - reason");';
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-bad-format");
+    });
+
+    it("rejects test.todo missing reason after dash", () => {
+      const content = 'test.todo("[DOC-123] generates multiple bonds");';
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-bad-format");
+    });
+
+    it("rejects test.todo with executable callback", () => {
+      const content = 'test.todo("some test", () => {});';
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-with-callback");
     });
   });
 });
