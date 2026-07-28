@@ -1547,17 +1547,17 @@ const buildImageSetConfig = (state) => {
     if (!byCatalog.has(op.catalogImage)) {
       byCatalog.set(op.catalogImage, []);
     }
-    const channel = { name: op.defaultChannel };
-    // Add version constraints if specified
-    if (op.minVersion || op.maxVersion) {
-      channel.includeConfig = {};
-      if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
-      if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
+    const entry = { name: op.name };
+    if (op.defaultChannel) {
+      const channel = { name: op.defaultChannel };
+      if (op.minVersion || op.maxVersion) {
+        channel.includeConfig = {};
+        if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
+        if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
+      }
+      entry.channels = [channel];
     }
-    byCatalog.get(op.catalogImage).push({
-      name: op.name,
-      channels: [channel]
-    });
+    byCatalog.get(op.catalogImage).push(entry);
   }
   if (state.mirrorOperatorPipeline) {
     for (const dep of MIRROR_OPERATOR_DEPENDENT_OPERATORS) {
