@@ -3150,6 +3150,31 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
       appendJobOutput(jobId, `✓ Wrote openshift/mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
 
       logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator CatalogSource, Subscription, and DisconnectedPlatform manifests");
+
+      // Inject IDMS/ITMS files from mirror registry config so the cluster knows
+      // where to pull images from the local mirror registry at bootstrap
+      const mirrorConfigPath = process.env.MIRROR_REGISTRY_CONFIG;
+      if (mirrorConfigPath) {
+        try {
+          const mirrorCfg = JSON.parse(fs.readFileSync(mirrorConfigPath, "utf8"));
+          if (mirrorCfg.idmsPath && fs.existsSync(mirrorCfg.idmsPath)) {
+            const idmsContent = fs.readFileSync(mirrorCfg.idmsPath, "utf8");
+            const idmsDest = path.join(openshiftDir, "idms-oc-mirror.yaml");
+            fs.writeFileSync(idmsDest, idmsContent, "utf8");
+            appendJobOutput(jobId, `✓ Wrote openshift/idms-oc-mirror.yaml (${Buffer.byteLength(idmsContent)} bytes)\n`);
+          }
+          if (mirrorCfg.itmsPath && fs.existsSync(mirrorCfg.itmsPath)) {
+            const itmsContent = fs.readFileSync(mirrorCfg.itmsPath, "utf8");
+            const itmsDest = path.join(openshiftDir, "itms-oc-mirror.yaml");
+            fs.writeFileSync(itmsDest, itmsContent, "utf8");
+            appendJobOutput(jobId, `✓ Wrote openshift/itms-oc-mirror.yaml (${Buffer.byteLength(itmsContent)} bytes)\n`);
+          }
+        } catch (err) {
+          appendJobOutput(jobId, `⚠ Could not inject IDMS/ITMS files: ${err.message}\n`);
+          logger.warn({ tag: "agent-iso:mirror-operator", jobId, err: err.message }, "Failed to inject IDMS/ITMS files");
+        }
+      }
+      appendJobOutput(jobId, "\n");
     }
 
     updateJob(jobId, { progress: 30, message: "Resolving openshift-install binary..." });
