@@ -14,22 +14,8 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import http from 'node:http';
 import { app } from '../src/index.js';
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
-
-function closeServer(server) {
-  return new Promise((resolve) => server.close(resolve));
-}
+import { createTestServer, closeTestServer } from './helpers/httpServerLifecycle.js';
 
 /**
  * Assert HTTP 422 UNSUPPORTED_VERSION response shape.
@@ -203,7 +189,7 @@ const confirmed421State = {
 describe('Unsupported Version - HTTP Boundary Tests', () => {
   describe('GET /api/generate', () => {
     it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         // Set confirmed 4.22 state
         await fetch(`${baseUrl}/api/state`, {
@@ -217,12 +203,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION (support check before confirmation check)', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         await fetch(`${baseUrl}/api/state`, {
           method: 'POST',
@@ -239,12 +225,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.20 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         await fetch(`${baseUrl}/api/state`, {
           method: 'POST',
@@ -268,12 +254,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.21 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         await fetch(`${baseUrl}/api/state`, {
           method: 'POST',
@@ -296,14 +282,14 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
   });
 
   describe('POST /api/generate', () => {
     it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -314,12 +300,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -334,12 +320,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.20 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -360,12 +346,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.21 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -386,14 +372,14 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
   });
 
   describe('POST /api/bundle.prepare', () => {
     it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION and does not issue token', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.prepare`, {
           method: 'POST',
@@ -405,12 +391,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assertUnsupportedVersionResponse(body);
         assert.strictEqual(body.token, undefined, 'Must not issue token for unsupported version');
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.prepare`, {
           method: 'POST',
@@ -426,12 +412,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assertUnsupportedVersionResponse(body);
         assert.strictEqual(body.token, undefined, 'Must not issue token for unsupported version');
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.20 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.prepare`, {
           method: 'POST',
@@ -452,12 +438,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.21 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.prepare`, {
           method: 'POST',
@@ -478,14 +464,14 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
   });
 
   describe('POST /api/bundle.zip', () => {
     it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.zip`, {
           method: 'POST',
@@ -496,12 +482,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.zip`, {
           method: 'POST',
@@ -516,12 +502,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.20 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.zip`, {
           method: 'POST',
@@ -542,12 +528,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('does not reject supported 4.21 state', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.zip`, {
           method: 'POST',
@@ -568,14 +554,14 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
           );
         }
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
   });
 
   describe('HTTP error parity across routes', () => {
     it('GET /api/generate and POST /api/generate return identical error shape for 4.22', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         await fetch(`${baseUrl}/api/state`, {
           method: 'POST',
@@ -597,12 +583,12 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assert.strictEqual(getBody.requestedVersion, postBody.requestedVersion);
         assert.deepStrictEqual(getBody.supportedVersions, postBody.supportedVersions);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
 
     it('POST /api/generate and POST /api/bundle.prepare return identical error shape for 4.22', async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const genRes = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -623,7 +609,7 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
         assert.strictEqual(genBody.requestedVersion, bundleBody.requestedVersion);
         assert.deepStrictEqual(genBody.supportedVersions, bundleBody.supportedVersions);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     });
   });

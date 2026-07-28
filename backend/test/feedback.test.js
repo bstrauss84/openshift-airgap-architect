@@ -8,24 +8,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert";
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "../src/index.js";
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
-
-function closeServer(server) {
-  return new Promise((resolve) => server.close(resolve));
-}
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 function withEnv(env, fn) {
   const prev = new Map();
@@ -62,7 +48,7 @@ test("GET /api/feedback/config returns disabled when feedback mode disabled", as
       AIRGAP_RUNTIME_SIDE: ""
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/feedback/config`);
         assert.strictEqual(res.status, 200);
@@ -70,7 +56,7 @@ test("GET /api/feedback/config returns disabled when feedback mode disabled", as
         assert.strictEqual(data.enabled, false);
         assert.strictEqual(data.visible, false);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));
@@ -82,7 +68,7 @@ test("GET /api/feedback/config is hidden when high-side/disconnected mode is set
       AIRGAP_RUNTIME_SIDE: "high-side"
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/feedback/config`);
         assert.strictEqual(res.status, 200);
@@ -91,7 +77,7 @@ test("GET /api/feedback/config is hidden when high-side/disconnected mode is set
         assert.strictEqual(data.visible, false);
         assert.match(String(data.reason || ""), /high-side/i);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));
@@ -103,7 +89,7 @@ test("GET /api/feedback/config returns github mode by default", async () =>
       AIRGAP_RUNTIME_SIDE: ""
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/feedback/config`);
         assert.strictEqual(res.status, 200);
@@ -112,7 +98,7 @@ test("GET /api/feedback/config returns github mode by default", async () =>
         assert.strictEqual(data.visible, true);
         assert.strictEqual(data.mode, "github");
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));
@@ -124,14 +110,14 @@ test("GET /api/feedback/challenge returns token when enabled", async () =>
       FEEDBACK_CHALLENGE_SECRET: "test-secret"
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const { res, data } = await getChallenge(baseUrl);
         assert.strictEqual(res.status, 200);
         assert.ok(data.token);
         assert.ok(data.expiresAt > data.issuedAt);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));
@@ -145,7 +131,7 @@ test("POST /api/feedback/submit returns GitHub issue draft in github mode", asyn
       FEEDBACK_MIN_DWELL_MS: "1"
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const challenge = await getChallenge(baseUrl);
         assert.strictEqual(challenge.res.status, 200);
@@ -176,7 +162,7 @@ test("POST /api/feedback/submit returns GitHub issue draft in github mode", asyn
         assert.match(String(data.issueDraft?.markdown || ""), /## Metadata/);
         assert.ok(data.handoff?.payload?.submissionId);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));
@@ -193,7 +179,7 @@ test("POST /api/feedback/submit returns offline handoff payload in offline mode"
       FEEDBACK_BURST_MAX: "100"
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const challenge = await getChallenge(baseUrl);
         assert.strictEqual(challenge.res.status, 200);
@@ -216,7 +202,7 @@ test("POST /api/feedback/submit returns offline handoff payload in offline mode"
         assert.strictEqual(data.mode, "offline");
         assert.ok(data.handoff?.issueDraft?.markdown);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));
@@ -229,7 +215,7 @@ test("POST /api/feedback/submit rejects honeypot submissions", async () =>
       FEEDBACK_MIN_DWELL_MS: "1"
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const challenge = await getChallenge(baseUrl);
         const payload = {
@@ -247,7 +233,7 @@ test("POST /api/feedback/submit rejects honeypot submissions", async () =>
         });
         assert.strictEqual(res.status, 400);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));
@@ -264,7 +250,7 @@ test("POST /api/feedback/submit rate limits repeated submissions", async () =>
       FEEDBACK_BURST_MAX: "1"
     },
     async () => {
-      const { server, baseUrl } = await createTestServer();
+      const { server, baseUrl } = await createTestServer(app);
       try {
         const c1 = await getChallenge(baseUrl);
         await sleep(3);
@@ -298,7 +284,7 @@ test("POST /api/feedback/submit rate limits repeated submissions", async () =>
         });
         assert.strictEqual(second.status, 429);
       } finally {
-        await closeServer(server);
+        await closeTestServer(server);
       }
     }
   ));

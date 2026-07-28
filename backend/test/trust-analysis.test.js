@@ -1,21 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import http from "node:http";
 import { app } from "../src/index.js";
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
-
-function closeServer(server) {
-  return new Promise((resolve) => server.close(resolve));
-}
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 const TEST_CA_PEM = `-----BEGIN CERTIFICATE-----
 MIIB2zCCAXGgAwIBAgIUUhR5wAiV3f2t7X4yD9WQ0Kd9w4YwCgYIKoZIzj0EAwIw
@@ -30,7 +16,7 @@ aw==
 -----END CERTIFICATE-----`;
 
 test("POST /api/trust/analyze returns analysis payload", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const state = {
       trust: {
@@ -57,12 +43,12 @@ test("POST /api/trust/analyze returns analysis payload", async () => {
     assert.ok(data.analysis.currentSelectionSummary);
     assert.ok(Array.isArray(data.analysis.certs));
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("POST /api/trust/analyze verify if ca bundle value exceeds documented and API restricted length & size", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const state = {
       trust: {
@@ -93,12 +79,12 @@ test("POST /api/trust/analyze verify if ca bundle value exceeds documented and A
     assert.ok(data.analysis.currentSelectionSummary.thresholds);
     assert.ok(["within_recommended", "caution_exceeded", "hard_max_exceeded"].includes(data.analysis.currentSelectionSummary.thresholdBand));
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("POST /api/generate rejects stale reduced trust selection", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const state = {
       blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test", version: "4.20.0" },
@@ -135,7 +121,7 @@ test("POST /api/generate rejects stale reduced trust selection", async () => {
     assert.strictEqual(data.code, "TRUST_ANALYSIS_HASH_MISMATCH");
     assert.strictEqual(data.analysisHashMismatch, true);
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 

@@ -15,12 +15,12 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import http from "node:http";
 import yaml from "js-yaml";
 import { buildInstallConfig } from "../src/generate.js";
 import { assertSupportedOpenShiftMinorForGeneration, SUPPORTED_MINORS, isSupportedMinor, buildUnsupportedVersionError } from "../src/versionPolicy.js";
 import { minimal } from "./fixtures/base-states.js";
 import { app } from "../src/index.js";
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 const makeState = (versionOverrides = {}) => ({
   version: {
@@ -61,20 +61,6 @@ const makeState = (versionOverrides = {}) => ({
   hostInventory: { nodes: [] },
   exportOptions: { includeCredentials: false },
 });
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
-
-function closeServer(server) {
-  return new Promise((resolve) => server.close(resolve));
-}
 
 // ===================================================================
 // assertSupportedOpenShiftMinorForGeneration - direct unit tests
@@ -315,7 +301,7 @@ describe("buildInstallConfig version boundary", () => {
 
 describe("HTTP install-config generation - missing and malformed version", () => {
   it("POST /api/generate rejects missing version with 422", async () => {
-    const { server, baseUrl } = await createTestServer();
+    const { server, baseUrl } = await createTestServer(app);
     try {
       const res = await fetch(`${baseUrl}/api/generate`, {
         method: "POST",
@@ -335,12 +321,12 @@ describe("HTTP install-config generation - missing and malformed version", () =>
       assert.strictEqual(body.code, "UNSUPPORTED_VERSION");
       assert.ok(Array.isArray(body.supportedVersions));
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
   it("POST /api/generate rejects malformed version with 422", async () => {
-    const { server, baseUrl } = await createTestServer();
+    const { server, baseUrl } = await createTestServer(app);
     try {
       const res = await fetch(`${baseUrl}/api/generate`, {
         method: "POST",
@@ -359,12 +345,12 @@ describe("HTTP install-config generation - missing and malformed version", () =>
       const body = await res.json();
       assert.strictEqual(body.code, "UNSUPPORTED_VERSION");
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
   it("POST /api/generate rejects 4.22 with 422 and supportedVersions", async () => {
-    const { server, baseUrl } = await createTestServer();
+    const { server, baseUrl } = await createTestServer(app);
     try {
       const res = await fetch(`${baseUrl}/api/generate`, {
         method: "POST",
@@ -383,7 +369,7 @@ describe("HTTP install-config generation - missing and malformed version", () =>
       assert.ok(body.supportedVersions.includes("4.20"));
       assert.ok(body.supportedVersions.includes("4.21"));
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 

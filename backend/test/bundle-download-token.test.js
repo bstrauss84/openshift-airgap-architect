@@ -8,25 +8,11 @@
 
 import { test } from "node:test";
 import assert from "node:assert";
-import http from "node:http";
 import { app } from "../src/index.js";
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
-
-function closeServer(server) {
-  return new Promise((resolve) => server.close(resolve));
-}
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 test("bundle token remains valid for repeated GETs during TTL", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const state = {
       version: { versionConfirmed: true },
@@ -58,6 +44,6 @@ test("bundle token remains valid for repeated GETs during TTL", async () => {
     const noToken = await fetch(`${baseUrl}/api/bundle.zip`);
     assert.strictEqual(noToken.status, 400);
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });

@@ -11,24 +11,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert";
-import http from "node:http";
 import { stripProxyCredentials, sanitizeCredentialFields, sanitizeStateForPersistence } from "../src/stateSanitizer.js";
 import { app } from "../src/index.js";
 import { getState } from "../src/utils.js";
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
-
-function closeServer(server) {
-  return new Promise((resolve) => server.close(resolve));
-}
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 // Unit tests for stripProxyCredentials
 test("stripProxyCredentials removes credentials from http proxy URL", () => {
@@ -315,7 +301,7 @@ test("sanitizeStateForPersistence preserves existing version state", () => {
 
 // Integration tests with real HTTP /api/state endpoint
 test("POST /api/state does not persist pull secret auths", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     // Post state with pull secret auths
     const stateWithSecrets = {
@@ -336,12 +322,12 @@ test("POST /api/state does not persist pull secret auths", async () => {
     const body = await postRes.json();
     assert.ok(body.error.includes("Credentials should not be included"));
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("POST /api/state does not persist vSphere password", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const stateWithVsphere = {
       platformConfig: {
@@ -367,12 +353,12 @@ test("POST /api/state does not persist vSphere password", async () => {
     assert.strictEqual(persistedState?.platformConfig?.vsphere?.password, undefined);
     assert.strictEqual(persistedState?.platformConfig?.vsphere?.username, undefined);
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("POST /api/state does not persist BMC credentials but preserves BMC address", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const stateWithBmc = {
       hostInventory: {
@@ -401,12 +387,12 @@ test("POST /api/state does not persist BMC credentials but preserves BMC address
     assert.strictEqual(persistedState?.hostInventory?.nodes[0]?.bmc?.username, undefined);
     assert.strictEqual(persistedState?.hostInventory?.nodes[0]?.bmc?.password, undefined);
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("POST /api/state strips proxy URL credentials but preserves scheme/host/port", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const stateWithProxy = {
       globalStrategy: {
@@ -427,12 +413,12 @@ test("POST /api/state strips proxy URL credentials but preserves scheme/host/por
     assert.strictEqual(persistedState?.globalStrategy?.proxies?.httpProxy, "http://proxy.corp.com:8080/");
     assert.strictEqual(persistedState?.globalStrategy?.proxies?.httpsProxy, "https://10.0.0.1:3128/");
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("POST /api/state accepts supported 4.20 state", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const state420 = {
       version: {
@@ -453,12 +439,12 @@ test("POST /api/state accepts supported 4.20 state", async () => {
     const body = await res.json();
     assert.strictEqual(body.version.selectedMinor, "4.20");
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("POST /api/state accepts supported 4.21 state", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const state421 = {
       version: {
@@ -479,6 +465,6 @@ test("POST /api/state accepts supported 4.21 state", async () => {
     const body = await res.json();
     assert.strictEqual(body.version.selectedMinor, "4.21");
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });

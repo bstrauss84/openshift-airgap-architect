@@ -8,10 +8,28 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_DIR = __dirname;
 const BACKLOG_PATH = path.resolve(__dirname, "../../docs/BACKLOG_STATUS.md");
 
+const EXCLUDED_DIRS = new Set(["node_modules", "fixtures", "helpers"]);
+
+function collectTestFiles(dir) {
+  const results = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (EXCLUDED_DIRS.has(entry.name)) continue;
+      results.push(...collectTestFiles(path.join(dir, entry.name)));
+    } else if (entry.isFile() && entry.name.endsWith(".test.js") && entry.name !== "test-integrity.test.js") {
+      results.push(path.join(dir, entry.name));
+    }
+  }
+  return results;
+}
+
 const FORBIDDEN_PATTERNS = [
   { name: "test.only", pattern: /\btest\.only\s*\(/g },
   { name: "it.only", pattern: /\bit\.only\s*\(/g },
   { name: "describe.only", pattern: /\bdescribe\.only\s*\(/g },
+  { name: "suite.skip", pattern: /\bsuite\.skip\s*\(/g },
+  { name: "xit", pattern: /\bxit\s*\(/g },
+  { name: "xdescribe", pattern: /\bxdescribe\s*\(/g },
   { name: "process.exit", pattern: /\bprocess\.exit\s*\(/g },
   { name: "--test-force-exit", pattern: /--test-force-exit/g },
 ];
@@ -45,7 +63,7 @@ function loadBacklogIds() {
 
 function scanFile(filePath) {
   const content = fs.readFileSync(filePath, "utf8");
-  const fileName = path.basename(filePath);
+  const fileName = path.relative(TEST_DIR, filePath);
   const lines = content.split("\n");
   const violations = [];
 
@@ -73,7 +91,7 @@ function scanFile(filePath) {
 
 function validateTodos(filePath, backlogIds) {
   const content = fs.readFileSync(filePath, "utf8");
-  const fileName = path.basename(filePath);
+  const fileName = path.relative(TEST_DIR, filePath);
   const lines = content.split("\n");
   const violations = [];
 
@@ -205,12 +223,10 @@ function validateTodoString(content, fileName, backlogIds) {
 
 describe("test-integrity guard", () => {
   it("no test file contains unauthorized skip, only, or force-exit markers", () => {
-    const testFiles = fs.readdirSync(TEST_DIR)
-      .filter(f => f.endsWith(".test.js") && f !== "test-integrity.test.js");
+    const testFiles = collectTestFiles(TEST_DIR);
 
     const allViolations = [];
-    for (const file of testFiles) {
-      const filePath = path.join(TEST_DIR, file);
+    for (const filePath of testFiles) {
       allViolations.push(...scanFile(filePath));
     }
 
@@ -229,12 +245,10 @@ describe("test-integrity guard", () => {
     const backlogIds = loadBacklogIds();
     assert.ok(backlogIds.size > 0, "Should load backlog IDs from BACKLOG_STATUS.md");
 
-    const testFiles = fs.readdirSync(TEST_DIR)
-      .filter(f => f.endsWith(".test.js") && f !== "test-integrity.test.js");
+    const testFiles = collectTestFiles(TEST_DIR);
 
     const allViolations = [];
-    for (const file of testFiles) {
-      const filePath = path.join(TEST_DIR, file);
+    for (const filePath of testFiles) {
       allViolations.push(...validateTodos(filePath, backlogIds));
     }
 
@@ -356,6 +370,50 @@ describe("test-integrity guard", () => {
       const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.todo-with-callback");
+    });
+
+    it("detects xit in synthetic content", () => {
+      const content = 'xit("disabled test", () => {});';
+      const violations = scanContentString(content, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "xit");
+    });
+
+    it("detects xdescribe in synthetic content", () => {
+      const content = 'xdescribe("disabled suite", () => {});';
+      const violations = scanContentString(content, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "xdescribe");
+    });
+
+    it("detects suite.skip in synthetic content", () => {
+      const content = 'suite.skip("disabled suite", () => {});';
+      const violations = scanContentString(content, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "suite.skip");
+    });
+
+    it("collectTestFiles discovers nested test files", () => {
+      const nestedDir = path.join(TEST_DIR, "__integrity_test_nested__");
+      const nestedFile = path.join(nestedDir, "nested-violation.test.js");
+      fs.mkdirSync(nestedDir, { recursive: true });
+      try {
+        fs.writeFileSync(nestedFile, 'test.skip("bad", () => {});');
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.includes("__integrity_test_nested__"));
+        assert.ok(found, "collectTestFiles must find test files in nested directories");
+        const violations = scanFile(nestedFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "test.skip");
+      } finally {
+        fs.rmSync(nestedDir, { recursive: true, force: true });
+      }
+    });
+
+    it("collectTestFiles excludes node_modules and fixtures", () => {
+      const files = collectTestFiles(TEST_DIR);
+      const violating = files.filter(f => f.includes("node_modules") || f.includes("/fixtures/"));
+      assert.strictEqual(violating.length, 0, "Must not scan node_modules or fixtures");
     });
   });
 });

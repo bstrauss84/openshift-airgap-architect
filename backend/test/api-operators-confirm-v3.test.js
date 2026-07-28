@@ -23,6 +23,7 @@ import path from "node:path";
 import http from "node:http";
 import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
+import { closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -258,7 +259,7 @@ describe('POST /api/operators/confirm v3 canonical fields', () => {
   after(async () => {
     // Clean up test server and data
     if (testServer) {
-      testServer.close();
+      await closeTestServer(testServer);
     }
 
     // Restore original DATA_DIR

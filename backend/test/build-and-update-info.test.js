@@ -8,37 +8,23 @@
 
 import { test } from "node:test";
 import assert from "node:assert";
-import http from "node:http";
 import { app, clearUpdateInfoCache } from "../src/index.js";
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      resolve({ server, port, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
-
-function closeServer(server) {
-  return new Promise((resolve) => server.close(resolve));
-}
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 test("GET /api/ready returns ready:true when DB is readable", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/ready`);
     assert.strictEqual(res.status, 200);
     const data = await res.json();
     assert.strictEqual(data.ready, true);
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
 test("GET /api/build-info returns gitSha, buildTime, repo, branch", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/build-info`);
     assert.strictEqual(res.status, 200);
@@ -48,7 +34,7 @@ test("GET /api/build-info returns gitSha, buildTime, repo, branch", async () => 
     assert.ok("repo" in data);
     assert.ok("branch" in data);
   } finally {
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
@@ -56,7 +42,7 @@ test("GET /api/update-info when CHECK_UPDATES=false returns enabled:false", asyn
   const prev = process.env.CHECK_UPDATES;
   process.env.CHECK_UPDATES = "false";
   clearUpdateInfoCache();
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/update-info`);
     assert.strictEqual(res.status, 200);
@@ -65,7 +51,7 @@ test("GET /api/update-info when CHECK_UPDATES=false returns enabled:false", asyn
   } finally {
     if (prev !== undefined) process.env.CHECK_UPDATES = prev;
     else delete process.env.CHECK_UPDATES;
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
@@ -85,7 +71,7 @@ test("GET /api/update-info when APP_GIT_SHA is unknown returns isOutdated:false 
     }
     return originalFetch(url, opts);
   };
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/update-info`);
     assert.strictEqual(res.status, 200);
@@ -99,7 +85,7 @@ test("GET /api/update-info when APP_GIT_SHA is unknown returns isOutdated:false 
     globalThis.fetch = originalFetch;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
@@ -119,7 +105,7 @@ test("GET /api/update-info when enabled and latest differs returns isOutdated:tr
     }
     return originalFetch(url, opts);
   };
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/update-info`);
     assert.strictEqual(res.status, 200);
@@ -133,7 +119,7 @@ test("GET /api/update-info when enabled and latest differs returns isOutdated:tr
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
@@ -153,7 +139,7 @@ test("GET /api/update-info when enabled and latest same returns isOutdated:false
     }
     return originalFetch(url, opts);
   };
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/update-info`);
     assert.strictEqual(res.status, 200);
@@ -166,7 +152,7 @@ test("GET /api/update-info when enabled and latest same returns isOutdated:false
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
@@ -188,7 +174,7 @@ test("update-info cache prevents repeated GitHub fetches", async () => {
     }
     return originalFetch(url, opts);
   };
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res1 = await fetch(`${baseUrl}/api/update-info`);
     assert.strictEqual(res1.status, 200);
@@ -201,7 +187,7 @@ test("update-info cache prevents repeated GitHub fetches", async () => {
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
 
@@ -218,7 +204,7 @@ test("update-info caches failure and returns error", async () => {
     }
     return originalFetch(url, opts);
   };
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/update-info`);
     assert.strictEqual(res.status, 200);
@@ -236,6 +222,6 @@ test("update-info caches failure and returns error", async () => {
     else delete process.env.CHECK_UPDATES;
     if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
     else delete process.env.APP_GIT_SHA;
-    await closeServer(server);
+    await closeTestServer(server);
   }
 });
