@@ -3174,6 +3174,28 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
           logger.warn({ tag: "agent-iso:mirror-operator", jobId, err: err.message }, "Failed to inject IDMS/ITMS files");
         }
       }
+      // Inject additional CatalogSource files from AGENT_ISO_CATALOGSOURCES env var
+      const catalogSourceFiles = (process.env.AGENT_ISO_CATALOGSOURCES || "").split(",").map(s => s.trim()).filter(Boolean);
+      for (const csFile of catalogSourceFiles) {
+        try {
+          if (!fs.existsSync(csFile)) {
+            appendJobOutput(jobId, `⚠ CatalogSource file not found: ${csFile}\n`);
+            continue;
+          }
+          const csContent = fs.readFileSync(csFile, "utf8");
+          const csBasename = path.basename(csFile);
+          const csDest = path.join(openshiftDir, csBasename);
+          fs.writeFileSync(csDest, csContent, "utf8");
+          appendJobOutput(jobId, `✓ Wrote openshift/${csBasename} (${Buffer.byteLength(csContent)} bytes)\n`);
+        } catch (err) {
+          appendJobOutput(jobId, `⚠ Could not inject CatalogSource ${csFile}: ${err.message}\n`);
+          logger.warn({ tag: "agent-iso:catalogsource", jobId, file: csFile, err: err.message }, "Failed to inject CatalogSource file");
+        }
+      }
+      if (catalogSourceFiles.length > 0) {
+        logger.info({ tag: "agent-iso:catalogsource", jobId, count: catalogSourceFiles.length }, "Processed CatalogSource files from AGENT_ISO_CATALOGSOURCES");
+      }
+
       appendJobOutput(jobId, "\n");
     }
 
