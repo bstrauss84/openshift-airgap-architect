@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SAMPLES } from "./fixtures/integrity-synthetic-samples.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEST_DIR = __dirname;
 const BACKLOG_PATH = path.resolve(__dirname, "../../docs/BACKLOG_STATUS.md");
 
-const EXCLUDED_DIRS = new Set(["node_modules", "fixtures", "helpers"]);
+const EXCLUDED_DIRS = new Set(["node_modules"]);
 
 function collectTestFiles(dir) {
   const results = [];
@@ -16,22 +17,27 @@ function collectTestFiles(dir) {
     if (entry.isDirectory()) {
       if (EXCLUDED_DIRS.has(entry.name)) continue;
       results.push(...collectTestFiles(path.join(dir, entry.name)));
-    } else if (entry.isFile() && entry.name.endsWith(".test.js") && entry.name !== "test-integrity.test.js") {
+    } else if (entry.isFile() && entry.name.endsWith(".test.js")) {
       results.push(path.join(dir, entry.name));
     }
   }
   return results;
 }
 
+const FORCE_EXIT_FLAG = ["--test", "force", "exit"].join("-");
 const FORBIDDEN_PATTERNS = [
   { name: "test.only", pattern: /\btest\.only\s*\(/g },
   { name: "it.only", pattern: /\bit\.only\s*\(/g },
   { name: "describe.only", pattern: /\bdescribe\.only\s*\(/g },
+  { name: "suite.only", pattern: /\bsuite\.only\s*\(/g },
   { name: "suite.skip", pattern: /\bsuite\.skip\s*\(/g },
   { name: "xit", pattern: /\bxit\s*\(/g },
   { name: "xdescribe", pattern: /\bxdescribe\s*\(/g },
   { name: "process.exit", pattern: /\bprocess\.exit\s*\(/g },
-  { name: "--test-force-exit", pattern: /--test-force-exit/g },
+  { name: FORCE_EXIT_FLAG, pattern: new RegExp(FORCE_EXIT_FLAG, "g") },
+  { name: "it.todo", pattern: /\bit\.todo\s*\(/g },
+  { name: "describe.todo", pattern: /\bdescribe\.todo\s*\(/g },
+  { name: "suite.todo", pattern: /\bsuite\.todo\s*\(/g },
 ];
 
 const SKIP_PATTERNS = [
@@ -40,11 +46,10 @@ const SKIP_PATTERNS = [
   { name: "describe.skip", pattern: /\bdescribe\.skip\s*\(/g },
 ];
 
-const TODO_PATTERN = /\btest\.todo\s*\(\s*["'`](\[([A-Z]+-\d+)\])\s+.+\s*-\s+.+["'`]\s*\)/g;
 const TODO_RAW_PATTERN = /\btest\.todo\s*\(/g;
 const TODO_WITH_CALLBACK = /\btest\.todo\s*\(\s*["'`].*["'`]\s*,/g;
-
-const BACKLOG_ID_PATTERN = /^\[([A-Z]+-\d+)\]/;
+const TODO_FORMAT_HINT = ["Required format: test.todo",
+  '("[ID] description - concise reason")'].join("");
 
 function loadBacklogIds() {
   const content = fs.readFileSync(BACKLOG_PATH, "utf8");
@@ -116,7 +121,7 @@ function validateTodos(filePath, backlogIds) {
       violations.push({
         file: fileName, line: lineNum, marker: "test.todo-bad-format",
         text: line.trim(),
-        reason: 'test.todo must match format: test.todo("[ID] name - reason")'
+        reason: TODO_FORMAT_HINT
       });
       continue;
     }
@@ -194,7 +199,7 @@ function validateTodoString(content, fileName, backlogIds) {
       violations.push({
         file: fileName, line: lineNum, marker: "test.todo-bad-format",
         text: line.trim(),
-        reason: 'test.todo must match format: test.todo("[ID] name - reason")'
+        reason: TODO_FORMAT_HINT
       });
       continue;
     }
@@ -274,121 +279,126 @@ describe("test-integrity guard", () => {
 
   describe("self-tests with synthetic content", () => {
     it("detects test.only in synthetic content", () => {
-      const content = 'test.only("should fail", () => {});';
-      const violations = scanContentString(content, "synthetic.test.js");
+      const violations = scanContentString(SAMPLES.testOnly, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.only");
     });
 
     it("detects test.skip in synthetic content", () => {
-      const content = 'test.skip("some test", () => {});';
-      const violations = scanContentString(content, "synthetic.test.js");
+      const violations = scanContentString(SAMPLES.testSkip, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.skip");
     });
 
     it("detects process.exit in synthetic content", () => {
-      const content = "process.exit(1);";
-      const violations = scanContentString(content, "synthetic.test.js");
+      const violations = scanContentString(SAMPLES.processExit, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "process.exit");
     });
 
-    it("detects --test-force-exit in synthetic content", () => {
-      const content = '// run with: node --test --test-force-exit test/';
-      const violations = scanContentString(content, "synthetic.test.js");
+    it(`detects ${FORCE_EXIT_FLAG} in synthetic content`, () => {
+      const violations = scanContentString(SAMPLES.testForceExit, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
-      assert.strictEqual(violations[0].marker, "--test-force-exit");
+      assert.strictEqual(violations[0].marker, FORCE_EXIT_FLAG);
+    });
+
+    it("detects suite.only in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.suiteOnly, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "suite.only");
+    });
+
+    it("detects it.todo in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.itTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "it.todo");
+    });
+
+    it("detects describe.todo in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.describeTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "describe.todo");
+    });
+
+    it("detects suite.todo in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.suiteTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "suite.todo");
     });
 
     it("clean content produces zero violations", () => {
-      const content = [
-        'import { test } from "node:test";',
-        'test("works correctly", () => { assert.ok(true); });',
-      ].join("\n");
-      const violations = scanContentString(content, "clean.test.js");
+      const violations = scanContentString(SAMPLES.clean, "clean.test.js");
       assert.strictEqual(violations.length, 0);
     });
 
     it("accepts valid test.todo with known deferred backlog ID", () => {
-      const content = 'test.todo("[DOC-123] generates multiple bonds on same node - secondary interface support not yet implemented");';
       const backlogIds = new Map([["DOC-123", "deferred"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.validTodo, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 0);
     });
 
     it("accepts valid test.todo with active backlog ID", () => {
-      const content = 'test.todo("[DOC-120] some feature - not yet implemented");';
       const backlogIds = new Map([["DOC-120", "active"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.validTodoActive, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 0);
     });
 
     it("rejects test.todo with unknown backlog ID", () => {
-      const content = 'test.todo("[DOC-999] some test - reason");';
       const backlogIds = new Map([["DOC-123", "deferred"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.todoUnknownId, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.todo-unknown-id");
     });
 
     it("rejects test.todo with verified_done backlog ID", () => {
-      const content = 'test.todo("[DOC-074] ipv6 test - done feature");';
       const backlogIds = new Map([["DOC-074", "verified_done"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.todoVerifiedDone, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.todo-resolved-id");
     });
 
     it("rejects test.todo with obsolete backlog ID", () => {
-      const content = 'test.todo("[DOC-101] old item - should be removed");';
       const backlogIds = new Map([["DOC-101", "obsolete"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.todoObsolete, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.todo-resolved-id");
     });
 
     it("rejects test.todo missing backlog ID prefix", () => {
-      const content = 'test.todo("some test without ID - reason");';
       const backlogIds = new Map([["DOC-123", "deferred"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.todoMissingId, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.todo-bad-format");
     });
 
     it("rejects test.todo missing reason after dash", () => {
-      const content = 'test.todo("[DOC-123] generates multiple bonds");';
       const backlogIds = new Map([["DOC-123", "deferred"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.todoMissingReason, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.todo-bad-format");
     });
 
     it("rejects test.todo with executable callback", () => {
-      const content = 'test.todo("some test", () => {});';
       const backlogIds = new Map([["DOC-123", "deferred"]]);
-      const violations = validateTodoString(content, "synthetic.test.js", backlogIds);
+      const violations = validateTodoString(SAMPLES.todoWithCallback, "synthetic.test.js", backlogIds);
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "test.todo-with-callback");
     });
 
     it("detects xit in synthetic content", () => {
-      const content = 'xit("disabled test", () => {});';
-      const violations = scanContentString(content, "synthetic.test.js");
+      const violations = scanContentString(SAMPLES.xit, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "xit");
     });
 
     it("detects xdescribe in synthetic content", () => {
-      const content = 'xdescribe("disabled suite", () => {});';
-      const violations = scanContentString(content, "synthetic.test.js");
+      const violations = scanContentString(SAMPLES.xdescribe, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "xdescribe");
     });
 
     it("detects suite.skip in synthetic content", () => {
-      const content = 'suite.skip("disabled suite", () => {});';
-      const violations = scanContentString(content, "synthetic.test.js");
+      const violations = scanContentString(SAMPLES.suiteSkip, "synthetic.test.js");
       assert.strictEqual(violations.length, 1);
       assert.strictEqual(violations[0].marker, "suite.skip");
     });
@@ -398,7 +408,7 @@ describe("test-integrity guard", () => {
       const nestedFile = path.join(nestedDir, "nested-violation.test.js");
       fs.mkdirSync(nestedDir, { recursive: true });
       try {
-        fs.writeFileSync(nestedFile, 'test.skip("bad", () => {});');
+        fs.writeFileSync(nestedFile, SAMPLES.testSkip);
         const files = collectTestFiles(TEST_DIR);
         const found = files.some(f => f.includes("__integrity_test_nested__"));
         assert.ok(found, "collectTestFiles must find test files in nested directories");
@@ -410,10 +420,63 @@ describe("test-integrity guard", () => {
       }
     });
 
-    it("collectTestFiles excludes node_modules and fixtures", () => {
+    it("collectTestFiles scans helpers directory", () => {
+      const helperTestFile = path.join(TEST_DIR, "helpers", "__integrity_test__.test.js");
+      try {
+        fs.writeFileSync(helperTestFile, SAMPLES.testOnly);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.includes(path.join("helpers", "__integrity_test__.test.js")));
+        assert.ok(found, "collectTestFiles must scan helpers directory");
+        const violations = scanFile(helperTestFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "test.only");
+      } finally {
+        fs.rmSync(helperTestFile, { force: true });
+      }
+    });
+
+    it("collectTestFiles scans fixtures directory", () => {
+      const fixtureTestFile = path.join(TEST_DIR, "fixtures", "__integrity_test__.test.js");
+      try {
+        fs.writeFileSync(fixtureTestFile, SAMPLES.testSkip);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.includes(path.join("fixtures", "__integrity_test__.test.js")));
+        assert.ok(found, "collectTestFiles must scan fixtures directory");
+        const violations = scanFile(fixtureTestFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "test.skip");
+      } finally {
+        fs.rmSync(fixtureTestFile, { force: true });
+      }
+    });
+
+    it("collectTestFiles discovers deeply nested test files", () => {
+      const deepDir = path.join(TEST_DIR, "__integrity_nested__", "deeper");
+      const deepFile = path.join(deepDir, "example.test.js");
+      fs.mkdirSync(deepDir, { recursive: true });
+      try {
+        fs.writeFileSync(deepFile, SAMPLES.suiteOnly);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.includes(path.join("deeper", "example.test.js")));
+        assert.ok(found, "collectTestFiles must find test files in deeply nested directories");
+        const violations = scanFile(deepFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "suite.only");
+      } finally {
+        fs.rmSync(path.join(TEST_DIR, "__integrity_nested__"), { recursive: true, force: true });
+      }
+    });
+
+    it("collectTestFiles still excludes node_modules", () => {
       const files = collectTestFiles(TEST_DIR);
-      const violating = files.filter(f => f.includes("node_modules") || f.includes("/fixtures/"));
-      assert.strictEqual(violating.length, 0, "Must not scan node_modules or fixtures");
+      const violating = files.filter(f => f.includes("node_modules"));
+      assert.strictEqual(violating.length, 0, "Must not scan node_modules");
+    });
+
+    it("scanner includes test-integrity.test.js itself", () => {
+      const files = collectTestFiles(TEST_DIR);
+      const selfIncluded = files.some(f => f.endsWith("test-integrity.test.js"));
+      assert.ok(selfIncluded, "collectTestFiles must not exempt test-integrity.test.js");
     });
   });
 });
