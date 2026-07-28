@@ -31,12 +31,12 @@ const MIRROR_OPERATOR_ADDITIONAL_IMAGES = [
 ];
 
 const MIRROR_OPERATOR_DEPENDENT_OPERATORS = [
-  { name: "openshift-pipelines-operator-rh", channel: "latest", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
-  { name: "quay-operator", channel: "stable-3.13", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
-  { name: "rhbk-operator", channel: "stable-v24", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
-  { name: "rhtas-operator", channel: "stable", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
-  { name: "rhtpa-operator", channel: "stable-v1.1", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
-  { name: "advanced-cluster-management", channel: "release-2.17", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "openshift-pipelines-operator-rh", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "quay-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhbk-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhtas-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhtpa-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "advanced-cluster-management", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
 ];
 
 const normalizePullSecretString = (input) => {
@@ -1567,7 +1567,9 @@ const buildImageSetConfig = (state) => {
       }
       const existing = byCatalog.get(catalogImage);
       if (!existing.some((p) => p.name === dep.name)) {
-        existing.push({ name: dep.name, channels: [{ name: dep.channel }] });
+        const entry = { name: dep.name };
+        if (dep.channel) entry.channels = [{ name: dep.channel }];
+        existing.push(entry);
       }
     }
   }
