@@ -10,7 +10,7 @@
  * Developed with AI assistance from Claude (Anthropic).
  */
 
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { KubeConfig, CoreV1Api, CustomObjectsApi } from "@kubernetes/client-node";
 import logger from "./logger.js";
@@ -347,15 +347,25 @@ export async function generateCollectionDownloadUrls({
         expiresIn
       });
 
+      // Get object size via HeadObject
+      let size = null;
+      try {
+        const head = await s3Client.send(new HeadObjectCommand({ Bucket: credentials.bucket, Key: objectKey }));
+        size = head.ContentLength || null;
+      } catch (headErr) {
+        logger.debug({ objectKey, err: headErr.message }, "Could not get object size");
+      }
+
       // Store URL with the filename
       const fileName = objectKey.split('/').pop();
-      urls[fileName] = url;
+      urls[fileName] = { url, size };
 
       logger.info({
         collectionName,
         artifactType,
         fileName,
-        objectKey
+        objectKey,
+        size
       }, "Generated pre-signed URL for artifact");
     } catch (error) {
       // Log error but continue processing other artifacts

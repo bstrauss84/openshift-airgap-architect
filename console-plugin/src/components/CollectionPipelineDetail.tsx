@@ -84,7 +84,7 @@ export const CollectionPipelineDetail: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [loadingPipelineRun, setLoadingPipelineRun] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [downloadUrls, setDownloadUrls] = React.useState<{ bundle?: string; signature?: string } | null>(null);
+  const [downloadUrls, setDownloadUrls] = React.useState<{ bundle?: string; signature?: string; bundleSize?: number } | null>(null);
   const [loadingDownloadUrls, setLoadingDownloadUrls] = React.useState(false);
 
   // Track if this is the first load using a ref
@@ -240,14 +240,18 @@ export const CollectionPipelineDetail: React.FC = () => {
       const data = await response.json();
 
       // Extract bundle and signature URLs from the response
-      // The backend returns URLs keyed by filename, find by extension
+      // The backend returns URLs keyed by filename with { url, size } objects
       const urls = data.urls || {};
       const bundleKey = Object.keys(urls).find(key => key.endsWith('.tar.gz') || key.endsWith('.tar'));
       const signatureKey = Object.keys(urls).find(key => key.endsWith('.sig'));
 
+      const bundleEntry = bundleKey ? urls[bundleKey] : undefined;
+      const signatureEntry = signatureKey ? urls[signatureKey] : undefined;
+
       setDownloadUrls({
-        bundle: bundleKey ? urls[bundleKey] : undefined,
-        signature: signatureKey ? urls[signatureKey] : undefined
+        bundle: typeof bundleEntry === 'object' ? bundleEntry?.url : bundleEntry,
+        bundleSize: typeof bundleEntry === 'object' ? bundleEntry?.size : undefined,
+        signature: typeof signatureEntry === 'object' ? signatureEntry?.url : signatureEntry,
       });
     } catch (err: any) {
       console.error('Failed to fetch download URLs:', err);
@@ -259,6 +263,14 @@ export const CollectionPipelineDetail: React.FC = () => {
     } finally {
       setLoadingDownloadUrls(false);
     }
+  };
+
+  const formatBytes = (bytes?: number): string => {
+    if (!bytes || bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const value = bytes / Math.pow(1024, i);
+    return `${value.toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
   };
 
   const calculateDuration = (startTime?: string, endTime?: string) => {
@@ -661,7 +673,7 @@ export const CollectionPipelineDetail: React.FC = () => {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Download Collection Bundle (.tar.gz)
+                          Download Collection Bundle (.tar.gz){downloadUrls.bundleSize ? ` (${formatBytes(downloadUrls.bundleSize)})` : ''}
                         </Button>
                       </ListItem>
                     )}
