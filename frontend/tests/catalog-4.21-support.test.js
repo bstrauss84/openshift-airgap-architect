@@ -194,22 +194,31 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(dnsRecordsType.supportStatus).toBe('supported-backend-only');
     });
 
-    it('all 7 high-confidence params (Slice 5B) have catalog-only supportStatus', () => {
+    it('non-throughput high-confidence params (Slice 5B) have catalog-only supportStatus', () => {
       const awsParams = getCatalogForScenario('aws-govcloud-ipi', '4.21');
       const azureParams = getCatalogForScenario('azure-government-ipi', '4.21');
 
       const highConfParams = [...awsParams, ...azureParams].filter(p =>
         p.minVersion === '4.21' &&
         (p.path.includes('aws.cpuOptions') ||
-         p.path.includes('aws.rootVolume.throughput') ||
          p.path.includes('azure.allowSharedKeyAccess') ||
          p.path.includes('azure.subnets'))
       );
-      expect(highConfParams).toHaveLength(7);
+      expect(highConfParams).toHaveLength(6);
 
       highConfParams.forEach(p => {
         expect(p.supportStatus).toBe('supported-backend-only');
       });
+    });
+
+    it('throughput high-confidence params promoted from Slice 5B', () => {
+      const awsParams = getCatalogForScenario('aws-govcloud-ipi', '4.21');
+      const cpThroughput = awsParams.find(p => p.path === 'controlPlane.platform.aws.rootVolume.throughput');
+      const compThroughput = awsParams.find(p => p.path === 'compute[].platform.aws.rootVolume.throughput');
+      expect(cpThroughput).toBeDefined();
+      expect(cpThroughput.supportStatus).toBe('supported-ui');
+      expect(compThroughput).toBeDefined();
+      expect(compThroughput.supportStatus).toBe('supported-derived');
     });
 
     it('all 4 manual-review params (Slice 5D) have catalog-only supportStatus', () => {
@@ -1304,7 +1313,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(total).toBe(2);
       });
 
-      it('exactly 24 "absent in 4.20" historical comparison notes', () => {
+      it('exactly 25 "absent in 4.20" historical comparison notes', () => {
         let total = 0;
         allScenarios.forEach(scenario => {
           loadParams(scenario).forEach(p => {
@@ -1313,7 +1322,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
             });
           });
         });
-        expect(total).toBe(24);
+        expect(total).toBe(25);
       });
     });
 

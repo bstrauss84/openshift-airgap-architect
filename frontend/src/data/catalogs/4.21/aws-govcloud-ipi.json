@@ -517,13 +517,12 @@
       "path": "controlPlane.platform.aws.rootVolume.throughput",
       "outputFile": "install-config.yaml",
       "type": "int",
-      "allowed": "125-1000 MB/s (gp3 volumes)",
+      "allowed": "125-2000 MiB/s (gp3 volumes)",
       "default": null,
       "required": false,
-      "description": "EBS volume throughput in MB/s for control plane root volumes. Only applicable to gp3 volume type. Range: 125-1000 MB/s.",
+      "description": "EBS volume throughput in MiB/s for control plane root volumes. Only applicable to gp3 volume type. Range: 125-2000 MiB/s.",
       "applies_to": [
-        "aws-govcloud-ipi",
-        "aws-govcloud-upi"
+        "aws-govcloud-ipi"
       ],
       "citations": [
         {
@@ -537,7 +536,34 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
+      "minVersion": "4.21",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].platform.aws.rootVolume.throughput",
+      "outputFile": "install-config.yaml",
+      "type": "int",
+      "allowed": "125-2000 MiB/s (gp3 volumes)",
+      "default": null,
+      "required": false,
+      "description": "EBS volume throughput in MiB/s for compute root volumes. Only applicable to gp3 volume type. Range: 125-2000 MiB/s. Derived from the shared root volume throughput setting.",
+      "applies_to": [
+        "aws-govcloud-ipi"
+      ],
+      "citations": [
+        {
+          "source": "installer_source",
+          "url": "github.com/openshift/installer release-4.21 pkg/types/aws/ec2_root_volume.go Throughput",
+          "note": "Added in 4.21"
+        },
+        {
+          "source": "delta_analysis",
+          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
+          "note": "Confirmed added in 4.21, absent in 4.20"
+        }
+      ],
+      "supportStatus": "supported-derived",
       "minVersion": "4.21",
       "maxVersion": null
     },

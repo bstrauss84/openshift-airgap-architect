@@ -100,6 +100,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localAwsRootVolumeSize, setLocalAwsRootVolumeSize] = useState(platformConfig.aws?.rootVolumeSize || "");
   const [localAwsRootVolumeType, setLocalAwsRootVolumeType] = useState(platformConfig.aws?.rootVolumeType || "");
   const [localAwsRootVolumeIops, setLocalAwsRootVolumeIops] = useState(platformConfig.aws?.rootVolumeIops || "");
+  const [localAwsRootVolumeThroughput, setLocalAwsRootVolumeThroughput] = useState(platformConfig.aws?.rootVolumeThroughput || "");
   const [localAwsRootVolumeKmsKeyArn, setLocalAwsRootVolumeKmsKeyArn] = useState(platformConfig.aws?.rootVolumeKmsKeyArn || "");
 
   // Local state for text inputs (onBlur pattern) - Azure
@@ -184,6 +185,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   useEffect(() => { setLocalAwsRootVolumeSize(platformConfig.aws?.rootVolumeSize || ""); }, [platformConfig.aws?.rootVolumeSize]);
   useEffect(() => { setLocalAwsRootVolumeType(platformConfig.aws?.rootVolumeType || ""); }, [platformConfig.aws?.rootVolumeType]);
   useEffect(() => { setLocalAwsRootVolumeIops(platformConfig.aws?.rootVolumeIops || ""); }, [platformConfig.aws?.rootVolumeIops]);
+  useEffect(() => { setLocalAwsRootVolumeThroughput(platformConfig.aws?.rootVolumeThroughput || ""); }, [platformConfig.aws?.rootVolumeThroughput]);
   useEffect(() => { setLocalAwsRootVolumeKmsKeyArn(platformConfig.aws?.rootVolumeKmsKeyArn || ""); }, [platformConfig.aws?.rootVolumeKmsKeyArn]);
 
   // Sync local state when store values change (for imports/loads) - Azure
@@ -958,6 +960,34 @@ Emitted to \`controlPlane.platform.aws.rootVolume.iops\` and \`compute[].platfor
                           placeholder="omit"
                         />
                       </FieldLabelWithInfo>
+                      {isCatalogFieldVisible("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) && (
+                      <FieldLabelWithInfo
+                        label="Root volume throughput (MiB/s)"
+                        hint={`Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
+
+**Range:** 125 to 2000 MiB/s (integer values only).
+
+**When needed:**
+gp3 volumes default to 125 MiB/s throughput. Increase when workloads require sustained sequential I/O (log streaming, large container image pulls, etcd snapshots on control plane). Most clusters perform well with the default.
+
+**How it's used:**
+Emitted to \`controlPlane.platform.aws.rootVolume.throughput\` and \`compute[].platform.aws.rootVolume.throughput\` in install-config.yaml. Applied to all cluster nodes (control plane and workers).
+
+**Important:**
+Higher throughput increases EBS costs. Only applicable to gp3 volumes — ignored for gp2, io1, io2.`}
+                        className="field-short"
+                      >
+                        <input
+                          type="number"
+                          min={125}
+                          max={2000}
+                          value={localAwsRootVolumeThroughput}
+                          onChange={(e) => setLocalAwsRootVolumeThroughput(e.target.value)}
+                          onBlur={() => updateAws({ rootVolumeThroughput: localAwsRootVolumeThroughput === "" ? undefined : Number(localAwsRootVolumeThroughput) })}
+                          placeholder="omit"
+                        />
+                      </FieldLabelWithInfo>
+                      )}
                       <FieldLabelWithInfo
                         label="Root volume KMS Key ARN (optional)"
                         hint={`AWS KMS (Key Management Service) Customer Master Key ARN for encrypting EBS root volumes. Leave blank to use AWS-managed default encryption.

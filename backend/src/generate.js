@@ -569,31 +569,34 @@ const buildInstallConfig = (state) => {
       }
     }
 
-    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn)) {
+    const awsThroughputEligible = selectedMinor !== "4.20" && platformConfig.aws?.rootVolumeThroughput != null && Number(platformConfig.aws.rootVolumeThroughput) > 0;
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn || awsThroughputEligible)) {
       const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null
         ? { ...installConfig.controlPlane.platform } : {};
       cpPlatform.aws = { ...(cpPlatform.aws || {}) };
       if (platformConfig.aws.controlPlaneInstanceType) cpPlatform.aws.type = platformConfig.aws.controlPlaneInstanceType;
-      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn) {
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn || awsThroughputEligible) {
         cpPlatform.aws.rootVolume = {};
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) cpPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) cpPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
         if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) cpPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
+        if (awsThroughputEligible) cpPlatform.aws.rootVolume.throughput = Number(platformConfig.aws.rootVolumeThroughput);
         if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) cpPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(cpPlatform.aws.rootVolume).length === 0) delete cpPlatform.aws.rootVolume;
       }
       installConfig.controlPlane.platform = cpPlatform;
     }
-    if (state.methodology?.method === "IPI" && (platformConfig.aws?.workerInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn)) {
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.workerInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn || awsThroughputEligible)) {
       const compPlatform = typeof installConfig.compute[0].platform === "object" && installConfig.compute[0].platform !== null
         ? { ...installConfig.compute[0].platform } : {};
       compPlatform.aws = { ...(compPlatform.aws || {}) };
       if (platformConfig.aws.workerInstanceType) compPlatform.aws.type = platformConfig.aws.workerInstanceType;
-      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn) {
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn || awsThroughputEligible) {
         compPlatform.aws.rootVolume = {};
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) compPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) compPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
         if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) compPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
+        if (awsThroughputEligible) compPlatform.aws.rootVolume.throughput = Number(platformConfig.aws.rootVolumeThroughput);
         if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) compPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(compPlatform.aws.rootVolume).length === 0) delete compPlatform.aws.rootVolume;
       }
