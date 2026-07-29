@@ -15,6 +15,7 @@ import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { validateAwsRootVolumeThroughput } from "../validation.js";
 import { formatMACAsYouType } from "../formatUtils.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
@@ -101,6 +102,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localAwsRootVolumeType, setLocalAwsRootVolumeType] = useState(platformConfig.aws?.rootVolumeType || "");
   const [localAwsRootVolumeIops, setLocalAwsRootVolumeIops] = useState(platformConfig.aws?.rootVolumeIops || "");
   const [localAwsRootVolumeThroughput, setLocalAwsRootVolumeThroughput] = useState(platformConfig.aws?.rootVolumeThroughput || "");
+  const [awsThroughputError, setAwsThroughputError] = useState("");
   const [localAwsRootVolumeKmsKeyArn, setLocalAwsRootVolumeKmsKeyArn] = useState(platformConfig.aws?.rootVolumeKmsKeyArn || "");
 
   // Local state for text inputs (onBlur pattern) - Azure
@@ -960,7 +962,7 @@ Emitted to \`controlPlane.platform.aws.rootVolume.iops\` and \`compute[].platfor
                           placeholder="omit"
                         />
                       </FieldLabelWithInfo>
-                      {isCatalogFieldVisible("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) && (
+                      {isCatalogFieldVisible("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) && (<>
                       <FieldLabelWithInfo
                         label="Root volume throughput (MiB/s)"
                         hint={`Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
@@ -974,20 +976,45 @@ gp3 volumes default to 125 MiB/s throughput. Increase when workloads require sus
 Emitted to \`controlPlane.platform.aws.rootVolume.throughput\` and \`compute[].platform.aws.rootVolume.throughput\` in install-config.yaml. Applied to all cluster nodes (control plane and workers).
 
 **Important:**
-Higher throughput increases EBS costs. Only applicable to gp3 volumes — ignored for gp2, io1, io2.`}
+Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid for gp2, io1, io2.`}
                         className="field-short"
                       >
                         <input
                           type="number"
                           min={125}
                           max={2000}
+                          step={1}
                           value={localAwsRootVolumeThroughput}
                           onChange={(e) => setLocalAwsRootVolumeThroughput(e.target.value)}
-                          onBlur={() => updateAws({ rootVolumeThroughput: localAwsRootVolumeThroughput === "" ? undefined : Number(localAwsRootVolumeThroughput) })}
+                          onBlur={() => {
+                            const raw = localAwsRootVolumeThroughput;
+                            if (raw === "" || raw == null) {
+                              setAwsThroughputError("");
+                              updateAws({ rootVolumeThroughput: undefined });
+                              return;
+                            }
+                            const result = validateAwsRootVolumeThroughput(raw, (platformConfig.aws?.rootVolumeType || "").trim() || undefined);
+                            if (!result.valid) {
+                              setAwsThroughputError(result.error);
+                            } else {
+                              setAwsThroughputError("");
+                            }
+                            updateAws({ rootVolumeThroughput: raw === "" ? undefined : Number(raw) });
+                          }}
+                          aria-invalid={awsThroughputError ? "true" : undefined}
+                          aria-describedby={awsThroughputError ? "aws-throughput-error" : undefined}
                           placeholder="omit"
                         />
                       </FieldLabelWithInfo>
+                      {awsThroughputError && (
+                        <div id="aws-throughput-error" className="field-error" role="alert" style={{ color: "var(--error-color, #d32f2f)", fontSize: "0.85em", marginTop: "4px" }}>
+                          {awsThroughputError}
+                        </div>
                       )}
+                      <div className="field-helper" style={{ fontSize: "0.8em", color: "var(--text-secondary, #666)", marginTop: "2px" }}>
+                        125–2000 MiB/s, gp3 only
+                      </div>
+                      </>)}
                       <FieldLabelWithInfo
                         label="Root volume KMS Key ARN (optional)"
                         hint={`AWS KMS (Key Management Service) Customer Master Key ARN for encrypting EBS root volumes. Leave blank to use AWS-managed default encryption.

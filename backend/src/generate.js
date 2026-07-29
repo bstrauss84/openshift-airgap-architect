@@ -16,6 +16,19 @@ import { getTrustBundlePolicies, assertSupportedOpenShiftMinorForGeneration } fr
 import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
+import { isVersionGTE } from "../../shared/versionUtils.js";
+
+function validateAwsRootVolumeThroughput(value, volumeType) {
+  if (value == null || value === "") return { valid: true, blank: true };
+  const num = Number(value);
+  if (!Number.isFinite(num)) throw new Error("rootVolumeThroughput must be a finite number, got: " + String(value));
+  if (!Number.isInteger(num)) throw new Error("rootVolumeThroughput must be an integer, got: " + value);
+  if (num < 125) throw new Error("rootVolumeThroughput must be at least 125, got: " + num);
+  if (num > 2000) throw new Error("rootVolumeThroughput must be at most 2000, got: " + num);
+  const effectiveType = (volumeType || "gp3").toLowerCase();
+  if (effectiveType !== "gp3") throw new Error("rootVolumeThroughput is only valid for gp3 volumes, got volume type: " + (volumeType || "(blank)"));
+  return { valid: true, value: num };
+}
 
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
@@ -569,7 +582,10 @@ const buildInstallConfig = (state) => {
       }
     }
 
-    const awsThroughputEligible = selectedMinor !== "4.20" && platformConfig.aws?.rootVolumeThroughput != null && Number(platformConfig.aws.rootVolumeThroughput) > 0;
+    const awsThroughputResult = isVersionGTE(selectedMinor, "4.21") && state.methodology?.method === "IPI"
+      ? validateAwsRootVolumeThroughput(platformConfig.aws?.rootVolumeThroughput, (platformConfig.aws?.rootVolumeType || "").trim() || undefined)
+      : { valid: true, blank: true };
+    const awsThroughputEligible = awsThroughputResult.valid && !awsThroughputResult.blank;
     if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn || awsThroughputEligible)) {
       const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null
         ? { ...installConfig.controlPlane.platform } : {};
@@ -580,7 +596,7 @@ const buildInstallConfig = (state) => {
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) cpPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) cpPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
         if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) cpPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
-        if (awsThroughputEligible) cpPlatform.aws.rootVolume.throughput = Number(platformConfig.aws.rootVolumeThroughput);
+        if (awsThroughputEligible) cpPlatform.aws.rootVolume.throughput = awsThroughputResult.value;
         if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) cpPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(cpPlatform.aws.rootVolume).length === 0) delete cpPlatform.aws.rootVolume;
       }
@@ -596,7 +612,7 @@ const buildInstallConfig = (state) => {
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) compPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) compPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
         if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) compPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
-        if (awsThroughputEligible) compPlatform.aws.rootVolume.throughput = Number(platformConfig.aws.rootVolumeThroughput);
+        if (awsThroughputEligible) compPlatform.aws.rootVolume.throughput = awsThroughputResult.value;
         if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) compPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(compPlatform.aws.rootVolume).length === 0) delete compPlatform.aws.rootVolume;
       }
@@ -1850,4 +1866,4 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   return lines.join("\n");
 };
 
-export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs };
+export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput };

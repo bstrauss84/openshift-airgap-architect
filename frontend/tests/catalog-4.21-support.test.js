@@ -1313,7 +1313,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(total).toBe(2);
       });
 
-      it('exactly 25 "absent in 4.20" historical comparison notes', () => {
+      it('exactly 26 "absent in 4.20" historical comparison notes', () => {
         let total = 0;
         allScenarios.forEach(scenario => {
           loadParams(scenario).forEach(p => {
@@ -1322,7 +1322,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
             });
           });
         });
-        expect(total).toBe(25);
+        expect(total).toBe(26);
       });
     });
 

@@ -1,22 +1,10 @@
-/**
- * AWS Root Volume Throughput Tests (DOC-102)
- *
- * Proves:
- * - Catalog: 4.20 has no throughput, 4.21 IPI has supported-ui + supported-derived,
- *   4.21 UPI has docs-only-not-supported, canonical/mirror parity
- * - Generation: 4.21 IPI emits throughput on both pools, blank omits,
- *   4.20/UPI/non-AWS stale values suppressed
- * - Persistence: round-trip state retains rootVolumeThroughput,
- *   import/export retains it, hidden value suppressed from inapplicable output
- */
-
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
-import { buildInstallConfig } from "../src/generate.js";
+import { buildInstallConfig, validateAwsRootVolumeThroughput } from "../src/generate.js";
 import { awsGovcloudIpi } from "./fixtures/base-states.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,14 +42,75 @@ function loadCatalog(version, scenario) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function loadFrontendCatalog(version, scenario) {
-  const filePath = path.resolve(__dirname, '..', '..', 'frontend', 'src', 'data', 'catalogs', version, `${scenario}.json`);
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
 function parseInstallConfig(result) {
   return yaml.load(result);
 }
+
+// ===================================================================
+// Production validation tests (validateAwsRootVolumeThroughput)
+// ===================================================================
+
+describe("AWS root volume throughput — production validation", () => {
+  it("125 accepted", () => {
+    const result = validateAwsRootVolumeThroughput(125, "gp3");
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.value, 125);
+  });
+
+  it("2000 accepted", () => {
+    const result = validateAwsRootVolumeThroughput(2000, "gp3");
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.value, 2000);
+  });
+
+  it("500 accepted with blank volume type (effective gp3)", () => {
+    const result = validateAwsRootVolumeThroughput(500, undefined);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.value, 500);
+  });
+
+  it("blank value returns valid+blank", () => {
+    assert.deepStrictEqual(validateAwsRootVolumeThroughput(undefined, "gp3"), { valid: true, blank: true });
+    assert.deepStrictEqual(validateAwsRootVolumeThroughput(null, "gp3"), { valid: true, blank: true });
+    assert.deepStrictEqual(validateAwsRootVolumeThroughput("", "gp3"), { valid: true, blank: true });
+  });
+
+  it("124 throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(124, "gp3"), /at least 125/);
+  });
+
+  it("2001 throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(2001, "gp3"), /at most 2000/);
+  });
+
+  it("fraction throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(125.5, "gp3"), /integer/);
+  });
+
+  it("NaN throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(NaN, "gp3"), /finite number/);
+  });
+
+  it("Infinity throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(Infinity, "gp3"), /finite number/);
+  });
+
+  it("non-numeric string throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput("abc", "gp3"), /finite number/);
+  });
+
+  it("gp2 with throughput throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(500, "gp2"), /only valid for gp3/);
+  });
+
+  it("io1 with throughput throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(500, "io1"), /only valid for gp3/);
+  });
+
+  it("io2 with throughput throws", () => {
+    assert.throws(() => validateAwsRootVolumeThroughput(500, "io2"), /only valid for gp3/);
+  });
+});
 
 // ===================================================================
 // Catalog tests
@@ -98,12 +147,21 @@ describe("AWS root volume throughput — catalog", () => {
     assert.strictEqual(param.maxVersion, null);
   });
 
-  it("4.21 AWS UPI path is docs-only-not-supported", () => {
+  it("4.21 AWS UPI controlPlane path is docs-only-not-supported", () => {
     const catalog = loadCatalog("4.21", "aws-govcloud-upi");
     const param = catalog.parameters.find(p =>
       p.path === "controlPlane.platform.aws.rootVolume.throughput"
     );
-    assert.ok(param, "UPI throughput param must exist");
+    assert.ok(param, "UPI controlPlane throughput param must exist");
+    assert.strictEqual(param.supportStatus, "docs-only-not-supported");
+  });
+
+  it("4.21 AWS UPI compute path is docs-only-not-supported", () => {
+    const catalog = loadCatalog("4.21", "aws-govcloud-upi");
+    const param = catalog.parameters.find(p =>
+      p.path === "compute[].platform.aws.rootVolume.throughput"
+    );
+    assert.ok(param, "UPI compute throughput param must exist");
     assert.strictEqual(param.supportStatus, "docs-only-not-supported");
   });
 
@@ -231,6 +289,37 @@ describe("AWS root volume throughput — generation", () => {
     assert.strictEqual(ic.compute[0].platform.aws.rootVolume.type, "gp3");
     assert.strictEqual(ic.compute[0].platform.aws.rootVolume.iops, 5000);
     assert.strictEqual(ic.compute[0].platform.aws.rootVolume.throughput, 300);
+  });
+});
+
+// ===================================================================
+// buildInstallConfig rejection tests
+// ===================================================================
+
+describe("AWS root volume throughput — buildInstallConfig rejection", () => {
+  it("rejects 124 throughput", () => {
+    const state = makeAws421Ipi({ rootVolumeThroughput: 124 });
+    assert.throws(() => buildInstallConfig(state), /at least 125/);
+  });
+
+  it("rejects 2001 throughput", () => {
+    const state = makeAws421Ipi({ rootVolumeThroughput: 2001 });
+    assert.throws(() => buildInstallConfig(state), /at most 2000/);
+  });
+
+  it("rejects fraction throughput", () => {
+    const state = makeAws421Ipi({ rootVolumeThroughput: 125.5 });
+    assert.throws(() => buildInstallConfig(state), /integer/);
+  });
+
+  it("rejects NaN throughput", () => {
+    const state = makeAws421Ipi({ rootVolumeThroughput: NaN });
+    assert.throws(() => buildInstallConfig(state), /finite number/);
+  });
+
+  it("rejects gp2 with throughput", () => {
+    const state = makeAws421Ipi({ rootVolumeThroughput: 500, rootVolumeType: "gp2" });
+    assert.throws(() => buildInstallConfig(state), /only valid for gp3/);
   });
 });
 

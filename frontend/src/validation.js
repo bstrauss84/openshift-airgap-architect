@@ -23,6 +23,19 @@ import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventory
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
+import { isVersionGTE } from "../../shared/versionUtils.js";
+
+export function validateAwsRootVolumeThroughput(value, volumeType) {
+  if (value == null || value === "" || value === undefined) return { valid: true, blank: true };
+  const num = Number(value);
+  if (!Number.isFinite(num)) return { valid: false, error: "Root volume throughput must be a number." };
+  if (!Number.isInteger(num)) return { valid: false, error: "Root volume throughput must be an integer." };
+  if (num < 125) return { valid: false, error: "Root volume throughput must be at least 125 MiB/s." };
+  if (num > 2000) return { valid: false, error: "Root volume throughput must be at most 2000 MiB/s." };
+  const effectiveType = (volumeType || "gp3").toLowerCase();
+  if (effectiveType !== "gp3") return { valid: false, error: "Root volume throughput is only valid for gp3 volumes, not " + (volumeType || "(blank)") + "." };
+  return { valid: true, value: num };
+}
 
 /** Valid platform.aws.vpc.subnets[].roles[].type values. EdgeNode is Local Zone only and is not exposed in the app. */
 export const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
@@ -2041,6 +2054,14 @@ const validateStep = (state, stepId) => {
         });
         if (invalidZones.length > 0) {
           awsErrors.push(`AWS zones must match region format (e.g., ${region || "us-gov-west-1"}a). Invalid: ${invalidZones.join(", ")}`);
+        }
+      }
+      if (scenarioId === "aws-govcloud-ipi") {
+        const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || state.version?.selectedMinor || state.release?.channel || "";
+        const minor = selectedVersion.replace(/^stable-/, "").split(".").slice(0, 2).join(".");
+        if (minor && isVersionGTE(minor, "4.21") && aws.rootVolumeThroughput != null && aws.rootVolumeThroughput !== "") {
+          const tpResult = validateAwsRootVolumeThroughput(aws.rootVolumeThroughput, (aws.rootVolumeType || "").trim() || undefined);
+          if (!tpResult.valid) awsErrors.push(tpResult.error);
         }
       }
       if (aws.vpcMode === "existing") {
