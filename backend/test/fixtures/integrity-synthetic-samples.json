@@ -29,5 +29,14 @@
   "destructuredOnly": "const { only } = test;\nonly(\"destructured\", () => {});",
   "multilineOptionSkip": "test(\n  \"multiline skip\",\n  { skip: true },\n  () => {}\n);",
   "multilineAlias": "const skipTest =\n  test.skip;",
-  "multilineDestructure": "const {\n  only: focusedTest\n} = test;"
+  "multilineDestructure": "const {\n  only: focusedTest\n} = test;",
+  "skipStringReason": "test(\"string reason\", { skip: \"temporarily disabled\" }, () => {});",
+  "skipVariable": "test(\"conditional skip\", { skip: shouldSkip }, () => {});",
+  "onlyVariable": "it(\"conditional only\", { only: focusThisTest }, () => {});",
+  "suiteTodoString": "suite(\"todo reason\", { todo: \"not implemented\" }, () => {});",
+  "splitDirectSkip": "test\n  .skip(\"split direct call\", () => {});",
+  "importAlias": "import { test as t } from \"node:test\";\nt.skip(\"import alias\", () => {});",
+  "dataObjectSkip": "const config = { skip: true, retries: 3 };",
+  "dataObjectOnly": "const opts = { only: true };",
+  "assertionTodo": "assert.deepStrictEqual(result, { todo: true });"
 }

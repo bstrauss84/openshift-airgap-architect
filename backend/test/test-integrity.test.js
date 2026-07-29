@@ -33,30 +33,30 @@ function collectTestFiles(dir) {
 
 const FORCE_EXIT_FLAG = ["--test", "force", "exit"].join("-");
 const FORBIDDEN_PATTERNS = [
-  { name: "test.only", pattern: /\btest\.only\s*\(/g },
-  { name: "it.only", pattern: /\bit\.only\s*\(/g },
-  { name: "describe.only", pattern: /\bdescribe\.only\s*\(/g },
-  { name: "suite.only", pattern: /\bsuite\.only\s*\(/g },
-  { name: "suite.skip", pattern: /\bsuite\.skip\s*\(/g },
+  { name: "test.only", pattern: /\btest\s*\.\s*only\s*\(/g },
+  { name: "it.only", pattern: /\bit\s*\.\s*only\s*\(/g },
+  { name: "describe.only", pattern: /\bdescribe\s*\.\s*only\s*\(/g },
+  { name: "suite.only", pattern: /\bsuite\s*\.\s*only\s*\(/g },
+  { name: "suite.skip", pattern: /\bsuite\s*\.\s*skip\s*\(/g },
   { name: "xit", pattern: /\bxit\s*\(/g },
   { name: "xdescribe", pattern: /\bxdescribe\s*\(/g },
-  { name: "process.exit", pattern: /\bprocess\.exit\s*\(/g },
+  { name: "process.exit", pattern: /\bprocess\s*\.\s*exit\s*\(/g },
   { name: FORCE_EXIT_FLAG, pattern: new RegExp(FORCE_EXIT_FLAG, "g") },
-  { name: "it.todo", pattern: /\bit\.todo\s*\(/g },
-  { name: "describe.todo", pattern: /\bdescribe\.todo\s*\(/g },
-  { name: "suite.todo", pattern: /\bsuite\.todo\s*\(/g },
+  { name: "it.todo", pattern: /\bit\s*\.\s*todo\s*\(/g },
+  { name: "describe.todo", pattern: /\bdescribe\s*\.\s*todo\s*\(/g },
+  { name: "suite.todo", pattern: /\bsuite\s*\.\s*todo\s*\(/g },
 ];
 
 const SKIP_PATTERNS = [
-  { name: "test.skip", pattern: /\btest\.skip\s*\(/g },
-  { name: "it.skip", pattern: /\bit\.skip\s*\(/g },
-  { name: "describe.skip", pattern: /\bdescribe\.skip\s*\(/g },
+  { name: "test.skip", pattern: /\btest\s*\.\s*skip\s*\(/g },
+  { name: "it.skip", pattern: /\bit\s*\.\s*skip\s*\(/g },
+  { name: "describe.skip", pattern: /\bdescribe\s*\.\s*skip\s*\(/g },
 ];
 
 const OPTION_OBJECT_PATTERNS = [
-  { name: "option-skip", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bskip\s*:\s*true\b/g },
-  { name: "option-only", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bonly\s*:\s*true\b/g },
-  { name: "option-todo", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\btodo\s*:\s*true\b/g },
+  { name: "option-skip", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bskip\s*:/g },
+  { name: "option-only", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bonly\s*:/g },
+  { name: "option-todo", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\btodo\s*:/g },
 ];
 
 const ALIAS_PATTERNS = [
@@ -64,6 +64,11 @@ const ALIAS_PATTERNS = [
   { name: "alias-only", pattern: /\b(?:const|let|var)\s+\w+\s*=\s*(?:test|it|describe|suite)\.only\b/g },
   { name: "destructure-skip", pattern: /\b(?:const|let|var)\s+\{[^}]*\bskip\b[^}]*\}\s*=\s*(?:test|it|describe|suite)\b/g },
   { name: "destructure-only", pattern: /\b(?:const|let|var)\s+\{[^}]*\bonly\b[^}]*\}\s*=\s*(?:test|it|describe|suite)\b/g },
+];
+
+const IMPORT_ALIAS_PATTERNS = [
+  { name: "import-alias", pattern: /\bimport\s*\{[^}]*\bas\s+\w+[^}]*\}\s*from\s*["'`]node:test["'`]/g },
+  { name: "import-namespace", pattern: /\bimport\s*\*\s*as\s+\w+\s+from\s*["'`]node:test["'`]/g },
 ];
 
 const TODO_RAW_PATTERN = /\btest\.todo\s*\(/g;
@@ -96,35 +101,15 @@ function scanContentString(content, fileName) {
   const lines = content.split("\n");
   const violations = [];
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineNum = i + 1;
+  const allPatterns = [
+    ...FORBIDDEN_PATTERNS,
+    ...SKIP_PATTERNS,
+    ...OPTION_OBJECT_PATTERNS,
+    ...ALIAS_PATTERNS,
+    ...IMPORT_ALIAS_PATTERNS,
+  ];
 
-    for (const { name, pattern } of FORBIDDEN_PATTERNS) {
-      pattern.lastIndex = 0;
-      if (pattern.test(line)) {
-        violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
-      }
-    }
-
-    for (const { name, pattern } of SKIP_PATTERNS) {
-      pattern.lastIndex = 0;
-      if (pattern.test(line)) {
-        violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
-      }
-    }
-  }
-
-  for (const { name, pattern } of OPTION_OBJECT_PATTERNS) {
-    pattern.lastIndex = 0;
-    let m;
-    while ((m = pattern.exec(content)) !== null) {
-      const lineNum = content.substring(0, m.index).split("\n").length;
-      violations.push({ file: fileName, line: lineNum, marker: name, text: lines[lineNum - 1].trim() });
-    }
-  }
-
-  for (const { name, pattern } of ALIAS_PATTERNS) {
+  for (const { name, pattern } of allPatterns) {
     pattern.lastIndex = 0;
     let m;
     while ((m = pattern.exec(content)) !== null) {
@@ -363,6 +348,60 @@ describe("test-integrity guard", () => {
       const violations = scanContentString(SAMPLES.multilineDestructure, "synthetic.test.js");
       assert.ok(violations.some(v => v.marker === "destructure-only"),
         "Should detect multiline destructured only assignment");
+    });
+
+    it("detects option-skip with string reason value", () => {
+      const violations = scanContentString(SAMPLES.skipStringReason, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect skip with string value in option object");
+    });
+
+    it("detects option-skip with variable value", () => {
+      const violations = scanContentString(SAMPLES.skipVariable, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect skip with variable value in option object");
+    });
+
+    it("detects option-only with variable value", () => {
+      const violations = scanContentString(SAMPLES.onlyVariable, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-only"),
+        "Should detect only with variable value in option object");
+    });
+
+    it("detects option-todo with string reason value", () => {
+      const violations = scanContentString(SAMPLES.suiteTodoString, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-todo"),
+        "Should detect todo with string value in option object");
+    });
+
+    it("detects split dot-method skip across lines", () => {
+      const violations = scanContentString(SAMPLES.splitDirectSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "test.skip"),
+        "Should detect test.skip split across lines");
+    });
+
+    it("detects import alias from node:test", () => {
+      const violations = scanContentString(SAMPLES.importAlias, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "import-alias"),
+        "Should detect renamed import from node:test");
+    });
+
+    it("does not flag plain data object with skip property", () => {
+      const violations = scanContentString(SAMPLES.dataObjectSkip, "synthetic.test.js");
+      assert.strictEqual(violations.length, 0,
+        "Plain data objects with skip property must not trigger violations");
+    });
+
+    it("does not flag plain data object with only property", () => {
+      const violations = scanContentString(SAMPLES.dataObjectOnly, "synthetic.test.js");
+      assert.strictEqual(violations.length, 0,
+        "Plain data objects with only property must not trigger violations");
+    });
+
+    it("does not flag assertion containing todo property", () => {
+      const violations = scanContentString(SAMPLES.assertionTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 0,
+        "Assertion expressions with todo property must not trigger violations");
     });
 
     it("detects multiline pattern in nested .mjs file", () => {
