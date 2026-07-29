@@ -359,6 +359,24 @@ describe('AWS root volume throughput — validateStep integration', () => {
     const result = validateStep(state, 'platform-specifics');
     expect(result.errors.filter(e => e.includes('throughput') || e.includes('125'))).toHaveLength(0);
   });
+
+  it('contradictory state: version.selectedMinor=4.21, release.patchVersion=4.20.x uses 4.21', () => {
+    const state = awsIpiState('4.21', {
+      aws: { region: 'us-gov-west-1', rootVolumeThroughput: 124 }
+    });
+    state.release = { ...state.release, patchVersion: '4.20.8', channel: '4.20' };
+    const result = validateStep(state, 'platform-specifics');
+    expect(result.errors.some(e => e.includes('125'))).toBe(true);
+  });
+
+  it('contradictory state: version.selectedMinor=4.20, release.patchVersion=4.21.x uses 4.20', () => {
+    const state = awsIpiState('4.20', {
+      aws: { region: 'us-gov-west-1', rootVolumeThroughput: 124 }
+    });
+    state.release = { ...state.release, patchVersion: '4.21.3', channel: '4.21' };
+    const result = validateStep(state, 'platform-specifics');
+    expect(result.errors.filter(e => e.includes('throughput') || e.includes('125'))).toHaveLength(0);
+  });
 });
 
 // ===================================================================
@@ -370,58 +388,156 @@ describe('AWS root volume throughput — rendered component', () => {
     cleanup();
   });
 
-  it('4.21 AWS IPI renders throughput input', () => {
-    const state = awsIpiState('4.21', {
-      aws: { region: 'us-gov-west-1' }
+  function findThroughputInput() {
+    const inputs = screen.queryAllByPlaceholderText('omit');
+    return inputs.find(el => {
+      const wrapper = el.closest('.field-with-info-row, .field-label-with-info');
+      return wrapper && wrapper.textContent.includes('Root volume throughput');
+    }) || null;
+  }
+
+  function awsUpiState(minor) {
+    const base = stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },
+      methodology: { method: "UPI" }
     });
-    renderWithState(state);
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor, selectedPatch: `${minor}.3` },
+      release: { ...base.release, channel: minor, patchVersion: `${minor}.3` }
+    };
+  }
+
+  function bareMetalState(minor) {
+    const base = stateForPlatformSpecificsStep();
+    return {
+      ...base,
+      version: { ...base.version, selectedMinor: minor, selectedPatch: `${minor}.3` },
+      release: { ...base.release, channel: minor, patchVersion: `${minor}.3` }
+    };
+  }
+
+  // --- Presence/absence tests ---
+
+  it('4.21 AWS IPI renders throughput input', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
     expect(screen.getByText(/Root volume throughput/)).toBeInTheDocument();
   });
 
   it('4.20 AWS IPI does not render throughput input', () => {
-    const state = awsIpiState('4.20', {
-      aws: { region: 'us-gov-west-1' }
-    });
-    renderWithState(state);
+    renderWithState(awsIpiState('4.20', { aws: { region: 'us-gov-west-1' } }));
     expect(screen.queryByText(/Root volume throughput/)).toBeNull();
   });
 
+  it('4.21 AWS UPI does not render throughput input', () => {
+    renderWithState(awsUpiState('4.21'));
+    expect(screen.queryByText(/Root volume throughput/)).toBeNull();
+  });
+
+  it('4.21 non-AWS does not render throughput input', () => {
+    renderWithState(bareMetalState('4.21'));
+    expect(screen.queryByText(/Root volume throughput/)).toBeNull();
+  });
+
+  // --- Helper text ---
+
   it('4.21 AWS IPI renders helper text', () => {
-    const state = awsIpiState('4.21', {
-      aws: { region: 'us-gov-west-1' }
-    });
-    renderWithState(state);
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
     expect(screen.getByText(/125.*2000 MiB\/s/)).toBeInTheDocument();
   });
 
-  it('4.21 AWS IPI shows error on blur with invalid value', () => {
-    const state = awsIpiState('4.21', {
-      aws: { region: 'us-gov-west-1' }
-    });
-    renderWithState(state);
-    const throughputInputs = screen.getAllByPlaceholderText('omit');
-    const throughputInput = throughputInputs.find(el => {
-      const label = el.closest('.field-with-info-row, .field-label-with-info');
-      return label && label.textContent.includes('Root volume throughput');
-    });
-    expect(throughputInput).toBeDefined();
-    fireEvent.change(throughputInput, { target: { value: '50' } });
-    fireEvent.blur(throughputInput);
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+  // --- Rendered validation ---
+
+  it('124 shows error on blur', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
+    const input = findThroughputInput();
+    expect(input).not.toBeNull();
+    fireEvent.change(input, { target: { value: '124' } });
+    fireEvent.blur(input);
     expect(screen.getByRole('alert').textContent).toMatch(/at least 125/);
   });
 
+  it('2001 shows error on blur', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '2001' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert').textContent).toMatch(/at most 2000/);
+  });
+
+  it('125.5 shows error on blur', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '125.5' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert').textContent).toMatch(/integer/);
+  });
+
+  it('gp2 shows error on blur', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1', rootVolumeType: 'gp2' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '500' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert').textContent).toMatch(/only valid for gp3/);
+  });
+
+  it('io1 shows error on blur', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1', rootVolumeType: 'io1' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '500' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert').textContent).toMatch(/only valid for gp3/);
+  });
+
+  it('io2 shows error on blur', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1', rootVolumeType: 'io2' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '500' } });
+    fireEvent.blur(input);
+    expect(screen.getByRole('alert').textContent).toMatch(/only valid for gp3/);
+  });
+
+  it('aria-invalid is set when invalid', () => {
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '50' } });
+    fireEvent.blur(input);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('invalid input does not update canonical throughput', () => {
+    const { updateState } = renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '50' } });
+    fireEvent.blur(input);
+    const throughputCalls = updateState.mock.calls.filter(
+      c => c[0] && typeof c[0] === 'function'
+    );
+    const lastThroughputUpdate = throughputCalls.length > 0
+      ? throughputCalls[throughputCalls.length - 1]
+      : null;
+    if (lastThroughputUpdate) {
+      const fn = lastThroughputUpdate[0];
+      const mockState = awsIpiState('4.21', { aws: { region: 'us-gov-west-1', rootVolumeThroughput: 999 } });
+      const updated = fn(mockState);
+      expect(updated.platformConfig?.aws?.rootVolumeThroughput).not.toBe(50);
+    }
+  });
+
+  it('valid input updates canonical throughput', () => {
+    const { updateState } = renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
+    const input = findThroughputInput();
+    fireEvent.change(input, { target: { value: '500' } });
+    fireEvent.blur(input);
+    expect(updateState).toHaveBeenCalled();
+  });
+
+  // --- Retained value ---
+
   it('4.21 AWS IPI retains value across re-render', () => {
-    const state = awsIpiState('4.21', {
-      aws: { region: 'us-gov-west-1', rootVolumeThroughput: 750 }
-    });
-    renderWithState(state);
-    const throughputInputs = screen.getAllByPlaceholderText('omit');
-    const throughputInput = throughputInputs.find(el => {
-      const label = el.closest('.field-with-info-row, .field-label-with-info');
-      return label && label.textContent.includes('Root volume throughput');
-    });
-    expect(throughputInput).toBeDefined();
-    expect(throughputInput.value).toBe('750');
+    renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1', rootVolumeThroughput: 750 } }));
+    const input = findThroughputInput();
+    expect(input).not.toBeNull();
+    expect(input.value).toBe('750');
   });
 });

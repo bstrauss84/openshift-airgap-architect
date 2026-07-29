@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { buildInstallConfig, validateAwsRootVolumeThroughput } from "../src/generate.js";
 import { awsGovcloudIpi } from "./fixtures/base-states.js";
+import { app } from "../src/index.js";
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -359,6 +361,83 @@ describe("AWS root volume throughput — persistence", () => {
     const cpRootVol = ic.controlPlane?.platform?.aws?.rootVolume;
     if (cpRootVol) {
       assert.strictEqual(cpRootVol.throughput, undefined);
+    }
+  });
+});
+
+// ===================================================================
+// API rejection tests (HTTP boundary)
+// ===================================================================
+
+describe("AWS root volume throughput — API rejection", () => {
+  async function postGenerateWithThroughput(baseUrl, overrides) {
+    const state = makeAws421Ipi(overrides);
+    const res = await fetch(`${baseUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+    return { status: res.status, body: await res.json() };
+  }
+
+  it("rejects 124 throughput via HTTP", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const { status, body } = await postGenerateWithThroughput(baseUrl, { rootVolumeThroughput: 124 });
+      assert.strictEqual(status, 500);
+      assert.ok(body.error.includes("at least 125"), "error must mention 125");
+      assert.strictEqual(body.files, undefined, "no files payload");
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("rejects 2001 throughput via HTTP", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const { status, body } = await postGenerateWithThroughput(baseUrl, { rootVolumeThroughput: 2001 });
+      assert.strictEqual(status, 500);
+      assert.ok(body.error.includes("at most 2000"), "error must mention 2000");
+      assert.strictEqual(body.files, undefined, "no files payload");
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("rejects fraction throughput via HTTP", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const { status, body } = await postGenerateWithThroughput(baseUrl, { rootVolumeThroughput: 125.5 });
+      assert.strictEqual(status, 500);
+      assert.ok(body.error.includes("integer"), "error must mention integer");
+      assert.strictEqual(body.files, undefined, "no files payload");
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("rejects gp2 + 500 throughput via HTTP", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const { status, body } = await postGenerateWithThroughput(baseUrl, { rootVolumeThroughput: 500, rootVolumeType: "gp2" });
+      assert.strictEqual(status, 500);
+      assert.ok(body.error.includes("only valid for gp3"), "error must mention gp3");
+      assert.strictEqual(body.files, undefined, "no files payload");
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("accepts valid 500 throughput via HTTP", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const { status, body } = await postGenerateWithThroughput(baseUrl, { rootVolumeThroughput: 500 });
+      assert.strictEqual(status, 200);
+      assert.ok(body.files, "must return files payload");
+      const ic = yaml.load(body.files["install-config.yaml"]);
+      assert.strictEqual(ic.controlPlane.platform.aws.rootVolume.throughput, 500);
+    } finally {
+      await closeTestServer(server);
     }
   });
 });

@@ -24,6 +24,7 @@ import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
+import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
 
 export function validateAwsRootVolumeThroughput(value, volumeType) {
   if (value == null || value === "" || value === undefined) return { valid: true, blank: true };
@@ -2057,8 +2058,7 @@ const validateStep = (state, stepId) => {
         }
       }
       if (scenarioId === "aws-govcloud-ipi") {
-        const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || state.version?.selectedMinor || state.release?.channel || "";
-        const minor = selectedVersion.replace(/^stable-/, "").split(".").slice(0, 2).join(".");
+        const minor = getOpenShiftMinorFromState(state);
         if (minor && isVersionGTE(minor, "4.21") && aws.rootVolumeThroughput != null && aws.rootVolumeThroughput !== "") {
           const tpResult = validateAwsRootVolumeThroughput(aws.rootVolumeThroughput, (aws.rootVolumeType || "").trim() || undefined);
           if (!tpResult.valid) awsErrors.push(tpResult.error);

@@ -189,6 +189,11 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   useEffect(() => { setLocalAwsRootVolumeIops(platformConfig.aws?.rootVolumeIops || ""); }, [platformConfig.aws?.rootVolumeIops]);
   useEffect(() => { setLocalAwsRootVolumeThroughput(platformConfig.aws?.rootVolumeThroughput || ""); }, [platformConfig.aws?.rootVolumeThroughput]);
   useEffect(() => { setLocalAwsRootVolumeKmsKeyArn(platformConfig.aws?.rootVolumeKmsKeyArn || ""); }, [platformConfig.aws?.rootVolumeKmsKeyArn]);
+  useEffect(() => {
+    if (localAwsRootVolumeThroughput === "" || localAwsRootVolumeThroughput == null) return;
+    const result = validateAwsRootVolumeThroughput(localAwsRootVolumeThroughput, (platformConfig.aws?.rootVolumeType || "").trim() || undefined);
+    setAwsThroughputError(result.valid ? "" : result.error);
+  }, [platformConfig.aws?.rootVolumeType]);
 
   // Sync local state when store values change (for imports/loads) - Azure
   useEffect(() => { setLocalAzureRegion(platformConfig.azure?.region || ""); }, [platformConfig.azure?.region]);
@@ -998,8 +1003,8 @@ Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid fo
                               setAwsThroughputError(result.error);
                             } else {
                               setAwsThroughputError("");
+                              updateAws({ rootVolumeThroughput: Number(raw) });
                             }
-                            updateAws({ rootVolumeThroughput: raw === "" ? undefined : Number(raw) });
                           }}
                           aria-invalid={awsThroughputError ? "true" : undefined}
                           aria-describedby={awsThroughputError ? "aws-throughput-error" : undefined}
