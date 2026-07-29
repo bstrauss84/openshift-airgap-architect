@@ -184,11 +184,15 @@ export function createS3Client(credentials) {
  * @param {number} [options.expiresIn=3600] - URL expiration in seconds (default: 1 hour)
  * @returns {Promise<string>} Pre-signed download URL
  */
-export async function generatePresignedUrl({ bucket, key, client, expiresIn = 3600 }) {
-  const command = new GetObjectCommand({
+export async function generatePresignedUrl({ bucket, key, client, expiresIn = 3600, fileName }) {
+  const commandParams = {
     Bucket: bucket,
     Key: key
-  });
+  };
+  if (fileName) {
+    commandParams.ResponseContentDisposition = `attachment; filename="${fileName}"`;
+  }
+  const command = new GetObjectCommand(commandParams);
 
   try {
     const url = await getSignedUrl(client, command, { expiresIn });
@@ -340,11 +344,15 @@ export async function generateCollectionDownloadUrls({
     }
 
     try {
+      // Store URL with the filename
+      const fileName = objectKey.split('/').pop();
+
       const url = await generatePresignedUrl({
         bucket: credentials.bucket,
         key: objectKey,
         client: s3Client,
-        expiresIn
+        expiresIn,
+        fileName
       });
 
       // Get object size via HeadObject
@@ -355,9 +363,6 @@ export async function generateCollectionDownloadUrls({
       } catch (headErr) {
         logger.debug({ objectKey, err: headErr.message }, "Could not get object size");
       }
-
-      // Store URL with the filename
-      const fileName = objectKey.split('/').pop();
       urls[fileName] = { url, size };
 
       logger.info({
