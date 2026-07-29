@@ -54,9 +54,9 @@ const SKIP_PATTERNS = [
 ];
 
 const OPTION_OBJECT_PATTERNS = [
-  { name: "option-skip", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`].*["'`]\s*,\s*\{[^}]*\bskip\s*:\s*true\b/g },
-  { name: "option-only", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`].*["'`]\s*,\s*\{[^}]*\bonly\s*:\s*true\b/g },
-  { name: "option-todo", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`].*["'`]\s*,\s*\{[^}]*\btodo\s*:\s*true\b/g },
+  { name: "option-skip", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bskip\s*:\s*true\b/g },
+  { name: "option-only", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bonly\s*:\s*true\b/g },
+  { name: "option-todo", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\btodo\s*:\s*true\b/g },
 ];
 
 const ALIAS_PATTERNS = [
@@ -113,19 +113,23 @@ function scanContentString(content, fileName) {
         violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
       }
     }
+  }
 
-    for (const { name, pattern } of OPTION_OBJECT_PATTERNS) {
-      pattern.lastIndex = 0;
-      if (pattern.test(line)) {
-        violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
-      }
+  for (const { name, pattern } of OPTION_OBJECT_PATTERNS) {
+    pattern.lastIndex = 0;
+    let m;
+    while ((m = pattern.exec(content)) !== null) {
+      const lineNum = content.substring(0, m.index).split("\n").length;
+      violations.push({ file: fileName, line: lineNum, marker: name, text: lines[lineNum - 1].trim() });
     }
+  }
 
-    for (const { name, pattern } of ALIAS_PATTERNS) {
-      pattern.lastIndex = 0;
-      if (pattern.test(line)) {
-        violations.push({ file: fileName, line: lineNum, marker: name, text: line.trim() });
-      }
+  for (const { name, pattern } of ALIAS_PATTERNS) {
+    pattern.lastIndex = 0;
+    let m;
+    while ((m = pattern.exec(content)) !== null) {
+      const lineNum = content.substring(0, m.index).split("\n").length;
+      violations.push({ file: fileName, line: lineNum, marker: name, text: lines[lineNum - 1].trim() });
     }
   }
 
@@ -341,6 +345,41 @@ describe("test-integrity guard", () => {
       const violations = scanContentString(SAMPLES.destructuredOnly, "synthetic.test.js");
       assert.ok(violations.some(v => v.marker === "destructure-only"),
         "Should detect destructured only assignment");
+    });
+
+    it("detects multiline option-skip across lines", () => {
+      const violations = scanContentString(SAMPLES.multilineOptionSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect multiline option-object skip pattern");
+    });
+
+    it("detects multiline alias-skip across lines", () => {
+      const violations = scanContentString(SAMPLES.multilineAlias, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "alias-skip"),
+        "Should detect multiline alias assignment of skip");
+    });
+
+    it("detects multiline destructure-only across lines", () => {
+      const violations = scanContentString(SAMPLES.multilineDestructure, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "destructure-only"),
+        "Should detect multiline destructured only assignment");
+    });
+
+    it("detects multiline pattern in nested .mjs file", () => {
+      const nestedDir = path.join(TEST_DIR, "__integrity_multiline__");
+      const mjsFile = path.join(nestedDir, "bypass.mjs");
+      fs.mkdirSync(nestedDir, { recursive: true });
+      try {
+        fs.writeFileSync(mjsFile, SAMPLES.multilineOptionSkip);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.endsWith("bypass.mjs"));
+        assert.ok(found, "collectTestFiles must find .mjs in nested dir");
+        const violations = scanFile(mjsFile);
+        assert.ok(violations.some(v => v.marker === "option-skip"),
+          "Should detect multiline option-skip in .mjs file");
+      } finally {
+        fs.rmSync(nestedDir, { recursive: true, force: true });
+      }
     });
 
     it("accepts valid test.todo with known deferred backlog ID", () => {

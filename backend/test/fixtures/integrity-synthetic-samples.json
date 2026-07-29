@@ -26,5 +26,8 @@
   "describeOptionSkip": "describe(\"name\", { skip: true }, () => {});",
   "suiteOptionSkip": "suite(\"name\", { skip: true }, () => {});",
   "aliasSkip": "const skipTest = test.skip;\nskipTest(\"aliased\", () => {});",
-  "destructuredOnly": "const { only } = test;\nonly(\"destructured\", () => {});"
+  "destructuredOnly": "const { only } = test;\nonly(\"destructured\", () => {});",
+  "multilineOptionSkip": "test(\n  \"multiline skip\",\n  { skip: true },\n  () => {}\n);",
+  "multilineAlias": "const skipTest =\n  test.skip;",
+  "multilineDestructure": "const {\n  only: focusedTest\n} = test;"
 }
