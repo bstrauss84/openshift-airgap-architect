@@ -5,7 +5,7 @@
  * a CollectionPipeline CR to trigger mirroring.
  */
 import * as React from 'react';
-import { Button, Alert, Spinner, Content, CodeBlock, CodeBlockCode } from '@patternfly/react-core';
+import { Button, Alert, Spinner, Content, CodeBlock, CodeBlockCode, FormGroup, TextInput } from '@patternfly/react-core';
 import { useApp } from '../AppProvider';
 import { apiFetch } from '../api';
 import { useHistory } from 'react-router-dom';
@@ -26,6 +26,7 @@ export const CreateCollectionPipelineStep: React.FC = () => {
   const [imageSetYAML, setImageSetYAML] = React.useState<string>('');
   const [generating, setGenerating] = React.useState(false);
   const [generateError, setGenerateError] = React.useState<string | null>(null);
+  const [pvcSize, setPvcSize] = React.useState<string>('100Gi');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -114,7 +115,7 @@ export const CreateCollectionPipelineStep: React.FC = () => {
               pvc: `collection-${release.channel || '4.x'}-output`
             }
           },
-          pvcSize: '100Gi',
+          pvcSize: pvcSize,
           pvcStorageClass: 'gp3-csi',
           ...(parentPipeline ? { parentPipeline } : {})
         }
@@ -239,6 +240,18 @@ export const CreateCollectionPipelineStep: React.FC = () => {
             <strong>Additional Images:</strong> {additionalImageCount} image(s)
           </p>
         )}
+      </div>
+
+      <div style={{ marginTop: '1rem', maxWidth: '300px' }}>
+        <FormGroup label="PVC Storage Size" fieldId="pvc-size"
+          helperText="Size of the PersistentVolumeClaim for mirrored content (e.g. 100Gi, 200Gi)."
+        >
+          <TextInput
+            id="pvc-size"
+            value={pvcSize}
+            onChange={(_event, value) => setPvcSize(value)}
+          />
+        </FormGroup>
       </div>
 
       <div style={{ marginTop: '1rem' }}>
