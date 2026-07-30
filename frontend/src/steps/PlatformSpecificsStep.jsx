@@ -308,6 +308,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const metaAzureRegion = getParamMeta(scenarioId, "platform.azure.region", INSTALL_CONFIG, state);
   const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG, state);
   const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG, state);
+  const showAzureAllowSharedKeyAccess = isCatalogFieldVisible("platform.azure.allowSharedKeyAccess", INSTALL_CONFIG);
 
   /** IBM Cloud IPI: show when catalog has platform.ibmcloud.region. */
   const showIbmCloudSection = catalogParams.some(
@@ -1512,6 +1513,42 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                     placeholder="Resource group containing DNS zone for base domain"
                   />
                 </FieldLabelWithInfo>
+                {showAzureAllowSharedKeyAccess && (<>
+                <FieldLabelWithInfo
+                  label="Azure Storage shared-key access"
+                  hint={`OpenShift 4.21+ only. Controls whether Azure Storage accounts created during installation allow shared-key access.
+
+**Use installer default (recommended):**
+Omits the field; the installer defaults to allowing shared-key access (equivalent to true).
+
+**Allowed:**
+Explicitly enables shared-key access on storage accounts.
+
+**Disallowed:**
+Disables shared-key access. The installation identity must have appropriate Azure RBAC permissions, including the Storage Blob Data Contributor role where required.
+
+⚠️ Disabling shared-key access without the correct RBAC configuration will cause the installation to fail.`}
+                >
+                  <select
+                    value={platformConfig.azure?.allowSharedKeyAccess === true ? "true" : platformConfig.azure?.allowSharedKeyAccess === false ? "false" : ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "true") updateAzure({ allowSharedKeyAccess: true });
+                      else if (v === "false") updateAzure({ allowSharedKeyAccess: false });
+                      else updateAzure({ allowSharedKeyAccess: undefined });
+                    }}
+                  >
+                    <option value="">Use installer default</option>
+                    <option value="true">Allowed</option>
+                    <option value="false">Disallowed</option>
+                  </select>
+                </FieldLabelWithInfo>
+                {platformConfig.azure?.allowSharedKeyAccess === false && (
+                  <p className="note warning" style={{ marginTop: 4 }}>
+                    Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.
+                  </p>
+                )}
+                </>)}
                 <FieldLabelWithInfo
                   label="Publish (optional)"
                   hint={`Controls whether cluster endpoints are publicly accessible or private-network only.

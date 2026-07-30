@@ -207,7 +207,11 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(highConfParams).toHaveLength(6);
 
       highConfParams.forEach(p => {
-        expect(p.supportStatus).toBe('supported-backend-only');
+        if (p.path === 'platform.azure.allowSharedKeyAccess') {
+          expect(p.supportStatus).toBe('supported-ui');
+        } else {
+          expect(p.supportStatus).toBe('supported-backend-only');
+        }
       });
     });
 
@@ -1322,7 +1326,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
             });
           });
         });
-        expect(total).toBe(26);
+        expect(total).toBe(24);
       });
     });
 

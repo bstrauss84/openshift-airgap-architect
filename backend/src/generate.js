@@ -885,6 +885,16 @@ const buildInstallConfig = (state) => {
       azure.baseDomainResourceGroupName = platformConfig.azure.baseDomainResourceGroupName;
     }
 
+    if (isVersionGTE(selectedMinor, "4.21")) {
+      const rawSharedKey = platformConfig.azure?.allowSharedKeyAccess;
+      if (rawSharedKey !== undefined && rawSharedKey !== null) {
+        if (typeof rawSharedKey !== "boolean") {
+          throw new Error("platform.azure.allowSharedKeyAccess must be a boolean (true or false), got " + typeof rawSharedKey + ": " + JSON.stringify(rawSharedKey));
+        }
+        azure.allowSharedKeyAccess = rawSharedKey;
+      }
+    }
+
     // Azure defaultMachinePlatform (v1.7.0: DOC-082 MISSING-V1.7-007, MISSING-V1.7-008)
     if ((Array.isArray(platformConfig.azure?.defaultMachinePlatformZones) && platformConfig.azure.defaultMachinePlatformZones.length > 0) || platformConfig.azure?.defaultMachinePlatformOsDiskSizeGB) {
       azure.defaultMachinePlatform = {};

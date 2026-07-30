@@ -1463,28 +1463,22 @@
     {
       "path": "platform.azure.allowSharedKeyAccess",
       "outputFile": "install-config.yaml",
-      "type": "object",
-      "allowed": "Azure shared key access configuration object",
-      "default": null,
+      "type": "boolean",
+      "allowed": [true, false],
+      "default": true,
       "required": false,
-      "description": "Azure storage account shared key access policy. Controls whether storage accounts allow access via shared access keys.",
+      "description": "Controls whether Azure Storage accounts allow shared-key access. When true or omitted, shared-key access is allowed (installer default). When false, shared-key access is disabled and the installation identity requires appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.",
       "applies_to": [
-        "azure-government-ipi",
         "azure-government-upi"
       ],
       "citations": [
         {
           "source": "installer_source",
           "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go AllowSharedKeyAccess",
-          "note": "Added in 4.21"
-        },
-        {
-          "source": "delta_analysis",
-          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
-          "note": "Confirmed added in 4.21, absent in 4.20"
+          "note": "Optional *bool, default true. Added in 4.21."
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.21",
       "maxVersion": null
     },
