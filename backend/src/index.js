@@ -224,6 +224,17 @@ let mountedRhPullSecret = null;
 // Mounted mirror registry pull secret — loaded from config, held in memory only, never persisted.
 let mountedMirrorPullSecret = null;
 
+// Mirror registry config loaded at module init so it's available for every ensureState() call,
+// not just the first defaultState() call. This ensures IDMS sources are re-applied on restart
+// even when the DB already has state from a previous run.
+const _mirrorConfigAtInit = (() => {
+  const cfg = loadMirrorRegistryConfig();
+  if (cfg) {
+    mountedMirrorPullSecret = cfg.pullSecret;
+  }
+  return cfg;
+})();
+
 const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "registry.connect.redhat.com"];
 
 /**
@@ -522,20 +533,15 @@ const defaultState = () => {
     }
   };
 
-  // Pre-load mirror registry config if mounted
-  const mirrorConfig = loadMirrorRegistryConfig();
-  if (mirrorConfig) {
-    // Store pull secret in memory only (like mountedRhPullSecret)
-    mountedMirrorPullSecret = mirrorConfig.pullSecret;
-
-    // Deep merge mirror config state (without pull secret)
-    baseState.credentials = { ...baseState.credentials, ...mirrorConfig.state.credentials };
-    baseState.trust = { ...baseState.trust, ...mirrorConfig.state.trust };
+  // Apply mirror registry config (loaded at module init)
+  if (_mirrorConfigAtInit) {
+    baseState.credentials = { ...baseState.credentials, ..._mirrorConfigAtInit.state.credentials };
+    baseState.trust = { ...baseState.trust, ..._mirrorConfigAtInit.state.trust };
     baseState.globalStrategy.mirroring = {
       ...baseState.globalStrategy.mirroring,
-      ...mirrorConfig.state.globalStrategy.mirroring
+      ..._mirrorConfigAtInit.state.globalStrategy.mirroring
     };
-    baseState.ui = { ...baseState.ui, ...mirrorConfig.state.ui };
+    baseState.ui = { ...baseState.ui, ..._mirrorConfigAtInit.state.ui };
   }
 
   // Pre-load imageset config if mounted
@@ -568,6 +574,28 @@ const ensureState = () => {
     if (!Object.prototype.hasOwnProperty.call(next.trust, "reducedSelection")) {
       next.trust.reducedSelection = null;
       changed = true;
+    }
+    // Re-apply IDMS/ITMS mirror sources from mounted config on every call.
+    // The mounted files are the source of truth — DB state may have stale defaults
+    // from a previous run or from frontend state patches.
+    if (_mirrorConfigAtInit) {
+      const mounted = _mirrorConfigAtInit.state.globalStrategy?.mirroring;
+      if (mounted?.sources?.length) {
+        if (!next.globalStrategy) next.globalStrategy = {};
+        if (!next.globalStrategy.mirroring) next.globalStrategy.mirroring = {};
+        next.globalStrategy = { ...next.globalStrategy };
+        next.globalStrategy.mirroring = {
+          ...next.globalStrategy.mirroring,
+          sources: mounted.sources,
+          registryFqdn: mounted.registryFqdn
+        };
+        changed = true;
+      }
+      if (!next.ui) next.ui = {};
+      if (!next.ui.mirrorConfigPreloaded) {
+        next.ui = { ...next.ui, mirrorConfigPreloaded: true };
+        changed = true;
+      }
     }
     if (changed) {
       setState(next);

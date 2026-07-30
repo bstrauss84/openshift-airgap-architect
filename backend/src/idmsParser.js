@@ -59,23 +59,25 @@ export function parseIdmsFile(filePath) {
 
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
-    const doc = yaml.load(raw);
+    const docs = yaml.loadAll(raw);
 
-    if (doc?.kind !== 'ImageDigestMirrorSet') {
-      logger.warn({ tag: 'startup', filePath, kind: doc?.kind }, 'IDMS file is not ImageDigestMirrorSet kind');
-      return [];
+    const sources = [];
+    for (const doc of docs) {
+      if (doc?.kind !== 'ImageDigestMirrorSet') continue;
+      const mirrors = doc?.spec?.imageDigestMirrors;
+      if (!Array.isArray(mirrors)) continue;
+      for (const m of mirrors) {
+        sources.push({
+          source: m.source,
+          mirrors: Array.isArray(m.mirrors) ? m.mirrors : []
+        });
+      }
     }
 
-    const mirrors = doc?.spec?.imageDigestMirrors;
-    if (!Array.isArray(mirrors)) {
-      logger.warn({ tag: 'startup', filePath }, 'IDMS file has no spec.imageDigestMirrors array');
+    if (sources.length === 0) {
+      logger.warn({ tag: 'startup', filePath }, 'IDMS file has no ImageDigestMirrorSet documents with imageDigestMirrors');
       return [];
     }
-
-    const sources = mirrors.map(m => ({
-      source: m.source,
-      mirrors: Array.isArray(m.mirrors) ? m.mirrors : []
-    }));
 
     logger.info({ tag: 'startup', filePath, count: sources.length }, 'Parsed IDMS file successfully');
     return sources;
@@ -115,23 +117,25 @@ export function parseItmsFile(filePath) {
 
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
-    const doc = yaml.load(raw);
+    const docs = yaml.loadAll(raw);
 
-    if (doc?.kind !== 'ImageTagMirrorSet') {
-      logger.warn({ tag: 'startup', filePath, kind: doc?.kind }, 'ITMS file is not ImageTagMirrorSet kind');
-      return [];
+    const sources = [];
+    for (const doc of docs) {
+      if (doc?.kind !== 'ImageTagMirrorSet') continue;
+      const mirrors = doc?.spec?.imageTagMirrors;
+      if (!Array.isArray(mirrors)) continue;
+      for (const m of mirrors) {
+        sources.push({
+          source: m.source,
+          mirrors: Array.isArray(m.mirrors) ? m.mirrors : []
+        });
+      }
     }
 
-    const mirrors = doc?.spec?.imageTagMirrors;
-    if (!Array.isArray(mirrors)) {
-      logger.warn({ tag: 'startup', filePath }, 'ITMS file has no spec.imageTagMirrors array');
+    if (sources.length === 0) {
+      logger.warn({ tag: 'startup', filePath }, 'ITMS file has no ImageTagMirrorSet documents with imageTagMirrors');
       return [];
     }
-
-    const sources = mirrors.map(m => ({
-      source: m.source,
-      mirrors: Array.isArray(m.mirrors) ? m.mirrors : []
-    }));
 
     logger.info({ tag: 'startup', filePath, count: sources.length }, 'Parsed ITMS file successfully');
     return sources;

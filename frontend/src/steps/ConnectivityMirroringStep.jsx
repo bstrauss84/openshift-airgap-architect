@@ -242,20 +242,25 @@ registry.corp.local:5000`}
                     <input
                       value={source.source || ""}
                       onChange={(e) => {
+                        if (mirrorConfigPreloaded) return;
                         const next = [...sources];
                         next[idx] = { ...next[idx], source: e.target.value };
                         updateMirroring({ sources: next });
                       }}
                       onBlur={(e) => {
+                        if (mirrorConfigPreloaded) return;
                         const next = [...sources];
                         next[idx] = { ...next[idx], source: e.target.value };
                         updateMirroring({ sources: next });
                       }}
+                      disabled={mirrorConfigPreloaded}
+                      className={mirrorConfigPreloaded ? "readonly-input" : ""}
                       placeholder="quay.io/openshift-release-dev/ocp-release"
                     />
                     <input
                       value={(source.mirrors || []).join(",")}
                       onChange={(e) => {
+                        if (mirrorConfigPreloaded) return;
                         const next = [...sources];
                         next[idx] = {
                           ...next[idx],
@@ -264,6 +269,7 @@ registry.corp.local:5000`}
                         updateMirroring({ sources: next });
                       }}
                       onBlur={(e) => {
+                        if (mirrorConfigPreloaded) return;
                         const next = [...sources];
                         next[idx] = {
                           ...next[idx],
@@ -271,12 +277,14 @@ registry.corp.local:5000`}
                         };
                         updateMirroring({ sources: next });
                       }}
+                      disabled={mirrorConfigPreloaded}
+                      className={mirrorConfigPreloaded ? "readonly-input" : ""}
                       placeholder={`${mirroring.registryFqdn || "registry.local:5000"}/ocp-release`}
                     />
                     <button
                       className="ghost"
                       type="button"
-                      disabled={sources.length === 1 || idx < 2}
+                      disabled={mirrorConfigPreloaded || sources.length === 1 || idx < 2}
                       onClick={() => {
                         if (!window.confirm("Remove this mirror mapping?")) return;
                         const next = sources.filter((_, index) => index !== idx);
@@ -287,6 +295,7 @@ registry.corp.local:5000`}
                     </button>
                   </div>
                 ))}
+                {!mirrorConfigPreloaded && (
                 <button
                   className="ghost"
                   type="button"
@@ -296,6 +305,7 @@ registry.corp.local:5000`}
                 >
                   Add Mirror Path
                 </button>
+                )}
               </div>
               <div className="note">
                 Remove any auto-added paths you do not plan to mirror.
