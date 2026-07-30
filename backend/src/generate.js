@@ -140,8 +140,15 @@ const effectiveHostname = (node, baseDomain) => {
 const buildInstallConfig = (state) => {
   const mirror = state.globalStrategy?.mirroring || {};
   const RELEASE_SOURCE_PREFIX = "quay.io/openshift-release-dev/";
+  const seen = new Set();
   const imageDigestSources = mirror.sources
     ?.filter((s) => s.source?.startsWith(RELEASE_SOURCE_PREFIX))
+    .filter((s) => {
+      const key = `${s.source}|${(s.mirrors || []).join(",")}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map((s) => ({
       source: s.source,
       mirrors: s.mirrors

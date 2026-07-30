@@ -3264,13 +3264,32 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     appendJobOutput(jobId, `Executing: ${installerPath} agent create image --dir ${workDir}\n`);
     appendJobOutput(jobId, `---\n\n`);
 
+    // Build env vars for openshift-install
+    const installerEnv = {
+      ...process.env,
+      PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+      HOME: workDir
+    };
+
+    // In mirror bundle mode, set OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE so the
+    // installer pulls the release image from the mirror registry instead of the internet.
+    if (state.ui?.mirrorConfigPreloaded) {
+      const version = state.version?.selectedVersion || state.release?.version;
+      const sources = state.globalStrategy?.mirroring?.sources || [];
+      const releaseSource = sources.find(
+        (s) => s.source === "quay.io/openshift-release-dev/ocp-release"
+      );
+      if (releaseSource?.mirrors?.[0] && version) {
+        const cpuArch = (state.blueprint?.cpuArch || "linux-amd64").replace("linux-", "");
+        const releaseImageOverride = `${releaseSource.mirrors[0]}:${version}-${cpuArch}`;
+        installerEnv.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = releaseImageOverride;
+        appendJobOutput(jobId, `✓ Release image override: ${releaseImageOverride}\n`);
+      }
+    }
+
     // Spawn openshift-install agent create image
     const child = spawn(installerPath, ["agent", "create", "image", "--dir", workDir], {
-      env: {
-        ...process.env,
-        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
-        HOME: workDir // Set HOME to work directory so .cache is writable
-      }
+      env: installerEnv
     });
 
     activeProcesses.set(jobId, child);
