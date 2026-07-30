@@ -139,10 +139,13 @@ const effectiveHostname = (node, baseDomain) => {
 // Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
   const mirror = state.globalStrategy?.mirroring || {};
-  const imageDigestSources = mirror.sources?.map((s) => ({
-    source: s.source,
-    mirrors: s.mirrors
-  }));
+  const RELEASE_SOURCE_PREFIX = "quay.io/openshift-release-dev/";
+  const imageDigestSources = mirror.sources
+    ?.filter((s) => s.source?.startsWith(RELEASE_SOURCE_PREFIX))
+    .map((s) => ({
+      source: s.source,
+      mirrors: s.mirrors
+    }));
 
   const nodes = (state.hostInventory?.nodes || []).slice();
   const sortedNodes = sortNodes(nodes);
