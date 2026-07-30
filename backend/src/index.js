@@ -3280,10 +3280,21 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
         (s) => s.source === "quay.io/openshift-release-dev/ocp-release"
       );
       if (releaseSource?.mirrors?.[0] && version) {
-        const cpuArch = (state.blueprint?.cpuArch || "linux-amd64").replace("linux-", "");
-        const releaseImageOverride = `${releaseSource.mirrors[0]}:${version}-${cpuArch}`;
+        const ociArch = (state.blueprint?.cpuArch || "linux-amd64").replace("linux-", "");
+        const releaseArch = ociArch === "amd64" ? "x86_64" : ociArch === "arm64" ? "aarch64" : ociArch;
+        const releaseImageOverride = `${releaseSource.mirrors[0]}:${version}-${releaseArch}`;
         installerEnv.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = releaseImageOverride;
         appendJobOutput(jobId, `✓ Release image override: ${releaseImageOverride}\n`);
+      }
+
+      // Write pull secret as Docker auth config so the installer can authenticate
+      // to the mirror registry for its own image operations (oc adm release info, etc.)
+      const pullSecret = previewState.credentials?.mirrorRegistryPullSecret;
+      if (pullSecret) {
+        const dockerDir = path.join(workDir, ".docker");
+        fs.mkdirSync(dockerDir, { recursive: true });
+        fs.writeFileSync(path.join(dockerDir, "config.json"), pullSecret, "utf8");
+        appendJobOutput(jobId, "✓ Wrote .docker/config.json for installer registry auth\n");
       }
     }
 
