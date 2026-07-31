@@ -1989,27 +1989,32 @@ const validateStep = (state, stepId) => {
         }
       }
 
-      const azureSharedKey = azure.allowSharedKeyAccess;
-      if (azureSharedKey !== undefined && azureSharedKey !== null && typeof azureSharedKey !== "boolean") {
-        azureErrors.push("Azure Storage shared-key access must be true, false, or omitted.");
-      }
-
       const azureWarnings = [];
-      if (azureSharedKey === false) {
-        azureWarnings.push("Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.");
+      const azureMinor = getOpenShiftMinorFromState(state);
+      if (azureMinor === "4.21") {
+        const azureSharedKey = azure.allowSharedKeyAccess;
+        if (azureSharedKey !== undefined && azureSharedKey !== null && typeof azureSharedKey !== "boolean") {
+          azureErrors.push("Azure Storage shared-key access must be true, false, or omitted.");
+        }
+        if (azureSharedKey === false) {
+          azureWarnings.push("Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.");
+        }
       }
 
       return { errors: [...errors, ...azureErrors], warnings: azureWarnings };
     }
     if (scenarioId === "azure-government-upi") {
       const azureErrors = [];
-      const azureSharedKey = azure.allowSharedKeyAccess;
-      if (azureSharedKey !== undefined && azureSharedKey !== null && typeof azureSharedKey !== "boolean") {
-        azureErrors.push("Azure Storage shared-key access must be true, false, or omitted.");
-      }
       const azureWarnings = [];
-      if (azureSharedKey === false) {
-        azureWarnings.push("Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.");
+      const azureMinor = getOpenShiftMinorFromState(state);
+      if (azureMinor === "4.21") {
+        const azureSharedKey = azure.allowSharedKeyAccess;
+        if (azureSharedKey !== undefined && azureSharedKey !== null && typeof azureSharedKey !== "boolean") {
+          azureErrors.push("Azure Storage shared-key access must be true, false, or omitted.");
+        }
+        if (azureSharedKey === false) {
+          azureWarnings.push("Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.");
+        }
       }
       return { errors: [...errors, ...azureErrors], warnings: azureWarnings };
     }

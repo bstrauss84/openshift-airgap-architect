@@ -6,6 +6,7 @@ import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } f
 import SecretInput from "../components/SecretInput.jsx";
 import { sortChannelsBySemverDescending, getNewestSupportedChannel, classifyChannels } from "../shared/cincinnatiChannels.js";
 import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
+import { parseMinorVersionCore } from "../shared/openShiftMinor.js";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -113,6 +114,9 @@ const BlueprintStep = () => {
   }, []);
 
   const updateVersionSelection = (patch) => {
+    const channel = patch.selectedChannel ?? version.selectedChannel ?? (release?.channel ? `stable-${release.channel}` : null);
+    const channelMinor = channel ? parseMinorVersionCore(channel.replace(/^stable-/i, "")) : null;
+    const patchVersion = patch.selectedVersion !== undefined ? patch.selectedVersion : (version.selectedVersion ?? release?.patchVersion);
     updateState({
       version: {
         selectedChannel: version.selectedChannel ?? (release?.channel ? `stable-${release.channel}` : null),
@@ -120,8 +124,10 @@ const BlueprintStep = () => {
         selectionTimestamp: version.selectionTimestamp ?? Date.now(),
         confirmedByUser: false,
         confirmationTimestamp: null,
-        locked: false,  // v3 canonical field
-        ...patch
+        locked: false,
+        ...patch,
+        selectedMinor: channelMinor || null,
+        selectedPatch: patchVersion || null,
       },
       operators: {
         ...state.operators,

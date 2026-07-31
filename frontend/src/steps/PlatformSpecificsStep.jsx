@@ -968,7 +968,8 @@ Emitted to \`controlPlane.platform.aws.rootVolume.iops\` and \`compute[].platfor
                           placeholder="omit"
                         />
                       </FieldLabelWithInfo>
-                      {isCatalogFieldVisible("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) && (<>
+                      {isCatalogFieldVisible("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) && (
+                      <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Root volume throughput (MiB/s)"
                         hint={`Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
@@ -1013,14 +1014,15 @@ Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid fo
                         />
                       </FieldLabelWithInfo>
                       {awsThroughputError && (
-                        <div id="aws-throughput-error" className="field-error" role="alert" style={{ color: "var(--error-color, #d32f2f)", fontSize: "0.85em", marginTop: "4px" }}>
+                        <div id="aws-throughput-error" className="field-error" role="alert">
                           {awsThroughputError}
                         </div>
                       )}
-                      <div className="field-helper" style={{ fontSize: "0.8em", color: "var(--text-secondary, #666)", marginTop: "2px" }}>
+                      <div className="field-helper">
                         125–2000 MiB/s, gp3 only
                       </div>
-                      </>)}
+                      </div>
+                      )}
                       <FieldLabelWithInfo
                         label="Root volume KMS Key ARN (optional)"
                         hint={`AWS KMS (Key Management Service) Customer Master Key ARN for encrypting EBS root volumes. Leave blank to use AWS-managed default encryption.
@@ -1513,7 +1515,8 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                     placeholder="Resource group containing DNS zone for base domain"
                   />
                 </FieldLabelWithInfo>
-                {showAzureAllowSharedKeyAccess && (<>
+                {showAzureAllowSharedKeyAccess && (
+                <div className="field-control-stack">
                 <FieldLabelWithInfo
                   label="Azure Storage shared-key access"
                   hint={`OpenShift 4.21+ only. Controls whether Azure Storage accounts created during installation allow shared-key access.
@@ -1548,7 +1551,8 @@ Disables shared-key access. The installation identity must have appropriate Azur
                     Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.
                   </p>
                 )}
-                </>)}
+                </div>
+                )}
                 <FieldLabelWithInfo
                   label="Publish (optional)"
                   hint={`Controls whether cluster endpoints are publicly accessible or private-network only.

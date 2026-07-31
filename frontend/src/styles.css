@@ -4540,6 +4540,10 @@ body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summa
     width: 100%;
     box-sizing: border-box;
   }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) > .field-control-stack {
+    grid-row: span 2;
+  }
 }
 
 @supports not (grid-template-rows: subgrid) {
@@ -4554,6 +4558,26 @@ body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summa
 /* Full-width field cell inside a responsive field-grid (e.g. bare metal provisioning mode). */
 .platform-specifics .field-grid .field-with-info-row.field-grid-span-full {
   grid-column: 1 / -1;
+}
+
+/* Stack a FieldLabelWithInfo control with its helper/error/warning in one grid cell. */
+.platform-specifics .field-control-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+.platform-specifics .field-control-stack > .field-helper {
+  font-size: 0.8em;
+  color: var(--text-secondary, #666);
+  margin-top: 2px;
+}
+
+.platform-specifics .field-control-stack > .field-error {
+  color: var(--error-color, #d32f2f);
+  font-size: 0.85em;
+  margin-top: 4px;
 }
 
 @media (max-width: 640px) {
