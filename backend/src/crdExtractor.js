@@ -5,6 +5,33 @@ import yaml from "js-yaml";
 
 const OC_BIN = "/usr/local/bin/oc";
 
+function parseJsonObjects(text) {
+  const objects = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = inString; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try { objects.push(JSON.parse(text.slice(start, i + 1))); } catch { /* skip */ }
+        start = -1;
+      }
+    }
+  }
+  return objects;
+}
+
 function scanForCrds(dir) {
   const crds = [];
 
@@ -27,27 +54,27 @@ function scanForCrds(dir) {
     }
 
     if (ext === ".json") {
-      // FBC JSON (JSONL): olm.bundle entries with base64-encoded CRDs
-      for (const line of content.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.schema === "olm.bundle" && Array.isArray(obj.properties)) {
-            for (const prop of obj.properties) {
-              if (prop.type === "olm.bundle.object" && prop.value?.data) {
-                const decoded = Buffer.from(prop.value.data, "base64").toString("utf8");
-                if (decoded.includes("CustomResourceDefinition")) {
-                  try {
-                    const parsed = yaml.load(decoded);
-                    if (parsed?.kind === "CustomResourceDefinition") {
-                      crds.push(yaml.dump(parsed, { lineWidth: 120 }));
-                    }
-                  } catch { /* skip */ }
-                }
-              }
+      // FBC catalog.json: multiple top-level JSON objects (may be pretty-printed)
+      for (const obj of parseJsonObjects(content)) {
+        if (obj.schema !== "olm.bundle" || !Array.isArray(obj.properties)) continue;
+        for (const prop of obj.properties) {
+          if (prop.type !== "olm.bundle.object" || !prop.value?.data) continue;
+          const decoded = Buffer.from(prop.value.data, "base64").toString("utf8");
+          if (!decoded.includes("CustomResourceDefinition")) continue;
+          try {
+            const parsed = JSON.parse(decoded);
+            if (parsed?.kind === "CustomResourceDefinition") {
+              crds.push(yaml.dump(parsed, { lineWidth: 120 }));
             }
+          } catch {
+            try {
+              const parsed = yaml.load(decoded);
+              if (parsed?.kind === "CustomResourceDefinition") {
+                crds.push(yaml.dump(parsed, { lineWidth: 120 }));
+              }
+            } catch { /* skip */ }
           }
-        } catch { /* skip non-JSON lines */ }
+        }
       }
     } else {
       // YAML: split multi-doc and check each
