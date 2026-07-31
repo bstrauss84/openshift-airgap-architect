@@ -24,6 +24,15 @@ const VERSION_GATED_UI_FIELD_REGISTRY = [
     supportContentQuery: /125.*2000.*gp3/,
   },
   {
+    scenario: "aws-govcloud-ipi",
+    path: "controlPlane.platform.aws.cpuOptions.confidentialCompute",
+    platform: "AWS GovCloud",
+    method: "IPI",
+    introductionMinor: "4.21",
+    controlQuery: /Confidential compute/,
+    owningStep: "PlatformSpecificsStep",
+  },
+  {
     scenario: "azure-government-ipi",
     path: "platform.azure.allowSharedKeyAccess",
     platform: "Azure Government",

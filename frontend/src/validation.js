@@ -38,6 +38,8 @@ export function validateAwsRootVolumeThroughput(value, volumeType) {
   return { valid: true, value: num };
 }
 
+export const VALID_CONFIDENTIAL_COMPUTE_POLICIES = ["Disabled", "AMDEncryptedVirtualizationNestedPaging"];
+
 /** Valid platform.aws.vpc.subnets[].roles[].type values. EdgeNode is Local Zone only and is not exposed in the app. */
 export const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
 /** When roles are specified, these must be assigned to at least one subnet. ControlPlaneExternalLB not required if publish is Internal. */
@@ -2089,6 +2091,14 @@ const validateStep = (state, stepId) => {
         if (minor && isVersionGTE(minor, "4.21") && aws.rootVolumeThroughput != null && aws.rootVolumeThroughput !== "") {
           const tpResult = validateAwsRootVolumeThroughput(aws.rootVolumeThroughput, (aws.rootVolumeType || "").trim() || undefined);
           if (!tpResult.valid) awsErrors.push(tpResult.error);
+        }
+        if (minor && isVersionGTE(minor, "4.21")) {
+          const ccValue = aws.cpuOptions?.confidentialCompute;
+          if (ccValue !== undefined && ccValue !== null && ccValue !== "") {
+            if (typeof ccValue !== "string" || !VALID_CONFIDENTIAL_COMPUTE_POLICIES.includes(ccValue)) {
+              awsErrors.push("Confidential compute must be one of: " + VALID_CONFIDENTIAL_COMPUTE_POLICIES.join(", ") + ".");
+            }
+          }
         }
       }
       if (aws.vpcMode === "existing") {

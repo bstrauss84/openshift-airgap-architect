@@ -207,8 +207,11 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(highConfParams).toHaveLength(6);
 
       highConfParams.forEach(p => {
-        if (p.path === 'platform.azure.allowSharedKeyAccess') {
+        if (p.path === 'platform.azure.allowSharedKeyAccess' ||
+            p.path === 'controlPlane.platform.aws.cpuOptions.confidentialCompute') {
           expect(p.supportStatus).toBe('supported-ui');
+        } else if (p.path === 'controlPlane.platform.aws.cpuOptions') {
+          expect(p.supportStatus).toBe('supported-derived');
         } else {
           expect(p.supportStatus).toBe('supported-backend-only');
         }

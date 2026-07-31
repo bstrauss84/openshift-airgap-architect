@@ -30,6 +30,16 @@ function validateAwsRootVolumeThroughput(value, volumeType) {
   return { valid: true, value: num };
 }
 
+const VALID_CONFIDENTIAL_COMPUTE_POLICIES = ["Disabled", "AMDEncryptedVirtualizationNestedPaging"];
+
+function validateAwsConfidentialCompute(value) {
+  if (value === undefined || value === null) return { valid: true, blank: true };
+  if (typeof value !== "string") throw new Error("controlPlane.platform.aws.cpuOptions.confidentialCompute must be a string, got " + typeof value + ": " + JSON.stringify(value));
+  if (value === "") return { valid: true, blank: true };
+  if (!VALID_CONFIDENTIAL_COMPUTE_POLICIES.includes(value)) throw new Error("controlPlane.platform.aws.cpuOptions.confidentialCompute must be one of: " + VALID_CONFIDENTIAL_COMPUTE_POLICIES.join(", ") + "; got: " + JSON.stringify(value));
+  return { valid: true, value };
+}
+
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
   const raw = typeof input === "string" ? input : JSON.stringify(input);
@@ -586,7 +596,11 @@ const buildInstallConfig = (state) => {
       ? validateAwsRootVolumeThroughput(platformConfig.aws?.rootVolumeThroughput, (platformConfig.aws?.rootVolumeType || "").trim() || undefined)
       : { valid: true, blank: true };
     const awsThroughputEligible = awsThroughputResult.valid && !awsThroughputResult.blank;
-    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn || awsThroughputEligible)) {
+    const awsConfidentialComputeResult = isVersionGTE(selectedMinor, "4.21") && state.methodology?.method === "IPI"
+      ? validateAwsConfidentialCompute(platformConfig.aws?.cpuOptions?.confidentialCompute)
+      : { valid: true, blank: true };
+    const awsConfidentialComputeEligible = awsConfidentialComputeResult.valid && !awsConfidentialComputeResult.blank;
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn || awsThroughputEligible || awsConfidentialComputeEligible)) {
       const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null
         ? { ...installConfig.controlPlane.platform } : {};
       cpPlatform.aws = { ...(cpPlatform.aws || {}) };
@@ -599,6 +613,9 @@ const buildInstallConfig = (state) => {
         if (awsThroughputEligible) cpPlatform.aws.rootVolume.throughput = awsThroughputResult.value;
         if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) cpPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(cpPlatform.aws.rootVolume).length === 0) delete cpPlatform.aws.rootVolume;
+      }
+      if (awsConfidentialComputeEligible) {
+        cpPlatform.aws.cpuOptions = { confidentialCompute: awsConfidentialComputeResult.value };
       }
       installConfig.controlPlane.platform = cpPlatform;
     }
@@ -1876,4 +1893,4 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   return lines.join("\n");
 };
 
-export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput };
+export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_COMPUTE_POLICIES };

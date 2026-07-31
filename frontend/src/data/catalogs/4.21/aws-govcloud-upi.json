@@ -418,9 +418,8 @@
       "allowed": "AWS CPU configuration object",
       "default": null,
       "required": false,
-      "description": "AWS EC2 CPU configuration options for control plane instances. Contains confidentialCompute and other CPU-level settings.",
+      "description": "Structural parent for CPU-level settings on control plane instances. Not supported for UPI — the application does not generate controlPlane.platform.aws machine-pool fields for UPI.",
       "applies_to": [
-        "aws-govcloud-ipi",
         "aws-govcloud-upi"
       ],
       "citations": [
@@ -435,27 +434,29 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "docs-only-not-supported",
       "minVersion": "4.21",
       "maxVersion": null
     },
     {
       "path": "controlPlane.platform.aws.cpuOptions.confidentialCompute",
       "outputFile": "install-config.yaml",
-      "type": "object",
-      "allowed": "AWS confidential compute configuration object",
+      "type": "string",
+      "allowed": [
+        "Disabled",
+        "AMDEncryptedVirtualizationNestedPaging"
+      ],
       "default": null,
       "required": false,
-      "description": "AWS confidential compute configuration for control plane instances. Nested within cpuOptions. Enables encrypted memory and secure enclaves.",
+      "description": "Confidential compute policy for control plane instances. Not supported for UPI — the application does not generate controlPlane.platform.aws machine-pool fields for UPI.",
       "applies_to": [
-        "aws-govcloud-ipi",
         "aws-govcloud-upi"
       ],
       "citations": [
         {
           "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/aws/cpu_options.go ConfidentialCompute",
-          "note": "Added in 4.21"
+          "url": "github.com/openshift/installer release-4.21 pkg/types/aws/machinepool.go ConfidentialComputePolicy",
+          "note": "Added in 4.21; enum: Disabled, AMDEncryptedVirtualizationNestedPaging"
         },
         {
           "source": "delta_analysis",
@@ -463,7 +464,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "docs-only-not-supported",
       "minVersion": "4.21",
       "maxVersion": null
     },

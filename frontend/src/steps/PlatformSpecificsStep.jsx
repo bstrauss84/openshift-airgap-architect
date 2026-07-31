@@ -886,6 +886,49 @@ subnet-0def456abc789 (us-east-1b)`}
                         />
                       </FieldLabelWithInfo>
                       )}
+                      {isCatalogFieldVisible("controlPlane.platform.aws.cpuOptions.confidentialCompute", INSTALL_CONFIG) && (
+                      <div className="field-control-stack">
+                      <FieldLabelWithInfo
+                        label="Confidential compute (optional)"
+                        hint={`Confidential compute policy for control plane instances (OpenShift 4.21+).
+
+**Use installer default:** No cpuOptions emitted — the installer uses its own default (currently Disabled).
+
+**Disabled:** Explicitly disables confidential computing for control plane instances. The cpuOptions block is emitted with confidentialCompute set to Disabled.
+
+**AMD SEV-SNP:** Requests AMD Secure Encrypted Virtualization — Secure Nested Paging for control plane instances. Encrypts VM memory in hardware, isolating it from the hypervisor and other VMs.
+
+**Compatibility requirements:**
+A compatible AWS instance type (e.g., m6a, c6a, r6a families), region, and machine image may be required when AMD SEV-SNP is selected. The openshift-install binary performs authoritative environment-specific validation at install time.
+
+Emitted to \`controlPlane.platform.aws.cpuOptions.confidentialCompute\` in install-config.yaml.`}
+                      >
+                        <select
+                          value={platformConfig.aws?.cpuOptions?.confidentialCompute || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                              updateAws({ cpuOptions: undefined });
+                            } else {
+                              updateAws({ cpuOptions: { confidentialCompute: val } });
+                            }
+                          }}
+                          aria-label="Confidential compute policy"
+                        >
+                          <option value="">Use installer default</option>
+                          <option value="Disabled">Disabled</option>
+                          <option value="AMDEncryptedVirtualizationNestedPaging">AMD SEV-SNP</option>
+                        </select>
+                      </FieldLabelWithInfo>
+                      <div className="field-control-support">
+                        {platformConfig.aws?.cpuOptions?.confidentialCompute === "AMDEncryptedVirtualizationNestedPaging" && (
+                          <div className="field-helper">
+                            AMD SEV-SNP requires a compatible instance type, region, and AMI. The installer validates compatibility at install time.
+                          </div>
+                        )}
+                      </div>
+                      </div>
+                      )}
                     </div>
                     <h4 className="platform-specifics-subsection">Root volume (optional)</h4>
                     <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
