@@ -3174,7 +3174,8 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
         const extractDir = path.join(workDir, ".crd-extract");
         fs.mkdirSync(extractDir, { recursive: true });
 
-        const crds = extractCrdsFromCatalogImage(catalogImage, crdAuthFile, extractDir);
+        const useInsecure = !!previewState.trust?.mirrorRegistryUsesPrivateCa;
+        const crds = extractCrdsFromCatalogImage(catalogImage, crdAuthFile, extractDir, { insecure: useInsecure });
 
         if (crds.length === 0) {
           appendJobOutput(jobId, "⚠ No CRDs found in catalog image — the operator may install its own CRDs at runtime\n");

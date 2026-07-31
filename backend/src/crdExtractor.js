@@ -67,7 +67,7 @@ function scanForCrds(dir) {
   return crds;
 }
 
-export function extractCrdsFromCatalogImage(catalogImage, authFile, extractDir) {
+export function extractCrdsFromCatalogImage(catalogImage, authFile, extractDir, { insecure = false } = {}) {
   const configsOut = path.join(extractDir, "catalog-configs");
   fs.mkdirSync(configsOut, { recursive: true });
 
@@ -79,6 +79,9 @@ export function extractCrdsFromCatalogImage(catalogImage, authFile, extractDir) 
   ];
   if (authFile) {
     args.push(`--registry-config=${authFile}`);
+  }
+  if (insecure) {
+    args.push("--insecure");
   }
 
   execFileSync(OC_BIN, args, {
