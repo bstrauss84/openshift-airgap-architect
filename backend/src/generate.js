@@ -19,6 +19,7 @@ import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 
 const MIRROR_OPERATOR_ADDITIONAL_IMAGES = [
   "quay.io/mathianasj/mirror-operator-catalog:v0.0.1",
+  "quay.io/mathianasj/mirror-operator-bundle:v0.0.1",
   "quay.io/mathianasj/mirror-operator:latest",
   "quay.io/mathianasj/openshift-airgap-architect-frontend:latest",
   "quay.io/mathianasj/openshift-airgap-architect-backend:latest",
