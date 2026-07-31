@@ -3163,19 +3163,19 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
       const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn || "registry.local:5000";
 
       const catalogSourceYaml = buildMirrorOperatorCatalogSource(registryFqdn);
-      const catalogSourcePath = path.join(openshiftDir, "mirror-operator-catalogsource.yaml");
+      const catalogSourcePath = path.join(openshiftDir, "99-mirror-operator-catalogsource.yaml");
       fs.writeFileSync(catalogSourcePath, catalogSourceYaml, "utf8");
-      appendJobOutput(jobId, `✓ Wrote openshift/mirror-operator-catalogsource.yaml (${Buffer.byteLength(catalogSourceYaml)} bytes)\n`);
+      appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-catalogsource.yaml (${Buffer.byteLength(catalogSourceYaml)} bytes)\n`);
 
       const subscriptionYaml = buildMirrorOperatorSubscription();
-      const subscriptionPath = path.join(openshiftDir, "mirror-operator-subscription.yaml");
+      const subscriptionPath = path.join(openshiftDir, "99-mirror-operator-subscription.yaml");
       fs.writeFileSync(subscriptionPath, subscriptionYaml, "utf8");
-      appendJobOutput(jobId, `✓ Wrote openshift/mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
+      appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
 
       const disconnectedPlatformYaml = buildDisconnectedPlatform();
-      const disconnectedPlatformPath = path.join(openshiftDir, "mirror-operator-disconnected-platform.yaml");
+      const disconnectedPlatformPath = path.join(openshiftDir, "99-mirror-operator-disconnected-platform.yaml");
       fs.writeFileSync(disconnectedPlatformPath, disconnectedPlatformYaml, "utf8");
-      appendJobOutput(jobId, `✓ Wrote openshift/mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
+      appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
 
       logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator CatalogSource, Subscription, and DisconnectedPlatform manifests");
 
@@ -3187,15 +3187,15 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
           const mirrorCfg = JSON.parse(fs.readFileSync(mirrorConfigPath, "utf8"));
           if (mirrorCfg.idmsPath && fs.existsSync(mirrorCfg.idmsPath)) {
             const idmsContent = fs.readFileSync(mirrorCfg.idmsPath, "utf8");
-            const idmsDest = path.join(openshiftDir, "idms-oc-mirror.yaml");
+            const idmsDest = path.join(openshiftDir, "99-idms-oc-mirror.yaml");
             fs.writeFileSync(idmsDest, idmsContent, "utf8");
-            appendJobOutput(jobId, `✓ Wrote openshift/idms-oc-mirror.yaml (${Buffer.byteLength(idmsContent)} bytes)\n`);
+            appendJobOutput(jobId, `✓ Wrote openshift/99-idms-oc-mirror.yaml (${Buffer.byteLength(idmsContent)} bytes)\n`);
           }
           if (mirrorCfg.itmsPath && fs.existsSync(mirrorCfg.itmsPath)) {
             const itmsContent = fs.readFileSync(mirrorCfg.itmsPath, "utf8");
-            const itmsDest = path.join(openshiftDir, "itms-oc-mirror.yaml");
+            const itmsDest = path.join(openshiftDir, "99-itms-oc-mirror.yaml");
             fs.writeFileSync(itmsDest, itmsContent, "utf8");
-            appendJobOutput(jobId, `✓ Wrote openshift/itms-oc-mirror.yaml (${Buffer.byteLength(itmsContent)} bytes)\n`);
+            appendJobOutput(jobId, `✓ Wrote openshift/99-itms-oc-mirror.yaml (${Buffer.byteLength(itmsContent)} bytes)\n`);
           }
         } catch (err) {
           appendJobOutput(jobId, `⚠ Could not inject IDMS/ITMS files: ${err.message}\n`);
@@ -3212,9 +3212,10 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
           }
           const csContent = fs.readFileSync(csFile, "utf8");
           const csBasename = path.basename(csFile);
-          const csDest = path.join(openshiftDir, csBasename);
+          const prefixedName = csBasename.startsWith("99-") ? csBasename : `99-${csBasename}`;
+          const csDest = path.join(openshiftDir, prefixedName);
           fs.writeFileSync(csDest, csContent, "utf8");
-          appendJobOutput(jobId, `✓ Wrote openshift/${csBasename} (${Buffer.byteLength(csContent)} bytes)\n`);
+          appendJobOutput(jobId, `✓ Wrote openshift/${prefixedName} (${Buffer.byteLength(csContent)} bytes)\n`);
         } catch (err) {
           appendJobOutput(jobId, `⚠ Could not inject CatalogSource ${csFile}: ${err.message}\n`);
           logger.warn({ tag: "agent-iso:catalogsource", jobId, file: csFile, err: err.message }, "Failed to inject CatalogSource file");
