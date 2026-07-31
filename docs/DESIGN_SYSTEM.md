@@ -232,7 +232,7 @@ Platform Specifics fields use a CSS Grid subgrid pattern that aligns labels, con
 
 ### Base layout
 
-`.field-grid` uses `grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))` with `align-items: start`. Each grid item is a `.field-with-info-row` (from `FieldLabelWithInfo`) or a `.field-control-stack` (for multi-part controls like select + helper).
+`.platform-specifics .field-grid` uses `grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr))` with `align-items: stretch`, `column-gap: 1.25rem`, and `row-gap: 1.5rem`. Each grid item is a `.field-with-info-row` (from `FieldLabelWithInfo`) or a `.field-control-stack` (for multi-part controls like select + helper).
 
 ### Subgrid (3-row pattern)
 

@@ -1,7 +1,7 @@
 # UI Standardization Guide
 **OpenShift Airgap Architect - Frontend Design Patterns**
 
-**Last Updated:** 2026-07-31  
+**Last Updated:** 2026-07-31
 **Status:** Supplemental reference — see canonical authority note below
 
 > **Canonical authority:** `docs/DESIGN_SYSTEM.md` is the Tier 1 UI consistency contract.
