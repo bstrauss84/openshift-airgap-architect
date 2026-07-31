@@ -5,6 +5,7 @@
 - **`docs/DESIGN_SYSTEM.md`** is the tracked UI contract for this project.
 - If a change conflicts with it, the change must **STOP** and propose an alternative.
 - No new tabs or steps should be added unless they map to the documented workflow.
+- For version-gated parameter fields, complete every item in **`docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md`** before opening a PR.
 
 ## Run and build
 
@@ -126,7 +127,7 @@ Testing guardrails:
 
 ## Project rules
 
-See `.cursor/rules/` and `AGENTS.md` for AI/agent guidance. Align to official OpenShift docs for the selected version (4.17–4.20); do not store or export credentials by default.
+See `.cursor/rules/` and `AGENTS.md` for AI/agent guidance. Align to official OpenShift docs for the selected version (4.20–4.21); do not store or export credentials by default.
 
 ## Governance docs map
 

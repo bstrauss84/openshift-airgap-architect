@@ -27,6 +27,7 @@ These files define current expected behavior and process.
   - `docs/PARAM_AUTHORITY.md`
   - `docs/CANONICAL_DOC_SOURCE_AND_EXAMPLE_CAPTURE_RULES.md`
 - UI consistency contract: `docs/DESIGN_SYSTEM.md`
+- Version-aware UI field checklist: `docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md`
 - Scenario navigation hub: `docs/SCENARIOS_GUIDE.md`
 - Backlog and status truth: `docs/BACKLOG_STATUS.md`
 - Helper selection and usage: `docs/HELPER_USAGE.md`

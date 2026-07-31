@@ -74,6 +74,9 @@ Unknown schemas block at all boundaries:
 3. **`docs/HANDOFF_PACKET.md`** — Latest accepted work, next task pointer
 4. **`docs/IMPLEMENTATION_ROADMAP_2026-05-14.md`** — Versioned roadmap
 
+**UI contract:** `docs/DESIGN_SYSTEM.md` is the canonical UI consistency contract.
+Before adding or modifying version-gated UI fields, read `docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md`.
+
 When docs conflict, trust the order above.
 
 ---

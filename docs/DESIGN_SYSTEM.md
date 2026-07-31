@@ -223,3 +223,87 @@ When logically related options should be visually grouped without a selectable h
 ```
 
 The left-border accent (`#3b82f6`) activates on the group containing the currently selected option.
+
+---
+
+## Paired-Field Layout (Platform Specifics)
+
+Platform Specifics fields use a CSS Grid subgrid pattern that aligns labels, controls, and supporting content across paired columns.
+
+### Base layout
+
+`.field-grid` uses `grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))` with `align-items: start`. Each grid item is a `.field-with-info-row` (from `FieldLabelWithInfo`) or a `.field-control-stack` (for multi-part controls like select + helper).
+
+### Subgrid (3-row pattern)
+
+Inside `@supports (grid-template-rows: subgrid)`:
+
+- `.field-grid` switches to `grid-template-rows: auto auto auto` with `row-gap: 0`.
+- Each field item spans 3 rows via `grid-row: span 3` and participates in `grid-template-rows: subgrid`.
+  - **Row 1** — label
+  - **Row 2** — control (input, select, etc.)
+  - **Row 3** — supporting content (helper text, errors, warnings)
+- `::after` pseudo-elements on each field item provide `min-height: 1.5rem` between-band spacing.
+- When row 3 content exceeds 1.5rem, it grows dynamically and pushes following content down.
+
+### Supporting content (`.field-control-support`)
+
+Error messages, helper text, and warnings live inside a `.field-control-support` wrapper in normal document flow (row 3 of the subgrid). **Never use absolute positioning** for supporting content — it prevents dynamic height expansion and causes overlaps with content below.
+
+### `.field-control-stack`
+
+Groups a control with its supporting content. Inside the subgrid, it uses `display: grid; grid-row: span 3; grid-template-rows: subgrid` with `display: contents` on its inner `.field-with-info-row` to expose label/control to the parent grid.
+
+### `label:has(> .field-with-info-row)`
+
+Outer `<label>` wrappers use `display: contents` so the inner `.field-with-info-row` becomes the grid participant directly.
+
+---
+
+## Version-Aware Parameter Fields
+
+Fields whose visibility depends on the selected OpenShift minor version. These fields appear only when the user selects a version that includes them in the scenario catalog.
+
+### Catalog-driven visibility
+
+Each scenario has per-version catalogs at `frontend/src/data/catalogs/<version>/<scenario>.json`. A field is visible when its parameter appears in the catalog for the user's selected version with `"supported-ui": true`. Use `getCatalogForScenario(scenarioId, version)` from `frontend/src/catalogPaths.js` to load the parameter array.
+
+### Canonical version authority
+
+`SUPPORTED_MINORS` from `frontend/src/shared/versionPolicy.js` is the single source of truth for which minor versions the frontend supports. Currently `["4.20", "4.21"]`. All version parsing and comparison must use `shared/versionUtils.js`, `shared/catalogVersion.js`, or `shared/versionHelpers.js` — no ad hoc parsers.
+
+### Version helper text rules
+
+When a field appears only in newer versions, display a helper note indicating the version context. Use `FieldLabelWithInfo` `hint` for tooltip explanations. Error and helper text coexist inside `.field-control-support`; they are not mutually exclusive.
+
+### Visibility test contract
+
+Every version-gated UI field must have an entry in `VERSION_GATED_UI_FIELD_REGISTRY` (in `frontend/tests/version-gated-field-boundary.test.jsx`) with:
+
+- `fieldLabel` — exact label text used by the field
+- `introductionMinor` — the minor version that introduced this field
+- `scenarioId` — the scenario this field belongs to
+- `expectedTag` — the HTML element tag (`"select"`, `"input"`, etc.)
+- `supportContentQuery` (optional) — regex to match expected support content
+
+Bidirectional catalog cross-checks enforce:
+
+1. Every `supported-ui` catalog entry with `minVersion` above baseline has a registry entry.
+2. Every registry entry has a matching `supported-ui` catalog parameter.
+
+### State retention
+
+When the user switches from a version that shows a field to one that does not, the field value is retained in state but the control is hidden. Switching back restores the control with the previous value. Fields are never cleared on version change.
+
+### Field layout contract
+
+Version-gated fields participate in the same paired-field layout as all other Platform Specifics fields. They must:
+
+- Use `.field-with-info-row` or `.field-control-stack` wrappers
+- Not appear as direct children of `.field-grid` without proper wrappers
+- Place all supporting content inside `.field-control-support`
+- Not introduce layout shifts when toggling visibility
+
+### Responsive verification
+
+Version-gated fields must follow the same responsive rules as other fields: graceful column reduction at narrower viewports, readable widths maintained, labels and inputs aligned. Test at desktop (1920px+), laptop (1366px), tablet (768px), and mobile (375px).

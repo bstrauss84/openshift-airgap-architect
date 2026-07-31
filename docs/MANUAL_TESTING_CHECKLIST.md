@@ -53,7 +53,7 @@ _____________________________________
 - [ ] Base domain field accepts valid domain
 - [ ] Platform dropdown shows all platforms (vSphere IPI/UPI, Bare Metal, AWS, Azure, GCP, Nutanix, IBM Cloud)
 - [ ] Select platform → shows platform-specific fields
-- [ ] OpenShift version dropdown shows 4.17-4.20
+- [ ] OpenShift version dropdown shows 4.20-4.21
 - [ ] Click "Update" button to fetch release channels
   - [ ] Operations tab shows Cincinnati refresh job
   - [ ] Job completes successfully
@@ -288,7 +288,7 @@ _____________________________________
   - [ ] Bare Metal with NTP → NTP sections included
   - [ ] AWS without proxy → proxy sections omitted
 - [ ] Version alignment:
-  - [ ] Doc sources match selected OCP version (4.17-4.20)
+  - [ ] Doc sources match selected OCP version (4.20-4.21)
 
 **Expected Results:**
 - Field guide is scenario-specific and actionable
@@ -635,6 +635,32 @@ _____________________________________
 - Update banner works when enabled
 - About modal shows accurate version info
 - Optional features can be disabled via env vars
+
+**Notes:**
+_____________________________________
+
+---
+
+## 19. Version-Aware UI Field Regression
+
+**Test Steps:**
+- [ ] Select AWS GovCloud IPI, lock Blueprint at OpenShift 4.21
+- [ ] Navigate to Platform Specifics
+- [ ] Verify version-gated fields (e.g., EBS throughput) are visible
+- [ ] Verify helper text and error messages coexist inside the field without overlapping adjacent fields
+- [ ] Switch channel from 4.21 to 4.20
+- [ ] Verify version-gated fields disappear
+- [ ] Switch back to 4.21
+- [ ] Verify version-gated fields reappear with previously entered values retained
+- [ ] Verify paired-field alignment: label rows, control rows, and support rows align across columns
+- [ ] Verify the RBAC warning (Azure) or supporting content does not overlap the Machine counts section below
+- [ ] Test at desktop width and tablet width — fields should reflow without layout breaks
+
+**Expected Results:**
+- Version-gated fields appear only at their introduction version and later
+- Field values are retained across version switches
+- Supporting content (helpers, errors, warnings) flows in normal document flow without overlapping following sections
+- Paired-field alignment is maintained in the subgrid layout
 
 **Notes:**
 _____________________________________

@@ -6,23 +6,28 @@ import PlatformSpecificsStep from "../src/steps/PlatformSpecificsStep.jsx";
 import { AppContext } from "../src/store.jsx";
 import { apiFetch } from "../src/api.js";
 import { validateStep } from "../src/validation.js";
+import { getCatalogForScenario } from "../src/catalogPaths.js";
+import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
-const SUPPORTED_UI_421_REGISTRY = [
+const VERSION_GATED_UI_FIELD_REGISTRY = [
   {
     scenario: "aws-govcloud-ipi",
     path: "controlPlane.platform.aws.rootVolume.throughput",
     platform: "AWS GovCloud",
     method: "IPI",
+    introductionMinor: "4.21",
     controlQuery: /Root volume throughput/,
     owningStep: "PlatformSpecificsStep",
+    supportContentQuery: /125.*2000.*gp3/,
   },
   {
     scenario: "azure-government-ipi",
     path: "platform.azure.allowSharedKeyAccess",
     platform: "Azure Government",
     method: "IPI",
+    introductionMinor: "4.21",
     controlQuery: /Azure Storage shared-key/,
     owningStep: "PlatformSpecificsStep",
   },
@@ -31,6 +36,7 @@ const SUPPORTED_UI_421_REGISTRY = [
     path: "platform.azure.allowSharedKeyAccess",
     platform: "Azure Government",
     method: "UPI",
+    introductionMinor: "4.21",
     controlQuery: /Azure Storage shared-key/,
     owningStep: "PlatformSpecificsStep",
   },
@@ -135,25 +141,26 @@ function renderBlueprintWithProductionMerge(initialState) {
   return { ...result, getState: () => latestState };
 }
 
-describe("Version-gated field boundary — supported-ui 4.21 registry", () => {
+describe("Version-gated field boundary — registry visibility", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-  for (const entry of SUPPORTED_UI_421_REGISTRY) {
-    it(`${entry.scenario}: visible at 4.21, hidden at 4.20`, () => {
-      const state421 = makeState(entry.platform, entry.method, "4.21", "4.21.8");
-      renderPlatformStep(state421);
+  for (const entry of VERSION_GATED_UI_FIELD_REGISTRY) {
+    it(`${entry.scenario}: visible at ${entry.introductionMinor}, hidden at previous minor`, () => {
+      const introState = makeState(entry.platform, entry.method, entry.introductionMinor, `${entry.introductionMinor}.8`);
+      renderPlatformStep(introState);
       expect(findControlByQuery(entry.controlQuery)).not.toBeNull();
       cleanup();
 
-      const state420 = makeState(entry.platform, entry.method, "4.20", "4.20.8");
-      renderPlatformStep(state420);
+      const prevMinor = `${entry.introductionMinor.split(".")[0]}.${parseInt(entry.introductionMinor.split(".")[1]) - 1}`;
+      const prevState = makeState(entry.platform, entry.method, prevMinor, `${prevMinor}.8`);
+      renderPlatformStep(prevState);
       expect(findControlByQuery(entry.controlQuery)).toBeNull();
     });
 
     it(`${entry.scenario}: hidden for non-applicable platform`, () => {
       const otherPlatform = entry.platform === "AWS GovCloud" ? "Azure Government" : "AWS GovCloud";
       const otherMethod = otherPlatform === "AWS GovCloud" ? "IPI" : entry.method;
-      const state = makeState(otherPlatform, otherMethod, "4.21", "4.21.8");
+      const state = makeState(otherPlatform, otherMethod, entry.introductionMinor, `${entry.introductionMinor}.8`);
       renderPlatformStep(state);
       expect(findControlByQuery(entry.controlQuery)).toBeNull();
     });
@@ -403,5 +410,98 @@ describe("Version-gated field boundary — DOM layout regression", () => {
     expect(stack).not.toBeNull();
     expect(fieldWithInfo.querySelector("input[type='number']")).not.toBeNull();
     expect(fieldWithInfo.querySelector(".field-title-line")).not.toBeNull();
+  });
+
+  it("throughput error and helper coexist inside field-control-support", () => {
+    const state = makeState("AWS GovCloud", "IPI", "4.21", "4.21.8");
+    state.platformConfig.aws.controlPlaneRootVolumeThroughput = 9999;
+    const { container } = renderPlatformStep(state);
+    const support = container.querySelector(".field-control-stack .field-control-support");
+    expect(support).not.toBeNull();
+    const helper = support.querySelector(".field-helper");
+    expect(helper).not.toBeNull();
+    expect(helper.textContent).toMatch(/125.*2000.*gp3/);
+    const stack = support.closest(".field-control-stack");
+    expect(stack).not.toBeNull();
+    expect(stack.closest(".field-grid")).not.toBeNull();
+  });
+
+  it("Azure warning does not appear as a direct child of field-grid", () => {
+    const state = makeState("Azure Government", "IPI", "4.21", "4.21.8");
+    state.platformConfig.azure.allowSharedKeyAccess = false;
+    const { container } = renderPlatformStep(state);
+    const fieldGrid = container.querySelector(".field-grid");
+    expect(fieldGrid).not.toBeNull();
+    const directWarnings = Array.from(fieldGrid.children).filter(
+      c => c.classList.contains("note") || c.classList.contains("field-control-support")
+    );
+    expect(directWarnings).toHaveLength(0);
+  });
+
+  it("Machine counts subsection follows the Azure field-grid in DOM order", () => {
+    const state = makeState("Azure Government", "IPI", "4.21", "4.21.8");
+    state.platformConfig.azure.allowSharedKeyAccess = false;
+    const { container } = renderPlatformStep(state);
+    const machineCountsHeading = screen.queryByText(/Machine counts/);
+    expect(machineCountsHeading).not.toBeNull();
+    const fieldGrid = container.querySelector(".field-grid");
+    expect(fieldGrid).not.toBeNull();
+    const sharedKeyStack = screen.queryByText(/Azure Storage shared-key/).closest(".field-control-stack");
+    expect(sharedKeyStack).not.toBeNull();
+    expect(fieldGrid.contains(sharedKeyStack)).toBe(true);
+    expect(fieldGrid.contains(machineCountsHeading)).toBe(false);
+  });
+});
+
+describe("Version-gated field boundary — catalog cross-check", () => {
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+  const baselineMinor = [...SUPPORTED_MINORS].sort()[0];
+  const allScenarios = [
+    "aws-govcloud-ipi", "aws-govcloud-upi",
+    "azure-government-ipi", "azure-government-upi",
+    "bare-metal-agent", "bare-metal-ipi", "bare-metal-upi",
+    "ibm-cloud-ipi", "nutanix-ipi",
+    "vsphere-agent", "vsphere-ipi", "vsphere-upi",
+  ];
+
+  it("every supported-ui catalog entry with minVersion above baseline has a registry entry", () => {
+    const unregistered = [];
+    for (const minor of SUPPORTED_MINORS) {
+      if (minor <= baselineMinor) continue;
+      for (const scenario of allScenarios) {
+        let params;
+        try { params = getCatalogForScenario(scenario, minor); } catch { continue; }
+        for (const entry of params) {
+          if (entry.supportStatus !== "supported-ui") continue;
+          if (!entry.minVersion || entry.minVersion <= baselineMinor) continue;
+          const registered = VERSION_GATED_UI_FIELD_REGISTRY.some(
+            r => r.path === entry.path && r.scenario === scenario
+          );
+          if (!registered) {
+            unregistered.push(`${scenario}: ${entry.path} (minVersion=${entry.minVersion})`);
+          }
+        }
+      }
+    }
+    expect(unregistered).toEqual([]);
+  });
+
+  it("every registry entry has a matching supported-ui catalog parameter", () => {
+    const mismatches = [];
+    for (const entry of VERSION_GATED_UI_FIELD_REGISTRY) {
+      const params = getCatalogForScenario(entry.scenario, entry.introductionMinor);
+      const catalogEntry = params.find(
+        p => p.path === entry.path && p.supportStatus === "supported-ui"
+      );
+      if (!catalogEntry) {
+        mismatches.push(`${entry.scenario}: ${entry.path} not found as supported-ui in catalog`);
+      } else if (catalogEntry.minVersion !== entry.introductionMinor) {
+        mismatches.push(
+          `${entry.scenario}: ${entry.path} minVersion=${catalogEntry.minVersion} != registry introductionMinor=${entry.introductionMinor}`
+        );
+      }
+    }
+    expect(mismatches).toEqual([]);
   });
 });

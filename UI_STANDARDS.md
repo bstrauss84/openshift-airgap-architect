@@ -2,7 +2,13 @@
 **OpenShift Airgap Architect - Frontend Design Patterns**
 
 **Last Updated:** 2026-05-09  
-**Status:** Living document - update as patterns evolve
+**Status:** Supplemental reference — see canonical authority note below
+
+> **Canonical authority:** `docs/DESIGN_SYSTEM.md` is the Tier 1 UI consistency contract.
+> This file is a supplemental reference for general component usage and spacing conventions.
+> When this file and `docs/DESIGN_SYSTEM.md` conflict, `docs/DESIGN_SYSTEM.md` wins.
+> For paired-field subgrid layout, version-aware parameter fields, and supporting-content
+> placement rules, see `docs/DESIGN_SYSTEM.md` exclusively.
 
 ---
 
@@ -73,7 +79,7 @@ The **Azure Government IPI** section in `PlatformSpecificsStep.jsx` is considere
 </div>
 ```
 
-**CSS Definition:**
+**CSS Definition (base fallback):**
 ```css
 .field-grid {
   display: grid;
@@ -84,6 +90,10 @@ The **Azure Government IPI** section in `PlatformSpecificsStep.jsx` is considere
   width: 100%;
 }
 ```
+
+> **Note:** In browsers supporting `@supports (grid-template-rows: subgrid)`, Platform Specifics
+> field grids use a 3-row subgrid with `row-gap: 0` and `::after` spacers instead of the `gap: 1rem`
+> shown above. See `docs/DESIGN_SYSTEM.md` "Paired-Field Layout" for the full subgrid contract.
 
 ---
 

@@ -34,6 +34,7 @@ This file is a quick "README for AI" to keep work consistent.
 ## Documentation Hierarchy
 
 See **CLAUDE.md** for rules and **docs/BACKLOG_STATUS.md** for status.
+UI contract: **docs/DESIGN_SYSTEM.md**. Version-gated field checklist: **docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md**.
 
 ## Git Workflow
 
