@@ -53,6 +53,22 @@ export function getAvailableCatalogVersions() {
 }
 
 /**
+ * Get all catalog scenario IDs available for a given version (sorted alphabetically).
+ * Derived from the catalog glob — no hand-maintained list.
+ * @param {string} version - OpenShift minor version e.g. "4.20", "4.21"
+ * @returns {string[]} e.g. ["aws-govcloud-ipi", "azure-government-ipi", ...]
+ */
+export function getAvailableCatalogScenarios(version) {
+  const prefix = `./data/catalogs/${version}/`;
+  return [...new Set(
+    Object.keys(catalogs)
+      .filter(p => p.startsWith(prefix))
+      .map(p => p.slice(prefix.length).replace('.json', ''))
+      .filter(Boolean)
+  )].sort();
+}
+
+/**
  * Get the latest supported catalog version (not just filesystem presence).
  * Uses centralized version policy, not filesystem discovery.
  * @returns {string|null} e.g. "4.21" or null if no supported versions

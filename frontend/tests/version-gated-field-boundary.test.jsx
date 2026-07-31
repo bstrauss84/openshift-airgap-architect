@@ -6,8 +6,9 @@ import PlatformSpecificsStep from "../src/steps/PlatformSpecificsStep.jsx";
 import { AppContext } from "../src/store.jsx";
 import { apiFetch } from "../src/api.js";
 import { validateStep } from "../src/validation.js";
-import { getCatalogForScenario } from "../src/catalogPaths.js";
+import { getCatalogForScenario, getAvailableCatalogScenarios } from "../src/catalogPaths.js";
 import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
+import { compareVersions } from "../../shared/versionUtils.js";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
@@ -151,10 +152,14 @@ describe("Version-gated field boundary — registry visibility", () => {
       expect(findControlByQuery(entry.controlQuery)).not.toBeNull();
       cleanup();
 
-      const prevMinor = `${entry.introductionMinor.split(".")[0]}.${parseInt(entry.introductionMinor.split(".")[1]) - 1}`;
-      const prevState = makeState(entry.platform, entry.method, prevMinor, `${prevMinor}.8`);
-      renderPlatformStep(prevState);
-      expect(findControlByQuery(entry.controlQuery)).toBeNull();
+      const sorted = [...SUPPORTED_MINORS].sort((a, b) => compareVersions(a, b));
+      const introIdx = sorted.indexOf(entry.introductionMinor);
+      const prevMinor = introIdx > 0 ? sorted[introIdx - 1] : null;
+      if (prevMinor) {
+        const prevState = makeState(entry.platform, entry.method, prevMinor, `${prevMinor}.8`);
+        renderPlatformStep(prevState);
+        expect(findControlByQuery(entry.controlQuery)).toBeNull();
+      }
     });
 
     it(`${entry.scenario}: hidden for non-applicable platform`, () => {
@@ -414,16 +419,29 @@ describe("Version-gated field boundary — DOM layout regression", () => {
 
   it("throughput error and helper coexist inside field-control-support", () => {
     const state = makeState("AWS GovCloud", "IPI", "4.21", "4.21.8");
-    state.platformConfig.aws.controlPlaneRootVolumeThroughput = 9999;
     const { container } = renderPlatformStep(state);
-    const support = container.querySelector(".field-control-stack .field-control-support");
+
+    const throughputLabel = screen.queryByText(/Root volume throughput/);
+    expect(throughputLabel).not.toBeNull();
+    const stack = throughputLabel.closest(".field-control-stack");
+    expect(stack).not.toBeNull();
+    expect(stack.closest(".field-grid")).not.toBeNull();
+    const input = stack.querySelector("input[type='number']");
+    expect(input).not.toBeNull();
+
+    fireEvent.change(input, { target: { value: "2001" } });
+    fireEvent.blur(input);
+
+    const support = stack.querySelector(".field-control-support");
     expect(support).not.toBeNull();
+
+    const error = support.querySelector(".field-error");
+    expect(error).not.toBeNull();
+    expect(error.textContent).toMatch(/2000/);
+
     const helper = support.querySelector(".field-helper");
     expect(helper).not.toBeNull();
     expect(helper.textContent).toMatch(/125.*2000.*gp3/);
-    const stack = support.closest(".field-control-stack");
-    expect(stack).not.toBeNull();
-    expect(stack.closest(".field-grid")).not.toBeNull();
   });
 
   it("Azure warning does not appear as a direct child of field-grid", () => {
@@ -456,25 +474,20 @@ describe("Version-gated field boundary — DOM layout regression", () => {
 describe("Version-gated field boundary — catalog cross-check", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-  const baselineMinor = [...SUPPORTED_MINORS].sort()[0];
-  const allScenarios = [
-    "aws-govcloud-ipi", "aws-govcloud-upi",
-    "azure-government-ipi", "azure-government-upi",
-    "bare-metal-agent", "bare-metal-ipi", "bare-metal-upi",
-    "ibm-cloud-ipi", "nutanix-ipi",
-    "vsphere-agent", "vsphere-ipi", "vsphere-upi",
-  ];
+  const sortedMinors = [...SUPPORTED_MINORS].sort((a, b) => compareVersions(a, b));
+  const baselineMinor = sortedMinors[0];
 
   it("every supported-ui catalog entry with minVersion above baseline has a registry entry", () => {
     const unregistered = [];
     for (const minor of SUPPORTED_MINORS) {
-      if (minor <= baselineMinor) continue;
-      for (const scenario of allScenarios) {
+      if (compareVersions(minor, baselineMinor) <= 0) continue;
+      const scenarios = getAvailableCatalogScenarios(minor);
+      for (const scenario of scenarios) {
         let params;
         try { params = getCatalogForScenario(scenario, minor); } catch { continue; }
         for (const entry of params) {
           if (entry.supportStatus !== "supported-ui") continue;
-          if (!entry.minVersion || entry.minVersion <= baselineMinor) continue;
+          if (!entry.minVersion || compareVersions(entry.minVersion, baselineMinor) <= 0) continue;
           const registered = VERSION_GATED_UI_FIELD_REGISTRY.some(
             r => r.path === entry.path && r.scenario === scenario
           );

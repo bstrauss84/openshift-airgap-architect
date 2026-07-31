@@ -507,8 +507,7 @@ _____________________________________
   - [ ] Enter multiple domains
   - [ ] Verify formatted correctly in YAML preview
 - [ ] Test proxy policy (version-aware):
-  - [ ] OCP 4.17-4.19: policy should be "Proxyonly"
-  - [ ] OCP 4.20: policy should be "Always"
+  - [ ] OCP 4.20-4.21: policy allows "Proxyonly" and "Always"
   - [ ] Verify in YAML preview
 - [ ] Disable proxy:
   - [ ] Uncheck "Use HTTP Proxy"

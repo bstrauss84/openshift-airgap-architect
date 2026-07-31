@@ -266,11 +266,17 @@ Fields whose visibility depends on the selected OpenShift minor version. These f
 
 ### Catalog-driven visibility
 
-Each scenario has per-version catalogs at `frontend/src/data/catalogs/<version>/<scenario>.json`. A field is visible when its parameter appears in the catalog for the user's selected version with `"supported-ui": true`. Use `getCatalogForScenario(scenarioId, version)` from `frontend/src/catalogPaths.js` to load the parameter array.
+Each scenario has per-version catalogs at `frontend/src/data/catalogs/<version>/<scenario>.json`. A field is visible when its parameter appears in the catalog for the user's selected version with `supportStatus: "supported-ui"`. Catalog entries also carry `minVersion` and `maxVersion` for version-range gating. Use `getCatalogForScenario(scenarioId, version)` from `frontend/src/catalogPaths.js` to load the parameter array.
 
-### Canonical version authority
+### Version authority
 
-`SUPPORTED_MINORS` from `frontend/src/shared/versionPolicy.js` is the single source of truth for which minor versions the frontend supports. Currently `["4.20", "4.21"]`. All version parsing and comparison must use `shared/versionUtils.js`, `shared/catalogVersion.js`, or `shared/versionHelpers.js` — no ad hoc parsers.
+Two distinct concepts govern version-aware fields:
+
+**Product support policy:** `SUPPORTED_MINORS` from `frontend/src/shared/versionPolicy.js` defines which OpenShift minors the application currently supports (currently `["4.20", "4.21"]`). This is not the user's selected version — it is the set of versions the tool can serve.
+
+**Canonical selected-version state:** `state.version.selectedMinor`, `state.version.selectedPatch`, and `state.version.locked` are the authoritative representation of the user's chosen version. `state.release` is backward-compatibility only and is never authoritative over the complete `state.version` object. Stale `selectedMinor` was the root cause of the visibility defect repaired in `310c0c8`.
+
+All version parsing and comparison must use `shared/versionUtils.js`, `shared/catalogVersion.js`, or `shared/versionHelpers.js` — no ad hoc parsers.
 
 ### Version helper text rules
 
@@ -280,20 +286,23 @@ When a field appears only in newer versions, display a helper note indicating th
 
 Every version-gated UI field must have an entry in `VERSION_GATED_UI_FIELD_REGISTRY` (in `frontend/tests/version-gated-field-boundary.test.jsx`) with:
 
-- `fieldLabel` — exact label text used by the field
-- `introductionMinor` — the minor version that introduced this field
-- `scenarioId` — the scenario this field belongs to
-- `expectedTag` — the HTML element tag (`"select"`, `"input"`, etc.)
-- `supportContentQuery` (optional) — regex to match expected support content
+- `scenario` — catalog scenario ID (e.g., `"aws-govcloud-ipi"`)
+- `path` — catalog parameter path (e.g., `"controlPlane.platform.aws.rootVolume.throughput"`)
+- `platform` — display platform name (e.g., `"AWS GovCloud"`)
+- `method` — install method (e.g., `"IPI"`)
+- `introductionMinor` — the minor version that introduced this field (e.g., `"4.21"`)
+- `controlQuery` — regex matching the field's label text
+- `owningStep` — the step component that renders this field
+- `supportContentQuery` (optional) — regex matching expected support content
 
 Bidirectional catalog cross-checks enforce:
 
-1. Every `supported-ui` catalog entry with `minVersion` above baseline has a registry entry.
-2. Every registry entry has a matching `supported-ui` catalog parameter.
+1. Every catalog entry with `supportStatus: "supported-ui"` and `minVersion` above the baseline supported minor has a registry entry.
+2. Every registry entry has a matching catalog parameter with `supportStatus: "supported-ui"`.
 
 ### State retention
 
-When the user switches from a version that shows a field to one that does not, the field value is retained in state but the control is hidden. Switching back restores the control with the previous value. Fields are never cleared on version change.
+When a field becomes inapplicable because of a version or scenario change, preserve its state unless that field's established state-transition contract explicitly requires clearing. Hidden retained state must never leak into inapplicable generated output. Returning to an applicable state restores the retained value when retention is the defined behavior. For the currently implemented AWS throughput and Azure shared-key fields, retention is expected.
 
 ### Field layout contract
 

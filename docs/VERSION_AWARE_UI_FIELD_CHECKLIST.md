@@ -16,13 +16,15 @@ Complete every category before opening a PR.
 ## 2. Catalog entry
 
 - [ ] Add the parameter to `data/params/<version>/<scenario>.json` with correct metadata.
-- [ ] Add a matching entry to `frontend/src/data/catalogs/<version>/<scenario>.json` with `"supported-ui": true` and `"minVersion"` set to the introducing minor.
+- [ ] Add a matching entry to `frontend/src/data/catalogs/<version>/<scenario>.json` with `supportStatus: "supported-ui"` and `minVersion` set to the introducing minor.
 - [ ] Confirm the parameter does NOT appear in catalogs for earlier versions where it is unsupported.
 
 ## 3. State management
 
 - [ ] Add the field's state key to `platformConfig` (or the appropriate state slice).
-- [ ] Confirm the value is retained when switching away from the introducing version and restored when switching back.
+- [ ] Confirm the value is preserved when switching away from the introducing version unless the field's state-transition contract explicitly requires clearing.
+- [ ] Confirm hidden retained state does not leak into inapplicable generated output.
+- [ ] Confirm returning to an applicable version restores the retained value when retention is the defined behavior.
 - [ ] Confirm the value is included in export/import round-trips.
 
 ## 4. UI placement
@@ -33,7 +35,7 @@ Complete every category before opening a PR.
 
 ## 5. Version gating
 
-- [ ] Gate visibility using the catalog: render only when `getCatalogForScenario(scenarioId, version)` includes the parameter with `"supported-ui": true`.
+- [ ] Gate visibility using the catalog: render only when `getCatalogForScenario(scenarioId, version)` includes the parameter with `supportStatus: "supported-ui"`.
 - [ ] Use `SUPPORTED_MINORS` from `frontend/src/shared/versionPolicy.js` — no ad hoc version parsing.
 - [ ] Confirm the field is hidden for versions that predate the parameter.
 
@@ -64,7 +66,7 @@ Complete every category before opening a PR.
 
 ## 10. Automated tests
 
-- [ ] Add an entry to `VERSION_GATED_UI_FIELD_REGISTRY` in `frontend/tests/version-gated-field-boundary.test.jsx` with `fieldLabel`, `introductionMinor`, `scenarioId`, `expectedTag`, and optional `supportContentQuery`.
+- [ ] Add an entry to `VERSION_GATED_UI_FIELD_REGISTRY` in `frontend/tests/version-gated-field-boundary.test.jsx` with `scenario`, `path`, `platform`, `method`, `introductionMinor`, `controlQuery`, `owningStep`, and optional `supportContentQuery`.
 - [ ] Confirm the bidirectional catalog cross-check passes (registry matches catalog, catalog matches registry).
 - [ ] Add visibility toggle test: field visible at `introductionMinor`, hidden at the previous minor.
 - [ ] Run the full frontend test suite and confirm zero failures.
