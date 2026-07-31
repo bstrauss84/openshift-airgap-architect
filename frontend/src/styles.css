@@ -4542,7 +4542,24 @@ body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summa
   }
 
   .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) > .field-control-stack {
+    display: grid;
     grid-row: span 2;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    position: relative;
+  }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) > .field-control-stack > .field-with-info-row {
+    display: contents;
+  }
+
+  .platform-specifics .field-grid:not(.field-grid-single):not(.field-grid--no-paired-layout) > .field-control-stack > .field-control-support {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    z-index: 1;
   }
 }
 
@@ -4568,16 +4585,21 @@ body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summa
   width: 100%;
 }
 
-.platform-specifics .field-control-stack > .field-helper {
+.platform-specifics .field-control-stack .field-helper {
   font-size: 0.8em;
   color: var(--text-secondary, #666);
   margin-top: 2px;
 }
 
-.platform-specifics .field-control-stack > .field-error {
+.platform-specifics .field-control-stack .field-error {
   color: var(--error-color, #d32f2f);
   font-size: 0.85em;
   margin-top: 4px;
+}
+
+.platform-specifics .field-control-support {
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 640px) {

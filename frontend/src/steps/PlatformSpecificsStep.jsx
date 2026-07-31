@@ -1013,13 +1013,15 @@ Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid fo
                           placeholder="omit"
                         />
                       </FieldLabelWithInfo>
-                      {awsThroughputError && (
-                        <div id="aws-throughput-error" className="field-error" role="alert">
-                          {awsThroughputError}
+                      <div className="field-control-support">
+                        {awsThroughputError && (
+                          <div id="aws-throughput-error" className="field-error" role="alert">
+                            {awsThroughputError}
+                          </div>
+                        )}
+                        <div className="field-helper">
+                          125–2000 MiB/s, gp3 only
                         </div>
-                      )}
-                      <div className="field-helper">
-                        125–2000 MiB/s, gp3 only
                       </div>
                       </div>
                       )}
@@ -1547,9 +1549,11 @@ Disables shared-key access. The installation identity must have appropriate Azur
                   </select>
                 </FieldLabelWithInfo>
                 {platformConfig.azure?.allowSharedKeyAccess === false && (
-                  <p className="note warning" style={{ marginTop: 4 }}>
-                    Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.
-                  </p>
+                  <div className="field-control-support">
+                    <p className="note warning" style={{ marginTop: 4 }}>
+                      Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.
+                    </p>
+                  </div>
                 )}
                 </div>
                 )}

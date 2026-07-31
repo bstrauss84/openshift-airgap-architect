@@ -284,13 +284,15 @@ describe("Version-gated field boundary — stale-state validation", () => {
 describe("Version-gated field boundary — DOM layout regression", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-  it("throughput helper is inside field-control-stack, not a direct field-grid child", () => {
+  it("throughput helper is inside field-control-support inside field-control-stack", () => {
     const state = makeState("AWS GovCloud", "IPI", "4.21", "4.21.8");
     const { container } = renderPlatformStep(state);
     const helperEl = container.querySelector(".field-helper");
     expect(helperEl).not.toBeNull();
     expect(helperEl.textContent).toMatch(/125.*2000.*gp3/);
-    const stack = helperEl.closest(".field-control-stack");
+    const support = helperEl.closest(".field-control-support");
+    expect(support).not.toBeNull();
+    const stack = support.closest(".field-control-stack");
     expect(stack).not.toBeNull();
     const fieldGrid = container.querySelector(".field-grid");
     expect(fieldGrid).not.toBeNull();
@@ -322,13 +324,15 @@ describe("Version-gated field boundary — DOM layout regression", () => {
     expect(kmsFieldRow.closest(".field-control-stack")).toBeNull();
   });
 
-  it("Azure RBAC warning is inside field-control-stack when false selected", () => {
+  it("Azure RBAC warning is inside field-control-support inside field-control-stack when false selected", () => {
     const state = makeState("Azure Government", "IPI", "4.21", "4.21.8");
     state.platformConfig.azure.allowSharedKeyAccess = false;
     const { container } = renderPlatformStep(state);
     const warning = screen.queryByText(/Storage Blob Data Contributor/i);
     expect(warning).not.toBeNull();
-    const stack = warning.closest(".field-control-stack");
+    const support = warning.closest(".field-control-support");
+    expect(support).not.toBeNull();
+    const stack = support.closest(".field-control-stack");
     expect(stack).not.toBeNull();
     const fieldGrid = container.querySelector(".field-grid");
     expect(warning.parentElement).not.toBe(fieldGrid);
@@ -351,5 +355,53 @@ describe("Version-gated field boundary — DOM layout regression", () => {
     const select = stack.querySelector("select");
     expect(select).not.toBeNull();
     expect(select.options.length).toBe(3);
+  });
+
+  it("Azure RBAC warning field-control-support is a direct child of field-control-stack, not field-grid", () => {
+    const state = makeState("Azure Government", "IPI", "4.21", "4.21.8");
+    state.platformConfig.azure.allowSharedKeyAccess = false;
+    const { container } = renderPlatformStep(state);
+    const support = container.querySelector(".field-control-support");
+    expect(support).not.toBeNull();
+    expect(support.parentElement.classList.contains("field-control-stack")).toBe(true);
+    expect(support.parentElement.classList.contains("field-grid")).toBe(false);
+  });
+
+  it("throughput field-control-support is a direct child of field-control-stack, not field-grid", () => {
+    const state = makeState("AWS GovCloud", "IPI", "4.21", "4.21.8");
+    const { container } = renderPlatformStep(state);
+    const support = container.querySelector(".field-control-support");
+    expect(support).not.toBeNull();
+    expect(support.parentElement.classList.contains("field-control-stack")).toBe(true);
+    expect(support.parentElement.classList.contains("field-grid")).toBe(false);
+  });
+
+  it("Azure neighboring fields (Publish, Credentials mode) are independent grid items", () => {
+    const state = makeState("Azure Government", "IPI", "4.21", "4.21.8");
+    state.platformConfig.azure.allowSharedKeyAccess = false;
+    const { container } = renderPlatformStep(state);
+    const publishLabel = screen.queryByText(/^Publish/);
+    expect(publishLabel).not.toBeNull();
+    const publishField = publishLabel.closest(".field-with-info-row");
+    expect(publishField).not.toBeNull();
+    expect(publishField.closest(".field-control-stack")).toBeNull();
+    const credLabel = screen.queryByText(/Credentials mode/);
+    expect(credLabel).not.toBeNull();
+    const credField = credLabel.closest(".field-with-info-row");
+    expect(credField).not.toBeNull();
+    expect(credField.closest(".field-control-stack")).toBeNull();
+  });
+
+  it("throughput field-with-info-row is inside field-control-stack and has label + input", () => {
+    const state = makeState("AWS GovCloud", "IPI", "4.21", "4.21.8");
+    const { container } = renderPlatformStep(state);
+    const throughputLabel = screen.queryByText(/Root volume throughput/);
+    expect(throughputLabel).not.toBeNull();
+    const fieldWithInfo = throughputLabel.closest(".field-with-info-row");
+    expect(fieldWithInfo).not.toBeNull();
+    const stack = fieldWithInfo.closest(".field-control-stack");
+    expect(stack).not.toBeNull();
+    expect(fieldWithInfo.querySelector("input[type='number']")).not.toBeNull();
+    expect(fieldWithInfo.querySelector(".field-title-line")).not.toBeNull();
   });
 });
