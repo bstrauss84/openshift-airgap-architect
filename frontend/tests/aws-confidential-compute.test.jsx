@@ -382,19 +382,19 @@ describe('AWS confidential compute — rendered component', () => {
     renderWithState(awsIpiState('4.21', {
       aws: { region: 'us-gov-west-1', cpuOptions: { confidentialCompute: 'AMDEncryptedVirtualizationNestedPaging' } }
     }));
-    expect(screen.getByText(/AMD SEV-SNP requires a compatible instance type/)).toBeInTheDocument();
+    expect(screen.getByText(/AMD SEV-SNP requires a compatible AWS instance type/)).toBeInTheDocument();
   });
 
   it('selecting Disabled does not show helper text', () => {
     renderWithState(awsIpiState('4.21', {
       aws: { region: 'us-gov-west-1', cpuOptions: { confidentialCompute: 'Disabled' } }
     }));
-    expect(screen.queryByText(/AMD SEV-SNP requires a compatible instance type/)).toBeNull();
+    expect(screen.queryByText(/AMD SEV-SNP requires a compatible AWS instance type/)).toBeNull();
   });
 
   it('selecting installer default does not show helper text', () => {
     renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
-    expect(screen.queryByText(/AMD SEV-SNP requires a compatible instance type/)).toBeNull();
+    expect(screen.queryByText(/AMD SEV-SNP requires a compatible AWS instance type/)).toBeNull();
   });
 
   it('retained value renders correctly', () => {
@@ -412,5 +412,100 @@ describe('AWS confidential compute — rendered component', () => {
     const select = findCCSelect();
     fireEvent.change(select, { target: { value: '' } });
     expect(updateState).toHaveBeenCalled();
+  });
+
+  it('select AMD SEV-SNP then Use installer default clears cpuOptions from state patch', () => {
+    const { updateState } = renderWithState(awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } }));
+    const select = findCCSelect();
+
+    fireEvent.change(select, { target: { value: 'AMDEncryptedVirtualizationNestedPaging' } });
+    const setPatch = updateState.mock.calls[updateState.mock.calls.length - 1][0];
+    expect(setPatch.platformConfig.aws.cpuOptions.confidentialCompute).toBe('AMDEncryptedVirtualizationNestedPaging');
+
+    fireEvent.change(select, { target: { value: '' } });
+    const clearPatch = updateState.mock.calls[updateState.mock.calls.length - 1][0];
+    expect(clearPatch.platformConfig.aws.cpuOptions).toBeUndefined();
+  });
+});
+
+// ===================================================================
+// Transition coverage tests (platform, method)
+// ===================================================================
+
+describe('AWS confidential compute — transition coverage', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  function findCCSelect() {
+    return screen.queryByLabelText('Confidential compute policy');
+  }
+
+  it('AWS GovCloud IPI → non-AWS → AWS GovCloud IPI: field hidden then reappears with retained value', () => {
+    const awsState = awsIpiState('4.21', {
+      aws: { region: 'us-gov-west-1', cpuOptions: { confidentialCompute: 'AMDEncryptedVirtualizationNestedPaging' } }
+    });
+    renderWithState(awsState);
+    expect(findCCSelect()).not.toBeNull();
+    expect(findCCSelect().value).toBe('AMDEncryptedVirtualizationNestedPaging');
+    cleanup();
+
+    const bareMetalState = {
+      ...awsState,
+      blueprint: { ...awsState.blueprint, platform: 'Bare Metal' },
+      methodology: { method: 'Agent-Based Installer' },
+    };
+    renderWithState(bareMetalState);
+    expect(findCCSelect()).toBeNull();
+    cleanup();
+
+    renderWithState(awsState);
+    expect(findCCSelect()).not.toBeNull();
+    expect(findCCSelect().value).toBe('AMDEncryptedVirtualizationNestedPaging');
+  });
+
+  it('IPI → UPI → IPI: field hidden then reappears with retained value', () => {
+    const ipiState = awsIpiState('4.21', {
+      aws: { region: 'us-gov-west-1', cpuOptions: { confidentialCompute: 'Disabled' } }
+    });
+    renderWithState(ipiState);
+    expect(findCCSelect()).not.toBeNull();
+    expect(findCCSelect().value).toBe('Disabled');
+    cleanup();
+
+    const upiState = {
+      ...ipiState,
+      methodology: { method: 'UPI' },
+    };
+    renderWithState(upiState);
+    expect(findCCSelect()).toBeNull();
+    cleanup();
+
+    renderWithState(ipiState);
+    expect(findCCSelect()).not.toBeNull();
+    expect(findCCSelect().value).toBe('Disabled');
+  });
+
+  it('4.21 → 4.20 → 4.21: field hidden then reappears with retained value', () => {
+    const state421 = awsIpiState('4.21', {
+      aws: { region: 'us-gov-west-1', cpuOptions: { confidentialCompute: 'AMDEncryptedVirtualizationNestedPaging' } }
+    });
+    renderWithState(state421);
+    expect(findCCSelect()).not.toBeNull();
+    expect(findCCSelect().value).toBe('AMDEncryptedVirtualizationNestedPaging');
+    cleanup();
+
+    const state420 = {
+      ...state421,
+      version: { ...state421.version, selectedMinor: '4.20', selectedPatch: '4.20.8' },
+      release: { ...state421.release, channel: '4.20', patchVersion: '4.20.8' },
+    };
+    renderWithState(state420);
+    expect(findCCSelect()).toBeNull();
+    cleanup();
+
+    renderWithState(state421);
+    expect(findCCSelect()).not.toBeNull();
+    expect(findCCSelect().value).toBe('AMDEncryptedVirtualizationNestedPaging');
   });
 });

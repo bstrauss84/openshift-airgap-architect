@@ -256,6 +256,46 @@ describe("Version-gated field boundary — Blueprint-driven transitions", () => 
     expect(findControlByQuery(/Azure Storage shared-key/)).not.toBeNull();
   });
 
+  it("Confidential compute: 4.21 visible → 4.20 hidden → 4.21 visible (through real Blueprint)", async () => {
+    mockApis();
+    const initial = makeState("AWS GovCloud", "IPI", "4.21", "4.21.8");
+    initial.platformConfig.aws = { ...initial.platformConfig.aws, cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } };
+    const { getState, unmount } = renderBlueprintWithProductionMerge(initial);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("option", { name: /stable-4\.20/ }).length).toBeGreaterThan(0);
+    });
+
+    const channelSelect = screen.getAllByRole("combobox")[0];
+    await act(async () => {
+      fireEvent.change(channelSelect, { target: { value: "4.20" } });
+    });
+    await waitFor(() => expect(getState().version.selectedMinor).toBe("4.20"));
+    expect(getState().platformConfig.aws.cpuOptions.confidentialCompute).toBe("AMDEncryptedVirtualizationNestedPaging");
+    unmount();
+
+    const stateAt420 = getState();
+    renderPlatformStep(stateAt420);
+    expect(findControlByQuery(/Confidential compute/)).toBeNull();
+    cleanup();
+
+    const { getState: getState2, unmount: unmount2 } = renderBlueprintWithProductionMerge(stateAt420);
+    await waitFor(() => {
+      expect(screen.getAllByRole("option", { name: /stable-4\.21/ }).length).toBeGreaterThan(0);
+    });
+    const channelSelect2 = screen.getAllByRole("combobox")[0];
+    await act(async () => {
+      fireEvent.change(channelSelect2, { target: { value: "4.21" } });
+    });
+    await waitFor(() => expect(getState2().version.selectedMinor).toBe("4.21"));
+    unmount2();
+
+    renderPlatformStep(getState2());
+    expect(findControlByQuery(/Confidential compute/)).not.toBeNull();
+    const ccSelect = findControlByQuery(/Confidential compute/);
+    expect(ccSelect.value).toBe("AMDEncryptedVirtualizationNestedPaging");
+  });
+
   it("Azure shared-key UPI: 4.21 visible → 4.20 hidden", async () => {
     mockApis();
     const initial = makeState("Azure Government", "UPI", "4.21", "4.21.8");

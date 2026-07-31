@@ -899,7 +899,7 @@ subnet-0def456abc789 (us-east-1b)`}
 **AMD SEV-SNP:** Requests AMD Secure Encrypted Virtualization — Secure Nested Paging for control plane instances. Encrypts VM memory in hardware, isolating it from the hypervisor and other VMs.
 
 **Compatibility requirements:**
-A compatible AWS instance type (e.g., m6a, c6a, r6a families), region, and machine image may be required when AMD SEV-SNP is selected. The openshift-install binary performs authoritative environment-specific validation at install time.
+AMD SEV-SNP requires a compatible AWS instance type, region, and AMI. This application does not verify that AWS compatibility offline. Incompatible infrastructure can cause provisioning failure.
 
 Emitted to \`controlPlane.platform.aws.cpuOptions.confidentialCompute\` in install-config.yaml.`}
                       >
@@ -923,7 +923,7 @@ Emitted to \`controlPlane.platform.aws.cpuOptions.confidentialCompute\` in insta
                       <div className="field-control-support">
                         {platformConfig.aws?.cpuOptions?.confidentialCompute === "AMDEncryptedVirtualizationNestedPaging" && (
                           <div className="field-helper">
-                            AMD SEV-SNP requires a compatible instance type, region, and AMI. The installer validates compatibility at install time.
+                            AMD SEV-SNP requires a compatible AWS instance type, region, and AMI. This application does not verify that AWS compatibility offline.
                           </div>
                         )}
                       </div>

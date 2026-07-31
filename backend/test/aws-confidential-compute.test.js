@@ -8,6 +8,7 @@ import { buildInstallConfig, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_
 import { awsGovcloudIpi } from "./fixtures/base-states.js";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { migrateStateToV3 } from "../../shared/stateMigration.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -415,5 +416,116 @@ describe("AWS confidential compute — API rejection", () => {
     } finally {
       await closeTestServer(server);
     }
+  });
+});
+
+// ===================================================================
+// Import migration boundary tests
+// ===================================================================
+
+describe("AWS confidential compute — import migration boundary", () => {
+  it("Disabled survives v3 import migration", () => {
+    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
+    state.version._schemaVersion = 3;
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error, null);
+    assert.strictEqual(result.migrated.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+  });
+
+  it("AMDEncryptedVirtualizationNestedPaging survives v3 import migration", () => {
+    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+    state.version._schemaVersion = 3;
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error, null);
+    assert.strictEqual(result.migrated.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+  });
+
+  it("undefined cpuOptions remains omitted after import migration", () => {
+    const state = makeAws421Ipi();
+    state.version._schemaVersion = 3;
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error, null);
+    assert.strictEqual(result.migrated.platformConfig.aws?.cpuOptions, undefined);
+  });
+
+  it("v1 state with cpuOptions survives migration to v3", () => {
+    const state = {
+      release: { channel: "4.21", patchVersion: "4.21.3", confirmed: true },
+      blueprint: { platform: "AWS GovCloud", baseDomain: "aws.example.com", clusterName: "test" },
+      methodology: { method: "IPI" },
+      platformConfig: { region: "us-gov-west-1", aws: { cpuOptions: { confidentialCompute: "Disabled" } } },
+      credentials: { awsAccessKeyId: "AKIAIOSFODNN7EXAMPLE", awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" },
+    };
+    const result = migrateStateToV3(state);
+    assert.strictEqual(result.error, null);
+    assert.strictEqual(result.migrated.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+  });
+});
+
+// ===================================================================
+// Hidden-state suppression and restoration round-trip
+// ===================================================================
+
+describe("AWS confidential compute — suppression and restoration", () => {
+  it("retained SEV-SNP suppressed for 4.20, emits again on return to 4.21 IPI", () => {
+    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+
+    state.version.selectedMinor = "4.20";
+    state.version.selectedPatch = "4.20.8";
+    state.release.channel = "4.20";
+    state.release.patchVersion = "4.20.8";
+    const result420 = buildInstallConfig(state);
+    const ic420 = parseInstallConfig(result420);
+    assert.strictEqual(ic420.controlPlane?.platform?.aws?.cpuOptions, undefined);
+
+    state.version.selectedMinor = "4.21";
+    state.version.selectedPatch = "4.21.3";
+    state.release.channel = "4.21";
+    state.release.patchVersion = "4.21.3";
+    const result421 = buildInstallConfig(state);
+    const ic421 = parseInstallConfig(result421);
+    assert.strictEqual(ic421.controlPlane.platform.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+  });
+
+  it("retained SEV-SNP suppressed for UPI, emits again on return to IPI", () => {
+    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+
+    state.methodology.method = "UPI";
+    const resultUpi = buildInstallConfig(state);
+    const icUpi = parseInstallConfig(resultUpi);
+    assert.strictEqual(icUpi.controlPlane?.platform?.aws?.cpuOptions, undefined);
+
+    state.methodology.method = "IPI";
+    const resultIpi = buildInstallConfig(state);
+    const icIpi = parseInstallConfig(resultIpi);
+    assert.strictEqual(icIpi.controlPlane.platform.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+  });
+
+  it("retained SEV-SNP suppressed for non-AWS, emits again on return to AWS GovCloud IPI", () => {
+    const awsState = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+
+    const bareMetalState = {
+      ...awsState,
+      blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
+      methodology: { method: "Agent-Based Installer" },
+      hostInventory: {
+        nodes: [
+          { role: "master", hostname: "m0", primary: { type: "ethernet", name: "eno1", macAddress: "52:54:00:aa:bb:01" } },
+          { role: "master", hostname: "m1", primary: { type: "ethernet", name: "eno1", macAddress: "52:54:00:aa:bb:02" } },
+          { role: "master", hostname: "m2", primary: { type: "ethernet", name: "eno1", macAddress: "52:54:00:aa:bb:03" } },
+        ],
+        apiVip: "10.90.0.2",
+        ingressVip: "10.90.0.3",
+        machineNetworkCidr: "10.90.0.0/24",
+        ipStackMode: "ipv4",
+      },
+    };
+    const resultBm = buildInstallConfig(bareMetalState);
+    const icBm = parseInstallConfig(resultBm);
+    assert.strictEqual(icBm.controlPlane?.platform?.aws, undefined);
+
+    const resultAws = buildInstallConfig(awsState);
+    const icAws = parseInstallConfig(resultAws);
+    assert.strictEqual(icAws.controlPlane.platform.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
   });
 });
