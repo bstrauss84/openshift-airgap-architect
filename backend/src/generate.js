@@ -2044,6 +2044,9 @@ const buildDisconnectedPlatform = () => {
             name: "rhtas-trusted-root",
           },
         },
+        acm: {
+          enabled: true,
+        },
       },
       architect: {
         enabled: true,

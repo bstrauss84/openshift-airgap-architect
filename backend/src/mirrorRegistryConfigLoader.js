@@ -47,6 +47,7 @@ import { loadMirrorSources } from './idmsParser.js';
  *   "caCertPath": "/path/to/ca.pem",
  *   "idmsPath": "/path/to/idms-oc-mirror.yaml",
  *   "itmsPath": "/path/to/itms-oc-mirror.yaml",
+ *   "catalogSourcePaths": ["/path/to/extra-catalogsource.yaml"],
  *   "sslType": "self-signed",
  *   "installedAt": "2026-07-08T15:58:54Z",
  *   "dataPath": "/opt/quay",
