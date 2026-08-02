@@ -38,6 +38,7 @@ const MIRROR_OPERATOR_DEPENDENT_OPERATORS = [
   { name: "rhtas-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
   { name: "rhtpa-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
   { name: "advanced-cluster-management", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "multicluster-engine", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
 ];
 
 const normalizePullSecretString = (input) => {
