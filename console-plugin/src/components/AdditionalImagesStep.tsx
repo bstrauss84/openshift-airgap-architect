@@ -4,8 +4,65 @@
  * Allows users to specify additional container images to mirror.
  */
 import * as React from 'react';
-import { Form, FormGroup, TextArea, Content } from '@patternfly/react-core';
+import { Form, FormGroup, TextArea, Content, Switch } from '@patternfly/react-core';
 import { useApp } from '../AppProvider';
+
+const AUTOSHIFT_IMAGES = [
+  'quay.io/autoshift/autoshift:latest',
+  'quay.io/autoshift/bootstrap/openshift-gitops:latest',
+  'quay.io/autoshift/bootstrap/advanced-cluster-management:latest',
+  'quay.io/autoshift/policies/advanced-cluster-management:latest',
+  'quay.io/autoshift/policies/advanced-cluster-security:latest',
+  'quay.io/autoshift/policies/ansible-automation-platform:latest',
+  'quay.io/autoshift/policies/cert-manager:latest',
+  'quay.io/autoshift/policies/cloudnative-pg:latest',
+  'quay.io/autoshift/policies/cluster-config-maps:latest',
+  'quay.io/autoshift/policies/cluster-install:latest',
+  'quay.io/autoshift/policies/cluster-labels:latest',
+  'quay.io/autoshift/policies/cluster-observability:latest',
+  'quay.io/autoshift/policies/dev-spaces:latest',
+  'quay.io/autoshift/policies/developer-hub:latest',
+  'quay.io/autoshift/policies/disconnected-mirror:latest',
+  'quay.io/autoshift/policies/external-secrets-operator:latest',
+  'quay.io/autoshift/policies/gitlab:latest',
+  'quay.io/autoshift/policies/gitlab-runner:latest',
+  'quay.io/autoshift/policies/gitops-dev:latest',
+  'quay.io/autoshift/policies/infra-nodes:latest',
+  'quay.io/autoshift/policies/jfrog:latest',
+  'quay.io/autoshift/policies/kiali:latest',
+  'quay.io/autoshift/policies/local-storage:latest',
+  'quay.io/autoshift/policies/logging:latest',
+  'quay.io/autoshift/policies/loki:latest',
+  'quay.io/autoshift/policies/lvm:latest',
+  'quay.io/autoshift/policies/machine-health-checks:latest',
+  'quay.io/autoshift/policies/manual-remediations:latest',
+  'quay.io/autoshift/policies/master-nodes:latest',
+  'quay.io/autoshift/policies/metallb:latest',
+  'quay.io/autoshift/policies/mtv:latest',
+  'quay.io/autoshift/policies/nmstate:latest',
+  'quay.io/autoshift/policies/node-feature-discovery:latest',
+  'quay.io/autoshift/policies/node-maintenance:latest',
+  'quay.io/autoshift/policies/openshift-compliance-operator:latest',
+  'quay.io/autoshift/policies/openshift-data-foundation:latest',
+  'quay.io/autoshift/policies/openshift-dns:latest',
+  'quay.io/autoshift/policies/openshift-gitops:latest',
+  'quay.io/autoshift/policies/openshift-image-registry:latest',
+  'quay.io/autoshift/policies/openshift-pipelines:latest',
+  'quay.io/autoshift/policies/openshift-virtualization:latest',
+  'quay.io/autoshift/policies/opentelemetry:latest',
+  'quay.io/autoshift/policies/policy-foundation:latest',
+  'quay.io/autoshift/policies/quay:latest',
+  'quay.io/autoshift/policies/servicemesh3-ambient:latest',
+  'quay.io/autoshift/policies/servicemesh3operator:latest',
+  'quay.io/autoshift/policies/storage-nodes:latest',
+  'quay.io/autoshift/policies/tempo:latest',
+  'quay.io/autoshift/policies/trident:latest',
+  'quay.io/autoshift/policies/trusted-artifact-signer:latest',
+  'quay.io/autoshift/policies/user-workload-monitoring:latest',
+  'quay.io/autoshift/policies/vault:latest',
+  'quay.io/autoshift/policies/worker-nodes:latest',
+  'quay.io/autoshift/policies/workload-partitioning:latest',
+];
 
 export const AdditionalImagesStep: React.FC = () => {
   const { state, updateState } = useApp();
@@ -14,24 +71,44 @@ export const AdditionalImagesStep: React.FC = () => {
   const [imagesText, setImagesText] = React.useState<string>(
     additionalImages.images?.join('\n') || ''
   );
+  const [includeAutoshift, setIncludeAutoshift] = React.useState<boolean>(
+    additionalImages.includeAutoshift || false
+  );
 
-  const handleImagesChange = (value: string) => {
-    setImagesText(value);
-
-    // Parse images (one per line, skip empty lines)
-    const images = value
+  const syncState = (text: string, autoshift: boolean) => {
+    const userImages = text
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0);
 
+    const allImages = autoshift
+      ? [...userImages, ...AUTOSHIFT_IMAGES.filter(img => !userImages.includes(img))]
+      : userImages;
+
     updateState({
       additionalImages: {
-        images
-      }
+        images: allImages,
+        includeAutoshift: autoshift,
+      },
+      imagesetConfig: {
+        ...state.imagesetConfig,
+        additionalImages: allImages.join('\n'),
+      },
     });
   };
 
-  const imageCount = imagesText.split('\n').filter(line => line.trim().length > 0).length;
+  const handleImagesChange = (value: string) => {
+    setImagesText(value);
+    syncState(value, includeAutoshift);
+  };
+
+  const handleAutoshiftToggle = (_event: React.FormEvent, checked: boolean) => {
+    setIncludeAutoshift(checked);
+    syncState(imagesText, checked);
+  };
+
+  const userImageCount = imagesText.split('\n').filter(line => line.trim().length > 0).length;
+  const totalImageCount = userImageCount + (includeAutoshift ? AUTOSHIFT_IMAGES.length : 0);
 
   return (
     <div>
@@ -44,6 +121,21 @@ export const AdditionalImagesStep: React.FC = () => {
       </Content>
 
       <Form>
+        <FormGroup fieldId="include-autoshift">
+          <Switch
+            id="include-autoshift"
+            label="Include AutoShift policy images"
+            labelOff="AutoShift policy images not included"
+            isChecked={includeAutoshift}
+            onChange={handleAutoshiftToggle}
+          />
+          {includeAutoshift && (
+            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6a6e73' }}>
+              {AUTOSHIFT_IMAGES.length} images from quay.io/autoshift will be included
+            </div>
+          )}
+        </FormGroup>
+
         <FormGroup
           label="Container Images"
           helperText="Format: registry.io/repository/image:tag (one per line)"
@@ -59,10 +151,13 @@ export const AdditionalImagesStep: React.FC = () => {
         </FormGroup>
       </Form>
 
-      {imageCount > 0 && (
+      {totalImageCount > 0 && (
         <div style={{ marginTop: '1rem', padding: '1rem', background: '#f0f0f0', borderRadius: '4px' }}>
           <p style={{ margin: 0 }}>
-            <strong>Images to mirror:</strong> {imageCount}
+            <strong>Images to mirror:</strong> {totalImageCount}
+            {includeAutoshift && userImageCount > 0 && (
+              <span> ({userImageCount} custom + {AUTOSHIFT_IMAGES.length} AutoShift)</span>
+            )}
           </p>
         </div>
       )}
