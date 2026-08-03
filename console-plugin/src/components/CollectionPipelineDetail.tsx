@@ -798,19 +798,11 @@ export const CollectionPipelineDetail: React.FC = () => {
                     </DescriptionListDescription>
                   </DescriptionListGroup>
                 )}
-                {pipeline.spec.pvcSize && (
+                {pipeline.spec.storageSize && (
                   <DescriptionListGroup>
-                    <DescriptionListTerm>PVC Size</DescriptionListTerm>
+                    <DescriptionListTerm>Storage Size</DescriptionListTerm>
                     <DescriptionListDescription>
-                      {pipeline.spec.pvcSize}
-                    </DescriptionListDescription>
-                  </DescriptionListGroup>
-                )}
-                {pipeline.spec.pvcStorageClass && (
-                  <DescriptionListGroup>
-                    <DescriptionListTerm>Storage Class</DescriptionListTerm>
-                    <DescriptionListDescription>
-                      {pipeline.spec.pvcStorageClass}
+                      {pipeline.spec.storageSize}
                     </DescriptionListDescription>
                   </DescriptionListGroup>
                 )}

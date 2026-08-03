@@ -17,8 +17,7 @@ export interface CollectionPipeline {
         pvc?: string;
       };
     };
-    pvcSize?: string;
-    pvcStorageClass?: string;
+    storageSize?: string;
   };
   status?: {
     phase: string;

@@ -115,8 +115,7 @@ export const CreateCollectionPipelineStep: React.FC = () => {
               pvc: `collection-${release.channel || '4.x'}-output`
             }
           },
-          pvcSize: pvcSize,
-          pvcStorageClass: 'gp3-csi',
+          storageSize: pvcSize,
           ...(parentPipeline ? { parentPipeline } : {})
         }
       };
