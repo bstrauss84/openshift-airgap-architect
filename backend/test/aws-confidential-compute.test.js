@@ -9,6 +9,7 @@ import { awsGovcloudIpi } from "./fixtures/base-states.js";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 import { migrateStateToV3 } from "../../shared/stateMigration.js";
+import { getState } from "../src/utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -527,5 +528,101 @@ describe("AWS confidential compute — suppression and restoration", () => {
     const resultAws = buildInstallConfig(awsState);
     const icAws = parseInstallConfig(resultAws);
     assert.strictEqual(icAws.controlPlane.platform.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+  });
+});
+
+// ===================================================================
+// Real HTTP /api/state persistence/hydration boundary
+// ===================================================================
+
+describe("AWS confidential compute — /api/state persistence", () => {
+  it("undefined cpuOptions remains omitted after persistence", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi();
+      await fetch(`${baseUrl}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+      const persisted = getState();
+      assert.strictEqual(persisted.platformConfig.aws?.cpuOptions, undefined);
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("Disabled persists and hydrates via POST/GET /api/state", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
+      await fetch(`${baseUrl}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+      const persisted = getState();
+      assert.strictEqual(persisted.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("AMDEncryptedVirtualizationNestedPaging persists and hydrates", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+      await fetch(`${baseUrl}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+      const persisted = getState();
+      assert.strictEqual(persisted.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+});
+
+// ===================================================================
+// Real export boundary: sanitization preserves cpuOptions
+// ===================================================================
+
+describe("AWS confidential compute — export boundary", () => {
+  function simulateExportEndpoint(state) {
+    const stateMigrationResult = migrateStateToV3(state);
+    if (stateMigrationResult.error) return { status: 400, body: { error: stateMigrationResult.error } };
+    const v3State = stateMigrationResult.migrated;
+    const sanitized = JSON.parse(JSON.stringify(v3State));
+    if (sanitized.blueprint) {
+      delete sanitized.blueprint.blueprintPullSecretEphemeral;
+      delete sanitized.blueprint.sshPrivateKeyEphemeral;
+    }
+    return { status: 200, body: { state: sanitized, migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2 } };
+  }
+
+  it("Disabled survives export sanitization", () => {
+    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
+    state.version._schemaVersion = 3;
+    const res = simulateExportEndpoint(state);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.state.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+  });
+
+  it("AMDEncryptedVirtualizationNestedPaging survives export sanitization", () => {
+    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+    state.version._schemaVersion = 3;
+    const res = simulateExportEndpoint(state);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.state.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+  });
+
+  it("undefined cpuOptions remains omitted in export", () => {
+    const state = makeAws421Ipi();
+    state.version._schemaVersion = 3;
+    const res = simulateExportEndpoint(state);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.state.platformConfig.aws?.cpuOptions, undefined);
   });
 });

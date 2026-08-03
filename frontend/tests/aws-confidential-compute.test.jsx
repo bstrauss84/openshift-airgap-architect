@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import fs from 'fs';
@@ -507,5 +507,58 @@ describe('AWS confidential compute — transition coverage', () => {
     renderWithState(state421);
     expect(findCCSelect()).not.toBeNull();
     expect(findCCSelect().value).toBe('AMDEncryptedVirtualizationNestedPaging');
+  });
+});
+
+// ===================================================================
+// Production state-merge: select → merged state → clear → merged state
+// ===================================================================
+
+describe('AWS confidential compute — production state merge', () => {
+  afterEach(() => { cleanup(); });
+
+  function renderWithProductionMerge(initialState) {
+    let latestState = initialState;
+    const Wrapper = () => {
+      const [state, setState] = useState(initialState);
+      const updateState = useCallback((patch) => {
+        setState((prev) => {
+          const next = {
+            ...prev,
+            ...patch,
+            version: patch.version
+              ? { ...prev.version, ...patch.version }
+              : prev.version,
+          };
+          latestState = next;
+          return next;
+        });
+      }, []);
+      return (
+        <AppContext.Provider value={{ state, updateState, loading: false, startOver: vi.fn(), setState }}>
+          <PlatformSpecificsStep />
+        </AppContext.Provider>
+      );
+    };
+    const result = render(<Wrapper />);
+    return { ...result, getState: () => latestState };
+  }
+
+  it('select SEV-SNP → merged state has value; select default → merged state cleared', () => {
+    const initial = awsIpiState('4.21', { aws: { region: 'us-gov-west-1' } });
+    const { getState } = renderWithProductionMerge(initial);
+
+    expect(getState().platformConfig.aws?.cpuOptions).toBeUndefined();
+
+    const select = screen.getByLabelText('Confidential compute policy');
+    fireEvent.change(select, { target: { value: 'AMDEncryptedVirtualizationNestedPaging' } });
+
+    expect(getState().platformConfig.aws.cpuOptions.confidentialCompute).toBe('AMDEncryptedVirtualizationNestedPaging');
+
+    fireEvent.change(select, { target: { value: '' } });
+
+    const cleared = getState().platformConfig.aws;
+    const ccValue = cleared.cpuOptions?.confidentialCompute;
+    expect(ccValue).toBeUndefined();
   });
 });
