@@ -8,8 +8,6 @@ import { buildInstallConfig, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_
 import { awsGovcloudIpi } from "./fixtures/base-states.js";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
-import { migrateStateToV3 } from "../../shared/stateMigration.js";
-import { getState } from "../src/utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -424,42 +422,82 @@ describe("AWS confidential compute — API rejection", () => {
 // Import migration boundary tests
 // ===================================================================
 
-describe("AWS confidential compute — import migration boundary", () => {
-  it("Disabled survives v3 import migration", () => {
-    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
-    state.version._schemaVersion = 3;
-    const result = migrateStateToV3(state);
-    assert.strictEqual(result.error, null);
-    assert.strictEqual(result.migrated.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+describe("AWS confidential compute — import boundary via POST /api/run/import", () => {
+  it("Disabled survives real import endpoint", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
+      state.version._schemaVersion = 3;
+      const res = await fetch(`${baseUrl}/api/run/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schemaVersion: 2, state }),
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.state.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+    } finally {
+      await closeTestServer(server);
+    }
   });
 
-  it("AMDEncryptedVirtualizationNestedPaging survives v3 import migration", () => {
-    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
-    state.version._schemaVersion = 3;
-    const result = migrateStateToV3(state);
-    assert.strictEqual(result.error, null);
-    assert.strictEqual(result.migrated.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+  it("AMDEncryptedVirtualizationNestedPaging survives real import endpoint", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+      state.version._schemaVersion = 3;
+      const res = await fetch(`${baseUrl}/api/run/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schemaVersion: 2, state }),
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.state.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+    } finally {
+      await closeTestServer(server);
+    }
   });
 
-  it("undefined cpuOptions remains omitted after import migration", () => {
-    const state = makeAws421Ipi();
-    state.version._schemaVersion = 3;
-    const result = migrateStateToV3(state);
-    assert.strictEqual(result.error, null);
-    assert.strictEqual(result.migrated.platformConfig.aws?.cpuOptions, undefined);
+  it("undefined cpuOptions remains omitted after real import", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi();
+      state.version._schemaVersion = 3;
+      const res = await fetch(`${baseUrl}/api/run/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schemaVersion: 2, state }),
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.state.platformConfig.aws?.cpuOptions, undefined);
+    } finally {
+      await closeTestServer(server);
+    }
   });
 
-  it("v1 state with cpuOptions survives migration to v3", () => {
-    const state = {
-      release: { channel: "4.21", patchVersion: "4.21.3", confirmed: true },
-      blueprint: { platform: "AWS GovCloud", baseDomain: "aws.example.com", clusterName: "test" },
-      methodology: { method: "IPI" },
-      platformConfig: { region: "us-gov-west-1", aws: { cpuOptions: { confidentialCompute: "Disabled" } } },
-      credentials: { awsAccessKeyId: "AKIAIOSFODNN7EXAMPLE", awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" },
-    };
-    const result = migrateStateToV3(state);
-    assert.strictEqual(result.error, null);
-    assert.strictEqual(result.migrated.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+  it("v1 state with cpuOptions survives real import migration to v3", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = {
+        release: { channel: "4.21", patchVersion: "4.21.3", confirmed: true },
+        blueprint: { platform: "AWS GovCloud", baseDomain: "aws.example.com", clusterName: "test" },
+        methodology: { method: "IPI" },
+        platformConfig: { region: "us-gov-west-1", aws: { cpuOptions: { confidentialCompute: "Disabled" } } },
+        credentials: { awsAccessKeyId: "AKIAIOSFODNN7EXAMPLE", awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" },
+      };
+      const res = await fetch(`${baseUrl}/api/run/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schemaVersion: 1, state }),
+      });
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.state.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+    } finally {
+      await closeTestServer(server);
+    }
   });
 });
 
@@ -536,49 +574,59 @@ describe("AWS confidential compute — suppression and restoration", () => {
 // ===================================================================
 
 describe("AWS confidential compute — /api/state persistence", () => {
-  it("undefined cpuOptions remains omitted after persistence", async () => {
+  it("undefined cpuOptions remains omitted via import-reset then GET /api/state", async () => {
     const { server, baseUrl } = await createTestServer(app);
     try {
       const state = makeAws421Ipi();
-      await fetch(`${baseUrl}/api/state`, {
+      state.version._schemaVersion = 3;
+      const importRes = await fetch(`${baseUrl}/api/run/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(state),
+        body: JSON.stringify({ schemaVersion: 2, state }),
       });
-      const persisted = getState();
-      assert.strictEqual(persisted.platformConfig.aws?.cpuOptions, undefined);
+      assert.strictEqual(importRes.status, 200);
+      const getRes = await fetch(`${baseUrl}/api/state`);
+      assert.strictEqual(getRes.status, 200);
+      const hydrated = await getRes.json();
+      assert.strictEqual(hydrated.platformConfig.aws?.cpuOptions, undefined);
     } finally {
       await closeTestServer(server);
     }
   });
 
-  it("Disabled persists and hydrates via POST/GET /api/state", async () => {
+  it("Disabled persists and hydrates via POST then GET /api/state", async () => {
     const { server, baseUrl } = await createTestServer(app);
     try {
       const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
-      await fetch(`${baseUrl}/api/state`, {
+      const postRes = await fetch(`${baseUrl}/api/state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(state),
       });
-      const persisted = getState();
-      assert.strictEqual(persisted.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+      assert.strictEqual(postRes.status, 200);
+      const getRes = await fetch(`${baseUrl}/api/state`);
+      assert.strictEqual(getRes.status, 200);
+      const hydrated = await getRes.json();
+      assert.strictEqual(hydrated.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
     } finally {
       await closeTestServer(server);
     }
   });
 
-  it("AMDEncryptedVirtualizationNestedPaging persists and hydrates", async () => {
+  it("AMDEncryptedVirtualizationNestedPaging persists and hydrates via POST then GET /api/state", async () => {
     const { server, baseUrl } = await createTestServer(app);
     try {
       const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
-      await fetch(`${baseUrl}/api/state`, {
+      const postRes = await fetch(`${baseUrl}/api/state`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(state),
       });
-      const persisted = getState();
-      assert.strictEqual(persisted.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+      assert.strictEqual(postRes.status, 200);
+      const getRes = await fetch(`${baseUrl}/api/state`);
+      assert.strictEqual(getRes.status, 200);
+      const hydrated = await getRes.json();
+      assert.strictEqual(hydrated.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
     } finally {
       await closeTestServer(server);
     }
@@ -589,40 +637,61 @@ describe("AWS confidential compute — /api/state persistence", () => {
 // Real export boundary: sanitization preserves cpuOptions
 // ===================================================================
 
-describe("AWS confidential compute — export boundary", () => {
-  function simulateExportEndpoint(state) {
-    const stateMigrationResult = migrateStateToV3(state);
-    if (stateMigrationResult.error) return { status: 400, body: { error: stateMigrationResult.error } };
-    const v3State = stateMigrationResult.migrated;
-    const sanitized = JSON.parse(JSON.stringify(v3State));
-    if (sanitized.blueprint) {
-      delete sanitized.blueprint.blueprintPullSecretEphemeral;
-      delete sanitized.blueprint.sshPrivateKeyEphemeral;
+describe("AWS confidential compute — export boundary via GET /api/run/export", () => {
+  it("Disabled survives real export endpoint", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
+      await fetch(`${baseUrl}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+      const exportRes = await fetch(`${baseUrl}/api/run/export`);
+      assert.strictEqual(exportRes.status, 200);
+      const exported = await exportRes.json();
+      assert.strictEqual(exported.state.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
+      assert.strictEqual(exported.state.credentials?.mirrorRegistryPullSecret, "");
+    } finally {
+      await closeTestServer(server);
     }
-    return { status: 200, body: { state: sanitized, migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2 } };
-  }
-
-  it("Disabled survives export sanitization", () => {
-    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "Disabled" } });
-    state.version._schemaVersion = 3;
-    const res = simulateExportEndpoint(state);
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.state.platformConfig.aws.cpuOptions.confidentialCompute, "Disabled");
   });
 
-  it("AMDEncryptedVirtualizationNestedPaging survives export sanitization", () => {
-    const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
-    state.version._schemaVersion = 3;
-    const res = simulateExportEndpoint(state);
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.state.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+  it("AMDEncryptedVirtualizationNestedPaging survives real export endpoint", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi({ cpuOptions: { confidentialCompute: "AMDEncryptedVirtualizationNestedPaging" } });
+      await fetch(`${baseUrl}/api/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+      const exportRes = await fetch(`${baseUrl}/api/run/export`);
+      assert.strictEqual(exportRes.status, 200);
+      const exported = await exportRes.json();
+      assert.strictEqual(exported.state.platformConfig.aws.cpuOptions.confidentialCompute, "AMDEncryptedVirtualizationNestedPaging");
+      assert.strictEqual(exported.state.credentials?.mirrorRegistryPullSecret, "");
+    } finally {
+      await closeTestServer(server);
+    }
   });
 
-  it("undefined cpuOptions remains omitted in export", () => {
-    const state = makeAws421Ipi();
-    state.version._schemaVersion = 3;
-    const res = simulateExportEndpoint(state);
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.state.platformConfig.aws?.cpuOptions, undefined);
+  it("undefined cpuOptions remains omitted in real export via import-reset", async () => {
+    const { server, baseUrl } = await createTestServer(app);
+    try {
+      const state = makeAws421Ipi();
+      state.version._schemaVersion = 3;
+      await fetch(`${baseUrl}/api/run/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schemaVersion: 2, state }),
+      });
+      const exportRes = await fetch(`${baseUrl}/api/run/export`);
+      assert.strictEqual(exportRes.status, 200);
+      const exported = await exportRes.json();
+      assert.strictEqual(exported.state.platformConfig.aws?.cpuOptions, undefined);
+    } finally {
+      await closeTestServer(server);
+    }
   });
 });
