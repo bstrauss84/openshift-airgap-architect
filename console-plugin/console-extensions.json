@@ -31,5 +31,20 @@
       "path": "/airgap-architect/collections/:name",
       "component": { "$codeRef": "pages.CollectionPipelineDetailPage" }
     }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/airgap-architect/imports/create",
+      "component": { "$codeRef": "pages.CreateImportPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "path": "/airgap-architect/imports/:name",
+      "component": { "$codeRef": "pages.MirrorImportDetailPage" }
+    }
   }
 ]

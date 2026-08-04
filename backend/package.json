@@ -21,6 +21,7 @@
     "@kubernetes/client-node": "^1.0.0",
     "archiver": "^8.0.0",
     "better-sqlite3": "^9.4.0",
+    "busboy": "^1.6.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "js-yaml": "^4.1.0",

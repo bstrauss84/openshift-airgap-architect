@@ -122,6 +122,15 @@ import { detectScenarioId } from "./catalogValidator.js";
 import { loadMirrorRegistryConfig } from "./mirrorRegistryConfigLoader.js";
 import { loadImageSetConfig } from "./imageSetConfigParser.js";
 import { extractCrdsFromCatalogImage } from "./crdExtractor.js";
+import Busboy from "busboy";
+import {
+  createPvc,
+  listPvcs,
+  createUploadPod,
+  waitForPodReady,
+  streamToUploadPod,
+  cleanupUploadPod,
+} from "./uploadPod.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -297,6 +306,15 @@ detectMountedPullSecret();
 function isOperatorManaged() {
   const managed = process.env.OPENSHIFT_OPERATOR_MANAGED;
   return managed === "true" || managed === "1";
+}
+
+function getDeploymentSide() {
+  const side = process.env.DEPLOYMENT_SIDE;
+  return side === "disconnected" ? "disconnected" : "connected";
+}
+
+function isDisconnected() {
+  return getDeploymentSide() === "disconnected";
 }
 
 function validateOperatorRequirements() {
@@ -1421,6 +1439,183 @@ app.get("/api/collections/:name/download-url", async (req, res) => {
     });
   }
 });
+
+// ─── Mirror Import Endpoints ────────────────────────────────────────────────
+
+app.get("/api/mirror-import/config", (_req, res) => {
+  res.json({
+    deploymentSide: getDeploymentSide(),
+    importPvcMountPath: process.env.IMPORT_PVC_MOUNT_PATH || "/import-data",
+    targetRegistryDefaults: {
+      url: process.env.TARGET_REGISTRY_URL || "",
+    },
+  });
+});
+
+app.get("/api/mirror-import/files", (_req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+
+  try {
+    if (!fs.existsSync(mountPath)) {
+      return res.json({ files: [] });
+    }
+
+    const entries = fs.readdirSync(mountPath).filter((f) => f.endsWith(".tar") || f.endsWith(".tar.gz"));
+    const files = entries.map((name) => {
+      const stat = fs.statSync(path.join(mountPath, name));
+      return {
+        name,
+        size: stat.size,
+        modified: stat.mtime.toISOString(),
+      };
+    });
+
+    res.json({ files });
+  } catch (error) {
+    logger.error({ error: error.message, mountPath }, "Failed to list import files");
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/mirror-import/pvcs", async (_req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+
+  try {
+    const pvcs = await listPvcs();
+    res.json({ pvcs });
+  } catch (error) {
+    logger.error({ error: error.message }, "Failed to list PVCs");
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/mirror-import/upload", (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const busboy = Busboy({ req, limits: { files: 1 } });
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+
+  let pvcName = null;
+  let pvcSize = null;
+  let isNewPvc = false;
+  let filename = "";
+  let fileStream = null;
+  let contentLength = 0;
+
+  const fields = {};
+
+  busboy.on("field", (fieldname, val) => {
+    fields[fieldname] = val;
+  });
+
+  busboy.on("file", (_fieldname, stream, info) => {
+    filename = info.filename || `import-${Date.now()}.tar`;
+    fileStream = stream;
+    contentLength = parseInt(req.headers["content-length"] || "0", 10);
+  });
+
+  busboy.on("finish", async () => {
+    pvcName = fields.pvcName || null;
+    pvcSize = fields.pvcSize || null;
+    isNewPvc = fields.isNewPvc === "true";
+
+    if (!fileStream) {
+      return res.status(400).json({ error: "No file provided" });
+    }
+
+    const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
+    updateJob(jobId, { status: "running", progress: 0 });
+
+    res.status(202).json({ jobId, filename });
+
+    try {
+      if (isNewPvc && pvcName && pvcSize) {
+        // Dynamic upload pod flow: create PVC → Pod → Service → stream → cleanup
+        appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
+        await createPvc({ name: pvcName, size: pvcSize });
+        updateJob(jobId, { progress: 10 });
+
+        appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
+        const { podName, serviceName, namespace } = await createUploadPod({ pvcName });
+        updateJob(jobId, { progress: 20 });
+
+        appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
+        await waitForPodReady({ podName, namespace });
+        updateJob(jobId, { progress: 30 });
+
+        appendJobOutput(jobId, `Streaming ${filename} to upload pod...\n`);
+        const result = await streamToUploadPod({
+          serviceName,
+          namespace,
+          filename,
+          fileStream,
+          contentLength,
+        });
+        updateJob(jobId, { progress: 90 });
+
+        appendJobOutput(jobId, "Cleaning up upload pod...\n");
+        await cleanupUploadPod({ podName, serviceName, namespace });
+
+        appendJobOutput(jobId, `Upload complete: ${result.written} bytes written\n`);
+        updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename} to PVC ${pvcName}` });
+        updateJobMetadata(jobId, { filename, pvcName, bytesWritten: result.written });
+      } else {
+        // Direct write to pre-mounted PVC
+        if (!fs.existsSync(mountPath)) {
+          fs.mkdirSync(mountPath, { recursive: true });
+        }
+
+        const destPath = path.join(mountPath, filename);
+        const writeStream = fs.createWriteStream(destPath);
+        let bytesWritten = 0;
+
+        fileStream.on("data", (chunk) => {
+          bytesWritten += chunk.length;
+          if (contentLength > 0) {
+            const progress = Math.min(95, Math.floor((bytesWritten / contentLength) * 100));
+            updateJob(jobId, { progress });
+          }
+        });
+
+        fileStream.pipe(writeStream);
+
+        writeStream.on("finish", () => {
+          updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename}` });
+          updateJobMetadata(jobId, { filename, bytesWritten });
+          appendJobOutput(jobId, `Upload complete: ${bytesWritten} bytes written to ${destPath}\n`);
+        });
+
+        writeStream.on("error", (err) => {
+          updateJob(jobId, { status: "failed", progress: 0, message: err.message });
+          appendJobOutput(jobId, `Upload failed: ${err.message}\n`);
+          safeUnlink(destPath);
+        });
+      }
+    } catch (error) {
+      logger.error({ error: error.message, filename, pvcName }, "Upload failed");
+      updateJob(jobId, { status: "failed", progress: 0, message: error.message });
+      appendJobOutput(jobId, `Upload failed: ${error.message}\n`);
+    }
+  });
+
+  req.pipe(busboy);
+});
+
+// ─── End Mirror Import Endpoints ────────────────────────────────────────────
 
 app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
   const cancelRunningOcMirror = req.body?.cancelRunningOcMirror !== false;

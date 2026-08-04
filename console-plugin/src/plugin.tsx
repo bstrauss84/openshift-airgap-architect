@@ -4,11 +4,17 @@ import type { EncodedCodeRefs } from '@openshift-console/dynamic-plugin-sdk';
 // Import pages
 import AirgapArchitectPage from './pages/AirgapArchitectPage';
 import CreateImageSetPage from './pages/CreateImageSetPage';
+import CollectionPipelineDetailPage from './pages/CollectionPipelineDetailPage';
+import CreateImportPage from './pages/CreateImportPage';
+import MirrorImportDetailPage from './pages/MirrorImportDetailPage';
 
 // Plugin code references
 export const pages = {
   AirgapArchitectPage,
-  CreateImageSetPage
+  CreateImageSetPage,
+  CollectionPipelineDetailPage,
+  CreateImportPage,
+  MirrorImportDetailPage,
 };
 
 // Plugin metadata
