@@ -321,9 +321,26 @@ function validateOperatorRequirements() {
   if (!isOperatorManaged()) return;
 
   if (!mountedRhPullSecret) {
-    console.error("[startup] FATAL: Running in operator-managed mode but pull secret not found.");
-    console.error("[startup] Expected pull secret at: /run/secrets/pull-secret");
-    console.error("[startup] Set PULL_SECRET_FILE to override location.");
+    const candidates = [
+      process.env.PULL_SECRET_FILE,
+      "/run/secrets/pull-secret",
+      path.join(dataDir, "pull-secret.json"),
+      path.join(process.env.HOME || "/root", ".openshift", "pull-secret"),
+    ].filter(Boolean);
+    console.error("[startup] FATAL: Running in operator-managed mode but no valid pull secret found.");
+    console.error("[startup] Checked paths: " + candidates.join(", "));
+    if (process.env.PULL_SECRET_FILE) {
+      console.error("[startup] PULL_SECRET_FILE is set to: " + process.env.PULL_SECRET_FILE);
+      try {
+        const raw = fs.readFileSync(process.env.PULL_SECRET_FILE, "utf8").trim();
+        const validation = validateRhPullSecret(raw);
+        if (!validation.valid) {
+          console.error("[startup] File exists but validation failed: " + validation.error);
+        }
+      } catch (err) {
+        console.error("[startup] File read error: " + err.message);
+      }
+    }
     process.exit(1);
   }
 
