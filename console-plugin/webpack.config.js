@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 const { ConsoleRemotePlugin } = require('@openshift-console/dynamic-plugin-sdk-webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
@@ -52,7 +53,10 @@ module.exports = {
     new ConsoleRemotePlugin(),
     new MiniCssExtractPlugin({
       ignoreOrder: true
-    })
+    }),
+    new webpack.DefinePlugin({
+      '__COMMIT_SHA__': JSON.stringify(process.env.COMMIT_SHA || 'dev'),
+    }),
   ],
   ignoreWarnings: [(warning) => !!warning?.file?.includes('shared module')],
   devServer: {

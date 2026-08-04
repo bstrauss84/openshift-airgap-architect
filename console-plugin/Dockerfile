@@ -15,6 +15,9 @@ RUN npm ci
 # Copy source files and build
 USER root
 COPY --chown=1001:0 . .
+ARG COMMIT_SHA=dev
+ENV COMMIT_SHA=${COMMIT_SHA}
+
 USER 1001
 RUN npm run build
 
@@ -92,8 +95,11 @@ http { \
     chown -R 1001:0 /tmp && \
     chmod -R g+rwX /tmp
 
+ARG COMMIT_SHA=dev
+ENV COMMIT_SHA=${COMMIT_SHA}
+
 USER 1001
 
 EXPOSE 9001
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD echo "[airgap-architect-plugin] commit: ${COMMIT_SHA}" && exec nginx -g "daemon off;"

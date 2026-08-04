@@ -4,8 +4,14 @@ import { CollectionPipelineList } from '../components/CollectionPipelineList';
 import { MirrorImportList } from '../components/MirrorImportList';
 import { useDeploymentConfig } from '../utils/use-deployment-config';
 
+declare const __COMMIT_SHA__: string;
+
 const AirgapArchitectPage: React.FC = () => {
-  const { config, loading } = useDeploymentConfig();
+  const { config, loading, error } = useDeploymentConfig();
+
+  React.useEffect(() => {
+    console.log(`[airgap-architect-plugin] commit: ${__COMMIT_SHA__}, config:`, config, error ? `error: ${error}` : '');
+  }, [config, error]);
 
   if (loading) {
     return (

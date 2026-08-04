@@ -126,6 +126,8 @@ jobs:
           context: ./console-plugin
           file: console-plugin/Dockerfile
           push: true
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
           tags: |
             quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin:latest
             quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin:${{ github.sha }}
