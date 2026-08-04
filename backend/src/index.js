@@ -254,26 +254,30 @@ const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "
  */
 function validateRhPullSecret(secret) {
   if (!secret || typeof secret !== "string" || secret.trim().length === 0) {
-    return { valid: false, error: "Red Hat pull secret is required to pull from registry.redhat.io / quay.io." };
+    return { valid: false, error: "Pull secret is required." };
   }
 
   let parsed;
   try {
     parsed = JSON.parse(secret);
   } catch (err) {
-    return { valid: false, error: "Red Hat pull secret must be valid JSON." };
+    return { valid: false, error: "Pull secret must be valid JSON." };
   }
 
   if (!parsed?.auths || typeof parsed.auths !== "object") {
-    return { valid: false, error: "Red Hat pull secret must contain an 'auths' object." };
+    return { valid: false, error: "Pull secret must contain an 'auths' object." };
   }
 
-  const hasRhRegistry = RH_REGISTRIES.some((r) => parsed.auths[r]);
-  if (!hasRhRegistry) {
-    return {
-      valid: false,
-      error: `Red Hat pull secret must include credentials for at least one Red Hat registry: ${RH_REGISTRIES.join(", ")}.`
-    };
+  // In disconnected mode the pull secret only has mirror registry credentials
+  const disconnected = (process.env.DEPLOYMENT_SIDE === "disconnected");
+  if (!disconnected) {
+    const hasRhRegistry = RH_REGISTRIES.some((r) => parsed.auths[r]);
+    if (!hasRhRegistry) {
+      return {
+        valid: false,
+        error: `Pull secret must include credentials for at least one Red Hat registry: ${RH_REGISTRIES.join(", ")}.`
+      };
+    }
   }
 
   return { valid: true };
