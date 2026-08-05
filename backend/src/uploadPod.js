@@ -48,9 +48,18 @@ export async function createPvc({ name, size, namespace, storageClassName }) {
     },
   };
 
-  const response = await client.createNamespacedPersistentVolumeClaim({ namespace: ns, body: pvc });
-  logger.info({ name, namespace: ns, size }, "Created PVC for import");
-  return response.body;
+  try {
+    const response = await client.createNamespacedPersistentVolumeClaim({ namespace: ns, body: pvc });
+    logger.info({ name, namespace: ns, size }, "Created PVC for import");
+    return response.body;
+  } catch (error) {
+    if (error.body?.reason === "AlreadyExists" || error.statusCode === 409) {
+      logger.info({ name, namespace: ns }, "PVC already exists, reusing");
+      const existing = await client.readNamespacedPersistentVolumeClaim({ name, namespace: ns });
+      return existing.body;
+    }
+    throw error;
+  }
 }
 
 export async function listPvcs(namespace) {
@@ -76,7 +85,7 @@ export async function createUploadPod({ pvcName, namespace }) {
   const podName = `upload-${pvcName}-${Date.now()}`.substring(0, 63);
   const serviceName = `${podName}-svc`.substring(0, 63);
 
-  const uploadImage = process.env.UPLOAD_POD_IMAGE || "registry.access.redhat.com/ubi9/ubi-minimal:latest";
+  const uploadImage = process.env.UPLOAD_POD_IMAGE || "registry.access.redhat.com/ubi9/ubi:latest";
 
   const pod = {
     apiVersion: "v1",
