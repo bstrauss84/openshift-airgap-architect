@@ -1567,6 +1567,7 @@ const buildImageSetConfig = (state) => {
         if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
         if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
       }
+      entry.defaultChannel = op.defaultChannel;
       entry.channels = [channel];
     }
     byCatalog.get(op.catalogImage).push(entry);
@@ -1581,7 +1582,10 @@ const buildImageSetConfig = (state) => {
       if (!existing.some((p) => p.name === dep.name)) {
         const entry = { name: dep.name };
         const resolvedChannel = dep.channel || (state._operatorChannelMap && state._operatorChannelMap.get(dep.name));
-        if (resolvedChannel) entry.channels = [{ name: resolvedChannel }];
+        if (resolvedChannel) {
+          entry.defaultChannel = resolvedChannel;
+          entry.channels = [{ name: resolvedChannel }];
+        }
         existing.push(entry);
       }
     }
