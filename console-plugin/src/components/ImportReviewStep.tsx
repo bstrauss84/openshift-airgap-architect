@@ -73,15 +73,17 @@ export const ImportReviewStep: React.FC = () => {
         setUploadStatus('Starting upload...');
         setUploadProgress(0);
 
-        const formData = new FormData();
-        formData.append('file', source.uploadFile);
-        formData.append('pvcName', storage.pvcName || '');
-        formData.append('pvcSize', storage.pvcSize || '');
-        formData.append('isNewPvc', String(storage.isNewPvc || false));
+        const params = new URLSearchParams({
+          filename: source.filename || `import-${Date.now()}.tar`,
+          pvcName: storage.pvcName || '',
+          pvcSize: storage.pvcSize || '',
+          isNewPvc: String(storage.isNewPvc || false),
+        });
 
-        const uploadResponse = await apiFetch('/api/mirror-import/upload', {
+        const uploadResponse = await apiFetch(`/api/mirror-import/upload?${params.toString()}`, {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: source.uploadFile,
         });
 
         if (uploadResponse.jobId) {

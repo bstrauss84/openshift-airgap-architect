@@ -1527,45 +1527,21 @@ app.post("/api/mirror-import/upload", (req, res) => {
     return res.status(403).json({ error: "Only available in disconnected mode" });
   }
 
-  const busboy = Busboy({ req, limits: { files: 1 } });
   const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+  const filename = req.query.filename || `import-${Date.now()}.tar`;
+  const pvcName = req.query.pvcName || null;
+  const pvcSize = req.query.pvcSize || null;
+  const isNewPvc = req.query.isNewPvc === "true";
+  const contentLength = parseInt(req.headers["content-length"] || "0", 10);
 
-  let pvcName = null;
-  let pvcSize = null;
-  let isNewPvc = false;
-  let filename = "";
-  let fileStream = null;
-  let contentLength = 0;
+  const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
+  updateJob(jobId, { status: "running", progress: 0 });
 
-  const fields = {};
+  res.status(202).json({ jobId, filename });
 
-  busboy.on("field", (fieldname, val) => {
-    fields[fieldname] = val;
-  });
-
-  busboy.on("file", (_fieldname, stream, info) => {
-    filename = info.filename || `import-${Date.now()}.tar`;
-    fileStream = stream;
-    contentLength = parseInt(req.headers["content-length"] || "0", 10);
-  });
-
-  busboy.on("finish", async () => {
-    pvcName = fields.pvcName || null;
-    pvcSize = fields.pvcSize || null;
-    isNewPvc = fields.isNewPvc === "true";
-
-    if (!fileStream) {
-      return res.status(400).json({ error: "No file provided" });
-    }
-
-    const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
-    updateJob(jobId, { status: "running", progress: 0 });
-
-    res.status(202).json({ jobId, filename });
-
+  (async () => {
     try {
       if (isNewPvc && pvcName && pvcSize) {
-        // Dynamic upload pod flow: create PVC → Pod → Service → stream → cleanup
         appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
         await createPvc({ name: pvcName, size: pvcSize });
         updateJob(jobId, { progress: 10 });
@@ -1583,7 +1559,7 @@ app.post("/api/mirror-import/upload", (req, res) => {
           serviceName,
           namespace,
           filename,
-          fileStream,
+          fileStream: req,
           contentLength,
         });
         updateJob(jobId, { progress: 90 });
@@ -1595,7 +1571,6 @@ app.post("/api/mirror-import/upload", (req, res) => {
         updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename} to PVC ${pvcName}` });
         updateJobMetadata(jobId, { filename, pvcName, bytesWritten: result.written });
       } else {
-        // Direct write to pre-mounted PVC
         if (!fs.existsSync(mountPath)) {
           fs.mkdirSync(mountPath, { recursive: true });
         }
@@ -1604,7 +1579,7 @@ app.post("/api/mirror-import/upload", (req, res) => {
         const writeStream = fs.createWriteStream(destPath);
         let bytesWritten = 0;
 
-        fileStream.on("data", (chunk) => {
+        req.on("data", (chunk) => {
           bytesWritten += chunk.length;
           if (contentLength > 0) {
             const progress = Math.min(95, Math.floor((bytesWritten / contentLength) * 100));
@@ -1612,28 +1587,23 @@ app.post("/api/mirror-import/upload", (req, res) => {
           }
         });
 
-        fileStream.pipe(writeStream);
+        req.pipe(writeStream);
 
-        writeStream.on("finish", () => {
-          updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename}` });
-          updateJobMetadata(jobId, { filename, bytesWritten });
-          appendJobOutput(jobId, `Upload complete: ${bytesWritten} bytes written to ${destPath}\n`);
+        await new Promise((resolve, reject) => {
+          writeStream.on("finish", resolve);
+          writeStream.on("error", reject);
         });
 
-        writeStream.on("error", (err) => {
-          updateJob(jobId, { status: "failed", progress: 0, message: err.message });
-          appendJobOutput(jobId, `Upload failed: ${err.message}\n`);
-          safeUnlink(destPath);
-        });
+        updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename}` });
+        updateJobMetadata(jobId, { filename, bytesWritten });
+        appendJobOutput(jobId, `Upload complete: ${bytesWritten} bytes written to ${destPath}\n`);
       }
     } catch (error) {
       logger.error({ error: error.message, filename, pvcName }, "Upload failed");
       updateJob(jobId, { status: "failed", progress: 0, message: error.message });
       appendJobOutput(jobId, `Upload failed: ${error.message}\n`);
     }
-  });
-
-  req.pipe(busboy);
+  })();
 });
 
 // ─── End Mirror Import Endpoints ────────────────────────────────────────────
