@@ -1547,10 +1547,39 @@ app.post("/api/mirror-import/upload", (req, res) => {
   updateJob(jobId, { status: "running", progress: 0 });
   activeUploads.set(uploadKey, jobId);
 
+  // Buffer the request body to a temp file IMMEDIATELY — the console proxy
+  // will reset the connection if we delay reading the body (e.g. waiting for
+  // PVC/pod creation). Stream to temp, respond 202, then do K8s work later.
+  const tmpDir = path.join(dataDir, "tmp");
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpPath = path.join(tmpDir, `upload-${jobId}-${filename}`);
+  const tmpStream = fs.createWriteStream(tmpPath);
+  let bytesReceived = 0;
+
+  req.on("data", (chunk) => {
+    bytesReceived += chunk.length;
+    if (contentLength > 0) {
+      const progress = Math.min(45, Math.floor((bytesReceived / contentLength) * 45));
+      updateJob(jobId, { progress, message: `Receiving ${filename}...` });
+    }
+  });
+
+  req.pipe(tmpStream);
+
   res.status(202).json({ jobId, filename });
 
   (async () => {
     try {
+      // Wait for the body to finish writing to temp file
+      await new Promise((resolve, reject) => {
+        tmpStream.on("finish", resolve);
+        tmpStream.on("error", reject);
+        req.on("error", reject);
+      });
+
+      appendJobOutput(jobId, `Received ${bytesReceived} bytes\n`);
+      updateJob(jobId, { progress: 50, message: `Received ${filename}, processing...` });
+
       if (isNewPvc && pvcName && pvcSize) {
         let podName, serviceName, namespace;
         let pvcCreated = false;
@@ -1559,23 +1588,24 @@ app.post("/api/mirror-import/upload", (req, res) => {
           appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
           await createPvc({ name: pvcName, size: pvcSize });
           pvcCreated = true;
-          updateJob(jobId, { progress: 10 });
+          updateJob(jobId, { progress: 55 });
 
           appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
           ({ podName, serviceName, namespace } = await createUploadPod({ pvcName }));
-          updateJob(jobId, { progress: 20 });
+          updateJob(jobId, { progress: 60 });
 
           appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
           await waitForPodReady({ podName, namespace });
-          updateJob(jobId, { progress: 30 });
+          updateJob(jobId, { progress: 65 });
 
           appendJobOutput(jobId, `Streaming ${filename} to upload pod...\n`);
+          const fileStream = fs.createReadStream(tmpPath);
           const result = await streamToUploadPod({
             serviceName,
             namespace,
             filename,
-            fileStream: req,
-            contentLength,
+            fileStream,
+            contentLength: bytesReceived,
           });
           updateJob(jobId, { progress: 90 });
 
@@ -1601,27 +1631,15 @@ app.post("/api/mirror-import/upload", (req, res) => {
         }
 
         const destPath = path.join(mountPath, filename);
-        const writeStream = fs.createWriteStream(destPath);
-        let bytesWritten = 0;
-
-        req.on("data", (chunk) => {
-          bytesWritten += chunk.length;
-          if (contentLength > 0) {
-            const progress = Math.min(95, Math.floor((bytesWritten / contentLength) * 100));
-            updateJob(jobId, { progress });
-          }
-        });
-
-        req.pipe(writeStream);
-
-        await new Promise((resolve, reject) => {
-          writeStream.on("finish", resolve);
-          writeStream.on("error", reject);
+        await fs.promises.rename(tmpPath, destPath).catch(async () => {
+          // rename fails across filesystems; fall back to copy
+          await fs.promises.copyFile(tmpPath, destPath);
+          await fs.promises.unlink(tmpPath).catch(() => {});
         });
 
         updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename}` });
-        updateJobMetadata(jobId, { filename, bytesWritten });
-        appendJobOutput(jobId, `Upload complete: ${bytesWritten} bytes written to ${destPath}\n`);
+        updateJobMetadata(jobId, { filename, bytesWritten: bytesReceived });
+        appendJobOutput(jobId, `Upload complete: ${bytesReceived} bytes written to ${destPath}\n`);
       }
     } catch (error) {
       logger.error({ error: error.message, filename, pvcName }, "Upload failed");
@@ -1629,6 +1647,8 @@ app.post("/api/mirror-import/upload", (req, res) => {
       appendJobOutput(jobId, `Upload failed: ${error.message}\n`);
     } finally {
       activeUploads.delete(uploadKey);
+      // Clean up temp file
+      fs.unlink(tmpPath, () => {});
     }
   })();
 });
