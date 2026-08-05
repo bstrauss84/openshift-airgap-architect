@@ -14,7 +14,11 @@
     "displayName": "Airgap Architect",
     "description": "OpenShift Airgap Architect Console Plugin",
     "exposedModules": {
-      "pages": "./src/pages"
+      "AirgapArchitectPage": "./src/pages/AirgapArchitectPage",
+      "CreateImageSetPage": "./src/pages/CreateImageSetPage",
+      "CollectionPipelineDetailPage": "./src/pages/CollectionPipelineDetailPage",
+      "CreateImportPage": "./src/pages/CreateImportPage",
+      "MirrorImportDetailPage": "./src/pages/MirrorImportDetailPage"
     },
     "dependencies": {
       "@console/pluginAPI": "*"

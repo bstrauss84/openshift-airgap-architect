@@ -14,7 +14,7 @@
     "properties": {
       "exact": true,
       "path": "/airgap-architect",
-      "component": { "$codeRef": "pages.AirgapArchitectPage" }
+      "component": { "$codeRef": "AirgapArchitectPage.default" }
     }
   },
   {
@@ -22,14 +22,14 @@
     "properties": {
       "exact": true,
       "path": "/airgap-architect/imagesets/create",
-      "component": { "$codeRef": "pages.CreateImageSetPage" }
+      "component": { "$codeRef": "CreateImageSetPage.default" }
     }
   },
   {
     "type": "console.page/route",
     "properties": {
       "path": "/airgap-architect/collections/:name",
-      "component": { "$codeRef": "pages.CollectionPipelineDetailPage" }
+      "component": { "$codeRef": "CollectionPipelineDetailPage.default" }
     }
   },
   {
@@ -37,14 +37,14 @@
     "properties": {
       "exact": true,
       "path": "/airgap-architect/imports/create",
-      "component": { "$codeRef": "pages.CreateImportPage" }
+      "component": { "$codeRef": "CreateImportPage.default" }
     }
   },
   {
     "type": "console.page/route",
     "properties": {
       "path": "/airgap-architect/imports/:name",
-      "component": { "$codeRef": "pages.MirrorImportDetailPage" }
+      "component": { "$codeRef": "MirrorImportDetailPage.default" }
     }
   }
 ]
