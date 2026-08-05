@@ -31,13 +31,13 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
       );
     });
 
-    it("v4.21 compartments count equals v4.20 (all platforms included)", () => {
+    it("v4.21 compartments count is v4.20 + 1 (bmBmcVerifyCa added)", () => {
       const v420Count = compartments_v420.length;
       const v421Count = compartments_v421.length;
       assert.equal(
         v421Count,
-        v420Count,
-        `v4.21 should have same compartments as v4.20. v4.20: ${v420Count}, v4.21: ${v421Count}`
+        v420Count + 1,
+        `v4.21 should have v4.20 + 1 compartments (bmBmcVerifyCa). v4.20: ${v420Count}, v4.21: ${v421Count}`
       );
     });
 
@@ -153,6 +153,64 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
         2,
         `Should have 2 bare-metal Agent compartments in v4.21, found ${found.length}`
       );
+    });
+  });
+
+  describe("4.21 bmBmcVerifyCa compartment (DOC-102)", () => {
+    it("bm-bmc-verify-ca compartment exists in v4.21", () => {
+      const comp = compartments_v421.find((c) => c.id === "bm-bmc-verify-ca");
+      assert(comp, "bm-bmc-verify-ca compartment should exist");
+      assert.equal(comp.version, "4.21");
+    });
+
+    it("bm-bmc-verify-ca has correct conditions", () => {
+      const comp = compartments_v421.find((c) => c.id === "bm-bmc-verify-ca");
+      assert(comp, "bm-bmc-verify-ca compartment should exist");
+      assert.deepStrictEqual(comp.conditions.platforms, ["Bare Metal"]);
+      assert(Array.isArray(comp.conditions.methodologies));
+      assert(comp.conditions.methodologies.includes("Agent-Based Installer"));
+      assert(comp.conditions.methodologies.includes("IPI"));
+      assert(!comp.conditions.methodologies.includes("UPI"));
+    });
+
+    it("bm-bmc-verify-ca has items", () => {
+      const comp = compartments_v421.find((c) => c.id === "bm-bmc-verify-ca");
+      assert(comp, "bm-bmc-verify-ca compartment should exist");
+      assert(Array.isArray(comp.items));
+      assert(comp.items.length > 0, "bm-bmc-verify-ca should have at least one item");
+    });
+
+    it("bm-bmc-verify-ca is NOT in v4.20", () => {
+      const comp = compartments_v420.find((c) => c.id === "bm-bmc-verify-ca");
+      assert.equal(comp, undefined, "bm-bmc-verify-ca should not exist in v4.20");
+    });
+
+    it("bm-bmc-verify-ca selected for 4.21 Bare Metal Agent", () => {
+      const ctx = { versionMajorMinor: "4.21", platform: "Bare Metal", methodology: "Agent-Based Installer" };
+      const selected = selectAndOrder("4.21", ctx);
+      const found = selected.find((c) => c.id === "bm-bmc-verify-ca");
+      assert(found, "bm-bmc-verify-ca should appear for 4.21 Bare Metal Agent");
+    });
+
+    it("bm-bmc-verify-ca selected for 4.21 Bare Metal IPI", () => {
+      const ctx = { versionMajorMinor: "4.21", platform: "Bare Metal", methodology: "IPI" };
+      const selected = selectAndOrder("4.21", ctx);
+      const found = selected.find((c) => c.id === "bm-bmc-verify-ca");
+      assert(found, "bm-bmc-verify-ca should appear for 4.21 Bare Metal IPI");
+    });
+
+    it("bm-bmc-verify-ca NOT selected for 4.21 Bare Metal UPI", () => {
+      const ctx = { versionMajorMinor: "4.21", platform: "Bare Metal", methodology: "UPI" };
+      const selected = selectAndOrder("4.21", ctx);
+      const found = selected.find((c) => c.id === "bm-bmc-verify-ca");
+      assert.equal(found, undefined, "bm-bmc-verify-ca should NOT appear for Bare Metal UPI");
+    });
+
+    it("bm-bmc-verify-ca NOT selected for 4.20 Bare Metal Agent", () => {
+      const ctx = { versionMajorMinor: "4.20", platform: "Bare Metal", methodology: "Agent-Based Installer" };
+      const selected = selectAndOrder("4.20", ctx);
+      const found = selected.find((c) => c.id === "bm-bmc-verify-ca");
+      assert.equal(found, undefined, "bm-bmc-verify-ca should NOT appear for 4.20");
     });
   });
 

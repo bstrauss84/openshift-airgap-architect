@@ -245,6 +245,20 @@ export function getAgentBasedTopologyErrors(nodes) {
   return errors;
 }
 
+/**
+ * Agent SNO detection: one master, zero workers.
+ * Matches the backend definition in generate.js (isSNO = masters === 1 && workers === 0).
+ * @param {Array<{ role?: string }>} nodes
+ * @returns {boolean}
+ */
+export function isAgentSingleNodeTopology(nodes) {
+  const list = Array.isArray(nodes) ? nodes : [];
+  if (list.length === 0) return false;
+  const masters = list.filter(n => (n?.role || "").trim() === "master").length;
+  const workers = list.filter(n => (n?.role || "").trim() === "worker").length;
+  return masters === 1 && workers === 0;
+}
+
 /** Keys that should NOT be copied by default when replicating (hostname, BMC, MACs). */
 export const REPLICATE_EXCLUDE_DEFAULT = new Set([
   "hostname",

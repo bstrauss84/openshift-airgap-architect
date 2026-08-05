@@ -9,7 +9,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
@@ -17,6 +17,8 @@ import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
 import { validateAwsRootVolumeThroughput } from "../validation.js";
 import { formatMACAsYouType } from "../formatUtils.js";
+import { validateBmcVerifyCA } from "../../../shared/bmcVerifyCA.js";
+import { isAgentSingleNodeTopology } from "../hostInventoryV2Helpers.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
@@ -154,6 +156,10 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localClusterProvisioningIP, setLocalClusterProvisioningIP] = useState(inventory.clusterProvisioningIP || "");
   const [localProvisioningMACAddress, setLocalProvisioningMACAddress] = useState(inventory.provisioningMACAddress || "");
 
+  // Local state for BMC Verify CA
+  const [localBmcVerifyCA, setLocalBmcVerifyCA] = useState(inventory.bmcVerifyCA || "");
+  const [bmcVerifyCAError, setBmcVerifyCAError] = useState("");
+
   // Local state for text inputs (onBlur pattern) - Agent Options
   const [localBootArtifactsBaseURL, setLocalBootArtifactsBaseURL] = useState(inventory.bootArtifactsBaseURL || "");
   const [localAdditionalEnabledCapabilities, setLocalAdditionalEnabledCapabilities] = useState(
@@ -243,6 +249,9 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   useEffect(() => { setLocalProvisioningDHCPRange(inventory.provisioningDHCPRange || ""); }, [inventory.provisioningDHCPRange]);
   useEffect(() => { setLocalClusterProvisioningIP(inventory.clusterProvisioningIP || ""); }, [inventory.clusterProvisioningIP]);
   useEffect(() => { setLocalProvisioningMACAddress(inventory.provisioningMACAddress || ""); }, [inventory.provisioningMACAddress]);
+
+  // Sync local state for BMC Verify CA
+  useEffect(() => { setLocalBmcVerifyCA(inventory.bmcVerifyCA || ""); }, [inventory.bmcVerifyCA]);
 
   // Sync local state when store values change (for imports/loads) - Agent Options
   useEffect(() => { setLocalBootArtifactsBaseURL(inventory.bootArtifactsBaseURL || ""); }, [inventory.bootArtifactsBaseURL]);
@@ -428,6 +437,16 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const provisioningNetworkOptions = Array.isArray(metaProvisioningNetwork?.allowed)
     ? metaProvisioningNetwork.allowed
     : ["Managed", "Unmanaged", "Disabled"];
+
+  const showBmcVerifyCA = isCatalogFieldVisible("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG)
+    && !(scenarioId === "bare-metal-agent" && isAgentSingleNodeTopology(state.hostInventory?.nodes));
+
+  const bmcVerifyCAAdvisory = useMemo(() => {
+    const val = localBmcVerifyCA.trim();
+    if (!val) return "";
+    if (/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.test(val)) return "";
+    return "Content does not contain a complete PEM certificate block (-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----). The upstream installer does not validate PEM format for this field, but the value may not work as intended.";
+  }, [localBmcVerifyCA]);
 
   /** Advanced (gap remediation): show only when catalog has any of these params for this scenario. */
   const showComputeHyperthreading = isCatalogFieldVisible("compute[].hyperthreading", INSTALL_CONFIG);
@@ -4413,6 +4432,84 @@ external-br (descriptive name)`}
             </section>
           );
         })()}
+
+        {showBmcVerifyCA && (
+          <section className="card">
+            <div className="card-header">
+              <h3 className="card-title">BMC CA Certificate</h3>
+              <div className="card-subtitle">Optional CA certificate for BMC TLS verification (OpenShift 4.21+).</div>
+            </div>
+            <div className="card-body">
+              <div className="field-grid" style={{ marginTop: 4 }}>
+                <div className="field-control-stack field-grid-span-full">
+                <FieldLabelWithInfo
+                  label="BMC verify CA certificate"
+                  hint={`Optional PEM-encoded CA certificate or certificate bundle used by the OpenShift installer to verify BMC (Baseboard Management Controller) TLS certificates during bare metal provisioning.
+
+**What this is:**
+A CA certificate (or chain of certificates) in PEM format. When provided, the installer uses this to verify the TLS certificates presented by BMC endpoints (Redfish/IPMI over HTTPS). This is useful when BMCs use certificates signed by an internal or private CA.
+
+**Availability:** OpenShift 4.21 and later.
+
+**What the installer does with this value:**
+When non-empty, the installer writes:
+• TLS asset file: bmc-ca/verify_ca.crt
+• ConfigMap: openshift-machine-api/bmc-verify-ca (data key: verify_ca.crt)
+
+The baremetal operator and Ironic components use this ConfigMap to verify BMC connections.
+
+**Format guidance (advisory):**
+Content should contain at least one complete PEM certificate block:
+\`\`\`
+-----BEGIN CERTIFICATE-----
+MIIDxTCCAq2g...
+-----END CERTIFICATE-----
+\`\`\`
+Multiple certificates can be concatenated for a certificate chain. The upstream installer does not perform explicit PEM-format validation, but malformed content may cause BMC connection failures at runtime.
+
+**When to use:**
+• BMCs use TLS certificates signed by an internal/private CA
+• Your environment requires verified BMC connections
+• You want to avoid disableCertificateVerification on individual hosts
+
+**When to leave empty:**
+• BMCs use publicly-trusted certificates
+• BMC certificate verification is handled per-host via disableCertificateVerification
+• Not using TLS for BMC connections (e.g., redfish+http:// addresses)
+
+Emitted to \`platform.baremetal.bmcVerifyCA\` in install-config.yaml.`}
+                >
+                  <textarea
+                    rows={6}
+                    value={localBmcVerifyCA}
+                    onChange={(e) => setLocalBmcVerifyCA(e.target.value)}
+                    onBlur={() => {
+                      const result = validateBmcVerifyCA(localBmcVerifyCA.trim() ? localBmcVerifyCA : undefined);
+                      if (!result.valid) {
+                        setBmcVerifyCAError(result.error);
+                        return;
+                      }
+                      setBmcVerifyCAError("");
+                      updateInventory({ bmcVerifyCA: result.blank ? undefined : localBmcVerifyCA });
+                    }}
+                    placeholder={"-----BEGIN CERTIFICATE-----\nMIIDxTCCAq2g...\n-----END CERTIFICATE-----"}
+                    aria-label="BMC verify CA certificate"
+                    style={{ width: "100%", fontFamily: "monospace", fontSize: "0.85em" }}
+                  />
+                </FieldLabelWithInfo>
+                <div className="field-control-support">
+                  {bmcVerifyCAError && (
+                    <p className="note error" role="alert">{bmcVerifyCAError}</p>
+                  )}
+                  {!bmcVerifyCAError && bmcVerifyCAAdvisory && (
+                    <p className="note warning" role="status">{bmcVerifyCAAdvisory}</p>
+                  )}
+                </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {showAdvancedSection && (
           <CollapsibleSection

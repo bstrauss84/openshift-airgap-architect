@@ -17,6 +17,7 @@ import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
+import { validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES } from "../../shared/bmcVerifyCA.js";
 
 function validateAwsRootVolumeThroughput(value, volumeType) {
   if (value == null || value === "") return { valid: true, blank: true };
@@ -362,6 +363,11 @@ const buildInstallConfig = (state) => {
         });
         baremetal.hosts = hosts;
       }
+      if (isVersionGTE(selectedMinor, "4.21")) {
+        const bmcCAResult = validateBmcVerifyCA(hi.bmcVerifyCA);
+        if (!bmcCAResult.valid) throw new Error(bmcCAResult.error);
+        if (!bmcCAResult.blank) baremetal.bmcVerifyCA = bmcCAResult.value;
+      }
       installConfig.platform.baremetal = baremetal;
     } else {
       // Bare Metal IPI: full platform.baremetal with apiVIPs, ingressVIPs, hosts, provisioning*.
@@ -459,6 +465,11 @@ const buildInstallConfig = (state) => {
         return host;
       });
       baremetal.hosts = hosts;
+      if (isVersionGTE(selectedMinor, "4.21")) {
+        const bmcCAResult = validateBmcVerifyCA(hi.bmcVerifyCA);
+        if (!bmcCAResult.valid) throw new Error(bmcCAResult.error);
+        if (!bmcCAResult.blank) baremetal.bmcVerifyCA = bmcCAResult.value;
+      }
       installConfig.platform.baremetal = baremetal;
     }
   }
@@ -1893,4 +1904,4 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   return lines.join("\n");
 };
 
-export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_COMPUTE_POLICIES };
+export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_COMPUTE_POLICIES, validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES };

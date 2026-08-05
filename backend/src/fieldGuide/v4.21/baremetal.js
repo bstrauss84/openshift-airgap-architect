@@ -144,6 +144,31 @@ export const bmIpiInstall = {
   ],
 };
 
+export const bmBmcVerifyCa = {
+  id: "bm-bmc-verify-ca",
+  version: "4.21",
+  title: "BMC CA Certificate Verification (4.21+)",
+  order: 248,
+  conditions: {
+    platforms: ["Bare Metal"],
+    methodologies: ["Agent-Based Installer", "IPI"],
+  },
+  docRefs: [
+    { label: "OpenShift 4.21 bare metal platform configuration", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/installing-on-bare-metal" },
+  ],
+  items: [
+    { text: "platform.baremetal.bmcVerifyCA is available in OpenShift 4.21 and later. It accepts a PEM-encoded CA certificate or certificate bundle for verifying BMC TLS connections." },
+    { text: "When bmcVerifyCA is set, the installer creates a TLS asset file (bmc-ca/verify_ca.crt) and a ConfigMap (openshift-machine-api/bmc-verify-ca) with data key verify_ca.crt." },
+    { text: "The baremetal operator and Ironic components use this ConfigMap to verify BMC HTTPS connections during and after installation." },
+    { text: "This field applies to bare-metal IPI and multi-node Agent-based installations that generate platform.baremetal. Agent SNO uses platform.none and does not emit this field." },
+    { text: "Bare-metal UPI also uses platform.none in this application, so bmcVerifyCA is not emitted for UPI scenarios." },
+    { text: "The upstream installer does not perform explicit PEM-format validation on the bmcVerifyCA content. However, malformed PEM content may cause BMC connection failures at runtime." },
+    { text: "Verify the CA certificate is correct before installation:", cmd: "openssl x509 -in /path/to/bmc-ca.pem -text -noout" },
+    { text: "For certificate chains, concatenate all certificates (root CA last) into a single PEM file.", cmd: "cat intermediate-ca.pem root-ca.pem > bmc-ca-bundle.pem" },
+    { text: "After installation, verify the ConfigMap was created:", cmd: "oc get configmap bmc-verify-ca -n openshift-machine-api -o yaml" },
+  ],
+};
+
 export const bmUpiPrereqs = {
   id: "bm-upi-prereqs",
   version: "4.21",

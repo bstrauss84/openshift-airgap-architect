@@ -2128,13 +2128,13 @@
       "allowed": "PEM-encoded CA certificate content",
       "default": null,
       "required": false,
-      "description": "User-provided CA certificate for BMC (Baseboard Management Controller) TLS verification. Allows BMC connections to verify against custom CA certificates. Content should be a PEM-encoded CA certificate. Creates a TLS asset file and ConfigMap in the openshift-machine-api namespace. Used by the Ironic bootstrap container for secure BMC communication.",
+      "description": "Optional CA certificate or certificate bundle (PEM-encoded) used to verify BMC TLS certificates during bare metal provisioning. When provided, the OpenShift installer creates a TLS asset file (bmc-ca/verify_ca.crt) and a ConfigMap (openshift-machine-api/bmc-verify-ca) with data key verify_ca.crt.",
       "applies_to": [
         "bare-metal-ipi",
         "bare-metal-upi",
         "bare-metal-agent"
       ],
-      "notes": "Multi-line PEM certificate content. Future UI implementation requires textarea with file upload button. Generation creates TLS asset (bmc-verify-ca.crt) and ConfigMap (openshift-machine-api/bmc-verify-ca). PEM format validation required before full implementation.",
+      "notes": "Optional multiline CA certificate content; available beginning with OpenShift 4.21. Used by the installer to verify BMC TLS certificates. When non-empty, the installer writes bmc-ca/verify_ca.crt and creates ConfigMap openshift-machine-api/bmc-verify-ca with data key verify_ca.crt. The upstream installer does not perform explicit PEM-format validation; the application provides advisory format guidance.",
       "citations": [
         {
           "source": "installer_source",
@@ -2162,7 +2162,7 @@
           "note": "Evidence-based investigation completed 2026-06-30"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.21",
       "maxVersion": null
     },

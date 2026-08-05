@@ -149,8 +149,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(subnetsRole.maxVersion).toBe(null);
     });
 
-    it('4.21 bare-metal catalogs contain 2 new manual-review params (Slice 5D)', () => {
-      // Test all 3 bare-metal scenarios
+    it('4.21 bare-metal catalogs contain 2 new params (Slice 5D)', () => {
       ['bare-metal-ipi', 'bare-metal-upi', 'bare-metal-agent'].forEach(scenario => {
         const params = getCatalogForScenario(scenario, '4.21');
 
@@ -165,7 +164,8 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(bmcVerifyCA).toBeDefined();
         expect(bmcVerifyCA.minVersion).toBe('4.21');
         expect(bmcVerifyCA.maxVersion).toBe(null);
-        expect(bmcVerifyCA.supportStatus).toBe('supported-backend-only');
+        const expectedBmcStatus = scenario === 'bare-metal-upi' ? 'hidden-not-applicable' : 'supported-ui';
+        expect(bmcVerifyCA.supportStatus).toBe(expectedBmcStatus);
       });
     });
 
@@ -228,12 +228,12 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(compThroughput.supportStatus).toBe('supported-derived');
     });
 
-    it('all 4 manual-review params (Slice 5D) have catalog-only supportStatus', () => {
+    it('all 4 dnsRecordsType + bmcVerifyCA params (Slice 5D) have correct supportStatus', () => {
       const bareMetalIpi = getCatalogForScenario('bare-metal-ipi', '4.21');
       const vSphereIpi = getCatalogForScenario('vsphere-ipi', '4.21');
       const nutanixIpi = getCatalogForScenario('nutanix-ipi', '4.21');
 
-      const manualReviewParams = [...bareMetalIpi, ...vSphereIpi, ...nutanixIpi].filter(p =>
+      const targetParams = [...bareMetalIpi, ...vSphereIpi, ...nutanixIpi].filter(p =>
         p.minVersion === '4.21' &&
         (p.path.includes('dnsRecordsType') || p.path.includes('bmcVerifyCA'))
       );
@@ -241,10 +241,14 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       // bare-metal-ipi: 2 params (dnsRecordsType + bmcVerifyCA)
       // vsphere-ipi: 1 param (dnsRecordsType)
       // nutanix-ipi: 1 param (dnsRecordsType)
-      expect(manualReviewParams).toHaveLength(4);
+      expect(targetParams).toHaveLength(4);
 
-      manualReviewParams.forEach(p => {
-        expect(p.supportStatus).toBe('supported-backend-only');
+      targetParams.forEach(p => {
+        if (p.path.includes('bmcVerifyCA')) {
+          expect(p.supportStatus).toBe('supported-ui');
+        } else {
+          expect(p.supportStatus).toBe('supported-backend-only');
+        }
         expect(p.outputFile).toBe('install-config.yaml');
       });
     });

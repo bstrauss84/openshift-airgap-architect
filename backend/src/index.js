@@ -49,6 +49,7 @@ import {
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
+import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration } from "./versionPolicy.js";
@@ -1201,26 +1202,34 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     });
   }
 
+  const candidate = migrationResult.migrated;
+  if (candidate.hostInventory) {
+    const bmcResult = validateBmcVerifyCA(candidate.hostInventory.bmcVerifyCA);
+    if (!bmcResult.valid) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: [{ path: "hostInventory.bmcVerifyCA", message: bmcResult.error }]
+      });
+    }
+    if (bmcResult.blank) {
+      delete candidate.hostInventory.bmcVerifyCA;
+    }
+  }
+
   // Migration validation succeeded - sanitize credentials before persistence
   // Security: Strip credentials from state before writing to SQLite
   // Sanitization happens AFTER migration/validation to preserve credential presence during validation
   // but BEFORE setState to prevent credentials from reaching persistent storage
-  const sanitized = sanitizeStateForPersistence(migrationResult.migrated);
+  const sanitized = sanitizeStateForPersistence(candidate);
 
   if (migrationResult.wasV1 || migrationResult.wasV2) {
-    // v1/v2 → v3 migration: persist the sanitized migrated state
     logger.info(
       { wasV1: migrationResult.wasV1, wasV2: migrationResult.wasV2 },
       "State migrated to v3 at /api/state boundary"
     );
-    setState(sanitized);
-    res.json(migrationResult.migrated);  // Return unsanitized to client (client may need credentials in memory)
-  } else {
-    // Already v3 and valid: persist the sanitized canonical v3 state from migration result
-    // This ensures legacy confirmation fields (versionConfirmed, confirmedByUser) are canonicalized to locked
-    setState(sanitized);
-    res.json(migrationResult.migrated);  // Return unsanitized to client (client may need credentials in memory)
   }
+  setState(sanitized);
+  res.json(candidate);
 });
 
 // Mounted Red Hat pull secret endpoints
@@ -1418,10 +1427,8 @@ app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
     });
   }
 
-  // Use migrated v3 state (or original if already v3)
   const v3State = stateMigrationResult.migrated;
 
-  // Log migration result if v1/v2 was migrated
   if (stateMigrationResult.wasV1 || stateMigrationResult.wasV2) {
     logger.info(
       {
@@ -1431,6 +1438,19 @@ app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
       },
       "Imported state migrated to v3 at /api/run/import boundary"
     );
+  }
+
+  if (v3State.hostInventory) {
+    const bmcResult = validateBmcVerifyCA(v3State.hostInventory.bmcVerifyCA);
+    if (!bmcResult.valid) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: [{ path: "hostInventory.bmcVerifyCA", message: bmcResult.error }]
+      });
+    }
+    if (bmcResult.blank) {
+      delete v3State.hostInventory.bmcVerifyCA;
+    }
   }
 
   const sanitized = sanitizeStateForExport(v3State, { ...(v3State.exportOptions || {}), includeCredentials: false });

@@ -41,6 +41,7 @@ import {
 import {
   bmAgentPrereqs,
   bmAgentInstall,
+  bmBmcVerifyCa,
   bmIpiPrereqs,
   bmIpiInstall,
   bmUpiPrereqs,
@@ -96,6 +97,7 @@ const compartments_v421 = [
   // Bare Metal
   bmAgentPrereqs,
   bmAgentInstall,
+  bmBmcVerifyCa,
   bmIpiPrereqs,
   bmIpiInstall,
   bmUpiPrereqs,

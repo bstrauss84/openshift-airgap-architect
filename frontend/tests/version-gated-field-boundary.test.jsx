@@ -50,6 +50,24 @@ const VERSION_GATED_UI_FIELD_REGISTRY = [
     controlQuery: /Azure Storage shared-key/,
     owningStep: "PlatformSpecificsStep",
   },
+  {
+    scenario: "bare-metal-ipi",
+    path: "platform.baremetal.bmcVerifyCA",
+    platform: "Bare Metal",
+    method: "IPI",
+    introductionMinor: "4.21",
+    controlQuery: /BMC verify CA/,
+    owningStep: "PlatformSpecificsStep",
+  },
+  {
+    scenario: "bare-metal-agent",
+    path: "platform.baremetal.bmcVerifyCA",
+    platform: "Bare Metal",
+    method: "Agent-Based Installer",
+    introductionMinor: "4.21",
+    controlQuery: /BMC verify CA/,
+    owningStep: "PlatformSpecificsStep",
+  },
 ];
 
 function mockApis() {
@@ -96,6 +114,17 @@ function makeState(platform, method, minor, patch) {
       aws: { region: "us-gov-west-1" },
       azure: { region: "usgovvirginia", baseDomainResourceGroupName: "dns-rg" },
     },
+    hostInventory: {
+      nodes: [
+        { role: "master", hostname: "m0", primary: { type: "ethernet", name: "eno1", macAddress: "52:54:00:aa:bb:01" } },
+        { role: "master", hostname: "m1", primary: { type: "ethernet", name: "eno1", macAddress: "52:54:00:aa:bb:02" } },
+        { role: "master", hostname: "m2", primary: { type: "ethernet", name: "eno1", macAddress: "52:54:00:aa:bb:03" } },
+      ],
+      apiVip: "10.90.0.2",
+      ingressVip: "10.90.0.3",
+      machineNetworkCidr: "10.90.0.0/24",
+      ipStackMode: "ipv4",
+    },
     operators: {},
     ui: {
       segmentedFlowV1: true,
@@ -121,7 +150,7 @@ function findControlByQuery(query) {
   if (!label) return null;
   const wrapper = label.closest(".field-with-info-row") || label.closest(".field-control-stack");
   if (!wrapper) return null;
-  return wrapper.querySelector("select, input");
+  return wrapper.querySelector("select, input, textarea");
 }
 
 function renderBlueprintWithProductionMerge(initialState) {
