@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
@@ -290,7 +291,7 @@ test("POST /api/feedback/submit rate limits repeated submissions", async () =>
   ));
 
 test("docker compose defaults feedback mode to github", () => {
-  const composePath = path.resolve(process.cwd(), "..", "docker-compose.yml");
+  const composePath = fileURLToPath(new URL("../../docker-compose.yml", import.meta.url));
   const compose = fs.readFileSync(composePath, "utf8");
   assert.match(compose, /FEEDBACK_MODE=\$\{FEEDBACK_MODE:-github\}/);
 });
