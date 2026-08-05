@@ -130,6 +130,7 @@ import {
   waitForPodReady,
   streamToUploadPod,
   cleanupUploadPod,
+  deletePvc,
 } from "./uploadPod.js";
 
 const app = express();
@@ -218,6 +219,7 @@ warmCincinnatiCache().catch((err) => {
 });
 
 const activeProcesses = new Map();
+const activeUploads = new Map();
 const pendingBundleStates = new Map();
 const BUNDLE_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -1534,42 +1536,65 @@ app.post("/api/mirror-import/upload", (req, res) => {
   const isNewPvc = req.query.isNewPvc === "true";
   const contentLength = parseInt(req.headers["content-length"] || "0", 10);
 
+  const uploadKey = `${pvcName || "local"}:${filename}`;
+  const existing = activeUploads.get(uploadKey);
+  if (existing) {
+    logger.info({ filename, pvcName, existingJobId: existing }, "Upload already in progress, returning existing job");
+    return res.status(202).json({ jobId: existing, filename });
+  }
+
   const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
   updateJob(jobId, { status: "running", progress: 0 });
+  activeUploads.set(uploadKey, jobId);
 
   res.status(202).json({ jobId, filename });
 
   (async () => {
     try {
       if (isNewPvc && pvcName && pvcSize) {
-        appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
-        await createPvc({ name: pvcName, size: pvcSize });
-        updateJob(jobId, { progress: 10 });
+        let podName, serviceName, namespace;
+        let pvcCreated = false;
 
-        appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
-        const { podName, serviceName, namespace } = await createUploadPod({ pvcName });
-        updateJob(jobId, { progress: 20 });
+        try {
+          appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
+          await createPvc({ name: pvcName, size: pvcSize });
+          pvcCreated = true;
+          updateJob(jobId, { progress: 10 });
 
-        appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
-        await waitForPodReady({ podName, namespace });
-        updateJob(jobId, { progress: 30 });
+          appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
+          ({ podName, serviceName, namespace } = await createUploadPod({ pvcName }));
+          updateJob(jobId, { progress: 20 });
 
-        appendJobOutput(jobId, `Streaming ${filename} to upload pod...\n`);
-        const result = await streamToUploadPod({
-          serviceName,
-          namespace,
-          filename,
-          fileStream: req,
-          contentLength,
-        });
-        updateJob(jobId, { progress: 90 });
+          appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
+          await waitForPodReady({ podName, namespace });
+          updateJob(jobId, { progress: 30 });
 
-        appendJobOutput(jobId, "Cleaning up upload pod...\n");
-        await cleanupUploadPod({ podName, serviceName, namespace });
+          appendJobOutput(jobId, `Streaming ${filename} to upload pod...\n`);
+          const result = await streamToUploadPod({
+            serviceName,
+            namespace,
+            filename,
+            fileStream: req,
+            contentLength,
+          });
+          updateJob(jobId, { progress: 90 });
 
-        appendJobOutput(jobId, `Upload complete: ${result.written} bytes written\n`);
-        updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename} to PVC ${pvcName}` });
-        updateJobMetadata(jobId, { filename, pvcName, bytesWritten: result.written });
+          appendJobOutput(jobId, "Cleaning up upload pod...\n");
+          await cleanupUploadPod({ podName, serviceName, namespace });
+
+          appendJobOutput(jobId, `Upload complete: ${result.written} bytes written\n`);
+          updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename} to PVC ${pvcName}` });
+          updateJobMetadata(jobId, { filename, pvcName, bytesWritten: result.written });
+        } catch (uploadError) {
+          appendJobOutput(jobId, `Upload failed, cleaning up resources...\n`);
+          if (podName && serviceName) {
+            await cleanupUploadPod({ podName, serviceName, namespace });
+          }
+          if (pvcCreated) {
+            await deletePvc({ name: pvcName, namespace });
+          }
+          throw uploadError;
+        }
       } else {
         if (!fs.existsSync(mountPath)) {
           fs.mkdirSync(mountPath, { recursive: true });
@@ -1602,6 +1627,8 @@ app.post("/api/mirror-import/upload", (req, res) => {
       logger.error({ error: error.message, filename, pvcName }, "Upload failed");
       updateJob(jobId, { status: "failed", progress: 0, message: error.message });
       appendJobOutput(jobId, `Upload failed: ${error.message}\n`);
+    } finally {
+      activeUploads.delete(uploadKey);
     }
   })();
 });

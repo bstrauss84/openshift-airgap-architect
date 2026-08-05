@@ -51,12 +51,15 @@ export async function createPvc({ name, size, namespace, storageClassName }) {
   try {
     const response = await client.createNamespacedPersistentVolumeClaim({ namespace: ns, body: pvc });
     logger.info({ name, namespace: ns, size }, "Created PVC for import");
-    return response.body;
+    return response;
   } catch (error) {
-    if (error.body?.reason === "AlreadyExists" || error.statusCode === 409) {
+    const is409 = error.code === 409
+        || error.statusCode === 409
+        || error.message?.includes("409")
+        || error.message?.includes("AlreadyExists");
+    if (is409) {
       logger.info({ name, namespace: ns }, "PVC already exists, reusing");
-      const existing = await client.readNamespacedPersistentVolumeClaim({ name, namespace: ns });
-      return existing.body;
+      return await client.readNamespacedPersistentVolumeClaim({ name, namespace: ns });
     }
     throw error;
   }
@@ -82,8 +85,9 @@ export async function createUploadPod({ pvcName, namespace }) {
   if (!client) throw new Error("Kubernetes client not available");
 
   const ns = namespace || await getCurrentNamespace();
-  const podName = `upload-${pvcName}-${Date.now()}`.substring(0, 63);
-  const serviceName = `${podName}-svc`.substring(0, 63);
+  const suffix = `-${Date.now().toString(36)}`;
+  const podName = `upload-${pvcName}`.substring(0, 63 - suffix.length) + suffix;
+  const serviceName = `upload-${pvcName}`.substring(0, 63 - suffix.length - 4) + suffix + "-svc";
 
   const uploadImage = process.env.UPLOAD_POD_IMAGE || "registry.access.redhat.com/ubi9/ubi:latest";
 
@@ -179,11 +183,29 @@ http.server.HTTPServer(('0.0.0.0', ${UPLOAD_PORT}), UploadHandler).serve_forever
     },
   };
 
-  await client.createNamespacedPod({ namespace: ns, body: pod });
-  logger.info({ podName, namespace: ns, pvcName }, "Created upload pod");
+  try {
+    await client.createNamespacedPod({ namespace: ns, body: pod });
+    logger.info({ podName, namespace: ns, pvcName }, "Created upload pod");
+  } catch (error) {
+    const is409 = error.code === 409 || error.message?.includes("409");
+    if (is409) {
+      logger.info({ podName, namespace: ns }, "Upload pod already exists, reusing");
+    } else {
+      throw error;
+    }
+  }
 
-  await client.createNamespacedService({ namespace: ns, body: service });
-  logger.info({ serviceName, namespace: ns }, "Created upload service");
+  try {
+    await client.createNamespacedService({ namespace: ns, body: service });
+    logger.info({ serviceName, namespace: ns }, "Created upload service");
+  } catch (error) {
+    const is409 = error.code === 409 || error.message?.includes("409");
+    if (is409) {
+      logger.info({ serviceName, namespace: ns }, "Upload service already exists, reusing");
+    } else {
+      throw error;
+    }
+  }
 
   return { podName, serviceName, namespace: ns };
 }
@@ -245,6 +267,20 @@ export function streamToUploadPod({ serviceName, namespace, filename, fileStream
     req.on("error", reject);
     fileStream.pipe(req);
   });
+}
+
+export async function deletePvc({ name, namespace }) {
+  const client = getCoreClient();
+  if (!client) return;
+
+  const ns = namespace || await getCurrentNamespace();
+
+  try {
+    await client.deleteNamespacedPersistentVolumeClaim({ name, namespace: ns });
+    logger.info({ name, namespace: ns }, "Deleted PVC");
+  } catch (error) {
+    logger.warn({ name, error: error.message }, "Failed to delete PVC");
+  }
 }
 
 export async function cleanupUploadPod({ podName, serviceName, namespace }) {
