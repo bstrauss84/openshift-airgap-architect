@@ -4,8 +4,12 @@
  * Lists and monitors CollectionPipeline resources.
  */
 import * as React from 'react';
-import { PageSection, Title, Content, Button, Alert, Spinner } from '@patternfly/react-core';
-import { DownloadIcon } from '@patternfly/react-icons';
+import {
+  PageSection, Title, Content, Button, Alert, Spinner,
+  Dropdown, DropdownItem, DropdownList, MenuToggle, Divider,
+  Modal, ModalHeader, ModalBody, ModalFooter, ModalVariant,
+} from '@patternfly/react-core';
+import { EllipsisVIcon } from '@patternfly/react-icons';
 import {
   Table,
   Thead,
@@ -16,6 +20,7 @@ import {
 } from '@patternfly/react-table';
 import { useHistory } from 'react-router-dom';
 import { CollectionPipeline } from '../types';
+import { getCsrfToken } from '../utils/pipeline-helpers';
 
 export const CollectionPipelineList: React.FC = () => {
   const history = useHistory();
@@ -23,6 +28,10 @@ export const CollectionPipelineList: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [downloadingPipeline, setDownloadingPipeline] = React.useState<string | null>(null);
+  const [openMenuPipeline, setOpenMenuPipeline] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
   const fetchPipelines = async () => {
     try {
@@ -93,6 +102,33 @@ export const CollectionPipelineList: React.FC = () => {
       setDownloadingPipeline(null);
     }
   };
+
+  const handleDelete = async (name: string) => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const headers: Record<string, string> = {};
+      const csrfToken = getCsrfToken();
+      if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+
+      const response = await fetch(
+        `/api/kubernetes/apis/mirror.mirror.mathianasj.github.com/v1/namespaces/mirror-operator-system/collectionpipelines/${name}`,
+        { method: 'DELETE', headers }
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete: ${response.status} - ${errorText}`);
+      }
+      setDeleteTarget(null);
+      fetchPipelines();
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete pipeline');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const isComplete = (phase?: string) => phase === 'Complete' || phase === 'Succeeded';
 
   return (
     <>
@@ -205,28 +241,54 @@ export const CollectionPipelineList: React.FC = () => {
                   <Td>{pipeline.status?.version || '-'}</Td>
                   <Td>{formatTimestamp(pipeline.metadata.creationTimestamp)}</Td>
                   <Td>{formatTimestamp(pipeline.status?.completionTime)}</Td>
-                  <Td>
-                    {(pipeline.status?.phase === 'Complete' || pipeline.status?.phase === 'Succeeded') ? (
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <Button
-                          variant="link"
-                          icon={<DownloadIcon />}
-                          onClick={() => handleDownload(pipeline.metadata.name)}
-                          isLoading={downloadingPipeline === pipeline.metadata.name}
-                          isDisabled={downloadingPipeline !== null}
+                  <Td isActionCell>
+                    <Dropdown
+                      isOpen={openMenuPipeline === pipeline.metadata.name}
+                      onSelect={() => setOpenMenuPipeline(null)}
+                      onOpenChange={(open) => { if (!open) setOpenMenuPipeline(null); }}
+                      toggle={(toggleRef) => (
+                        <MenuToggle
+                          ref={toggleRef}
+                          variant="plain"
+                          onClick={() => setOpenMenuPipeline(
+                            openMenuPipeline === pipeline.metadata.name ? null : pipeline.metadata.name
+                          )}
+                          isExpanded={openMenuPipeline === pipeline.metadata.name}
+                          aria-label={`Actions for ${pipeline.metadata.name}`}
                         >
-                          {downloadingPipeline === pipeline.metadata.name ? 'Generating URL...' : 'Download Bundle'}
-                        </Button>
-                        <Button
-                          variant="link"
-                          onClick={() => history.push(`/airgap-architect/imagesets/create?parentPipeline=${pipeline.metadata.name}`)}
+                          <EllipsisVIcon />
+                        </MenuToggle>
+                      )}
+                      popperProps={{ position: 'right' }}
+                    >
+                      <DropdownList>
+                        {isComplete(pipeline.status?.phase) && (
+                          <>
+                            <DropdownItem
+                              key="download"
+                              onClick={() => handleDownload(pipeline.metadata.name)}
+                              isDisabled={downloadingPipeline !== null}
+                            >
+                              {downloadingPipeline === pipeline.metadata.name ? 'Generating URL...' : 'Download Bundle'}
+                            </DropdownItem>
+                            <DropdownItem
+                              key="update"
+                              onClick={() => history.push(`/airgap-architect/imagesets/create?parentPipeline=${pipeline.metadata.name}`)}
+                            >
+                              Create Update Bundle
+                            </DropdownItem>
+                            <Divider key="separator" />
+                          </>
+                        )}
+                        <DropdownItem
+                          key="delete"
+                          isDanger
+                          onClick={() => setDeleteTarget(pipeline.metadata.name)}
                         >
-                          Create Update Bundle
-                        </Button>
-                      </div>
-                    ) : (
-                      <span style={{ color: '#6a6e73', fontSize: '0.875rem' }}>-</span>
-                    )}
+                          Delete
+                        </DropdownItem>
+                      </DropdownList>
+                    </Dropdown>
                   </Td>
                 </Tr>
               ))}
@@ -234,6 +296,42 @@ export const CollectionPipelineList: React.FC = () => {
           </Table>
         )}
       </PageSection>
+
+      <Modal
+        variant={ModalVariant.small}
+        isOpen={deleteTarget !== null}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null); }}
+        aria-label="Delete collection pipeline confirmation"
+      >
+        <ModalHeader title="Delete Collection Pipeline?" />
+        <ModalBody>
+          <p>
+            Are you sure you want to delete <strong>{deleteTarget}</strong>? This action cannot be undone.
+          </p>
+          {deleteError && (
+            <Alert variant="danger" title="Delete Failed" isInline style={{ marginTop: '1rem' }}>
+              <p>{deleteError}</p>
+            </Alert>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="danger"
+            onClick={() => deleteTarget && handleDelete(deleteTarget)}
+            isLoading={deleting}
+            isDisabled={deleting}
+          >
+            Delete
+          </Button>
+          <Button
+            variant="link"
+            onClick={() => { setDeleteTarget(null); setDeleteError(null); }}
+            isDisabled={deleting}
+          >
+            Cancel
+          </Button>
+        </ModalFooter>
+      </Modal>
     </>
   );
 };

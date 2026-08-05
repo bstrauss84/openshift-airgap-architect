@@ -16,10 +16,12 @@ import {
   DescriptionList, DescriptionListGroup, DescriptionListTerm, DescriptionListDescription,
   CodeBlock, CodeBlockCode,
   List, ListItem,
+  Modal, ModalHeader, ModalBody, ModalFooter, ModalVariant,
 } from '@patternfly/react-core';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table';
-import { DownloadIcon, ExternalLinkAltIcon, CheckCircleIcon, InProgressIcon, ExclamationCircleIcon } from '@patternfly/react-icons';
+import { DownloadIcon, ExternalLinkAltIcon, CheckCircleIcon, InProgressIcon, ExclamationCircleIcon, TrashIcon } from '@patternfly/react-icons';
 import { CollectionPipeline } from '../types';
+import { getCsrfToken } from '../utils/pipeline-helpers';
 
 interface PipelineRun {
   metadata: {
@@ -86,6 +88,9 @@ export const CollectionPipelineDetail: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const [downloadUrls, setDownloadUrls] = React.useState<{ bundle?: string; signature?: string; bundleSize?: number } | null>(null);
   const [loadingDownloadUrls, setLoadingDownloadUrls] = React.useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
   // Track if this is the first load using a ref
   const isFirstLoadRef = React.useRef(true);
@@ -397,6 +402,30 @@ export const CollectionPipelineDetail: React.FC = () => {
     );
   }
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const headers: Record<string, string> = {};
+      const csrfToken = getCsrfToken();
+      if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+
+      const response = await fetch(
+        `/api/kubernetes/apis/mirror.mirror.mathianasj.github.com/v1/namespaces/${namespace}/collectionpipelines/${name}`,
+        { method: 'DELETE', headers }
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete: ${response.status} - ${errorText}`);
+      }
+      history.push('/airgap-architect');
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete pipeline');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <>
       <PageSection variant="light">
@@ -418,6 +447,13 @@ export const CollectionPipelineDetail: React.FC = () => {
             )}
             <Button variant="secondary" onClick={() => history.push('/airgap-architect')}>
               Back to List
+            </Button>
+            <Button
+              variant="danger"
+              icon={<TrashIcon />}
+              onClick={() => setDeleteModalOpen(true)}
+            >
+              Delete
             </Button>
           </div>
         </div>
@@ -811,6 +847,42 @@ export const CollectionPipelineDetail: React.FC = () => {
           </Card>
         )}
       </PageSection>
+
+      <Modal
+        variant={ModalVariant.small}
+        isOpen={deleteModalOpen}
+        onClose={() => { setDeleteModalOpen(false); setDeleteError(null); }}
+        aria-label="Delete collection pipeline confirmation"
+      >
+        <ModalHeader title="Delete Collection Pipeline?" />
+        <ModalBody>
+          <p>
+            Are you sure you want to delete <strong>{name}</strong>? This action cannot be undone.
+          </p>
+          {deleteError && (
+            <Alert variant="danger" title="Delete Failed" isInline style={{ marginTop: '1rem' }}>
+              <p>{deleteError}</p>
+            </Alert>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="danger"
+            onClick={handleDelete}
+            isLoading={deleting}
+            isDisabled={deleting}
+          >
+            Delete
+          </Button>
+          <Button
+            variant="link"
+            onClick={() => { setDeleteModalOpen(false); setDeleteError(null); }}
+            isDisabled={deleting}
+          >
+            Cancel
+          </Button>
+        </ModalFooter>
+      </Modal>
     </>
   );
 };
