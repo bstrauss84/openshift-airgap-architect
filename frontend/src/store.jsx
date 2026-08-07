@@ -78,10 +78,18 @@ const useAppProvider = () => {
     if (!state) return;
     const toPersist = getStateForPersistence(state);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersist));
+    const controller = new AbortController();
     const timeout = setTimeout(() => {
-      apiFetch("/api/state", { method: "POST", body: JSON.stringify(toPersist) }).catch(() => {});
+      apiFetch("/api/state", {
+        method: "POST",
+        body: JSON.stringify(toPersist),
+        signal: controller.signal,
+      }).catch(() => {});
     }, 600);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, [state]);
 
   const updateState = (patch) =>

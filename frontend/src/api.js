@@ -12,6 +12,10 @@ import { generateRequestId, logError } from "./logger.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
+function isExpectedAbort(err, signal) {
+  return !!err && err instanceof DOMException && err.name === "AbortError" && signal?.aborted === true;
+}
+
 const apiFetch = async (path, options = {}) => {
   const requestId = generateRequestId();
   const startTime = Date.now();
@@ -74,6 +78,7 @@ const apiFetch = async (path, options = {}) => {
 
     return res.json();
   } catch (err) {
+    if (isExpectedAbort(err, options.signal)) throw err;
     // Log network/fetch errors
     if (!err.requestId) {
       logError("api_request", err.message, {
