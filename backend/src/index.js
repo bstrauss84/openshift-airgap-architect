@@ -223,6 +223,7 @@ warmCincinnatiCache().catch((err) => {
 
 const activeProcesses = new Map();
 const activeUploads = new Map();
+const activeChunkedUploads = new Map();
 const pendingBundleStates = new Map();
 const BUNDLE_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -232,6 +233,21 @@ const purgeExpiredBundleStates = () => {
     if (!entry || now >= entry.expiresAt) pendingBundleStates.delete(token);
   }
 };
+
+const CHUNKED_UPLOAD_TTL_MS = 2 * 60 * 60 * 1000;
+const purgeExpiredChunkedUploads = () => {
+  const now = Date.now();
+  for (const [uploadId, session] of activeChunkedUploads.entries()) {
+    if (now - session.createdAt > CHUNKED_UPLOAD_TTL_MS) {
+      logger.info({ uploadId, filename: session.filename }, "Expiring stale chunked upload session");
+      activeUploads.delete(session.uploadKey);
+      activeChunkedUploads.delete(uploadId);
+      updateJob(session.jobId, { status: "failed", message: "Upload session expired" });
+      fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+    }
+  }
+};
+setInterval(purgeExpiredChunkedUploads, 5 * 60 * 1000);
 
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
@@ -1566,6 +1582,280 @@ app.get("/api/mirror-import/pvcs", async (_req, res) => {
   }
 });
 
+async function processUploadedFile({ jobId, tmpPath, filename, bytesReceived, pvcName, pvcSize, isNewPvc }) {
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+
+  appendJobOutput(jobId, `Received ${bytesReceived} bytes\n`);
+  updateJob(jobId, { progress: 50, message: `Received ${filename}, processing...` });
+
+  if (isNewPvc && pvcName && pvcSize) {
+    let podName, serviceName, namespace;
+    let pvcCreated = false;
+
+    try {
+      appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
+      await createPvc({ name: pvcName, size: pvcSize });
+      pvcCreated = true;
+      updateJob(jobId, { progress: 55 });
+
+      appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
+      ({ podName, serviceName, namespace } = await createUploadPod({ pvcName }));
+      updateJob(jobId, { progress: 60 });
+
+      appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
+      await waitForPodReady({ podName, namespace });
+      updateJob(jobId, { progress: 65 });
+
+      appendJobOutput(jobId, `Streaming ${filename} to upload pod...\n`);
+      const fileStream = fs.createReadStream(tmpPath);
+      const result = await streamToUploadPod({
+        serviceName,
+        namespace,
+        filename,
+        fileStream,
+        contentLength: bytesReceived,
+      });
+      updateJob(jobId, { progress: 90 });
+
+      appendJobOutput(jobId, "Cleaning up upload pod...\n");
+      await cleanupUploadPod({ podName, serviceName, namespace });
+
+      appendJobOutput(jobId, `Upload complete: ${result.written} bytes written\n`);
+      updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename} to PVC ${pvcName}` });
+      updateJobMetadata(jobId, { filename, pvcName, bytesWritten: result.written });
+    } catch (uploadError) {
+      appendJobOutput(jobId, `Upload failed, cleaning up resources...\n`);
+      if (podName && serviceName) {
+        await cleanupUploadPod({ podName, serviceName, namespace });
+      }
+      if (pvcCreated) {
+        await deletePvc({ name: pvcName, namespace });
+      }
+      throw uploadError;
+    }
+  } else {
+    if (!fs.existsSync(mountPath)) {
+      fs.mkdirSync(mountPath, { recursive: true });
+    }
+
+    const destPath = path.join(mountPath, filename);
+    await fs.promises.rename(tmpPath, destPath).catch(async () => {
+      await fs.promises.copyFile(tmpPath, destPath);
+      await fs.promises.unlink(tmpPath).catch(() => {});
+    });
+
+    updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename}` });
+    updateJobMetadata(jobId, { filename, bytesWritten: bytesReceived });
+    appendJobOutput(jobId, `Upload complete: ${bytesReceived} bytes written to ${destPath}\n`);
+  }
+}
+
+// ─── Chunked Upload Endpoints ───────────────────────────────────────────────
+
+const CHUNK_SIZE_DEFAULT = 40 * 1024 * 1024;
+
+app.post("/api/mirror-import/upload/init", (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const { filename, fileSize, chunkSize: requestedChunkSize, pvcName, pvcSize, isNewPvc } = req.body || {};
+  if (!filename || !fileSize) {
+    return res.status(400).json({ error: "filename and fileSize are required" });
+  }
+
+  const chunkSize = requestedChunkSize || CHUNK_SIZE_DEFAULT;
+  const totalChunks = Math.ceil(fileSize / chunkSize);
+  const uploadKey = `${pvcName || "local"}:${filename}`;
+
+  const existing = activeUploads.get(uploadKey);
+  if (existing) {
+    const existingSession = [...activeChunkedUploads.values()].find((s) => s.jobId === existing);
+    if (existingSession) {
+      return res.status(202).json({
+        uploadId: existingSession.uploadId,
+        jobId: existing,
+        totalChunks: existingSession.totalChunks,
+        chunkSize: existingSession.chunkSize,
+        receivedChunks: existingSession.receivedChunks.size,
+      });
+    }
+    return res.status(202).json({ jobId: existing, filename });
+  }
+
+  const uploadId = nanoid();
+  const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
+  updateJob(jobId, { status: "running", progress: 0 });
+
+  const tmpDir = path.join(dataDir, "tmp", `chunked-${uploadId}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const session = {
+    uploadId, jobId, filename, fileSize, chunkSize, totalChunks,
+    pvcName: pvcName || null, pvcSize: pvcSize || null, isNewPvc: !!isNewPvc,
+    receivedChunks: new Set(),
+    bytesReceived: 0,
+    tmpDir,
+    uploadKey,
+    createdAt: Date.now(),
+    finalizing: false,
+  };
+
+  activeUploads.set(uploadKey, jobId);
+  activeChunkedUploads.set(uploadId, session);
+
+  logger.info({ uploadId, filename, fileSize, totalChunks, chunkSize }, "Chunked upload session created");
+  res.status(202).json({ uploadId, jobId, totalChunks, chunkSize });
+});
+
+app.put("/api/mirror-import/upload/:uploadId/chunk/:chunkIndex", (req, res) => {
+  const { uploadId, chunkIndex: chunkIndexStr } = req.params;
+  const chunkIndex = parseInt(chunkIndexStr, 10);
+  const session = activeChunkedUploads.get(uploadId);
+
+  if (!session) {
+    return res.status(404).json({ error: "Upload session not found" });
+  }
+  if (session.finalizing) {
+    return res.status(409).json({ error: "Upload is already finalizing" });
+  }
+  if (isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
+    return res.status(400).json({ error: "chunkIndex out of range", max: session.totalChunks - 1 });
+  }
+  if (session.receivedChunks.has(chunkIndex)) {
+    return res.status(200).json({
+      chunkIndex,
+      receivedChunks: session.receivedChunks.size,
+      totalChunks: session.totalChunks,
+    });
+  }
+
+  const chunkFile = path.join(session.tmpDir, `chunk-${String(chunkIndex).padStart(6, "0")}`);
+  const ws = fs.createWriteStream(chunkFile);
+  let chunkBytes = 0;
+
+  req.on("data", (buf) => { chunkBytes += buf.length; });
+  req.pipe(ws);
+
+  ws.on("finish", () => {
+    session.receivedChunks.add(chunkIndex);
+    session.bytesReceived += chunkBytes;
+    const progress = Math.min(45, Math.floor((session.receivedChunks.size / session.totalChunks) * 45));
+    updateJob(session.jobId, { progress, message: `Receiving ${session.filename} (${session.receivedChunks.size}/${session.totalChunks} chunks)...` });
+    res.status(200).json({
+      chunkIndex,
+      bytesWritten: chunkBytes,
+      receivedChunks: session.receivedChunks.size,
+      totalChunks: session.totalChunks,
+      progress,
+    });
+  });
+
+  ws.on("error", (err) => {
+    logger.error({ uploadId, chunkIndex, error: err.message }, "Failed to write chunk");
+    res.status(500).json({ error: "Failed to write chunk" });
+  });
+
+  req.on("error", (err) => {
+    logger.error({ uploadId, chunkIndex, error: err.message }, "Request stream error on chunk upload");
+    ws.destroy();
+    fs.unlink(chunkFile, () => {});
+  });
+});
+
+app.post("/api/mirror-import/upload/:uploadId/finalize", (req, res) => {
+  const { uploadId } = req.params;
+  const session = activeChunkedUploads.get(uploadId);
+
+  if (!session) {
+    return res.status(404).json({ error: "Upload session not found" });
+  }
+  if (session.finalizing) {
+    return res.status(202).json({ uploadId, jobId: session.jobId, status: "already finalizing" });
+  }
+
+  const missing = [];
+  for (let i = 0; i < session.totalChunks; i++) {
+    if (!session.receivedChunks.has(i)) missing.push(i);
+  }
+  if (missing.length > 0) {
+    return res.status(400).json({ error: "Missing chunks", missing, received: session.receivedChunks.size, total: session.totalChunks });
+  }
+
+  session.finalizing = true;
+  res.status(202).json({ uploadId, jobId: session.jobId, filename: session.filename, status: "assembling" });
+
+  (async () => {
+    try {
+      updateJob(session.jobId, { progress: 46, message: `Assembling ${session.totalChunks} chunks...` });
+      appendJobOutput(session.jobId, `Assembling ${session.totalChunks} chunks into ${session.filename}...\n`);
+
+      const assembledPath = path.join(session.tmpDir, `assembled-${session.filename}`);
+      const outStream = fs.createWriteStream(assembledPath);
+
+      for (let i = 0; i < session.totalChunks; i++) {
+        const chunkFile = path.join(session.tmpDir, `chunk-${String(i).padStart(6, "0")}`);
+        await new Promise((resolve, reject) => {
+          const rs = fs.createReadStream(chunkFile);
+          rs.pipe(outStream, { end: false });
+          rs.on("end", resolve);
+          rs.on("error", reject);
+        });
+      }
+
+      await new Promise((resolve, reject) => {
+        outStream.end();
+        outStream.on("finish", resolve);
+        outStream.on("error", reject);
+      });
+
+      appendJobOutput(session.jobId, `Assembly complete: ${session.bytesReceived} bytes\n`);
+
+      await processUploadedFile({
+        jobId: session.jobId,
+        tmpPath: assembledPath,
+        filename: session.filename,
+        bytesReceived: session.bytesReceived,
+        pvcName: session.pvcName,
+        pvcSize: session.pvcSize,
+        isNewPvc: session.isNewPvc,
+      });
+    } catch (error) {
+      logger.error({ error: error.message, uploadId, filename: session.filename }, "Chunked upload finalize failed");
+      updateJob(session.jobId, { status: "failed", progress: 0, message: error.message });
+      appendJobOutput(session.jobId, `Upload failed: ${error.message}\n`);
+    } finally {
+      activeUploads.delete(session.uploadKey);
+      activeChunkedUploads.delete(uploadId);
+      fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+    }
+  })();
+});
+
+app.get("/api/mirror-import/upload/:uploadId/status", (req, res) => {
+  const { uploadId } = req.params;
+  const session = activeChunkedUploads.get(uploadId);
+
+  if (!session) {
+    return res.status(404).json({ error: "Upload session not found" });
+  }
+
+  res.json({
+    uploadId: session.uploadId,
+    jobId: session.jobId,
+    totalChunks: session.totalChunks,
+    receivedChunks: session.receivedChunks.size,
+    bytesReceived: session.bytesReceived,
+    fileSize: session.fileSize,
+    status: session.finalizing ? "finalizing" : "receiving",
+  });
+});
+
+// ─── Legacy single-request upload (kept for backward compat) ────────────────
+
 app.post("/api/mirror-import/upload", (req, res) => {
   if (!isOperatorManaged()) {
     return res.status(403).json({ error: "Only available in operator-managed mode" });
@@ -1592,9 +1882,6 @@ app.post("/api/mirror-import/upload", (req, res) => {
   updateJob(jobId, { status: "running", progress: 0 });
   activeUploads.set(uploadKey, jobId);
 
-  // Buffer the request body to a temp file IMMEDIATELY — the console proxy
-  // will reset the connection if we delay reading the body (e.g. waiting for
-  // PVC/pod creation). Stream to temp, respond 202, then do K8s work later.
   const tmpDir = path.join(dataDir, "tmp");
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
   const tmpPath = path.join(tmpDir, `upload-${jobId}-${filename}`);
@@ -1615,84 +1902,19 @@ app.post("/api/mirror-import/upload", (req, res) => {
 
   (async () => {
     try {
-      // Wait for the body to finish writing to temp file
       await new Promise((resolve, reject) => {
         tmpStream.on("finish", resolve);
         tmpStream.on("error", reject);
         req.on("error", reject);
       });
 
-      appendJobOutput(jobId, `Received ${bytesReceived} bytes\n`);
-      updateJob(jobId, { progress: 50, message: `Received ${filename}, processing...` });
-
-      if (isNewPvc && pvcName && pvcSize) {
-        let podName, serviceName, namespace;
-        let pvcCreated = false;
-
-        try {
-          appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
-          await createPvc({ name: pvcName, size: pvcSize });
-          pvcCreated = true;
-          updateJob(jobId, { progress: 55 });
-
-          appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
-          ({ podName, serviceName, namespace } = await createUploadPod({ pvcName }));
-          updateJob(jobId, { progress: 60 });
-
-          appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
-          await waitForPodReady({ podName, namespace });
-          updateJob(jobId, { progress: 65 });
-
-          appendJobOutput(jobId, `Streaming ${filename} to upload pod...\n`);
-          const fileStream = fs.createReadStream(tmpPath);
-          const result = await streamToUploadPod({
-            serviceName,
-            namespace,
-            filename,
-            fileStream,
-            contentLength: bytesReceived,
-          });
-          updateJob(jobId, { progress: 90 });
-
-          appendJobOutput(jobId, "Cleaning up upload pod...\n");
-          await cleanupUploadPod({ podName, serviceName, namespace });
-
-          appendJobOutput(jobId, `Upload complete: ${result.written} bytes written\n`);
-          updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename} to PVC ${pvcName}` });
-          updateJobMetadata(jobId, { filename, pvcName, bytesWritten: result.written });
-        } catch (uploadError) {
-          appendJobOutput(jobId, `Upload failed, cleaning up resources...\n`);
-          if (podName && serviceName) {
-            await cleanupUploadPod({ podName, serviceName, namespace });
-          }
-          if (pvcCreated) {
-            await deletePvc({ name: pvcName, namespace });
-          }
-          throw uploadError;
-        }
-      } else {
-        if (!fs.existsSync(mountPath)) {
-          fs.mkdirSync(mountPath, { recursive: true });
-        }
-
-        const destPath = path.join(mountPath, filename);
-        await fs.promises.rename(tmpPath, destPath).catch(async () => {
-          // rename fails across filesystems; fall back to copy
-          await fs.promises.copyFile(tmpPath, destPath);
-          await fs.promises.unlink(tmpPath).catch(() => {});
-        });
-
-        updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename}` });
-        updateJobMetadata(jobId, { filename, bytesWritten: bytesReceived });
-        appendJobOutput(jobId, `Upload complete: ${bytesReceived} bytes written to ${destPath}\n`);
-      }
+      await processUploadedFile({ jobId, tmpPath, filename, bytesReceived, pvcName, pvcSize, isNewPvc });
     } catch (error) {
       logger.error({ error: error.message, filename, pvcName }, "Upload failed");
       updateJob(jobId, { status: "failed", progress: 0, message: error.message });
       appendJobOutput(jobId, `Upload failed: ${error.message}\n`);
     } finally {
       activeUploads.delete(uploadKey);
-      // Clean up temp file
       fs.unlink(tmpPath, () => {});
     }
   })();
@@ -3495,7 +3717,8 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
       fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-subscription.yaml"), subscriptionYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
 
-      const disconnectedPlatformYaml = buildDisconnectedPlatform();
+      const openshiftMinor = getOpenShiftMinorFromState(state) || state.release?.channel || null;
+      const disconnectedPlatformYaml = buildDisconnectedPlatform(openshiftMinor);
       fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-disconnected-platform.yaml"), disconnectedPlatformYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
 

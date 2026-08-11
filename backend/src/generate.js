@@ -39,6 +39,7 @@ const MIRROR_OPERATOR_DEPENDENT_OPERATORS = [
   { name: "rhtpa-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
   { name: "advanced-cluster-management", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
   { name: "multicluster-engine", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "cincinnati-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
 ];
 
 const normalizePullSecretString = (input) => {
@@ -2065,7 +2066,7 @@ const buildOperatorHubDisableDefaults = () => {
   return yaml.dump(manifest, { lineWidth: 120 });
 };
 
-const buildDisconnectedPlatform = () => {
+const buildDisconnectedPlatform = (openshiftVersion) => {
   const manifest = {
     apiVersion: "mirror.mirror.mathianasj.github.com/v1",
     kind: "DisconnectedPlatform",
@@ -2093,6 +2094,12 @@ const buildDisconnectedPlatform = () => {
         },
         acm: {
           enabled: true,
+          hostInventory: {
+            enabled: true,
+            ...(openshiftVersion ? {
+              versions: [{ openshiftVersion }],
+            } : {}),
+          },
         },
       },
       architect: {

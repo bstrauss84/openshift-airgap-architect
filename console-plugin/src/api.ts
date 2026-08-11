@@ -7,7 +7,7 @@
 
 // In production, use console's plugin proxy endpoint
 // In dev, it points to localhost:4000
-const API_BASE_URL = process.env.NODE_ENV === 'production'
+export const API_BASE_URL = process.env.NODE_ENV === 'production'
   ? '/api/proxy/plugin/airgap-architect-plugin/backend'
   : 'http://localhost:4000';
 

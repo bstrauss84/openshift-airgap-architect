@@ -14,6 +14,7 @@ import {
 import { useApp } from '../AppProvider';
 import { apiFetch } from '../api';
 import { getCsrfToken } from '../utils/pipeline-helpers';
+import { chunkedUpload } from '../utils/chunked-upload';
 import { useHistory } from 'react-router-dom';
 
 function formatFileSize(bytes: number): string {
@@ -31,12 +32,17 @@ export const ImportReviewStep: React.FC = () => {
   const [createdName, setCreatedName] = React.useState('');
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = React.useState<string>('');
+  const abortRef = React.useRef<AbortController | null>(null);
 
   const source = state.importSource || {};
   const storage = state.importStorage || {};
   const config = state.importConfig || {};
 
   const needsUpload = source.sourceMode === 'upload' && source.uploadFile;
+
+  React.useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   const pollJobStatus = async (jobId: string): Promise<void> => {
     while (true) {
@@ -61,9 +67,20 @@ export const ImportReviewStep: React.FC = () => {
     }
   };
 
+  const handleCancel = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setCreating(false);
+    setUploadProgress(null);
+    setUploadStatus('');
+  };
+
   const handleSubmit = async () => {
     setCreating(true);
     setError(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       let bundlePvc = storage.pvcName;
@@ -73,23 +90,23 @@ export const ImportReviewStep: React.FC = () => {
         setUploadStatus('Starting upload...');
         setUploadProgress(0);
 
-        const params = new URLSearchParams({
+        const result = await chunkedUpload({
+          file: source.uploadFile,
           filename: source.filename || `import-${Date.now()}.tar`,
           pvcName: storage.pvcName || '',
           pvcSize: storage.pvcSize || '',
-          isNewPvc: String(storage.isNewPvc || false),
+          isNewPvc: storage.isNewPvc || false,
+          onProgress: (progress) => {
+            setUploadProgress(progress.overallPercent);
+            setUploadStatus(progress.message);
+          },
+          signal: controller.signal,
         });
 
-        const uploadResponse = await apiFetch(`/api/mirror-import/upload?${params.toString()}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: source.uploadFile,
-        });
-
-        if (uploadResponse.jobId) {
-          await pollJobStatus(uploadResponse.jobId);
+        if (result.jobId) {
+          await pollJobStatus(result.jobId);
         }
-        bundleFilename = uploadResponse.filename || source.filename;
+        bundleFilename = result.filename || source.filename;
         setUploadStatus('Upload complete');
         setUploadProgress(100);
       } else if (storage.isNewPvc) {
@@ -263,7 +280,7 @@ export const ImportReviewStep: React.FC = () => {
         </Alert>
       )}
 
-      <div style={{ marginTop: '2rem' }}>
+      <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem' }}>
         <Button
           variant="primary"
           onClick={handleSubmit}
@@ -276,6 +293,11 @@ export const ImportReviewStep: React.FC = () => {
               : 'Creating...'
             : 'Import Bundle'}
         </Button>
+        {creating && uploadProgress !== null && uploadProgress < 46 && (
+          <Button variant="link" isDanger onClick={handleCancel}>
+            Cancel Upload
+          </Button>
+        )}
       </div>
     </div>
   );
