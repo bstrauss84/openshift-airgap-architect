@@ -76,7 +76,7 @@ import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { createCollectionPipeline, listCollectionPipelines } from "./collectionPipeline.js";
-import { generateCollectionDownloadUrls } from "./s3Client.js";
+import { generateCollectionDownloadUrls, resolveCollectionArtifact, streamS3ParallelDownload } from "./s3Client.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -1460,6 +1460,48 @@ app.get("/api/collections/:name/download-url", async (req, res) => {
     res.status(500).json({
       error: error.message
     });
+  }
+});
+
+app.get("/api/collections/:name/download/:artifactType", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "Collection downloads only available in operator-managed mode"
+    });
+  }
+
+  const { name, artifactType } = req.params;
+  if (!['bundle', 'signature'].includes(artifactType)) {
+    return res.status(400).json({ error: "artifactType must be 'bundle' or 'signature'" });
+  }
+
+  try {
+    const artifact = await resolveCollectionArtifact({ collectionName: name, artifactType });
+
+    res.setHeader('Content-Type', artifact.contentType);
+    res.setHeader('Content-Length', artifact.size);
+    res.setHeader('Content-Disposition', `attachment; filename="${artifact.fileName}"`);
+
+    const ac = new AbortController();
+    req.on('close', () => ac.abort());
+
+    await streamS3ParallelDownload({
+      s3Client: artifact.s3Client,
+      bucket: artifact.bucket,
+      key: artifact.key,
+      totalSize: artifact.size,
+      output: res,
+      signal: ac.signal
+    });
+  } catch (error) {
+    logger.error({ collectionName: name, artifactType, error: error.message }, "Collection download failed");
+
+    if (!res.headersSent) {
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: error.message });
+    }
   }
 });
 

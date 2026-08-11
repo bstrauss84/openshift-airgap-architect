@@ -27,7 +27,6 @@ export const CollectionPipelineList: React.FC = () => {
   const [pipelines, setPipelines] = React.useState<CollectionPipeline[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [downloadingPipeline, setDownloadingPipeline] = React.useState<string | null>(null);
   const [openMenuPipeline, setOpenMenuPipeline] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState(false);
@@ -77,30 +76,9 @@ export const CollectionPipelineList: React.FC = () => {
     return `/airgap-architect/collections/${pipelineName}`;
   };
 
-  const handleDownload = async (pipelineName: string) => {
-    setDownloadingPipeline(pipelineName);
-    try {
-      // Call backend API via console plugin proxy to get pre-signed download URLs
-      const response = await fetch(`/api/proxy/plugin/airgap-architect-plugin/backend/api/collections/${pipelineName}/download-url`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to get download URL: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // If we have URLs, download the main bundle (mirror_seq1_000000.tar)
-      if (data.urls && data.urls['mirror_seq1_000000.tar']) {
-        window.open(data.urls['mirror_seq1_000000.tar'], '_blank');
-      } else {
-        throw new Error('No bundle URL available');
-      }
-    } catch (err: any) {
-      alert(`Failed to download: ${err.message}`);
-    } finally {
-      setDownloadingPipeline(null);
-    }
+  const handleDownload = (pipelineName: string) => {
+    const proxyBase = '/api/proxy/plugin/airgap-architect-plugin/backend';
+    window.open(`${proxyBase}/api/collections/${pipelineName}/download/bundle`, '_blank');
   };
 
   const handleDelete = async (name: string) => {
@@ -267,9 +245,8 @@ export const CollectionPipelineList: React.FC = () => {
                             <DropdownItem
                               key="download"
                               onClick={() => handleDownload(pipeline.metadata.name)}
-                              isDisabled={downloadingPipeline !== null}
                             >
-                              {downloadingPipeline === pipeline.metadata.name ? 'Generating URL...' : 'Download Bundle'}
+                              Download Bundle
                             </DropdownItem>
                             <DropdownItem
                               key="update"

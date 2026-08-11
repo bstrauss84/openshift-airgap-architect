@@ -233,9 +233,11 @@ export const CollectionPipelineDetail: React.FC = () => {
     }
 
     setLoadingDownloadUrls(true);
+
+    const proxyBase = '/api/proxy/plugin/airgap-architect-plugin/backend';
+
     try {
-      // Call backend API to get pre-signed download URLs with proper public endpoint
-      const response = await fetch(`/api/proxy/plugin/airgap-architect-plugin/backend/api/collections/${name}/download-url`);
+      const response = await fetch(`${proxyBase}/api/collections/${name}/download-url`);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -244,26 +246,22 @@ export const CollectionPipelineDetail: React.FC = () => {
 
       const data = await response.json();
 
-      // Extract bundle and signature URLs from the response
-      // The backend returns URLs keyed by filename with { url, size } objects
       const urls = data.urls || {};
       const bundleKey = Object.keys(urls).find(key => key.endsWith('.tar.gz') || key.endsWith('.tar'));
       const signatureKey = Object.keys(urls).find(key => key.endsWith('.sig'));
 
       const bundleEntry = bundleKey ? urls[bundleKey] : undefined;
-      const signatureEntry = signatureKey ? urls[signatureKey] : undefined;
 
       setDownloadUrls({
-        bundle: typeof bundleEntry === 'object' ? bundleEntry?.url : bundleEntry,
+        bundle: bundleKey ? `${proxyBase}/api/collections/${name}/download/bundle` : undefined,
         bundleSize: typeof bundleEntry === 'object' ? bundleEntry?.size : undefined,
-        signature: typeof signatureEntry === 'object' ? signatureEntry?.url : signatureEntry,
+        signature: signatureKey ? `${proxyBase}/api/collections/${name}/download/signature` : undefined,
       });
     } catch (err: any) {
       console.error('Failed to fetch download URLs:', err);
-      // Fall back to using status URLs if API call fails
       setDownloadUrls({
-        bundle: pipeline?.status?.bundleUrl,
-        signature: pipeline?.status?.signatureUrl
+        bundle: `${proxyBase}/api/collections/${name}/download/bundle`,
+        signature: `${proxyBase}/api/collections/${name}/download/signature`,
       });
     } finally {
       setLoadingDownloadUrls(false);

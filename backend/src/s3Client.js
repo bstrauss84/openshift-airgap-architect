@@ -13,6 +13,7 @@
 import { S3Client, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { KubeConfig, CoreV1Api, CustomObjectsApi } from "@kubernetes/client-node";
+import { pipeline as streamPipeline } from "stream/promises";
 import logger from "./logger.js";
 
 /**
@@ -384,4 +385,161 @@ export async function generateCollectionDownloadUrls({
   }
 
   return urls;
+}
+
+/**
+ * Resolve S3 artifact info for a collection pipeline artifact.
+ * Returns everything needed to download the artifact.
+ * @param {object} options
+ * @param {string} options.collectionName
+ * @param {'bundle'|'signature'} options.artifactType
+ * @param {string} [options.secretName]
+ * @param {string} [options.namespace]
+ * @returns {Promise<{s3Client: S3Client, bucket: string, key: string, size: number, contentType: string, fileName: string}>}
+ */
+export async function resolveCollectionArtifact({ collectionName, artifactType, secretName, namespace }) {
+  const effectiveSecretName = secretName || process.env.S3_SECRET_NAME || 'collection-artifacts';
+
+  const pipeline = await fetchCollectionPipeline(collectionName, namespace);
+  if (!pipeline.status) {
+    throw new Error(`CollectionPipeline ${collectionName} has no status`);
+  }
+
+  const urlMap = {
+    bundle: pipeline.status.bundleUrl,
+    signature: pipeline.status.signatureUrl
+  };
+
+  const internalUrl = urlMap[artifactType];
+  if (!internalUrl) {
+    throw new Error(`No ${artifactType} URL found for collection ${collectionName}`);
+  }
+
+  const credentials = await readS3Credentials(effectiveSecretName, namespace);
+  const client = createS3Client(credentials);
+  const key = extractS3KeyFromUrl(internalUrl, credentials.bucket);
+
+  if (!key) {
+    throw new Error(`Could not extract S3 key from URL: ${internalUrl}`);
+  }
+
+  const head = await client.send(new HeadObjectCommand({
+    Bucket: credentials.bucket,
+    Key: key
+  }));
+
+  return {
+    s3Client: client,
+    bucket: credentials.bucket,
+    key,
+    size: head.ContentLength,
+    contentType: head.ContentType || 'application/octet-stream',
+    fileName: key.split('/').pop()
+  };
+}
+
+/**
+ * Stream an S3 object to a writable stream using parallel range downloads.
+ * Falls back to single-stream for objects smaller than one part.
+ *
+ * @param {object} options
+ * @param {S3Client} options.s3Client
+ * @param {string} options.bucket
+ * @param {string} options.key
+ * @param {number} options.totalSize - Object size in bytes
+ * @param {import('stream').Writable} options.output - Destination stream
+ * @param {number} [options.partSize=67108864] - Chunk size in bytes (default 64 MiB)
+ * @param {number} [options.concurrency=20] - Max parallel range requests
+ * @param {AbortSignal} [options.signal] - Cancel in-flight downloads on abort
+ */
+export async function streamS3ParallelDownload({
+  s3Client, bucket, key, totalSize, output,
+  partSize = 64 * 1024 * 1024,
+  concurrency = 20,
+  signal
+}) {
+  if (totalSize <= partSize) {
+    const resp = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    await streamPipeline(resp.Body, output);
+    return;
+  }
+
+  const totalParts = Math.ceil(totalSize / partSize);
+  let nextWrite = 0;
+  let nextDownload = 0;
+  let active = 0;
+  const ready = new Map();
+  let done = false;
+
+  logger.info({ bucket, key, totalSize, totalParts, partSize, concurrency }, "Starting parallel S3 download");
+
+  return new Promise((resolve, reject) => {
+    const fail = (err) => {
+      if (done) return;
+      done = true;
+      reject(err);
+    };
+
+    const flush = () => {
+      while (ready.has(nextWrite)) {
+        const buf = ready.get(nextWrite);
+        ready.delete(nextWrite);
+        nextWrite++;
+        if (!output.write(buf)) {
+          output.once('drain', () => { flush(); schedule(); });
+          return;
+        }
+      }
+      if (nextWrite >= totalParts && active === 0 && !done) {
+        done = true;
+        logger.info({ bucket, key, totalParts }, "Parallel S3 download complete");
+        output.end();
+        resolve();
+      }
+    };
+
+    const schedule = () => {
+      if (done) return;
+      while (active < concurrency && nextDownload < totalParts) {
+        const idx = nextDownload++;
+        const start = idx * partSize;
+        const end = Math.min(start + partSize - 1, totalSize - 1);
+        active++;
+
+        (async () => {
+          let lastErr;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            if (done || signal?.aborted) { active--; return; }
+            try {
+              const resp = await s3Client.send(new GetObjectCommand({
+                Bucket: bucket, Key: key,
+                Range: `bytes=${start}-${end}`
+              }));
+              const chunks = [];
+              for await (const chunk of resp.Body) {
+                if (done || signal?.aborted) { active--; return; }
+                chunks.push(chunk);
+              }
+              active--;
+              ready.set(idx, Buffer.concat(chunks));
+              flush();
+              schedule();
+              return;
+            } catch (err) {
+              lastErr = err;
+              logger.warn({ bucket, key, part: idx, attempt, err: err.message }, "Part download failed, retrying");
+            }
+          }
+          active--;
+          fail(lastErr);
+        })();
+      }
+    };
+
+    if (signal) {
+      signal.addEventListener('abort', () => fail(new Error('Download aborted')), { once: true });
+    }
+    output.on('error', fail);
+    schedule();
+  });
 }
