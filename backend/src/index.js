@@ -69,7 +69,10 @@ import {
   buildInstallConfig,
   buildNtpMachineConfigs,
   buildMirrorOperatorCatalogSource,
+  buildMirrorOperatorNamespace,
+  buildMirrorOperatorOperatorGroup,
   buildMirrorOperatorSubscription,
+  buildOperatorHubDisableDefaults,
   buildDisconnectedPlatform,
 } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
@@ -3472,22 +3475,31 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
         logger.warn({ tag: "agent-iso:mirror-operator", jobId, err: crdErr.message, catalogImage }, "CRD extraction from catalog image failed");
       }
 
+      const operatorHubYaml = buildOperatorHubDisableDefaults();
+      fs.writeFileSync(path.join(openshiftDir, "01-operatorhub-disable-defaults.yaml"), operatorHubYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/01-operatorhub-disable-defaults.yaml (${Buffer.byteLength(operatorHubYaml)} bytes)\n`);
+
+      const namespaceYaml = buildMirrorOperatorNamespace();
+      fs.writeFileSync(path.join(openshiftDir, "01-mirror-operator-namespace.yaml"), namespaceYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/01-mirror-operator-namespace.yaml (${Buffer.byteLength(namespaceYaml)} bytes)\n`);
+
+      const operatorGroupYaml = buildMirrorOperatorOperatorGroup();
+      fs.writeFileSync(path.join(openshiftDir, "02-mirror-operator-operatorgroup.yaml"), operatorGroupYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/02-mirror-operator-operatorgroup.yaml (${Buffer.byteLength(operatorGroupYaml)} bytes)\n`);
+
       const catalogSourceYaml = buildMirrorOperatorCatalogSource(registryFqdn);
-      const catalogSourcePath = path.join(openshiftDir, "99-mirror-operator-catalogsource.yaml");
-      fs.writeFileSync(catalogSourcePath, catalogSourceYaml, "utf8");
+      fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-catalogsource.yaml"), catalogSourceYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-catalogsource.yaml (${Buffer.byteLength(catalogSourceYaml)} bytes)\n`);
 
       const subscriptionYaml = buildMirrorOperatorSubscription();
-      const subscriptionPath = path.join(openshiftDir, "99-mirror-operator-subscription.yaml");
-      fs.writeFileSync(subscriptionPath, subscriptionYaml, "utf8");
+      fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-subscription.yaml"), subscriptionYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
 
       const disconnectedPlatformYaml = buildDisconnectedPlatform();
-      const disconnectedPlatformPath = path.join(openshiftDir, "99-mirror-operator-disconnected-platform.yaml");
-      fs.writeFileSync(disconnectedPlatformPath, disconnectedPlatformYaml, "utf8");
+      fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-disconnected-platform.yaml"), disconnectedPlatformYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
 
-      logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator CatalogSource, Subscription, and DisconnectedPlatform manifests");
+      logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator bootstrap manifests (OperatorHub, Namespace, OperatorGroup, CatalogSource, Subscription, DisconnectedPlatform)");
 
       // Inject IDMS/ITMS files from mirror registry config so the cluster knows
       // where to pull images from the local mirror registry at bootstrap

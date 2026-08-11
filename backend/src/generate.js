@@ -2004,13 +2004,41 @@ const buildMirrorOperatorCatalogSource = (registryFqdn) => {
   return yaml.dump(manifest, { lineWidth: 120 });
 };
 
+const MIRROR_OPERATOR_NAMESPACE = "mirror-operator-system";
+
+const buildMirrorOperatorNamespace = () => {
+  const manifest = {
+    apiVersion: "v1",
+    kind: "Namespace",
+    metadata: {
+      name: MIRROR_OPERATOR_NAMESPACE,
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildMirrorOperatorOperatorGroup = () => {
+  const manifest = {
+    apiVersion: "operators.coreos.com/v1",
+    kind: "OperatorGroup",
+    metadata: {
+      name: "mirror-operator-group",
+      namespace: MIRROR_OPERATOR_NAMESPACE,
+    },
+    spec: {
+      targetNamespaces: [MIRROR_OPERATOR_NAMESPACE],
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
 const buildMirrorOperatorSubscription = () => {
   const manifest = {
     apiVersion: "operators.coreos.com/v1alpha1",
     kind: "Subscription",
     metadata: {
       name: "mirror-operator",
-      namespace: "openshift-operators",
+      namespace: MIRROR_OPERATOR_NAMESPACE,
     },
     spec: {
       channel: "alpha",
@@ -2018,6 +2046,20 @@ const buildMirrorOperatorSubscription = () => {
       name: "mirror-operator",
       source: "mirror-operator-catalog",
       sourceNamespace: "openshift-marketplace",
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildOperatorHubDisableDefaults = () => {
+  const manifest = {
+    apiVersion: "config.openshift.io/v1",
+    kind: "OperatorHub",
+    metadata: {
+      name: "cluster",
+    },
+    spec: {
+      disableAllDefaultSources: true,
     },
   };
   return yaml.dump(manifest, { lineWidth: 120 });
@@ -2076,7 +2118,10 @@ export {
   buildFieldManual,
   buildNtpMachineConfigs,
   buildMirrorOperatorCatalogSource,
+  buildMirrorOperatorNamespace,
+  buildMirrorOperatorOperatorGroup,
   buildMirrorOperatorSubscription,
+  buildOperatorHubDisableDefaults,
   buildDisconnectedPlatform,
   MIRROR_OPERATOR_ADDITIONAL_IMAGES,
   MIRROR_OPERATOR_DEPENDENT_OPERATORS,
