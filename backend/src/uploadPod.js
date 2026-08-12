@@ -72,7 +72,7 @@ export async function listPvcs(namespace) {
   const ns = namespace || await getCurrentNamespace();
   const response = await client.listNamespacedPersistentVolumeClaim({ namespace: ns });
 
-  return (response.body?.items || []).map((pvc) => ({
+  return (response?.items || []).map((pvc) => ({
     name: pvc.metadata?.name,
     capacity: pvc.status?.capacity?.storage || pvc.spec?.resources?.requests?.storage || "unknown",
     accessModes: pvc.spec?.accessModes || [],
@@ -222,8 +222,8 @@ export async function waitForPodReady({ podName, namespace, timeoutMs = DEFAULT_
 
   while (Date.now() - start < timeoutMs) {
     const response = await client.readNamespacedPod({ name: podName, namespace: ns });
-    const phase = response.body?.status?.phase;
-    const conditions = response.body?.status?.conditions || [];
+    const phase = response?.status?.phase;
+    const conditions = response?.status?.conditions || [];
     const ready = conditions.find((c) => c.type === "Ready" && c.status === "True");
     if (ready) {
       logger.info({ podName, namespace: ns, elapsed: Date.now() - start }, "Upload pod is ready");
@@ -231,13 +231,13 @@ export async function waitForPodReady({ podName, namespace, timeoutMs = DEFAULT_
     }
 
     if (phase === "Failed" || phase === "Unknown") {
-      const containerStatuses = response.body?.status?.containerStatuses || [];
+      const containerStatuses = response?.status?.containerStatuses || [];
       const reason = containerStatuses[0]?.state?.terminated?.reason || phase;
       const message = containerStatuses[0]?.state?.terminated?.message || "";
       throw new Error(`Upload pod entered ${phase} phase: ${reason} ${message}`.trim());
     }
 
-    const containerStatuses = response.body?.status?.containerStatuses || [];
+    const containerStatuses = response?.status?.containerStatuses || [];
     const waitingState = containerStatuses[0]?.state?.waiting;
     const stateKey = `${phase}:${waitingState?.reason || ""}`;
     if (stateKey !== lastLoggedState) {
@@ -258,8 +258,8 @@ export async function waitForPodReady({ podName, namespace, timeoutMs = DEFAULT_
   }
 
   const finalResponse = await client.readNamespacedPod({ name: podName, namespace: ns }).catch(() => null);
-  const finalPhase = finalResponse?.body?.status?.phase || "unknown";
-  const finalWaiting = finalResponse?.body?.status?.containerStatuses?.[0]?.state?.waiting;
+  const finalPhase = finalResponse?.status?.phase || "unknown";
+  const finalWaiting = finalResponse?.status?.containerStatuses?.[0]?.state?.waiting;
   throw new Error(`Upload pod not ready within ${timeoutMs}ms (phase: ${finalPhase}${finalWaiting ? `, reason: ${finalWaiting.reason}` : ""})`);
 }
 
