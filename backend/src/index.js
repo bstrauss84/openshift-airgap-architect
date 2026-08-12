@@ -1685,7 +1685,8 @@ app.post("/api/mirror-import/upload/init", (req, res) => {
         receivedChunks: existingSession.receivedChunks.size,
       });
     }
-    return res.status(202).json({ jobId: existing, filename });
+    // Stale entry from a non-chunked upload — clear it so the chunked flow can proceed
+    activeUploads.delete(uploadKey);
   }
 
   const uploadId = nanoid();

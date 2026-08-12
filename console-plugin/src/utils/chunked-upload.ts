@@ -118,6 +118,9 @@ export async function chunkedUpload(options: ChunkedUploadOptions): Promise<Chun
   });
 
   const { uploadId, jobId, totalChunks } = initResponse;
+  if (!uploadId) {
+    throw new Error('Upload init failed: server did not return an uploadId');
+  }
   const startChunk = initResponse.receivedChunks || 0;
   let bytesUploaded = startChunk * chunkSize;
 
