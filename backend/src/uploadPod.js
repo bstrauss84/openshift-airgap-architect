@@ -185,7 +185,7 @@ http.server.HTTPServer(('0.0.0.0', ${UPLOAD_PORT}), UploadHandler).serve_forever
 
   try {
     await client.createNamespacedPod({ namespace: ns, body: pod });
-    logger.info({ podName, namespace: ns, pvcName }, "Created upload pod");
+    logger.info({ podName, namespace: ns, pvcName, image: uploadImage }, "Created upload pod");
   } catch (error) {
     const is409 = error.code === 409 || error.message?.includes("409");
     if (is409) {
@@ -210,31 +210,57 @@ http.server.HTTPServer(('0.0.0.0', ${UPLOAD_PORT}), UploadHandler).serve_forever
   return { podName, serviceName, namespace: ns };
 }
 
-export async function waitForPodReady({ podName, namespace, timeoutMs = 120000 }) {
+const DEFAULT_POD_READY_TIMEOUT = parseInt(process.env.UPLOAD_POD_READY_TIMEOUT || "300000", 10);
+
+export async function waitForPodReady({ podName, namespace, timeoutMs = DEFAULT_POD_READY_TIMEOUT }) {
   const client = getCoreClient();
   if (!client) throw new Error("Kubernetes client not available");
 
   const ns = namespace || await getCurrentNamespace();
   const start = Date.now();
+  let lastLoggedState = "";
 
   while (Date.now() - start < timeoutMs) {
     const response = await client.readNamespacedPod({ name: podName, namespace: ns });
+    const phase = response.body?.status?.phase;
     const conditions = response.body?.status?.conditions || [];
     const ready = conditions.find((c) => c.type === "Ready" && c.status === "True");
     if (ready) {
-      logger.info({ podName, namespace: ns }, "Upload pod is ready");
+      logger.info({ podName, namespace: ns, elapsed: Date.now() - start }, "Upload pod is ready");
       return true;
     }
 
-    const phase = response.body?.status?.phase;
     if (phase === "Failed" || phase === "Unknown") {
-      throw new Error(`Upload pod entered ${phase} phase`);
+      const containerStatuses = response.body?.status?.containerStatuses || [];
+      const reason = containerStatuses[0]?.state?.terminated?.reason || phase;
+      const message = containerStatuses[0]?.state?.terminated?.message || "";
+      throw new Error(`Upload pod entered ${phase} phase: ${reason} ${message}`.trim());
+    }
+
+    const containerStatuses = response.body?.status?.containerStatuses || [];
+    const waitingState = containerStatuses[0]?.state?.waiting;
+    const stateKey = `${phase}:${waitingState?.reason || ""}`;
+    if (stateKey !== lastLoggedState) {
+      lastLoggedState = stateKey;
+      const logData = { podName, namespace: ns, phase, elapsed: Date.now() - start };
+      if (waitingState) {
+        logData.waitingReason = waitingState.reason;
+        if (waitingState.message) logData.waitingMessage = waitingState.message;
+      }
+      logger.info(logData, "Waiting for upload pod");
+
+      if (waitingState?.reason === "ErrImagePull" || waitingState?.reason === "ImagePullBackOff") {
+        throw new Error(`Upload pod image pull failed: ${waitingState.reason} - ${waitingState.message || "check that the image is available in your mirror registry"}`);
+      }
     }
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
-  throw new Error(`Upload pod not ready within ${timeoutMs}ms`);
+  const finalResponse = await client.readNamespacedPod({ name: podName, namespace: ns }).catch(() => null);
+  const finalPhase = finalResponse?.body?.status?.phase || "unknown";
+  const finalWaiting = finalResponse?.body?.status?.containerStatuses?.[0]?.state?.waiting;
+  throw new Error(`Upload pod not ready within ${timeoutMs}ms (phase: ${finalPhase}${finalWaiting ? `, reason: ${finalWaiting.reason}` : ""})`);
 }
 
 export function streamToUploadPod({ serviceName, namespace, filename, fileStream, contentLength }) {
