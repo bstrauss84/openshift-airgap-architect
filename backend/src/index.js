@@ -247,7 +247,9 @@ const purgeExpiredChunkedUploads = () => {
     }
   }
 };
-setInterval(purgeExpiredChunkedUploads, 5 * 60 * 1000);
+if (process.env.NODE_ENV !== "test") {
+  setInterval(purgeExpiredChunkedUploads, 5 * 60 * 1000);
+}
 
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
