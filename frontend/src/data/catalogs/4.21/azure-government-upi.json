@@ -1287,7 +1287,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing subnet name for compute nodes (when using BYO VNet).",
+      "description": "Existing subnet name for compute nodes (when using BYO VNet). Deprecated in 4.21; use platform.azure.subnets[] with role: node instead.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1299,9 +1299,13 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "deprecated": true,
+      "deprecatedReason": "Replaced by platform.azure.subnets[] with role: node in 4.21. Installer auto-converts flat field to subnets array entry.",
+      "replacementPath": "platform.azure.subnets",
+      "supportStatus": "docs-only-not-supported",
       "minVersion": "4.20",
-      "maxVersion": null
+      "maxVersion": null,
+      "versionNotes": "Accepted in 4.20 as primary compute subnet field. In 4.21, installer renames to DeprecatedComputeSubnet and auto-converts to subnets[] entry with role: node. App uses subnets[] for 4.21 generation and does not emit this legacy field."
     },
     {
       "path": "platform.azure.controlPlaneSubnet",
@@ -1310,7 +1314,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing subnet name for control plane nodes (when using BYO VNet).",
+      "description": "Existing subnet name for control plane nodes (when using BYO VNet). Deprecated in 4.21; use platform.azure.subnets[] with role: control-plane instead.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1322,9 +1326,13 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "deprecated": true,
+      "deprecatedReason": "Replaced by platform.azure.subnets[] with role: control-plane in 4.21. Installer auto-converts flat field to subnets array entry.",
+      "replacementPath": "platform.azure.subnets",
+      "supportStatus": "docs-only-not-supported",
       "minVersion": "4.20",
-      "maxVersion": null
+      "maxVersion": null,
+      "versionNotes": "Accepted in 4.20 as primary control-plane subnet field. In 4.21, installer renames to DeprecatedControlPlaneSubnet and auto-converts to subnets[] entry with role: control-plane. App uses subnets[] for 4.21 generation and does not emit this legacy field."
     },
     {
       "path": "platform.azure.defaultMachinePlatform.osDisk.diskSizeGB",
@@ -1375,7 +1383,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Resource group name containing existing VNet (when using BYO VNet).",
+      "description": "Resource group name containing existing VNet (when using BYO VNet). Required when virtualNetwork is specified.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1387,7 +1395,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
@@ -1444,7 +1452,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VNet name to install cluster into (BYO VNet).",
+      "description": "Existing VNet name to install cluster into (BYO VNet). When specified, networkResourceGroupName and subnet topology are required.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1456,7 +1464,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
@@ -1464,7 +1472,10 @@
       "path": "platform.azure.allowSharedKeyAccess",
       "outputFile": "install-config.yaml",
       "type": "boolean",
-      "allowed": [true, false],
+      "allowed": [
+        true,
+        false
+      ],
       "default": true,
       "required": false,
       "description": "Controls whether Azure Storage accounts allow shared-key access. When true or omitted, shared-key access is allowed (installer default). When false, shared-key access is disabled and the installation identity requires appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.",
@@ -1486,10 +1497,10 @@
       "path": "platform.azure.subnets",
       "outputFile": "install-config.yaml",
       "type": "array",
-      "allowed": "Array of subnet specification objects",
+      "allowed": "Array of subnet specification objects with name and role",
       "default": null,
       "required": false,
-      "description": "Azure subnet specifications for networking configuration. Array of subnet objects, each with name and role properties.",
+      "description": "Azure subnet specifications for BYO VNet networking. Array of subnet objects, each with name (string) and role (control-plane or node). Exactly one control-plane subnet and one or more node subnets required when virtualNetwork is specified.",
       "applies_to": [
         "azure-government-ipi",
         "azure-government-upi"
@@ -1498,7 +1509,7 @@
         {
           "source": "installer_source",
           "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go Subnets",
-          "note": "Added in 4.21"
+          "note": "Added in 4.21. Replaces deprecated controlPlaneSubnet and computeSubnet flat fields."
         },
         {
           "source": "delta_analysis",
@@ -1506,9 +1517,10 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-derived",
       "minVersion": "4.21",
-      "maxVersion": null
+      "maxVersion": null,
+      "versionNotes": "Added in 4.21 as replacement for controlPlaneSubnet and computeSubnet flat fields. Supports multiple node subnets for NAT Gateway Multi-Zone outbound."
     },
     {
       "path": "platform.azure.subnets.name",
@@ -1517,7 +1529,7 @@
       "allowed": "Azure subnet name",
       "default": null,
       "required": true,
-      "description": "Name of the Azure subnet. Required property within subnet object in subnets array.",
+      "description": "Name of the Azure subnet. Required within each subnet entry. Must be unique across all entries.",
       "applies_to": [
         "azure-government-ipi",
         "azure-government-upi"
@@ -1525,7 +1537,7 @@
       "citations": [
         {
           "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/subnet_spec.go Name",
+          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go SubnetSpec.Name",
           "note": "Added in 4.21, required within SubnetSpec"
         },
         {
@@ -1534,18 +1546,21 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.21",
       "maxVersion": null
     },
     {
       "path": "platform.azure.subnets.role",
       "outputFile": "install-config.yaml",
-      "type": "object",
-      "allowed": "Azure subnet role object",
+      "type": "string",
+      "allowed": [
+        "control-plane",
+        "node"
+      ],
       "default": null,
       "required": true,
-      "description": "Role designation for the Azure subnet. Required property within subnet object in subnets array. Specifies the purpose of the subnet (control plane, compute, etc.).",
+      "description": "Role designation for the Azure subnet. Exactly one control-plane subnet and one or more node subnets required. CAPZ SubnetRole enum: control-plane or node.",
       "applies_to": [
         "azure-government-ipi",
         "azure-government-upi"
@@ -1553,8 +1568,8 @@
       "citations": [
         {
           "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/subnet_spec.go Role",
-          "note": "Added in 4.21, required within SubnetSpec"
+          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go SubnetSpec.Role",
+          "note": "Added in 4.21, CAPZ SubnetRole type (string enum: control-plane, node)"
         },
         {
           "source": "delta_analysis",
@@ -1562,7 +1577,7 @@
           "note": "Confirmed added in 4.21, absent in 4.20"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-derived",
       "minVersion": "4.21",
       "maxVersion": null
     },

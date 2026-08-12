@@ -68,6 +68,26 @@ const VERSION_GATED_UI_FIELD_REGISTRY = [
     controlQuery: /BMC verify CA/,
     owningStep: "PlatformSpecificsStep",
   },
+  {
+    scenario: "azure-government-ipi",
+    path: "platform.azure.subnets.name",
+    platform: "Azure Government",
+    method: "IPI",
+    introductionMinor: "4.21",
+    controlQuery: /Control plane subnet/,
+    owningStep: "PlatformSpecificsStep",
+    compositeOf: "platform.azure.vnetMode",
+  },
+  {
+    scenario: "azure-government-upi",
+    path: "platform.azure.subnets.name",
+    platform: "Azure Government",
+    method: "UPI",
+    introductionMinor: "4.21",
+    controlQuery: /Control plane subnet/,
+    owningStep: "PlatformSpecificsStep",
+    compositeOf: "platform.azure.vnetMode",
+  },
 ];
 
 function mockApis() {
@@ -184,6 +204,7 @@ describe("Version-gated field boundary — registry visibility", () => {
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
   for (const entry of VERSION_GATED_UI_FIELD_REGISTRY) {
+    if (entry.compositeOf) continue;
     it(`${entry.scenario}: visible at ${entry.introductionMinor}, hidden at previous minor`, () => {
       const introState = makeState(entry.platform, entry.method, entry.introductionMinor, `${entry.introductionMinor}.8`);
       renderPlatformStep(introState);
@@ -540,13 +561,67 @@ describe("Version-gated field boundary — DOM layout regression", () => {
     const { container } = renderPlatformStep(state);
     const machineCountsHeading = screen.queryByText(/Machine counts/);
     expect(machineCountsHeading).not.toBeNull();
-    const fieldGrid = container.querySelector(".field-grid");
-    expect(fieldGrid).not.toBeNull();
     const sharedKeyStack = screen.queryByText(/Azure Storage shared-key/).closest(".field-control-stack");
     expect(sharedKeyStack).not.toBeNull();
-    expect(fieldGrid.contains(sharedKeyStack)).toBe(true);
-    expect(fieldGrid.contains(machineCountsHeading)).toBe(false);
+    const sharedKeyGrid = sharedKeyStack.closest(".field-grid");
+    expect(sharedKeyGrid).not.toBeNull();
+    expect(sharedKeyGrid.contains(sharedKeyStack)).toBe(true);
+    expect(sharedKeyGrid.contains(machineCountsHeading)).toBe(false);
   });
+});
+
+describe("Version-gated field boundary — composite UI governance proof", () => {
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+  const compositeEntries = VERSION_GATED_UI_FIELD_REGISTRY.filter(e => e.compositeOf);
+
+  for (const entry of compositeEntries) {
+    it(`${entry.scenario}: ${entry.path} visible at ${entry.introductionMinor} when composite parent is active`, () => {
+      const state = makeState(entry.platform, entry.method, entry.introductionMinor, `${entry.introductionMinor}.8`);
+      state.platformConfig.azure = {
+        ...state.platformConfig.azure,
+        vnetMode: "existing-vnet",
+        virtualNetwork: "test-vnet",
+        networkResourceGroupName: "net-rg",
+        controlPlaneSubnet: "cp-subnet",
+        nodeSubnets: ["worker-subnet"],
+      };
+      renderPlatformStep(state);
+      expect(screen.queryByPlaceholderText("Subnet name for control plane nodes")).not.toBeNull();
+      expect(screen.queryByText("Add node subnet")).not.toBeNull();
+    });
+
+    it(`${entry.scenario}: ${entry.path} hidden at ${entry.introductionMinor} when composite parent is inactive`, () => {
+      const state = makeState(entry.platform, entry.method, entry.introductionMinor, `${entry.introductionMinor}.8`);
+      state.platformConfig.azure = {
+        ...state.platformConfig.azure,
+        vnetMode: "installer-managed",
+      };
+      renderPlatformStep(state);
+      expect(screen.queryByPlaceholderText("Subnet name for control plane nodes")).toBeNull();
+      expect(screen.queryByText("Add node subnet")).toBeNull();
+    });
+
+    it(`${entry.scenario}: ${entry.path} multi-node capability hidden at previous minor even when composite parent is active`, () => {
+      const sorted = [...SUPPORTED_MINORS].sort((a, b) => compareVersions(a, b));
+      const introIdx = sorted.indexOf(entry.introductionMinor);
+      const prevMinor = introIdx > 0 ? sorted[introIdx - 1] : null;
+      if (prevMinor) {
+        const state = makeState(entry.platform, entry.method, prevMinor, `${prevMinor}.8`);
+        state.platformConfig.azure = {
+          ...state.platformConfig.azure,
+          vnetMode: "existing-vnet",
+          virtualNetwork: "test-vnet",
+          networkResourceGroupName: "net-rg",
+          controlPlaneSubnet: "cp-subnet",
+          nodeSubnets: ["worker-subnet"],
+        };
+        renderPlatformStep(state);
+        expect(screen.queryByPlaceholderText("Subnet name for control plane nodes")).not.toBeNull();
+        expect(screen.queryByText("Add node subnet")).toBeNull();
+      }
+    });
+  }
 });
 
 describe("Version-gated field boundary — catalog cross-check", () => {

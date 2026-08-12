@@ -208,9 +208,12 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
 
       highConfParams.forEach(p => {
         if (p.path === 'platform.azure.allowSharedKeyAccess' ||
-            p.path === 'controlPlane.platform.aws.cpuOptions.confidentialCompute') {
+            p.path === 'controlPlane.platform.aws.cpuOptions.confidentialCompute' ||
+            p.path === 'platform.azure.subnets.name') {
           expect(p.supportStatus).toBe('supported-ui');
-        } else if (p.path === 'controlPlane.platform.aws.cpuOptions') {
+        } else if (p.path === 'controlPlane.platform.aws.cpuOptions' ||
+                   p.path === 'platform.azure.subnets' ||
+                   p.path === 'platform.azure.subnets.role') {
           expect(p.supportStatus).toBe('supported-derived');
         } else {
           expect(p.supportStatus).toBe('supported-backend-only');
@@ -1324,7 +1327,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(total).toBe(2);
       });
 
-      it('exactly 26 "absent in 4.20" historical comparison notes', () => {
+      it('exactly 24 "absent in 4.20" historical comparison notes', () => {
         let total = 0;
         allScenarios.forEach(scenario => {
           loadParams(scenario).forEach(p => {

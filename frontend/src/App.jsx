@@ -680,19 +680,18 @@ metadata:
       return;
     }
 
-    // NO DEBOUNCE for regular field changes: text inputs now update on blur (infrequent)
-    // Toggles/selects are single-click operations (also infrequent)
-    // EXCEPTION: Small delay for large state changes (methodology switch, imports)
+    const platformResult = validateStep(state, "platform-specifics");
+    if (platformResult.errors?.length > 0) {
+      setPreviewLoading(false);
+      return;
+    }
+
     const currentMethod = state?.methodology?.method;
     const methodologyChanged = currentMethod !== prevMethodologyRef.current;
     prevMethodologyRef.current = currentMethod;
 
     const isImporting = importingRef.current;
 
-    // 150ms delay for large state changes (lets React finish batching state updates)
-    // - Methodology changes: switching between IPI/UPI/Agent-based
-    // - Imports: loading run file with full state
-    // 0ms delay for regular field edits (immediate feedback)
     const delay = (methodologyChanged || isImporting) ? 150 : 0;
 
     const controller = new AbortController();

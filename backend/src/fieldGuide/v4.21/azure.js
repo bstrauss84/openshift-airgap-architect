@@ -1,8 +1,8 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 Azure Government Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 Azure Government Compartments
  *
  * Platform-specific installation procedures for Azure Government.
- * Covers IPI and UPI installation methods for OCP 4.20 on Azure Government.
+ * Covers IPI and UPI installation methods for OCP 4.21 on Azure Government.
  *
  * @author Bill Strauss
  *
@@ -31,7 +31,7 @@ export const azureGovPrereqs = {
     { text: "Set platform.azure.cloudName: {{azureCloudName}}, platform.azure.region: {{azureRegion}}, and platform.azure.resourceGroupName in install-config.yaml." },
     { text: "Confirm VM quota is sufficient in {{azureRegion}} for OCP cluster (3 control plane + N workers). Standard_D8s_v3 is recommended for control plane; check GovCloud availability:" , cmd: "az vm list-usage --location {{azureRegion}} --cloud AzureUSGovernment | grep 'Standard DSv3'" },
     { text: "For disconnected installs: set up a VNet with private subnets and Azure Private Endpoints for ACR / storage. Ensure the mirror registry {{registryFqdn}} is reachable from within the VNet." },
-    { text: "Configure platform.azure.networkResourceGroupName and platform.azure.virtualNetwork if using an existing VNet." },
+    { text: "If using an existing VNet (BYO VNet): configure virtualNetwork, networkResourceGroupName, and subnet topology. OpenShift 4.21 uses platform.azure.subnets[] with role: control-plane and role: node entries, supporting multiple node subnets. If a multi-node configuration is later interpreted as 4.20, all subnet values are preserved in state but generation is blocked because 4.20 can represent only one compute subnet. To generate for 4.20, explicitly reduce the configuration to one node subnet. Configurations requiring multiple node subnets must use OpenShift 4.21." },
     { text: "For private clusters, set publish: Internal in install-config.yaml and configure Private DNS zones for api.{{clusterName}}.{{baseDomain}}." },
     { text: "Verify the credentialsMode: Manual or Mint — for GovCloud disconnected, Manual is typically required. Generate CredentialsRequests and IAM resources before install." },
     { text: "⚠ Azure Government regions may have different VM SKU availability than commercial Azure. Always validate instance type availability in {{azureRegion}} before starting the install.", type: "warning" },

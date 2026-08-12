@@ -25,6 +25,7 @@ import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.
 import { normalizeMAC } from "./formatUtils.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
 import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
+import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
 
 export function validateAwsRootVolumeThroughput(value, volumeType) {
   if (value == null || value === "" || value === undefined) return { valid: true, blank: true };
@@ -2003,6 +2004,9 @@ const validateStep = (state, stepId) => {
         }
       }
 
+      const byoResult = validateAzureByoVnet(azure, azureMinor);
+      if (!byoResult.valid) azureErrors.push(...byoResult.errors);
+
       return { errors: [...errors, ...azureErrors], warnings: azureWarnings };
     }
     if (scenarioId === "azure-government-upi") {
@@ -2018,6 +2022,10 @@ const validateStep = (state, stepId) => {
           azureWarnings.push("Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.");
         }
       }
+
+      const byoResult = validateAzureByoVnet(azure, azureMinor);
+      if (!byoResult.valid) azureErrors.push(...byoResult.errors);
+
       return { errors: [...errors, ...azureErrors], warnings: azureWarnings };
     }
     if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") {

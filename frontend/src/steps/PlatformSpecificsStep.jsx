@@ -111,6 +111,9 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localAzureRegion, setLocalAzureRegion] = useState(platformConfig.azure?.region || "");
   const [localAzureResourceGroupName, setLocalAzureResourceGroupName] = useState(platformConfig.azure?.resourceGroupName || "");
   const [localAzureBaseDomainResourceGroupName, setLocalAzureBaseDomainResourceGroupName] = useState(platformConfig.azure?.baseDomainResourceGroupName || "");
+  const [localAzureVirtualNetwork, setLocalAzureVirtualNetwork] = useState(platformConfig.azure?.virtualNetwork || "");
+  const [localAzureNetworkResourceGroupName, setLocalAzureNetworkResourceGroupName] = useState(platformConfig.azure?.networkResourceGroupName || "");
+  const [localAzureControlPlaneSubnet, setLocalAzureControlPlaneSubnet] = useState(platformConfig.azure?.controlPlaneSubnet || "");
 
   // Local state for text inputs (onBlur pattern) - IBM Cloud
   const [localIbmRegion, setLocalIbmRegion] = useState(platformConfig.ibmcloud?.region || "");
@@ -205,6 +208,9 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   useEffect(() => { setLocalAzureRegion(platformConfig.azure?.region || ""); }, [platformConfig.azure?.region]);
   useEffect(() => { setLocalAzureResourceGroupName(platformConfig.azure?.resourceGroupName || ""); }, [platformConfig.azure?.resourceGroupName]);
   useEffect(() => { setLocalAzureBaseDomainResourceGroupName(platformConfig.azure?.baseDomainResourceGroupName || ""); }, [platformConfig.azure?.baseDomainResourceGroupName]);
+  useEffect(() => { setLocalAzureVirtualNetwork(platformConfig.azure?.virtualNetwork || ""); }, [platformConfig.azure?.virtualNetwork]);
+  useEffect(() => { setLocalAzureNetworkResourceGroupName(platformConfig.azure?.networkResourceGroupName || ""); }, [platformConfig.azure?.networkResourceGroupName]);
+  useEffect(() => { setLocalAzureControlPlaneSubnet(platformConfig.azure?.controlPlaneSubnet || ""); }, [platformConfig.azure?.controlPlaneSubnet]);
 
   // Sync local state when store values change (for imports/loads) - IBM Cloud
   useEffect(() => { setLocalIbmRegion(platformConfig.ibmcloud?.region || ""); }, [platformConfig.ibmcloud?.region]);
@@ -318,6 +324,8 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG, state);
   const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG, state);
   const showAzureAllowSharedKeyAccess = isCatalogFieldVisible("platform.azure.allowSharedKeyAccess", INSTALL_CONFIG);
+  const showAzureBYOVNet = isCatalogFieldVisible("platform.azure.virtualNetwork", INSTALL_CONFIG);
+  const showAzureSubnetsArray = isCatalogFieldVisible("platform.azure.subnets.name", INSTALL_CONFIG);
 
   /** IBM Cloud IPI: show when catalog has platform.ibmcloud.region. */
   const showIbmCloudSection = catalogParams.some(
@@ -1579,6 +1587,147 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                     placeholder="Resource group containing DNS zone for base domain"
                   />
                 </FieldLabelWithInfo>
+                {showAzureBYOVNet && (
+                <FieldLabelWithInfo
+                  label="VNet mode"
+                  hint={`Choose how Azure virtual networking is configured for the cluster.
+
+**Installer-managed (default):**
+Do not supply an existing VNet configuration. Networking resources are provisioned separately from this configuration.
+
+**Existing VNet:**
+Use a pre-existing Azure VNet and provide its network resource group and subnet names for control plane and compute nodes.`}
+                >
+                  <select
+                    value={platformConfig.azure?.vnetMode || "installer-managed"}
+                    onChange={(e) => updateAzure({ vnetMode: e.target.value })}
+                    style={{ maxWidth: "320px" }}
+                  >
+                    <option value="installer-managed">Installer-managed VNet (default)</option>
+                    <option value="existing-vnet">Existing VNet</option>
+                  </select>
+                </FieldLabelWithInfo>
+                )}
+              </div>
+              {showAzureBYOVNet && platformConfig.azure?.vnetMode === "existing-vnet" && (() => {
+                const azureNodeSubnets = Array.isArray(platformConfig.azure?.nodeSubnets) ? platformConfig.azure.nodeSubnets : [];
+                const canAddNodeSubnet = showAzureSubnetsArray;
+                const nodeSubnetDisplay = azureNodeSubnets.length > 0 ? azureNodeSubnets : [""];
+                const updateNodeSubnetAt = (index, value) => {
+                  if (azureNodeSubnets.length === 0 && index === 0) {
+                    updateAzure({ nodeSubnets: [value] });
+                  } else {
+                    const next = azureNodeSubnets.map((s, i) => i === index ? value : s);
+                    updateAzure({ nodeSubnets: next });
+                  }
+                };
+                const addNodeSubnet = () => updateAzure({ nodeSubnets: [...azureNodeSubnets, ""] });
+                const removeNodeSubnetAt = (index) => updateAzure({ nodeSubnets: azureNodeSubnets.filter((_, i) => i !== index) });
+                return (
+                  <div className="field-grid" style={{ marginTop: 8 }}>
+                    <FieldLabelWithInfo
+                      label="Virtual network name"
+                      hint={`Name of the existing Azure VNet to install the cluster into. The VNet must already exist in the resource group specified below.
+
+**Prerequisites:**
+- VNet must exist in the specified network resource group
+- VNet CIDR must have sufficient address space for cluster subnets
+- Subnets for control plane and compute nodes must be pre-created within this VNet
+
+**Example:** my-cluster-vnet`}
+                      required
+                    >
+                      <input
+                        value={localAzureVirtualNetwork}
+                        onChange={(e) => setLocalAzureVirtualNetwork(e.target.value)}
+                        onBlur={() => updateAzure({ virtualNetwork: localAzureVirtualNetwork })}
+                        placeholder="Existing VNet name"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Network resource group"
+                      hint={`Name of the Azure resource group containing the existing VNet. This may be different from the cluster resource group specified above.
+
+**Example:** my-networking-rg`}
+                      required
+                    >
+                      <input
+                        value={localAzureNetworkResourceGroupName}
+                        onChange={(e) => setLocalAzureNetworkResourceGroupName(e.target.value)}
+                        onBlur={() => updateAzure({ networkResourceGroupName: localAzureNetworkResourceGroupName })}
+                        placeholder="Resource group containing the VNet"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Control plane subnet"
+                      hint={`Name of the existing subnet within the VNet for control plane (master) nodes. Exactly one control plane subnet is required.
+
+**Requirements:**
+- Must exist within the specified VNet
+- Must not overlap with node subnet names
+
+**Example:** master-subnet`}
+                      required
+                    >
+                      <input
+                        value={localAzureControlPlaneSubnet}
+                        onChange={(e) => setLocalAzureControlPlaneSubnet(e.target.value)}
+                        onBlur={() => updateAzure({ controlPlaneSubnet: localAzureControlPlaneSubnet })}
+                        placeholder="Subnet name for control plane nodes"
+                      />
+                    </FieldLabelWithInfo>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <FieldLabelWithInfo
+                        label={canAddNodeSubnet ? "Node subnets" : "Node subnet"}
+                        hint={canAddNodeSubnet
+                          ? `Names of existing subnets within the VNet for compute (worker) nodes. At least one node subnet is required. OpenShift 4.21 supports multiple node subnets.
+
+**Requirements:**
+- Each subnet must exist within the specified VNet
+- Subnet names must be unique (no duplicates, and different from control plane subnet)
+- At least one node subnet is required
+
+**Example:** worker-subnet-1, worker-subnet-2`
+                          : `Name of the existing subnet within the VNet for compute (worker) nodes. Exactly one node subnet is required for OpenShift 4.20.
+
+**Requirements:**
+- Must exist within the specified VNet
+- Must have sufficient IP addresses for worker nodes
+- Must not overlap with control plane subnet name
+
+**Example:** worker-subnet`}
+                        required
+                      />
+                      <div className="list" style={{ marginTop: 6 }}>
+                        {nodeSubnetDisplay.map((subnetName, idx) => (
+                          <div key={idx} className="list-item" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <input
+                              value={subnetName}
+                              onChange={(e) => updateNodeSubnetAt(idx, e.target.value)}
+                              placeholder={`Node subnet name${canAddNodeSubnet ? ` ${idx + 1}` : ""}`}
+                              style={{ flex: "1 1 200px", minWidth: 140 }}
+                            />
+                            {azureNodeSubnets.length > 1 && (
+                              <button type="button" className="ghost" onClick={() => removeNodeSubnetAt(idx)} aria-label="Remove node subnet">Remove</button>
+                            )}
+                          </div>
+                        ))}
+                        {canAddNodeSubnet && (
+                          <button type="button" className="ghost" onClick={addNodeSubnet} style={{ marginTop: 4 }}>Add node subnet</button>
+                        )}
+                      </div>
+                    </div>
+                    {!canAddNodeSubnet && azureNodeSubnets.length > 1 && (
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <p className="note warning" style={{ marginTop: 4 }}>
+                          OpenShift 4.20 supports only one node subnet. You have {azureNodeSubnets.length} node subnets configured. Remove extras to generate for 4.20. Configurations requiring multiple node subnets must use OpenShift 4.21.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className="field-grid" style={{ marginTop: showAzureBYOVNet ? 0 : undefined }}>
                 {showAzureAllowSharedKeyAccess && (
                 <div className="field-control-stack">
                 <FieldLabelWithInfo

@@ -18,6 +18,7 @@ import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
 import { validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES } from "../../shared/bmcVerifyCA.js";
+import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
 
 function validateAwsRootVolumeThroughput(value, volumeType) {
   if (value == null || value === "") return { valid: true, blank: true };
@@ -920,6 +921,33 @@ const buildInstallConfig = (state) => {
           throw new Error("platform.azure.allowSharedKeyAccess must be a boolean (true or false), got " + typeof rawSharedKey + ": " + JSON.stringify(rawSharedKey));
         }
         azure.allowSharedKeyAccess = rawSharedKey;
+      }
+    }
+
+    if (platformConfig.azure?.vnetMode === "existing-vnet") {
+      const byoResult = validateAzureByoVnet(platformConfig.azure, selectedMinor);
+      if (!byoResult.valid) {
+        const err = new Error("Azure BYO VNet configuration is invalid: " + byoResult.errors.join(" "));
+        err.code = "CONFIGURATION_VALIDATION";
+        throw err;
+      }
+
+      const vnet = platformConfig.azure.virtualNetwork.trim();
+      const netRg = platformConfig.azure.networkResourceGroupName.trim();
+      const cpSubnet = platformConfig.azure.controlPlaneSubnet.trim();
+      const nodeSubnets = platformConfig.azure.nodeSubnets.map(s => s.trim());
+
+      azure.virtualNetwork = vnet;
+      azure.networkResourceGroupName = netRg;
+
+      if (isVersionGTE(selectedMinor, "4.21")) {
+        azure.subnets = [
+          { name: cpSubnet, role: "control-plane" },
+          ...nodeSubnets.map(ns => ({ name: ns, role: "node" })),
+        ];
+      } else {
+        azure.controlPlaneSubnet = cpSubnet;
+        azure.computeSubnet = nodeSubnets[0];
       }
     }
 

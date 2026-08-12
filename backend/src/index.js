@@ -359,7 +359,12 @@ const defaultState = () => ({
       cloudName: "AzureUSGovernmentCloud",
       region: "",
       resourceGroupName: "",
-      baseDomainResourceGroupName: ""
+      baseDomainResourceGroupName: "",
+      vnetMode: "installer-managed",
+      virtualNetwork: "",
+      networkResourceGroupName: "",
+      controlPlaneSubnet: "",
+      nodeSubnets: []
     },
     ibmcloud: {
       vpcMode: "existing-vpc",
@@ -3114,6 +3119,9 @@ app.get("/api/generate", (req, res) => {
         details: error.details || {}
       });
     }
+    if (error.code === 'CONFIGURATION_VALIDATION') {
+      return res.status(400).json({ error: error.message, code: error.code });
+    }
     return res.status(500).json({ error: String(error?.message || error) });
   }
 });
@@ -3177,6 +3185,9 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
         trustSelectionHardLimitExceeded: true,
         details: error.details || {}
       });
+    }
+    if (error.code === 'CONFIGURATION_VALIDATION') {
+      return res.status(400).json({ error: error.message, code: error.code });
     }
     return res.status(500).json({ error: String(error?.message || error) });
   }
@@ -3539,6 +3550,9 @@ const handleBundleZipError = (res, error) => {
       trustSelectionHardLimitExceeded: true,
       details: error.details || {}
     });
+  }
+  if (error.code === 'CONFIGURATION_VALIDATION') {
+    return res.status(400).json({ error: error.message, code: error.code });
   }
   return res.status(500).json({ error: String(error?.message || error) });
 };

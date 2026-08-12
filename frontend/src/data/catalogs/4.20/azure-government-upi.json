@@ -1287,7 +1287,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing subnet name for compute nodes (when using BYO VNet).",
+      "description": "Existing subnet name for compute nodes (when using BYO VNet). Required when virtualNetwork is specified.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1299,7 +1299,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
@@ -1310,7 +1310,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing subnet name for control plane nodes (when using BYO VNet).",
+      "description": "Existing subnet name for control plane nodes (when using BYO VNet). Required when virtualNetwork is specified.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1322,7 +1322,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
@@ -1375,7 +1375,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Resource group name containing existing VNet (when using BYO VNet).",
+      "description": "Resource group name containing existing VNet (when using BYO VNet). Required when virtualNetwork is specified.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1387,7 +1387,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
@@ -1444,7 +1444,7 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VNet name to install cluster into (BYO VNet).",
+      "description": "Existing VNet name to install cluster into (BYO VNet). When specified, networkResourceGroupName and subnet topology are required.",
       "applies_to": [
         "azure-government-upi"
       ],
@@ -1456,7 +1456,7 @@
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "supported-ui",
       "minVersion": "4.20",
       "maxVersion": null
     },
