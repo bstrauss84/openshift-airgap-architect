@@ -9,6 +9,7 @@ import { validateStep } from "../src/validation.js";
 import { getCatalogForScenario, getAvailableCatalogScenarios } from "../src/catalogPaths.js";
 import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
 import { compareVersions } from "../../shared/versionUtils.js";
+import { isParamVisibleForVersion } from "../src/catalogFieldMeta.js";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
@@ -622,6 +623,64 @@ describe("Version-gated field boundary — composite UI governance proof", () =>
       }
     });
   }
+});
+
+describe("Version-gated field boundary — dnsRecordsType visibility boundary (DOC-102)", () => {
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+  const docsOnlyEntries = [
+    { scenario: "bare-metal-ipi", path: "platform.baremetal.dnsRecordsType", expectedStatus: "docs-only-not-supported" },
+    { scenario: "bare-metal-agent", path: "platform.baremetal.dnsRecordsType", expectedStatus: "docs-only-not-supported" },
+    { scenario: "vsphere-ipi", path: "platform.vsphere.dnsRecordsType", expectedStatus: "docs-only-not-supported" },
+    { scenario: "vsphere-upi", path: "platform.vsphere.dnsRecordsType", expectedStatus: "docs-only-not-supported" },
+    { scenario: "vsphere-agent", path: "platform.vsphere.dnsRecordsType", expectedStatus: "docs-only-not-supported" },
+    { scenario: "nutanix-ipi", path: "platform.nutanix.dnsRecordsType", expectedStatus: "docs-only-not-supported" },
+  ];
+
+  docsOnlyEntries.forEach(({ scenario, path, expectedStatus }) => {
+    it(`${scenario} dnsRecordsType exists in catalog with ${expectedStatus}`, () => {
+      const params = getCatalogForScenario(scenario, "4.21");
+      const entry = params.find(p => p.path === path);
+      expect(entry).toBeDefined();
+      expect(entry.supportStatus).toBe(expectedStatus);
+    });
+
+    it(`${scenario} dnsRecordsType is NOT visible via isParamVisibleForVersion`, () => {
+      const params = getCatalogForScenario(scenario, "4.21");
+      const entry = params.find(p => p.path === path);
+      expect(isParamVisibleForVersion(entry, "4.21")).toBe(false);
+    });
+  });
+
+  it("bare-metal-upi dnsRecordsType has hidden-not-applicable status", () => {
+    const params = getCatalogForScenario("bare-metal-upi", "4.21");
+    const entry = params.find(p => p.path === "platform.baremetal.dnsRecordsType");
+    expect(entry).toBeDefined();
+    expect(entry.supportStatus).toBe("hidden-not-applicable");
+  });
+
+  it("bare-metal-upi dnsRecordsType is NOT visible via isParamVisibleForVersion", () => {
+    const params = getCatalogForScenario("bare-metal-upi", "4.21");
+    const entry = params.find(p => p.path === "platform.baremetal.dnsRecordsType");
+    expect(isParamVisibleForVersion(entry, "4.21")).toBe(false);
+  });
+
+  it("no dnsRecordsType entry in any scenario produces a visible UI field", () => {
+    const allDnsScenarios = [
+      { scenario: "bare-metal-ipi", path: "platform.baremetal.dnsRecordsType" },
+      { scenario: "bare-metal-upi", path: "platform.baremetal.dnsRecordsType" },
+      { scenario: "bare-metal-agent", path: "platform.baremetal.dnsRecordsType" },
+      { scenario: "vsphere-ipi", path: "platform.vsphere.dnsRecordsType" },
+      { scenario: "vsphere-upi", path: "platform.vsphere.dnsRecordsType" },
+      { scenario: "vsphere-agent", path: "platform.vsphere.dnsRecordsType" },
+      { scenario: "nutanix-ipi", path: "platform.nutanix.dnsRecordsType" },
+    ];
+    allDnsScenarios.forEach(({ scenario, path }) => {
+      const params = getCatalogForScenario(scenario, "4.21");
+      const entry = params.find(p => p.path === path);
+      expect(isParamVisibleForVersion(entry, "4.21")).toBe(false);
+    });
+  });
 });
 
 describe("Version-gated field boundary — catalog cross-check", () => {

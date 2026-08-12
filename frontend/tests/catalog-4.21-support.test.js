@@ -159,7 +159,8 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(dnsRecordsType).toBeDefined();
         expect(dnsRecordsType.minVersion).toBe('4.21');
         expect(dnsRecordsType.maxVersion).toBe(null);
-        expect(dnsRecordsType.supportStatus).toBe('supported-backend-only');
+        const expectedDnsStatus = scenario === 'bare-metal-upi' ? 'hidden-not-applicable' : 'docs-only-not-supported';
+        expect(dnsRecordsType.supportStatus).toBe(expectedDnsStatus);
 
         expect(bmcVerifyCA).toBeDefined();
         expect(bmcVerifyCA.minVersion).toBe('4.21');
@@ -179,7 +180,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(dnsRecordsType).toBeDefined();
         expect(dnsRecordsType.minVersion).toBe('4.21');
         expect(dnsRecordsType.maxVersion).toBe(null);
-        expect(dnsRecordsType.supportStatus).toBe('supported-backend-only');
+        expect(dnsRecordsType.supportStatus).toBe('docs-only-not-supported');
       });
     });
 
@@ -191,7 +192,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       expect(dnsRecordsType).toBeDefined();
       expect(dnsRecordsType.minVersion).toBe('4.21');
       expect(dnsRecordsType.maxVersion).toBe(null);
-      expect(dnsRecordsType.supportStatus).toBe('supported-backend-only');
+      expect(dnsRecordsType.supportStatus).toBe('docs-only-not-supported');
     });
 
     it('non-throughput high-confidence params (Slice 5B) have catalog-only supportStatus', () => {
@@ -250,7 +251,7 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         if (p.path.includes('bmcVerifyCA')) {
           expect(p.supportStatus).toBe('supported-ui');
         } else {
-          expect(p.supportStatus).toBe('supported-backend-only');
+          expect(p.supportStatus).toBe('docs-only-not-supported');
         }
         expect(p.outputFile).toBe('install-config.yaml');
       });
@@ -1372,6 +1373,178 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         .toThrow(/Catalog not found for scenario "oc-mirror-v2"/);
       expect(() => getCatalogForScenario('oc-mirror-v2', '4.21'))
         .toThrow(/Available scenarios:/);
+    });
+  });
+
+  describe('DOC-102 DNS Records support-boundary corrections', () => {
+    const testDir = dirname(fileURLToPath(import.meta.url));
+
+    function loadCanonical(scenario) {
+      const filePath = resolve(testDir, '..', '..', 'data', 'params', '4.21', `${scenario}.json`);
+      return JSON.parse(fs.readFileSync(filePath, 'utf8')).parameters;
+    }
+
+    describe('supportStatus classifications', () => {
+      const docsOnlyScenarios = [
+        { scenario: 'bare-metal-ipi', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'bare-metal-agent', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'vsphere-ipi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'vsphere-upi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'vsphere-agent', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'nutanix-ipi', path: 'platform.nutanix.dnsRecordsType' },
+      ];
+
+      docsOnlyScenarios.forEach(({ scenario, path }) => {
+        it(`${scenario} dnsRecordsType is docs-only-not-supported`, () => {
+          const params = getCatalogForScenario(scenario, '4.21');
+          const entry = params.find(p => p.path === path);
+          expect(entry).toBeDefined();
+          expect(entry.supportStatus).toBe('docs-only-not-supported');
+        });
+      });
+
+      it('bare-metal-upi dnsRecordsType is hidden-not-applicable', () => {
+        const params = getCatalogForScenario('bare-metal-upi', '4.21');
+        const entry = params.find(p => p.path === 'platform.baremetal.dnsRecordsType');
+        expect(entry).toBeDefined();
+        expect(entry.supportStatus).toBe('hidden-not-applicable');
+      });
+    });
+
+    describe('description corrections', () => {
+      const allDnsScenarios = [
+        { scenario: 'bare-metal-ipi', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'bare-metal-upi', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'bare-metal-agent', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'vsphere-ipi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'vsphere-upi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'vsphere-agent', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'nutanix-ipi', path: 'platform.nutanix.dnsRecordsType' },
+      ];
+
+      allDnsScenarios.forEach(({ scenario, path }) => {
+        it(`${scenario} description no longer says "This value may only be set when loadBalancer.type is set to UserManaged"`, () => {
+          const params = getCatalogForScenario(scenario, '4.21');
+          const entry = params.find(p => p.path === path);
+          expect(entry.description).not.toContain('This value may only be set when loadBalancer.type is set to UserManaged');
+        });
+
+        it(`${scenario} description clarifies External requires OnPremDNSRecords feature gate`, () => {
+          const params = getCatalogForScenario(scenario, '4.21');
+          const entry = params.find(p => p.path === path);
+          expect(entry.description).toContain('OnPremDNSRecords feature gate');
+          expect(entry.description).toContain('External requires');
+        });
+
+        it(`${scenario} description clarifies omitted defaults to Internal`, () => {
+          const params = getCatalogForScenario(scenario, '4.21');
+          const entry = params.find(p => p.path === path);
+          expect(entry.description).toContain('(or omitted)');
+        });
+      });
+    });
+
+    describe('notes corrections', () => {
+      it('bare-metal-upi notes mention platform: { none: {} } structural unreachability', () => {
+        const params = loadCanonical('bare-metal-upi');
+        const entry = params.find(p => p.path === 'platform.baremetal.dnsRecordsType');
+        expect(entry.notes).toContain('platform: { none: {} }');
+        expect(entry.notes).toContain('structurally unreachable');
+      });
+
+      it('bare-metal-agent notes mention Agent SNO topology', () => {
+        const params = loadCanonical('bare-metal-agent');
+        const entry = params.find(p => p.path === 'platform.baremetal.dnsRecordsType');
+        expect(entry.notes).toContain('Agent SNO topology');
+        expect(entry.notes).toContain('platform: { none: {} }');
+      });
+
+      it('vsphere-agent notes mention Agent SNO topology', () => {
+        const params = loadCanonical('vsphere-agent');
+        const entry = params.find(p => p.path === 'platform.vsphere.dnsRecordsType');
+        expect(entry.notes).toContain('Agent SNO topology');
+        expect(entry.notes).toContain('platform: { none: {} }');
+      });
+
+      const standardNoteScenarios = [
+        { scenario: 'bare-metal-ipi', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'vsphere-ipi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'vsphere-upi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'nutanix-ipi', path: 'platform.nutanix.dnsRecordsType' },
+      ];
+
+      standardNoteScenarios.forEach(({ scenario, path }) => {
+        it(`${scenario} notes explain documentation completeness rationale`, () => {
+          const params = loadCanonical(scenario);
+          const entry = params.find(p => p.path === path);
+          expect(entry.notes).toContain('Cataloged for documentation completeness');
+          expect(entry.notes).toContain('OnPremDNSRecords feature gate');
+          expect(entry.notes).toContain('CustomNoUpgrade');
+        });
+      });
+    });
+
+    describe('citations preserved', () => {
+      const allDnsEntries = [
+        { scenario: 'bare-metal-ipi', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'bare-metal-upi', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'bare-metal-agent', path: 'platform.baremetal.dnsRecordsType' },
+        { scenario: 'vsphere-ipi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'vsphere-upi', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'vsphere-agent', path: 'platform.vsphere.dnsRecordsType' },
+        { scenario: 'nutanix-ipi', path: 'platform.nutanix.dnsRecordsType' },
+      ];
+
+      allDnsEntries.forEach(({ scenario, path }) => {
+        it(`${scenario} retains all 3 original citations`, () => {
+          const params = loadCanonical(scenario);
+          const entry = params.find(p => p.path === path);
+          expect(entry.citations).toHaveLength(3);
+          const sources = entry.citations.map(c => c.source);
+          expect(sources).toContain('installer_source');
+          expect(sources).toContain('delta_analysis');
+          expect(sources).toContain('slice_5c_investigation');
+        });
+      });
+    });
+
+    describe('canonical-mirror parity', () => {
+      const affectedFiles = [
+        'bare-metal-ipi', 'bare-metal-upi', 'bare-metal-agent',
+        'vsphere-ipi', 'vsphere-upi', 'vsphere-agent', 'nutanix-ipi',
+      ];
+
+      affectedFiles.forEach(scenario => {
+        it(`${scenario} canonical and mirror are byte-identical after sync`, () => {
+          const canonicalPath = resolve(testDir, '..', '..', 'data', 'params', '4.21', `${scenario}.json`);
+          const mirrorPath = resolve(testDir, '..', 'src', 'data', 'catalogs', '4.21', `${scenario}.json`);
+          expect(fs.readFileSync(canonicalPath, 'utf8')).toBe(fs.readFileSync(mirrorPath, 'utf8'));
+        });
+      });
+    });
+
+    describe('no dnsRecordsType in 4.20 catalogs (unchanged)', () => {
+      it('bare-metal 4.20 catalogs have no dnsRecordsType', () => {
+        ['bare-metal-ipi', 'bare-metal-upi', 'bare-metal-agent'].forEach(scenario => {
+          const params = getCatalogForScenario(scenario, '4.20');
+          const match = params.find(p => p.path === 'platform.baremetal.dnsRecordsType');
+          expect(match).toBeUndefined();
+        });
+      });
+
+      it('vsphere 4.20 catalogs have no dnsRecordsType', () => {
+        ['vsphere-ipi', 'vsphere-upi', 'vsphere-agent'].forEach(scenario => {
+          const params = getCatalogForScenario(scenario, '4.20');
+          const match = params.find(p => p.path === 'platform.vsphere.dnsRecordsType');
+          expect(match).toBeUndefined();
+        });
+      });
+
+      it('nutanix 4.20 catalog has no dnsRecordsType', () => {
+        const params = getCatalogForScenario('nutanix-ipi', '4.20');
+        const match = params.find(p => p.path === 'platform.nutanix.dnsRecordsType');
+        expect(match).toBeUndefined();
+      });
     });
   });
 });

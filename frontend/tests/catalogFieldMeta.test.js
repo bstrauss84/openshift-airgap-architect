@@ -134,11 +134,11 @@ describe("Slice 5H: isParamVisibleForVersion", () => {
     expect(isParamVisibleForVersion(param, "4.20")).toBe(false);
   });
 
-  it("real 4.21 supported-backend-only delta param returns false at 4.21", () => {
+  it("real 4.21 docs-only-not-supported delta param returns false at 4.21", () => {
     const params = getCatalogForScenario("bare-metal-ipi", "4.21");
     const dnsRecords = params.find(p => p.path === "platform.baremetal.dnsRecordsType");
     expect(dnsRecords).toBeDefined();
-    expect(dnsRecords.supportStatus).toBe("supported-backend-only");
+    expect(dnsRecords.supportStatus).toBe("docs-only-not-supported");
     expect(isParamVisibleForVersion(dnsRecords, "4.21")).toBe(false);
   });
 

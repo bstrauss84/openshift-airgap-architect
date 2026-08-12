@@ -1250,13 +1250,13 @@
       "allowed": "Internal, External, or omitted",
       "default": "Internal",
       "required": false,
-      "description": "Determines whether DNS records for api, api-int, and ingress are provided by the internal DNS service or externally. When set to 'Internal', records are provided by the internal infrastructure. When set to 'External', records must be configured by the user on a DNS server outside the cluster. This value may only be set when loadBalancer.type is set to UserManaged.",
+      "description": "Determines whether DNS records for api, api-int, and ingress are provided by the internal DNS service or externally. When set to 'Internal' (or omitted), records are provided by the internal infrastructure. When set to 'External', records must be configured by the user on a DNS server outside the cluster; External requires the OnPremDNSRecords feature gate to be enabled and loadBalancer.type=UserManaged. External mode is not currently configured by this application.",
       "applies_to": [
         "bare-metal-ipi",
         "bare-metal-upi",
         "bare-metal-agent"
       ],
-      "notes": "External mode requires OnPremDNSRecords feature gate. External mode requires loadBalancer.type = UserManaged. Current default is 'Internal'.",
+      "notes": "Cataloged for documentation completeness. The OnPremDNSRecords feature gate can be enabled via TechPreviewNoUpgrade, DevPreviewNoUpgrade, or CustomNoUpgrade with an explicit featureGates entry. External mode also requires loadBalancer.type=UserManaged. This application omits the field entirely (defaulting to Internal) because it does not configure the required feature gate or loadBalancer.type selection. Additionally, bare-metal UPI generates platform: { none: {} }, making platform.baremetal.dnsRecordsType structurally unreachable.",
       "citations": [
         {
           "source": "installer_source",
@@ -1274,7 +1274,7 @@
           "note": "Evidence-based investigation completed 2026-06-30"
         }
       ],
-      "supportStatus": "supported-backend-only",
+      "supportStatus": "hidden-not-applicable",
       "minVersion": "4.21",
       "maxVersion": null
     },
