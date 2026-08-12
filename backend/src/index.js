@@ -125,6 +125,7 @@ import { detectScenarioId } from "./catalogValidator.js";
 import { loadMirrorRegistryConfig } from "./mirrorRegistryConfigLoader.js";
 import { loadImageSetConfig } from "./imageSetConfigParser.js";
 import { extractCrdsFromCatalogImage } from "./crdExtractor.js";
+import { extractImageSetConfigFromTar } from "./tarImageSetExtractor.js";
 import Busboy from "busboy";
 import {
   createPvc,
@@ -1570,6 +1571,36 @@ app.get("/api/mirror-import/files", (_req, res) => {
   }
 });
 
+app.post("/api/mirror-import/extract-config", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const { filename } = req.body || {};
+  if (!filename) {
+    return res.status(400).json({ error: "filename is required" });
+  }
+
+  const safeName = path.basename(filename);
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+  const filePath = path.join(mountPath, safeName);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "File not found on import volume" });
+  }
+
+  try {
+    const imageSetConfig = await extractImageSetConfigFromTar(filePath);
+    res.json({ imageSetConfig: imageSetConfig || null });
+  } catch (err) {
+    logger.error({ error: err.message, filename: safeName }, "Failed to extract imageset-config from tar");
+    res.status(500).json({ error: `Failed to extract config: ${err.message}` });
+  }
+});
+
 app.get("/api/mirror-import/pvcs", async (_req, res) => {
   if (!isOperatorManaged()) {
     return res.status(403).json({ error: "Only available in operator-managed mode" });
@@ -1816,6 +1847,20 @@ app.post("/api/mirror-import/upload/:uploadId/finalize", (req, res) => {
       });
 
       appendJobOutput(session.jobId, `Assembly complete: ${session.bytesReceived} bytes\n`);
+
+      try {
+        appendJobOutput(session.jobId, "Extracting imageset-config.yaml from bundle...\n");
+        const imageSetConfig = await extractImageSetConfigFromTar(assembledPath);
+        if (imageSetConfig) {
+          updateJobMetadata(session.jobId, { imageSetConfig });
+          appendJobOutput(session.jobId, "Found imageset-config.yaml in bundle.\n");
+        } else {
+          appendJobOutput(session.jobId, "Warning: imageset-config.yaml not found in bundle.\n");
+        }
+      } catch (extractErr) {
+        logger.warn({ error: extractErr.message }, "Failed to extract imageset-config.yaml from bundle");
+        appendJobOutput(session.jobId, `Warning: Could not extract imageset-config.yaml: ${extractErr.message}\n`);
+      }
 
       await processUploadedFile({
         jobId: session.jobId,

@@ -44,7 +44,7 @@ export const ImportReviewStep: React.FC = () => {
     return () => { abortRef.current?.abort(); };
   }, []);
 
-  const pollJobStatus = async (jobId: string): Promise<void> => {
+  const pollJobStatus = async (jobId: string): Promise<string | null> => {
     while (true) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       try {
@@ -55,7 +55,14 @@ export const ImportReviewStep: React.FC = () => {
         if (job.message) {
           setUploadStatus(job.message);
         }
-        if (job.status === 'completed') return;
+        if (job.status === 'completed') {
+          try {
+            const metadata = job.metadata_json
+              ? typeof job.metadata_json === 'string' ? JSON.parse(job.metadata_json) : job.metadata_json
+              : {};
+            return metadata.imageSetConfig || null;
+          } catch { return null; }
+        }
         if (job.status === 'failed') {
           throw new Error(job.message || 'Upload failed');
         }
@@ -85,6 +92,7 @@ export const ImportReviewStep: React.FC = () => {
     try {
       let bundlePvc = storage.pvcName;
       let bundleFilename = source.filename;
+      let imageSetConfigForCR = '';
 
       if (needsUpload) {
         setUploadStatus('Starting upload...');
@@ -104,35 +112,52 @@ export const ImportReviewStep: React.FC = () => {
         });
 
         if (result.jobId) {
-          await pollJobStatus(result.jobId);
+          const extracted = await pollJobStatus(result.jobId);
+          if (extracted) imageSetConfigForCR = extracted;
         }
         bundleFilename = result.filename || source.filename;
         setUploadStatus('Upload complete');
         setUploadProgress(100);
-      } else if (storage.isNewPvc) {
-        setUploadStatus('Creating PVC...');
-        const csrfToken = getCsrfToken();
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+      } else {
+        if (storage.isNewPvc) {
+          setUploadStatus('Creating PVC...');
+          const csrfToken = getCsrfToken();
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (csrfToken) headers['X-CSRFToken'] = csrfToken;
 
-        const pvcBody = {
-          apiVersion: 'v1',
-          kind: 'PersistentVolumeClaim',
-          metadata: {
-            name: storage.pvcName,
-            namespace: 'mirror-operator-system',
-          },
-          spec: {
-            accessModes: ['ReadWriteOnce'],
-            resources: { requests: { storage: storage.pvcSize } },
-          },
-        };
+          const pvcBody = {
+            apiVersion: 'v1',
+            kind: 'PersistentVolumeClaim',
+            metadata: {
+              name: storage.pvcName,
+              namespace: 'mirror-operator-system',
+            },
+            spec: {
+              accessModes: ['ReadWriteOnce'],
+              resources: { requests: { storage: storage.pvcSize } },
+            },
+          };
 
-        await fetch('/api/kubernetes/api/v1/namespaces/mirror-operator-system/persistentvolumeclaims', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(pvcBody),
-        });
+          await fetch('/api/kubernetes/api/v1/namespaces/mirror-operator-system/persistentvolumeclaims', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(pvcBody),
+          });
+        }
+
+        setUploadStatus('Extracting image set configuration...');
+        try {
+          const extractResult = await apiFetch('/api/mirror-import/extract-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: source.filename }),
+          });
+          if (extractResult.imageSetConfig) {
+            imageSetConfigForCR = extractResult.imageSetConfig;
+          }
+        } catch (extractErr: any) {
+          console.warn('Could not extract imageset-config.yaml:', extractErr.message);
+        }
       }
 
       setUploadStatus('Creating MirrorImport...');
@@ -148,6 +173,7 @@ export const ImportReviewStep: React.FC = () => {
           namespace,
         },
         spec: {
+          imageSetConfig: imageSetConfigForCR,
           bundle: {
             pvc: bundlePvc,
             filename: bundleFilename,
