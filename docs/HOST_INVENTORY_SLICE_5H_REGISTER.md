@@ -5,7 +5,7 @@
 - **Register ID:** H1-P
 - **Type:** Host Inventory Slice 5H Persistence Register
 - **Date:** 2026-07-17
-- **Last updated:** 2026-07-22
+- **Last updated:** 2026-08-13
 - **Branch:** develop
 - **Latest commit:** 063fcc5 DOC-102: Enforce Host Inventory replication visibility safety
 - **Scope:** Host Inventory Agent Drawer (NodeDrawerAgentContent.jsx + HostInventoryV2Step.jsx)
@@ -530,8 +530,8 @@ RESOLVED (commit 063fcc5). Two enforcement boundaries implemented. Presentation 
 
 ## Next Actions
 
-1. Slice 5I version-aware validation
-2. Slice 5J version-aware generation
+1. DOC-102 Phase 2 complete — no Slice 5H follow-on actions remain
+2. Remaining v2.0.0 work owned by DOC-103 (UI/UX), DOC-104 (testing), DOC-105 (release), DOC-107 (versioned copy)
 
 ---
 

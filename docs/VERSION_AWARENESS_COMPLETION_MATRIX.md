@@ -1,9 +1,10 @@
 # Version-Awareness Completion Matrix
 
 **Created:** 2026-08-03
+**Last Updated:** 2026-08-13
 **Parent:** DOC-059 (OpenShift version-aware system v2.0.0)
 **Branch:** develop
-**HEAD:** 289b8794aa9e6b3f13319a9c837bac1d540d2145
+**HEAD:** 0e927b1c44f6fec8436f4d6f3653ead3b1be95a0
 **Canonical status authority:** docs/BACKLOG_STATUS.md
 
 ---
@@ -11,8 +12,9 @@
 ## A. Executive Status
 
 **DOC-059: INCOMPLETE — active, not done**
+**DOC-102: COMPLETE — verified_done (2026-08-13)**
 
-Version-awareness foundation is strong but multiple workstreams remain open. Phase 0 (DOC-100) and Phase 1 (DOC-101) are verified_done. Phase 2 (DOC-102) is partially complete with Slices 5A–5H closed; two concrete tranches remain: Slice 5I (version-aware validation for bmcVerifyCA, dnsRecordsType, Azure subnets, OnPremDNSRecords/loadBalancer dependency investigation) and Slice 5J (version-aware backend generation for remaining 4.21 supported-backend-only params including Azure subnets). Phase 3 (DOC-103) is active / partial — version locking, version-aware UI controls, version-aware UI registry (catalogFieldMeta.js), and browser verification are implemented, but version-specific tooltips, deprecation badges, introduced/deprecated annotations, and systematic version-correct copy are not. Phase 4 (DOC-104) is active / partial — migration tests, catalog tests, visibility tests, validation tests, and generation tests exist for implemented features, but parameterized version-matrix testing, Field Guide version-correctness tests, and version-manifest.json tests are not started. Phase 5 (DOC-105) is active / partial — ADRs (ADR-001 through ADR-007), Design System documentation, version-aware UI checklist, and roadmap governance exist, but migration guide, README v2.0.0 update, CHANGELOG, security audit, and release notes are not created. DOC-107 (versioned copy strategy implementation): centralized copy system not started, field-specific user-facing copy partial, repository-wide remediation incomplete, CI hardcoded-version enforcement not started. DOC-106 (versioned copy audit) is verified_done at the Phase 0 inventory level; its original implementation conclusion is superseded by current evidence — implementation remains owned by DOC-107 and related DOC-103/DOC-104 acceptance work.
+Version-awareness foundation is strong. Phase 0 (DOC-100), Phase 1 (DOC-101), and Phase 2 (DOC-102) are verified_done. DOC-102 closed with all canonical slices (5A, 5B, 5D, 5F, 5G, 5H) and final closure tranches accepted: BMC verify CA fully implemented as supported-ui (commit a0d5fcb), Azure BYO VNet subnets fully implemented with version-gated generation (commit 3e3148b), dnsRecordsType reconciled as deliberate support boundary — docs-only-not-supported/hidden-not-applicable across all platforms (commit 0e927b1). Zero supported-backend-only 4.21 delta params remain unresolved for supported platforms (38 unsupported/manual-review upstream delta paths intentionally deferred). Remaining DOC-059 workstreams: Phase 3 (DOC-103) is active / partial — version locking, version-aware UI controls, version-aware UI registry (catalogFieldMeta.js), and browser verification are implemented, but version-specific tooltips, deprecation badges, introduced/deprecated annotations, and systematic version-correct copy are not. Phase 4 (DOC-104) is active / partial — migration tests, catalog tests, visibility tests, validation tests, and generation tests exist for implemented features, but parameterized version-matrix testing, Field Guide version-correctness tests, and version-manifest.json tests are not started. Phase 5 (DOC-105) is active / partial — ADRs (ADR-001 through ADR-007), Design System documentation, version-aware UI checklist, and roadmap governance exist, but migration guide, README v2.0.0 update, CHANGELOG, security audit, and release notes are not created. DOC-107 (versioned copy strategy implementation): centralized copy system not started, field-specific user-facing copy partial, repository-wide remediation incomplete, CI hardcoded-version enforcement not started. DOC-106 (versioned copy audit) is verified_done at the Phase 0 inventory level; its original implementation conclusion is superseded by current evidence — implementation remains owned by DOC-107 and related DOC-103/DOC-104 acceptance work.
 
 ---
 
@@ -32,7 +34,10 @@ Version-awareness foundation is strong but multiple workstreams remain open. Pha
 | Slice 5H Host Inventory register (H1–H9) | 55/59 interactive controls, 14 commits e939a41 through 063fcc5, 4 blockers resolved, docs/HOST_INVENTORY_SLICE_5H_REGISTER.md | verified_done |
 | Phase 0 baseline certification (DOC-100) | supportStatus added to all 949 4.20 params, versioned-copy audit inventory (3,239 refs), commit 94b5b14 | verified_done |
 | Phase 1 architecture foundation (DOC-101) | 6/6 slices + 2 regression fixes; commit 8a879e7 "Phase 1 Slice 1" through commit bf7cfb3 "lock state regression fix", browser verification passed | verified_done |
-| Accepted completed DOC-102 slices and post-Slice-5H work | Slice 5A: commit e65e6ee. Slice 5B: commit bad31e3. Slice 5D: commit 1f3b2e5. Slice 5F: commit 312cb3c. Slice 5G: catalogFieldMeta corrections (no single commit — metadata-only corrections). Slice 5H: 14 commits e939a41 through 063fcc5. Accepted post-5H: AWS throughput (commits 19200ae, 3f6e257, 137db15), Azure allowSharedKeyAccess (commit 8fd2fe1), AWS confidential compute (commits ee476c8 through 289b8794), version-aware field presentation (commits 310c0c8, e23e460, ea60f9bd, 2193e729), version-aware UI standards (commits 2f9d922, 53b355a, linear chain). All SHAs verified via `git show -s`. Slices 5I (validation) and 5J (generation) remain active. | verified_done (5A–5H + post-5H); active (5I–5J) |
+| Accepted completed DOC-102 slices and post-Slice-5H work | Slice 5A: commit e65e6ee. Slice 5B: commit bad31e3. Slice 5D: commit 1f3b2e5. Slice 5F: commit 312cb3c. Slice 5G: catalogFieldMeta corrections (no single commit — metadata-only corrections). Slice 5H: 14 commits e939a41 through 063fcc5. Accepted post-5H: AWS throughput (commits 19200ae, 3f6e257, 137db15), Azure allowSharedKeyAccess (commit 8fd2fe1), AWS confidential compute (commits ee476c8 through 289b8794), version-aware field presentation (commits 310c0c8, e23e460, ea60f9bd, 2193e729), version-aware UI standards (commits 2f9d922, 53b355a, linear chain). All SHAs verified via `git show -s`. | verified_done (5A–5H + post-5H) |
+| BMC verify CA (final DOC-102 closure tranche) | platform.baremetal.bmcVerifyCA promoted to supported-ui with UI control, shared validation module (shared/bmcVerifyCA.js), backend generation, Field Guide content, frontend and backend tests; commit a0d5fcb | verified_done |
+| Azure BYO VNet subnets (final DOC-102 closure tranche) | platform.azure.subnets promoted to supported-ui/supported-derived with version-gated generation (4.21 subnets array vs 4.20 controlPlaneSubnet/computeSubnet), UI editor, shared validation (shared/azureByoVnet.js), frontend and backend tests; commit 3e3148b | verified_done |
+| dnsRecordsType support boundary (final DOC-102 closure tranche) | dnsRecordsType reclassified from supported-backend-only to docs-only-not-supported (bare-metal-agent/ipi, vSphere, Nutanix) and hidden-not-applicable (bare-metal-upi). Deliberate support boundary: External mode requires OnPremDNSRecords feature gate and loadBalancer.type=UserManaged, not owned by this application. Installer omission defaults to Internal. Tests verify catalog classification; commit 0e927b1 | verified_done |
 | Phase 0 versioned copy audit (DOC-106) | scripts/find-hardcoded-versions.sh, versioned-copy-audit-results/ (8 files), docs/VERSIONED_COPY_INVENTORY.md | verified_done (inventory only) |
 
 ---
@@ -48,32 +53,30 @@ Version-awareness foundation is strong but multiple workstreams remain open. Pha
 | **platform.azure.allowSharedKeyAccess** | supported-ui, minVersion=4.21 (2 catalogs) | ✅ PlatformSpecificsStep control | ✅ version-gated validation | ✅ boolean type enforcement | ✅ isVersionGTE guard | ✅ state persistence | ✅ state export | 4.21 Field Guide exists | ✅ tooltip present | ✅ frontend + backend | **DONE** |
 | **compute[].platform.aws.rootVolume.throughput** | supported-derived (1 catalog), docs-only (1 catalog) | — (derived from controlPlane) | — | — | ✅ derived | ✅ | ✅ | — | — | — | **DONE** (derived) |
 | **controlPlane.platform.aws.cpuOptions** | supported-derived (1 catalog), docs-only (1 catalog) | — (parent object) | — | — | ✅ parent emitted | ✅ | ✅ | — | — | — | **DONE** (structural) |
-| **platform.baremetal.bmcVerifyCA** | supported-backend-only, minVersion=4.21 (3 catalogs) | ❌ No UI control | ❌ None | ❌ None | ❌ Not emitted | N/A | N/A | ❌ Not covered | ❌ None | ❌ None | Slice 5I/5J |
-| **platform.baremetal.dnsRecordsType** | supported-backend-only, minVersion=4.21 (3 catalogs) | ❌ No UI control | ❌ None | ❌ None | ❌ Not emitted | N/A | N/A | ❌ Not covered | ❌ None | ❌ None | Slice 5I/5J |
-| **platform.azure.subnets** | supported-backend-only, minVersion=4.21 (2 catalogs) | ❌ No UI control | ❌ None | ❌ None | ❌ Not emitted (noted in Slice 5J acceptance criteria) | N/A | N/A | ❌ Not covered | ❌ None | ❌ None | Slice 5J |
-| **platform.azure.subnets.name** | supported-backend-only, minVersion=4.21 (2 catalogs) | ❌ No UI control | ❌ None | ❌ None | ❌ Not emitted | N/A | N/A | ❌ Not covered | ❌ None | ❌ None | Slice 5J |
-| **platform.azure.subnets.role** | supported-backend-only, minVersion=4.21 (2 catalogs) | ❌ No UI control | ❌ None | ❌ None | ❌ Not emitted | N/A | N/A | ❌ Not covered | ❌ None | ❌ None | Slice 5J |
-| **platform.nutanix.dnsRecordsType** | supported-backend-only, minVersion=4.21 (1 catalog) | ❌ No UI control | ❌ None | ❌ None | ❌ Not emitted | N/A | N/A | ❌ Not covered | ❌ None | ❌ None | Slice 5I/5J |
-| **platform.vsphere.dnsRecordsType** | supported-backend-only, minVersion=4.21 (3 catalogs) | ❌ No UI control | ❌ None | ❌ None | ❌ Not emitted | N/A | N/A | ❌ Not covered | ❌ None | ❌ None | Slice 5I/5J |
+| **platform.baremetal.bmcVerifyCA** | supported-ui, minVersion=4.21 (agent+IPI); hidden-not-applicable (UPI) | ✅ PlatformSpecificsStep control | ✅ shared/bmcVerifyCA.js | ✅ shared/bmcVerifyCA.js | ✅ version-gated emission | ✅ state persistence | ✅ state export | ✅ v4.21 Field Guide | ✅ tooltip present | ✅ frontend + backend | **DONE** (commit a0d5fcb) |
+| **platform.baremetal.dnsRecordsType** | docs-only-not-supported, minVersion=4.21 (agent+IPI); hidden-not-applicable (UPI) | N/A (deliberate) | N/A | N/A | N/A (omission defaults to Internal) | N/A | N/A | N/A | N/A | ✅ catalog classification tests | **DONE** — deliberate support boundary (commit 0e927b1) |
+| **platform.azure.subnets** | supported-derived, minVersion=4.21 (2 catalogs) | — (parent object) | — | — | ✅ version-gated array emission | ✅ | ✅ | ✅ v4.21 Field Guide | — | ✅ | **DONE** (commit 3e3148b) |
+| **platform.azure.subnets.name** | supported-ui, minVersion=4.21 (2 catalogs) | ✅ PlatformSpecificsStep BYO VNet editor | ✅ shared/azureByoVnet.js | ✅ validation | ✅ version-gated emission | ✅ | ✅ | ✅ | ✅ | ✅ | **DONE** (commit 3e3148b) |
+| **platform.azure.subnets.role** | supported-derived, minVersion=4.21 (2 catalogs) | — (derived from control-plane/node) | — | — | ✅ derived in generation | ✅ | ✅ | — | — | ✅ | **DONE** (commit 3e3148b) |
+| **platform.nutanix.dnsRecordsType** | docs-only-not-supported, minVersion=4.21 (1 catalog) | N/A (deliberate) | N/A | N/A | N/A (omission defaults to Internal) | N/A | N/A | N/A | N/A | ✅ catalog classification tests | **DONE** — deliberate support boundary (commit 0e927b1) |
+| **platform.vsphere.dnsRecordsType** | docs-only-not-supported, minVersion=4.21 (3 catalogs) | N/A (deliberate) | N/A | N/A | N/A (omission defaults to Internal) | N/A | N/A | N/A | N/A | ✅ catalog classification tests | **DONE** — deliberate support boundary (commit 0e927b1) |
 
-### Remaining DOC-102 Slices
+### DOC-102 Canonical Slices and Closure Tranches — Complete
 
-**Slice 5I — Version-aware validation rules:**
-- Version-gated validation for bmcVerifyCA (supportStatus: supported-backend-only, minVersion: 4.21; present in 3 bare-metal catalogs: bare-metal-agent, bare-metal-ipi, bare-metal-upi). **Evidence disposition:** catalog inventory: complete (3 catalogs, supportStatus/minVersion verified); catalog-declared representation: string with a PEM-content description; absence from the application's 4.20 catalogs: established; authoritative OpenShift 4.21 installer representation: unresolved (requires inspection of openshift/installer release-4.21 pkg/types/baremetal/platform.go); authoritative validation and generation behavior: unresolved; frontend/backend implementation: not authorized until the authoritative source audit is accepted. **Next action:** inspect the pinned OpenShift installer release-4.21 source, record the exact Go type, validation, generation path, scenarios, and omission/default semantics
-- Version-gated validation for dnsRecordsType (supportStatus: supported-backend-only, minVersion: 4.21; present in 7 catalog entries total: 3 bare-metal [bare-metal-agent, bare-metal-ipi, bare-metal-upi] + 3 vSphere [vsphere-agent, vsphere-ipi, vsphere-upi] + 1 Nutanix [nutanix-ipi]). **Evidence disposition:** catalog inventory: complete (7 entries across 3 platforms, catalog-declared enum Internal/External and dependency constraints documented); catalog-declared representation: enum with Internal/External values, External mode references OnPremDNSRecords feature gate and loadBalancer.type=UserManaged; absence from the application's 4.20 catalogs: established; authoritative OpenShift 4.21 installer representation: unresolved (enum values, dependency constraints, and External-mode prerequisites require verification against upstream installer source); authoritative validation and generation behavior: unresolved; frontend/backend implementation: not authorized until the authoritative source audit is accepted
-- Version-gated validation for Azure subnets (supportStatus: supported-backend-only, minVersion: 4.21; platform.azure.subnets.name and platform.azure.subnets.role in 2 catalogs: azure-government-ipi, azure-government-upi; conditional on BYO VNet). **Evidence disposition:** catalog inventory: complete (2 catalogs, both Azure Government, name/role fields documented); catalog-declared representation: nested object with name and role fields; absence from the application's 4.20 catalogs: established; authoritative OpenShift 4.21 installer representation: unresolved (exact YAML structure for subnets array requires verification against openshift/installer release-4.21 — do not infer from catalog path names); authoritative validation and generation behavior: unresolved; frontend/backend implementation: not authorized until the authoritative source audit is accepted
-- OnPremDNSRecords feature-gate dependency investigation (referenced in dnsRecordsType catalog notes as prerequisite for External mode; present in 7 catalogs matching dnsRecordsType distribution). **Evidence disposition:** catalog inventory: complete (7 catalogs, feature gate reference documented); catalog-declared representation: feature gate required for dnsRecordsType=External; absence from the application's 4.20 catalogs: established; authoritative OpenShift 4.21 installer representation: unresolved (feature gate enablement mechanism and interaction with dnsRecordsType=External not verified against upstream installer); authoritative validation and generation behavior: unresolved; frontend/backend implementation: not authorized until the authoritative source audit is accepted
-- loadBalancer.type=UserManaged dependency investigation (referenced in dnsRecordsType catalog notes as prerequisite for External mode; loadBalancer entries present in 7 catalogs: 3 bare-metal + 3 vSphere + 1 Nutanix; not a separate catalog parameter path — it is a dependency constraint on dnsRecordsType behavior). **Evidence disposition:** catalog inventory: complete (7 catalogs, loadBalancer.type entries with UserManaged value documented); catalog-declared representation: dependency constraint on dnsRecordsType=External behavior; absence from the application's 4.20 catalogs: established; authoritative OpenShift 4.21 installer representation: unresolved (interaction between loadBalancer.type=UserManaged and dnsRecordsType=External not verified against upstream installer); authoritative validation and generation behavior: unresolved; frontend/backend implementation: not authorized until the authoritative source audit is accepted
+**Final DOC-102 closure tranches — CLOSED (2026-08-13).**
 
-**Slice 5J — Version-aware backend generation:**
-- Generation logic for all remaining 4.21-only supported-backend-only params
-- platform.azure.subnets.name and platform.azure.subnets.role generation (per DOC-102 acceptance criteria)
-- Parameterized backend generation tests for 4.20 and 4.21
-- Prove 4.21-only structure is not emitted for 4.20
+All items that were previously listed as remaining DOC-102 work have been resolved:
+
+- **bmcVerifyCA:** Fully implemented as supported-ui. Shared validation module (shared/bmcVerifyCA.js), PlatformSpecificsStep UI control, backend generation with version gate, Field Guide content in v4.21/baremetal.js, frontend tests (bmc-verify-ca.test.jsx) and backend tests (bmc-verify-ca.test.js). Commit a0d5fcb.
+- **Azure BYO VNet subnets:** Fully implemented as supported-ui (subnets.name) / supported-derived (subnets parent, subnets.role). Shared validation module (shared/azureByoVnet.js), PlatformSpecificsStep BYO VNet editor, version-gated generation (4.21 emits subnets array with name/role, 4.20 emits controlPlaneSubnet/computeSubnet), frontend tests (azure-byo-vnet.test.jsx) and backend tests (azure-byo-vnet.test.js). Commit 3e3148b.
+- **dnsRecordsType:** Reclassified from supported-backend-only to docs-only-not-supported (bare-metal-agent, bare-metal-ipi, vsphere-agent, vsphere-ipi, vsphere-upi, nutanix-ipi) and hidden-not-applicable (bare-metal-upi). Deliberate support boundary: External mode requires OnPremDNSRecords feature gate and loadBalancer.type=UserManaged, neither of which is owned by this application. Installer omission defaults to Internal. Catalog classification tests verify supportStatus across all 7 entries. Commit 0e927b1.
+- **OnPremDNSRecords and loadBalancer.type=UserManaged:** Investigated and resolved as part of dnsRecordsType support boundary decision. External mode's dependency chain (feature gate + UserManaged load balancer) is outside application scope. Documented in catalog notes and dnsRecordsType support boundary rationale.
+
+**Zero supported-backend-only 4.21 delta params remain for supported platforms.** All supported-platform params have been promoted to supported-ui/supported-derived or reclassified to docs-only-not-supported/hidden-not-applicable with documented rationale. 38 unsupported/manual-review upstream delta paths remain intentionally deferred: 32 PowerVC, 4 GCP, 1 OpenStack, 1 global manual-review (imageDigestSources.sourcePolicy). See Slice 5G.
 
 ### 4.21 supported-ui Params — Production Control Mapping
 
-All 4 supported-ui minVersion=4.21 params have verified production controls:
+All supported-ui OpenShift 4.21 delta paths have verified production controls:
 
 | Param | Frontend Control | File |
 |---|---|---|
@@ -81,6 +84,10 @@ All 4 supported-ui minVersion=4.21 params have verified production controls:
 | controlPlane.platform.aws.cpuOptions.confidentialCompute | Select dropdown (Use default / Disabled) | PlatformSpecificsStep.jsx |
 | platform.azure.allowSharedKeyAccess (IPI) | Select dropdown (true / false / not set) | PlatformSpecificsStep.jsx |
 | platform.azure.allowSharedKeyAccess (UPI) | Select dropdown (true / false / not set) | PlatformSpecificsStep.jsx |
+| platform.baremetal.bmcVerifyCA (agent) | PEM textarea with validation | PlatformSpecificsStep.jsx |
+| platform.baremetal.bmcVerifyCA (IPI) | PEM textarea with validation | PlatformSpecificsStep.jsx |
+| platform.azure.subnets.name (IPI) | BYO VNet subnet editor | PlatformSpecificsStep.jsx |
+| platform.azure.subnets.name (UPI) | BYO VNet subnet editor | PlatformSpecificsStep.jsx |
 
 ---
 
@@ -175,9 +182,18 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 
 **DOC-104 status: active / partial** — not "NOT STARTED". Implemented evidence: migration tests (v1→v3 state schema migration), catalog tests (catalog loading and mirror identity verification), visibility tests (isCatalogFieldVisible with supportStatus), validation tests (version-gated validation for throughput, confidentialCompute, allowSharedKeyAccess), generation tests (version-gated generation with isVersionGTE guards). Remaining: parameterized version-matrix testing across all version-gated behavior, Field Guide version-correctness tests, version-manifest.json tests, deprecation badge rendering tests, versioned copy correctness tests.
 
-### Historical Test Baseline (from confidential-compute tranche, HEAD 289b8794)
+### Historical Test Baseline
 
-These totals are historical evidence from the already-pushed confidential-compute tranche at commit 289b8794aa9e6b3f13319a9c837bac1d540d2145. This documentation session did not run test suites and did not certify a new test baseline.
+**Latest accepted evidence (from dnsRecordsType support boundary tranche, HEAD 0e927b1):**
+
+| Suite | Passed | Skipped | Failed | Todo |
+|---|---|---|---|---|
+| Frontend (Vitest) | 2,241 | 2 | 0 | 0 |
+| Backend (Node.js test runner) | 1,252 | 0 | 0 | 5 |
+| Focused DNS (subset of backend) | 23 | 0 | 0 | 0 |
+| Playwright (separate browser acceptance) | 4 | 0 | 0 | 0 |
+
+**Prior baseline (from confidential-compute tranche, commit 289b8794):**
 
 | Suite | Passed | Skipped | Failed | Todo |
 |---|---|---|---|---|
@@ -212,9 +228,9 @@ These totals are historical evidence from the already-pushed confidential-comput
 | Catalog loading | ✅ catalogResolver tests | ✅ Version-aware loading tested | Version-matrix parameterization missing |
 | Catalog mirror identity | ✅ MD5 sync verified | ✅ 4.21 catalogs synced | No automated CI gate |
 | Field visibility | ✅ isCatalogFieldVisible | ✅ Version-gated fields tested | Systematic parameterized matrix missing |
-| Frontend validation | ✅ ~300+ validation tests | ✅ Version-gated rules tested | bmcVerifyCA, dnsRecordsType, Azure subnets NOT tested |
-| Backend validation | ✅ Schema validation | ✅ Throughput + confidentialCompute | bmcVerifyCA, dnsRecordsType NOT tested |
-| Generation | ✅ ~200+ generation tests | ✅ 4.21-specific generation tested | Remaining 4.21 backend-only params NOT generated |
+| Frontend validation | ✅ ~300+ validation tests | ✅ Version-gated rules tested | bmcVerifyCA ✅ (bmc-verify-ca.test.jsx), Azure subnets ✅ (azure-byo-vnet.test.jsx), dnsRecordsType ✅ deliberate boundary |
+| Backend validation | ✅ Schema validation | ✅ Throughput + confidentialCompute + bmcVerifyCA + Azure subnets | bmcVerifyCA ✅ (bmc-verify-ca.test.js), Azure subnets ✅ (azure-byo-vnet.test.js), dnsRecordsType ✅ (dns-records-type.test.js) |
+| Generation | ✅ ~200+ generation tests | ✅ 4.21-specific generation tested | All 4.21 delta params resolved — bmcVerifyCA ✅, Azure subnets ✅ version-gated, dnsRecordsType ✅ deliberate omission |
 | Stale-state suppression | ✅ Unknown schema blocked | ✅ Unsupported version recovery | Adequate |
 | Persistence | ✅ State save/load tests | ✅ v3 migration-before-persist | Adequate |
 | Hydration | ✅ Frontend hydration tests | ✅ Slice 6 v3 preservation | Adequate |
@@ -261,25 +277,22 @@ DOC-100 (Phase 0) ─────────────── ✅ DONE
     │
 DOC-101 (Phase 1) ─────────────── ✅ DONE
     │
-DOC-102 (Phase 2) ─── Slices 5A-5H ✅ DONE
-    │                  Slice 5I ⏳ (validation)
-    │                  Slice 5J ⏳ (generation)
+DOC-102 (Phase 2) ─────────────── ✅ DONE (all canonical slices + closure tranches, 2026-08-13)
     │
     ├── DOC-107 (versioned copy implementation) ⏳
-    │       depends on: DOC-106 (✅ inventory done)
+    │       depends on: DOC-102 (✅ done), DOC-106 (✅ inventory done)
     │       blocks: DOC-103 (complete version-correct copy)
     │
     ├── DOC-103 (UI/UX) ⏳
-    │       depends on: DOC-102 Slice 5I (validation rules)
-    │       depends on: DOC-107 (version-correct copy)
+    │       depends on: DOC-102 (✅ done), DOC-107 (version-correct copy)
     │       blocks: DOC-104 (UI/UX testing)
     │
     ├── DOC-104 (testing) ⏳
-    │       depends on: DOC-102, DOC-103, DOC-107
+    │       depends on: DOC-102 (✅ done), DOC-103, DOC-107
     │       blocks: DOC-105 (release)
     │
     └── DOC-105 (release) ⏳
-            depends on: DOC-102, DOC-103, DOC-104, DOC-107
+            depends on: DOC-102 (✅ done), DOC-103, DOC-104, DOC-107
             blocks: DOC-059 closure
 ```
 
@@ -287,18 +300,8 @@ DOC-102 (Phase 2) ─── Slices 5A-5H ✅ DONE
 
 ## I. Ordered Bounded Execution Plan
 
-### Tranche V1: DOC-102 Slice 5I — Version-aware validation (estimated 3–5 days)
-- Add version-gated frontend validation for bmcVerifyCA, dnsRecordsType
-- Add version-gated frontend validation for Azure subnets (conditional on BYO VNet)
-- Investigate OnPremDNSRecords feature-gate dependency against 4.21 installer
-- Investigate loadBalancer.type=UserManaged dependency against 4.21 installer
-- Add parameterized validation tests for 4.20 vs 4.21
-
-### Tranche V2: DOC-102 Slice 5J — Version-aware generation (estimated 3–5 days)
-- Add backend generation for all remaining 4.21 supported-backend-only params
-- Verify platform.azure.subnets.name and .role against actual 4.21 installer schema
-- Add parameterized generation tests proving 4.21-only output not emitted for 4.20
-- Retain official OpenShift source evidence
+### ~~Tranche V1: DOC-102 final closure — validation and support boundary~~ — COMPLETE (commit a0d5fcb, 0e927b1)
+### ~~Tranche V2: DOC-102 final closure — version-gated generation~~ — COMPLETE (commit 3e3148b)
 
 ### Tranche V3: DOC-107 — Versioned copy strategy (estimated 3–5 days)
 - Create shared/versionedCopy.js with centralized copy maps
@@ -337,17 +340,18 @@ DOC-102 (Phase 2) ─── Slices 5A-5H ✅ DONE
 
 ## J. Per-Tranche Acceptance Criteria
 
-### V1 (Slice 5I)
-- All 4.21-only validation rules execute only for version >= 4.21
-- All 4.20 validation behavior unchanged
-- Tests prove version-gating with 4.20 and 4.21 state fixtures
-- Zero regressions in existing test suites
+### ~~V1 (DOC-102 closure: validation and support boundary)~~ — ACCEPTED (2026-08-13)
+- ✅ bmcVerifyCA validation executes only for version >= 4.21
+- ✅ dnsRecordsType classified as deliberate support boundary (no validation needed — field omitted)
+- ✅ Azure subnets version-gated validation in shared/azureByoVnet.js
+- ✅ Tests prove version-gating: frontend 2241 pass, backend 1252 pass, focused DNS 23 pass
 
-### V2 (Slice 5J)
-- All 4.21 supported-backend-only params emitted in generated YAML for 4.21
-- None of those params emitted for 4.20
-- Official OpenShift 4.21 installer schema evidence retained
-- Parameterized generation tests pass
+### ~~V2 (DOC-102 closure: version-gated generation)~~ — ACCEPTED (2026-08-13)
+- ✅ bmcVerifyCA emitted for 4.21, not for 4.20
+- ✅ Azure subnets array emitted for 4.21, controlPlaneSubnet/computeSubnet for 4.20
+- ✅ dnsRecordsType not emitted (deliberate omission defaults to Internal)
+- ✅ Official OpenShift 4.21 installer source evidence retained in catalog citations
+- ✅ Parameterized generation tests pass
 
 ### V3 (DOC-107)
 - shared/versionedCopy.js exists and is used by all version-dependent user-facing text

@@ -1,11 +1,11 @@
 # Implementation Roadmap (Semantic Versioning)
 
 **Created:** 2026-05-14
-**Last Updated:** 2026-08-03
+**Last Updated:** 2026-08-13
 **Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md + version-aware planning (local-docs/version-aware-planning/)
 **Replaces:** docs/REVISED_PHASED_PLAN_2026-05-10.md (as active roadmap)
 **Current Version:** 1.7.0 (released 2026-05-29)
-**Next Major:** v2.0.0 (architecture approved 2026-05-29, Phase 0–1 complete, Phase 2 partially complete)
+**Next Major:** v2.0.0 (architecture approved 2026-05-29, Phases 0–2 complete, Phases 3–5 active/partial)
 **Parallel Program:** Enterprise productization and security-ready distribution (PROD-024 through PROD-046, intake 2026-08-03)
 
 ---
@@ -1485,13 +1485,13 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v2.0.0 (Major) - 16-20 weeks (ARCHITECTURE APPROVED 2026-05-29)
 
-**Status:** Phase 0 (DOC-100) verified_done, Phase 1 (DOC-101) verified_done, Phase 2 (DOC-102) active — Slices 5A–5H complete, Slices 5I–5J remaining. Phase 3 (DOC-103) active / partial — version locking, version-aware controls, UI registry, browser verification implemented; tooltips, badges, annotations remaining. Phase 4 (DOC-104) active / partial — migration, catalog, visibility, validation, generation tests exist; parameterized version-matrix and Field Guide tests remaining. Phase 5 (DOC-105) active / partial — ADRs, Design System, checklist, roadmap governance exist; migration guide, README, CHANGELOG, security audit remaining. DOC-106 (versioned copy audit) verified_done (inventory complete; original implementation conclusion superseded by current evidence). DOC-107 (versioned copy implementation): centralized not started, field-specific partial, repository-wide incomplete, CI enforcement not started.
+**Status:** Phase 0 (DOC-100) verified_done, Phase 1 (DOC-101) verified_done, Phase 2 (DOC-102) verified_done (2026-08-13 — all canonical slices 5A/5B/5D/5F/5G/5H and final closure tranches complete; BMC verify CA implemented, Azure BYO VNet implemented, dnsRecordsType classified as deliberate support boundary; 38 unsupported/manual-review upstream delta paths intentionally deferred). Phase 3 (DOC-103) active / partial — version locking, version-aware controls, UI registry, browser verification implemented; tooltips, badges, annotations remaining. Phase 4 (DOC-104) active / partial — migration, catalog, visibility, validation, generation tests exist; parameterized version-matrix and Field Guide tests remaining. Phase 5 (DOC-105) active / partial — ADRs, Design System, checklist, roadmap governance exist; migration guide, README, CHANGELOG, security audit remaining. DOC-106 (versioned copy audit) verified_done (inventory complete; original implementation conclusion superseded by current evidence). DOC-107 (versioned copy implementation): centralized not started, field-specific partial, repository-wide incomplete, CI enforcement not started.
 **Purpose:** Version-aware system - **BREAKING CHANGE**
 **Scope:** OpenShift 4.20 (baseline) + 4.21 (first target). 4.22 is unsupported.
 **Planning Docs:** `local-docs/version-aware-planning/` (ADR-001 through ADR-007, README.md, versioned copy audit requirements)
 **Tracking:** DOC-059 (parent), DOC-100 through DOC-107 (phased work breakdown)
 **Completion Matrix:** `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` (created 2026-08-03)
-**Historical Test Baselines (from HEAD 289b8794):** Frontend 2,080 passed / 2 skipped, Backend 1,089 passed / 5 todo / 0 failed. These totals are historical evidence from the confidential-compute tranche. This documentation session did not run test suites and did not certify a new test baseline.
+**Historical Test Baselines (from HEAD 0e927b1):** Frontend 2,241 passed / 2 skipped / 0 failed, Backend 1,252 passed / 5 todo / 0 failed, Focused DNS 23 passed, Playwright 4 passed. These totals are accepted evidence from the dnsRecordsType support boundary tranche. Prior baseline (HEAD 289b8794): Frontend 2,080/2 skip, Backend 1,089/5 todo.
 
 #### Why Major Version (Breaking Changes)
 
@@ -1543,25 +1543,24 @@ This document organizes remaining backlog work by semantic versioning to provide
 **NOT completed in Phase 1 (deferred):**
 - ❌ DOC-107 (versioned copy strategy): centralized copy system not started (shared/versionedCopy.js NOT created, template helpers NOT implemented); field-specific user-facing copy partial (Azure shared-key, confidential-compute, catalog hints, Field Guide prose exist); repository-wide remediation incomplete; CI hardcoded-version enforcement not started (script exists, not wired). Inventory (DOC-106) was completed in Phase 0. See `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` Tranche V3.
 
-#### Phase 2: OpenShift 4.21 Audit - PARTIALLY COMPLETE (active)
+#### Phase 2: OpenShift 4.21 Audit - COMPLETE (verified_done 2026-08-13)
 
-**Tracking:** DOC-102 (active — Slices 5A–5H complete, 5I–5J remaining)
+**Tracking:** DOC-102 (verified_done — all canonical slices and final closure tranches complete)
 
-**Completed slices:**
+**All canonical slices and final closure tranches complete:**
 1. ✅ Slice 5A (commit e65e6ee): Frontend versioned catalog structure
 2. ✅ Slice 5B (commit bad31e3): 4.21 catalog baseline + 7 high-confidence params
 3. ✅ Slice 5D (commit 1f3b2e5): Manual-review 4.21 params (catalog-only)
 4. ✅ Slice 5F (commit 312cb3c): 4.21 docs index + field guide + unsupported-version recovery UI
 5. ✅ Slice 5G: 11 supported-platform 4.21 delta params verified, 24 metadata corrections
 6. ✅ Slice 5H (14 commits e939a41–063fcc5): Host Inventory register, 55/59 interactive controls
+7. ✅ BMC verify CA (commit a0d5fcb): Fully implemented as supported-ui with UI, validation, generation, Field Guide, tests
+8. ✅ Azure BYO VNet subnets (commit 3e3148b): Fully implemented with version-gated generation (4.21 subnets array vs 4.20 controlPlaneSubnet/computeSubnet)
+9. ✅ dnsRecordsType support boundary (commit 0e927b1): Reclassified to docs-only-not-supported/hidden-not-applicable; External mode not supported (requires OnPremDNSRecords feature gate + UserManaged load balancer, not owned by this application)
 
-**Remaining slices:**
-- ⏳ Slice 5I: Version-aware validation for bmcVerifyCA, dnsRecordsType, Azure subnets
-- ⏳ Slice 5J: Version-aware backend generation for remaining 4.21 supported-backend-only params
+**4.21 delta disposition:** All supported-platform/cataloged OpenShift 4.21 delta paths have a definitive application disposition. Zero minVersion=4.21 supported-backend-only catalog entries remain unresolved. 38 unsupported/manual-review upstream delta paths remain intentionally deferred (32 PowerVC, 4 GCP, 1 OpenStack, 1 global manual-review: imageDigestSources.sourcePolicy). Test evidence: frontend 2241/2 skip/0 fail, backend 1252/5 todo/0 fail.
 
-**4.21 catalog stats:** 12 scenario catalogs (no oc-mirror-v2 for 4.21), 1,052 total params. Key 4.21 deltas with minVersion=4.21: rootVolumeThroughput, confidentialCompute, allowSharedKeyAccess, Azure subnets (name/role), bmcVerifyCA, dnsRecordsType (baremetal/nutanix/vsphere).
-
-**See:** `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` sections C and I for remaining parameter work and execution plan.
+**See:** `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` for completed parameter disposition and remaining execution plan (DOC-103/104/105/107).
 
 #### Phase 3: UI/UX Enhancements - 2 weeks
 
@@ -1915,5 +1914,5 @@ Read-only assessment (2026-08-03) identified productization gaps across 10 domai
 
 ---
 
-**Last Updated:** 2026-08-03 (v2.0.0 Phase 0–1 verified_done, Phase 2 Slices 5A–5H complete, Phases 3–5 corrected to active/partial, enterprise productization program intake PROD-024 through PROD-046, VERSION_AWARENESS_COMPLETION_MATRIX.md created, documentation correction pass applied)
-**Next Review:** After v2.0.0 Phase 2 Slice 5I complete
+**Last Updated:** 2026-08-13 (v2.0.0 Phases 0–2 verified_done, Phase 2 all canonical slices and final closure tranches complete, Phases 3–5 corrected to active/partial, enterprise productization program intake PROD-024 through PROD-046, VERSION_AWARENESS_COMPLETION_MATRIX.md created, documentation correction pass applied)
+**Next Review:** After DOC-107 (versioned copy strategy) or DOC-103 (UI/UX enhancements) next tranche complete
