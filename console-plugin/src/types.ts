@@ -23,10 +23,15 @@ export interface MirrorImport {
   };
   status?: {
     phase?: string;
-    startTime?: string;
-    completionTime?: string;
-    message?: string;
-    jobRef?: string;
+    pipelineRunRef?: string;
+    conditions?: Array<{
+      type: string;
+      status: string;
+      reason?: string;
+      message?: string;
+      lastTransitionTime?: string;
+      observedGeneration?: number;
+    }>;
   };
 }
 
