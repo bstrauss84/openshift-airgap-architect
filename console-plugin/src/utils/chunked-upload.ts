@@ -111,11 +111,23 @@ export async function chunkedUpload(options: ChunkedUploadOptions): Promise<Chun
     currentChunkPercent: 0, message: 'Initializing upload...',
   });
 
-  const initResponse = await apiFetch('/api/mirror-import/upload/init', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename, fileSize: file.size, chunkSize, pvcName, pvcSize, isNewPvc }),
-  });
+  const initController = new AbortController();
+  const initTimeout = setTimeout(() => initController.abort(), 5 * 60 * 1000);
+  if (signal) {
+    signal.addEventListener('abort', () => initController.abort(), { once: true });
+  }
+
+  let initResponse: any;
+  try {
+    initResponse = await apiFetch('/api/mirror-import/upload/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, fileSize: file.size, chunkSize, pvcName, pvcSize, isNewPvc }),
+      signal: initController.signal,
+    });
+  } finally {
+    clearTimeout(initTimeout);
+  }
 
   const { uploadId, jobId, totalChunks } = initResponse;
   if (!uploadId) {

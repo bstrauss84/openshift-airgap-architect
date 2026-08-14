@@ -133,6 +133,9 @@ import {
   createUploadPod,
   waitForPodReady,
   streamToUploadPod,
+  streamChunkToUploadPod,
+  getChunksStatus,
+  triggerAssembly,
   cleanupUploadPod,
   deletePvc,
 } from "./uploadPod.js";
@@ -244,7 +247,13 @@ const purgeExpiredChunkedUploads = () => {
       activeUploads.delete(session.uploadKey);
       activeChunkedUploads.delete(uploadId);
       updateJob(session.jobId, { status: "failed", message: "Upload session expired" });
-      fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+      if (session.useUploadPod && session.podName && session.serviceName) {
+        cleanupUploadPod({ podName: session.podName, serviceName: session.serviceName, namespace: session.podNamespace })
+          .catch((err) => logger.warn({ err: err.message, uploadId }, "Failed to cleanup expired upload pod"));
+      }
+      if (session.tmpDir) {
+        fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+      }
     }
   }
 };
@@ -1687,7 +1696,7 @@ async function processUploadedFile({ jobId, tmpPath, filename, bytesReceived, pv
 
 const CHUNK_SIZE_DEFAULT = 40 * 1024 * 1024;
 
-app.post("/api/mirror-import/upload/init", (req, res) => {
+app.post("/api/mirror-import/upload/init", async (req, res) => {
   if (!isOperatorManaged()) {
     return res.status(403).json({ error: "Only available in operator-managed mode" });
   }
@@ -1703,6 +1712,7 @@ app.post("/api/mirror-import/upload/init", (req, res) => {
   const chunkSize = requestedChunkSize || CHUNK_SIZE_DEFAULT;
   const totalChunks = Math.ceil(fileSize / chunkSize);
   const uploadKey = `${pvcName || "local"}:${filename}`;
+  const useUploadPod = !!pvcName;
 
   const existing = activeUploads.get(uploadKey);
   if (existing) {
@@ -1716,7 +1726,6 @@ app.post("/api/mirror-import/upload/init", (req, res) => {
         receivedChunks: existingSession.receivedChunks.size,
       });
     }
-    // Stale entry from a non-chunked upload — clear it so the chunked flow can proceed
     activeUploads.delete(uploadKey);
   }
 
@@ -1724,8 +1733,41 @@ app.post("/api/mirror-import/upload/init", (req, res) => {
   const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
   updateJob(jobId, { status: "running", progress: 0 });
 
-  const tmpDir = path.join(dataDir, "tmp", `chunked-${uploadId}`);
-  fs.mkdirSync(tmpDir, { recursive: true });
+  let podName = null, serviceName = null, podNamespace = null;
+  let pvcCreated = false;
+
+  if (useUploadPod) {
+    try {
+      appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
+      await createPvc({ name: pvcName, size: pvcSize });
+      pvcCreated = true;
+
+      appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
+      ({ podName, serviceName, namespace: podNamespace } = await createUploadPod({ pvcName }));
+
+      appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
+      await waitForPodReady({ podName, namespace: podNamespace });
+
+      appendJobOutput(jobId, "Upload pod ready, accepting chunks.\n");
+    } catch (initError) {
+      logger.error({ error: initError.message, pvcName }, "Failed to create upload pod during init");
+      appendJobOutput(jobId, `Init failed: ${initError.message}\n`);
+      updateJob(jobId, { status: "failed", progress: 0, message: initError.message });
+      if (podName && serviceName) {
+        await cleanupUploadPod({ podName, serviceName, namespace: podNamespace }).catch(() => {});
+      }
+      if (pvcCreated && isNewPvc) {
+        await deletePvc({ name: pvcName, namespace: podNamespace }).catch(() => {});
+      }
+      return res.status(500).json({ error: `Failed to initialize upload pod: ${initError.message}` });
+    }
+  }
+
+  let tmpDir = null;
+  if (!useUploadPod) {
+    tmpDir = path.join(dataDir, "tmp", `chunked-${uploadId}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+  }
 
   const session = {
     uploadId, jobId, filename, fileSize, chunkSize, totalChunks,
@@ -1733,6 +1775,10 @@ app.post("/api/mirror-import/upload/init", (req, res) => {
     receivedChunks: new Set(),
     bytesReceived: 0,
     tmpDir,
+    useUploadPod,
+    podName,
+    serviceName,
+    podNamespace,
     uploadKey,
     createdAt: Date.now(),
     finalizing: false,
@@ -1741,11 +1787,11 @@ app.post("/api/mirror-import/upload/init", (req, res) => {
   activeUploads.set(uploadKey, jobId);
   activeChunkedUploads.set(uploadId, session);
 
-  logger.info({ uploadId, filename, fileSize, totalChunks, chunkSize }, "Chunked upload session created");
+  logger.info({ uploadId, filename, fileSize, totalChunks, chunkSize, useUploadPod }, "Chunked upload session created");
   res.status(202).json({ uploadId, jobId, totalChunks, chunkSize });
 });
 
-app.put("/api/mirror-import/upload/:uploadId/chunk/:chunkIndex", (req, res) => {
+app.put("/api/mirror-import/upload/:uploadId/chunk/:chunkIndex", async (req, res) => {
   const { uploadId, chunkIndex: chunkIndexStr } = req.params;
   const chunkIndex = parseInt(chunkIndexStr, 10);
   const session = activeChunkedUploads.get(uploadId);
@@ -1767,37 +1813,65 @@ app.put("/api/mirror-import/upload/:uploadId/chunk/:chunkIndex", (req, res) => {
     });
   }
 
-  const chunkFile = path.join(session.tmpDir, `chunk-${String(chunkIndex).padStart(6, "0")}`);
-  const ws = fs.createWriteStream(chunkFile);
-  let chunkBytes = 0;
+  if (session.useUploadPod) {
+    try {
+      const contentLength = parseInt(req.headers["content-length"] || "0", 10);
+      const result = await streamChunkToUploadPod({
+        serviceName: session.serviceName,
+        namespace: session.podNamespace,
+        uploadId: session.uploadId,
+        chunkIndex,
+        reqStream: req,
+        contentLength,
+      });
+      session.receivedChunks.add(chunkIndex);
+      session.bytesReceived += result.written || 0;
+      const progress = Math.min(45, Math.floor((session.receivedChunks.size / session.totalChunks) * 45));
+      updateJob(session.jobId, { progress, message: `Receiving ${session.filename} (${session.receivedChunks.size}/${session.totalChunks} chunks)...` });
+      res.status(200).json({
+        chunkIndex,
+        bytesWritten: result.written || 0,
+        receivedChunks: session.receivedChunks.size,
+        totalChunks: session.totalChunks,
+        progress,
+      });
+    } catch (err) {
+      logger.error({ uploadId, chunkIndex, error: err.message }, "Failed to proxy chunk to upload pod");
+      res.status(502).json({ error: "Failed to stream chunk to upload pod", retryable: true });
+    }
+  } else {
+    const chunkFile = path.join(session.tmpDir, `chunk-${String(chunkIndex).padStart(6, "0")}`);
+    const ws = fs.createWriteStream(chunkFile);
+    let chunkBytes = 0;
 
-  req.on("data", (buf) => { chunkBytes += buf.length; });
-  req.pipe(ws);
+    req.on("data", (buf) => { chunkBytes += buf.length; });
+    req.pipe(ws);
 
-  ws.on("finish", () => {
-    session.receivedChunks.add(chunkIndex);
-    session.bytesReceived += chunkBytes;
-    const progress = Math.min(45, Math.floor((session.receivedChunks.size / session.totalChunks) * 45));
-    updateJob(session.jobId, { progress, message: `Receiving ${session.filename} (${session.receivedChunks.size}/${session.totalChunks} chunks)...` });
-    res.status(200).json({
-      chunkIndex,
-      bytesWritten: chunkBytes,
-      receivedChunks: session.receivedChunks.size,
-      totalChunks: session.totalChunks,
-      progress,
+    ws.on("finish", () => {
+      session.receivedChunks.add(chunkIndex);
+      session.bytesReceived += chunkBytes;
+      const progress = Math.min(45, Math.floor((session.receivedChunks.size / session.totalChunks) * 45));
+      updateJob(session.jobId, { progress, message: `Receiving ${session.filename} (${session.receivedChunks.size}/${session.totalChunks} chunks)...` });
+      res.status(200).json({
+        chunkIndex,
+        bytesWritten: chunkBytes,
+        receivedChunks: session.receivedChunks.size,
+        totalChunks: session.totalChunks,
+        progress,
+      });
     });
-  });
 
-  ws.on("error", (err) => {
-    logger.error({ uploadId, chunkIndex, error: err.message }, "Failed to write chunk");
-    res.status(500).json({ error: "Failed to write chunk" });
-  });
+    ws.on("error", (err) => {
+      logger.error({ uploadId, chunkIndex, error: err.message }, "Failed to write chunk");
+      res.status(500).json({ error: "Failed to write chunk" });
+    });
 
-  req.on("error", (err) => {
-    logger.error({ uploadId, chunkIndex, error: err.message }, "Request stream error on chunk upload");
-    ws.destroy();
-    fs.unlink(chunkFile, () => {});
-  });
+    req.on("error", (err) => {
+      logger.error({ uploadId, chunkIndex, error: err.message }, "Request stream error on chunk upload");
+      ws.destroy();
+      fs.unlink(chunkFile, () => {});
+    });
+  }
 });
 
 app.post("/api/mirror-import/upload/:uploadId/finalize", (req, res) => {
@@ -1822,65 +1896,112 @@ app.post("/api/mirror-import/upload/:uploadId/finalize", (req, res) => {
   session.finalizing = true;
   res.status(202).json({ uploadId, jobId: session.jobId, filename: session.filename, status: "assembling" });
 
-  (async () => {
-    try {
-      updateJob(session.jobId, { progress: 46, message: `Assembling ${session.totalChunks} chunks...` });
-      appendJobOutput(session.jobId, `Assembling ${session.totalChunks} chunks into ${session.filename}...\n`);
-
-      const assembledPath = path.join(session.tmpDir, `assembled-${session.filename}`);
-      const outStream = fs.createWriteStream(assembledPath);
-
-      for (let i = 0; i < session.totalChunks; i++) {
-        const chunkFile = path.join(session.tmpDir, `chunk-${String(i).padStart(6, "0")}`);
-        await new Promise((resolve, reject) => {
-          const rs = fs.createReadStream(chunkFile);
-          rs.pipe(outStream, { end: false });
-          rs.on("end", resolve);
-          rs.on("error", reject);
-        });
-      }
-
-      await new Promise((resolve, reject) => {
-        outStream.end();
-        outStream.on("finish", resolve);
-        outStream.on("error", reject);
-      });
-
-      appendJobOutput(session.jobId, `Assembly complete: ${session.bytesReceived} bytes\n`);
-
+  if (session.useUploadPod) {
+    (async () => {
       try {
-        appendJobOutput(session.jobId, "Extracting imageset-config.yaml from bundle...\n");
-        const imageSetConfig = await extractImageSetConfigFromTar(assembledPath);
-        if (imageSetConfig) {
-          updateJobMetadata(session.jobId, { imageSetConfig });
+        updateJob(session.jobId, { progress: 46, message: `Assembling ${session.totalChunks} chunks on PVC...` });
+        appendJobOutput(session.jobId, `Triggering assembly of ${session.totalChunks} chunks on upload pod...\n`);
+
+        const result = await triggerAssembly({
+          serviceName: session.serviceName,
+          namespace: session.podNamespace,
+          uploadId: session.uploadId,
+          filename: session.filename,
+        });
+
+        updateJob(session.jobId, { progress: 90 });
+        appendJobOutput(session.jobId, `Assembly complete: ${result.written} bytes\n`);
+
+        if (result.imageSetConfig) {
+          updateJobMetadata(session.jobId, { imageSetConfig: result.imageSetConfig });
           appendJobOutput(session.jobId, "Found imageset-config.yaml in bundle.\n");
         } else {
           appendJobOutput(session.jobId, "Warning: imageset-config.yaml not found in bundle.\n");
         }
-      } catch (extractErr) {
-        logger.warn({ error: extractErr.message }, "Failed to extract imageset-config.yaml from bundle");
-        appendJobOutput(session.jobId, `Warning: Could not extract imageset-config.yaml: ${extractErr.message}\n`);
-      }
 
-      await processUploadedFile({
-        jobId: session.jobId,
-        tmpPath: assembledPath,
-        filename: session.filename,
-        bytesReceived: session.bytesReceived,
-        pvcName: session.pvcName,
-        pvcSize: session.pvcSize,
-        isNewPvc: session.isNewPvc,
-      });
-    } catch (error) {
-      logger.error({ error: error.message, uploadId, filename: session.filename }, "Chunked upload finalize failed");
-      updateJob(session.jobId, { status: "failed", progress: 0, message: error.message });
-      appendJobOutput(session.jobId, `Upload failed: ${error.message}\n`);
-    } finally {
-      activeUploads.delete(session.uploadKey);
-      activeChunkedUploads.delete(uploadId);
-      fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
-    }
-  })();
+        appendJobOutput(session.jobId, "Cleaning up upload pod...\n");
+        await cleanupUploadPod({
+          podName: session.podName,
+          serviceName: session.serviceName,
+          namespace: session.podNamespace,
+        });
+
+        appendJobOutput(session.jobId, `Upload complete: ${result.written} bytes written to PVC ${session.pvcName}\n`);
+        updateJob(session.jobId, { status: "completed", progress: 100, message: `Uploaded ${session.filename} to PVC ${session.pvcName}` });
+        updateJobMetadata(session.jobId, { filename: session.filename, pvcName: session.pvcName, bytesWritten: result.written });
+      } catch (error) {
+        logger.error({ error: error.message, uploadId, filename: session.filename }, "Chunked upload finalize failed");
+        updateJob(session.jobId, { status: "failed", progress: 0, message: error.message });
+        appendJobOutput(session.jobId, `Upload failed: ${error.message}\n`);
+        if (session.podName && session.serviceName) {
+          await cleanupUploadPod({ podName: session.podName, serviceName: session.serviceName, namespace: session.podNamespace }).catch(() => {});
+        }
+      } finally {
+        activeUploads.delete(session.uploadKey);
+        activeChunkedUploads.delete(uploadId);
+      }
+    })();
+  } else {
+    (async () => {
+      try {
+        updateJob(session.jobId, { progress: 46, message: `Assembling ${session.totalChunks} chunks...` });
+        appendJobOutput(session.jobId, `Assembling ${session.totalChunks} chunks into ${session.filename}...\n`);
+
+        const assembledPath = path.join(session.tmpDir, `assembled-${session.filename}`);
+        const outStream = fs.createWriteStream(assembledPath);
+
+        for (let i = 0; i < session.totalChunks; i++) {
+          const chunkFile = path.join(session.tmpDir, `chunk-${String(i).padStart(6, "0")}`);
+          await new Promise((resolve, reject) => {
+            const rs = fs.createReadStream(chunkFile);
+            rs.pipe(outStream, { end: false });
+            rs.on("end", resolve);
+            rs.on("error", reject);
+          });
+        }
+
+        await new Promise((resolve, reject) => {
+          outStream.end();
+          outStream.on("finish", resolve);
+          outStream.on("error", reject);
+        });
+
+        appendJobOutput(session.jobId, `Assembly complete: ${session.bytesReceived} bytes\n`);
+
+        try {
+          appendJobOutput(session.jobId, "Extracting imageset-config.yaml from bundle...\n");
+          const imageSetConfig = await extractImageSetConfigFromTar(assembledPath);
+          if (imageSetConfig) {
+            updateJobMetadata(session.jobId, { imageSetConfig });
+            appendJobOutput(session.jobId, "Found imageset-config.yaml in bundle.\n");
+          } else {
+            appendJobOutput(session.jobId, "Warning: imageset-config.yaml not found in bundle.\n");
+          }
+        } catch (extractErr) {
+          logger.warn({ error: extractErr.message }, "Failed to extract imageset-config.yaml from bundle");
+          appendJobOutput(session.jobId, `Warning: Could not extract imageset-config.yaml: ${extractErr.message}\n`);
+        }
+
+        await processUploadedFile({
+          jobId: session.jobId,
+          tmpPath: assembledPath,
+          filename: session.filename,
+          bytesReceived: session.bytesReceived,
+          pvcName: session.pvcName,
+          pvcSize: session.pvcSize,
+          isNewPvc: session.isNewPvc,
+        });
+      } catch (error) {
+        logger.error({ error: error.message, uploadId, filename: session.filename }, "Chunked upload finalize failed");
+        updateJob(session.jobId, { status: "failed", progress: 0, message: error.message });
+        appendJobOutput(session.jobId, `Upload failed: ${error.message}\n`);
+      } finally {
+        activeUploads.delete(session.uploadKey);
+        activeChunkedUploads.delete(uploadId);
+        fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+      }
+    })();
+  }
 });
 
 app.get("/api/mirror-import/upload/:uploadId/status", (req, res) => {

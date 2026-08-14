@@ -111,34 +111,127 @@ export async function createUploadPod({ pvcName, namespace }) {
             "python3",
             "-c",
             `
-import http.server, os, sys
+import http.server, os, sys, json, tarfile
+
+CHUNK_PREFIX = '.chunks-'
+
+def read_body(rfile, length):
+    data = b''
+    while len(data) < length:
+        buf = rfile.read(min(65536, length - len(data)))
+        if not buf:
+            break
+        data += buf
+    return data
+
+def write_stream(rfile, dest, length):
+    written = 0
+    with open(dest, 'wb') as f:
+        while written < length:
+            buf = rfile.read(min(65536, length - written))
+            if not buf:
+                break
+            f.write(buf)
+            written += len(buf)
+    return written
+
+def json_response(handler, code, obj):
+    body = json.dumps(obj).encode()
+    handler.send_response(code)
+    handler.send_header('Content-Type', 'application/json')
+    handler.send_header('Content-Length', str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
 
 class UploadHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        sys.stderr.write('[receiver] ' + (fmt % args) + '\\n')
+
     def do_PUT(self):
-        filename = self.path.lstrip('/')
-        if not filename:
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b'Missing filename')
-            return
-        dest = os.path.join('/data', filename)
+        parts = self.path.strip('/').split('/')
         length = int(self.headers.get('Content-Length', 0))
-        written = 0
-        with open(dest, 'wb') as f:
-            while written < length:
-                chunk = self.rfile.read(min(65536, length - written))
-                if not chunk:
-                    break
-                f.write(chunk)
-                written += len(chunk)
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(f'{{"written":{written}}}'.encode())
+        if len(parts) == 3 and parts[1] == 'chunk':
+            upload_id, ci = parts[0], parts[2]
+            chunk_dir = os.path.join('/data', CHUNK_PREFIX + upload_id)
+            os.makedirs(chunk_dir, exist_ok=True)
+            dest = os.path.join(chunk_dir, 'chunk-' + ci.zfill(6))
+            written = write_stream(self.rfile, dest, length)
+            json_response(self, 200, {'written': written, 'chunkIndex': int(ci)})
+        else:
+            filename = self.path.lstrip('/')
+            if not filename:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b'Missing filename')
+                return
+            dest = os.path.join('/data', filename)
+            written = write_stream(self.rfile, dest, length)
+            json_response(self, 200, {'written': written})
 
     def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'ready')
+        parts = self.path.strip('/').split('/')
+        if len(parts) == 2 and parts[1] == 'chunks-status':
+            upload_id = parts[0]
+            chunk_dir = os.path.join('/data', CHUNK_PREFIX + upload_id)
+            chunks = []
+            if os.path.isdir(chunk_dir):
+                for f in sorted(os.listdir(chunk_dir)):
+                    if f.startswith('chunk-'):
+                        idx = int(f.split('-')[1])
+                        sz = os.path.getsize(os.path.join(chunk_dir, f))
+                        chunks.append({'index': idx, 'size': sz})
+            json_response(self, 200, {'uploadId': upload_id, 'chunks': chunks})
+        else:
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'ready')
+
+    def do_POST(self):
+        parts = self.path.strip('/').split('/')
+        if len(parts) == 2 and parts[1] == 'assemble':
+            upload_id = parts[0]
+            cl = int(self.headers.get('Content-Length', 0))
+            body = json.loads(read_body(self.rfile, cl)) if cl > 0 else {}
+            filename = body.get('filename', 'assembled.tar')
+            chunk_dir = os.path.join('/data', CHUNK_PREFIX + upload_id)
+            dest = os.path.join('/data', filename)
+            if not os.path.isdir(chunk_dir):
+                json_response(self, 400, {'error': 'No chunks found'})
+                return
+            cfiles = sorted([f for f in os.listdir(chunk_dir) if f.startswith('chunk-')])
+            written = 0
+            with open(dest, 'wb') as out:
+                for cf in cfiles:
+                    with open(os.path.join(chunk_dir, cf), 'rb') as inp:
+                        while True:
+                            data = inp.read(65536)
+                            if not data:
+                                break
+                            out.write(data)
+                            written += len(data)
+            for cf in os.listdir(chunk_dir):
+                os.remove(os.path.join(chunk_dir, cf))
+            os.rmdir(chunk_dir)
+            isc = None
+            try:
+                with tarfile.open(dest, 'r:*') as tf:
+                    for m in tf:
+                        if os.path.basename(m.name) == 'imageset-config.yaml' and m.isfile():
+                            ef = tf.extractfile(m)
+                            if ef:
+                                raw = ef.read(1048576)
+                                isc = raw.decode('utf-8')
+                            break
+            except Exception as e:
+                sys.stderr.write('[receiver] tarfile extract warning: ' + str(e) + '\\n')
+            result = {'written': written, 'filename': filename}
+            if isc is not None:
+                result['imageSetConfig'] = isc
+            json_response(self, 200, result)
+        else:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'Not found')
 
 http.server.HTTPServer(('0.0.0.0', ${UPLOAD_PORT}), UploadHandler).serve_forever()
 `,
@@ -261,6 +354,105 @@ export async function waitForPodReady({ podName, namespace, timeoutMs = DEFAULT_
   const finalPhase = finalResponse?.status?.phase || "unknown";
   const finalWaiting = finalResponse?.status?.containerStatuses?.[0]?.state?.waiting;
   throw new Error(`Upload pod not ready within ${timeoutMs}ms (phase: ${finalPhase}${finalWaiting ? `, reason: ${finalWaiting.reason}` : ""})`);
+}
+
+export function streamChunkToUploadPod({ serviceName, namespace, uploadId, chunkIndex, reqStream, contentLength }) {
+  return new Promise((resolve, reject) => {
+    const url = `http://${serviceName}.${namespace}.svc.cluster.local:${UPLOAD_PORT}/${encodeURIComponent(uploadId)}/chunk/${chunkIndex}`;
+    const parsed = new URL(url);
+    const options = {
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname,
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...(contentLength ? { "Content-Length": contentLength } : {}),
+      },
+    };
+
+    const req = http.request(options, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          try { resolve(JSON.parse(body)); } catch { resolve({ written: 0 }); }
+        } else {
+          reject(new Error(`Upload pod chunk PUT returned ${res.statusCode}: ${body}`));
+        }
+      });
+    });
+
+    req.on("error", reject);
+    reqStream.pipe(req);
+  });
+}
+
+export function getChunksStatus({ serviceName, namespace, uploadId }) {
+  return new Promise((resolve, reject) => {
+    const url = `http://${serviceName}.${namespace}.svc.cluster.local:${UPLOAD_PORT}/${encodeURIComponent(uploadId)}/chunks-status`;
+    const parsed = new URL(url);
+
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname,
+      method: "GET",
+    }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          try { resolve(JSON.parse(body)); } catch { resolve({ chunks: [] }); }
+        } else {
+          reject(new Error(`Upload pod chunks-status returned ${res.statusCode}: ${body}`));
+        }
+      });
+    });
+
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+const ASSEMBLY_TIMEOUT_MS = 30 * 60 * 1000;
+
+export function triggerAssembly({ serviceName, namespace, uploadId, filename }) {
+  return new Promise((resolve, reject) => {
+    const url = `http://${serviceName}.${namespace}.svc.cluster.local:${UPLOAD_PORT}/${encodeURIComponent(uploadId)}/assemble`;
+    const parsed = new URL(url);
+    const postBody = JSON.stringify({ filename });
+
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(postBody),
+      },
+      timeout: ASSEMBLY_TIMEOUT_MS,
+    }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          try { resolve(JSON.parse(body)); } catch { resolve({ written: 0 }); }
+        } else {
+          reject(new Error(`Upload pod assembly returned ${res.statusCode}: ${body}`));
+        }
+      });
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Assembly request timed out"));
+    });
+    req.on("error", reject);
+    req.write(postBody);
+    req.end();
+  });
 }
 
 export function streamToUploadPod({ serviceName, namespace, filename, fileStream, contentLength }) {
