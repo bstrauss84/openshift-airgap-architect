@@ -1393,7 +1393,7 @@ Cluster API and ingress endpoints are accessible from outside the vCenter networ
                 ) : null}
               </label>
               <div className="note">
-                <strong>Proxyonly</strong> applies the bundle in the proxy trust path when a cluster proxy is set (OpenShift 4.20 default for many proxy-only CA cases). <strong>Always</strong> distributes the bundle for cluster-wide trust—typical when a mirror registry CA is included.
+                <strong>Proxyonly</strong> applies the bundle in the proxy trust path when a cluster proxy is set (default for many proxy-only CA cases). <strong>Always</strong> distributes the bundle for cluster-wide trust—typical when a mirror registry CA is included.
               </div>
             </>
           ) : (

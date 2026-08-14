@@ -657,7 +657,7 @@ done</pre>
                 <div className="subtle">Root device hints inventory (all supported subfields):</div>
                 <div className="code-block">
                   <div className="code-header">
-                    <span>Per-disk rootDeviceHints values (4.20)</span>
+                    <span>Per-disk rootDeviceHints values</span>
                     <button
                       className="ghost copy-button"
                       onClick={() =>
@@ -698,7 +698,7 @@ done</pre>
 done`}</pre>
                 </div>
                 <div className="note">
-                  OpenShift 4.20 allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
+                  OpenShift allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
                   <code>wwn</code>, use <code>ID_WWN_WITH_EXTENSION</code> when present.
                 </div>
 

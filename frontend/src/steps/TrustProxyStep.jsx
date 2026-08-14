@@ -996,7 +996,7 @@ additionalTrustBundlePolicy: Always
               </>
             ) : (
               <p className="note subtle">
-                <code>additionalTrustBundlePolicy</code> is only used together with <code>additionalTrustBundle</code> (OpenShift 4.20). Add at least one valid certificate above to choose{" "}
+                <code>additionalTrustBundlePolicy</code> is only used together with <code>additionalTrustBundle</code>. Add at least one valid certificate above to choose{" "}
                 <strong>Proxyonly</strong> or <strong>Always</strong>; defaults favor <strong>Always</strong> when a mirror registry CA is present and <strong>Proxyonly</strong> when only a proxy CA is present.
               </p>
             )
