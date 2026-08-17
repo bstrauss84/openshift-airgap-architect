@@ -266,6 +266,154 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
     });
   });
 
+  describe("A1a: vSphere prerequisite version corrections (4.20)", () => {
+    const vsphereMethodologies = [
+      { methodology: "IPI", prereqsId: "vsphere-ipi-prereqs" },
+      { methodology: "UPI", prereqsId: "vsphere-upi-prereqs" },
+      { methodology: "Agent-Based Installer", prereqsId: "vsphere-agent-prereqs" },
+    ];
+
+    for (const { methodology, prereqsId } of vsphereMethodologies) {
+      it(`${methodology} 4.20: contains ESXi 8.0 Update 1 requirement`, () => {
+        const selected = selectAndOrder("4.20", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        assert(prereqs, `${prereqsId} should be selected`);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("8.0 Update 1"), `${prereqsId} items[0] should require ESXi 8.0 Update 1, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.20: contains vSphere Foundation 9 alternative`, () => {
+        const selected = selectAndOrder("4.20", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("vSphere Foundation 9"), `${prereqsId} items[0] should include vSphere Foundation 9 alternative, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.20: contains Cloud Foundation 5.0 requirement`, () => {
+        const selected = selectAndOrder("4.20", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("Cloud Foundation") && versionItem.includes("5.0 or later"), `${prereqsId} items[0] should require Cloud Foundation 5.0 or later, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.20: contains Cloud Foundation 9 alternative`, () => {
+        const selected = selectAndOrder("4.20", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("Cloud Foundation 9"), `${prereqsId} items[0] should include Cloud Foundation 9 alternative, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.20: does NOT contain 7.0 Update 2`, () => {
+        const selected = selectAndOrder("4.20", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(!versionItem.includes("7.0 Update 2"), `${prereqsId} items[0] must not reference 7.0 Update 2`);
+      });
+
+      it(`${methodology} 4.20: does NOT contain 7.0 U2`, () => {
+        const selected = selectAndOrder("4.20", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(!versionItem.includes("7.0 U2"), `${prereqsId} items[0] must not reference 7.0 U2`);
+      });
+    }
+  });
+
+  describe("A1a: vSphere prerequisite version corrections (4.21)", () => {
+    const vsphereMethodologies = [
+      { methodology: "IPI", prereqsId: "vsphere-ipi-prereqs" },
+      { methodology: "UPI", prereqsId: "vsphere-upi-prereqs" },
+      { methodology: "Agent-Based Installer", prereqsId: "vsphere-agent-prereqs" },
+    ];
+
+    for (const { methodology, prereqsId } of vsphereMethodologies) {
+      it(`${methodology} 4.21: contains ESXi 8.0 Update 1 requirement`, () => {
+        const selected = selectAndOrder("4.21", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        assert(prereqs, `${prereqsId} should be selected`);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("8.0 Update 1"), `${prereqsId} items[0] should require ESXi 8.0 Update 1, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.21: contains vSphere Foundation 9 alternative`, () => {
+        const selected = selectAndOrder("4.21", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("vSphere Foundation 9"), `${prereqsId} items[0] should include vSphere Foundation 9 alternative, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.21: contains Cloud Foundation 5.0 requirement`, () => {
+        const selected = selectAndOrder("4.21", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("Cloud Foundation") && versionItem.includes("5.0 or later"), `${prereqsId} items[0] should require Cloud Foundation 5.0 or later, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.21: contains Cloud Foundation 9 alternative`, () => {
+        const selected = selectAndOrder("4.21", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(versionItem.includes("Cloud Foundation 9"), `${prereqsId} items[0] should include Cloud Foundation 9 alternative, got: ${versionItem}`);
+      });
+
+      it(`${methodology} 4.21: does NOT contain 7.0 Update 2`, () => {
+        const selected = selectAndOrder("4.21", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(!versionItem.includes("7.0 Update 2"), `${prereqsId} items[0] must not reference 7.0 Update 2`);
+      });
+
+      it(`${methodology} 4.21: does NOT contain 7.0 U2`, () => {
+        const selected = selectAndOrder("4.21", { platform: "VMware vSphere", methodology });
+        const prereqs = selected.find((c) => c.id === prereqsId);
+        const versionItem = prereqs.items[0].text;
+        assert(!versionItem.includes("7.0 U2"), `${prereqsId} items[0] must not reference 7.0 U2`);
+      });
+    }
+  });
+
+  describe("A1a: Nutanix prerequisite version corrections (4.20)", () => {
+    it("Nutanix IPI 4.20: contains AOS 6.5.2.7 requirement", () => {
+      const selected = selectAndOrder("4.20", { platform: "Nutanix", methodology: "IPI" });
+      const prereqs = selected.find((c) => c.id === "nutanix-ipi-prereqs");
+      assert(prereqs, "nutanix-ipi-prereqs should be selected");
+      const versionItem = prereqs.items[0].text;
+      assert(versionItem.includes("6.5.2.7"), `nutanix-ipi-prereqs items[0] should require AOS 6.5.2.7, got: ${versionItem}`);
+    });
+
+    it("Nutanix IPI 4.20: contains Prism Central pc.2022.6 requirement", () => {
+      const selected = selectAndOrder("4.20", { platform: "Nutanix", methodology: "IPI" });
+      const prereqs = selected.find((c) => c.id === "nutanix-ipi-prereqs");
+      const versionItem = prereqs.items[0].text;
+      assert(versionItem.includes("pc.2022.6"), `nutanix-ipi-prereqs items[0] should require Prism Central pc.2022.6, got: ${versionItem}`);
+    });
+  });
+
+  describe("A1a: Nutanix prerequisite version corrections (4.21)", () => {
+    it("Nutanix IPI 4.21: contains AOS 6.5.2.7 requirement", () => {
+      const selected = selectAndOrder("4.21", { platform: "Nutanix", methodology: "IPI" });
+      const prereqs = selected.find((c) => c.id === "nutanix-ipi-prereqs");
+      assert(prereqs, "nutanix-ipi-prereqs should be selected");
+      const versionItem = prereqs.items[0].text;
+      assert(versionItem.includes("6.5.2.7"), `nutanix-ipi-prereqs items[0] should require AOS 6.5.2.7, got: ${versionItem}`);
+    });
+
+    it("Nutanix IPI 4.21: contains Prism Central pc.2022.6 requirement", () => {
+      const selected = selectAndOrder("4.21", { platform: "Nutanix", methodology: "IPI" });
+      const prereqs = selected.find((c) => c.id === "nutanix-ipi-prereqs");
+      const versionItem = prereqs.items[0].text;
+      assert(versionItem.includes("pc.2022.6"), `nutanix-ipi-prereqs items[0] should require Prism Central pc.2022.6, got: ${versionItem}`);
+    });
+
+    it("Nutanix IPI 4.21: does NOT retain stale OCP 4.20 reference", () => {
+      const selected = selectAndOrder("4.21", { platform: "Nutanix", methodology: "IPI" });
+      const prereqs = selected.find((c) => c.id === "nutanix-ipi-prereqs");
+      const versionItem = prereqs.items[0].text;
+      assert(!versionItem.includes("OCP 4.20"), `nutanix-ipi-prereqs items[0] must not reference OCP 4.20`);
+      assert(!versionItem.includes("4.20"), `nutanix-ipi-prereqs items[0] must not reference 4.20`);
+    });
+  });
+
   describe("unsupported version blocking (Slice 5F.2)", () => {
     it("throws clear error for version 4.22 (future)", () => {
       assert.throws(

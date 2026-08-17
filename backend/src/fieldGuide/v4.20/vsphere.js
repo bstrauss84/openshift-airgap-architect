@@ -24,7 +24,7 @@ export const vsphereIpiPrereqs = {
     { label: "Required vCenter permissions for IPI", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#installation-vsphere-required-permissions_installing-vsphere" },
   ],
   items: [
-    { text: "Confirm vSphere/ESXi version is 7.0 Update 2 or later (8.x is also supported for OCP 4.20). Check from vCenter:", cmd: "# vSphere UI: Home → vCenter → Summary → Version\n# Or via API:\ncurl -sk https://{{vcenter}}/rest/appliance/system/version | python3 -m json.tool | grep version" },
+    { text: "Confirm ESXi hosts are version 8.0 Update 1 or later, or use VMware vSphere Foundation 9 or later. VMware Cloud Foundation must be 5.0 or later, or VMware Cloud Foundation 9 or later. Check from vCenter:", cmd: "# vSphere UI: Home → vCenter → Summary → Version\n# Or via API:\ncurl -sk https://{{vcenter}}/rest/appliance/system/version | python3 -m json.tool | grep version" },
     { text: "Test HTTPS connectivity from the installer host to the vCenter API:", cmd: "curl -sk https://{{vcenter}}/rest/vcenter/datacenter -o /dev/null -w '%{http_code}\\n'\n# Expect: 200" },
     { text: "Confirm the vCenter account has the required IPI permissions. The installer needs cluster-level privileges (create VMs, attach networks, provision storage). See the required permissions list in the OCP docs for the exact vSphere privilege set." },
     { text: "Create or verify the target datacenter {{datacenter}}, cluster {{vsphereCluster}}, datastore {{datastore}}, and network {{vsphereNetwork}} exist in vCenter." },
@@ -91,7 +91,7 @@ export const vsphereUpiPrereqs = {
     { label: "vSphere UPI infrastructure requirements", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#upi-vsphere-infrastructure" },
   ],
   items: [
-    { text: "Confirm vSphere 7.0 U2+ or 8.x and that you have sufficient permissions to create VMs, clone templates, and assign networks in datacenter {{datacenter}}." },
+    { text: "Confirm ESXi hosts are version 8.0 Update 1 or later (or VMware vSphere Foundation 9 or later; VMware Cloud Foundation 5.0 or later or Cloud Foundation 9 or later) and that you have sufficient permissions to create VMs, clone templates, and assign networks in datacenter {{datacenter}}." },
     { text: "For UPI, you provision all VMs manually. Prepare a RHCOS OVA template in vCenter matching OCP {{version}}. Download from the Red Hat mirror or the installer artifacts." },
     { text: "Create the following VMs before running the installer: 1 bootstrap, 3 control-plane, and N worker nodes. All must use the RHCOS OVA template." },
     { text: "Set static or DHCP-reserved IP addresses for all VMs. Ensure DNS forward and reverse records exist for every VM hostname." },
@@ -151,7 +151,7 @@ export const vsphereAgentPrereqs = {
     { label: "Agent-based Installer prerequisites", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#prerequisites-agent-based-installer" },
   ],
   items: [
-    { text: "Confirm vSphere 7.0 U2+ or 8.x. For agent-based installs, you provision VMs manually (like UPI) but use the agent ISO for node bootstrapping." },
+    { text: "Confirm ESXi hosts are version 8.0 Update 1 or later (or VMware vSphere Foundation 9 or later; VMware Cloud Foundation 5.0 or later or Cloud Foundation 9 or later). For agent-based installs, you provision VMs manually (like UPI) but use the agent ISO for node bootstrapping." },
     { text: "Generate the agent ISO after preparing both install-config.yaml and agent-config.yaml:", cmd: "openshift-install agent create image --dir {{installDir}}" },
     { text: "Verify both config files are present in {{installDir}} before running agent create image:", cmd: "ls {{installDir}}/install-config.yaml {{installDir}}/agent-config.yaml" },
     { text: "For multi-node clusters on vSphere, set apiVIPs and ingressVIPs in install-config.yaml. For SNO (single-node), use platform: none and set the node IP directly in agent-config.yaml." },
