@@ -90,9 +90,12 @@ const buildContext = (state) => {
   const nutanixCluster = nutanixConfig.cluster || nutanixConfig.clusterName || "<nutanix-cluster>";
   const nutanixSubnet = nutanixConfig.subnet || nutanixConfig.subnetUUID || "<subnet-uuid>";
 
+  // Architecture
+  const arch = blueprint.arch || "<architecture>";
+
   // AWS
   const awsConfig = platformConfig.aws || {};
-  const awsRegion = awsConfig.region || blueprint.awsRegion || "us-gov-east-1";
+  const awsRegion = awsConfig.region || blueprint.awsRegion || "<aws-region>";
 
   // Azure
   const azureConfig = platformConfig.azure || {};
@@ -167,6 +170,7 @@ const buildContext = (state) => {
     nutanixEndpoint,
     nutanixCluster,
     nutanixSubnet,
+    arch,
     awsRegion,
     azureCloudName,
     azureRegion,
