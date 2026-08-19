@@ -11,8 +11,8 @@
  * Author: Bill Strauss
  */
 
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
 import React from "react";
 import AboutModal from "../src/components/AboutModal.jsx";
 import Sidebar from "../src/components/Sidebar.jsx";
@@ -20,6 +20,8 @@ import { NodeDrawerIpiContent } from "../src/components/NodeDrawerIpiContent.jsx
 
 describe("Regression Tests - v1.7.0", () => {
   describe("Version Display Regression", () => {
+    afterEach(() => { cleanup(); });
+
     it("should use appVersion prop instead of hardcoded '1.1.0'", () => {
       render(
         <AboutModal
@@ -31,13 +33,12 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      // AboutModal uses createPortal, so check document.body not container
-      const versionText = document.body.textContent;
-      expect(versionText).toContain("1.7.0");
-      expect(versionText).not.toContain("1.1.0");
+      const modal = document.querySelector(".about-modal");
+      expect(modal.textContent).toContain("1.7.0");
+      expect(modal.textContent).not.toContain("1.1.0");
     });
 
-    it("should handle missing appVersion with sensible fallback", () => {
+    it("should handle missing appVersion with explicit non-SemVer fallback", () => {
       render(
         <AboutModal
           isOpen={true}
@@ -48,10 +49,44 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const versionText = document.body.textContent;
-      // Should show dev fallback, not hardcoded 1.1.0
-      expect(versionText).toContain("1.7.0-dev");
-      expect(versionText).not.toContain("1.1.0");
+      const modal = document.querySelector(".about-modal");
+      expect(modal.textContent).toContain("unavailable (development build)");
+      expect(modal.textContent).not.toContain("1.1.0");
+      expect(modal.textContent).not.toContain("1.7.0");
+    });
+
+    it("should show explicit fallback for empty-string appVersion", () => {
+      render(
+        <AboutModal isOpen={true} onClose={() => {}} appVersion="" gitSha="abc1234" buildTime="unknown" />
+      );
+      expect(document.querySelector(".about-modal").textContent).toContain("unavailable (development build)");
+    });
+
+    it("should show explicit fallback for whitespace-only appVersion", () => {
+      render(
+        <AboutModal isOpen={true} onClose={() => {}} appVersion="   " gitSha="abc1234" buildTime="unknown" />
+      );
+      expect(document.querySelector(".about-modal").textContent).toContain("unavailable (development build)");
+    });
+
+    it("should show explicit fallback when appVersion is 'unknown'", () => {
+      render(
+        <AboutModal isOpen={true} onClose={() => {}} appVersion="unknown" gitSha="abc1234" buildTime="unknown" />
+      );
+      expect(document.querySelector(".about-modal").textContent).toContain("unavailable (development build)");
+    });
+
+    it("should display 2.0.0-dev when provided as appVersion", () => {
+      render(
+        <AboutModal
+          isOpen={true}
+          onClose={() => {}}
+          appVersion="2.0.0-dev"
+          gitSha="abc1234"
+          buildTime="2026-08-18T12:00:00Z"
+        />
+      );
+      expect(document.querySelector(".about-modal").textContent).toContain("2.0.0-dev");
     });
 
     it("should handle 'unknown' buildTime without showing 'Invalid Date'", () => {
@@ -65,9 +100,9 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const text = document.body.textContent;
+      const text = document.querySelector(".about-modal").textContent;
       expect(text).not.toContain("Invalid Date");
-      expect(text).toContain("dev build"); // Fallback text
+      expect(text).toContain("dev build");
     });
 
     it("should handle 'unknown' gitSha gracefully", () => {
@@ -81,8 +116,8 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const text = document.body.textContent;
-      expect(text).toContain("dev"); // Falls back to "dev" for unknown SHA
+      const text = document.querySelector(".about-modal").textContent;
+      expect(text).toContain("dev");
       expect(text).not.toContain("unknown");
     });
 
@@ -97,9 +132,8 @@ describe("Regression Tests - v1.7.0", () => {
         />
       );
 
-      const text = document.body.textContent;
-      // Should contain a formatted date (exact format depends on locale)
-      expect(text).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2}/); // Matches common date formats
+      const text = document.querySelector(".about-modal").textContent;
+      expect(text).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2}/);
     });
   });
 

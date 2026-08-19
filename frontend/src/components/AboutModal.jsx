@@ -32,7 +32,8 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
 
   if (!isOpen) return null;
 
-  const version = appVersion || "1.7.0-dev";
+  const trimmed = typeof appVersion === "string" ? appVersion.trim() : "";
+  const version = (trimmed && trimmed !== "unknown") ? trimmed : "unavailable (development build)";
   const sha = gitSha && gitSha !== "unknown" ? gitSha.slice(0, 7) : "dev";
   const buildDate = buildTime && buildTime !== "unknown" ? new Date(buildTime).toLocaleDateString() : "dev build";
 

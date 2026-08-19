@@ -6,8 +6,8 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, within, cleanup } from "@testing-library/react";
 import App, { shouldShowUpdateBanner } from "../src/App.jsx";
 import ToolsDrawer from "../src/components/ToolsDrawer.jsx";
 import { apiFetch } from "../src/api.js";
@@ -16,6 +16,8 @@ import { stateWithBlueprintCompleteMethodologyIncomplete } from "./fixtures/mini
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
 describe("ToolsDrawer About section", () => {
+  afterEach(() => { cleanup(); });
+
   const defaultProps = {
     isOpen: true,
     onClose: () => {},
@@ -101,9 +103,39 @@ describe("ToolsDrawer About section", () => {
     );
     expect(screen.getByText(/Up to date/)).toBeInTheDocument();
   });
+
+  it("passes 2.0.0-dev through View Details to About modal", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(
+      <ToolsDrawer
+        {...defaultProps}
+        buildInfo={{ version: "2.0.0-dev", gitSha: "abc1234", buildTime: "2026-08-18T12:00:00Z", branch: "main", repo: "owner/repo" }}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: /View Details/i }));
+    const modal = document.querySelector(".about-modal");
+    expect(modal.textContent).toContain("2.0.0-dev");
+  });
+
+  it("About modal shows explicit fallback when buildInfo has no version", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    render(
+      <ToolsDrawer
+        {...defaultProps}
+        buildInfo={{ gitSha: "abc1234", buildTime: "2026-08-18T12:00:00Z", branch: "main", repo: "owner/repo" }}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: /View Details/i }));
+    const modal = document.querySelector(".about-modal");
+    expect(modal.textContent).toContain("unavailable (development build)");
+  });
 });
 
 describe("Landing update banner", () => {
+  afterEach(() => { cleanup(); });
+
   beforeEach(() => {
     vi.mocked(apiFetch).mockImplementation((path) => {
       if (path === "/api/state") return Promise.resolve(stateWithBlueprintCompleteMethodologyIncomplete());
@@ -155,6 +187,58 @@ describe("Landing update banner", () => {
     const toolsPos = tools.getBoundingClientRect().left;
     const feedbackPos = feedback.getBoundingClientRect().left;
     expect(feedbackPos).toBeGreaterThanOrEqual(toolsPos);
+  });
+});
+
+describe("App-level version identity regression", () => {
+  afterEach(() => { cleanup(); document.body.innerHTML = ""; });
+
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockImplementation((path) => {
+      if (path === "/api/state") return Promise.resolve(stateWithBlueprintCompleteMethodologyIncomplete());
+      if (path === "/api/schema/stepMap") return Promise.resolve({ version: "1", mvpSteps: [] });
+      if (path === "/api/build-info") return Promise.resolve({ version: "2.0.0-dev", gitSha: "abc1234", buildTime: "2026-08-18T12:00:00Z", repo: "owner/repo", branch: "main" });
+      if (path === "/api/feedback/config") {
+        return Promise.resolve({
+          visible: true,
+          enabled: true,
+          mode: "offline",
+          reason: "",
+          challengeRequired: true,
+          minDwellMs: 0,
+          limits: { summaryMaxChars: 200, detailsMaxChars: 4000, contactMaxChars: 200, maxPayloadBytes: 32768 },
+          enums: { categories: ["bug", "docs", "ux", "request", "security", "other"], severities: ["low", "medium", "high", "critical"] }
+        });
+      }
+      if (path === "/api/update-info") {
+        return Promise.resolve({ enabled: false });
+      }
+      return Promise.resolve({});
+    });
+  });
+
+  it("fetches /api/build-info and displays 2.0.0-dev in Tools → About → View Details", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+    await user.click(startButton);
+
+    expect(vi.mocked(apiFetch)).toHaveBeenCalledWith("/api/build-info");
+
+    const toolsButton = await screen.findByRole("button", { name: /open tools/i });
+    await user.click(toolsButton);
+
+    const viewDetails = await screen.findByRole("button", { name: /View Details/i });
+    await user.click(viewDetails);
+
+    await waitFor(() => {
+      const modal = document.querySelector(".about-modal");
+      expect(modal).toBeTruthy();
+      expect(modal.textContent).toContain("2.0.0-dev");
+    });
   });
 });
 

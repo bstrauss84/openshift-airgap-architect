@@ -937,7 +937,7 @@ secrets:
 
 The **Tools → About** panel shows build info (Git SHA, build time, repo, branch) and update status. The backend exposes:
 
-- **`GET /api/build-info`** — Returns `gitSha`, `buildTime`, `repo`, `branch` from env (no git at runtime).
+- **`GET /api/build-info`** — Returns the synchronized application `version` (from `backend/package.json`), `gitSha`, `buildTime`, `repo`, `branch`. The `version` field reflects the deterministic package-derived application version (e.g. `2.0.0-dev`), kept in sync across all manifests by `npm run check:app-version`. No git commands run at runtime.
 - **`GET /api/update-info`** — When update checks are enabled, compares `APP_GIT_SHA` to the latest commit on the configured branch and returns `enabled`, `isOutdated`, `currentSha`, `latestSha`, `checkedAt`, `error`, etc. Cached (success ~6h, failure ~15min). Set **`CHECK_UPDATES=false`** (or `0`) to disable.
 
 **Env vars (backend):**
@@ -1105,6 +1105,8 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 See [CHANGELOG.md](CHANGELOG.md) for version history, new features, bug fixes, and breaking changes.
 
 Current version: **v2.0.0-dev** (work in progress)
+
+**Version identity:** `v2.0.0` is the application-code GA version. It does not imply enterprise/customer-distribution readiness, security certification, signed/SBOM/provenance completion, immutable disconnected bundle availability, hosted multi-user readiness, ATO, or compliance readiness. Those gates are tracked separately under PROD-041 and its productization/security children.
 
 - **v2.0.0** — Version-awareness architecture foundation complete. Supports OpenShift 4.20 (baseline) and 4.21 (current). 4.22 is unsupported.
 - **v1.7.0** — Latest stable v1.x release (2026-05-28)
