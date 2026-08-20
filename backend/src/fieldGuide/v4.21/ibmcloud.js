@@ -1,8 +1,8 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 IBM Cloud Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 IBM Cloud Compartments
  *
  * Platform-specific installation procedures for IBM Cloud VPC.
- * Covers IPI installation method for OCP 4.20 on IBM Cloud.
+ * Covers IPI installation method for OCP 4.21 on IBM Cloud.
  *
  * @author Bill Strauss
  *

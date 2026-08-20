@@ -1,7 +1,7 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 Global Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 Global Compartments
  *
- * Always-included and common-condition sections for OCP 4.20.
+ * Always-included and common-condition sections for OCP 4.21.
  * Covers prerequisites, proxy setup, FIPS, NTP, trust bundles, and Day-2 basics.
  *
  * @author Bill Strauss
@@ -16,7 +16,7 @@ export const globalPrereqs = {
   order: 100,
   conditions: {},
   docRefs: [
-    { label: "OCP 4.20 installation overview", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/index" },
+    { label: "OCP 4.21 installation overview", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/index" },
     { label: "Preparing to install on bare metal", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/installing-on-bare-metal" },
   ],
   items: [
@@ -159,7 +159,7 @@ export const preInstallReadiness = {
   order: 600,
   conditions: {},
   docRefs: [
-    { label: "OCP 4.20 installation validation", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/overview-of-installation-methods" },
+    { label: "OCP 4.21 installation validation", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/overview-of-installation-methods" },
   ],
   items: [
     { text: "Re-verify DNS resolution for all required records from the installer host:", cmd: "dig +short api.{{clusterName}}.{{baseDomain}}\ndig +short api-int.{{clusterName}}.{{baseDomain}}\ndig +short test.apps.{{clusterName}}.{{baseDomain}}" },

@@ -1,7 +1,7 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 Mirror Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 Mirror Compartments
  *
- * Mirror registry setup and oc-mirror workflows for OCP 4.20.
+ * Mirror registry setup and oc-mirror workflows for OCP 4.21.
  * Covers registry installation, image mirroring, and air-gap transfer procedures.
  *
  * @author Bill Strauss

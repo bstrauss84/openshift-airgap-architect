@@ -1,10 +1,11 @@
 # Version-Awareness Completion Matrix
 
 **Created:** 2026-08-03
-**Last Updated:** 2026-08-18
+**Last Updated:** 2026-08-20
 **Parent:** DOC-059 (OpenShift version-aware system v2.0.0)
-**Branch:** develop
-**Accepted baseline at last review:** 8282f68d8b501eef0dd68ef1768466451a58e9d5
+**Branch:** supervised/v2.0
+**Accepted baseline at last review:** 2afd742 (PROD-014: application identity sync to 2.0.0-dev)
+**Preceding Field Guide milestone:** 8282f68 (DOC-103: AWS Field Guide AMI lookup context-safe)
 **Canonical status authority:** docs/BACKLOG_STATUS.md
 
 ---
@@ -154,7 +155,7 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 | Introduced/deprecated annotations | NOT_STARTED | Catalog has deprecated field; UI does not render introduced-in or deprecated-in annotations |
 | Field Guide version selection | SUPERSEDED_BY_LOCKED_VERSION_SELECTION | assembler.js `SUPPORTED_VERSIONS = ["4.20", "4.21"]`, `getCompartmentsForVersion()` selects v4.20/ or v4.21/ content directory based on locked version. No independent version-selector control exists — the Field Guide derives its content version from the locked blueprint version via context.js. An independent selector is not needed and was never implemented. |
 | Field Guide locked-version behavior | IMPLEMENTED — state-derived; fallback gap open | context.js `getOpenShiftMinorFromSources(release, state.version)` derives version from state via 6-source resolution chain (selectedMinor → channel → selectedPatch → release.patchVersion → selectedVersion → release.selectedVersion). Falls back to "4.20" if all sources return null. **Fallback classification: REACHABLE_STALE_VERSION_RISK.** The fallback is reachable before version lock (user navigates to Field Guide pre-lock) or with degraded/imported state where version fields are absent. When reached, Field Guide silently serves 4.20 content regardless of user intent. After a successful version lock, `state.version.selectedMinor` is populated and the fallback is not reached. Locked-version Field Guide behavior is not fully verified while this fallback gap is open. **Required resolution:** Either block Field Guide generation with a clear version-selection message when no canonical locked version exists, or derive only from valid canonical version state. Never silently default user-facing output to 4.20. |
-| Field Guide stale content | 16 STALE REFS in v4.21 | 16 references to "OCP 4.20" or "OpenShift 4.20" found in v4.21 Field Guide content files (verified by `grep -rn` against backend/src/fieldGuide/v4.21/): ibmcloud.js:5, nutanix.js:5, nutanix.js:26, azure.js:5, aws.js:5, aws.js:29, aws.js:35, baremetal.js:5, baremetal.js:110, baremetal.js:172, mirror.js:4, vsphere.js:27, global.js:4, global.js:19, global.js:23, global.js:162. Categories: JSDoc module headers (7: ibmcloud, nutanix, azure, aws, baremetal, mirror, global), user-facing command text (5: nutanix:26, aws:29, aws:35, baremetal:110, baremetal:172), user-facing prose (2: vsphere:27, global:23), documentation link labels (2: global:19, global:162). These should reference "OCP 4.21" or use version-derived copy. |
+| Field Guide stale content | **FG-4.21-A2 PENDING ACCEPTANCE — 21→4 literal reduction** | **Three-class baseline (21 total raw `4.20` literals pre-A2):** Class A (17 mechanical stale labels): corrected to `4.21` in aws.js (header, comment, permissions label), baremetal.js (header, comment, IPI release notes label, UPI docs label), global.js (header, comment, installation overview docRef, installation validation docRef), ibmcloud.js (header, comment), mirror.js (header, comment), nutanix.js (header, comment). Class B (1 semantic, PROTECTED): global.js line 23 RHEL-host statement `RHEL 9 is recommended for OCP 4.20` — unchanged, deferred to separate authoritative-source verification. Class C (3 intentional, PROTECTED): azure.js line 34 BYO VNet compatibility statement with 3 bare `4.20` references — unchanged, valid cross-version behavior. **Post-A2: exactly 4 remaining `4.20` literals (1 Class B + 3 Class C).** Source-tree and runtime-compartment tests enforce semantic allowlist in `fieldGuide-4.21.test.js` (7 tests) and `fieldGuide-aws-context.test.js` (3 tests); 118/118 focused Field Guide tests pass. |
 | Field Guide parameter filtering | PARTIAL | Catalog-driven but no supportStatus-based filtering in Field Guide generation |
 | Version-specific documentation links | IMPLEMENTED_UNVERIFIED | docsIndexResolver.js maps versions to docs-index files; v4.20 and v4.21 exist |
 | Accessibility | NOT_STARTED | No version-awareness-specific a11y work |
@@ -174,7 +175,7 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 | Documentation links | ✅ version-specific docs-index |
 | Warnings and unsupported-field messaging | ❌ NOT IMPLEMENTED |
 | Introduced/deprecated annotations in content | ❌ NOT IMPLEMENTED |
-| v4.21 content version-correctness | ❌ 16 stale "OCP 4.20" refs in v4.21 content (see stale content row in table above for exact file:line list) |
+| v4.21 content version-correctness | ⏳ FG-4.21-A2 pending acceptance: 17/21 Class A stale labels corrected; 4 remaining (1 Class B + 3 Class C) protected by semantic allowlist tests |
 
 ---
 
@@ -237,7 +238,7 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 | Import | ✅ Import tests exist | ✅ v1→v3 migration tested | Version-manifest validation NOT tested |
 | Export | ✅ Export tests exist | ❌ version-manifest.json NOT implemented | Critical gap |
 | HTTP boundaries | ✅ API state migration boundary | ✅ 6 hermetic tests | Adequate |
-| Field Guide | Minimal | ❌ No version-correctness tests | Critical gap |
+| Field Guide | Minimal | ⏳ FG-4.21-A2 pending acceptance: source-tree stale-label coverage (4 tests) and runtime-compartment stale-label coverage (3 tests) in `fieldGuide-4.21.test.js`; AWS permissions label tests (3 tests) in `fieldGuide-aws-context.test.js`; 118/118 focused tests pass | Bounded coverage added; full Field Guide fallback tests remain open |
 | Tooltips and copy | ✅ hint-syntax.test.js | ❌ No version-correctness tests | Gap |
 | Deprecations | ❌ No deprecation-badge tests | ❌ Not implemented | Blocked by DOC-103 |
 | E2E | ✅ 12 Playwright tests | ❌ No version-matrix E2E | Gap |
@@ -302,6 +303,18 @@ DOC-102 (Phase 2) ─────────────── ✅ DONE (all ca
 
 ### ~~Tranche V1: DOC-102 final closure — validation and support boundary~~ — COMPLETE (commit a0d5fcb, 0e927b1)
 ### ~~Tranche V2: DOC-102 final closure — version-gated generation~~ — COMPLETE (commit 3e3148b)
+
+### Field Guide Execution Sequence (within DOC-103/DOC-104)
+
+**FG-4.21-A2: stale-label cleanup — PENDING INDEPENDENT REVIEW AND ACCEPTANCE.** Browser DOM acceptance remains supervisor-owned and pending. No later tranche has begun.
+
+After A2 acceptance, the Field Guide execution sequence is:
+
+1. **Class B authoritative verification** — Separate exact-minor authoritative verification of the protected `global.js` RHEL-host statement (`RHEL 9 is recommended for OCP 4.20`). Requires upstream Red Hat documentation review to determine whether `OCP 4.20` or `OCP 4.21` is the correct recommendation for this specific statement.
+2. **FG-4.21-B** — Field Guide fallback behavior correction (pre-lock access, missing-version state, degraded/imported state).
+3. **FG-4.21-C** — Field Guide content-correctness completion (remaining version-specific copy, documentation links, warnings).
+4. **Historical/durability retrospective** — Review of Field Guide version-correctness test durability and coverage completeness.
+5. **Option-A application-release closure** — Final Field Guide acceptance within DOC-105 release closure.
 
 ### Tranche V3: DOC-107 — Versioned copy strategy (estimated 3–5 days)
 - Create shared/versionedCopy.js with centralized copy maps

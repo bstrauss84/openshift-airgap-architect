@@ -1,8 +1,8 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 Nutanix Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 Nutanix Compartments
  *
  * Platform-specific installation procedures for Nutanix AHV.
- * Covers IPI installation method for OCP 4.20 on Nutanix.
+ * Covers IPI installation method for OCP 4.21 on Nutanix.
  *
  * @author Bill Strauss
  *

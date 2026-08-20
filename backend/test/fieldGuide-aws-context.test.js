@@ -347,12 +347,26 @@ describe("missing-region rendering (DOC-103)", () => {
   });
 });
 
-describe("v4.21 aws.js line 29 unchanged (DOC-103)", () => {
-  it("line 29 still references OCP 4.20 permissions", () => {
-    const permItem = prereqs421.items[2];
+describe("v4.21 aws.js permissions label (FG-4.21-A2)", () => {
+  const permItem = prereqs421.items.find((item) =>
+    item.text.includes("AWS IPI required permissions")
+  );
+
+  it("AWS permissions item exists", () => {
+    assert(permItem, "Should have an AWS IPI permissions item");
+  });
+
+  it("references OCP 4.21 permissions", () => {
     assert(
-      permItem.text.includes("OCP 4.20 AWS IPI required permissions"),
-      `items[2] should reference OCP 4.20 permissions, got: ${permItem.text}`
+      permItem.text.includes("OCP 4.21 AWS IPI required permissions"),
+      `AWS permissions item should reference OCP 4.21, got: ${permItem.text}`
+    );
+  });
+
+  it("does not reference prior OCP 4.20 permissions", () => {
+    assert(
+      !permItem.text.includes("OCP 4.20"),
+      `AWS permissions item should not reference OCP 4.20, got: ${permItem.text}`
     );
   });
 });

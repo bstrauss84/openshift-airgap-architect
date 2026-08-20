@@ -1,8 +1,8 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 Bare Metal Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 Bare Metal Compartments
  *
  * Platform-specific installation procedures for bare metal hardware.
- * Covers Agent-based, IPI, and UPI installation methods for OCP 4.20.
+ * Covers Agent-based, IPI, and UPI installation methods for OCP 4.21.
  *
  * @author Bill Strauss
  *
@@ -107,7 +107,7 @@ export const bmIpiPrereqs = {
     { text: "⚠ For FIPS-enabled IPI: all nodes must be capable of booting RHCOS in FIPS mode. Ensure Secure Boot or UEFI settings do not block unsigned bootloaders.", type: "warning" },
     { text: "Run a final check on DNS and VIPs:", cmd: "dig +short api.{{clusterName}}.{{baseDomain}}\nping -c2 {{apiVip}} 2>&1 | grep '0 received'" },
     { text: "Ensure the installer host's firewall allows the Ironic API port (6385) and the BMC ports (TCP/443 for Redfish, UDP/623 for IPMI) from the provisioning network." },
-    { text: "Review the OCP 4.20 IPI bare metal release notes for any known hardware compatibility issues with your server models and BMC firmware versions." },
+    { text: "Review the OCP 4.21 IPI bare metal release notes for any known hardware compatibility issues with your server models and BMC firmware versions." },
     { text: "Validate that rootDeviceHints match actual disks using lsblk or lshw output from each node's out-of-band console." },
   ],
 };
@@ -194,7 +194,7 @@ export const bmUpiPrereqs = {
     { text: "Verify connectivity: all nodes must reach the HTTPS ignition server on their initial boot network." },
     { text: "Confirm the bootstrap node has 4 vCPU, 16 GB RAM, 100 GB disk. Destroy it after bootstrap completes." },
     { text: "Optionally pre-stage RHCOS rootfs to reduce boot time (serve locally instead of from CDN)." },
-    { text: "Review OCP 4.20 UPI bare metal documentation for the complete node boot sequence and expected provisioning flow." },
+    { text: "Review OCP 4.21 UPI bare metal documentation for the complete node boot sequence and expected provisioning flow." },
     { text: "Plan for worker approval: each worker generates a CSR that must be manually approved." },
     { text: "Configure firewall to allow all required inter-node ports before booting any nodes." },
   ],

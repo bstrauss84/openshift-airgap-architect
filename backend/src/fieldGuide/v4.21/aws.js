@@ -1,8 +1,8 @@
 /**
- * OpenShift Airgap Architect - Field Guide v4.20 AWS GovCloud Compartments
+ * OpenShift Airgap Architect - Field Guide v4.21 AWS GovCloud Compartments
  *
  * Platform-specific installation procedures for AWS GovCloud.
- * Covers IPI and UPI installation methods for OCP 4.20 on AWS GovCloud.
+ * Covers IPI and UPI installation methods for OCP 4.21 on AWS GovCloud.
  *
  * @author Bill Strauss
  *
@@ -26,7 +26,7 @@ export const awsGovCloudPrereqs = {
   items: [
     { text: "Confirm you have an active AWS GovCloud account in region {{awsRegion}} with the required IAM permissions for OCP IPI installation." },
     { text: "Configure AWS CLI credentials on the installer host:", cmd: "aws configure\n# Or set environment variables:\nexport AWS_ACCESS_KEY_ID=...\nexport AWS_SECRET_ACCESS_KEY=...\nexport AWS_DEFAULT_REGION={{awsRegion}}" },
-    { text: "Verify IAM permissions. The installer needs extensive AWS permissions (EC2, Route53, ELB, IAM, S3, etc.). See the OCP 4.20 AWS IPI required permissions list in the docs." },
+    { text: "Verify IAM permissions. The installer needs extensive AWS permissions (EC2, Route53, ELB, IAM, S3, etc.). See the OCP 4.21 AWS IPI required permissions list in the docs." },
     { text: "Verify connectivity to AWS GovCloud endpoints from the installer host:", cmd: "aws ec2 describe-availability-zones --region {{awsRegion}}\n# Expect: a list of AZs in {{awsRegion}}" },
     { text: "Confirm Route 53 hosted zone exists for {{baseDomain}} in the GovCloud account, or create it:", cmd: "aws route53 list-hosted-zones-by-name --region {{awsRegion}} | grep {{baseDomain}}" },
     { text: "For disconnected/restricted network installs: set up a VPC with private subnets and VPC endpoints for EC2, ELB, Route53, S3, and STS." },
