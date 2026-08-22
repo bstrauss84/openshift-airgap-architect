@@ -474,7 +474,7 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
 });
 
 describe("FG-4.21-A2: source-tree stale-label coverage", () => {
-  const CLASS_B_TEXT = "Ensure the installer host runs RHEL 8.6+ or RHEL 9 (RHEL 9 is recommended for OCP 4.20).";
+  const CORRECTED_PROVISIONER_TEXT = "For bare-metal installer-provisioned infrastructure, ensure the provisioner node runs RHEL 9.x.";
   const CLASS_C_TEXT = "If using an existing VNet (BYO VNet): configure virtualNetwork, networkResourceGroupName, and subnet topology. OpenShift 4.21 uses platform.azure.subnets[] with role: control-plane and role: node entries, supporting multiple node subnets. If a multi-node configuration is later interpreted as 4.20, all subnet values are preserved in state but generation is blocked because 4.20 can represent only one compute subnet. To generate for 4.20, explicitly reduce the configuration to one node subnet. Configurations requiring multiple node subnets must use OpenShift 4.21.";
 
   it("v4.21 source directory exists and contains .js files", () => {
@@ -482,16 +482,22 @@ describe("FG-4.21-A2: source-tree stale-label coverage", () => {
     assert(files.length > 0, "v4.21 source directory should contain .js files");
   });
 
-  it("Class B: global.js preserves exactly one RHEL-host statement with one raw 4.20", () => {
+  it("global.js contains exactly one corrected provisioner-node item", () => {
     const content = readFileSync(join(V421_SOURCE_DIR, "global.js"), "utf8");
-    const classBLines = content.split("\n").filter((l) => l.includes(CLASS_B_TEXT));
-    assert.equal(classBLines.length, 1, `global.js must contain exactly one line with the RHEL-host statement, found: ${classBLines.length}`);
-    const matches = classBLines[0].match(/4\.20/g);
-    assert.equal(
-      matches && matches.length,
-      1,
-      `Class B source line must contain exactly one raw '4.20', found: ${matches ? matches.length : 0}`
-    );
+    const matchingLines = content.split("\n").filter((l) => l.includes(CORRECTED_PROVISIONER_TEXT));
+    assert.equal(matchingLines.length, 1, `global.js must contain exactly one line with the corrected provisioner text, found: ${matchingLines.length}`);
+  });
+
+  it("global.js contains no raw 4.20", () => {
+    const content = readFileSync(join(V421_SOURCE_DIR, "global.js"), "utf8");
+    const lines = content.split("\n");
+    const violations = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes("4.20")) {
+        violations.push(`global.js:${i + 1}: ${lines[i].trim()}`);
+      }
+    }
+    assert.equal(violations.length, 0, `global.js must contain no raw '4.20'. Violations:\n${violations.join("\n")}`);
   });
 
   it("Class C: azure.js preserves exactly one BYO VNet statement with three bare 4.20", () => {
@@ -506,10 +512,9 @@ describe("FG-4.21-A2: source-tree stale-label coverage", () => {
     );
   });
 
-  it("exactly 4 raw 4.20 literals: 1 in global.js (Class B), 3 in azure.js (Class C), 0 elsewhere", () => {
+  it("exactly 3 raw 4.20 literals: 3 in azure.js (Class C), 0 elsewhere", () => {
     const files = readdirSync(V421_SOURCE_DIR).filter((f) => f.endsWith(".js"));
     const violations = [];
-    let classBFound = 0;
     let classCFound = 0;
     for (const file of files) {
       const content = readFileSync(join(V421_SOURCE_DIR, file), "utf8");
@@ -517,12 +522,6 @@ describe("FG-4.21-A2: source-tree stale-label coverage", () => {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!line.includes("4.20")) continue;
-        if (file === "global.js" && line.includes(CLASS_B_TEXT)) {
-          classBFound++;
-          const count = (line.match(/4\.20/g) || []).length;
-          if (count > 1) violations.push(`${file}:${i + 1}: Class B line has ${count} raw 4.20 (approved: 1): ${line.trim()}`);
-          continue;
-        }
         if (file === "azure.js" && line.includes(CLASS_C_TEXT)) {
           classCFound++;
           const count = (line.match(/4\.20/g) || []).length;
@@ -532,25 +531,24 @@ describe("FG-4.21-A2: source-tree stale-label coverage", () => {
         violations.push(`${file}:${i + 1}: ${line.trim()}`);
       }
     }
-    assert.equal(classBFound, 1, `Expected exactly 1 Class B line in global.js, found: ${classBFound}`);
     assert.equal(classCFound, 1, `Expected exactly 1 Class C line in azure.js, found: ${classCFound}`);
     assert.equal(
       violations.length,
       0,
-      `No raw 4.20 outside path-qualified Class B/C allowlist. Violations:\n${violations.join("\n")}`
+      `No raw 4.20 outside Class C allowlist. Violations:\n${violations.join("\n")}`
     );
   });
 });
 
 describe("FG-4.21-A2: runtime-compartment stale-label coverage", () => {
-  const CLASS_B_TEXT = "Ensure the installer host runs RHEL 8.6+ or RHEL 9 (RHEL 9 is recommended for OCP 4.20).";
+  const CORRECTED_PROVISIONER_TEXT = "For bare-metal installer-provisioned infrastructure, ensure the provisioner node runs RHEL 9.x.";
   const CLASS_C_TEXT = "If using an existing VNet (BYO VNet): configure virtualNetwork, networkResourceGroupName, and subnet topology. OpenShift 4.21 uses platform.azure.subnets[] with role: control-plane and role: node entries, supporting multiple node subnets. If a multi-node configuration is later interpreted as 4.20, all subnet values are preserved in state but generation is blocked because 4.20 can represent only one compute subnet. To generate for 4.20, explicitly reduce the configuration to one node subnet. Configurations requiring multiple node subnets must use OpenShift 4.21.";
 
-  it("Class B: global-prereqs compartment contains exactly one RHEL-host item", () => {
+  it("global-prereqs compartment contains exactly one corrected provisioner-node item", () => {
     const comp = compartments_v421.find((c) => c.id === "global-prereqs");
     assert(comp, "global-prereqs compartment must exist");
-    const matchingItems = comp.items.filter((i) => i.text === CLASS_B_TEXT);
-    assert.equal(matchingItems.length, 1, `global-prereqs must contain exactly one RHEL-host item, found: ${matchingItems.length}`);
+    const matchingItems = comp.items.filter((i) => i.text === CORRECTED_PROVISIONER_TEXT);
+    assert.equal(matchingItems.length, 1, `global-prereqs must contain exactly one corrected provisioner item, found: ${matchingItems.length}`);
   });
 
   it("Class C: azure-gov-prereqs compartment contains exactly one BYO VNet item with three 4.20", () => {
@@ -566,9 +564,8 @@ describe("FG-4.21-A2: runtime-compartment stale-label coverage", () => {
     );
   });
 
-  it("exactly 1 Class B + 1 Class C runtime entry, no duplicates, no other raw 4.20", () => {
+  it("exactly 1 Class C runtime entry, no other raw 4.20", () => {
     const violations = [];
-    let classBFound = 0;
     let classCFound = 0;
     for (const comp of compartments_v421) {
       const texts = [];
@@ -583,10 +580,6 @@ describe("FG-4.21-A2: runtime-compartment stale-label coverage", () => {
       }
       for (const entry of texts) {
         if (!entry.value.includes("4.20")) continue;
-        if (comp.id === "global-prereqs" && entry.value === CLASS_B_TEXT) {
-          classBFound++;
-          continue;
-        }
         if (comp.id === "azure-gov-prereqs" && entry.value === CLASS_C_TEXT) {
           classCFound++;
           continue;
@@ -594,12 +587,11 @@ describe("FG-4.21-A2: runtime-compartment stale-label coverage", () => {
         violations.push(`${comp.id} ${entry.field}: ${entry.value.substring(0, 80)}...`);
       }
     }
-    assert.equal(classBFound, 1, `Expected exactly 1 Class B entry in global-prereqs, found: ${classBFound}`);
     assert.equal(classCFound, 1, `Expected exactly 1 Class C entry in azure-gov-prereqs, found: ${classCFound}`);
     assert.equal(
       violations.length,
       0,
-      `No raw 4.20 outside path-qualified Class B/C allowlist in runtime compartments. Violations:\n${violations.join("\n")}`
+      `No raw 4.20 outside Class C allowlist in runtime compartments. Violations:\n${violations.join("\n")}`
     );
   });
 });

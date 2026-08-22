@@ -20,7 +20,7 @@ export const globalPrereqs = {
     { label: "Preparing to install on bare metal", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/installing-on-bare-metal" },
   ],
   items: [
-    { text: "Ensure the installer host runs RHEL 8.6+ or RHEL 9 (RHEL 9 is recommended for OCP 4.20)." },
+    { text: "For bare-metal installer-provisioned infrastructure, ensure the provisioner node runs RHEL 9.x." },
     { text: "Verify the installer host has at least 4 vCPU, 16 GB RAM, and 120 GB free disk on the partition hosting {{installDir}}." },
     { text: "Confirm the installer host can reach the mirror registry at {{registryFqdn}} over HTTPS." },
     { text: "Ensure DNS is resolvable from the installer host: api.{{clusterName}}.{{baseDomain}} and *.apps.{{clusterName}}.{{baseDomain}}." },
