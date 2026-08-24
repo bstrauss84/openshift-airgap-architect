@@ -13,12 +13,7 @@ import { compartments_v421 } from "./v4.21/index.js";
 import { render } from "./template.js";
 import { getTroubleshootingRules } from "./troubleshootingRules.js";
 import { getMinorVersion } from "../versionPolicy.js";
-
-/**
- * Supported OCP minor versions for Field Guide generation.
- * Update this list when new version compartments are added.
- */
-const SUPPORTED_VERSIONS = ["4.20", "4.21"];
+import { FIELD_GUIDE_SUPPORTED_MINORS } from "./versionResolution.js";
 
 /**
  * Returns the compartment list for a given OCP minor version.
@@ -41,11 +36,10 @@ const getCompartmentsForVersion = (minor) => {
     throw new Error("OpenShift version is required for Field Guide generation");
   }
 
-  // Check supported versions
-  if (!SUPPORTED_VERSIONS.includes(normalizedMinor)) {
+  if (!FIELD_GUIDE_SUPPORTED_MINORS.includes(normalizedMinor)) {
     throw new Error(
       `OpenShift ${normalizedMinor} is not supported for Field Guide generation. ` +
-      `Supported versions: ${SUPPORTED_VERSIONS.join(", ")}`
+      `Supported versions: ${FIELD_GUIDE_SUPPORTED_MINORS.join(", ")}`
     );
   }
 

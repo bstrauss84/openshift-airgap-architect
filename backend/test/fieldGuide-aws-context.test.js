@@ -27,7 +27,7 @@ const makeState = (overrides = {}) => ({
     ...(overrides.blueprint || {}),
   },
   release: { patchVersion: "4.20.0", ...(overrides.release || {}) },
-  version: { selectedMinor: "4.20", _schemaVersion: 3, ...(overrides.version || {}) },
+  version: { selectedMinor: "4.20", locked: true, _schemaVersion: 3, ...(overrides.version || {}) },
   methodology: { method: "IPI" },
   platformConfig: {
     aws: { region: "", ...(overrides.aws || {}) },
