@@ -257,6 +257,105 @@ function validateSelectedSubset(selected, certified, minor) {
   }
 }
 
+function certifyDocRefs(compartments, resolvedMinor) {
+  for (const compartment of compartments) {
+    if (compartment.docRefs === undefined) continue;
+    const cId = compartment.id || '<unknown>';
+
+    if (!Array.isArray(compartment.docRefs)) {
+      throw new ProvenanceError(
+        `Compartment "${cId}" docRefs must be an array, received ${typeof compartment.docRefs}`,
+        {
+          resolvedMinor,
+          compartmentId: compartment.id || null,
+          invariant: 'docref-shape',
+        }
+      );
+    }
+
+    for (let i = 0; i < compartment.docRefs.length; i++) {
+      const entry = compartment.docRefs[i];
+
+      if (entry == null || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new ProvenanceError(
+          `Compartment "${cId}" docRefs[${i}] is not a valid object`,
+          {
+            resolvedMinor,
+            compartmentId: compartment.id || null,
+            invariant: 'docref-entry-shape',
+          }
+        );
+      }
+
+      if (typeof entry.label !== 'string' || !entry.label.trim()) {
+        throw new ProvenanceError(
+          `Compartment "${cId}" docRefs[${i}] missing or empty "label" field`,
+          {
+            resolvedMinor,
+            compartmentId: compartment.id || null,
+            invariant: 'docref-entry-shape',
+          }
+        );
+      }
+
+      if (typeof entry.url !== 'string' || !entry.url.trim()) {
+        throw new ProvenanceError(
+          `Compartment "${cId}" docRefs[${i}] missing or empty "url" field`,
+          {
+            resolvedMinor,
+            compartmentId: compartment.id || null,
+            invariant: 'docref-entry-shape',
+          }
+        );
+      }
+
+      let parsed;
+      try {
+        parsed = new URL(entry.url);
+      } catch {
+        throw new ProvenanceError(
+          `Compartment "${cId}" docRefs[${i}] URL is not parseable: "${entry.url}"`,
+          {
+            resolvedMinor,
+            compartmentId: compartment.id || null,
+            invariant: 'docref-url-parseable',
+          }
+        );
+      }
+
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new ProvenanceError(
+          `Compartment "${cId}" docRefs[${i}] URL scheme "${parsed.protocol}" is not HTTP(S): "${entry.url}"`,
+          {
+            resolvedMinor,
+            compartmentId: compartment.id || null,
+            invariant: 'docref-url-scheme',
+          }
+        );
+      }
+
+      if (parsed.hostname === 'docs.redhat.com') {
+        const segments = parsed.pathname.split('/').filter(s => s.length > 0);
+        const ocpIndex = segments.indexOf('openshift_container_platform');
+        if (ocpIndex !== -1) {
+          const versionSegment = segments[ocpIndex + 1];
+          if (!versionSegment || versionSegment !== resolvedMinor) {
+            throw new ProvenanceError(
+              `Compartment "${cId}" docRefs[${i}] official OCP documentation URL version ` +
+              `"${versionSegment || '<missing>'}" does not match resolved minor "${resolvedMinor}"`,
+              {
+                resolvedMinor,
+                compartmentId: compartment.id || null,
+                invariant: 'docref-ocp-version-match',
+              }
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
 function classifyDocsLinks(docsLinks) {
   if (docsLinks === null || docsLinks === undefined) return [];
   if (!Array.isArray(docsLinks)) {
@@ -293,6 +392,7 @@ export {
   ProvenanceError,
   INPUT_CLASSIFICATION,
   certifyExport,
+  certifyDocRefs,
   validateSelectedSubset,
   classifyDocsLinks,
   getAuthoritativeExport,

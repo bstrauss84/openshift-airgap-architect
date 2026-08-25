@@ -17,6 +17,7 @@ import {
   ProvenanceError,
   INPUT_CLASSIFICATION,
   certifyExport,
+  certifyDocRefs,
   validateSelectedSubset,
   classifyDocsLinks,
   getAuthoritativeExport,
@@ -26,6 +27,8 @@ import {
 import { FIELD_GUIDE_SUPPORTED_MINORS } from "../src/fieldGuide/versionResolution.js";
 import { globalPrereqs as globalPrereqs420 } from "../src/fieldGuide/v4.20/global.js";
 import { globalPrereqs as globalPrereqs421 } from "../src/fieldGuide/v4.21/global.js";
+import { vsphereAgentMethodologyContext as vsphereAgentMC420 } from "../src/fieldGuide/v4.20/vsphere.js";
+import { vsphereAgentMethodologyContext as vsphereAgentMC421 } from "../src/fieldGuide/v4.21/vsphere.js";
 
 // --- Helpers ---
 
@@ -496,6 +499,389 @@ describe("Field Guide Provenance Certification (FG-4.21-C)", () => {
     it("classifyDocsLinks accepts null/undefined", () => {
       assert.deepStrictEqual(classifyDocsLinks(null), []);
       assert.deepStrictEqual(classifyDocsLinks(undefined), []);
+    });
+  });
+
+  describe("compartment docRef certification (FG-DOCREF-MINOR)", () => {
+
+    it("valid 4.21 locked state retains official OCP 4.21 links in output", () => {
+      const md = buildFieldGuide(makeState("4.21", "4.21.5"));
+      assert(md.includes("docs.redhat.com"), "should include official docs links");
+      assert(md.includes("openshift_container_platform/4.21"), "should include 4.21 official links");
+    });
+
+    it("valid 4.20 locked state retains official OCP 4.20 links in output", () => {
+      const md = buildFieldGuide(makeState("4.20", "4.20.15"));
+      assert(md.includes("docs.redhat.com"), "should include official docs links");
+      assert(md.includes("openshift_container_platform/4.20"), "should include 4.20 official links");
+    });
+
+    it("4.20 official OCP docRef in certified 4.21 export fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [
+          { label: "Wrong version link", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index" },
+        ];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-ocp-version-match");
+            assert.match(err.message, /4\.20/);
+            assert.match(err.message, /4\.21/);
+            assert.equal(err.resolvedMinor, "4.21");
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("4.21 official OCP docRef in certified 4.20 export fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs420.docRefs;
+      try {
+        globalPrereqs420.docRefs = [
+          { label: "Wrong version link", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/index" },
+        ];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.20", "4.20.15")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-ocp-version-match");
+            assert.match(err.message, /4\.21/);
+            assert.match(err.message, /4\.20/);
+            assert.equal(err.resolvedMinor, "4.20");
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs420.docRefs = saved;
+      }
+    });
+
+    it("non-array docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = "not-an-array";
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-shape");
+            assert.match(err.message, /string/);
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("null entry in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [null];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-entry-shape");
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("non-object entry in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [42];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-entry-shape");
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("entry with blank label in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [{ label: "  ", url: "https://example.com" }];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-entry-shape");
+            assert.match(err.message, /label/);
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("entry with missing label in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [{ url: "https://example.com" }];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-entry-shape");
+            assert.match(err.message, /label/);
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("entry with missing url in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [{ label: "Test" }];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-entry-shape");
+            assert.match(err.message, /url/);
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("entry with blank url in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [{ label: "Test", url: "" }];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-entry-shape");
+            assert.match(err.message, /url/);
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("non-parseable URL in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [{ label: "Test", url: "not-a-valid-url" }];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-url-parseable");
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("non-HTTP(S) URL scheme in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [{ label: "Test", url: "ftp://example.com/path" }];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-url-scheme");
+            assert.match(err.message, /ftp/);
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("official OCP URL with missing version segment fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [{ label: "Test", url: "https://docs.redhat.com/en/documentation/openshift_container_platform" }];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-ocp-version-match");
+            assert.match(err.message, /<missing>/);
+            assert.equal(err.resolvedMinor, "4.21");
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("empty docRefs array is valid", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [];
+        const md = buildFieldGuide(makeState("4.21", "4.21.5"));
+        assert(typeof md === "string" && md.length > 0, "should return markdown");
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("absent docRefs property is valid", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        delete globalPrereqs421.docRefs;
+        const md = buildFieldGuide(makeState("4.21", "4.21.5"));
+        assert(typeof md === "string" && md.length > 0, "should return markdown");
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("non-OCP docs.redhat.com URL is valid (RHEL docs)", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [
+          { label: "RHEL 9 security", url: "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/security_hardening/index" },
+        ];
+        const md = buildFieldGuide(makeState("4.21", "4.21.5"));
+        assert(typeof md === "string" && md.length > 0, "should return markdown with non-OCP doc link");
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("non-docs.redhat.com HTTP(S) URL is valid", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        globalPrereqs421.docRefs = [
+          { label: "External resource", url: "https://kubernetes.io/docs/concepts/" },
+        ];
+        const md = buildFieldGuide(makeState("4.21", "4.21.5"));
+        assert(typeof md === "string" && md.length > 0, "should return markdown with external link");
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("invalid docRef on conditionally unselected 4.21 compartment fails at buildFieldGuide boundary", () => {
+      const saved = vsphereAgentMC421.docRefs;
+      try {
+        vsphereAgentMC421.docRefs = [
+          { label: "Wrong version", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index" },
+        ];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-ocp-version-match");
+            assert.equal(err.compartmentId, "vsphere-agent-methodology-context");
+            assert.equal(err.resolvedMinor, "4.21");
+            return true;
+          }
+        );
+      } finally {
+        vsphereAgentMC421.docRefs = saved;
+      }
+    });
+
+    it("invalid docRef on conditionally unselected 4.20 compartment fails at buildFieldGuide boundary", () => {
+      const saved = vsphereAgentMC420.docRefs;
+      try {
+        vsphereAgentMC420.docRefs = [
+          { label: "Wrong version", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/index" },
+        ];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.20", "4.20.15")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-ocp-version-match");
+            assert.equal(err.compartmentId, "vsphere-agent-methodology-context");
+            assert.equal(err.resolvedMinor, "4.20");
+            return true;
+          }
+        );
+      } finally {
+        vsphereAgentMC420.docRefs = saved;
+      }
+    });
+
+    it("valid locked 4.21 disconnected vSphere Agent-Based guide generates successfully", () => {
+      const state = makeState("4.21", "4.21.5", { platform: "VMware vSphere", method: "Agent-Based Installer" });
+      const md = buildFieldGuide(state);
+      assert(typeof md === "string" && md.length > 0, "should return non-empty markdown");
+      assert(md.includes("vSphere"), "should include vSphere content");
+    });
+
+    it("valid locked 4.20 disconnected vSphere Agent-Based guide generates successfully", () => {
+      const state = makeState("4.20", "4.20.15", { platform: "VMware vSphere", method: "Agent-Based Installer" });
+      const md = buildFieldGuide(state);
+      assert(typeof md === "string" && md.length > 0, "should return non-empty markdown");
+      assert(md.includes("vSphere"), "should include vSphere content");
+    });
+
+    it("array entry with label and url properties in docRefs fails at buildFieldGuide boundary", () => {
+      const saved = globalPrereqs421.docRefs;
+      try {
+        const arrayEntry = ["a", "b"];
+        arrayEntry.label = "Sneaky";
+        arrayEntry.url = "https://example.com";
+        globalPrereqs421.docRefs = [arrayEntry];
+        assert.throws(
+          () => buildFieldGuide(makeState("4.21", "4.21.5")),
+          (err) => {
+            assert.equal(err.name, "ProvenanceError");
+            assert.equal(err.invariant, "docref-entry-shape");
+            return true;
+          }
+        );
+      } finally {
+        globalPrereqs421.docRefs = saved;
+      }
+    });
+
+    it("certifyDocRefs called directly validates structural shape", () => {
+      const compartments = [{ id: "test-compartment", docRefs: [{ label: "Valid", url: "https://example.com" }] }];
+      certifyDocRefs(compartments, "4.21");
+    });
+
+    it("certifyDocRefs called directly rejects version mismatch", () => {
+      const compartments = [{
+        id: "test-compartment",
+        docRefs: [{ label: "OCP 4.20", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index" }],
+      }];
+      assert.throws(
+        () => certifyDocRefs(compartments, "4.21"),
+        (err) => {
+          assert.equal(err.name, "ProvenanceError");
+          assert.equal(err.invariant, "docref-ocp-version-match");
+          assert.equal(err.resolvedMinor, "4.21");
+          assert.equal(err.compartmentId, "test-compartment");
+          return true;
+        }
+      );
     });
   });
 

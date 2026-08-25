@@ -180,7 +180,7 @@ export const vsphereAgentMethodologyContext = {
     connectivity: ["disconnected", "fully-disconnected"],
   },
   docRefs: [
-    { label: "vSphere SDK constraints documentation", url: "file://./docs/VSPHERE_SDK_DISCONNECTED_CONSTRAINTS.md" },
+    { label: "Installing in disconnected environments (OCP 4.21)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing/installing-disconnected-environments" },
   ],
   items: [
     { text: "You selected **Agent-Based Installer** for disconnected vSphere deployment. This is the recommended methodology for air-gapped vSphere environments." },
