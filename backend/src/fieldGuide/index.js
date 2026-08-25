@@ -14,7 +14,7 @@ import { renderGuide } from "./assembler.js";
 
 const buildFieldGuide = (state, docsLinks) => {
   const ctx = buildContext(state || {});
-  return renderGuide(state || {}, ctx, docsLinks || []);
+  return renderGuide(state || {}, ctx, docsLinks ?? []);
 };
 
 export { buildFieldGuide };

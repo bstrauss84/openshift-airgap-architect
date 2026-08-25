@@ -14,6 +14,10 @@ import { render } from "./template.js";
 import { getTroubleshootingRules } from "./troubleshootingRules.js";
 import { getMinorVersion } from "../versionPolicy.js";
 import { FIELD_GUIDE_SUPPORTED_MINORS } from "./versionResolution.js";
+import { certifyExport, validateSelectedSubset, classifyDocsLinks, registerAcceptedSharedInput, certifySharedInput, INPUT_CLASSIFICATION } from "./provenance.js";
+
+registerAcceptedSharedInput(render, INPUT_CLASSIFICATION.SHARED);
+registerAcceptedSharedInput(getTroubleshootingRules, INPUT_CLASSIFICATION.SHARED);
 
 /**
  * Returns the compartment list for a given OCP minor version.
@@ -171,7 +175,12 @@ const mergeDocLinks = (compartments, docsLinks) => {
  * Renders the full field guide markdown string.
  */
 const renderGuide = (state, ctx, docsLinks) => {
+  const certified = certifyExport(ctx.versionMajorMinor);
+  certifySharedInput(render, "template-renderer");
+  certifySharedInput(getTroubleshootingRules, "troubleshooting-rules");
+  classifyDocsLinks(docsLinks);
   const selected = selectAndOrder(ctx.versionMajorMinor, ctx);
+  validateSelectedSubset(selected, certified, ctx.versionMajorMinor);
   const total = selected.length;
   const lines = [];
 
