@@ -12,6 +12,7 @@ import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
 import Button from "./Button.jsx";
 import { useFocusTrap } from "../hooks/useFocusTrap.js";
+import { getNewestSupportedMinor } from "../shared/versionPolicy.js";
 
 const MODAL_Z = 10080;
 
@@ -123,7 +124,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
                 </li>
                 <li>
                   <a
-                    href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index"
+                    href={`https://docs.redhat.com/en/documentation/openshift_container_platform/${getNewestSupportedMinor()}/html/installing/index`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: "var(--link-color)" }}

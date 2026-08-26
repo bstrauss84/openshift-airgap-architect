@@ -959,7 +959,7 @@ Emitted to \`controlPlane.platform.aws.cpuOptions.confidentialCompute\` in insta
                     </div>
                     <h4 className="platform-specifics-subsection">Root volume (optional)</h4>
                     <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                      Size and type for control plane and compute root volumes (4.20 doc: compute.platform.aws.rootVolume, controlPlane.platform.aws.rootVolume). Emitted only when set.
+                      Size and type for control plane and compute root volumes (see compute.platform.aws.rootVolume, controlPlane.platform.aws.rootVolume). Emitted only when set.
                     </p>
                     <div className="field-grid">
                       <FieldLabelWithInfo
@@ -1489,7 +1489,7 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
             <div className="card-body">
               <OptionRow
                 title="Include optional Day-2 bare metal fields in install-config"
-                description="When enabled, install-config can include §9.1.4 optional platform.baremetal provisioning* (when set) and hosts[] with name, bootMACAddress, and bmc only (per 4.20 doc; not used during initial provisioning). role and rootDeviceHints stay in agent-config only. When disabled, install-config stays minimal (apiVIPs/ingressVIPs) and agent-config carries install-time host fields."
+                description="When enabled, install-config can include §9.1.4 optional platform.baremetal provisioning* (when set) and hosts[] with name, bootMACAddress, and bmc only (not used during initial provisioning). role and rootDeviceHints stay in agent-config only. When disabled, install-config stays minimal (apiVIPs/ingressVIPs) and agent-config carries install-time host fields."
               >
                 <Switch
                   checked={!!inventory.includeBareMetalDay2InInstallConfig}
@@ -3180,7 +3180,7 @@ The password is included in generated install-config.yaml **only when** you choo
 
               <h4 className="platform-specifics-subsection">Placement</h4>
               <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                Choose failure domains (recommended for 4.20) or legacy single placement. Only the selected path is used in the generated install-config.
+                Choose failure domains (recommended) or legacy single placement. Only the selected path is used in the generated install-config.
               </p>
               <div className="field-grid field-grid--no-paired-layout" style={{ marginTop: 8, marginBottom: 12 }}>
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -4111,7 +4111,7 @@ URL pointing to a Red Hat CoreOS OVA file that the installer will download and i
 • Testing specific RHCOS versions
 
 **Applies to:**
-Both IPI and UPI (4.20 doc 9.1.6: Optional VMware vSphere machine pool configuration parameters)
+Both IPI and UPI (see §9.1.6: Optional VMware vSphere machine pool configuration parameters)
 
 **Requirements:**
 1. URL must be reachable from where you run openshift-install
@@ -4675,7 +4675,7 @@ Emitted to \`platform.baremetal.bmcVerifyCA\` in install-config.yaml.`}
 Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs when using legacy placement (without failure domains).
 
 **Deprecation notice:**
-OpenShift 4.20 documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
+OpenShift documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
 
 **Legacy behavior (if you must use it):**
 • Format: \`/datacenter-name/vm/folder-name\` or \`/datacenter-name/vm/parent/child\`
@@ -4706,7 +4706,7 @@ Only when you cannot use failure domains (e.g., single cluster deployment with n
 Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs when using legacy placement (without failure domains).
 
 **Deprecation notice:**
-OpenShift 4.20 documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
+OpenShift documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
 
 **Legacy behavior (if you must use it):**
 • Format: \`/datacenter-name/host/cluster-name/Resources/pool-name\`
@@ -5162,7 +5162,7 @@ CSIMigrationAWS=true
 TechPreviewFeature=false
 
 **Reference:**
-See OpenShift 4.20 documentation for full list of available feature gates and their effects.`}
+See OpenShift ` + selectedMinor + ` documentation for full list of available feature gates and their effects.`}
                       required={platformConfig.featureSet === "CustomNoUpgrade"}
                     >
                       <textarea

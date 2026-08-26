@@ -440,7 +440,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
         ) : null}
         {isIbmCloudIpi ? (
           <Banner variant="info">
-            IBM Cloud disconnected install in OpenShift 4.20 documents IPv4-only networking. Use machine, cluster, and service IPv4 CIDRs; dual-stack and IPv6 fields are intentionally disabled for this scenario.
+            IBM Cloud disconnected install documents IPv4-only networking. Use machine, cluster, and service IPv4 CIDRs; dual-stack and IPv6 fields are intentionally disabled for this scenario.
           </Banner>
         ) : null}
         {scenarioId === "nutanix-ipi" ? (
@@ -467,7 +467,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
           <div className="card-body">
             {isIpv4OnlyScenario ? (
               <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
-                This scenario supports IPv4-only networking in OpenShift 4.20. Dual-stack and IPv6 are not available.
+                This scenario supports IPv4-only networking. Dual-stack and IPv6 are not available.
               </p>
             ) : (
               <>
@@ -488,11 +488,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 </OptionRow>
                 {ipStackMode === 'ipv6' ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    IPv6-only mode: Only IPv6 networks and VIPs will be configured. OpenShift 4.20 supports IPv6-only deployments on bare metal and vSphere platforms (Agent, IPI, and UPI methods). All cluster components will use IPv6 addressing exclusively.
+                    IPv6-only mode: Only IPv6 networks and VIPs will be configured. OpenShift supports IPv6-only deployments on bare metal and vSphere platforms (Agent, IPI, and UPI methods). All cluster components will use IPv6 addressing exclusively.
                   </p>
                 ) : ipStackMode === 'dual-stack' ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    Dual-stack mode: Both IPv4 and IPv6 fields for machine, cluster, and service networks appear together. OpenShift 4.20 documents dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set both IPv4 and IPv6 machine CIDRs and VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
+                    Dual-stack mode: Both IPv4 and IPv6 fields for machine, cluster, and service networks appear together. OpenShift documents dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set both IPv4 and IPv6 machine CIDRs and VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
                   </p>
                 ) : null}
               </>
@@ -573,7 +573,7 @@ This is often the **main IPv6 network you customize** - other networks (cluster/
 • /56 = common for enterprise networks
 
 **Important:**
-⚠️ OpenShift 4.20 supports IPv6-only on bare metal and vSphere platforms (Agent, IPI, UPI methods)
+⚠️ OpenShift supports IPv6-only on bare metal and vSphere platforms (Agent, IPI, UPI methods)
 
 **Examples:**
 • Private network: fd10:90::/64
@@ -918,7 +918,7 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
             <div className="card-body">
               {showNutanixIpiVips ? (
                 <p className="note">
-                  OpenShift 4.20 Nutanix IPI requires static API and Ingress VIPs on the installer-provisioned path (Installing on Nutanix §1.3.5.1). Match address family to your machine network; with dual-stack networking enabled below, set IPv6 VIPs to emit apiVIPs/ingressVIPs lists. NTP via DHCP is recommended for all nodes (§1.3.5).
+                  Nutanix IPI requires static API and Ingress VIPs on the installer-provisioned path (Installing on Nutanix §1.3.5.1). Match address family to your machine network; with dual-stack networking enabled below, set IPv6 VIPs to emit apiVIPs/ingressVIPs lists. NTP via DHCP is recommended for all nodes (§1.3.5).
                 </p>
               ) : showVsphereIpiVips ? (
                 <p className="note">Leave blank if you use an external load balancer.</p>
@@ -940,7 +940,7 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
                     ? ipStackMode === 'dual-stack'
-                      ? "Required for Bare Metal Agent-based multi-node installs when using dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below—do not comma-separate in one box. Official 4.20 install-config guidance requires IPv4 entries before IPv6 in apiVIPs/ingressVIPs lists; this app emits that order."
+                      ? "Required for Bare Metal Agent-based multi-node installs when using dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below—do not comma-separate in one box. Install-config guidance requires IPv4 entries before IPv6 in apiVIPs/ingressVIPs lists; this app emits that order."
                       : ipStackMode === 'ipv6'
                       ? "Required for Bare Metal Agent-based multi-node installs when using IPv6-only: set API VIP and Ingress VIP using IPv6 addresses. Single IPv6 address per field."
                       : "Required for Bare Metal Agent-based multi-node installs (single-stack IPv4 in this flow): set API VIP and Ingress VIP."
@@ -953,7 +953,7 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
               ) : scenarioId === "bare-metal-ipi" ? (
                 <p className="note">
                   {ipStackMode === 'dual-stack'
-                    ? "Bare metal IPI: set API and Ingress VIPs, or leave blank if using an external load balancer. With dual-stack, use the separate IPv4 and IPv6 fields (install-config apiVIPs/ingressVIPs list order is IPv4 then IPv6 per 4.20 docs)."
+                    ? "Bare metal IPI: set API and Ingress VIPs, or leave blank if using an external load balancer. With dual-stack, use the separate IPv4 and IPv6 fields (install-config apiVIPs/ingressVIPs list order is IPv4 then IPv6)."
                     : ipStackMode === 'ipv6'
                     ? "Bare metal IPI: set API and Ingress VIPs (IPv6), or leave blank if using an external load balancer. Single IPv6 address per field."
                     : "Bare metal IPI: set API VIP and Ingress VIP (IPv4), or leave blank if using an external load balancer."}
@@ -1738,7 +1738,7 @@ Single IPv4 address
 When dual-stack is enabled, add API VIP (IPv6) in the next field
 
 **Generator behavior:**
-Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
+Emitted apiVIPs order is IPv4 then IPv6 (per install-config specification)
 
 **Example:**
 10.90.0.1`}
@@ -1770,7 +1770,7 @@ Only for dual-stack (IPv4 + IPv6)
 IPv4-only single-stack
 
 **Important:**
-IPv6-only bare metal is not verified in the reviewed 4.20 agent docs - use dual-stack or IPv4-only unless your own doc review confirms otherwise
+IPv6-only bare metal is not verified in the reviewed agent docs - use dual-stack or IPv4-only unless your own doc review confirms otherwise
 
 **Example:**
 fd00::1`}

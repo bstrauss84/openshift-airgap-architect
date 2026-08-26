@@ -773,7 +773,7 @@ Lab environment, simple failover → active-backup`}
             <div className="workflow-group-header">
               <div className="workflow-group-title">BMC Configuration (Day-2 Seed)</div>
               <div className="workflow-group-description">
-                Optional Day-2 seed (OpenShift 4.20 §9.1.4): these map to <code>install-config.yaml</code>{" "}
+                Optional Day-2 seed (see §9.1.4): these map to <code>install-config.yaml</code>{" "}
                 <code>platform.baremetal.hosts[]</code> as <code>name</code>, <code>bootMACAddress</code>, and{" "}
                 <code>bmc</code>. They are not used during initial agent provisioning; they can reduce post-install steps.
               </div>

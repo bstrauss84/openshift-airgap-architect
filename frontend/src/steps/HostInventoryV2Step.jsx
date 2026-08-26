@@ -537,7 +537,7 @@ done`}</pre>
                 <div className="host-inventory-v2-gather-hint">Root device hints inventory (all supported subfields):</div>
                 <div className="code-block">
                   <div className="code-header">
-                    <span>Per-disk rootDeviceHints values (4.20)</span>
+                    <span>Per-disk rootDeviceHints values</span>
                     <button
                       type="button"
                       className="ghost copy-button"
@@ -579,7 +579,7 @@ done`}</pre>
 done`}</pre>
                 </div>
                 <p className="note subtle">
-                  OpenShift 4.20 allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
+                  OpenShift allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
                   <code>wwn</code>, use the value from <code>ID_WWN_WITH_EXTENSION</code> when present.
                 </p>
 
@@ -661,7 +661,7 @@ wipefs -a /dev/sdX`}</pre>
                   <p className="note">Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically.</p>
                 )}
                 {isAgentInventoryScenario && countControlPlane === 1 && (
-                  <p className="note">Single-node OpenShift uses one control plane and no worker or infra nodes. Worker and infra counts are kept at zero (OpenShift 4.20 Agent-based install-config).</p>
+                  <p className="note">Single-node OpenShift uses one control plane and no worker or infra nodes. Worker and infra counts are kept at zero per the Agent-based install-config specification.</p>
                 )}
                 {isAgentInventoryScenario && (countControlPlane === 4 || countControlPlane === 5) && (
                   <p className="note subtle">Four or five control plane replicas are supported for Agent-based installs when documented for your environment; ensure total topology matches the installation guide.</p>

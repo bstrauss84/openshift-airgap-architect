@@ -1,287 +1,200 @@
-# Versioned Copy/Messaging/UX Text Inventory
+# Versioned Copy Adjudication Ledger
 
-**Generated:** 2026-05-29  
-**Tool:** `scripts/find-hardcoded-versions.sh`  
-**Phase:** v2.0.0 Phase 0 (DOC-106)  
-**Total Findings:** 3,239
-
----
-
-## Summary
-
-| Category | Count | Priority |
-|----------|-------|----------|
-| Frontend UI | 85 | HIGH |
-| Backend | 146 | MEDIUM |
-| Field Guide | 126 | HIGH |
-| Validation Messages | 5 | HIGH |
-| Tooltips | 3 | HIGH |
-| Docs Links in Code | 1,912 | LOW (mostly catalog citations) |
-| Generated Artifacts | 138 | MEDIUM |
-| Documentation | 824 | LOW (intentionally versioned docs) |
+**Updated:** 2026-08-26 (DOC-107 narrow adjudication revision)
+**Tool:** `scripts/find-hardcoded-versions.sh --check`
+**Phase 0 inventory:** DOC-106 (verified_done, commit 94b5b14)
 
 ---
 
-## Classification Legend
+## Enforcement
 
-- **replace-with-locked**: Replace with `state.version.selectedMinor` or version utility
-- **copy-map**: Move to centralized version-aware copy map (`shared/versionedCopy.js`)
-- **param-derived**: Derive from catalog params metadata (versionNotes, etc.)
-- **historical**: Keep as historical/reference (OK to be static - comments, docs)
-- **version-neutral**: Rewrite to be version-agnostic
-- **needs-verification**: Requires docs/source check before decision
+`scripts/find-hardcoded-versions.sh --check` exits nonzero for unclassified hardcoded version references in production frontend code. CI workflow: `.github/workflows/validate-versioned-copy.yml`.
+
+Search pattern: `4\.([0-9]{2,})` — detects all OpenShift 4.x two-digit minors (4.10+), including unsupported/future versions.
 
 ---
 
-## Critical Findings Requiring Phase 1 Action
+## Resolved Violations
 
-### HIGH PRIORITY: User-Facing Text (Must adapt to locked version)
-
-| File | Line | Snippet | Classification | Phase 1 Action |
-|------|------|---------|----------------|----------------|
-| `frontend/src/validation.js` | 794 | `"Nutanix IPI requires credentialsMode Manual (OpenShift 4.20...)"` | replace-with-locked | Use `${version}` in error message |
-| `frontend/src/validation.js` | 801 | `"...per OpenShift 4.20 Nutanix install-config parameters."` | replace-with-locked | Use `${version}` |
-| `frontend/src/validation.js` | 1186-1192 | `"IBM Cloud ... in OpenShift 4.20 is documented as IPv4 only."` (3 instances) | replace-with-locked | Use `${version}` |
-| `frontend/src/components/AboutModal.jsx` | 125 | Hardcoded docs link to 4.20 | copy-map | Use `getDocsUrlForVersion()` |
-| `frontend/src/steps/TrustProxyStep.jsx` | 971 | `"(OpenShift 4.20)"` in UI text | replace-with-locked | Use `${version}` |
-| `frontend/src/steps/GlobalStrategyStep.jsx` | 1395 | `"(OpenShift 4.20 default..."` | replace-with-locked | Use `${version}` |
-| `frontend/src/steps/HostInventoryStep.jsx` | 660, 701 | `"4.20"` in UI labels | replace-with-locked | Use `${version}` |
-
-**Total HIGH Priority**: ~15-20 user-facing strings requiring Phase 1 updates
-
----
-
-### MEDIUM PRIORITY: Version-Specific Logic (Already correct pattern!)
-
-| File | Lines | Pattern | Classification | Phase 1 Action |
-|------|-------|---------|----------------|----------------|
-| `frontend/src/steps/OperatorsStep.jsx` | 84-127 | ODF Quick Pick version maps (`"4.20": {...}, "4.21": {...}`) | historical | **KEEP AS-IS** - Already version-aware! This is CORRECT pattern for version-specific operator lists. |
-
-**Note**: OperatorsStep.jsx already implements version-specific operator mappings correctly. This is the TARGET pattern for Phase 1.
+| File | Lines | Resolution | Commit |
+|------|-------|------------|--------|
+| `frontend/src/steps/HostInventoryStep.jsx` | 660, 701 | Version-neutral wording | dc871e4 |
+| `frontend/src/steps/TrustProxyStep.jsx` | 971 | Version-neutral wording | dc871e4 |
+| `frontend/src/steps/GlobalStrategyStep.jsx` | 1395 | Version-neutral wording | dc871e4 |
+| `frontend/src/components/AboutModal.jsx` | 126 | `getNewestSupportedMinor()` docs URL | DOC-107 |
+| `frontend/src/steps/HostInventoryV2Step.jsx` | 540 | Removed stale `(4.20)` from label | DOC-107 |
+| `frontend/src/steps/HostInventoryV2Step.jsx` | 582 | Version-neutral wording | DOC-107 |
+| `frontend/src/steps/HostInventoryV2Step.jsx` | 664 | Version-neutral wording | DOC-107 |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 962 | Version-neutral (removed "4.20 doc") | DOC-107 |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 1492 | Version-neutral wording | DOC-107 |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 3183 | Version-neutral ("recommended") | DOC-107 |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 4114 | Version-neutral (removed "4.20 doc") | DOC-107 |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 4678, 4709 | Version-neutral wording | DOC-107 |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 5165 | Dynamic `selectedMinor` (concatenation) | DOC-107 |
+| `frontend/src/steps/NetworkingV2Step.jsx` | 443, 470, 491, 495, 576, 921, 943, 956, 1741, 1773 | Version-neutral wording (10 findings) | DOC-107 |
+| `frontend/src/components/NodeDrawerAgentContent.jsx` | 776 | Version-neutral ("see §9.1.4") | DOC-107 |
 
 ---
 
-### LOW PRIORITY: Docs Links (Catalog citations)
+---
 
-| Category | Count | Classification | Phase 1 Action |
-|----------|-------|----------------|----------------|
-| Catalog `citations` fields | ~1,900 | historical | KEEP - catalog citations are version-specific by design. When 4.21 catalogs added, they'll have 4.21 citations. |
+## Adjudicated Exclusions
 
-**Note**: Most "docs-links.txt" findings are catalog JSON citations pointing to version-specific docs. This is CORRECT and intentional.
+Each exclusion is tagged with a category code used by the `--check` guard. All adjudications use narrow, attributable patterns — no whole-file exclusions for user-facing components.
+
+### INFRA — Enumerated Version Infrastructure Authority Files
+
+These files define the version policy, parse version strings, or map versions to catalogs/docs. They are the authority, not the consumer. Each file is listed individually in the guard — new files added to `frontend/src/shared/` are NOT auto-excluded.
+
+| File | Rationale |
+|------|-----------|
+| `frontend/src/shared/versionPolicy.js` | SUPPORTED_MINORS, trust bundle allowlists |
+| `frontend/src/shared/catalogVersion.js` | Version parsing utility |
+| `frontend/src/shared/cincinnatiChannels.js` | Channel filtering utility |
+| `frontend/src/shared/openShiftMinor.js` | Minor version parser |
+| `frontend/src/shared/versionHelpers.js` | Version helper utilities |
+| `frontend/src/shared/trustBundlePolicy.js` | Trust bundle policy resolution |
+| `frontend/src/docsIndexResolver.js` | Version → docs-index map |
+| `frontend/src/catalogPaths.js` | Catalog path infrastructure |
+| `frontend/src/catalogFieldMeta.js` | Catalog field metadata |
+| `frontend/src/catalogResolver.js` | Catalog resolution infrastructure |
+
+### CDEFLT — Code-Level Fallback Defaults
+
+Lines matching `getOpenShiftMinorFromState(state) || "4.20"` provide a safe default when version state is absent. These are code logic, not user-facing copy.
+
+| File | Lines |
+|------|-------|
+| `frontend/src/steps/HostInventoryV2Step.jsx` | 138 |
+| `frontend/src/steps/IdentityAccessStep.jsx` | 31 |
+| `frontend/src/steps/NetworkingV2Step.jsx` | 365 |
+| `frontend/src/steps/TrustProxyStep.jsx` | 139 |
+| `frontend/src/steps/ConnectivityMirroringStep.jsx` | 50 |
+
+### COMMENT — JS Code Comments
+
+Lines where the version reference appears only in `//`, `/**`, or `*` comments.
+
+| File | Lines | Content |
+|------|-------|---------|
+| `frontend/src/hostInventoryV2Validation.js` | 53 | Agent-based topology reference |
+| `frontend/src/steps/HostInventoryV2Step.jsx` | 236, 258 | SNO and arbiter topology references |
+| `frontend/src/steps/NetworkingV2Step.jsx` | 396 | IPv4-only platform note |
+| `frontend/src/validation.js` | 1517 | Bare Metal UPI docs reference |
+
+### LOGIC — Version Comparison Code
+
+Code logic that branches on version using `isVersionGTE`, `azureMinor ===`, `SUPPORTED_MINORS`, or `compareVersions`. These are version-gated behavior, not copy.
+
+| File | Lines |
+|------|-------|
+| `frontend/src/validation.js` | 1997, 2016, 2099, 2103 |
+
+### FMT — Format Examples
+
+Version numbers used as format examples in user-facing validation messages and input placeholders. These show the expected pattern, not a version claim.
+
+| File | Lines | Content |
+|------|-------|---------|
+| `frontend/src/validation.js` | 2272-2278 | `"must look like 4.20"`, `"e.g. 4.20, 4.21"` |
+| `frontend/src/steps/BlueprintStep.jsx` | 520, 527, 532, 539 | Labels `(e.g. 4.20, 4.21)`, placeholders `4.21` |
+
+### THRESH — PlatformSpecificsStep Feature-Introduction Threshold Notation
+
+Threshold notation marks a feature available from a specific version onward. Guard enumerates exact adjudicated versions: **4.11, 4.12, 4.13, 4.20, 4.21 only** (via `4\.(11|12|13|20|21)\+`). A new threshold like "4.30+" or "4.22+" is NOT auto-exempted — it reaches the violation set. Deprecation matching is pinned to `4.13` only. Scoped to PlatformSpecificsStep only; new files are not auto-excluded.
+
+| File | Lines | Content |
+|------|-------|---------|
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 699, 730, 3341, 3410, 4703 | `(OpenShift 4.20+)` threshold labels |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 920, 1735, 4589 | `(OpenShift 4.21+)` threshold labels |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 4902, 4954 | `OpenShift 4.11+` capability system |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 5155 | `4.13+` ExternalCloudProvider threshold |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 3213, 3220 | `Deprecated in OpenShift 4.13+`, `deprecated since OpenShift 4.13` |
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 4909 | `v4.11 / v4.12 / etc.` baselineCapabilitySet presets |
+
+### ENUMVAL — API Enum Values
+
+API enum values containing version strings (e.g., `baselineCapabilitySet: "v4.20"`). Not user-facing copy. Guard pattern is file-scoped and version-pinned: `PlatformSpecificsStep\.jsx:.*baselineCapabilityOptions.*v4\.(11|12|20)` — only the `baselineCapabilityOptions` variable in PlatformSpecificsStep, and only adjudicated versions v4.11, v4.12, v4.20. A new `v4.30` enum value is NOT auto-exempted.
+
+| File | Lines | Content |
+|------|-------|---------|
+| `frontend/src/steps/PlatformSpecificsStep.jsx` | 484 | `baselineCapabilitySet` enum value |
+
+### VMAP — Version-Keyed Feature Maps
+
+Data structures that map version → feature/operator sets, plus format examples distinguishing operator versions from OpenShift versions. Already version-aware by design. Guard pattern requires object-key syntax (`"4.XX":` with trailing colon) for version-map entries — a quoted 4.x string NOT in key position is not exempted.
+
+| File | Lines | Content |
+|------|-------|---------|
+| `frontend/src/steps/OperatorsStep.jsx` | 85-128 | ODF Quick Pick version-keyed maps — object keys `"4.20": {...}` (exempted by trailing-colon syntax) |
+| `frontend/src/steps/OperatorsStep.jsx` | 1123 | Counter-example: "not OpenShift 4.20" (exempted by `not OpenShift 4.` pattern) |
+| `frontend/src/steps/OperatorsStep.jsx` | 1128, 1176 | Hint examples with minVersion/maxVersion version strings (exempted by keyword) |
+
+### VGATED — Version-Gated Delta Descriptions (PlatformSpecificsStep)
+
+User-facing text that accurately describes version-specific behavior AND is correctly version-gated via `isCatalogFieldVisible()`. Each reference is shown only when the user's selected OpenShift version matches. Guard patterns are pinned to the specific adjudicated versions (4.20, 4.21) — a new "required for OpenShift 4.30" is NOT auto-exempted.
+
+| Lines | Content | Gate | Guard phrase |
+|-------|---------|------|-------------|
+| 1683 | "OpenShift 4.21 supports multiple node subnets" | `canAddNodeSubnet` (4.21+ catalog visibility) | `4\.21 supports multiple node subnet` |
+| 1691 | "required for OpenShift 4.20" | Shown only when NOT `canAddNodeSubnet` (4.20) | `required for OpenShift 4\.20` |
+| 1723 | Subnet count warning for 4.20 / upgrade guidance for 4.21 | `canAddNodeSubnet` gate | `4\.20 supports only one node subnet`, `Remove extras to generate for 4\.20`, `must use OpenShift 4\.21` |
+| 4601 | "Availability: OpenShift 4.21 and later" | `showBmcVerifyCA` (4.21+ catalog visibility) | `OpenShift 4\.21 and later` |
+
+### DOCSRC — PlatformSpecificsStep Doc-Source Citations (RESOLVED)
+
+All 7 DOCSRC findings resolved via production edits in PlatformSpecificsStep.jsx. Catalog evidence confirms all claims are identical across 4.20 and 4.21. No guard exemption needed — these lines no longer match the search pattern.
+
+| Lines | Original | Resolution |
+|-------|----------|------------|
+| 962 | `(4.20 doc: compute.platform.aws.rootVolume...)` | Version-neutral: `(see compute.platform.aws.rootVolume...)` |
+| 1492 | `(per 4.20 doc; ...)` | Version-neutral: `(not used during initial provisioning)` |
+| 3183 | `(recommended for 4.20)` | Version-neutral: `(recommended)` |
+| 4114 | `(4.20 doc 9.1.6: ...)` | Version-neutral: `(see §9.1.6: ...)` |
+| 4678, 4709 | `OpenShift 4.20 documentation (§9.1.5)` | Version-neutral: `OpenShift documentation (§9.1.5)` |
+| 5165 | `See OpenShift 4.20 documentation` | Dynamic: `See OpenShift ` + selectedMinor + ` documentation` (concatenation) |
 
 ---
 
-### LOW PRIORITY: Field Guide (Version-specific by compartment)
+## Excluded from DOC-107 Scope
 
-| File | Pattern | Classification | Phase 1 Action |
-|------|---------|----------------|----------------|
-| `backend/src/fieldGuide/v4.20/*.js` | `"OpenShift 4.20"` references | historical | KEEP - field guide v4.20 SHOULD reference 4.20. When v4.21 added, it will reference 4.21. Compartmentalization is CORRECT. |
+| Category | Rationale |
+|----------|-----------|
+| Field Guide (`backend/src/fieldGuide/v4.20/`, `v4.21/`) | Version-compartmented by directory. FG-DOCREF-MINOR is complete. |
+| Catalog citations (~1,900 `docs.redhat.com` URLs in `data/`) | Version-specific by design; versioned with their catalogs. |
+| Documentation (`docs/*.md`) | Intentionally versioned reference material. |
 
-**Note**: Field guide already uses version subdirectories (`v4.20/`). References to "4.20" in v4.20 compartments are correct.
+### Backend Code Attributable Classifications
 
----
+Backend code (`backend/src/`) is outside the `--check` guard's frontend scope. The following attributable classification covers the ~35 version references found in backend source files. None are user-facing frontend copy; all are version infrastructure, logic, comments, or generated output.
 
-## Detailed Analysis by Category
-
-### 1. Frontend Validation Messages (5 findings) - **ACTION REQUIRED**
-
-All 5 validation error messages hardcode "OpenShift 4.20":
-
-```javascript
-// BEFORE (hardcoded):
-errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
-
-// AFTER (Phase 1 - version-aware):
-const version = state.version?.selectedMinor || "4.20";
-errors.push(`IBM Cloud install-config networking in OpenShift ${version} is documented as IPv4 only.`);
-```
-
-**Phase 1 Implementation**: Update `frontend/src/validation.js` lines 794, 801, 1186, 1189, 1192 to use template literals with version variable.
+| File | Lines | Category | Content |
+|------|-------|----------|---------|
+| `backend/src/generate.js` | 82, 111, 274, 312, 478, 517, 532, 559, 653, 775, 861 | COMMENT | JS code comments referencing version-specific installer behavior |
+| `backend/src/generate.js` | 367, 469, 607, 611, 917, 943 | LOGIC | `isVersionGTE` version comparison guards |
+| `backend/src/generate.js` | 1598 | CDEFLT | Fallback default version |
+| `backend/src/generate.js` | 1890 | OUTPUT | Generated YAML output — version-derived from state |
+| `backend/src/index.js` | 517 | COMMENT | JS code comment |
+| `backend/src/index.js` | 3038, 3225 | LOGIC | Version comparison checks |
+| `backend/src/openShiftMinor.js` | 2, 11, 12, 35, 36, 37 | COMMENT | JSDoc comments documenting version parsing |
+| `backend/src/openshiftInstaller.js` | 137, 157, 292 | FMT | Format examples and comments |
+| `backend/src/versionPolicy.js` | 17, 20, 21 | INFRA | `SUPPORTED_MINORS` and trust bundle maps |
 
 ---
 
-### 2. Frontend UI Text (8-10 findings) - **ACTION REQUIRED**
+## Guard Design
 
-User-visible text in step components mentioning "OpenShift 4.20" or "(4.20)":
+The `--check` mode searches `frontend/src/**/*.{js,jsx}` (excluding tests) for `4\.([0-9]{2,})`, then subtracts each adjudicated exclusion category in sequence using narrow, attributable patterns. Any remaining match is an unclassified violation that fails the guard.
 
-```jsx
-// BEFORE (hardcoded):
-<span>Per-disk rootDeviceHints values (4.20)</span>
+Key design properties:
+- **No whole-file exclusions** for user-facing components (PlatformSpecificsStep, NetworkingV2Step, OperatorsStep)
+- **No directory-wide exclusions**: INFRA enumerates specific `shared/` authority files; new shared/ files are not auto-excluded
+- **Enumerated THRESH**: threshold notation exempts only adjudicated versions (4.11, 4.12, 4.13, 4.20, 4.21) in PlatformSpecificsStep; "4.22+", "4.30+", or any other version reaches the violation set
+- **Pinned VGATED**: version-gated phrases are pinned to specific versions ("required for OpenShift 4.20", "must use OpenShift 4.21"); "required for OpenShift 4.30" is NOT exempted
+- **Object-key VMAP**: OperatorsStep version-map keys require trailing-colon syntax (`"4.XX":`); quoted versions in other positions are NOT exempted
+- **All user-facing violations resolved**: NetworkingV2Step.jsx (10 findings) and NodeDrawerAgentContent.jsx (1 finding) resolved via version-neutral wording — guard passes clean
+- **Future-version guarantee**: `bash scripts/find-hardcoded-versions.sh --self-test` runs 38 deterministic assertions (11 violation, 25 exemption, 2 structural) against synthetic fixtures using the exact `classify_raw` function shared with `--check`. Violations proven: "OpenShift 4.30+", "OpenShift 4.22+", "required for OpenShift 4.30", "Deprecated in OpenShift 4.30+", "must use OpenShift 4.30", "OpenShift 4.30 supports multiple node subnets", "baselineCapability v4.30", "Requires OpenShift 4.30 or later", "OpenShift 4.30 introduces new lifecycle", "OpenShift 4.30 and later", and user-facing copy in a non-adjudicated step file. Exemptions proven: all 9 adjudication categories (INFRA, CDEFLT, COMMENT, LOGIC, FMT, THRESH, ENUMVAL, VMAP, VGATED) with representative fixtures.
+- **Narrow patterns**: each exclusion matches specific text phrases, not file names; new hardcoded version copy in adjudicated files still fails
+- **CI execution**: `.github/workflows/validate-versioned-copy.yml` runs `--self-test` then `--check` in sequence; no dependency installation required
 
-// AFTER (Phase 1 - version-neutral):
-<span>Per-disk rootDeviceHints values</span>
-// OR if version context is needed:
-<span>Per-disk rootDeviceHints values (OpenShift {state.version?.selectedMinor || "4.20"})</span>
-```
-
-**Phase 1 Implementation**: 
-- Lines can be made version-neutral (remove version reference entirely if not needed)
-- OR use version-aware copy helper: `{getCopyForVersion("rootDeviceHints-label", version)}`
-
----
-
-### 3. Tooltips (3 findings) - **REVIEW NEEDED**
-
-Three tooltip instances mentioning specific versions:
-
-1. **Line 676 (PlatformSpecificsStep)**: `"...OpenShift 4.20+)..."` - Change to version-neutral "recent OpenShift versions" or param-derived
-2. **Line 2386 (Nutanix endpoint hint)**: Version compatibility note - Change to version-neutral language
-3. **Line 4288 (vSphere legacy resource pool)**: `"not recommended for OpenShift 4.20+"` - Change to "recent OpenShift versions"
-
-**Phase 1 Implementation**: Rewrite tooltips to be version-neutral or use param `versionNotes` field
-
----
-
-### 4. Docs Links (1,912 findings) - **MOSTLY OK**
-
-**Breakdown:**
-- ~1,900: Catalog `citations` fields with version-specific docs URLs (CORRECT - keep as-is)
-- ~12: Hardcoded docs links in frontend components (ACTION REQUIRED)
-
-**Example ACTION REQUIRED**:
-```javascript
-// BEFORE (AboutModal.jsx line 125):
-href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index"
-
-// AFTER (Phase 1):
-import { getDocsUrlForVersion } from '../shared/docsLinks';
-href={getDocsUrlForVersion("installing", state.version?.selectedMinor || "4.20")}
-```
-
-**Phase 1 Implementation**: Create `shared/docsLinks.js` helper, update ~12 hardcoded docs links
-
----
-
-### 5. Field Guide (126 findings) - **MOSTLY OK**
-
-**Pattern**: `backend/src/fieldGuide/v4.20/` files reference "OpenShift 4.20" or "4.20"
-
-**Classification**: historical/correct - Field guide uses version subdirectories. References to 4.20 in v4.20 compartments are intentional.
-
-**Phase 1 Action**: Minimal - ensure field guide template system uses `{{version}}` placeholders for rendering
-
----
-
-### 6. Operators Quick Picks (Version-aware already!) - **CORRECT PATTERN**
-
-`frontend/src/steps/OperatorsStep.jsx` lines 84-127:
-
-```javascript
-const ODF_BASE_OPERATORS = {
-  "4.20": { redhat: ["ocs-operator", "odf-operator", ...] },
-  "4.21": { redhat: ["ocs-operator", "odf-operator", ...] }
-};
-```
-
-**Classification**: historical/correct - This is ALREADY the target pattern for version-specific logic.
-
-**Phase 1 Action**: NONE - use this as reference implementation for other version-specific features
-
----
-
-## Phase 1 Implementation Plan Summary
-
-### Must Address (HIGH Priority)
-
-1. **5 validation error messages** in `frontend/src/validation.js`
-   - Lines: 794, 801, 1186, 1189, 1192
-   - Pattern: Template literals with `${version}` variable
-
-2. **8-10 UI text strings** in step components
-   - Files: TrustProxyStep.jsx, GlobalStrategyStep.jsx, HostInventoryStep.jsx, BlueprintStep.jsx
-   - Pattern: Version-neutral rewrites OR template literals
-
-3. **3 tooltip instances** with version references
-   - File: PlatformSpecificsStep.jsx
-   - Pattern: Version-neutral language
-
-4. **~12 hardcoded docs links** in frontend components
-   - Files: AboutModal.jsx, various steps
-   - Pattern: `shared/docsLinks.js` helper with `getDocsUrlForVersion()`
-
-### Keep As-Is (Correct Patterns)
-
-1. **Catalog citations** (1,900+ findings) - Version-specific by design
-2. **Field guide v4.20 references** - Correct (compartmentalized by version)
-3. **OperatorsStep version maps** - Correct pattern (reference implementation)
-
-### Estimated Phase 1 Effort
-
-- Validation messages: 30 min
-- UI text strings: 1-2 hours
-- Tooltips: 1 hour
-- Docs links helper + updates: 2 hours
-- Testing: 2 hours
-- **Total**: ~6-8 hours
-
----
-
-## CI Enforcement Strategy (Phase 1)
-
-Create `.github/workflows/validate-versioned-copy.yml`:
-
-```yaml
-- name: Block hardcoded 4.20 in user-facing code
-  run: |
-    FORBIDDEN=$(grep -rn --include="*.jsx" --include="*.js" \
-      -E '".*OpenShift 4\.20.*"|".*4\.20.*"' \
-      frontend/src/steps/ frontend/src/validation.js \
-      --exclude-dir=tests \
-      | grep -v "ILLUSTRATIVE\|test\|OperatorsStep.jsx" || true)
-    
-    if [ -n "$FORBIDDEN" ]; then
-      echo "ERROR: Hardcoded 4.20 found:"
-      echo "$FORBIDDEN"
-      exit 1
-    fi
-```
-
-**Exceptions allowed:**
-- `OperatorsStep.jsx` (version maps are correct pattern)
-- Test files
-- Comments marked ILLUSTRATIVE
-
----
-
-## Recommendations for Phase 1
-
-1. **Start with validation messages** (5 quick wins, high user impact)
-2. **Create `shared/versionedCopy.js`** and `shared/docsLinks.js` utilities early
-3. **Use OperatorsStep.jsx version maps as reference** for other version-specific logic
-4. **Write tests first** for version-aware copy behavior
-5. **Enable CI enforcement** after cleanup to prevent regressions
-
----
-
-## Files for Phase 1 Update
-
-### Must Edit
-1. `frontend/src/validation.js` (5 error messages)
-2. `frontend/src/steps/TrustProxyStep.jsx` (1 UI text)
-3. `frontend/src/steps/GlobalStrategyStep.jsx` (1 UI text)
-4. `frontend/src/steps/HostInventoryStep.jsx` (2 UI texts)
-5. `frontend/src/steps/PlatformSpecificsStep.jsx` (3 tooltips, ~8 docs links)
-6. `frontend/src/steps/BlueprintStep.jsx` (comments only - low priority)
-7. `frontend/src/components/AboutModal.jsx` (1 docs link)
-
-### Must Create
-1. `shared/versionedCopy.js` - Centralized copy map
-2. `shared/docsLinks.js` - Version-aware docs URL builder
-3. `.github/workflows/validate-versioned-copy.yml` - CI enforcement
-
----
-
-## Status
-
-- ✅ Phase 0 Inventory Complete
-- ⏳ Phase 1 Implementation Pending
-- ⏳ CI Enforcement Pending
-- ⏳ Test Coverage Pending
-
-**Next Step**: Begin Phase 1 implementation starting with validation messages (quick wins)
-
----
-
-**Generated:** 2026-05-29  
-**Tool:** `scripts/find-hardcoded-versions.sh`  
-**Raw Results:** `versioned-copy-audit-results/` (8 files, 3,239 findings)
+The audit mode (no args) writes a full-breadth scan to `$OAA_SUPERVISOR_SCRATCH` or `$TMPDIR` for investigation.

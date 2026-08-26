@@ -367,7 +367,7 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
       </AppContext.Provider>
     );
     const view = within(container);
-    expect(view.getByText(/IBM Cloud disconnected install in OpenShift 4.20 documents IPv4-only networking/i)).toBeInTheDocument();
+    expect(view.getByText(/IBM Cloud disconnected install documents IPv4-only networking/i)).toBeInTheDocument();
     expect(view.queryByLabelText(/Enable IPv6/i)).not.toBeInTheDocument();
     expect(view.queryByPlaceholderText("fd01::/48")).not.toBeInTheDocument();
     expect(view.queryByPlaceholderText("fd02::/112")).not.toBeInTheDocument();
