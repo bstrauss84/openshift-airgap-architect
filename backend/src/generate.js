@@ -18,17 +18,7 @@ import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 
 const MIRROR_OPERATOR_ADDITIONAL_IMAGES = [
-  "quay.io/mathianasj/mirror-operator-catalog:v0.0.1",
-  "quay.io/mathianasj/mirror-operator-bundle:v0.0.1",
-  "quay.io/mathianasj/mirror-operator:latest",
-  "quay.io/mathianasj/openshift-airgap-architect-frontend:latest",
-  "quay.io/mathianasj/openshift-airgap-architect-backend:latest",
-  "quay.io/mathianasj/openshift-airgap-architect-console-plugin:latest",
-  "quay.io/mathianasj/oc-mirror:v2",
-  "quay.io/skopeo/stable:latest",
   "amazon/aws-cli:latest",
-  "registry.access.redhat.com/ubi9/ubi:latest",
-  "registry.access.redhat.com/ubi9/ubi-minimal:latest",
 ];
 
 const MIRROR_OPERATOR_DEPENDENT_OPERATORS = [
@@ -1981,30 +1971,6 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   return lines.join("\n");
 };
 
-const buildMirrorOperatorCatalogSource = (registryFqdn) => {
-  const fqdn = registryFqdn || "registry.local:5000";
-  const manifest = {
-    apiVersion: "operators.coreos.com/v1alpha1",
-    kind: "CatalogSource",
-    metadata: {
-      name: "mirror-operator-catalog",
-      namespace: "openshift-marketplace",
-    },
-    spec: {
-      displayName: "Mirror Operator",
-      image: `${fqdn}/mathianasj/mirror-operator-catalog:v0.0.1`,
-      publisher: "mathianasj",
-      sourceType: "grpc",
-      updateStrategy: {
-        registryPoll: {
-          interval: "10m",
-        },
-      },
-    },
-  };
-  return yaml.dump(manifest, { lineWidth: 120 });
-};
-
 const MIRROR_OPERATOR_NAMESPACE = "mirror-operator-system";
 
 const buildMirrorOperatorNamespace = () => {
@@ -2045,7 +2011,7 @@ const buildMirrorOperatorSubscription = () => {
       channel: "alpha",
       installPlanApproval: "Automatic",
       name: "mirror-operator",
-      source: "mirror-operator-catalog",
+      source: "community-operators",
       sourceNamespace: "openshift-marketplace",
     },
   };
@@ -2104,8 +2070,6 @@ const buildDisconnectedPlatform = (openshiftVersion) => {
       },
       architect: {
         enabled: true,
-        frontendImage: "quay.io/mathianasj/openshift-airgap-architect-frontend:latest",
-        backendImage: "quay.io/mathianasj/openshift-airgap-architect-backend:latest",
         replicas: 1,
         route: {
           tls: {
@@ -2124,7 +2088,6 @@ export {
   buildImageSetConfig,
   buildFieldManual,
   buildNtpMachineConfigs,
-  buildMirrorOperatorCatalogSource,
   buildMirrorOperatorNamespace,
   buildMirrorOperatorOperatorGroup,
   buildMirrorOperatorSubscription,

@@ -32,6 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ZipArchive } from "archiver";
 import { spawn } from "node:child_process";
+import jsYaml from "js-yaml";
 import { nanoid } from "nanoid";
 import logger, { generateErrorId } from "./logger.js";
 import { loggingMiddleware } from "./middleware/logging.js";
@@ -68,7 +69,6 @@ import {
   buildImageSetConfig,
   buildInstallConfig,
   buildNtpMachineConfigs,
-  buildMirrorOperatorCatalogSource,
   buildMirrorOperatorNamespace,
   buildMirrorOperatorOperatorGroup,
   buildMirrorOperatorSubscription,
@@ -3878,10 +3878,6 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
       fs.writeFileSync(path.join(openshiftDir, "02-mirror-operator-operatorgroup.yaml"), operatorGroupYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/02-mirror-operator-operatorgroup.yaml (${Buffer.byteLength(operatorGroupYaml)} bytes)\n`);
 
-      const catalogSourceYaml = buildMirrorOperatorCatalogSource(registryFqdn);
-      fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-catalogsource.yaml"), catalogSourceYaml, "utf8");
-      appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-catalogsource.yaml (${Buffer.byteLength(catalogSourceYaml)} bytes)\n`);
-
       const subscriptionYaml = buildMirrorOperatorSubscription();
       fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-subscription.yaml"), subscriptionYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
@@ -3891,7 +3887,7 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
       fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-disconnected-platform.yaml"), disconnectedPlatformYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
 
-      logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator bootstrap manifests (OperatorHub, Namespace, OperatorGroup, CatalogSource, Subscription, DisconnectedPlatform)");
+      logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator bootstrap manifests (OperatorHub, Namespace, OperatorGroup, Subscription, DisconnectedPlatform)");
 
       // Inject IDMS/ITMS files from mirror registry config so the cluster knows
       // where to pull images from the local mirror registry at bootstrap
@@ -3911,7 +3907,15 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
             fs.writeFileSync(itmsDest, itmsContent, "utf8");
             appendJobOutput(jobId, `✓ Wrote openshift/99-itms-oc-mirror.yaml (${Buffer.byteLength(itmsContent)} bytes)\n`);
           }
-          // Inject additional CatalogSource files from mirror registry config
+          // Inject additional CatalogSource files from mirror registry config,
+          // renaming oc-mirror generated names to connected-cluster defaults
+          // so GitOps Subscriptions work unchanged across connected and disconnected clusters
+          const CATALOG_NAME_MAP = {
+            "redhat-operator-index": "redhat-operators",
+            "certified-operator-index": "certified-operators",
+            "community-operator-index": "community-operators",
+            "redhat-marketplace-index": "redhat-marketplace",
+          };
           const catalogSourceFiles = [].concat(mirrorCfg.catalogSourcePaths || []).filter(Boolean);
           for (const csFile of catalogSourceFiles) {
             try {
@@ -3919,7 +3923,21 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
                 appendJobOutput(jobId, `⚠ CatalogSource file not found: ${csFile}\n`);
                 continue;
               }
-              const csContent = fs.readFileSync(csFile, "utf8");
+              let csContent = fs.readFileSync(csFile, "utf8");
+              try {
+                const doc = jsYaml.load(csContent);
+                if (doc && doc.kind === "CatalogSource" && doc.metadata?.name) {
+                  const originalName = doc.metadata.name;
+                  const matchedKey = Object.keys(CATALOG_NAME_MAP).find((k) => originalName.includes(k));
+                  if (matchedKey) {
+                    doc.metadata.name = CATALOG_NAME_MAP[matchedKey];
+                    csContent = jsYaml.dump(doc, { lineWidth: 120 });
+                    appendJobOutput(jobId, `  Renamed CatalogSource ${originalName} → ${doc.metadata.name}\n`);
+                  }
+                }
+              } catch (parseErr) {
+                logger.warn({ tag: "agent-iso:catalogsource", jobId, file: csFile, err: parseErr.message }, "Could not parse CatalogSource YAML for renaming, injecting as-is");
+              }
               const csBasename = path.basename(csFile);
               const prefixedName = csBasename.startsWith("99-") ? csBasename : `99-${csBasename}`;
               const csDest = path.join(openshiftDir, prefixedName);
