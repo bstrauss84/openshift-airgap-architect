@@ -1,0 +1,50 @@
+[
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "airgap-architect",
+      "name": "Airgap Architect",
+      "href": "/airgap-architect",
+      "perspective": "admin",
+      "section": "administration"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/airgap-architect",
+      "component": { "$codeRef": "AirgapArchitectPage.default" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/airgap-architect/imagesets/create",
+      "component": { "$codeRef": "CreateImageSetPage.default" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "path": "/airgap-architect/collections/:name",
+      "component": { "$codeRef": "CollectionPipelineDetailPage.default" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/airgap-architect/imports/create",
+      "component": { "$codeRef": "CreateImportPage.default" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "path": "/airgap-architect/imports/:name",
+      "component": { "$codeRef": "MirrorImportDetailPage.default" }
+    }
+  }
+]

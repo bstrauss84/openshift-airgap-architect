@@ -29,6 +29,7 @@ const FALLBACK_WIZARD_ROWS = [
   { id: "inventory", label: "Host Inventory", subSteps: [] },
   { id: "operators", label: "Operators", subSteps: [] },
   { id: "review", label: "Assets & Guide", subSteps: [] },
+  { id: "generate-agent-iso", label: "Generate Agent ISO", subSteps: [] },
   { id: "run-oc-mirror", label: "Run oc-mirror", subSteps: [] },
   { id: "operations", label: "Operations", subSteps: [] }
 ];
@@ -72,6 +73,7 @@ export function computeVisibleWizardRows(state, stepMap) {
     const methodologyStep = base.find((s) => s.id === "methodology");
     const operatorsStep = base.find((s) => s.id === "operators");
     const reviewStep = base.find((s) => s.id === "review");
+    const generateAgentIsoStep = base.find((s) => s.id === "generate-agent-iso");
     const runOcMirrorStep = base.find((s) => s.id === "run-oc-mirror");
     const operationsStep = base.find((s) => s.id === "operations");
     const showHostsStep = scenarioId && SCENARIO_IDS_WITH_HOST_INVENTORY.includes(scenarioId);
@@ -94,14 +96,27 @@ export function computeVisibleWizardRows(state, stepMap) {
       label: def.label,
       subSteps: []
     }));
+
+    // Hide "Operators" and "Run oc-mirror" steps when mirror config is pre-loaded
+    // (operators defined in imageset-config.yaml, mirroring already completed)
+    const mirrorConfigPreloaded = state?.ui?.mirrorConfigPreloaded === true;
+    const showOperators = !mirrorConfigPreloaded;
+    const showRunOcMirror = !mirrorConfigPreloaded;
+
+    // Show "Generate Agent ISO" step for agent-based installer on bare-metal or vSphere
+    const isAgentBased = state?.methodology?.method === "Agent-Based Installer";
+    const platform = state?.blueprint?.platform;
+    const showGenerateAgentIso = isAgentBased && (platform === "Bare Metal" || platform === "VMware vSphere");
+
     const steps = [
       blueprintStep || FALLBACK_WIZARD_ROWS[0],
       methodologyStep || FALLBACK_WIZARD_ROWS[1],
       ...replacementRows,
-      operatorsStep || FALLBACK_WIZARD_ROWS[4],
+      ...(showOperators ? [operatorsStep || FALLBACK_WIZARD_ROWS[4]] : []),
       reviewStep || FALLBACK_WIZARD_ROWS[5],
-      runOcMirrorStep || FALLBACK_WIZARD_ROWS[6],
-      operationsStep || FALLBACK_WIZARD_ROWS[7]
+      ...(showGenerateAgentIso ? [generateAgentIsoStep || FALLBACK_WIZARD_ROWS[6]] : []),
+      ...(showRunOcMirror ? [runOcMirrorStep || FALLBACK_WIZARD_ROWS[7]] : []),
+      operationsStep || FALLBACK_WIZARD_ROWS[8]
     ];
     return steps.map((s, i) => ({
       id: s.id,
@@ -120,6 +135,15 @@ export function computeVisibleWizardRows(state, stepMap) {
         ? [...visible.slice(0, invIdx + 1), v2Step, ...visible.slice(invIdx + 1)]
         : [...visible, v2Step];
   }
+
+  // Filter out "Generate Agent ISO" step if not agent-based installer on supported platform
+  const isAgentBased = state?.methodology?.method === "Agent-Based Installer";
+  const platform = state?.blueprint?.platform;
+  const showGenerateAgentIso = isAgentBased && (platform === "Bare Metal" || platform === "VMware vSphere");
+  if (!showGenerateAgentIso) {
+    visible = visible.filter((s) => s.id !== "generate-agent-iso");
+  }
+
   return visible.map((s, i) => ({
     id: s.id,
     label: s.label,

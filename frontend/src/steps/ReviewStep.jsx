@@ -374,6 +374,14 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     }
   }, [state.globalStrategy?.fips]);
 
+  // Auto-enable pull secret inclusion when mirror config is pre-loaded
+  useEffect(() => {
+    const mirrorConfigPreloaded = state.ui?.mirrorConfigPreloaded === true;
+    if (mirrorConfigPreloaded && !inclusion.pullSecret) {
+      updateExportOptions({ ...exportOptions, inclusion: { ...inclusion, pullSecret: true } });
+    }
+  }, [state.ui?.mirrorConfigPreloaded]);
+
   const installConfigContent = files["install-config.yaml"];
   const installConfigDisplay = (() => {
     if (!installConfigContent) return installConfigContent;

@@ -17,6 +17,21 @@ import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 
+const MIRROR_OPERATOR_ADDITIONAL_IMAGES = [
+  "amazon/aws-cli:latest",
+];
+
+const MIRROR_OPERATOR_DEPENDENT_OPERATORS = [
+  { name: "openshift-pipelines-operator-rh", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "quay-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhbk-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhtas-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "rhtpa-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "advanced-cluster-management", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "multicluster-engine", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+  { name: "cincinnati-operator", catalog: "registry.redhat.io/redhat/redhat-operator-index" },
+];
+
 const normalizePullSecretString = (input) => {
   if (!input) return "{\"auths\":{}}";
   const raw = typeof input === "string" ? input : JSON.stringify(input);
@@ -117,10 +132,20 @@ const effectiveHostname = (node, baseDomain) => {
 // Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
   const mirror = state.globalStrategy?.mirroring || {};
-  const imageDigestSources = mirror.sources?.map((s) => ({
-    source: s.source,
-    mirrors: s.mirrors
-  }));
+  const RELEASE_SOURCE_PREFIX = "quay.io/openshift-release-dev/";
+  const seen = new Set();
+  const imageDigestSources = mirror.sources
+    ?.filter((s) => s.source?.startsWith(RELEASE_SOURCE_PREFIX))
+    .filter((s) => {
+      const key = `${s.source}|${(s.mirrors || []).join(",")}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((s) => ({
+      source: s.source,
+      mirrors: s.mirrors
+    }));
 
   const nodes = (state.hostInventory?.nodes || []).slice();
   const sortedNodes = sortNodes(nodes);
@@ -1494,8 +1519,17 @@ const buildImageSetConfig = (state) => {
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
   const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
+  if (state.mirrorOperatorPipeline) {
+    for (const img of MIRROR_OPERATOR_ADDITIONAL_IMAGES) {
+      if (!additionalImages.includes(img)) additionalImages.push(img);
+    }
+  }
   const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
   const kubeVirtContainer = Boolean(cfg.kubeVirtContainer);
+
+  const platformChannels = Array.isArray(state.platformChannels) && state.platformChannels.length > 0
+    ? state.platformChannels
+    : [{ name: `stable-${catalogMinor}`, minVersion: version, maxVersion: version }];
 
   const images = {
     apiVersion: "mirror.openshift.io/v2alpha1",
@@ -1503,13 +1537,7 @@ const buildImageSetConfig = (state) => {
     ...(archiveSize ? { archiveSize } : {}),
     mirror: {
       platform: {
-        channels: [
-          {
-            name: `stable-${catalogMinor}`,
-            minVersion: version,
-            maxVersion: version
-          }
-        ],
+        channels: platformChannels,
         ...(includeGraph ? { graph: true } : {})
       },
       operators: [],
@@ -1522,17 +1550,36 @@ const buildImageSetConfig = (state) => {
     if (!byCatalog.has(op.catalogImage)) {
       byCatalog.set(op.catalogImage, []);
     }
-    const channel = { name: op.defaultChannel };
-    // Add version constraints if specified
-    if (op.minVersion || op.maxVersion) {
-      channel.includeConfig = {};
-      if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
-      if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
+    const entry = { name: op.name };
+    if (op.defaultChannel) {
+      const channel = { name: op.defaultChannel };
+      if (op.minVersion || op.maxVersion) {
+        channel.includeConfig = {};
+        if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
+        if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
+      }
+      entry.defaultChannel = op.defaultChannel;
+      entry.channels = [channel];
     }
-    byCatalog.get(op.catalogImage).push({
-      name: op.name,
-      channels: [channel]
-    });
+    byCatalog.get(op.catalogImage).push(entry);
+  }
+  if (state.mirrorOperatorPipeline) {
+    for (const dep of MIRROR_OPERATOR_DEPENDENT_OPERATORS) {
+      const catalogImage = `${dep.catalog}:v${catalogMinor}`;
+      if (!byCatalog.has(catalogImage)) {
+        byCatalog.set(catalogImage, []);
+      }
+      const existing = byCatalog.get(catalogImage);
+      if (!existing.some((p) => p.name === dep.name)) {
+        const entry = { name: dep.name };
+        const resolvedChannel = dep.channel || (state._operatorChannelMap && state._operatorChannelMap.get(dep.name));
+        if (resolvedChannel) {
+          entry.defaultChannel = resolvedChannel;
+          entry.channels = [{ name: resolvedChannel }];
+        }
+        existing.push(entry);
+      }
+    }
   }
   for (const [catalog, packages] of byCatalog.entries()) {
     images.mirror.operators.push({ catalog, packages });
@@ -1540,7 +1587,105 @@ const buildImageSetConfig = (state) => {
   return yaml.dump(images, { lineWidth: 120 });
 };
 
-const buildFieldManual = (state, docsLinks) => buildFieldGuide(state, docsLinks);
+const buildFieldManual = (state, docsLinks) => {
+  const connectivity = state.docs?.connectivity;
+
+  // Connected mode: simplified guide for imageset-config only
+  if (connectivity === "connected") {
+    const operators = state.operators?.selected || [];
+    const version = state.release?.patchVersion || "unknown";
+    const channel = getOpenShiftMinorFromState(state) || "4.20";
+    const additionalImages = (state.imagesetConfig?.additionalImages || "").split("\n").filter(Boolean);
+
+    return `# OpenShift ImageSet Configuration Guide
+
+## Overview
+This imageset-config.yaml file contains your selected operators and images for mirroring to a disconnected environment.
+
+## Configuration Summary
+- **OpenShift Version:** ${version}
+- **Channel:** stable-${channel}
+- **Selected Operators:** ${operators.length}
+- **Update Graph:** ${state.imagesetConfig?.graph !== false ? "Included" : "Excluded"}
+${additionalImages.length > 0 ? `- **Additional Images:** ${additionalImages.length}` : ""}
+${state.imagesetConfig?.archiveSize ? `- **Archive Size Limit:** ${state.imagesetConfig.archiveSize} GiB` : ""}
+
+## Selected Operators
+
+${operators.length === 0 ? "No operators selected." : operators.map((op, i) =>
+  `${i + 1}. **${op.displayName || op.name}** (${op.catalog})
+   - Package: ${op.name}
+   - Channel: ${op.defaultChannel}
+   - Catalog: ${op.catalogImage}`
+).join("\n\n")}
+
+${additionalImages.length > 0 ? `
+## Additional Images
+
+${additionalImages.map((img, i) => `${i + 1}. \`${img}\``).join("\n")}
+` : ""}
+
+## Next Steps
+
+### 1. Transfer to Disconnected Environment
+Transfer the imageset-config.yaml file to your disconnected environment along with the oc-mirror binary.
+
+### 2. Run Mirror to Disk
+Create an archive on the high side (connected environment):
+
+\`\`\`bash
+oc-mirror --config imageset-config.yaml file://archives
+\`\`\`
+
+This creates a directory called \`archives/\` containing all operator images and metadata.
+
+### 3. Transfer Archives
+Move the \`archives/\` directory to your airgapped cluster using approved transfer methods:
+- Physical media (USB drives, external hard drives)
+- Secure file transfer within controlled networks
+- Other approved methods per your security policy
+
+### 4. Run Disk to Mirror
+On the disconnected side, push images to your mirror registry:
+
+\`\`\`bash
+oc-mirror --from file://archives docker://registry.local:5000
+\`\`\`
+
+Replace \`registry.local:5000\` with your actual mirror registry URL.
+
+### 5. Configure ImageContentSourcePolicy
+After mirroring, oc-mirror will generate an ImageContentSourcePolicy (ICSP) YAML file.
+Apply it to your OpenShift cluster:
+
+\`\`\`bash
+oc apply -f oc-mirror-workspace/results-*/imageContentSourcePolicy.yaml
+\`\`\`
+
+### 6. Install Operators
+Once mirrored, operators can be installed via the OpenShift web console or CLI:
+
+\`\`\`bash
+oc create -f my-operator-subscription.yaml
+\`\`\`
+
+## Documentation Links
+${docsLinks && docsLinks.length > 0 ? docsLinks.map(link => `- [${link.label}](${link.url})`).join("\n") : "No documentation links available."}
+
+## Support
+For issues or questions about this configuration:
+- Review the OpenShift documentation for oc-mirror v2
+- Check operator-specific documentation for installation requirements
+- Contact your Red Hat support representative
+
+---
+Generated by OpenShift Airgap Architect
+`;
+  }
+
+  // Disconnected mode: use full field guide
+  return buildFieldGuide(state, docsLinks);
+};
 
 const _buildFieldManualLegacy = (state, docsLinks) => {
   const lines = [];
@@ -1826,4 +1971,128 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   return lines.join("\n");
 };
 
-export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs };
+const MIRROR_OPERATOR_NAMESPACE = "mirror-operator-system";
+
+const buildMirrorOperatorNamespace = () => {
+  const manifest = {
+    apiVersion: "v1",
+    kind: "Namespace",
+    metadata: {
+      name: MIRROR_OPERATOR_NAMESPACE,
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildMirrorOperatorOperatorGroup = () => {
+  const manifest = {
+    apiVersion: "operators.coreos.com/v1",
+    kind: "OperatorGroup",
+    metadata: {
+      name: "mirror-operator-group",
+      namespace: MIRROR_OPERATOR_NAMESPACE,
+    },
+    spec: {
+      targetNamespaces: [MIRROR_OPERATOR_NAMESPACE],
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildMirrorOperatorSubscription = () => {
+  const manifest = {
+    apiVersion: "operators.coreos.com/v1alpha1",
+    kind: "Subscription",
+    metadata: {
+      name: "mirror-operator",
+      namespace: MIRROR_OPERATOR_NAMESPACE,
+    },
+    spec: {
+      channel: "alpha",
+      installPlanApproval: "Automatic",
+      name: "mirror-operator",
+      source: "community-operators",
+      sourceNamespace: "openshift-marketplace",
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildOperatorHubDisableDefaults = () => {
+  const manifest = {
+    apiVersion: "config.openshift.io/v1",
+    kind: "OperatorHub",
+    metadata: {
+      name: "cluster",
+    },
+    spec: {
+      disableAllDefaultSources: true,
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+const buildDisconnectedPlatform = (openshiftVersion) => {
+  const manifest = {
+    apiVersion: "mirror.mirror.mathianasj.github.com/v1",
+    kind: "DisconnectedPlatform",
+    metadata: {
+      name: "disconnected-platform-airgapped",
+    },
+    spec: {
+      mode: "airgapped",
+      airgapped: {
+        managementCluster: true,
+        bootstrapEnabled: true,
+        importPath: "/mnt/physical-media",
+        importScanSchedule: "*/30 * * * *",
+        quay: {
+          enabled: true,
+          organizationName: "mirror",
+          storage: {
+            size: "500Gi",
+          },
+        },
+        rhtas: {
+          trustedRootKeys: {
+            name: "rhtas-trusted-root",
+          },
+        },
+        acm: {
+          enabled: true,
+          hostInventory: {
+            enabled: true,
+            ...(openshiftVersion ? {
+              versions: [{ openshiftVersion }],
+            } : {}),
+          },
+        },
+      },
+      architect: {
+        enabled: true,
+        replicas: 1,
+        route: {
+          tls: {
+            termination: "edge",
+          },
+        },
+      },
+    },
+  };
+  return yaml.dump(manifest, { lineWidth: 120 });
+};
+
+export {
+  buildInstallConfig,
+  buildAgentConfig,
+  buildImageSetConfig,
+  buildFieldManual,
+  buildNtpMachineConfigs,
+  buildMirrorOperatorNamespace,
+  buildMirrorOperatorOperatorGroup,
+  buildMirrorOperatorSubscription,
+  buildOperatorHubDisableDefaults,
+  buildDisconnectedPlatform,
+  MIRROR_OPERATOR_ADDITIONAL_IMAGES,
+  MIRROR_OPERATOR_DEPENDENT_OPERATORS,
+};

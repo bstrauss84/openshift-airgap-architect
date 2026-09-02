@@ -36,6 +36,7 @@ import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import { applyPlaceholderValuesToHostInventory } from "../placeholderValuesHelpers.js";
 import { NodeDrawerAgentContent } from "../components/NodeDrawerAgentContent.jsx";
 import { NodeDrawerIpiContent } from "../components/NodeDrawerIpiContent.jsx";
+import Modal from "../components/Modal.jsx";
 
 const PRIMARY_TYPES = [
   { id: "ethernet", label: "Single NIC ethernet" },
@@ -160,6 +161,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const [replicateTargetIndices, setReplicateTargetIndices] = useState(() => new Set());
   const [panelWidthPx, setPanelWidthPx] = useState(() => Math.min(420, typeof window !== "undefined" ? Math.max(280, window.innerWidth * 0.33) : 380));
   const [isResizing, setIsResizing] = useState(false);
+  const [popoutOpen, setPopoutOpen] = useState(false);
   const [copiedGatherCommand, setCopiedGatherCommand] = useState("");
   const containerRef = useRef(null);
 
@@ -763,7 +765,10 @@ wipefs -a /dev/sdX`}</pre>
                 <div className="host-inventory-v2-drawer-header">
                   <div className="card-header">
                     <h3>Edit: {effectiveHostname(selectedNode) || `Node ${selectedIndex + 1}`}</h3>
-                    <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
+                    <div className="modal-popout-header-buttons">
+                      <button type="button" className="ghost" onClick={() => setPopoutOpen(true)} aria-label="Pop out to overlay" title="Expand to overlay">&#x2922;</button>
+                      <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
+                    </div>
                   </div>
                   <div className="host-inventory-v2-drawer-nav">
                     <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1} aria-label={`Previous node (${selectedIndex + 1} of ${nodes.length})`}>← Previous</button>
@@ -868,6 +873,88 @@ wipefs -a /dev/sdX`}</pre>
           </>
         )}
       </div>
+
+      {popoutOpen && selectedNode && (
+        <Modal isOpen onClose={() => setPopoutOpen(false)} className="modal modal-popout" ariaLabelledBy="popout-title">
+          <div className="modal-popout-header">
+            <div className="card-header">
+              <h3 id="popout-title">Edit: {effectiveHostname(selectedNode) || `Node ${selectedIndex + 1}`}</h3>
+              <div className="modal-popout-header-buttons">
+                <button type="button" className="ghost" onClick={() => setPopoutOpen(false)} aria-label="Dock back to panel" title="Dock back to panel">&#x2921;</button>
+                <button type="button" className="ghost" onClick={() => { setPopoutOpen(false); setSelectedIndex(null); }} aria-label="Close">×</button>
+              </div>
+            </div>
+            <div className="host-inventory-v2-drawer-nav">
+              <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1} aria-label={`Previous node (${selectedIndex + 1} of ${nodes.length})`}>← Previous</button>
+              <span className="subtle" aria-live="polite" aria-atomic="true">{selectedIndex + 1} / {nodes.length}</span>
+              <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1} aria-label={`Next node (${selectedIndex + 1} of ${nodes.length})`}>Next →</button>
+            </div>
+          </div>
+          <div className="modal-popout-body">
+            <div className="host-inventory-v2-editor">
+              {showBasicDrawer && (
+                <>
+                  {showIpiDrawer ? (
+                    <NodeDrawerIpiContent
+                      node={selectedNode}
+                      updateNode={updateNode}
+                      selectedIndex={selectedIndex}
+                      mergedNodeValidation={mergedNodeValidation}
+                      roleOptions={roleOptions}
+                      roleMeta={roleMeta}
+                      formatMACAsYouType={formatMACAsYouType}
+                      normalizeMAC={normalizeMAC}
+                      isDefaultHostname={isDefaultHostname}
+                      getDefaultHostnameForRole={getDefaultHostnameForRole}
+                      nodes={nodes}
+                    />
+                  ) : (
+                    <NodeDrawerAgentContent
+                      node={selectedNode}
+                      scenarioId={scenarioId}
+                      isAgentInventoryScenario={isAgentInventoryScenario}
+                      updateNode={updateNode}
+                      selectedIndex={selectedIndex}
+                      mergedNodeValidation={mergedNodeValidation}
+                      enableIpv6={enableIpv6}
+                      showAgentDay2InstallConfigBmc={showAgentDay2InstallConfigBmc}
+                      showAdvancedDrawer={showAdvancedDrawer}
+                      advancedOpen={advancedOpen}
+                      setAdvancedOpen={setAdvancedOpen}
+                      additionalAdvancedOpen={additionalAdvancedOpen}
+                      setAdditionalAdvancedOpen={setAdditionalAdvancedOpen}
+                      roleOptions={roleOptions}
+                      roleMeta={roleMeta}
+                      badgeBasicDrawer={badgeBasicDrawer}
+                      badgeAdvancedDrawer={badgeAdvancedDrawer}
+                      updatePrimary={updatePrimary}
+                      updatePrimaryEthernet={updatePrimaryEthernet}
+                      updatePrimaryBond={updatePrimaryBond}
+                      updatePrimaryVlan={updatePrimaryVlan}
+                      updatePrimaryAdvanced={updatePrimaryAdvanced}
+                      updatePrimaryRoute={updatePrimaryRoute}
+                      addPrimaryRoute={addPrimaryRoute}
+                      removePrimaryRoute={removePrimaryRoute}
+                      addBondMember={addBondMember}
+                      removeBondMember={removeBondMember}
+                      updateAdditionalInterface={updateAdditionalInterface}
+                      addAdditionalInterface={addAdditionalInterface}
+                      removeAdditionalInterface={removeAdditionalInterface}
+                      primaryBaseIface={primaryBaseIface}
+                      suggestedVlanName={suggestedVlanName}
+                      formatMACAsYouType={formatMACAsYouType}
+                      normalizeMAC={normalizeMAC}
+                      isDefaultHostname={isDefaultHostname}
+                      getDefaultHostnameForRole={getDefaultHostnameForRole}
+                      nodes={nodes}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showReplicate && sectionOrderSet.has(SECTION_IDS.REPLICATE_MODAL) && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setShowReplicate(false)}>

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: airgap-architect-plugin
+  namespace: openshift-airgap-architect
+  labels:
+    app: airgap-architect-plugin
+spec:
+  ports:
+  - name: http
+    port: 9001
+    protocol: TCP
+    targetPort: 9001
+  selector:
+    app: airgap-architect-plugin
+  type: ClusterIP

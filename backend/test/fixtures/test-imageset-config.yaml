@@ -1,0 +1,17 @@
+kind: ImageSetConfiguration
+apiVersion: mirror.openshift.io/v1alpha2
+storageConfig:
+  registry:
+    imageURL: registry.example.com:8443/metadata
+mirror:
+  platform:
+    channels:
+      - name: stable-4.14
+        type: ocp
+        minVersion: 4.14.10
+        maxVersion: 4.14.15
+  operators:
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.14
+      packages:
+        - name: advanced-cluster-management
+        - name: cluster-logging

@@ -32,6 +32,7 @@ The `errorId` correlates the error response with server-side log entries for deb
 - [Operators](#operators)
 - [Jobs](#jobs)
 - [oc-mirror](#oc-mirror)
+- [Collection Pipelines](#collection-pipelines)
 - [SSH](#ssh)
 - [AWS](#aws)
 - [Trust and Proxy](#trust-and-proxy)
@@ -260,6 +261,133 @@ Runs preflight checks before oc-mirror execution.
 Launches an oc-mirror job.
 
 **Schema:** `ocMirrorRunSchema` (same fields as preflight, plus `configContent?: string`)
+
+---
+
+## Collection Pipelines
+
+**Note:** Collection Pipeline endpoints are only available when running in operator-managed mode (inside an OpenShift cluster with the mirror-operator).
+
+### POST /api/collection-pipeline/create
+Creates a new CollectionPipeline custom resource for the mirror-operator.
+
+**Body:**
+```json
+{
+  "name": "string (required)",              // Name of the CollectionPipeline CR
+  "imageSetConfig": "string (required)",    // ImageSetConfiguration YAML content
+  "pvc": "string (required)",               // PVC name for storage output
+  "triggerType": "manual" | "event" | "scheduled" (default: "manual")
+}
+```
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "pipeline": {
+    "name": "collection-12345",
+    "namespace": "mirror-operator-system",
+    "uid": "abc-123-...",
+    "creationTimestamp": "2024-06-24T10:00:00Z"
+  }
+}
+```
+
+**Error Responses:**
+- `403` - Not running in operator-managed mode
+- `400` - Missing required fields
+- `409` - CollectionPipeline with that name already exists
+- `500` - Failed to create CR (e.g., Kubernetes API error)
+
+### GET /api/collection-pipeline/list
+Lists all CollectionPipeline custom resources in the current namespace.
+
+**Response (200):**
+```json
+{
+  "pipelines": [
+    {
+      "name": "collection-12345",
+      "namespace": "mirror-operator-system",
+      "creationTimestamp": "2024-06-24T10:00:00Z",
+      "triggerType": "manual",
+      "pvc": "collection-4.20-output"
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `403` - Not running in operator-managed mode
+- `500` - Failed to list CRs
+
+### GET /api/collections/:name/download-url
+Generates pre-signed S3 download URLs for collection artifacts.
+
+Reads S3 credentials from the `collection-artifacts` Kubernetes secret and generates temporary download URLs for collection bundle files. URLs expire after 1 hour.
+
+**URL Parameters:**
+- `name` - Collection name (required)
+
+**Response (200):**
+```json
+{
+  "collectionName": "collection-12345",
+  "expiresIn": 3600,
+  "urls": {
+    "mirror_seq1_000000.tar": "https://s3.amazonaws.com/bucket/collection-12345/mirror_seq1_000000.tar?X-Amz-Algorithm=...",
+    "imageset-config.yaml": "https://s3.amazonaws.com/bucket/collection-12345/imageset-config.yaml?X-Amz-Algorithm=...",
+    "imageContentSourcePolicy.yaml": "https://s3.amazonaws.com/bucket/collection-12345/publish/imageContentSourcePolicy.yaml?...",
+    "catalogSource.yaml": "https://s3.amazonaws.com/bucket/collection-12345/publish/catalogSource.yaml?...",
+    "release-signatures.json": "https://s3.amazonaws.com/bucket/collection-12345/publish/release-signatures.json?..."
+  }
+}
+```
+
+**Error Responses:**
+- `403` - Not running in operator-managed mode
+- `400` - Collection name is missing
+- `404` - Secret not found, or no artifacts found for collection
+- `500` - Not running in Kubernetes cluster, or S3 credential error
+
+**Required Kubernetes Secret:**
+The endpoint expects a Kubernetes secret (in the current namespace) with the following base64-encoded data fields:
+- `AWS_ACCESS_KEY_ID` - S3 access key ID (required)
+- `AWS_SECRET_ACCESS_KEY` - S3 secret access key (required)
+- `S3_BUCKET` - S3 bucket name (required)
+- `AWS_REGION` - AWS region (optional, defaults to `us-east-1`)
+- `S3_ENDPOINT` - Custom S3 endpoint URL for S3-compatible storage like MinIO (optional)
+
+**Secret Name Configuration:**
+The secret name can be configured via the `S3_SECRET_NAME` environment variable. If not set, defaults to `collection-artifacts`.
+
+Example deployment configuration:
+```yaml
+env:
+  - name: S3_SECRET_NAME
+    value: "my-custom-s3-secret"
+```
+
+**Artifact Paths:**
+The endpoint attempts to generate URLs for the following artifacts (if they exist):
+- `{collectionName}/mirror_seq1_000000.tar` - Main mirror archive
+- `{collectionName}/imageset-config.yaml` - ImageSet configuration
+- `{collectionName}/publish/imageContentSourcePolicy.yaml` - Image content source policy
+- `{collectionName}/publish/catalogSource.yaml` - Catalog source definition
+- `{collectionName}/publish/release-signatures.json` - Release signatures
+
+**URL Expiration:**
+All pre-signed URLs expire after **3600 seconds (1 hour)**. After expiration, new URLs must be generated via another API call.
+
+**Usage Example:**
+```bash
+# Get download URLs for a collection
+curl http://backend:3000/api/collections/collection-12345/download-url
+
+# Download an artifact using the pre-signed URL
+curl -o mirror_seq1_000000.tar "https://s3.amazonaws.com/bucket/collection-12345/mirror_seq1_000000.tar?X-Amz-Algorithm=..."
+```
 
 ---
 

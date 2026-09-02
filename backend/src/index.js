@@ -12,10 +12,27 @@
 import "./configureFetchProxy.js";
 import express from "express";
 import cors from "cors";
+import https from "https";
+
+// Global error handlers to prevent crashes from unhandled rejections
+// (e.g., Cincinnati cache warming failures, background job errors)
+process.on("unhandledRejection", (reason, promise) => {
+  // Log but don't crash - many operations are non-critical background tasks
+  console.error("Unhandled Promise Rejection:", reason);
+  console.error("Promise:", promise);
+});
+
+process.on("uncaughtException", (error) => {
+  // Log critical errors but attempt graceful handling
+  console.error("Uncaught Exception:", error);
+  // Don't exit immediately - let the app try to continue
+  // Critical errors will be caught by liveness probes
+});
 import fs from "node:fs";
 import path from "node:path";
 import { ZipArchive } from "archiver";
 import { spawn } from "node:child_process";
+import jsYaml from "js-yaml";
 import { nanoid } from "nanoid";
 import logger, { generateErrorId } from "./logger.js";
 import { loggingMiddleware } from "./middleware/logging.js";
@@ -46,10 +63,23 @@ import {
   updateJobMetadata,
   appendJobOutput
 } from "./utils.js";
-import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
+import {
+  buildAgentConfig,
+  buildFieldManual,
+  buildImageSetConfig,
+  buildInstallConfig,
+  buildNtpMachineConfigs,
+  buildMirrorOperatorNamespace,
+  buildMirrorOperatorOperatorGroup,
+  buildMirrorOperatorSubscription,
+  buildOperatorHubDisableDefaults,
+  buildDisconnectedPlatform,
+} from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
+import { createCollectionPipeline, listCollectionPipelines } from "./collectionPipeline.js";
+import { generateCollectionDownloadUrls, resolveCollectionArtifact, streamS3ParallelDownload } from "./s3Client.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -92,6 +122,23 @@ import {
 } from "./trustAnalysis/index.js";
 import { validateAllFiles } from "./yamlValidator.js";
 import { detectScenarioId } from "./catalogValidator.js";
+import { loadMirrorRegistryConfig } from "./mirrorRegistryConfigLoader.js";
+import { loadImageSetConfig } from "./imageSetConfigParser.js";
+import { extractCrdsFromCatalogImage } from "./crdExtractor.js";
+import { extractImageSetConfigFromTar } from "./tarImageSetExtractor.js";
+import Busboy from "busboy";
+import {
+  createPvc,
+  listPvcs,
+  createUploadPod,
+  waitForPodReady,
+  streamToUploadPod,
+  streamChunkToUploadPod,
+  getChunksStatus,
+  triggerAssembly,
+  cleanupUploadPod,
+  deletePvc,
+} from "./uploadPod.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -173,9 +220,14 @@ const warmCincinnatiCache = async () => {
   }
 };
 
-warmCincinnatiCache();
+warmCincinnatiCache().catch((err) => {
+  // Extra safety: catch any unhandled rejections from warmCincinnatiCache
+  logger.debug({ err }, "Unhandled error in Cincinnati cache warming (non-fatal)");
+});
 
 const activeProcesses = new Map();
+const activeUploads = new Map();
+const activeChunkedUploads = new Map();
 const pendingBundleStates = new Map();
 const BUNDLE_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -186,8 +238,45 @@ const purgeExpiredBundleStates = () => {
   }
 };
 
+const CHUNKED_UPLOAD_TTL_MS = 2 * 60 * 60 * 1000;
+const purgeExpiredChunkedUploads = () => {
+  const now = Date.now();
+  for (const [uploadId, session] of activeChunkedUploads.entries()) {
+    if (now - session.createdAt > CHUNKED_UPLOAD_TTL_MS) {
+      logger.info({ uploadId, filename: session.filename }, "Expiring stale chunked upload session");
+      activeUploads.delete(session.uploadKey);
+      activeChunkedUploads.delete(uploadId);
+      updateJob(session.jobId, { status: "failed", message: "Upload session expired" });
+      if (session.useUploadPod && session.podName && session.serviceName) {
+        cleanupUploadPod({ podName: session.podName, serviceName: session.serviceName, namespace: session.podNamespace })
+          .catch((err) => logger.warn({ err: err.message, uploadId }, "Failed to cleanup expired upload pod"));
+      }
+      if (session.tmpDir) {
+        fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+      }
+    }
+  }
+};
+if (process.env.NODE_ENV !== "test") {
+  setInterval(purgeExpiredChunkedUploads, 5 * 60 * 1000);
+}
+
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
+
+// Mounted mirror registry pull secret — loaded from config, held in memory only, never persisted.
+let mountedMirrorPullSecret = null;
+
+// Mirror registry config loaded at module init so it's available for every ensureState() call,
+// not just the first defaultState() call. This ensures IDMS sources are re-applied on restart
+// even when the DB already has state from a previous run.
+const _mirrorConfigAtInit = (() => {
+  const cfg = loadMirrorRegistryConfig();
+  if (cfg) {
+    mountedMirrorPullSecret = cfg.pullSecret;
+  }
+  return cfg;
+})();
 
 const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "registry.connect.redhat.com"];
 
@@ -198,26 +287,30 @@ const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "
  */
 function validateRhPullSecret(secret) {
   if (!secret || typeof secret !== "string" || secret.trim().length === 0) {
-    return { valid: false, error: "Red Hat pull secret is required to pull from registry.redhat.io / quay.io." };
+    return { valid: false, error: "Pull secret is required." };
   }
 
   let parsed;
   try {
     parsed = JSON.parse(secret);
   } catch (err) {
-    return { valid: false, error: "Red Hat pull secret must be valid JSON." };
+    return { valid: false, error: "Pull secret must be valid JSON." };
   }
 
   if (!parsed?.auths || typeof parsed.auths !== "object") {
-    return { valid: false, error: "Red Hat pull secret must contain an 'auths' object." };
+    return { valid: false, error: "Pull secret must contain an 'auths' object." };
   }
 
-  const hasRhRegistry = RH_REGISTRIES.some((r) => parsed.auths[r]);
-  if (!hasRhRegistry) {
-    return {
-      valid: false,
-      error: `Red Hat pull secret must include credentials for at least one Red Hat registry: ${RH_REGISTRIES.join(", ")}.`
-    };
+  // In disconnected mode the pull secret only has mirror registry credentials
+  const disconnected = (process.env.DEPLOYMENT_SIDE === "disconnected");
+  if (!disconnected) {
+    const hasRhRegistry = RH_REGISTRIES.some((r) => parsed.auths[r]);
+    if (!hasRhRegistry) {
+      return {
+        valid: false,
+        error: `Pull secret must include credentials for at least one Red Hat registry: ${RH_REGISTRIES.join(", ")}.`
+      };
+    }
   }
 
   return { valid: true };
@@ -247,6 +340,52 @@ function detectMountedPullSecret() {
 }
 detectMountedPullSecret();
 
+function isOperatorManaged() {
+  const managed = process.env.OPENSHIFT_OPERATOR_MANAGED;
+  return managed === "true" || managed === "1";
+}
+
+function getDeploymentSide() {
+  const side = process.env.DEPLOYMENT_SIDE;
+  return side === "disconnected" ? "disconnected" : "connected";
+}
+
+function isDisconnected() {
+  return getDeploymentSide() === "disconnected";
+}
+
+function validateOperatorRequirements() {
+  if (!isOperatorManaged()) return;
+
+  if (!mountedRhPullSecret) {
+    const candidates = [
+      process.env.PULL_SECRET_FILE,
+      "/run/secrets/pull-secret",
+      path.join(dataDir, "pull-secret.json"),
+      path.join(process.env.HOME || "/root", ".openshift", "pull-secret"),
+    ].filter(Boolean);
+    console.error("[startup] FATAL: Running in operator-managed mode but no valid pull secret found.");
+    console.error("[startup] Checked paths: " + candidates.join(", "));
+    if (process.env.PULL_SECRET_FILE) {
+      console.error("[startup] PULL_SECRET_FILE is set to: " + process.env.PULL_SECRET_FILE);
+      try {
+        const raw = fs.readFileSync(process.env.PULL_SECRET_FILE, "utf8").trim();
+        const validation = validateRhPullSecret(raw);
+        if (!validation.valid) {
+          console.error("[startup] File exists but validation failed: " + validation.error);
+        }
+      } catch (err) {
+        console.error("[startup] File read error: " + err.message);
+      }
+    }
+    process.exit(1);
+  }
+
+  console.log("[startup] Operator-managed mode: Pull secret validation passed.");
+}
+
+validateOperatorRequirements();
+
 function logFeedbackStartupStatus() {
   const config = resolveFeedbackConfig();
   if (config.mode === "disabled") {
@@ -263,16 +402,17 @@ if (process.env.NODE_ENV !== "test") {
   logFeedbackStartupStatus();
 }
 
-const defaultState = () => ({
-  runId: nanoid(),
-  blueprint: {
-    arch: "x86_64",
-    platform: "Bare Metal",
-    baseDomain: "example.com",
-    clusterName: "airgap-cluster",
-    confirmed: false,
-    confirmationTimestamp: null
-  },
+const defaultState = () => {
+  const baseState = {
+    runId: nanoid(),
+    blueprint: {
+      arch: "x86_64",
+      platform: "Bare Metal",
+      baseDomain: "example.com",
+      clusterName: "airgap-cluster",
+      confirmed: false,
+      confirmationTimestamp: null
+    },
   release: {
     channel: null,
     patchVersion: null,
@@ -458,13 +598,41 @@ const defaultState = () => ({
     strictArchive: false,
     lastRunJobId: null
   },
-  ui: {
-    activeStepId: "blueprint",
-    visitedSteps: {},
-    completedSteps: {},
-    segmentedFlowV1: true
+    ui: {
+      activeStepId: "blueprint",
+      visitedSteps: {},
+      completedSteps: {},
+      segmentedFlowV1: true
+    }
+  };
+
+  // Apply mirror registry config (loaded at module init)
+  if (_mirrorConfigAtInit) {
+    baseState.credentials = { ...baseState.credentials, ..._mirrorConfigAtInit.state.credentials };
+    baseState.trust = { ...baseState.trust, ..._mirrorConfigAtInit.state.trust };
+    baseState.globalStrategy.mirroring = {
+      ...baseState.globalStrategy.mirroring,
+      ..._mirrorConfigAtInit.state.globalStrategy.mirroring
+    };
+    baseState.ui = { ...baseState.ui, ..._mirrorConfigAtInit.state.ui };
   }
-});
+
+  // Pre-load imageset config if mounted
+  const imagesetConfig = loadImageSetConfig();
+  if (imagesetConfig) {
+    baseState.release = { ...baseState.release, ...imagesetConfig.release };
+    baseState.version = { ...baseState.version, ...imagesetConfig.version };
+    baseState.blueprint = { ...baseState.blueprint, ...imagesetConfig.blueprint };
+    if (imagesetConfig.mirrorWorkflow) {
+      baseState.mirrorWorkflow = {
+        ...baseState.mirrorWorkflow,
+        ...imagesetConfig.mirrorWorkflow
+      };
+    }
+  }
+
+  return baseState;
+};
 
 const ensureState = () => {
   const existing = getState();
@@ -479,6 +647,28 @@ const ensureState = () => {
     if (!Object.prototype.hasOwnProperty.call(next.trust, "reducedSelection")) {
       next.trust.reducedSelection = null;
       changed = true;
+    }
+    // Re-apply IDMS/ITMS mirror sources from mounted config on every call.
+    // The mounted files are the source of truth — DB state may have stale defaults
+    // from a previous run or from frontend state patches.
+    if (_mirrorConfigAtInit) {
+      const mounted = _mirrorConfigAtInit.state.globalStrategy?.mirroring;
+      if (mounted?.sources?.length) {
+        if (!next.globalStrategy) next.globalStrategy = {};
+        if (!next.globalStrategy.mirroring) next.globalStrategy.mirroring = {};
+        next.globalStrategy = { ...next.globalStrategy };
+        next.globalStrategy.mirroring = {
+          ...next.globalStrategy.mirroring,
+          sources: mounted.sources,
+          registryFqdn: mounted.registryFqdn
+        };
+        changed = true;
+      }
+      if (!next.ui) next.ui = {};
+      if (!next.ui.mirrorConfigPreloaded) {
+        next.ui = { ...next.ui, mirrorConfigPreloaded: true };
+        changed = true;
+      }
     }
     if (changed) {
       setState(next);
@@ -1063,10 +1253,18 @@ app.get("/api/schema/stepMap", (req, res) => {
 });
 
 app.get("/api/state", (req, res) => {
-  // Security: Never expose credentials via GET endpoint
   const state = ensureState();
-  const sanitized = sanitizeStateForExport(state, { includeCredentials: false });
-  res.json(sanitized);
+
+  // Inject mounted mirror pull secret (held in memory, never persisted to database)
+  if (mountedMirrorPullSecret && state.ui?.mirrorConfigPreloaded) {
+    state.credentials = state.credentials || {};
+    state.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
+  // Don't sanitize credentials for GET /api/state - the frontend needs them during the session
+  // Pull secrets are never persisted to disk (stripped by getStateForPersistence)
+  // Sanitization only happens for export bundles
+  res.json(state);
 });
 
 app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
@@ -1124,6 +1322,13 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
     patch.credentials = nextCreds;
   }
   const merged = updateState(patch);
+
+  // Inject mounted mirror pull secret in response (same as GET /api/state)
+  if (mountedMirrorPullSecret && merged.ui?.mirrorConfigPreloaded) {
+    merged.credentials = merged.credentials || {};
+    merged.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
   res.json(merged);
 });
 
@@ -1134,8 +1339,757 @@ app.get("/api/secrets/rh-pull-secret", (req, res) => {
 
 app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
   if (!mountedRhPullSecret) return res.status(404).json({ error: "No mounted pull secret." });
+
+  // In operator-managed mode, never expose the pull secret to frontend
+  if (isOperatorManaged()) {
+    return res.status(403).json({ error: "Pull secret access restricted in operator-managed mode." });
+  }
+
   res.json({ pullSecret: mountedRhPullSecret });
 });
+
+app.get("/api/runtime/operator-managed", (_req, res) => {
+  res.json({
+    operatorManaged: isOperatorManaged(),
+    pullSecretMounted: !!mountedRhPullSecret
+  });
+});
+
+app.post("/api/collection-pipeline/create", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "CollectionPipeline creation only available in operator-managed mode"
+    });
+  }
+
+  const { name, imageSetConfig, pvc, triggerType } = req.body;
+
+  if (!name || !imageSetConfig || !pvc) {
+    return res.status(400).json({
+      error: "Missing required fields: name, imageSetConfig, pvc"
+    });
+  }
+
+  try {
+    const pipeline = await createCollectionPipeline({
+      name,
+      imageSetConfig,
+      pvc,
+      triggerType
+    });
+
+    res.json({
+      success: true,
+      pipeline: {
+        name: pipeline.metadata?.name,
+        namespace: pipeline.metadata?.namespace,
+        uid: pipeline.metadata?.uid,
+        creationTimestamp: pipeline.metadata?.creationTimestamp
+      }
+    });
+  } catch (error) {
+    logger.error({ error: error.message, name }, "Failed to create CollectionPipeline");
+
+    // Handle "AlreadyExists" error (409 conflict)
+    if (error.message.includes("already exists") || error.message.includes("AlreadyExists")) {
+      return res.status(409).json({
+        error: `A CollectionPipeline named "${name}" already exists. Please choose a different name or delete the existing one.`,
+        existingName: name
+      });
+    }
+
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/collection-pipeline/list", async (_req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "CollectionPipeline listing only available in operator-managed mode"
+    });
+  }
+
+  try {
+    const pipelines = await listCollectionPipelines();
+    res.json({
+      pipelines: pipelines.map(p => ({
+        name: p.metadata?.name,
+        namespace: p.metadata?.namespace,
+        creationTimestamp: p.metadata?.creationTimestamp,
+        triggerType: p.spec?.triggerType,
+        pvc: p.spec?.storage?.output?.pvc
+      }))
+    });
+  } catch (error) {
+    logger.error({ error: error.message }, "Failed to list CollectionPipelines");
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/collections/:name/download-url", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "Collection download URLs only available in operator-managed mode"
+    });
+  }
+
+  const { name } = req.params;
+
+  if (!name) {
+    return res.status(400).json({
+      error: "Collection name is required"
+    });
+  }
+
+  try {
+    // Generate pre-signed URLs for collection artifacts
+    // URLs expire in 1 hour by default
+    const urls = await generateCollectionDownloadUrls({
+      collectionName: name,
+      expiresIn: 3600 // 1 hour
+    });
+
+    if (Object.keys(urls).length === 0) {
+      return res.status(404).json({
+        error: `No artifacts found for collection: ${name}`
+      });
+    }
+
+    logger.info({
+      collectionName: name,
+      urlCount: Object.keys(urls).length
+    }, "Generated pre-signed download URLs");
+
+    res.json({
+      collectionName: name,
+      expiresIn: 3600,
+      urls
+    });
+  } catch (error) {
+    logger.error({
+      collectionName: name,
+      error: error.message
+    }, "Failed to generate download URLs");
+
+    // Provide specific error messages for common failures
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        error: `Secret or collection not found: ${error.message}`
+      });
+    }
+
+    if (error.message.includes("Kubernetes client not available")) {
+      return res.status(500).json({
+        error: "Not running in Kubernetes cluster"
+      });
+    }
+
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/collections/:name/download/:artifactType", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({
+      error: "Collection downloads only available in operator-managed mode"
+    });
+  }
+
+  const { name, artifactType } = req.params;
+  if (!['bundle', 'signature'].includes(artifactType)) {
+    return res.status(400).json({ error: "artifactType must be 'bundle' or 'signature'" });
+  }
+
+  try {
+    const artifact = await resolveCollectionArtifact({ collectionName: name, artifactType });
+
+    res.setHeader('Content-Type', artifact.contentType);
+    res.setHeader('Content-Length', artifact.size);
+    res.setHeader('Content-Disposition', `attachment; filename="${artifact.fileName}"`);
+
+    const ac = new AbortController();
+    req.on('close', () => ac.abort());
+
+    await streamS3ParallelDownload({
+      s3Client: artifact.s3Client,
+      bucket: artifact.bucket,
+      key: artifact.key,
+      totalSize: artifact.size,
+      output: res,
+      signal: ac.signal
+    });
+  } catch (error) {
+    logger.error({ collectionName: name, artifactType, error: error.message }, "Collection download failed");
+
+    if (!res.headersSent) {
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ error: error.message });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
+// ─── Mirror Import Endpoints ────────────────────────────────────────────────
+
+app.get("/api/mirror-import/config", (_req, res) => {
+  res.json({
+    deploymentSide: getDeploymentSide(),
+    importPvcMountPath: process.env.IMPORT_PVC_MOUNT_PATH || "/import-data",
+    targetRegistryDefaults: {
+      url: process.env.TARGET_REGISTRY_URL || "",
+    },
+  });
+});
+
+app.get("/api/mirror-import/files", (_req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+
+  try {
+    if (!fs.existsSync(mountPath)) {
+      return res.json({ files: [] });
+    }
+
+    const entries = fs.readdirSync(mountPath).filter((f) => f.endsWith(".tar") || f.endsWith(".tar.gz"));
+    const files = entries.map((name) => {
+      const stat = fs.statSync(path.join(mountPath, name));
+      return {
+        name,
+        size: stat.size,
+        modified: stat.mtime.toISOString(),
+      };
+    });
+
+    res.json({ files });
+  } catch (error) {
+    logger.error({ error: error.message, mountPath }, "Failed to list import files");
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/mirror-import/extract-config", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const { filename } = req.body || {};
+  if (!filename) {
+    return res.status(400).json({ error: "filename is required" });
+  }
+
+  const safeName = path.basename(filename);
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+  const filePath = path.join(mountPath, safeName);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "File not found on import volume" });
+  }
+
+  try {
+    const imageSetConfig = await extractImageSetConfigFromTar(filePath);
+    res.json({ imageSetConfig: imageSetConfig || null });
+  } catch (err) {
+    logger.error({ error: err.message, filename: safeName }, "Failed to extract imageset-config from tar");
+    res.status(500).json({ error: `Failed to extract config: ${err.message}` });
+  }
+});
+
+app.get("/api/mirror-import/pvcs", async (_req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+
+  try {
+    const pvcs = await listPvcs();
+    res.json({ pvcs });
+  } catch (error) {
+    logger.error({ error: error.message }, "Failed to list PVCs");
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function processUploadedFile({ jobId, tmpPath, filename, bytesReceived, pvcName, pvcSize, isNewPvc }) {
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+
+  appendJobOutput(jobId, `Received ${bytesReceived} bytes\n`);
+  updateJob(jobId, { progress: 50, message: `Received ${filename}, processing...` });
+
+  if (isNewPvc && pvcName && pvcSize) {
+    let podName, serviceName, namespace;
+    let pvcCreated = false;
+
+    try {
+      appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
+      await createPvc({ name: pvcName, size: pvcSize });
+      pvcCreated = true;
+      updateJob(jobId, { progress: 55 });
+
+      appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
+      ({ podName, serviceName, namespace } = await createUploadPod({ pvcName }));
+      updateJob(jobId, { progress: 60 });
+
+      appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
+      await waitForPodReady({ podName, namespace });
+      updateJob(jobId, { progress: 65 });
+
+      appendJobOutput(jobId, `Streaming ${filename} to upload pod...\n`);
+      const fileStream = fs.createReadStream(tmpPath);
+      const result = await streamToUploadPod({
+        serviceName,
+        namespace,
+        filename,
+        fileStream,
+        contentLength: bytesReceived,
+      });
+      updateJob(jobId, { progress: 90 });
+
+      appendJobOutput(jobId, "Cleaning up upload pod...\n");
+      await cleanupUploadPod({ podName, serviceName, namespace });
+
+      appendJobOutput(jobId, `Upload complete: ${result.written} bytes written\n`);
+      updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename} to PVC ${pvcName}` });
+      updateJobMetadata(jobId, { filename, pvcName, bytesWritten: result.written });
+    } catch (uploadError) {
+      appendJobOutput(jobId, `Upload failed, cleaning up resources...\n`);
+      if (podName && serviceName) {
+        await cleanupUploadPod({ podName, serviceName, namespace });
+      }
+      if (pvcCreated) {
+        await deletePvc({ name: pvcName, namespace });
+      }
+      throw uploadError;
+    }
+  } else {
+    if (!fs.existsSync(mountPath)) {
+      fs.mkdirSync(mountPath, { recursive: true });
+    }
+
+    const destPath = path.join(mountPath, filename);
+    await fs.promises.rename(tmpPath, destPath).catch(async () => {
+      await fs.promises.copyFile(tmpPath, destPath);
+      await fs.promises.unlink(tmpPath).catch(() => {});
+    });
+
+    updateJob(jobId, { status: "completed", progress: 100, message: `Uploaded ${filename}` });
+    updateJobMetadata(jobId, { filename, bytesWritten: bytesReceived });
+    appendJobOutput(jobId, `Upload complete: ${bytesReceived} bytes written to ${destPath}\n`);
+  }
+}
+
+// ─── Chunked Upload Endpoints ───────────────────────────────────────────────
+
+const CHUNK_SIZE_DEFAULT = 40 * 1024 * 1024;
+
+app.post("/api/mirror-import/upload/init", async (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const { filename, fileSize, chunkSize: requestedChunkSize, pvcName, pvcSize, isNewPvc } = req.body || {};
+  if (!filename || !fileSize) {
+    return res.status(400).json({ error: "filename and fileSize are required" });
+  }
+
+  const chunkSize = requestedChunkSize || CHUNK_SIZE_DEFAULT;
+  const totalChunks = Math.ceil(fileSize / chunkSize);
+  const uploadKey = `${pvcName || "local"}:${filename}`;
+  const useUploadPod = !!pvcName;
+
+  const existing = activeUploads.get(uploadKey);
+  if (existing) {
+    const existingSession = [...activeChunkedUploads.values()].find((s) => s.jobId === existing);
+    if (existingSession) {
+      return res.status(202).json({
+        uploadId: existingSession.uploadId,
+        jobId: existing,
+        totalChunks: existingSession.totalChunks,
+        chunkSize: existingSession.chunkSize,
+        receivedChunks: existingSession.receivedChunks.size,
+      });
+    }
+    activeUploads.delete(uploadKey);
+  }
+
+  const uploadId = nanoid();
+  const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
+  updateJob(jobId, { status: "running", progress: 0 });
+
+  let podName = null, serviceName = null, podNamespace = null;
+  let pvcCreated = false;
+
+  if (useUploadPod) {
+    try {
+      appendJobOutput(jobId, `Creating PVC ${pvcName} (${pvcSize})...\n`);
+      await createPvc({ name: pvcName, size: pvcSize });
+      pvcCreated = true;
+
+      appendJobOutput(jobId, `Creating upload pod for PVC ${pvcName}...\n`);
+      ({ podName, serviceName, namespace: podNamespace } = await createUploadPod({ pvcName }));
+
+      appendJobOutput(jobId, "Waiting for upload pod to be ready...\n");
+      await waitForPodReady({ podName, namespace: podNamespace });
+
+      appendJobOutput(jobId, "Upload pod ready, accepting chunks.\n");
+    } catch (initError) {
+      logger.error({ error: initError.message, pvcName }, "Failed to create upload pod during init");
+      appendJobOutput(jobId, `Init failed: ${initError.message}\n`);
+      updateJob(jobId, { status: "failed", progress: 0, message: initError.message });
+      if (podName && serviceName) {
+        await cleanupUploadPod({ podName, serviceName, namespace: podNamespace }).catch(() => {});
+      }
+      if (pvcCreated && isNewPvc) {
+        await deletePvc({ name: pvcName, namespace: podNamespace }).catch(() => {});
+      }
+      return res.status(500).json({ error: `Failed to initialize upload pod: ${initError.message}` });
+    }
+  }
+
+  let tmpDir = null;
+  if (!useUploadPod) {
+    tmpDir = path.join(dataDir, "tmp", `chunked-${uploadId}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+  }
+
+  const session = {
+    uploadId, jobId, filename, fileSize, chunkSize, totalChunks,
+    pvcName: pvcName || null, pvcSize: pvcSize || null, isNewPvc: !!isNewPvc,
+    receivedChunks: new Set(),
+    bytesReceived: 0,
+    tmpDir,
+    useUploadPod,
+    podName,
+    serviceName,
+    podNamespace,
+    uploadKey,
+    createdAt: Date.now(),
+    finalizing: false,
+  };
+
+  activeUploads.set(uploadKey, jobId);
+  activeChunkedUploads.set(uploadId, session);
+
+  logger.info({ uploadId, filename, fileSize, totalChunks, chunkSize, useUploadPod }, "Chunked upload session created");
+  res.status(202).json({ uploadId, jobId, totalChunks, chunkSize });
+});
+
+app.put("/api/mirror-import/upload/:uploadId/chunk/:chunkIndex", async (req, res) => {
+  const { uploadId, chunkIndex: chunkIndexStr } = req.params;
+  const chunkIndex = parseInt(chunkIndexStr, 10);
+  const session = activeChunkedUploads.get(uploadId);
+
+  if (!session) {
+    return res.status(404).json({ error: "Upload session not found" });
+  }
+  if (session.finalizing) {
+    return res.status(409).json({ error: "Upload is already finalizing" });
+  }
+  if (isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= session.totalChunks) {
+    return res.status(400).json({ error: "chunkIndex out of range", max: session.totalChunks - 1 });
+  }
+  if (session.receivedChunks.has(chunkIndex)) {
+    return res.status(200).json({
+      chunkIndex,
+      receivedChunks: session.receivedChunks.size,
+      totalChunks: session.totalChunks,
+    });
+  }
+
+  if (session.useUploadPod) {
+    try {
+      const contentLength = parseInt(req.headers["content-length"] || "0", 10);
+      const result = await streamChunkToUploadPod({
+        serviceName: session.serviceName,
+        namespace: session.podNamespace,
+        uploadId: session.uploadId,
+        chunkIndex,
+        reqStream: req,
+        contentLength,
+      });
+      session.receivedChunks.add(chunkIndex);
+      session.bytesReceived += result.written || 0;
+      const progress = Math.min(45, Math.floor((session.receivedChunks.size / session.totalChunks) * 45));
+      updateJob(session.jobId, { progress, message: `Receiving ${session.filename} (${session.receivedChunks.size}/${session.totalChunks} chunks)...` });
+      res.status(200).json({
+        chunkIndex,
+        bytesWritten: result.written || 0,
+        receivedChunks: session.receivedChunks.size,
+        totalChunks: session.totalChunks,
+        progress,
+      });
+    } catch (err) {
+      logger.error({ uploadId, chunkIndex, error: err.message }, "Failed to proxy chunk to upload pod");
+      res.status(502).json({ error: "Failed to stream chunk to upload pod", retryable: true });
+    }
+  } else {
+    const chunkFile = path.join(session.tmpDir, `chunk-${String(chunkIndex).padStart(6, "0")}`);
+    const ws = fs.createWriteStream(chunkFile);
+    let chunkBytes = 0;
+
+    req.on("data", (buf) => { chunkBytes += buf.length; });
+    req.pipe(ws);
+
+    ws.on("finish", () => {
+      session.receivedChunks.add(chunkIndex);
+      session.bytesReceived += chunkBytes;
+      const progress = Math.min(45, Math.floor((session.receivedChunks.size / session.totalChunks) * 45));
+      updateJob(session.jobId, { progress, message: `Receiving ${session.filename} (${session.receivedChunks.size}/${session.totalChunks} chunks)...` });
+      res.status(200).json({
+        chunkIndex,
+        bytesWritten: chunkBytes,
+        receivedChunks: session.receivedChunks.size,
+        totalChunks: session.totalChunks,
+        progress,
+      });
+    });
+
+    ws.on("error", (err) => {
+      logger.error({ uploadId, chunkIndex, error: err.message }, "Failed to write chunk");
+      res.status(500).json({ error: "Failed to write chunk" });
+    });
+
+    req.on("error", (err) => {
+      logger.error({ uploadId, chunkIndex, error: err.message }, "Request stream error on chunk upload");
+      ws.destroy();
+      fs.unlink(chunkFile, () => {});
+    });
+  }
+});
+
+app.post("/api/mirror-import/upload/:uploadId/finalize", (req, res) => {
+  const { uploadId } = req.params;
+  const session = activeChunkedUploads.get(uploadId);
+
+  if (!session) {
+    return res.status(404).json({ error: "Upload session not found" });
+  }
+  if (session.finalizing) {
+    return res.status(202).json({ uploadId, jobId: session.jobId, status: "already finalizing" });
+  }
+
+  const missing = [];
+  for (let i = 0; i < session.totalChunks; i++) {
+    if (!session.receivedChunks.has(i)) missing.push(i);
+  }
+  if (missing.length > 0) {
+    return res.status(400).json({ error: "Missing chunks", missing, received: session.receivedChunks.size, total: session.totalChunks });
+  }
+
+  session.finalizing = true;
+  res.status(202).json({ uploadId, jobId: session.jobId, filename: session.filename, status: "assembling" });
+
+  if (session.useUploadPod) {
+    (async () => {
+      try {
+        updateJob(session.jobId, { progress: 46, message: `Assembling ${session.totalChunks} chunks on PVC...` });
+        appendJobOutput(session.jobId, `Triggering assembly of ${session.totalChunks} chunks on upload pod...\n`);
+
+        const result = await triggerAssembly({
+          serviceName: session.serviceName,
+          namespace: session.podNamespace,
+          uploadId: session.uploadId,
+          filename: session.filename,
+        });
+
+        updateJob(session.jobId, { progress: 90 });
+        appendJobOutput(session.jobId, `Assembly complete: ${result.written} bytes\n`);
+
+        if (result.imageSetConfig) {
+          updateJobMetadata(session.jobId, { imageSetConfig: result.imageSetConfig });
+          appendJobOutput(session.jobId, "Found imageset-config.yaml in bundle.\n");
+        } else {
+          appendJobOutput(session.jobId, "Warning: imageset-config.yaml not found in bundle.\n");
+        }
+
+        appendJobOutput(session.jobId, "Cleaning up upload pod...\n");
+        await cleanupUploadPod({
+          podName: session.podName,
+          serviceName: session.serviceName,
+          namespace: session.podNamespace,
+        });
+
+        appendJobOutput(session.jobId, `Upload complete: ${result.written} bytes written to PVC ${session.pvcName}\n`);
+        updateJob(session.jobId, { status: "completed", progress: 100, message: `Uploaded ${session.filename} to PVC ${session.pvcName}` });
+        updateJobMetadata(session.jobId, { filename: session.filename, pvcName: session.pvcName, bytesWritten: result.written });
+      } catch (error) {
+        logger.error({ error: error.message, uploadId, filename: session.filename }, "Chunked upload finalize failed");
+        updateJob(session.jobId, { status: "failed", progress: 0, message: error.message });
+        appendJobOutput(session.jobId, `Upload failed: ${error.message}\n`);
+        if (session.podName && session.serviceName) {
+          await cleanupUploadPod({ podName: session.podName, serviceName: session.serviceName, namespace: session.podNamespace }).catch(() => {});
+        }
+      } finally {
+        activeUploads.delete(session.uploadKey);
+        activeChunkedUploads.delete(uploadId);
+      }
+    })();
+  } else {
+    (async () => {
+      try {
+        updateJob(session.jobId, { progress: 46, message: `Assembling ${session.totalChunks} chunks...` });
+        appendJobOutput(session.jobId, `Assembling ${session.totalChunks} chunks into ${session.filename}...\n`);
+
+        const assembledPath = path.join(session.tmpDir, `assembled-${session.filename}`);
+        const outStream = fs.createWriteStream(assembledPath);
+
+        for (let i = 0; i < session.totalChunks; i++) {
+          const chunkFile = path.join(session.tmpDir, `chunk-${String(i).padStart(6, "0")}`);
+          await new Promise((resolve, reject) => {
+            const rs = fs.createReadStream(chunkFile);
+            rs.pipe(outStream, { end: false });
+            rs.on("end", resolve);
+            rs.on("error", reject);
+          });
+        }
+
+        await new Promise((resolve, reject) => {
+          outStream.end();
+          outStream.on("finish", resolve);
+          outStream.on("error", reject);
+        });
+
+        appendJobOutput(session.jobId, `Assembly complete: ${session.bytesReceived} bytes\n`);
+
+        try {
+          appendJobOutput(session.jobId, "Extracting imageset-config.yaml from bundle...\n");
+          const imageSetConfig = await extractImageSetConfigFromTar(assembledPath);
+          if (imageSetConfig) {
+            updateJobMetadata(session.jobId, { imageSetConfig });
+            appendJobOutput(session.jobId, "Found imageset-config.yaml in bundle.\n");
+          } else {
+            appendJobOutput(session.jobId, "Warning: imageset-config.yaml not found in bundle.\n");
+          }
+        } catch (extractErr) {
+          logger.warn({ error: extractErr.message }, "Failed to extract imageset-config.yaml from bundle");
+          appendJobOutput(session.jobId, `Warning: Could not extract imageset-config.yaml: ${extractErr.message}\n`);
+        }
+
+        await processUploadedFile({
+          jobId: session.jobId,
+          tmpPath: assembledPath,
+          filename: session.filename,
+          bytesReceived: session.bytesReceived,
+          pvcName: session.pvcName,
+          pvcSize: session.pvcSize,
+          isNewPvc: session.isNewPvc,
+        });
+      } catch (error) {
+        logger.error({ error: error.message, uploadId, filename: session.filename }, "Chunked upload finalize failed");
+        updateJob(session.jobId, { status: "failed", progress: 0, message: error.message });
+        appendJobOutput(session.jobId, `Upload failed: ${error.message}\n`);
+      } finally {
+        activeUploads.delete(session.uploadKey);
+        activeChunkedUploads.delete(uploadId);
+        fs.rm(session.tmpDir, { recursive: true, force: true }, () => {});
+      }
+    })();
+  }
+});
+
+app.get("/api/mirror-import/upload/:uploadId/status", (req, res) => {
+  const { uploadId } = req.params;
+  const session = activeChunkedUploads.get(uploadId);
+
+  if (!session) {
+    return res.status(404).json({ error: "Upload session not found" });
+  }
+
+  res.json({
+    uploadId: session.uploadId,
+    jobId: session.jobId,
+    totalChunks: session.totalChunks,
+    receivedChunks: session.receivedChunks.size,
+    bytesReceived: session.bytesReceived,
+    fileSize: session.fileSize,
+    status: session.finalizing ? "finalizing" : "receiving",
+  });
+});
+
+// ─── Legacy single-request upload (kept for backward compat) ────────────────
+
+app.post("/api/mirror-import/upload", (req, res) => {
+  if (!isOperatorManaged()) {
+    return res.status(403).json({ error: "Only available in operator-managed mode" });
+  }
+  if (!isDisconnected()) {
+    return res.status(403).json({ error: "Only available in disconnected mode" });
+  }
+
+  const mountPath = process.env.IMPORT_PVC_MOUNT_PATH || "/import-data";
+  const filename = req.query.filename || `import-${Date.now()}.tar`;
+  const pvcName = req.query.pvcName || null;
+  const pvcSize = req.query.pvcSize || null;
+  const isNewPvc = req.query.isNewPvc === "true";
+  const contentLength = parseInt(req.headers["content-length"] || "0", 10);
+
+  const uploadKey = `${pvcName || "local"}:${filename}`;
+  const existing = activeUploads.get(uploadKey);
+  if (existing) {
+    logger.info({ filename, pvcName, existingJobId: existing }, "Upload already in progress, returning existing job");
+    return res.status(202).json({ jobId: existing, filename });
+  }
+
+  const jobId = createJob("mirror-import-upload", `Uploading ${filename}`);
+  updateJob(jobId, { status: "running", progress: 0 });
+  activeUploads.set(uploadKey, jobId);
+
+  const tmpDir = path.join(dataDir, "tmp");
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpPath = path.join(tmpDir, `upload-${jobId}-${filename}`);
+  const tmpStream = fs.createWriteStream(tmpPath);
+  let bytesReceived = 0;
+
+  req.on("data", (chunk) => {
+    bytesReceived += chunk.length;
+    if (contentLength > 0) {
+      const progress = Math.min(45, Math.floor((bytesReceived / contentLength) * 45));
+      updateJob(jobId, { progress, message: `Receiving ${filename}...` });
+    }
+  });
+
+  req.pipe(tmpStream);
+
+  res.status(202).json({ jobId, filename });
+
+  (async () => {
+    try {
+      await new Promise((resolve, reject) => {
+        tmpStream.on("finish", resolve);
+        tmpStream.on("error", reject);
+        req.on("error", reject);
+      });
+
+      await processUploadedFile({ jobId, tmpPath, filename, bytesReceived, pvcName, pvcSize, isNewPvc });
+    } catch (error) {
+      logger.error({ error: error.message, filename, pvcName }, "Upload failed");
+      updateJob(jobId, { status: "failed", progress: 0, message: error.message });
+      appendJobOutput(jobId, `Upload failed: ${error.message}\n`);
+    } finally {
+      activeUploads.delete(uploadKey);
+      fs.unlink(tmpPath, () => {});
+    }
+  })();
+});
+
+// ─── End Mirror Import Endpoints ────────────────────────────────────────────
 
 app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
   const cancelRunningOcMirror = req.body?.cancelRunningOcMirror !== false;
@@ -1189,6 +2143,12 @@ app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
       }
     });
   }
+
+  if (mountedMirrorPullSecret && next.ui?.mirrorConfigPreloaded) {
+    next.credentials = next.credentials || {};
+    next.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
   res.json(next);
 });
 
@@ -1325,7 +2285,7 @@ app.post("/api/cincinnati/refresh-job", validateBody(cincinnatiRefreshSchema), (
 });
 
 app.get("/api/operators/credentials", (req, res) => {
-  res.json({ available: authAvailable() });
+  res.json({ available: authAvailable(mountedRhPullSecret) });
 });
 
 app.post("/api/operators/confirm", validateBody(operatorConfirmSchema), (req, res) => {
@@ -1349,7 +2309,7 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
-  if (!authAvailable() && !req.body?.pullSecret && String(process.env.MOCK_MODE).toLowerCase() !== "true") {
+  if (!authAvailable(mountedRhPullSecret) && !req.body?.pullSecret && String(process.env.MOCK_MODE).toLowerCase() !== "true") {
     return res.status(400).json({ error: "Registry auth not configured." });
   }
   if (String(process.env.MOCK_MODE).toLowerCase() === "true") {
@@ -1368,8 +2328,10 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
     return res.json({ jobs });
   }
   let tempAuthFile = null;
-  if (req.body?.pullSecret) {
-    const normalized = normalizePullSecret(req.body.pullSecret);
+  const pullSecretSource = req.body?.pullSecret || mountedRhPullSecret;
+
+  if (pullSecretSource) {
+    const normalized = normalizePullSecret(pullSecretSource);
     tempAuthFile = writeTempAuth(normalized);
   }
   const catalogMinor = getOpenShiftMinorFromState(state);
@@ -1422,7 +2384,7 @@ app.post("/api/operators/prefetch", validateBody(operatorsPrefetchSchema), async
   if (!state.release?.confirmed) {
     return res.status(400).json({ error: "Version not confirmed." });
   }
-  if (!authAvailable()) {
+  if (!authAvailable(mountedRhPullSecret)) {
     return res.status(400).json({ error: "Registry auth not configured." });
   }
   const catalogMinor = getOpenShiftMinorFromState(state);
@@ -2313,6 +3275,12 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
   });
 
   child.on("close", (code) => {
+    const currentRetryJob = getJob(retryJobId);
+    if (currentRetryJob?.status === "cancelled") {
+      activeProcesses.delete(retryJobId);
+      cleanupRegistriesDDir(registriesDDir);
+      return;
+    }
     const finishedAt = Date.now();
     const artifactsBaseDir = resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath);
     const clusterResourcesPath = artifactsBaseDir
@@ -2408,7 +3376,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const registryUrl = body.registryUrl?.trim() || (registryFqdn ? `docker://${registryFqdn}` : "");
   const configSourceType = body.configSourceType || "generated";
   const configPathExternal = body.configPath?.trim();
-  const rhPullSecretRaw = body.rhAuthSource === "mounted" ? mountedRhPullSecret : body.rhPullSecret;
+  const rhPullSecretRaw = body.rhAuthSource === "mounted" ? mountedRhPullSecret : (body.rhPullSecret || mountedRhPullSecret);
   const mirrorAuthSource = body.mirrorAuthSource || "reuse";
   const mirrorPullSecretRaw = body.mirrorPullSecret;
   const advanced = body.advanced && typeof body.advanced === "object" ? body.advanced : {};
@@ -2438,6 +3406,11 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const tmpDir = path.join(dataDir, "tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
+  updateJobMetadata(jobId, {
+    mode,
+    workspaceDir: workspacePath || "",
+    startedAt: Date.now()
+  });
 
   if (configSourceType === "generated") {
     const configContents = buildImageSetConfig(state);
@@ -2576,6 +3549,14 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     if (authFile) safeUnlink(authFile);
   });
   child.on("close", (code) => {
+    const currentJob = getJob(jobId);
+    if (currentJob?.status === "cancelled") {
+      activeProcesses.delete(jobId);
+      if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
+      safeUnlink(configPathToUse);
+      if (authFile) safeUnlink(authFile);
+      return;
+    }
     const finishedAt = Date.now();
     const artifactsBaseDir = resolveOcMirrorArtifactsBaseDir(mode, workspacePath, archivePath);
     const clusterResourcesPath = artifactsBaseDir
@@ -2697,6 +3678,487 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   });
   res.json({ jobId });
 });
+
+// ===================================================================
+// AGENT ISO GENERATION
+// ===================================================================
+
+app.post("/api/agent-iso/generate", async (req, res) => {
+  const state = ensureState();
+  const methodology = state?.methodology?.method;
+  const platform = state?.blueprint?.platform;
+
+  // Validate methodology and platform
+  if (methodology !== "Agent-Based Installer") {
+    return res.status(400).json({
+      error: "Agent ISO generation only available for Agent-Based Installer deployments"
+    });
+  }
+
+  if (platform !== "Bare Metal" && platform !== "VMware vSphere") {
+    return res.status(400).json({
+      error: "Agent ISO generation only available for Bare Metal or VMware vSphere platforms"
+    });
+  }
+
+  // Create job and return immediately
+  const jobId = createJob("agent-iso-generate", "Initializing agent ISO generation...");
+  res.status(202).json({ jobId });
+
+  // Run generation in background
+  setImmediate(() => {
+    generateAgentIsoBackgroundJob(jobId, state).catch((err) => {
+      appendJobOutput(jobId, `\nUnexpected error: ${err.message}\n`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: `Generation failed: ${err.message}`
+      });
+    });
+  });
+});
+
+app.get("/api/agent-iso/download/:jobId", async (req, res) => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({ error: "Job not found" });
+  }
+
+  if (job.status !== "completed") {
+    return res.status(400).json({ error: "ISO generation not completed yet" });
+  }
+
+  let meta = null;
+  try {
+    meta = job.metadata_json ? JSON.parse(job.metadata_json) : null;
+  } catch (err) {
+    logger.error({ tag: "agent-iso:download", err, jobId }, "Failed to parse job metadata");
+    return res.status(500).json({ error: "Failed to parse job metadata" });
+  }
+
+  if (!meta || !meta.isoPath) {
+    return res.status(404).json({ error: "ISO file path not found in job metadata" });
+  }
+
+  const isoPath = meta.isoPath;
+  const tmpAgentIsoBase = path.join(dataDir, "tmp");
+
+  // Security: Validate that isoPath is within allowed tmp directory
+  const realIsoPath = fs.existsSync(isoPath) ? fs.realpathSync(isoPath) : null;
+  if (!realIsoPath || !realIsoPath.startsWith(tmpAgentIsoBase)) {
+    logger.warn({ tag: "agent-iso:download", jobId, isoPath, realIsoPath }, "Invalid ISO path - directory traversal attempt");
+    return res.status(403).json({ error: "Invalid ISO file path" });
+  }
+
+  if (!fs.existsSync(isoPath)) {
+    return res.status(404).json({ error: "ISO file not found on disk" });
+  }
+
+  const stats = fs.statSync(isoPath);
+  const isoName = meta.isoName || path.basename(isoPath);
+
+  logger.info({ tag: "agent-iso:download", jobId, isoPath, size: stats.size }, "Streaming ISO download");
+
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${isoName}"`);
+  res.setHeader("Content-Length", stats.size);
+
+  const stream = fs.createReadStream(isoPath);
+  stream.pipe(res);
+
+  stream.on("error", (err) => {
+    logger.error({ tag: "agent-iso:download", err, jobId }, "Failed to stream ISO file");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to stream ISO file" });
+    }
+  });
+});
+
+async function generateAgentIsoBackgroundJob(jobId, state) {
+  const tmpDir = path.join(dataDir, "tmp");
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const workDir = path.join(tmpDir, `agent-iso-${jobId}`);
+  fs.mkdirSync(workDir, { recursive: true });
+
+  logger.info({ tag: "agent-iso:generate", jobId, workDir }, "Starting agent ISO generation");
+
+  try {
+    updateJob(jobId, { status: "running", progress: 10, message: "Preparing configuration files..." });
+    appendJobOutput(jobId, "=== OpenShift Agent ISO Generation ===\n");
+    appendJobOutput(jobId, `Work directory: ${workDir}\n\n`);
+
+    // Generate install-config.yaml
+    appendJobOutput(jobId, "Generating install-config.yaml...\n");
+    const previewState = JSON.parse(JSON.stringify(state));
+    previewState.reviewFlags = null;
+    previewState.fieldManual = { enabled: false };
+
+    // Inject ephemeral pull secret if available (from mirror registry config)
+    if (mountedMirrorPullSecret && state.ui?.mirrorConfigPreloaded) {
+      if (!previewState.credentials) previewState.credentials = {};
+      previewState.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+      appendJobOutput(jobId, "✓ Injected mirror registry pull secret from mounted config\n");
+    }
+
+    const installConfig = buildInstallConfig(previewState);
+    if (!installConfig) {
+      throw new Error("Failed to generate install-config.yaml");
+    }
+
+    const installConfigPath = path.join(workDir, "install-config.yaml");
+    fs.writeFileSync(installConfigPath, installConfig, "utf8");
+    appendJobOutput(jobId, `✓ Wrote install-config.yaml (${Buffer.byteLength(installConfig)} bytes)\n`);
+
+    // Generate agent-config.yaml
+    appendJobOutput(jobId, "Generating agent-config.yaml...\n");
+    const agentConfig = buildAgentConfig(previewState);
+    if (!agentConfig) {
+      throw new Error("Failed to generate agent-config.yaml - agent-config not supported for this configuration");
+    }
+
+    const agentConfigPath = path.join(workDir, "agent-config.yaml");
+    fs.writeFileSync(agentConfigPath, agentConfig, "utf8");
+    appendJobOutput(jobId, `✓ Wrote agent-config.yaml (${Buffer.byteLength(agentConfig)} bytes)\n\n`);
+
+    // Inject mirror operator manifests into openshift/ directory (mirror bundle workflow only)
+    if (state.ui?.mirrorConfigPreloaded === true) {
+      appendJobOutput(jobId, "Injecting mirror operator bootstrap manifests...\n");
+
+      const openshiftDir = path.join(workDir, "openshift");
+      fs.mkdirSync(openshiftDir, { recursive: true });
+
+      const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn || "registry.local:5000";
+
+      // Extract CRD(s) from the operator catalog image so the cluster knows
+      // the DisconnectedPlatform kind before the 99- CR is applied
+      const catalogImage = `${registryFqdn}/mathianasj/mirror-operator-catalog:v0.0.1`;
+      appendJobOutput(jobId, `Extracting CRD(s) from catalog image: ${catalogImage}...\n`);
+
+      try {
+        const pullSecret = previewState.credentials?.mirrorRegistryPullSecret;
+        const crdAuthFile = pullSecret ? writeTempAuth(pullSecret) : null;
+        const extractDir = path.join(workDir, ".crd-extract");
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        const useInsecure = !!previewState.trust?.mirrorRegistryUsesPrivateCa;
+        const crds = extractCrdsFromCatalogImage(catalogImage, crdAuthFile, extractDir, { insecure: useInsecure });
+
+        if (crds.length === 0) {
+          appendJobOutput(jobId, "⚠ No CRDs found in catalog image — the operator may install its own CRDs at runtime\n");
+          logger.warn({ tag: "agent-iso:mirror-operator", jobId, catalogImage }, "No CRDs extracted from catalog image");
+        } else {
+          for (let i = 0; i < crds.length; i++) {
+            const crdFilename = `00-mirror-operator-crd-${i}.yaml`;
+            fs.writeFileSync(path.join(openshiftDir, crdFilename), crds[i], "utf8");
+            appendJobOutput(jobId, `✓ Wrote openshift/${crdFilename} (${Buffer.byteLength(crds[i])} bytes)\n`);
+          }
+          logger.info({ tag: "agent-iso:mirror-operator", jobId, count: crds.length }, "Extracted and wrote CRD(s) from catalog image");
+        }
+
+        if (crdAuthFile) try { fs.unlinkSync(crdAuthFile); } catch { /* best-effort */ }
+        try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+      } catch (crdErr) {
+        appendJobOutput(jobId, `⚠ Could not extract CRD(s) from catalog image: ${crdErr.message}\n`);
+        appendJobOutput(jobId, "  The operator's OLM subscription may install the CRD at runtime, but timing-dependent failures are possible.\n");
+        logger.warn({ tag: "agent-iso:mirror-operator", jobId, err: crdErr.message, catalogImage }, "CRD extraction from catalog image failed");
+      }
+
+      const operatorHubYaml = buildOperatorHubDisableDefaults();
+      fs.writeFileSync(path.join(openshiftDir, "01-operatorhub-disable-defaults.yaml"), operatorHubYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/01-operatorhub-disable-defaults.yaml (${Buffer.byteLength(operatorHubYaml)} bytes)\n`);
+
+      const namespaceYaml = buildMirrorOperatorNamespace();
+      fs.writeFileSync(path.join(openshiftDir, "01-mirror-operator-namespace.yaml"), namespaceYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/01-mirror-operator-namespace.yaml (${Buffer.byteLength(namespaceYaml)} bytes)\n`);
+
+      const operatorGroupYaml = buildMirrorOperatorOperatorGroup();
+      fs.writeFileSync(path.join(openshiftDir, "02-mirror-operator-operatorgroup.yaml"), operatorGroupYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/02-mirror-operator-operatorgroup.yaml (${Buffer.byteLength(operatorGroupYaml)} bytes)\n`);
+
+      const subscriptionYaml = buildMirrorOperatorSubscription();
+      fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-subscription.yaml"), subscriptionYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
+
+      const openshiftMinor = getOpenShiftMinorFromState(state) || state.release?.channel || null;
+      const disconnectedPlatformYaml = buildDisconnectedPlatform(openshiftMinor);
+      fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-disconnected-platform.yaml"), disconnectedPlatformYaml, "utf8");
+      appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
+
+      logger.info({ tag: "agent-iso:mirror-operator", jobId, registryFqdn }, "Injected mirror operator bootstrap manifests (OperatorHub, Namespace, OperatorGroup, Subscription, DisconnectedPlatform)");
+
+      // Inject IDMS/ITMS files from mirror registry config so the cluster knows
+      // where to pull images from the local mirror registry at bootstrap
+      const mirrorConfigPath = process.env.MIRROR_REGISTRY_CONFIG;
+      if (mirrorConfigPath) {
+        try {
+          const mirrorCfg = JSON.parse(fs.readFileSync(mirrorConfigPath, "utf8"));
+          if (mirrorCfg.idmsPath && fs.existsSync(mirrorCfg.idmsPath)) {
+            const idmsContent = fs.readFileSync(mirrorCfg.idmsPath, "utf8");
+            const idmsDest = path.join(openshiftDir, "99-idms-oc-mirror.yaml");
+            fs.writeFileSync(idmsDest, idmsContent, "utf8");
+            appendJobOutput(jobId, `✓ Wrote openshift/99-idms-oc-mirror.yaml (${Buffer.byteLength(idmsContent)} bytes)\n`);
+          }
+          if (mirrorCfg.itmsPath && fs.existsSync(mirrorCfg.itmsPath)) {
+            const itmsContent = fs.readFileSync(mirrorCfg.itmsPath, "utf8");
+            const itmsDest = path.join(openshiftDir, "99-itms-oc-mirror.yaml");
+            fs.writeFileSync(itmsDest, itmsContent, "utf8");
+            appendJobOutput(jobId, `✓ Wrote openshift/99-itms-oc-mirror.yaml (${Buffer.byteLength(itmsContent)} bytes)\n`);
+          }
+          // Inject additional CatalogSource files from mirror registry config,
+          // renaming oc-mirror generated names to connected-cluster defaults
+          // so GitOps Subscriptions work unchanged across connected and disconnected clusters
+          const CATALOG_NAME_MAP = {
+            "redhat-operator-index": "redhat-operators",
+            "certified-operator-index": "certified-operators",
+            "community-operator-index": "community-operators",
+            "redhat-marketplace-index": "redhat-marketplace",
+          };
+          const catalogSourceFiles = [].concat(mirrorCfg.catalogSourcePaths || []).filter(Boolean);
+          for (const csFile of catalogSourceFiles) {
+            try {
+              if (!fs.existsSync(csFile)) {
+                appendJobOutput(jobId, `⚠ CatalogSource file not found: ${csFile}\n`);
+                continue;
+              }
+              let csContent = fs.readFileSync(csFile, "utf8");
+              try {
+                const doc = jsYaml.load(csContent);
+                if (doc && doc.kind === "CatalogSource" && doc.metadata?.name) {
+                  const originalName = doc.metadata.name;
+                  const matchedKey = Object.keys(CATALOG_NAME_MAP).find((k) => originalName.includes(k));
+                  if (matchedKey) {
+                    doc.metadata.name = CATALOG_NAME_MAP[matchedKey];
+                    csContent = jsYaml.dump(doc, { lineWidth: 120 });
+                    appendJobOutput(jobId, `  Renamed CatalogSource ${originalName} → ${doc.metadata.name}\n`);
+                  }
+                }
+              } catch (parseErr) {
+                logger.warn({ tag: "agent-iso:catalogsource", jobId, file: csFile, err: parseErr.message }, "Could not parse CatalogSource YAML for renaming, injecting as-is");
+              }
+              const csBasename = path.basename(csFile);
+              const prefixedName = csBasename.startsWith("99-") ? csBasename : `99-${csBasename}`;
+              const csDest = path.join(openshiftDir, prefixedName);
+              fs.writeFileSync(csDest, csContent, "utf8");
+              appendJobOutput(jobId, `✓ Wrote openshift/${prefixedName} (${Buffer.byteLength(csContent)} bytes)\n`);
+            } catch (err) {
+              appendJobOutput(jobId, `⚠ Could not inject CatalogSource ${csFile}: ${err.message}\n`);
+              logger.warn({ tag: "agent-iso:catalogsource", jobId, file: csFile, err: err.message }, "Failed to inject CatalogSource file");
+            }
+          }
+          if (catalogSourceFiles.length > 0) {
+            logger.info({ tag: "agent-iso:catalogsource", jobId, count: catalogSourceFiles.length }, "Processed CatalogSource files from mirror registry config");
+          }
+        } catch (err) {
+          appendJobOutput(jobId, `⚠ Could not inject IDMS/ITMS files: ${err.message}\n`);
+          logger.warn({ tag: "agent-iso:mirror-operator", jobId, err: err.message }, "Failed to inject IDMS/ITMS files");
+        }
+      }
+
+      appendJobOutput(jobId, "\n");
+    }
+
+    updateJob(jobId, { progress: 30, message: "Resolving openshift-install binary..." });
+
+    // Check for pre-mounted openshift-install binary (high-side scenario)
+    const mountedInstallerPath = path.join(dataDir, "openshift-install");
+    let installerPath;
+
+    if (fs.existsSync(mountedInstallerPath)) {
+      appendJobOutput(jobId, `✓ Using pre-mounted openshift-install binary: ${mountedInstallerPath}\n\n`);
+      installerPath = mountedInstallerPath;
+    } else {
+      // Fallback to downloading (low-side scenario with internet access)
+      const version = state.version?.selectedVersion || state.release?.version;
+      if (!version) {
+        throw new Error("OpenShift version not configured - please select a version on the Blueprint step");
+      }
+
+      const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
+      const useFips = state.blueprint?.fipsMode === true;
+
+      appendJobOutput(jobId, `Resolving openshift-install binary...\n`);
+      appendJobOutput(jobId, `  Version: ${version}\n`);
+      appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
+      appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
+
+      installerPath = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
+
+      if (!installerPath || !fs.existsSync(installerPath)) {
+        throw new Error(`openshift-install binary not found at ${installerPath || 'undefined'}`);
+      }
+
+      appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
+    }
+
+    updateJob(jobId, { progress: 50, message: "Running openshift-install agent create image..." });
+    appendJobOutput(jobId, `Executing: ${installerPath} agent create image --dir ${workDir}\n`);
+    appendJobOutput(jobId, `---\n\n`);
+
+    // Build env vars for openshift-install
+    const installerEnv = {
+      ...process.env,
+      PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+      HOME: workDir
+    };
+
+    // In mirror bundle mode, set OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE so the
+    // installer pulls the release image from the mirror registry instead of the internet.
+    if (state.ui?.mirrorConfigPreloaded) {
+      const version = state.version?.selectedVersion || state.release?.version;
+      const sources = state.globalStrategy?.mirroring?.sources || [];
+      const releaseSource = sources.find(
+        (s) => s.source === "quay.io/openshift-release-dev/ocp-release"
+      );
+      if (releaseSource?.mirrors?.[0] && version) {
+        const ociArch = (state.blueprint?.cpuArch || "linux-amd64").replace("linux-", "");
+        const releaseArch = ociArch === "amd64" ? "x86_64" : ociArch === "arm64" ? "aarch64" : ociArch;
+        const releaseImageOverride = `${releaseSource.mirrors[0]}:${version}-${releaseArch}`;
+        installerEnv.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = releaseImageOverride;
+        appendJobOutput(jobId, `✓ Release image override: ${releaseImageOverride}\n`);
+      }
+
+      // Write pull secret as Docker auth config so the installer can authenticate
+      // to the mirror registry for its own image operations (oc adm release info, etc.)
+      const pullSecret = previewState.credentials?.mirrorRegistryPullSecret;
+      if (pullSecret) {
+        const dockerDir = path.join(workDir, ".docker");
+        fs.mkdirSync(dockerDir, { recursive: true });
+        fs.writeFileSync(path.join(dockerDir, "config.json"), pullSecret, "utf8");
+        appendJobOutput(jobId, "✓ Wrote .docker/config.json for installer registry auth\n");
+      }
+    }
+
+    // Spawn openshift-install agent create image
+    const child = spawn(installerPath, ["agent", "create", "image", "--dir", workDir], {
+      env: installerEnv
+    });
+
+    activeProcesses.set(jobId, child);
+
+    child.stdout.on("data", (data) => {
+      appendJobOutput(jobId, data.toString());
+    });
+
+    child.stderr.on("data", (data) => {
+      appendJobOutput(jobId, data.toString());
+    });
+
+    child.on("error", (err) => {
+      appendJobOutput(jobId, `\nProcess error: ${err.message}\n`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: "Failed to spawn openshift-install process"
+      });
+      activeProcesses.delete(jobId);
+    });
+
+    child.on("close", (code) => {
+      activeProcesses.delete(jobId);
+      appendJobOutput(jobId, `\n---\nProcess exited with code ${code}\n`);
+
+      if (code === 0) {
+        try {
+          // Read auth files
+          const authDir = path.join(workDir, "auth");
+          const passwordPath = path.join(authDir, "kubeadmin-password");
+          const kubeconfigPath = path.join(authDir, "kubeconfig");
+
+          if (!fs.existsSync(passwordPath)) {
+            throw new Error("kubeadmin-password file not found in auth directory");
+          }
+          if (!fs.existsSync(kubeconfigPath)) {
+            throw new Error("kubeconfig file not found in auth directory");
+          }
+
+          const kubeadminPassword = fs.readFileSync(passwordPath, "utf8").trim();
+          const kubeconfig = fs.readFileSync(kubeconfigPath, "utf8");
+
+          appendJobOutput(jobId, `✓ Read kubeadmin-password (${kubeadminPassword.length} chars)\n`);
+          appendJobOutput(jobId, `✓ Read kubeconfig (${kubeconfig.length} bytes)\n`);
+
+          // Find ISO file
+          const isoFiles = fs.readdirSync(workDir).filter(f => f.endsWith(".iso"));
+          if (isoFiles.length === 0) {
+            throw new Error("No ISO file found in work directory");
+          }
+
+          const isoName = isoFiles[0];
+          const isoPath = path.join(workDir, isoName);
+          const isoSize = fs.statSync(isoPath).size;
+          const isoSizeMB = Math.round(isoSize / 1024 / 1024);
+
+          appendJobOutput(jobId, `✓ Found ISO: ${isoName} (${isoSizeMB}MB)\n\n`);
+          appendJobOutput(jobId, `=== Generation Complete ===\n`);
+
+          logger.info({
+            tag: "agent-iso:generate",
+            jobId,
+            isoPath,
+            isoSize,
+            workDir
+          }, "Agent ISO generated successfully");
+
+          // Store metadata WITHOUT logging sensitive credentials
+          updateJobMetadata(jobId, {
+            isoPath,
+            isoName,
+            isoSize,
+            kubeadminPassword, // Stored in encrypted DB, never logged
+            kubeconfig, // Stored in encrypted DB, never logged
+            workDir,
+            exitCode: code,
+            finishedAt: Date.now()
+          });
+
+          updateJob(jobId, {
+            status: "completed",
+            progress: 100,
+            message: `ISO generated successfully (${isoSizeMB}MB)`
+          });
+        } catch (err) {
+          logger.error({ tag: "agent-iso:generate", err, jobId }, "Failed to read generated files");
+          appendJobOutput(jobId, `\nError reading generated files: ${err.message}\n`);
+          updateJob(jobId, {
+            status: "failed",
+            progress: 100,
+            message: `Generation completed but files missing: ${err.message}`
+          });
+        }
+      } else {
+        // Parse output for common error patterns
+        const output = getJob(jobId)?.output || "";
+        let errorMessage = `openshift-install exited with code ${code}`;
+
+        if (output.includes("validation failed") || output.includes("invalid")) {
+          errorMessage = "Configuration validation failed - check install-config.yaml and agent-config.yaml";
+        } else if (output.includes("not found")) {
+          errorMessage = "Binary or dependency missing";
+        } else if (output.includes("permission denied")) {
+          errorMessage = "Permission denied - check file/directory permissions";
+        }
+
+        logger.warn({ tag: "agent-iso:generate", jobId, exitCode: code }, errorMessage);
+        updateJob(jobId, {
+          status: "failed",
+          progress: 100,
+          message: errorMessage
+        });
+      }
+    });
+  } catch (err) {
+    logger.error({ tag: "agent-iso:generate", err, jobId }, "Agent ISO generation failed");
+    appendJobOutput(jobId, `\nError: ${err.message}\n${err.stack}\n`);
+    updateJob(jobId, {
+      status: "failed",
+      progress: 100,
+      message: `Generation failed: ${err.message}`
+    });
+  }
+}
 
 app.get("/api/docs", (req, res) => {
   const state = ensureState();
@@ -2857,7 +4319,47 @@ app.get("/api/generate", (req, res) => {
 app.post("/api/generate", validateBody(generateSchema), (req, res) => {
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+
+  // Inject mounted mirror pull secret (held in memory, never persisted to database)
+  if (mountedMirrorPullSecret && parsed.state.ui?.mirrorConfigPreloaded) {
+    parsed.state.credentials = parsed.state.credentials || {};
+    parsed.state.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
   try {
+    const connectivity = parsed.state.docs?.connectivity;
+
+    // Connected mode: ONLY generate imageset-config
+    if (connectivity === "connected") {
+      // Enrich operators with defaultChannel from scan cache when missing
+      if (parsed.state.mirrorOperatorPipeline) {
+        const catalogMinor = getOpenShiftMinorFromState(parsed.state);
+        if (catalogMinor) {
+          const scanData = getResults(catalogMinor, "redhat");
+          if (scanData?.results) {
+            const channelMap = new Map(scanData.results.map((r) => [r.name, r.defaultChannel]));
+            // Enrich user-selected operators
+            if (parsed.state.operators?.selected) {
+              for (const op of parsed.state.operators.selected) {
+                if (!op.defaultChannel && channelMap.has(op.name)) {
+                  op.defaultChannel = channelMap.get(op.name);
+                }
+              }
+            }
+            // Attach scan channel map for dependent operator resolution
+            parsed.state._operatorChannelMap = channelMap;
+          }
+        }
+      }
+      const imagesetConfig = buildImageSetConfig(parsed.state);
+      return res.json({
+        files: {
+          "imageset-config.yaml": imagesetConfig
+        }
+      });
+    }
+
+    // Disconnected mode: generate all files
     const files = buildPreviewFiles(parsed.state);
     if (!files) return res.status(400).json({ error: "Version not confirmed." });
 
@@ -2988,23 +4490,34 @@ const buildBundleZip = async (state, res) => {
   }
   if (state.exportOptions?.includeInstaller) {
     try {
-      const version = state.release?.patchVersion;
-      if (!version) {
-        throw new Error("Version not selected.");
-      }
+      // Check for pre-mounted binary first (high-side scenario)
+      const mountedInstallerPath = path.join(dataDir, "openshift-install");
+      let installerPath;
 
-      const useFips = state.exportOptions?.installerUseFips || false;
-      const platformArch = state.exportOptions?.installerPlatformArch || ""; // "" means default
-
-      // Download (or retrieve from cache) the requested binary variant
-      const installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
-
-      if (fs.existsSync(installerPath)) {
-        // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
-        const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
-        archive.file(installerPath, { name: `tools/${binaryName}` });
+      if (fs.existsSync(mountedInstallerPath)) {
+        // Use pre-mounted binary from mirror operator bundle
+        installerPath = mountedInstallerPath;
+        archive.file(installerPath, { name: "tools/openshift-install" });
       } else {
-        throw new Error("Binary not found after download");
+        // Fallback to downloading (low-side scenario with internet access)
+        const version = state.release?.patchVersion;
+        if (!version) {
+          throw new Error("Version not selected.");
+        }
+
+        const useFips = state.exportOptions?.installerUseFips || false;
+        const platformArch = state.exportOptions?.installerPlatformArch || ""; // "" means default
+
+        // Download (or retrieve from cache) the requested binary variant
+        installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
+
+        if (fs.existsSync(installerPath)) {
+          // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
+          const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
+          archive.file(installerPath, { name: `tools/${binaryName}` });
+        } else {
+          throw new Error("Binary not found after download");
+        }
       }
     } catch (error) {
       archive.append(
@@ -3015,18 +4528,27 @@ const buildBundleZip = async (state, res) => {
   }
   if (state.exportOptions?.includeMirrorRegistry) {
     try {
-      const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
-      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
-      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
-      const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
+      // Skip download if mirror config is pre-loaded (high-side scenario - registry already deployed)
+      const mirrorConfigPreloaded = state.ui?.mirrorConfigPreloaded === true;
+      if (mirrorConfigPreloaded) {
+        archive.append(
+          `Mirror registry already deployed on high-side.\nNo need to include mirror-registry.tar.gz in export bundle.\n`,
+          { name: "tools/mirror-registry.SKIPPED.txt" }
+        );
+      } else {
+        // Low-side scenario: download mirror-registry.tar.gz for deployment
+        const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
+        const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
+        const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
+        const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
 
-      // Ensure cache directory exists
-      fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
+        // Ensure cache directory exists
+        fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
 
-      // Download if not already cached or if cached file is invalid
-      const needsDownload = !fs.existsSync(mirrorRegistryPath) || fs.statSync(mirrorRegistryPath).size === 0;
+        // Download if not already cached or if cached file is invalid
+        const needsDownload = !fs.existsSync(mirrorRegistryPath) || fs.statSync(mirrorRegistryPath).size === 0;
 
-      if (needsDownload) {
+        if (needsDownload) {
         // Use Node's built-in fetch which handles redirects automatically (301, 302, 307, 308)
         const response = await fetch(mirrorRegistryUrl);
         if (!response.ok) {
@@ -3047,14 +4569,15 @@ const buildBundleZip = async (state, res) => {
         logger.info({ tag: "mirror-registry", filename: mirrorRegistryFilename, sizeMB: (stat.size / 1024 / 1024).toFixed(2) }, "Mirror registry downloaded");
       }
 
-      if (fs.existsSync(mirrorRegistryPath)) {
-        const stat = fs.statSync(mirrorRegistryPath);
-        if (stat.size > 0) {
-          archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
-        } else {
-          throw new Error("Cached file is 0 bytes (corrupt)");
+        if (fs.existsSync(mirrorRegistryPath)) {
+          const stat = fs.statSync(mirrorRegistryPath);
+          if (stat.size > 0) {
+            archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
+          } else {
+            throw new Error("Cached file is 0 bytes (corrupt)");
+          }
         }
-      }
+      } // End low-side scenario
     } catch (error) {
       const mirrorRegistryArch = state.exportOptions?.mirrorRegistryArch || "amd64";
       const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
@@ -3280,19 +4803,31 @@ app.post("/api/bundle.zip", validateBody(bundleZipSchema), async (req, res) => {
 
 let server;
 if (process.env.NODE_ENV !== "test") {
-  server = app.listen(port, () => {
-    // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
-    const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
-    const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
-    const bannerLines = [
-      "",
-      "╔═══════════════════════════════════════════════════════════════════╗",
-      "║                                                                   ║",
-      "║          OpenShift Airgap Architect - Backend Server             ║",
-      "║                                                                   ║",
-      "╚═══════════════════════════════════════════════════════════════════╝",
-      "",
-      `  Server:        http://localhost:${port}`,
+  // Check if TLS certificates are available
+  const tlsCertPath = process.env.TLS_CERT_PATH;
+  const tlsKeyPath = process.env.TLS_KEY_PATH;
+  const useTLS = tlsCertPath && tlsKeyPath && fs.existsSync(tlsCertPath) && fs.existsSync(tlsKeyPath);
+
+  if (useTLS) {
+    // Create HTTPS server
+    const httpsOptions = {
+      cert: fs.readFileSync(tlsCertPath),
+      key: fs.readFileSync(tlsKeyPath)
+    };
+    server = https.createServer(httpsOptions, app);
+    server.listen(port, () => {
+      // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
+      const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
+      const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
+      const bannerLines = [
+        "",
+        "╔═══════════════════════════════════════════════════════════════════╗",
+        "║                                                                   ║",
+        "║          OpenShift Airgap Architect - Backend Server             ║",
+        "║                                                                   ║",
+        "╚═══════════════════════════════════════════════════════════════════╝",
+        "",
+        `  Server:        https://localhost:${port} (TLS enabled)`,
       `  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`,
       `  Data Dir:      ${process.env.DATA_DIR || "/data"}`,
     ];
@@ -3343,6 +4878,66 @@ if (process.env.NODE_ENV !== "test") {
       }
     }, cleanupIntervalMs);
   });
+  } else {
+    // HTTP fallback
+    server = app.listen(port, () => {
+      const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
+      const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
+      const bannerLines = [
+        "",
+        "╔═══════════════════════════════════════════════════════════════════╗",
+        "║                                                                   ║",
+        "║          OpenShift Airgap Architect - Backend Server             ║",
+        "║                                                                   ║",
+        "╚═══════════════════════════════════════════════════════════════════╝",
+        "",
+        `  Server:        http://localhost:${port}`,
+        `  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`,
+        `  Data Dir:      ${process.env.DATA_DIR || "/data"}`,
+      ];
+      if (bannerSha || bannerTime) {
+        bannerLines.push(`  Build:         ${bannerSha ? String(bannerSha).slice(0, 7) : "dev"} • ${bannerTime || "unknown"}`);
+      }
+      bannerLines.push(
+        "",
+        "  Developed by:  Bill Strauss",
+        "  AI Assistance: Claude (Anthropic) • Cursor AI",
+        "  License:       MIT",
+        "  Repository:    https://github.com/billstrauss/openshift-airgap-architect",
+        "",
+        "───────────────────────────────────────────────────────────────────",
+        "",
+      );
+      process.stdout.write(bannerLines.join("\n") + "\n");
+      logger.info({ tag: "startup", port, mode: process.env.MOCK_MODE === "true" ? "MOCK" : "Production", dataDir: process.env.DATA_DIR || "/data" }, "Server started");
+
+      const retentionDays = parseInt(process.env.JOB_RETENTION_DAYS, 10) || 7;
+      const maxJobCount = parseInt(process.env.JOB_MAX_COUNT, 10) || 100;
+      const cleanupIntervalMs = 24 * 60 * 60 * 1000;
+
+      setTimeout(() => {
+        try {
+          const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+          if (result.totalDeleted > 0) {
+            logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Job cleanup completed on startup");
+          }
+        } catch (err) {
+          logger.error({ err, tag: "job_cleanup" }, "Job cleanup failed on startup");
+        }
+      }, 60000);
+
+      global.cleanupInterval = setInterval(() => {
+        try {
+          const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
+          if (result.totalDeleted > 0) {
+            logger.info({ tag: "job_cleanup", ...result, retentionDays, maxJobCount }, "Scheduled job cleanup completed");
+          }
+        } catch (err) {
+          logger.error({ err, tag: "job_cleanup" }, "Scheduled job cleanup failed");
+        }
+      }, cleanupIntervalMs);
+    });
+  }
   const shutdown = (signal) => {
     // Clear cleanup interval if it exists
     if (global.cleanupInterval) {

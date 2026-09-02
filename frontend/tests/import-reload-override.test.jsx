@@ -122,6 +122,12 @@ describe("Import Reload Override", () => {
       });
     }
 
+    // Wait for wizard to render by checking for the main content area
+    await waitFor(() => {
+      const mainContent = document.getElementById('main-content');
+      expect(mainContent).toBeInTheDocument();
+    });
+
     // Find the file input (it's hidden but should exist)
     const fileInputs = document.querySelectorAll('input[type="file"]');
     expect(fileInputs.length).toBeGreaterThan(0);

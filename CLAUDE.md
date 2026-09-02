@@ -233,6 +233,43 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
+## Container Runtime Preference
+
+**ALWAYS use Podman over Docker**
+
+When working with containers for building, testing, or generating artifacts:
+
+### Why Podman:
+- **Rootless by default** - Better security model
+- **OpenShift compatible** - Uses same OCI standards
+- **No daemon** - Simpler architecture, better resource management
+- **Available on this system** - `/opt/podman/bin/podman`
+
+### Usage Examples:
+
+**Generate Linux package-lock.json:**
+```bash
+podman run --rm -v "$(pwd):/workspace:z" -w /workspace node:20-alpine \
+  sh -c "rm -rf node_modules package-lock.json && npm install --package-lock-only"
+```
+
+**Build container images:**
+```bash
+podman build -t myimage:latest .
+```
+
+**Run tests in container:**
+```bash
+podman run --rm -v "$(pwd):/app:z" -w /app node:20 npm test
+```
+
+### Important Notes:
+- Use `:z` volume mount suffix for SELinux compatibility
+- Podman commands are drop-in replacements for docker commands
+- When documentation says `docker`, always use `podman` instead
+
+---
+
 ## Testing Requirements
 
 ### Before Marking Work Complete
@@ -621,6 +658,332 @@ The app supports **high-side (disconnected) deployments** where the tool runs on
 - High-side integration is core functionality, not optional
 - Changes to ReviewStep require testing all 7 export option categories
 - Runtime package size varies by platform (Node.js binary + dependencies)
+
+---
+
+## Mirror Operator Bundle Workflow (2026-07-09)
+
+**Feature Name:** Run inside mirror operator collection bundle  
+**Purpose:** Deploy wizard on high-side with pre-loaded mirror registry configuration  
+**Documentation:** `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md`
+
+### Overview
+
+Enables the wizard to run **inside** or **alongside** a mirror operator collection bundle on air-gapped networks. When mirror registry config files are mounted at startup, the wizard:
+
+- ✅ Auto-generates pull secret from username/password
+- ✅ Auto-loads CA certificate from file
+- ✅ Extracts mirror sources from IDMS/ITMS YAML files
+- ✅ Pre-selects OpenShift version from imageset-config.yaml
+- ✅ Locks mirror fields as read-only with informational banners
+- ✅ Hides Operators and Run oc-mirror steps (already completed on low-side)
+
+### Two-Side Workflow
+
+**Low-side (connected):**
+1. Mirror OpenShift content using Disconnected Mirror Operator or oc-mirror
+2. Generate config files: registry config JSON, IDMS/ITMS YAML, imageset-config.yaml, CA cert
+3. Transfer bundle to high-side
+
+**High-side (air-gapped):**
+1. Deploy wizard with mounted config files
+2. Wizard auto-loads mirror settings (pull secret, CA, sources, version)
+3. User configures cluster-specific settings (networking, platform, hosts)
+4. Export install bundle ready for deployment
+
+### Environment Variables
+
+- **`MIRROR_REGISTRY_CONFIG`** - Path to mirror registry config JSON (required for pre-loading)
+- **`IMAGESET_CONFIG`** - Path to imageset-config.yaml (optional, for version pre-selection)
+
+### Backend Modules
+
+**New Files:**
+- `backend/src/mirrorRegistryConfigLoader.js` - Loads config, generates pull secret, loads CA cert
+- `backend/src/imageSetConfigParser.js` - Parses imageset-config.yaml, extracts version
+- `backend/src/idmsParser.js` - Parses IDMS/ITMS YAML files, extracts mirror sources
+
+**Modified Files:**
+- `backend/src/index.js` - Augments defaultState() with pre-loaded config, injects pull secret in GET /api/state and POST /api/generate
+
+**Test Files:**
+- `backend/test/mirrorRegistryConfigLoader.test.js` - 14 tests
+- `backend/test/imageSetConfigParser.test.js` - 13 tests
+- `backend/test/idmsParser.test.js` - 14 tests
+- `backend/test/fixtures/*.{json,yaml,pem}` - Test fixtures
+
+**Total:** 41 new tests, 589 total backend tests passing
+
+### Frontend Components
+
+**New Component:**
+- `frontend/src/components/PreloadedConfigBanner.jsx` - Reusable info banner for pre-configured sections
+
+**Modified Steps:**
+- `frontend/src/steps/BlueprintStep.jsx` - Shows "Pre-configured" badge on version field
+- `frontend/src/steps/IdentityAccessStep.jsx` - Locks mirror registry toggle, pull secret field
+- `frontend/src/steps/ConnectivityMirroringStep.jsx` - Locks registry FQDN input
+- `frontend/src/steps/TrustProxyStep.jsx` - Locks CA certificate textarea
+- `frontend/src/wizardVisibleSteps.js` - Hides Operators and Run oc-mirror steps when pre-loaded
+
+**Styling:**
+- `frontend/src/styles.css` - Added `.readonly-input` and `.badge.info` styles
+
+### State Structure
+
+**UI Flags:**
+```javascript
+{
+  ui: {
+    mirrorConfigPreloaded: true  // Locks mirror fields as read-only
+  },
+  blueprint: {
+    mirrorBundleDetected: true   // Shows "Pre-configured" badge
+  }
+}
+```
+
+**Ephemeral Pull Secret:**
+- Stored in memory-only variable: `mountedMirrorPullSecret`
+- Never persisted to SQLite database
+- Injected into state when serving GET `/api/state`
+- Injected before YAML generation in POST `/api/generate`
+- Stripped by `getStateForPersistence()` before database writes
+
+### Config File Formats
+
+**Mirror Registry Config (`mirror-registry-config.json`):**
+```json
+{
+  "hostname": "registry.example.com",
+  "port": 8443,
+  "username": "admin",
+  "password": "secret123",
+  "caCertPath": "/data/mirror-registry-ca.pem",
+  "idmsPath": "/data/idms-oc-mirror.yaml",
+  "itmsPath": "/data/itms-oc-mirror.yaml"
+}
+```
+
+**What Gets Loaded:**
+1. Pull secret generated from `username:password` (base64 encoded)
+2. CA certificate loaded from `caCertPath` file
+3. Mirror sources extracted from IDMS (`spec.imageDigestMirrors[]`)
+4. Mirror sources extracted from ITMS (`spec.imageTagMirrors[]`)
+5. Registry FQDN built from `hostname:port`
+
+### Critical Implementation Details
+
+**Pull Secret is Ephemeral:**
+- `loadMirrorRegistryConfig()` returns `{pullSecret, state}` (separated)
+- Pull secret stored in `mountedMirrorPullSecret` variable (memory-only)
+- State augmentation includes everything EXCEPT pull secret
+- Pull secret injected at runtime in two places:
+  - GET `/api/state` (lines 1148-1152)
+  - POST `/api/generate` (lines 3107-3113) - **Critical bug fix**
+
+**Bug Fixed (2026-07-09):**
+- POST `/api/generate` was reading state from database (no ephemeral secrets)
+- Pull secret missing from generated install-config.yaml
+- Solution: Inject `mountedMirrorPullSecret` before calling `buildPreviewFiles()`
+
+**Step Visibility:**
+- `wizardVisibleSteps.js` checks `state.ui.mirrorConfigPreloaded`
+- Hides "Operators" step when `mirrorConfigPreloaded === true`
+- Hides "Run oc-mirror" step when `mirrorConfigPreloaded === true`
+
+### Security Considerations
+
+**Credential Handling:**
+- Mirror registry config contains sensitive credentials (username/password)
+- File permissions: 0600 or 0644 (must be readable by backend UID 1000)
+- Pull secret never logged (username logged at info level, password never logged)
+- CA certificate content not logged (only file path and byte count)
+
+**File Access:**
+- Backend validates all paths before reading
+- Missing CA cert logs warning but proceeds (might use system root CAs)
+- Missing IDMS/ITMS logs warning and uses default mirror sources
+- Invalid JSON/YAML logs warning and returns null (graceful degradation)
+
+### Testing Requirements
+
+**Unit Tests:**
+- All 41 tests must pass before committing changes
+- Test fixtures use fake credentials ("secret123" allowlisted in .gitleaks.toml)
+- Test coverage includes: valid configs, missing files, invalid JSON/YAML, missing required fields
+
+**Manual Testing Checklist:**
+- [ ] Set `MIRROR_REGISTRY_CONFIG` and `IMAGESET_CONFIG` env vars
+- [ ] Start backend, check logs for "Mirror registry config loaded successfully"
+- [ ] Verify Blueprint step shows "Pre-configured" badge
+- [ ] Verify Identity & Access shows banner and locked mirror fields
+- [ ] Verify Connectivity & Mirroring shows banner and locked FQDN
+- [ ] Verify Trust & Proxy shows banner and locked CA cert
+- [ ] Verify Operators step is hidden
+- [ ] Verify Run oc-mirror step is hidden
+- [ ] Check "Include credentials in export" on Assets & Guide
+- [ ] Verify install-config.yaml shows pull secret (not placeholder)
+
+### When to Update This Feature
+
+**Update if:**
+- Adding new mirror-related fields to UI
+- Changing state persistence logic (affects ephemeral credential handling)
+- Modifying export inclusion logic
+- Adding new config file formats (e.g., ICSP support)
+
+**Don't modify without:**
+- Reading `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` first
+- Understanding ephemeral credential pattern (mountedMirrorPullSecret)
+- Testing all 7 export option categories
+- Verifying 41 unit tests still pass
+
+### Related Documentation
+
+- `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` - Complete user guide with deployment examples
+- `README.md` - Feature overview in "Run inside mirror operator collection bundle" section
+- `.claude/plans/velvety-petting-charm.md` - Original implementation plan
+
+---
+
+## Agent ISO Generation (2026-07-09)
+
+**Feature:** Generate bootable agent ISOs within the wizard for agent-based installer deployments.
+
+**Purpose:** Automate `openshift-install agent create image` execution, eliminating manual ISO generation steps and providing kubeadmin credentials directly in the UI.
+
+**Documentation:** `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` (section 8)
+
+### Overview
+
+Adds a new wizard step "Generate Agent ISO" that:
+- ✅ Runs `openshift-install agent create image` as a background job
+- ✅ Streams real-time stdout/stderr logs to the UI
+- ✅ Provides ISO download via `/api/agent-iso/download/:jobId` endpoint
+- ✅ Displays kubeadmin password and kubeconfig with show/hide toggles
+- ✅ Supports re-generation with confirmation modal
+- ✅ Available for ALL agent-based installer scenarios (not restricted to mirror bundle workflow)
+
+### Implementation
+
+**Backend (`backend/src/index.js`):**
+- `POST /api/agent-iso/generate` - Validates methodology/platform, creates job, triggers background generation
+- `GET /api/agent-iso/download/:jobId` - Streams ISO file with proper headers and path validation
+- `generateAgentIsoBackgroundJob(jobId, state)` - Background job function:
+  1. Creates work directory `/data/tmp/agent-iso-${jobId}/`
+  2. Generates install-config.yaml and agent-config.yaml from state
+  3. Resolves openshift-install binary (version/arch/FIPS)
+  4. Spawns `openshift-install agent create image --dir <workDir>`
+  5. Streams stdout/stderr via `appendJobOutput()`
+  6. Reads kubeadmin password from `auth/kubeadmin-password`
+  7. Reads kubeconfig from `auth/kubeconfig`
+  8. Stores metadata: `{isoPath, isoName, isoSize, kubeadminPassword, kubeconfig, workDir, exitCode}`
+  9. Updates job status: `completed` (success) or `failed` (error)
+
+**Frontend (`frontend/src/steps/GenerateAgentIsoStep.jsx`):**
+- Job polling every 2 seconds via `/api/jobs/:id`
+- Real-time log display with auto-scroll
+- Generate/Regenerate/Download buttons
+- Masked kubeadmin password with show/hide toggle and copy button
+- Collapsible kubeconfig display with copy button
+- Regenerate confirmation modal ("⚠️ This will overwrite the existing ISO")
+- Only shown when:
+  - `state.methodology.method === "Agent-Based Installer"`
+  - `state.blueprint.platform === "Bare Metal" || "VMware vSphere"`
+
+**Wizard Registration:**
+- `frontend/src/App.jsx` - Added to `COMPONENT_MAP`
+- `frontend/src/wizardVisibleSteps.js` - Added to step order (after "Assets & Guide", before "Run oc-mirror")
+- Conditional visibility in both segmented and legacy flows
+
+### Work Directory Structure
+
+```
+/data/tmp/agent-iso-${jobId}/
+├── install-config.yaml       # Generated from state
+├── agent-config.yaml          # Generated from state
+├── auth/
+│   ├── kubeadmin-password     # Initial admin credentials
+│   └── kubeconfig             # Cluster access config
+├── boot-artifacts/            # Additional boot files
+└── agent.x86_64.iso           # Bootable ISO (~900MB-1.2GB)
+```
+
+**Retention:** Work directories retained indefinitely for multiple downloads. Manual cleanup only. Re-generation creates new jobId and new directory.
+
+### Conditional Visibility
+
+**Show step when:**
+- Methodology: "Agent-Based Installer"
+- Platform: "Bare Metal" **OR** "VMware vSphere"
+
+**Hide step when:**
+- Any other methodology (IPI, UPI)
+- Other platforms (AWS, Azure, GCP, etc.)
+
+### Security Considerations
+
+**Credential Handling:**
+- Kubeadmin password and kubeconfig stored in job `metadata_json` (encrypted at rest in SQLite)
+- NEVER logged to stdout/stderr
+- Never included in exported bundles
+- Warning banner: "⚠️ Save these credentials - they cannot be regenerated later"
+
+**File Access:**
+- ISO download validates path is within `/data/tmp/agent-iso-*`
+- Prevents directory traversal attacks via `fs.realpathSync()` validation
+- 403 error if path outside allowed directory
+
+**Pull Secret Injection:**
+- If mirror registry config pre-loaded (`mountedMirrorPullSecret`), inject into state before generation
+- Ensures install-config.yaml includes mirror registry pull secret
+
+### Testing Strategy
+
+**Backend Tests:** (Deferred to task #4)
+- Job creation returns valid jobId
+- Invalid methodology returns 400 error
+- Invalid platform returns 400 error
+- Process spawn executes with correct arguments
+- Metadata stored correctly on success
+- Error handling for missing auth files
+
+**Frontend Tests:** (Deferred to task #5)
+- Step hidden when methodology is not agent-based
+- Step hidden for unsupported platforms
+- Generate button triggers API call
+- Job polling starts after jobId received
+- Regenerate confirmation modal flow
+- Credential masking and show/hide toggles
+
+**Manual Testing:**
+1. Complete wizard to "Generate Agent ISO" step
+2. Click "Generate Agent ISO" button
+3. Verify real-time logs stream during execution
+4. Wait for completion (expect 2-5 minutes)
+5. Download ISO and verify file size (~900MB-1.2GB)
+6. Verify kubeadmin password displayed with mask/show toggle
+7. Verify kubeconfig displayed in collapsible section
+8. Test regeneration with confirmation modal
+
+### When to Update This Feature
+
+**Update if:**
+- Adding new agent-based installer platforms
+- Changing install-config.yaml or agent-config.yaml generation logic
+- Modifying export inclusion logic (affects pull secret injection)
+- Adding new authentication methods for openshift-install
+
+**Don't modify without:**
+- Reading this section and understanding ephemeral credential pattern
+- Testing ISO generation end-to-end (manual test, not just unit tests)
+- Verifying kubeadmin password and kubeconfig are accessible in UI
+
+### Related Documentation
+
+- `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` - Section 8 documents agent ISO step
+- `.claude/plans/quiet-wibbling-lamport.md` - Original implementation plan
 
 ---
 
