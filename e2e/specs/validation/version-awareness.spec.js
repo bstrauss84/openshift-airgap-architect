@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 import { resetState, importState, getState } from '../../helpers/api.js';
 import * as scenarios from '../../fixtures/scenarios.js';
 
-const BACKEND = 'http://localhost:4000';
+const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || 'http://localhost:4000';
 
 function makeVersionFixture(minor, patch) {
   const fixture = scenarios.bareMetalAgent();
@@ -27,6 +27,45 @@ async function generate(request) {
   const resp = await request.post(`${BACKEND}/api/generate`);
   expect(resp.ok()).toBeTruthy();
   return resp.json();
+}
+
+function makeCanonicalLockedVersionState(minor, patch) {
+  const state = scenarios.bareMetalAgent();
+  state.version._schemaVersion = 3;
+  state.version.selectedMinor = minor;
+  state.version.selectedPatch = patch;
+  state.version.selectedChannel = `stable-${minor}`;
+  state.version.selectedVersion = patch;
+  state.version.locked = true;
+  state.release.channel = minor;
+  state.release.patchVersion = patch;
+  state.release.confirmed = true;
+  state.ui.showLanding = false;
+  return state;
+}
+
+function sanitizeForHydration(state) {
+  const payload = JSON.parse(JSON.stringify(state));
+  if (payload.credentials) {
+    delete payload.credentials.pullSecretPlaceholder;
+    delete payload.credentials.mirrorRegistryPullSecret;
+  }
+  return payload;
+}
+
+async function interceptStateHydration(page, canonicalState) {
+  const sanitized = sanitizeForHydration(canonicalState);
+  await page.route('**/api/state', (route) => {
+    if (route.request().method() === 'GET') {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(sanitized),
+      });
+    } else {
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    }
+  });
 }
 
 test.describe('Version Awareness — imageset-config channel names', () => {
@@ -142,6 +181,68 @@ test.describe('Version Awareness — unsupported version rejection', () => {
       expect(files['imageset-config.yaml']).toBeDefined();
     }
   });
+});
+
+test.describe('Version Awareness — VersionSupportGate browser boundary (DOC-104)', () => {
+  test.beforeEach(async ({ page, request }) => {
+    const resp = await request.post(`${BACKEND}/api/start-over`);
+    expect(resp.ok(), `State reset failed: ${resp.status()}`).toBeTruthy();
+
+    await page.route('**/api/cincinnati/**', (route) => {
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ channels: [], versions: [] }) });
+    });
+  });
+
+  test('locked 4.22 → unsupported-version recovery boundary blocks wizard', async ({ page }) => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on('pageerror', (err) => pageErrors.push(err.message));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+
+    const state = makeCanonicalLockedVersionState('4.22', '4.22.0');
+    await interceptStateHydration(page, state);
+
+    await page.goto('/');
+
+    const alert = page.getByRole('alert');
+    await expect(alert).toBeVisible();
+    await expect(alert.getByRole('heading', { name: 'Unsupported OpenShift Version' })).toBeVisible();
+    await expect(alert).toContainText('4.22');
+    await expect(alert).toContainText('4.20, 4.21');
+    await expect(alert.getByRole('button', { name: 'Start Over' })).toBeVisible();
+    await expect(alert.getByRole('button', { name: 'Switch to 4.21' })).toBeVisible();
+
+    await expect(page.getByRole('main', { name: 'Wizard step content' })).toHaveCount(0);
+
+    expect(pageErrors, 'Unexpected page exceptions').toEqual([]);
+    expect(consoleErrors, 'Unexpected console errors').toEqual([]);
+  });
+
+  for (const [minor, patch] of [['4.20', '4.20.5'], ['4.21', '4.21.2']]) {
+    test(`locked ${minor} → passes gate, renders wizard`, async ({ page }) => {
+      const pageErrors = [];
+      const consoleErrors = [];
+      page.on('pageerror', (err) => pageErrors.push(err.message));
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') consoleErrors.push(msg.text());
+      });
+
+      const state = makeCanonicalLockedVersionState(minor, patch);
+      await interceptStateHydration(page, state);
+
+      await page.goto('/');
+
+      await expect(page.getByRole('main', { name: 'Wizard step content' })).toBeVisible();
+
+      const unsupportedAlert = page.locator('[role="alert"]').filter({ hasText: 'Unsupported OpenShift Version' });
+      await expect(unsupportedAlert).toHaveCount(0);
+
+      expect(pageErrors, 'Unexpected page exceptions').toEqual([]);
+      expect(consoleErrors, 'Unexpected console errors').toEqual([]);
+    });
+  }
 });
 
 test.describe('Version Awareness — install-config version differences', () => {
