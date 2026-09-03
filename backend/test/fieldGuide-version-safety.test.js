@@ -494,3 +494,178 @@ describe("FieldGuideVersionError identity", () => {
     assert.equal(err.code, "FIELD_GUIDE_VERSION_ERROR");
   });
 });
+
+// --- M03: Deterministic 4.22 rejection — production boundary evidence ---
+
+describe("M03: deterministic 4.22 rejection — production boundary evidence", () => {
+  const assertRejectsUnsupported = (state, label) => {
+    let returned;
+    try {
+      returned = buildFieldGuide(state);
+    } catch (err) {
+      assert(err instanceof FieldGuideVersionError,
+        `${label}: expected FieldGuideVersionError, got ${err.name}: ${err.message}`);
+      assert.equal(err.code, 'FIELD_GUIDE_VERSION_ERROR',
+        `${label}: wrong error code`);
+      assert.match(err.message, /not supported/i,
+        `${label}: error should indicate unsupported`);
+      return;
+    }
+    assert.fail(
+      `${label}: expected rejection but got: ${typeof returned === 'string' ? returned.substring(0, 80) + '...' : returned}`
+    );
+  };
+
+  // --- Canonical locked single-source isolation ---
+
+  it("rejects sole version.selectedMinor='4.22' (locked)", () => {
+    assertRejectsUnsupported(
+      { version: { selectedMinor: "4.22", locked: true } },
+      "sole selectedMinor"
+    );
+  });
+
+  it("rejects sole version.selectedPatch='4.22.0' (locked)", () => {
+    assertRejectsUnsupported(
+      { version: { selectedPatch: "4.22.0", locked: true } },
+      "sole selectedPatch"
+    );
+  });
+
+  it("rejects sole version.selectedChannel='stable-4.22' (locked)", () => {
+    assertRejectsUnsupported(
+      { version: { selectedChannel: "stable-4.22", locked: true } },
+      "sole selectedChannel"
+    );
+  });
+
+  // --- Legacy-only single-source isolation ---
+
+  it("rejects sole release.patchVersion='4.22.0'", () => {
+    assertRejectsUnsupported(
+      { release: { patchVersion: "4.22.0" } },
+      "sole release.patchVersion"
+    );
+  });
+
+  it("rejects sole release.channel='stable-4.22'", () => {
+    assertRejectsUnsupported(
+      { release: { channel: "stable-4.22" } },
+      "sole release.channel"
+    );
+  });
+
+  it("rejects sole version.selectedVersion='4.22.0' without canonical state", () => {
+    assertRejectsUnsupported(
+      { version: { selectedVersion: "4.22.0" } },
+      "sole version.selectedVersion"
+    );
+  });
+
+  it("rejects sole release.selectedVersion='4.22.0'", () => {
+    assertRejectsUnsupported(
+      { release: { selectedVersion: "4.22.0" } },
+      "sole release.selectedVersion"
+    );
+  });
+
+  // --- Fail-closed: supported + unsupported coexistence, position-independent ---
+
+  it("rejects when all prior sources=4.21 but release.selectedVersion=4.22 (last source)", () => {
+    assertRejectsUnsupported({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5", selectedChannel: "stable-4.21", locked: true },
+      release: { patchVersion: "4.21.5", channel: "stable-4.21", selectedVersion: "4.22.0" },
+    }, "4.22 in last-checked source");
+  });
+
+  it("rejects when selectedMinor=4.22 but all other sources=4.21 (first source)", () => {
+    assertRejectsUnsupported({
+      version: { selectedMinor: "4.22", selectedPatch: "4.21.5", selectedChannel: "stable-4.21", locked: true },
+      release: { patchVersion: "4.21.5", channel: "stable-4.21" },
+    }, "4.22 in first-checked source");
+  });
+
+  it("rejects when only selectedChannel=stable-4.22 among supported sources (middle)", () => {
+    assertRejectsUnsupported({
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5", selectedChannel: "stable-4.22", locked: true },
+      release: { patchVersion: "4.21.5" },
+    }, "4.22 in middle-checked source");
+  });
+
+  // --- No fallback, no partial markdown ---
+
+  it("buildFieldGuide returns no markdown for 4.22 canonical locked state", () => {
+    let returned;
+    let error;
+    try {
+      returned = buildFieldGuide(makeCanonicalState("4.22", "4.22.0", { selectedChannel: "stable-4.22" }));
+    } catch (err) {
+      error = err;
+    }
+    assert(error, "should have thrown");
+    assert(returned === undefined, `no markdown should be assigned, got ${typeof returned}`);
+    assert(error instanceof FieldGuideVersionError, "should be FieldGuideVersionError");
+  });
+
+  it("resolveFieldGuideVersion throws FieldGuideVersionError for 4.22, not a descriptor", () => {
+    let descriptor;
+    let error;
+    try {
+      descriptor = resolveFieldGuideVersion({ version: { selectedMinor: "4.22", locked: true } });
+    } catch (err) {
+      error = err;
+    }
+    assert(error, "should have thrown");
+    assert(descriptor === undefined, "no descriptor should be returned");
+    assert(error instanceof FieldGuideVersionError);
+    assert.equal(error.code, 'FIELD_GUIDE_VERSION_ERROR');
+  });
+
+  // --- Positive controls: 4.20 and 4.21 produce markdown, no 4.22 content ---
+
+  it("4.20 locked canonical produces valid markdown without 4.22 content", () => {
+    const md = buildFieldGuide(makeCanonicalState("4.20", "4.20.15"));
+    assert.equal(typeof md, "string");
+    assert(md.length > 100, "should produce substantial output");
+    assert(md.includes("4.20"), "should reference 4.20");
+    assert(!md.includes("4.22"), "must not contain 4.22");
+  });
+
+  it("4.21 locked canonical produces valid markdown without 4.22 content", () => {
+    const md = buildFieldGuide(makeCanonicalState("4.21", "4.21.5"));
+    assert.equal(typeof md, "string");
+    assert(md.length > 100, "should produce substantial output");
+    assert(md.includes("4.21"), "should reference 4.21");
+    assert(!md.includes("4.22"), "must not contain 4.22");
+  });
+
+  // --- Missing/unlocked/incoherent state: error identity proves no silent 4.20 fallback ---
+
+  it("null state throws FieldGuideVersionError, not silent 4.20 fallback", () => {
+    assert.throws(
+      () => resolveFieldGuideVersion(null),
+      (err) => err instanceof FieldGuideVersionError
+    );
+  });
+
+  it("empty state throws FieldGuideVersionError, not silent 4.20 fallback", () => {
+    assert.throws(
+      () => resolveFieldGuideVersion({}),
+      (err) => err instanceof FieldGuideVersionError
+    );
+  });
+
+  it("unlocked canonical throws FieldGuideVersionError, not silent 4.20 fallback", () => {
+    assert.throws(
+      () => resolveFieldGuideVersion({ version: { selectedMinor: "4.21", locked: false } }),
+      (err) => err instanceof FieldGuideVersionError
+    );
+  });
+
+  it("locked but no version fields throws FieldGuideVersionError, not silent 4.20 fallback", () => {
+    assert.throws(
+      () => resolveFieldGuideVersion({ version: { locked: true } }),
+      (err) => err instanceof FieldGuideVersionError
+    );
+  });
+});
