@@ -52,7 +52,7 @@ import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
-import { assertSupportedOpenShiftMinorForGeneration } from "./versionPolicy.js";
+import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
 import { sanitizeStateForPersistence } from "./stateSanitizer.js";
 import {
   validateBody,
@@ -1208,6 +1208,19 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
   }
 
   const candidate = migrationResult.migrated;
+
+  // Version-support check: reject unsupported minors before persistence
+  const resolvedMinor = getOpenShiftMinorFromState(candidate);
+  if (resolvedMinor && !isSupportedMinor(resolvedMinor)) {
+    const vErr = buildUnsupportedVersionError(resolvedMinor);
+    return res.status(422).json({
+      error: vErr.message,
+      code: vErr.code,
+      requestedVersion: vErr.requestedVersion,
+      supportedVersions: vErr.supportedVersions
+    });
+  }
+
   if (candidate.hostInventory) {
     const bmcResult = validateBmcVerifyCA(candidate.hostInventory.bmcVerifyCA);
     if (!bmcResult.valid) {

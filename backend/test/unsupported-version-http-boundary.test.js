@@ -15,6 +15,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { app } from '../src/index.js';
+import { setState } from '../src/utils.js';
 import { createTestServer, closeTestServer } from './helpers/httpServerLifecycle.js';
 
 /**
@@ -191,12 +192,8 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
     it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
-        // Set confirmed 4.22 state
-        await fetch(`${baseUrl}/api/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(confirmed422State)
-        });
+        // Seed 4.22 state directly via database (bypasses POST persistence boundary)
+        setState(confirmed422State);
 
         const res = await fetch(`${baseUrl}/api/generate`);
         assert.strictEqual(res.status, 422, 'GET /api/generate must return 422 for 4.22');
@@ -210,11 +207,8 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
     it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION (support check before confirmation check)', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
-        await fetch(`${baseUrl}/api/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(unconfirmed422State)
-        });
+        // Seed 4.22 state directly via database (bypasses POST persistence boundary)
+        setState(unconfirmed422State);
 
         const res = await fetch(`${baseUrl}/api/generate`);
         assert.strictEqual(
@@ -563,11 +557,8 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
     it('GET /api/generate and POST /api/generate return identical error shape for 4.22', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
-        await fetch(`${baseUrl}/api/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(confirmed422State)
-        });
+        // Seed 4.22 state directly via database (bypasses POST persistence boundary)
+        setState(confirmed422State);
         const getRes = await fetch(`${baseUrl}/api/generate`);
         const getBody = await getRes.json();
 
