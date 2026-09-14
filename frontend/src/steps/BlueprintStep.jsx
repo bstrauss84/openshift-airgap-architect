@@ -46,7 +46,7 @@ async function pollJobUntilTerminal(jobId, { timeoutMs = 120000 } = {}) {
   throw new Error("Timed out waiting for Cincinnati refresh job.");
 }
 
-const BlueprintStep = () => {
+const BlueprintStep = ({ onRequestChangeRelease }) => {
   const { state, updateState } = useApp();
   const blueprint = state.blueprint;
   const release = state.release;
@@ -344,7 +344,9 @@ const BlueprintStep = () => {
       <div className="step-body">
         {locked ? (
           <div className="note warning" style={{ marginBottom: 16 }}>
-            Foundational selections are locked. Use Start Over to change platform, architecture, or release.
+            {releaseLocked
+              ? "Foundational selections are locked."
+              : "Platform and architecture are locked. Edit the release below and confirm to proceed."}
           </div>
         ) : null}
         {state.ui?.isImported && showImportWarning ? (
@@ -429,6 +431,11 @@ const BlueprintStep = () => {
           <div className="card-header" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <h3 style={{ margin: 0 }}>OpenShift release</h3>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              {locked && releaseLocked && onRequestChangeRelease ? (
+                <button type="button" className="ghost" onClick={onRequestChangeRelease}>
+                  Change release
+                </button>
+              ) : null}
               <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
                 Update
               </button>
@@ -552,7 +559,7 @@ const BlueprintStep = () => {
           </details>
           <p className="note note-prominent">
             Operator scans are blocked until you lock these selections.
-            {releaseLocked ? " Release is locked; use Start Over to change it." : ""}
+            {releaseLocked ? " Release is locked." : ""}
           </p>
         </section>
 

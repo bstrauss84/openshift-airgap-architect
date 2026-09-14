@@ -52,6 +52,7 @@ import { compareVersions } from "../../shared/versionUtils.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
 import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
+import { computeReleaseTransition } from "./shared/versionReleaseTransition.js";
 
 /** Used for Landing banner and tests; true only when update is available and no error/unknown. */
 export function shouldShowUpdateBanner(updateInfo) {
@@ -283,6 +284,8 @@ const AppShell = () => {
   const [lockAndProceedLoading, setLockAndProceedLoading] = useState(false);
   const [showStartOverConfirm, setShowStartOverConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [showChangeReleaseWarning, setShowChangeReleaseWarning] = useState(false);
+  const [changeReleaseError, setChangeReleaseError] = useState("");
   const [showSwitchFlowConfirm, setShowSwitchFlowConfirm] = useState(false);
   const [pendingSwitchFlow, setPendingSwitchFlow] = useState(null);
   const [validationModal, setValidationModal] = useState(null);
@@ -992,6 +995,23 @@ metadata:
     }
   };
 
+  const confirmChangeRelease = () => {
+    const currentMinor = getOpenShiftMinorFromState(state);
+    const currentPatch = state?.version?.selectedPatch || state?.release?.patchVersion || null;
+    const timestamp = Date.now();
+    const result = computeReleaseTransition(state, currentMinor, {
+      timestamp,
+      ...(currentPatch ? { patch: currentPatch } : {}),
+    });
+    if (!result.ok) {
+      setChangeReleaseError(result.error);
+      return;
+    }
+    updateState(result.patch);
+    setShowChangeReleaseWarning(false);
+    setChangeReleaseError("");
+  };
+
   const confirmStartOver = async () => {
     const nextState = await startOver({ cancelRunningOcMirror: hasRunningOcMirrorJobs });
     if (nextState) setState(nextState);
@@ -1337,6 +1357,10 @@ metadata:
                     fieldErrors={fieldErrors}
                     incompleteStepLabels={incompleteStepLabels}
                     onRequestStartOver={handleStartOverClick}
+                    onRequestChangeRelease={() => {
+                      setChangeReleaseError("");
+                      setShowChangeReleaseWarning(true);
+                    }}
                     onNavigateToOperations={(jobId) => {
                       const opsIdx = visibleSteps.findIndex((s) => s.id === "operations");
                       if (opsIdx < 0) return;
@@ -1437,7 +1461,7 @@ metadata:
         >
           <h3 id="core-lock-title">Lock foundational selections?</h3>
           <p className="modal-copy subtle">
-            The following will be locked. You will need to use Start Over to change them later.
+            The following will be locked. Platform and architecture require Start Over to change. The OpenShift release can be changed later.
           </p>
           <dl className="modal-summary">
             <dt>Target Platform</dt>
@@ -1589,6 +1613,33 @@ metadata:
             </button>
             <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
               {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
+            </button>
+          </div>
+        </Modal>
+        <Modal
+          isOpen={showChangeReleaseWarning}
+          onClose={() => { setShowChangeReleaseWarning(false); setChangeReleaseError(""); }}
+          ariaLabelledBy="change-release-title"
+        >
+          <h3 id="change-release-title">Change OpenShift release?</h3>
+          <p className="subtle">
+            Unlocking the release will require reviewing version-dependent downstream work.
+            Operator selections and scans will become stale and need re-evaluation.
+          </p>
+          <p className="subtle">
+            Platform and architecture will remain locked. Use Start Over to reset the complete workflow.
+          </p>
+          {changeReleaseError ? (
+            <div className="note warning" role="alert">
+              Could not unlock release: {changeReleaseError}
+            </div>
+          ) : null}
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => { setShowChangeReleaseWarning(false); setChangeReleaseError(""); }}>
+              Cancel
+            </button>
+            <button type="button" className="primary" onClick={confirmChangeRelease}>
+              Yes, unlock release
             </button>
           </div>
         </Modal>
