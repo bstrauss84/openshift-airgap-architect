@@ -1485,10 +1485,10 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v2.0.0 (Major) - 16-20 weeks (ARCHITECTURE APPROVED 2026-05-29)
 
-**Status:** Phase 0 (DOC-100) verified_done, Phase 1 (DOC-101) verified_done, Phase 2 (DOC-102) verified_done (2026-08-13 — all canonical slices 5A/5B/5D/5F/5G/5H and final closure tranches complete; BMC verify CA implemented, Azure BYO VNet implemented, dnsRecordsType classified as deliberate support boundary; 38 unsupported/manual-review upstream delta paths intentionally deferred). Phase 3 (DOC-103) active / partial — version locking, version-aware controls, UI registry, browser verification implemented; tooltips, badges, annotations remaining. Phase 4 (DOC-104) active / partial — migration, catalog, visibility, validation, generation tests exist; parameterized version-matrix and Field Guide tests remaining. Phase 5 (DOC-105) active / partial — ADRs, Design System, checklist, roadmap governance exist; migration guide, README, CHANGELOG, security audit remaining. DOC-106 (versioned copy audit) verified_done (inventory complete; original implementation conclusion superseded by current evidence). DOC-107 (versioned copy implementation): centralized not started, field-specific partial, repository-wide incomplete, CI enforcement not started.
+**Status:** Phase 0 (DOC-100) verified_done, Phase 1 (DOC-101) verified_done, Phase 2 (DOC-102) verified_done (2026-08-13 — all canonical slices 5A/5B/5D/5F/5G/5H and final closure tranches complete; BMC verify CA implemented, Azure BYO VNet implemented, dnsRecordsType classified as deliberate support boundary; 38 unsupported/manual-review upstream delta paths intentionally deferred). Phase 3 (DOC-103) active / partial — version locking, version-aware controls, UI registry, browser verification implemented; tooltips, badges, annotations remaining. Phase 4 (DOC-104) active / partial — migration, catalog, visibility, validation, generation tests exist; parameterized version-matrix and Field Guide tests remaining; M01 version-manifest contract frozen (2026-09-15, documentation only). Phase 5 (DOC-105) active / partial — Design System, checklist, roadmap governance exist; ADR-001 through ADR-007 referenced at `local-docs/version-aware-planning/` but not tracked or present in the live worktree (not current release evidence); migration guide, README, CHANGELOG, security audit remaining. DOC-106 (versioned copy audit) verified_done (inventory complete; original implementation conclusion superseded by current evidence). DOC-107 (versioned copy implementation): centralized not started, field-specific partial, repository-wide incomplete, CI enforcement not started.
 **Purpose:** Version-aware system - **BREAKING CHANGE**
 **Scope:** OpenShift 4.20 (baseline) + 4.21 (first target). 4.22 is unsupported.
-**Planning Docs:** `local-docs/version-aware-planning/` (ADR-001 through ADR-007, README.md, versioned copy audit requirements)
+**Planning Docs:** `local-docs/version-aware-planning/` (historically referenced ADR-001 through ADR-007, README.md, versioned copy audit requirements — ADR files are not tracked or present in the live worktree and are not current release evidence)
 **Tracking:** DOC-059 (parent), DOC-100 through DOC-107 (phased work breakdown)
 **Completion Matrix:** `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` (created 2026-08-03)
 **Historical Test Baselines (from HEAD 0e927b1):** Frontend 2,241 passed / 2 skipped / 0 failed, Backend 1,252 passed / 5 todo / 0 failed, Focused DNS 23 passed, Playwright 4 passed. These totals are accepted evidence from the dnsRecordsType support boundary tranche. Prior baseline (HEAD 289b8794): Frontend 2,080/2 skip, Backend 1,089/5 todo.
@@ -1496,11 +1496,11 @@ This document organizes remaining backlog work by semantic versioning to provide
 #### Why Major Version (Breaking Changes)
 
 - State schema v2 → v3 (incompatible with v1.x)
-- Export bundles require version-manifest.json (v1.x can't read)
+- Generated artifact ZIP will include version-manifest.json with integrity checksums (M01 contract frozen 2026-09-15; v1.x tooling cannot validate manifests)
 - Frontend catalog structure changes (breaks v1.x frontend)
 - Catalog parameter schema v1.1.0 → v2.0.0 (new required fields)
-- Import/export no longer forward/backward compatible without migration
-- v1.x imports supported via explicit user-confirmed migration flow
+- JSON run envelope and generated artifact ZIP are distinct surfaces (M01 surface classification)
+- v1.x JSON run imports supported via explicit v1/v2→v3 state migration flow; manifest-bearing archive import is a separate future surface
 
 #### Key Architectural Decisions (Approved)
 
@@ -1510,8 +1510,9 @@ This document organizes remaining backlog work by semantic versioning to provide
 4. **Bundler-Compatible Imports:** Vite's import.meta.glob (not raw require())
 5. **Centralized Version Utility:** shared/versionUtils.js prevents ad hoc semver/string comparisons
 6. **Versioned Copy Audit:** Required workstream (inventory + strategy implementation)
-7. **v1.x Migration:** Explicit user confirmation modal (not silent acceptance)
-8. **Strict Checksums:** Reject corrupted exports with clear error
+7. **v1.x Migration:** Explicit user confirmation modal (not silent acceptance) for JSON run imports
+8. **Strict Checksums:** Reject corrupted or incomplete archives with clear error (M01 contract: SHA-256, lowercase hex, keyed by ZIP entry name; fail-closed on mismatch, missing manifest, missing checksum coverage, and unlisted entries; applies to future manifest-bearing archive import only — legacy JSON run imports without manifest use existing migration path)
+9. **Surface Classification (M01):** JSON run envelope (`/api/run/export`, `/api/run/import`) is the state portability surface; generated artifact ZIP (`buildBundleZip`) is the deployment bundle surface that will receive `version-manifest.json`; these are distinct and must not be conflated
 
 #### Phase 0: Baseline Certification (4.20) - ✅ COMPLETE (2026-06-01)
 
@@ -1586,6 +1587,8 @@ This document organizes remaining backlog work by semantic versioning to provide
 - Categories: state migration (50), catalog loading (100), field visibility (200), validation (300), generation (400), import/export (100), E2E (50)
 - Parameterized tests for 4.20 and 4.21
 - Version-gating tests (fields hidden/shown correctly)
+- version-manifest.json implementation in generated artifact ZIP per M01 frozen contract (2026-09-15)
+- Import/export tests must distinguish JSON run envelope from generated artifact ZIP (M01 surface classification)
 
 **Evidence Required:**
 - All tests passing
@@ -1599,7 +1602,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 1. Update CLAUDE.md with version-awareness patterns
 2. Create MIGRATION_GUIDE_v1_to_v2.md
 3. Update README.md with version selection instructions
-4. Create final ADR documents in local-docs/version-aware-planning/
+4. Create or recover tracked ADR documents (ADR-001 through ADR-007 historically referenced at local-docs/version-aware-planning/ but not present in live worktree)
 5. **Update BACKLOG_STATUS.md** - Mark DOC-059, DOC-100-107 verified_done ONLY after:
    - Implementation complete
    - Tests passing
@@ -1914,5 +1917,5 @@ Read-only assessment (2026-08-03) identified productization gaps across 10 domai
 
 ---
 
-**Last Updated:** 2026-08-13 (v2.0.0 Phases 0–2 verified_done, Phase 2 all canonical slices and final closure tranches complete, Phases 3–5 corrected to active/partial, enterprise productization program intake PROD-024 through PROD-046, VERSION_AWARENESS_COMPLETION_MATRIX.md created, documentation correction pass applied)
-**Next Review:** After DOC-107 (versioned copy strategy) or DOC-103 (UI/UX enhancements) next tranche complete
+**Last Updated:** 2026-09-15 (M01 version-manifest contract freeze — documentation only; surface classification frozen for JSON run envelope vs generated artifact ZIP; stale state.json/stateChecksum/manifest-version claims reconciled; checksum and identity semantics defined; fail-closed import conditions specified; no implementation or test changes)
+**Next Review:** After version-manifest implementation milestone or DOC-103/DOC-107 next tranche complete

@@ -533,36 +533,61 @@ function migrateStateV2toV3(state) {
 **State Persistence:**
 - Backend: `/api/state` saves v3 schema
 - Import: Detect v2 vs v3, auto-migrate v2 → v3
-- Export: Always export v3 (with version manifest)
+- Export: Always export v3 (version-manifest.json belongs to the generated artifact ZIP surface; see M01 contract below)
 
 ---
 
-## IMPORT/EXPORT VERSION MANIFESTS
+## EXPORT/IMPORT PRODUCT SURFACES AND VERSION-MANIFEST CONTRACT
 
-### Required v2.0.0 Design
+**M01 Contract Freeze — Documentation Only (2026-09-15)**
 
-**Export Bundle Structure:**
-```
-export-bundle-{timestamp}.zip
-├── version-manifest.json          ← NEW REQUIRED
-├── state.json                      
-├── install-config.yaml
-├── agent-config.yaml (if applicable)
-├── imageset-config.yaml (if applicable)
-├── field-guide.md
-└── tools/ (binaries if included)
-```
+This section defines the frozen implementation-ready contract for the two distinct export/import product surfaces and the future version-manifest. M01 freezes documentation only. Implementation, checksum code, manifest generation, archive import surfaces, and tests belong to later milestones and must not be marked complete here.
 
-### version-manifest.json Schema
+### Surface Classification
+
+The application has two distinct export surfaces that must not be conflated:
+
+**1. JSON Run Envelope (State Portability)**
+- Routes: `GET /api/run/export` (produces JSON), `POST /api/run/import` (consumes JSON)
+- Purpose: State persistence, sharing, and legacy migration
+- Format: JSON response/request body — NOT a ZIP archive
+- Current envelope fields: `schemaVersion` (integer, currently 2), `exportedAt` (ISO timestamp), `runId`, `state` (sanitized migrated-v3 state), `migrated` (boolean)
+- State migration: `migrateStateToV3()` applied at both export and import boundaries; v1/v2 state auto-migrates to v3
+- Credential handling: `sanitizeStateForExport()` strips sensitive data before export
+- Does NOT carry `version-manifest.json` — state portability and version-manifest are separate concerns
+- Does NOT produce or consume ZIP archives
+
+**2. Generated Artifact ZIP (Deployment Bundle)**
+- Routes: `POST /api/bundle.prepare` (issues token) → `GET /api/bundle.zip` (tokenized download); `POST /api/bundle.zip` (direct download)
+- Purpose: Downloadable deployment artifacts for OpenShift installation
+- Format: ZIP archive produced by `buildBundleZip()`
+- Current contents: `install-config.yaml`, `agent-config.yaml` (conditional), `imageset-config.yaml`, `FIELD_MANUAL.md`, NTP MachineConfig YAMLs (conditional), `DRAFT_NOT_VALIDATED.txt` (conditional), optional tool binaries under `tools/`, optional mirror output, optional runtime package
+- Does NOT currently contain `state.json` or `version-manifest.json`
+- This surface will later receive `version-manifest.json` and integrity checksums per the contract below
+
+### Future version-manifest.json Contract (Frozen)
+
+The following contract is frozen for later implementation in the generated artifact ZIP surface only.
+
+**ZIP placement:** `version-manifest.json` at the archive root, alongside generated YAML artifacts.
+
+**Complete checksum coverage: every non-manifest file in the ZIP must have a checksum entry.** The `integrity.files` mapping must contain an entry for every file present in the archive except `version-manifest.json` itself. Conditional files (e.g., `agent-config.yaml`) that are absent from a given ZIP must not appear in the manifest; conditional files that are present must have a checksum entry. Nested entries (e.g., MachineConfig YAML files under subdirectories) must also have checksum entries keyed by their full ZIP entry path. The manifest must not include a checksum of itself.
+
+**State exclusion:** The ZIP does not contain `state.json` unless a separate approved product decision later adds state export to the ZIP. Until such a decision, the manifest must not contain a `stateChecksum` entry or a required `state.json` reference. State portability remains the JSON run envelope's responsibility.
+
+#### version-manifest.json Schema (Frozen)
 
 ```json
 {
-  "manifestVersion": "2.0.0",
+  "manifestSchemaVersion": "1.0.0",
   "generated": {
-    "timestamp": "2026-05-29T10:00:00.000Z",
-    "appVersion": "2.0.0",
-    "appCommit": "abc1234",
-    "stateSchemaVersion": "3"
+    "timestamp": "2026-09-15T10:00:00.000Z",
+    "appIdentity": {
+      "version": "<from /api/build-info identity surface (backend/package.json version) at runtime>",
+      "commit": "<git commit SHA if available at runtime>",
+      "buildTime": "<ISO timestamp if available at runtime>"
+    },
+    "stateSchemaVersion": 3
   },
   "openshift": {
     "selectedMinor": "4.21",
@@ -570,79 +595,86 @@ export-bundle-{timestamp}.zip
     "lockedVersion": true
   },
   "compatibility": {
-    "minimumAppVersion": "2.0.0",
-    "maximumAppVersion": null,
-    "stateFormatCompatible": ["3"],
+    "minimumManifestSchemaVersion": "1.0.0",
+    "stateFormatCompatible": [3],
     "warnings": []
   },
   "integrity": {
-    "stateChecksum": "sha256:abc123...",
-    "installConfigChecksum": "sha256:def456...",
-    "agentConfigChecksum": "sha256:789abc..."
+    "algorithm": "sha-256",
+    "format": "lowercase-hex",
+    "files": {
+      "install-config.yaml": "sha256:abcdef0123456789...",
+      "agent-config.yaml": "sha256:0123456789abcdef...",
+      "imageset-config.yaml": "sha256:fedcba9876543210...",
+      "FIELD_MANUAL.md": "sha256:1234567890abcdef..."
+    }
   }
 }
 ```
 
-### Import Validation
+#### Identity and Version Separation
 
-**On Import:**
-1. **Check version-manifest.json exists**
-   - If missing: Assume v1.x export, warn user about upgrade
-   - If present: Validate schema
+The manifest contains four distinct version/identity concepts that must remain separate:
 
-2. **Validate app version compatibility**
-   ```javascript
-   if (manifest.compatibility.minimumAppVersion > CURRENT_APP_VERSION) {
-     throw new Error(
-       `This export requires app version ${manifest.compatibility.minimumAppVersion} or higher. ` +
-       `You are running ${CURRENT_APP_VERSION}. Please upgrade.`
-     );
-   }
-   ```
+| Field | Meaning | Source | Example |
+|---|---|---|---|
+| `manifestSchemaVersion` | Manifest schema/format version | Hardcoded in manifest generation code | `1.0.0` |
+| `generated.appIdentity.version` | OAA application version | `/api/build-info` identity surface (`backend/package.json` → `version`) | `2.0.0-dev`, `2.0.0-rc.1`, `2.0.0` |
+| `generated.stateSchemaVersion` | State schema version | `_schemaVersion` from migrated state | `3` |
+| `openshift.selectedMinor` | OpenShift target version | `state.version.selectedMinor` | `4.21` |
 
-3. **Validate state schema compatibility**
-   ```javascript
-   if (!manifest.compatibility.stateFormatCompatible.includes(CURRENT_STATE_SCHEMA)) {
-     throw new Error(
-       `This export uses state schema ${manifest.stateSchemaVersion}. ` +
-       `Current app supports: ${manifest.compatibility.stateFormatCompatible.join(", ")}. ` +
-       `Migration required.`
-     );
-   }
-   ```
+- `manifestSchemaVersion` starts at `1.0.0` and increments independently when the manifest schema changes. It is NOT the OAA application SemVer.
+- `generated.appIdentity.version` must read from the same source as `/api/build-info`: `backend/package.json` `version` field. This is the single deterministic identity surface — no VERSION-file-or-package.json ambiguity. It must not silently claim bare `2.0.0` while the application identity is `2.0.0-dev`. The application identity progression (`2.0.0-dev` → `2.0.0-rc.N` → `2.0.0`) is owned by the release process, not the manifest generator.
+- `generated.stateSchemaVersion` reflects the state schema at export time (currently `3`). Unknown schemas (> 3) are already blocked at all boundaries per `shared/stateMigration.js`.
+- `openshift.selectedMinor`/`selectedPatch` reflect the user's locked OpenShift version selection.
 
-4. **Validate OCP version compatibility**
-   ```javascript
-   const supportedVersions = ["4.20", "4.21"];
-   if (!supportedVersions.includes(manifest.openshift.selectedMinor)) {
-     showWarning(
-       `This export is for OpenShift ${manifest.openshift.selectedMinor}. ` +
-       `This app version supports: ${supportedVersions.join(", ")}. ` +
-       `Some features may not work correctly.`
-     );
-   }
-   ```
+#### Checksum Semantics (Frozen)
 
-5. **Verify integrity checksums**
-   ```javascript
-   const stateActual = sha256(stateJsonContent);
-   if (stateActual !== manifest.integrity.stateChecksum) {
-     throw new Error("State file corrupted - checksum mismatch");
-   }
-   ```
+- **Algorithm:** SHA-256 over the exact archived file bytes (the file content as stored in the ZIP entry, not the compressed byte stream)
+- **Format:** Lowercase hexadecimal, consistently prefixed with `sha256:` (e.g., `sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`)
+- **Mapping:** `integrity.files` is a stable mapping keyed by exact ZIP entry name (e.g., `install-config.yaml`, `FIELD_MANUAL.md`)
+- **Conditional files:** Omit entries for conditional files that are absent from the ZIP. If `agent-config.yaml` is not generated for a given scenario, the manifest omits that key entirely.
+- **Self-exclusion:** The manifest must not include a checksum of itself (`version-manifest.json` is not listed in `integrity.files`)
+- **Stability:** File content is finalized before checksum computation. The manifest is the last file added to the ZIP.
 
-6. **Display warnings**
-   - Show manifest.compatibility.warnings to user
-   - Allow user to proceed or cancel
+### ZIP Creation Requirements
 
-### Export Generation
+- The user must have a **locked, supported** OpenShift version (`state.version.locked === true`, `state.version.selectedMinor` in `SUPPORTED_MINORS`) before ZIP creation proceeds
+- Unsupported versions (4.22+) must return the established HTTP 422 UNSUPPORTED_VERSION response. The no-fallback rule applies: the bundle must not silently fall back to 4.21 or any other version.
+- The locked version is recorded in the manifest's `openshift` section
 
-**Always include version-manifest.json:**
-- Required field in export options (cannot disable)
-- Generated automatically before ZIP creation
-- Checksums computed after all YAMLs generated
-- App version from `package.json`
-- OCP version from `state.version.selectedMinor`
+### Import Behavior
+
+**Current JSON run import (`POST /api/run/import`):**
+- Accepts a JSON body matching `runImportSchema` (Zod-validated: `schemaVersion` 1–2 optional, `state` object required, `exportedAt`/`runId` optional)
+- Does NOT accept ZIP archives
+- Performs v1/v2→v3 state migration via `migrateStateToV3()`
+- Performs host inventory schema migration (`enableIpv6` → `ipStackMode`)
+- Detects operator version staleness
+- Sanitizes and persists the migrated state
+- Does NOT validate or expect a version manifest
+- Legacy JSON imports without a manifest continue through the existing explicit migration path; they must not be mislabeled as corrupted archives
+
+**Future manifest-bearing archive import (not yet implemented):**
+- A manifest-bearing archive import surface does not exist today
+- When implemented, manifest validation will apply only to that new surface
+- The existing JSON run import route (`POST /api/run/import`) is not affected by manifest validation
+- Implementation and API design belong to a later milestone
+
+### Fail-Closed Conditions for Future Archive Importer
+
+When a manifest-bearing archive import surface is implemented, the following conditions must be treated as fail-closed (reject the import with a clear error, do not proceed):
+
+1. **Checksum mismatch:** Any file listed in `integrity.files` whose computed SHA-256 does not match the manifest value
+2. **Malformed manifest:** `version-manifest.json` is present but fails JSON parse or does not conform to the manifest schema
+3. **Unsupported manifest schema:** `manifestSchemaVersion` is higher than the importer understands
+4. **Incompatible state schema:** `generated.stateSchemaVersion` is not in the importer's compatible set
+5. **Unsupported OpenShift version:** `openshift.selectedMinor` is not in `SUPPORTED_MINORS`
+6. **Missing required manifest:** The archive does not contain `version-manifest.json` at the expected root location
+7. **Missing checksum coverage:** A file exists in the archive that has no corresponding entry in `integrity.files` (every non-manifest file must be covered)
+8. **Unlisted file entry:** The archive contains a file not accounted for by the manifest (neither in `integrity.files` nor `version-manifest.json` itself)
+
+Legacy JSON run imports (via `POST /api/run/import`, without a manifest) continue through the existing explicit v1/v2→v3 migration path. The fail-closed conditions above apply only to manifest-bearing archives; manifest-less JSON run imports are a separate product surface and are not subject to archive integrity rules.
 
 ---
 

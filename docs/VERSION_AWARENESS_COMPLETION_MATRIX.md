@@ -15,7 +15,7 @@
 **DOC-059: INCOMPLETE — active, not done**
 **DOC-102: COMPLETE — verified_done (2026-08-13)**
 
-Version-awareness foundation is strong. Phase 0 (DOC-100), Phase 1 (DOC-101), and Phase 2 (DOC-102) are verified_done. DOC-102 closed with all canonical slices (5A, 5B, 5D, 5F, 5G, 5H) and final closure tranches accepted: BMC verify CA fully implemented as supported-ui (commit a0d5fcb), Azure BYO VNet subnets fully implemented with version-gated generation (commit 3e3148b), dnsRecordsType reconciled as deliberate support boundary — docs-only-not-supported/hidden-not-applicable across all platforms (commit 0e927b1). Zero supported-backend-only 4.21 delta params remain unresolved for supported platforms (38 unsupported/manual-review upstream delta paths intentionally deferred). Remaining DOC-059 workstreams: Phase 3 (DOC-103) is active / partial — version locking, version-aware UI controls, version-aware UI registry (catalogFieldMeta.js), and browser verification are implemented, but version-specific tooltips, deprecation badges, introduced/deprecated annotations, and systematic version-correct copy are not. Phase 4 (DOC-104) is active / partial — migration tests, catalog tests, visibility tests, validation tests, and generation tests exist for implemented features, but parameterized version-matrix testing, Field Guide version-correctness tests, and version-manifest.json tests are not started. Phase 5 (DOC-105) is active / partial — ADRs (ADR-001 through ADR-007), Design System documentation, version-aware UI checklist, and roadmap governance exist; README has partial v2 development identity; CHANGELOG has an Unreleased v2 section; VERSION identity is established at 2.0.0-dev with deterministic validation. Remaining: migration guide, full README v2.0.0 release update, CHANGELOG v2.0.0 GA entry, security audit, release notes — final release closure still outstanding. DOC-107 (versioned copy strategy implementation): centralized copy system not started, field-specific user-facing copy partial, repository-wide remediation incomplete, CI hardcoded-version enforcement not started. DOC-106 (versioned copy audit) is verified_done at the Phase 0 inventory level; its original implementation conclusion is superseded by current evidence — implementation remains owned by DOC-107 and related DOC-103/DOC-104 acceptance work.
+Version-awareness foundation is strong. Phase 0 (DOC-100), Phase 1 (DOC-101), and Phase 2 (DOC-102) are verified_done. DOC-102 closed with all canonical slices (5A, 5B, 5D, 5F, 5G, 5H) and final closure tranches accepted: BMC verify CA fully implemented as supported-ui (commit a0d5fcb), Azure BYO VNet subnets fully implemented with version-gated generation (commit 3e3148b), dnsRecordsType reconciled as deliberate support boundary — docs-only-not-supported/hidden-not-applicable across all platforms (commit 0e927b1). Zero supported-backend-only 4.21 delta params remain unresolved for supported platforms (38 unsupported/manual-review upstream delta paths intentionally deferred). Remaining DOC-059 workstreams: Phase 3 (DOC-103) is active / partial — version locking, version-aware UI controls, version-aware UI registry (catalogFieldMeta.js), and browser verification are implemented, but version-specific tooltips, deprecation badges, introduced/deprecated annotations, and systematic version-correct copy are not. Phase 4 (DOC-104) is active / partial — migration tests, catalog tests, visibility tests, validation tests, and generation tests exist for implemented features, but parameterized version-matrix testing, Field Guide version-correctness tests, and version-manifest.json tests are not started. Phase 5 (DOC-105) is active / partial — historical planning/status records reference ADR-001 through ADR-007 at `local-docs/version-aware-planning/` but these files are not tracked or present in the live worktree and are not current tracked release evidence; Design System documentation, version-aware UI checklist, and roadmap governance exist; README has partial v2 development identity; CHANGELOG has an Unreleased v2 section; VERSION identity is established at 2.0.0-dev with deterministic validation. Remaining: migration guide, full README v2.0.0 release update, CHANGELOG v2.0.0 GA entry, security audit, release notes — final release closure still outstanding. DOC-107 (versioned copy strategy implementation): centralized copy system not started, field-specific user-facing copy partial, repository-wide remediation incomplete, CI hardcoded-version enforcement not started. DOC-106 (versioned copy audit) is verified_done at the Phase 0 inventory level; its original implementation conclusion is superseded by current evidence — implementation remains owned by DOC-107 and related DOC-103/DOC-104 acceptance work.
 
 ---
 
@@ -235,8 +235,9 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 | Stale-state suppression | ✅ Unknown schema blocked | ✅ Unsupported version recovery | Adequate |
 | Persistence | ✅ State save/load tests | ✅ v3 migration-before-persist | Adequate |
 | Hydration | ✅ Frontend hydration tests | ✅ Slice 6 v3 preservation | Adequate |
-| Import | ✅ Import tests exist | ✅ v1→v3 migration tested | Version-manifest validation NOT tested |
-| Export | ✅ Export tests exist | ❌ version-manifest.json NOT implemented | Critical gap |
+| Import (JSON run envelope) | ✅ Import tests exist | ✅ v1→v3 migration tested | JSON run import works; version-manifest validation applies only to future manifest-bearing archive import surface (M01 contract frozen 2026-09-15) |
+| Export (JSON run envelope) | ✅ Export tests exist | ✅ v3 sanitized state exported | JSON run export is state portability; version-manifest belongs to ZIP surface |
+| Export (generated artifact ZIP) | ✅ buildBundleZip tested | ❌ version-manifest.json NOT implemented | M01 contract frozen (2026-09-15); implementation belongs to later milestone |
 | HTTP boundaries | ✅ API state migration boundary | ✅ 6 hermetic tests | Adequate |
 | Field Guide | Minimal | ⏳ FG-4.21-A2 pending acceptance: source-tree stale-label coverage (4 tests) and runtime-compartment stale-label coverage (3 tests) in `fieldGuide-4.21.test.js`; AWS permissions label tests (3 tests) in `fieldGuide-aws-context.test.js`; 118/118 focused tests pass | Bounded coverage added; full Field Guide fallback tests remain open |
 | Tooltips and copy | ✅ hint-syntax.test.js | ❌ No version-correctness tests | Gap |
@@ -248,13 +249,13 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 
 ## G. Remaining DOC-105 Release Work
 
-**DOC-105 status: active / partial** — not "NOT STARTED". Implemented evidence: ADRs (ADR-001 through ADR-007 exist in docs/), Design System documentation (docs/DESIGN_SYSTEM.md), version-aware UI field checklist (docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md), roadmap governance (docs/IMPLEMENTATION_ROADMAP_2026-05-14.md, continuously maintained). Partial: README has v2 development identity (build-info version field, Option A clarification, check:app-version script); CHANGELOG has `[Unreleased] - v2.0.0 Work in Progress` section; VERSION identity established at `2.0.0-dev` with deterministic validation (`npm run check:app-version`). Remaining for final release closure: migration guide (v1→v2), full README v2.0.0 release update, CHANGELOG v2.0.0 GA entry, security audit, dependency scan, release notes, manual QA, generated artifact validation.
+**DOC-105 status: active / partial** — not "NOT STARTED". Implemented evidence: Design System documentation (docs/DESIGN_SYSTEM.md), version-aware UI field checklist (docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md), roadmap governance (docs/IMPLEMENTATION_ROADMAP_2026-05-14.md, continuously maintained). Note: historical planning/status records reference ADR-001 through ADR-007 at `local-docs/version-aware-planning/`, but these files are not tracked or present in the live worktree and are not current tracked release evidence. Partial: README has v2 development identity (build-info version field, Option A clarification, check:app-version script); CHANGELOG has `[Unreleased] - v2.0.0 Work in Progress` section; VERSION identity established at `2.0.0-dev` with deterministic validation (`npm run check:app-version`). Remaining for final release closure: migration guide (v1→v2), full README v2.0.0 release update, CHANGELOG v2.0.0 GA entry, security audit, dependency scan, release notes, manual QA, generated artifact validation.
 
 | Artifact | Status | Gap |
 |---|---|---|
 | Migration guide (v1→v2) | ❌ NOT CREATED | Blocked by DOC-102/103/104 completion |
 | README update | PARTIAL | README contains v2 development identity (build-info version field, Option A clarification, check:app-version script). Full v2.0.0 release update blocked by feature completion |
-| ADRs | ✅ ADR-001 through ADR-007 exist | May need post-implementation updates |
+| ADRs | ❌ ADR-001 through ADR-007 referenced by historical records at `local-docs/version-aware-planning/` but not tracked or present in live worktree | Not current tracked release evidence; create or recover tracked ADR files before claiming ADR completion |
 | BACKLOG_STATUS update | ✅ Continuously maintained | Final DOC-059 closure update pending |
 | Implementation roadmap | ✅ Maintained but stale (last updated 2026-05-29) | Needs v2.0.0 progress update |
 | CHANGELOG | PARTIAL | CHANGELOG contains `[Unreleased] - v2.0.0 Work in Progress` section with breaking changes, added features, and fixes. Final v2.0.0 release entry blocked by release |
@@ -267,7 +268,7 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 | Release versioning | PARTIAL | VERSION file set to `2.0.0-dev`; all 4 package.json and 3 package-lock.json synchronized; deterministic validator (`npm run check:app-version`). Identity progression to `2.0.0-rc.N` → `2.0.0` at release time; deliberate RC and GA tags are separate milestones requiring final release closure |
 | Release notes | ❌ NOT CREATED | At release time |
 | Upgrade guidance | ❌ NOT CREATED | Blocked by migration guide |
-| Import compatibility | PARTIAL (v1→v3 migration exists) | version-manifest.json not implemented |
+| Import compatibility | PARTIAL (v1→v3 JSON run migration exists) | version-manifest.json not implemented; M01 contract frozen 2026-09-15 classifying JSON run envelope and generated artifact ZIP as distinct surfaces; manifest-bearing archive import surface not yet designed |
 
 ---
 
@@ -380,7 +381,7 @@ After A2 acceptance, the Field Guide execution sequence is:
 
 ### V5 (DOC-104)
 - Parameterized test matrix covers all version-gated behavior
-- version-manifest.json generated in exports and validated on import
+- version-manifest.json generated in generated artifact ZIP and validated on future manifest-bearing archive import (M01 contract frozen 2026-09-15, documentation only; implementation and tests belong to a later milestone)
 - Manual visual verification screenshots for 4.20 and 4.21
 - All test suites pass with zero failures
 
@@ -407,7 +408,7 @@ DOC-059 may be marked `verified_done` ONLY when ALL of the following are true:
 
 5. **4.20 and 4.21 validation matrix is complete.** Parameterized tests cover all version-gated validation rules, generation rules, field visibility, catalog loading, and import/export for both versions.
 
-6. **Persistence, hydration, import, and export are verified.** State schema v3 migration works at all boundaries. version-manifest.json is generated in exports and validated on import. v1.x import migration works correctly.
+6. **Persistence, hydration, import, and export are verified.** State schema v3 migration works at all boundaries. JSON run envelope (`/api/run/export` and `/api/run/import`) preserves sanitized v3 state with v1/v2 migration. version-manifest.json is generated in the generated artifact ZIP (`buildBundleZip`) per the M01 frozen contract (2026-09-15). If a manifest-bearing archive import surface is later implemented, manifest validation applies there — not to the existing JSON run import. v1.x JSON import migration works correctly through the existing explicit migration path.
 
 7. **Manual QA is complete.** Browser-based manual verification for both 4.20 and 4.21 covering version lock, field visibility, validation, generation preview, Field Guide, and export.
 
