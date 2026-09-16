@@ -53,6 +53,7 @@ import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
+import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js";
 import { sanitizeStateForPersistence } from "./stateSanitizer.js";
 import {
   validateBody,
@@ -3271,17 +3272,18 @@ const buildBundleZip = async (state, res) => {
     res.status(500).end(String(err));
   });
   archive.pipe(res);
-  archive.append(installConfig, { name: "install-config.yaml" });
+  const tracked = createIntegrityTracker(archive);
+  tracked.append(installConfig, { name: "install-config.yaml" });
   if (agentConfig) {
-    archive.append(agentConfig, { name: "agent-config.yaml" });
+    tracked.append(agentConfig, { name: "agent-config.yaml" });
   }
-  archive.append(imageSetConfig, { name: "imageset-config.yaml" });
-  archive.append(fieldManual, { name: "FIELD_MANUAL.md" });
+  tracked.append(imageSetConfig, { name: "imageset-config.yaml" });
+  tracked.append(fieldManual, { name: "FIELD_MANUAL.md" });
   Object.entries(ntpMachineConfigs).forEach(([name, content]) => {
-    archive.append(content, { name });
+    tracked.append(content, { name });
   });
   if (v3State.exportOptions?.draftMode) {
-    archive.append(
+    tracked.append(
       "DRAFT/NOT VALIDATED: Warnings were present at export time. Review before use.\n",
       { name: "DRAFT_NOT_VALIDATED.txt" }
     );
@@ -3301,14 +3303,14 @@ const buildBundleZip = async (state, res) => {
       };
       if (ocPath && fs.existsSync(ocPath)) {
         assertReadableFile(ocPath, "oc");
-        archive.file(ocPath, { name: "tools/oc" });
+        tracked.file(ocPath, { name: "tools/oc" });
       }
       if (ocMirrorPath && fs.existsSync(ocMirrorPath)) {
         assertReadableFile(ocMirrorPath, "oc-mirror");
-        archive.file(ocMirrorPath, { name: "tools/oc-mirror" });
+        tracked.file(ocMirrorPath, { name: "tools/oc-mirror" });
       }
     } catch (e) {
-      archive.append(
+      tracked.append(
         `Failed to include oc/oc-mirror: ${String(e?.message || e)}\n`,
         { name: "tools/oc-mirror.ERROR.txt" }
       );
@@ -3330,12 +3332,12 @@ const buildBundleZip = async (state, res) => {
       if (fs.existsSync(installerPath)) {
         // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
         const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
-        archive.file(installerPath, { name: `tools/${binaryName}` });
+        tracked.file(installerPath, { name: `tools/${binaryName}` });
       } else {
         throw new Error("Binary not found after download");
       }
     } catch (error) {
-      archive.append(
+      tracked.append(
         `Failed to include openshift-install: ${String(error?.message || error)}\n`,
         { name: "tools/openshift-install.ERROR.txt" }
       );
@@ -3378,7 +3380,7 @@ const buildBundleZip = async (state, res) => {
       if (fs.existsSync(mirrorRegistryPath)) {
         const stat = fs.statSync(mirrorRegistryPath);
         if (stat.size > 0) {
-          archive.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
+          tracked.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
         } else {
           throw new Error("Cached file is 0 bytes (corrupt)");
         }
@@ -3387,7 +3389,7 @@ const buildBundleZip = async (state, res) => {
       const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
       const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
       const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
-      archive.append(
+      tracked.append(
         `Failed to include mirror-registry: ${String(error?.message || error)}\nDownload manually from: ${mirrorRegistryUrl}\n`,
         { name: "tools/mirror-registry.ERROR.txt" }
       );
@@ -3400,15 +3402,15 @@ const buildBundleZip = async (state, res) => {
       const resolved = path.resolve(rawPath);
       const stat = fs.statSync(resolved);
       if (stat.isDirectory()) {
-        archive.directory(resolved, "mirror-output");
+        tracked.directory(resolved, "mirror-output");
       } else {
-        archive.append(
+        tracked.append(
           `Mirror output path is not a directory: ${resolved}\n`,
           { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
         );
       }
     } catch (error) {
-      archive.append(
+      tracked.append(
         `Mirror output could not be included: ${String(error?.message || error)}. Path: ${rawPath}\n`,
         { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
       );
@@ -3446,7 +3448,7 @@ const buildBundleZip = async (state, res) => {
       if (runtimePackage.included) {
         // Add all runtime package files to archive under runtime-package/ directory
         for (const entry of runtimePackage.entries) {
-          archive.file(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
+          tracked.file(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
         }
         logger.info({
           tag: "runtime-package",
@@ -3456,7 +3458,7 @@ const buildBundleZip = async (state, res) => {
       } else {
         // Runtime package was requested but couldn't be fully created
         const errorMessage = runtimePackage.notes.join("\n");
-        archive.append(
+        tracked.append(
           `Runtime package could not be fully generated:\n\n${errorMessage}\n\nPlease ensure:\n- Container images are built and tagged locally\n- Podman or Docker is installed and available\n- Images: ${process.env.RUNTIME_PACKAGE_BACKEND_IMAGE || "localhost/openshift-airgap-architect-backend:latest"}, ${process.env.RUNTIME_PACKAGE_FRONTEND_IMAGE || "localhost/openshift-airgap-architect-frontend:latest"}\n`,
           { name: "runtime-package/RUNTIME_PACKAGE_NOT_INCLUDED.txt" }
         );
@@ -3466,7 +3468,7 @@ const buildBundleZip = async (state, res) => {
         }, "Runtime package requested but not fully included");
       }
     } catch (error) {
-      archive.append(
+      tracked.append(
         `Failed to create runtime package: ${String(error?.message || error)}\n\nStack trace:\n${error?.stack || "N/A"}\n`,
         { name: "runtime-package/RUNTIME_PACKAGE_ERROR.txt" }
       );
@@ -3478,6 +3480,8 @@ const buildBundleZip = async (state, res) => {
     }
   }
 
+  const versionManifest = tracked.buildManifest(v3State);
+  archive.append(JSON.stringify(versionManifest, null, 2), { name: MANIFEST_FILENAME });
   archive.finalize();
 };
 

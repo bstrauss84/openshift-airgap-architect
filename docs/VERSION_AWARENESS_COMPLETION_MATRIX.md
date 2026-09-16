@@ -181,7 +181,7 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 
 ## F. Remaining DOC-104 Validation Work
 
-**DOC-104 status: active / partial** — not "NOT STARTED". Implemented evidence: migration tests (v1→v3 state schema migration), catalog tests (catalog loading and mirror identity verification), visibility tests (isCatalogFieldVisible with supportStatus), validation tests (version-gated validation for throughput, confidentialCompute, allowSharedKeyAccess), generation tests (version-gated generation with isVersionGTE guards). Remaining: parameterized version-matrix testing across all version-gated behavior, Field Guide version-correctness tests, version-manifest.json tests, deprecation badge rendering tests, versioned copy correctness tests.
+**DOC-104 status: active / partial** — not "NOT STARTED". Implemented evidence: migration tests (v1→v3 state schema migration), catalog tests (catalog loading and mirror identity verification), visibility tests (isCatalogFieldVisible with supportStatus), validation tests (version-gated validation for throughput, confidentialCompute, allowSharedKeyAccess), generation tests (version-gated generation with isVersionGTE guards), **version-manifest.json M02 manifest generation and tests** (`backend/src/exportIntegrity.js`, `backend/test/export-integrity.test.js` 25 tests). Remaining: parameterized version-matrix testing across all version-gated behavior, Field Guide version-correctness tests, manifest-bearing archive import tests (later milestone), deprecation badge rendering tests, versioned copy correctness tests.
 
 ### Historical Test Baseline
 
@@ -237,7 +237,7 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 | Hydration | ✅ Frontend hydration tests | ✅ Slice 6 v3 preservation | Adequate |
 | Import (JSON run envelope) | ✅ Import tests exist | ✅ v1→v3 migration tested | JSON run import works; version-manifest validation applies only to future manifest-bearing archive import surface (M01 contract frozen 2026-09-15) |
 | Export (JSON run envelope) | ✅ Export tests exist | ✅ v3 sanitized state exported | JSON run export is state portability; version-manifest belongs to ZIP surface |
-| Export (generated artifact ZIP) | ✅ buildBundleZip tested | ❌ version-manifest.json NOT implemented | M01 contract frozen (2026-09-15); implementation belongs to later milestone |
+| Export (generated artifact ZIP) | ✅ buildBundleZip tested | ✅ version-manifest.json implemented (M02) | `backend/src/exportIntegrity.js` generates manifest with SHA-256 checksums; `backend/test/export-integrity.test.js` (25 tests); integrated into `buildBundleZip` |
 | HTTP boundaries | ✅ API state migration boundary | ✅ 6 hermetic tests | Adequate |
 | Field Guide | Minimal | ⏳ FG-4.21-A2 pending acceptance: source-tree stale-label coverage (4 tests) and runtime-compartment stale-label coverage (3 tests) in `fieldGuide-4.21.test.js`; AWS permissions label tests (3 tests) in `fieldGuide-aws-context.test.js`; 118/118 focused tests pass | Bounded coverage added; full Field Guide fallback tests remain open |
 | Tooltips and copy | ✅ hint-syntax.test.js | ❌ No version-correctness tests | Gap |
@@ -268,7 +268,7 @@ The tracked inventory (`docs/VERSIONED_COPY_INVENTORY.md`) catalogues 3,239 tota
 | Release versioning | PARTIAL | VERSION file set to `2.0.0-dev`; all 4 package.json and 3 package-lock.json synchronized; deterministic validator (`npm run check:app-version`). Identity progression to `2.0.0-rc.N` → `2.0.0` at release time; deliberate RC and GA tags are separate milestones requiring final release closure |
 | Release notes | ❌ NOT CREATED | At release time |
 | Upgrade guidance | ❌ NOT CREATED | Blocked by migration guide |
-| Import compatibility | PARTIAL (v1→v3 JSON run migration exists) | version-manifest.json not implemented; M01 contract frozen 2026-09-15 classifying JSON run envelope and generated artifact ZIP as distinct surfaces; manifest-bearing archive import surface not yet designed |
+| Import compatibility | PARTIAL (v1→v3 JSON run migration exists) | version-manifest.json generated in ZIP (M02); manifest-bearing archive import surface not yet designed; JSON run import unaffected |
 
 ---
 
@@ -336,7 +336,7 @@ After A2 acceptance, the Field Guide execution sequence is:
 - Field Guide version-correctness tests
 - Deprecation badge rendering tests
 - Versioned copy correctness tests
-- version-manifest.json implementation and tests
+- version-manifest.json implementation and tests — **M02 manifest generation and tests complete** (`backend/src/exportIntegrity.js`, `backend/test/export-integrity.test.js` 25 tests); archive import surface not yet implemented
 - Manual visual verification for 4.20 and 4.21
 
 ### Tranche V6: DOC-105 — Release closure (estimated 5–7 days)
@@ -381,7 +381,7 @@ After A2 acceptance, the Field Guide execution sequence is:
 
 ### V5 (DOC-104)
 - Parameterized test matrix covers all version-gated behavior
-- version-manifest.json generated in generated artifact ZIP and validated on future manifest-bearing archive import (M01 contract frozen 2026-09-15, documentation only; implementation and tests belong to a later milestone)
+- version-manifest.json generated in generated artifact ZIP per M01 frozen contract — **M02 manifest generation complete** (`backend/src/exportIntegrity.js`, `backend/test/export-integrity.test.js` 25 tests); manifest-bearing archive import belongs to a later milestone
 - Manual visual verification screenshots for 4.20 and 4.21
 - All test suites pass with zero failures
 
