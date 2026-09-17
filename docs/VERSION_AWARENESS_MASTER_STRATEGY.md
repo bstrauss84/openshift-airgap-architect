@@ -655,15 +655,111 @@ The manifest contains four distinct version/identity concepts that must remain s
 - Does NOT validate or expect a version manifest
 - Legacy JSON imports without a manifest continue through the existing explicit migration path; they must not be mislabeled as corrupted archives
 
-**Future manifest-bearing archive import (not yet implemented):**
-- A manifest-bearing archive import surface does not exist today
-- When implemented, manifest validation will apply only to that new surface
-- The existing JSON run import route (`POST /api/run/import`) is not affected by manifest validation
-- Implementation and API design belong to a later milestone
+### Manifest-Bearing Archive Import HTTP Contract (M03 Design Freeze — 2026-09-16)
 
-### Fail-Closed Conditions for Future Archive Importer
+This section freezes the API and persistence semantics for a manifest-bearing ZIP upload. M03 route implementation, Express middleware, and integration tests are implemented. M03 implementation and deterministic validation are complete on the current uncommitted working tree; the required human Git checkpoint is pending — M03 is not yet committed, accepted, or verified_done. Persistence/import product semantics resolved: validation-only by design — the generated ZIP contains no `state.json`, so archive import is integrity validation only. Non-persistence contract tests in `backend/test/bundle-import.test.js` prove no filesystem mutation, no state persistence, and idempotent response. DOC-104 remains active/partial (broader testing work outstanding beyond M03).
 
-When a manifest-bearing archive import surface is implemented, the following conditions must be treated as fail-closed (reject the import with a clear error, do not proceed):
+#### Endpoint
+
+**`POST /api/bundle.import`** — archive validation endpoint, distinct from `POST /api/run/import`.
+
+The `bundle.*` namespace is established by existing routes (`POST /api/bundle.prepare`, `GET /api/bundle.zip`, `POST /api/bundle.zip`). The new endpoint belongs to the generated-artifact ZIP surface, not the JSON run envelope surface.
+
+The existing JSON run import route (`POST /api/run/import`) is unchanged. It must never be subjected to archive-manifest validation. Legacy JSON run imports without a manifest continue through the existing explicit v1/v2→v3 migration path; they must not be mislabeled as corrupted archives.
+
+#### Request Format
+
+- **Content-Type:** `application/zip` (primary). `application/octet-stream` is also accepted. The endpoint does not accept `multipart/form-data`, `application/json`, or any other media type.
+- **Body:** Raw ZIP bytes. The request body is the complete ZIP archive, not a multipart upload, not a JSON wrapper, and not a base64-encoded string. The endpoint uses `express.raw()` middleware, not `express.json()`. The global `express.json({ limit: "10mb" })` middleware (line 105 of `backend/src/index.js`) must not apply to this route.
+- **Request-size limit:** 536,870,912 bytes (512 MiB). This is the exact value of `ZIP_LIMITS.MAX_ARCHIVE_BYTES` in `backend/src/exportIntegrity.js` (line 41: `512 * 1024 * 1024`). The Express body-parser limit must equal this value. The body-parser limit must never exceed the validator's archive size limit — the validator is the authoritative size boundary.
+
+#### Processing Pipeline
+
+The route passes the unchanged `req.body` buffer directly to `validateArchiveBuffer(buffer)` from `backend/src/exportIntegrity.js`. All validation — ZIP structure parsing, EOCD/central-directory verification, stored/deflate decompression, CRC32 verification, entry name safety, resource limit enforcement, ZIP64/encryption/symlink rejection, manifest extraction, manifest schema validation, state schema compatibility, OpenShift version support, checksum verification, and file coverage completeness — is performed by the existing validator. The route must not add, bypass, or weaken any validation step.
+
+No pre-processing, transformation, or partial parsing of the ZIP buffer occurs before `validateArchiveBuffer`. The buffer is passed as received from the HTTP body.
+
+#### M03 Persistence Semantics: Validation-Only
+
+Successful validation produces no side effects:
+
+- **No state import:** The validated archive contents are not imported into application state. No call to `setState()`, `updateState()`, or any state-mutating function.
+- **No `/api/state` write:** The SQLite state table is not modified.
+- **No run creation or update:** No `createJob()`, `updateJob()`, or run-lifecycle mutation.
+- **No filesystem extraction:** Archive entries are not written to disk. The validator operates entirely in-memory.
+- **No durable archive persistence:** The uploaded ZIP is not stored, cached, or written to any filesystem path.
+
+The response confirms validation outcome only. Any later workflow that consumes, persists, extracts, or imports validated archive artifacts requires a separately approved product contract and is outside M03 scope.
+
+#### Success Response
+
+**HTTP 200** with a bounded JSON validation result:
+
+```json
+{
+  "valid": true,
+  "manifestSchemaVersion": "1.0.0",
+  "stateSchemaVersion": 3,
+  "selectedMinor": "4.21",
+  "fileCount": 5
+}
+```
+
+The response contains exactly the five fields returned by the current validator (`valid`, `manifestSchemaVersion`, `stateSchemaVersion`, `selectedMinor`, `fileCount`) — non-sensitive manifest/version/entry summary information only. The response must NOT include:
+
+- `manifest` — the full parsed manifest object
+- `entries` — archived file contents (buffers)
+- Any raw archived file content, checksums, or file names beyond the count
+- Stack traces, internal paths, or filesystem details
+
+#### Error Response Contract
+
+Error responses fall into two categories by origin:
+
+**Validator errors** (from `validateArchiveBuffer` thrown errors): The route catches errors thrown by the validator and maps them to the appropriate HTTP status. The `code` field preserves the validator's existing machine-readable error code (e.g., `INVALID_ARCHIVE`, `UNSUPPORTED_VERSION`). The `error` field carries a human-readable message derived from the validator error's `message` property.
+
+**Route-layer errors** (generated by the HTTP route itself): Wrong media type, oversized body parser rejection, empty body, and unexpected internal failures are detected before or outside the validator. These receive deterministic route-layer codes defined by this contract (`WRONG_MEDIA_TYPE`, `PAYLOAD_TOO_LARGE`, `EMPTY_BODY`, `INTERNAL_ERROR`).
+
+All error responses use the `{ error, code }` JSON shape. No stack traces, raw archived content, internal file paths, or filesystem details are exposed in any error response.
+
+| HTTP Status | Origin | Condition | Error Codes |
+|---|---|---|---|
+| **415 Unsupported Media Type** | Route-layer | `Content-Type` is not `application/zip` or `application/octet-stream` | `WRONG_MEDIA_TYPE` |
+| **413 Payload Too Large** | Route-layer | Request body exceeds 512 MiB limit — the implementation must intercept raw-body parser size errors and return a deterministic `{ error, code }` JSON response; Express's default HTML error page must not be exposed | `PAYLOAD_TOO_LARGE` |
+| **400 Bad Request** | Route-layer | Empty or missing request body | `EMPTY_BODY` |
+| **400 Bad Request** | Validator | Malformed or integrity-invalid archive: corrupt ZIP structure, CRC32 failure, checksum mismatch, missing/malformed/self-referencing manifest, invalid checksum format/algorithm, missing or unlisted file coverage, duplicate or colliding entry names, unsafe entry names (path traversal, null bytes, backslashes, absolute paths, Windows drive paths, file-directory ambiguity), unsupported ZIP features (ZIP64, encryption, multi-disk, symlinks), ZIP resource limits exceeded (entry count > 10,000; individual uncompressed > 256 MiB; total uncompressed > 1 GiB) | `INVALID_ARCHIVE`, `CRC32_MISMATCH`, `CHECKSUM_MISMATCH`, `MALFORMED_MANIFEST`, `MISSING_MANIFEST`, `MULTIPLE_MANIFESTS`, `MANIFEST_SELF_REFERENCE`, `INVALID_CHECKSUM_FORMAT`, `INVALID_CHECKSUM_ALGORITHM`, `MISSING_FILE`, `UNLISTED_FILE`, `DUPLICATE_ENTRY`, `NAME_COLLISION`, `UNSAFE_ENTRY_NAME`, `UNSUPPORTED_ZIP_FEATURE`, `ARCHIVE_LIMIT_EXCEEDED` |
+| **422 Unprocessable Entity** | Validator | Unsupported OpenShift version, manifest schema, or state schema compatibility; incompatible manifest schema; unlocked version | `UNSUPPORTED_VERSION`, `UNSUPPORTED_MANIFEST_SCHEMA`, `INCOMPATIBLE_STATE_SCHEMA`, `INCOMPATIBLE_MANIFEST_SCHEMA`, `UNLOCKED_VERSION` |
+| **500 Internal Server Error** | Route-layer | Unexpected internal error during validation | `INTERNAL_ERROR` — see 500 response shape below |
+
+The 400 vs 422 distinction follows existing repository conventions: 400 for structurally invalid input (the archive itself is broken), 422 for structurally valid input that fails domain-specific compatibility checks (the archive is well-formed but targets an unsupported version or schema).
+
+**HTTP 500 response shape:**
+
+```json
+{
+  "error": "Internal validation error",
+  "code": "INTERNAL_ERROR",
+  "errorId": "err_<uuid>"
+}
+```
+
+The `errorId` field is generated by `generateErrorId()` (format `err_<uuid>`, defined in `backend/src/logger.js`). The same `errorId` is logged server-side with the full error details for operational correlation. The response must not include stack traces, exception messages, raw archived content, internal paths, or filesystem details — only the stable `error`, `code`, and `errorId` fields.
+
+#### Existing Route Isolation
+
+The following routes are explicitly unaffected by this contract:
+
+- `POST /api/run/import` — JSON run envelope import. Accepts `application/json`, validates against `runImportSchema` (Zod), performs v1/v2→v3 state migration, persists state. Not subject to archive-manifest validation.
+- `POST /api/bundle.prepare` / `GET /api/bundle.zip` / `POST /api/bundle.zip` — Bundle generation and download. These produce ZIP archives; they do not consume them.
+- `POST /api/state` — State update. JSON body, Zod-validated, with version-support and migration checks.
+
+#### Future Scope (Outside M03)
+
+Any workflow that goes beyond validation-only — including but not limited to state import from validated archives, archive persistence to disk, run creation from archive contents, selective file extraction, or integration with existing import/export state flows — requires a separately approved product contract. Such workflows are outside M03 and must not be implemented under this contract.
+
+### Fail-Closed Conditions for Archive Import
+
+All conditions below are enforced by `validateArchiveBuffer` and `validateArchiveManifest` in `backend/src/exportIntegrity.js`. The route surfaces these as the HTTP error codes documented above. The following conditions are fail-closed (reject with a clear error, do not proceed):
 
 1. **Checksum mismatch:** Any file listed in `integrity.files` whose computed SHA-256 does not match the manifest value
 2. **Malformed manifest:** `version-manifest.json` is present but fails JSON parse or does not conform to the manifest schema
@@ -673,6 +769,10 @@ When a manifest-bearing archive import surface is implemented, the following con
 6. **Missing required manifest:** The archive does not contain `version-manifest.json` at the expected root location
 7. **Missing checksum coverage:** A file exists in the archive that has no corresponding entry in `integrity.files` (every non-manifest file must be covered)
 8. **Unlisted file entry:** The archive contains a file not accounted for by the manifest (neither in `integrity.files` nor `version-manifest.json` itself)
+9. **CRC32 mismatch:** Decompressed entry data does not match the declared CRC32 in the ZIP central directory
+10. **Unsafe entry name:** Entry name contains path traversal, null bytes, backslashes, absolute paths, Windows drive-absolute paths, or file-directory ambiguity
+11. **Unsupported ZIP feature:** Archive uses ZIP64, encryption, multi-disk spanning, or symlinks
+12. **Unlocked version:** `openshift.lockedVersion` is not `true` in the manifest
 
 Legacy JSON run imports (via `POST /api/run/import`, without a manifest) continue through the existing explicit v1/v2→v3 migration path. The fail-closed conditions above apply only to manifest-bearing archives; manifest-less JSON run imports are a separate product surface and are not subject to archive integrity rules.
 

@@ -53,7 +53,7 @@ import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
-import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js";
+import { createIntegrityTracker, MANIFEST_FILENAME, validateArchiveBuffer, ZIP_LIMITS } from "./exportIntegrity.js";
 import { sanitizeStateForPersistence } from "./stateSanitizer.js";
 import {
   validateBody,
@@ -102,6 +102,72 @@ const app = express();
 const port = process.env.PORT || 4000;
 
 app.use(cors());
+
+const BUNDLE_IMPORT_COMPATIBILITY_CODES = new Set([
+  'UNSUPPORTED_VERSION', 'UNSUPPORTED_MANIFEST_SCHEMA',
+  'INCOMPATIBLE_STATE_SCHEMA', 'INCOMPATIBLE_MANIFEST_SCHEMA', 'UNLOCKED_VERSION'
+]);
+
+app.post("/api/bundle.import",
+  (req, res, next) => {
+    const mediaType = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    if (mediaType !== 'application/zip' && mediaType !== 'application/octet-stream') {
+      return res.status(415).json({ error: 'Unsupported media type', code: 'WRONG_MEDIA_TYPE' });
+    }
+    next();
+  },
+  (req, res, next) => {
+    express.raw({
+      type: ['application/zip', 'application/octet-stream'],
+      limit: ZIP_LIMITS.MAX_ARCHIVE_BYTES
+    })(req, res, (err) => {
+      if (err) {
+        if (err.type === 'entity.too.large') {
+          return res.status(413).json({
+            error: 'Request body exceeds maximum archive size',
+            code: 'PAYLOAD_TOO_LARGE'
+          });
+        }
+        const errorId = generateErrorId();
+        logger.error({ err, errorId }, 'Unexpected error parsing archive upload');
+        return res.status(500).json({
+          error: 'Internal validation error',
+          code: 'INTERNAL_ERROR',
+          errorId
+        });
+      }
+      next();
+    });
+  },
+  (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'Empty or missing request body', code: 'EMPTY_BODY' });
+    }
+    try {
+      const result = validateArchiveBuffer(req.body);
+      return res.json({
+        valid: true,
+        manifestSchemaVersion: result.manifestSchemaVersion,
+        stateSchemaVersion: result.stateSchemaVersion,
+        selectedMinor: result.selectedMinor,
+        fileCount: result.fileCount
+      });
+    } catch (err) {
+      if (err.code) {
+        const status = BUNDLE_IMPORT_COMPATIBILITY_CODES.has(err.code) ? 422 : 400;
+        return res.status(status).json({ error: err.message, code: err.code });
+      }
+      const errorId = generateErrorId();
+      logger.error({ err, errorId }, 'Unexpected error during archive validation');
+      return res.status(500).json({
+        error: 'Internal validation error',
+        code: 'INTERNAL_ERROR',
+        errorId
+      });
+    }
+  }
+);
+
 app.use(express.json({ limit: "10mb" }));
 
 // Structured request logging middleware (skip in test mode)
