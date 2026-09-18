@@ -18,9 +18,9 @@ import { runMigrations } from "./migrationRunner.js";
 import logger from "./logger.js";
 
 const dataDir = process.env.DATA_DIR || "/data";
-const dbPath = path.join(dataDir, "airgap-architect.db");
+const dbPath = path.join(dataDir, "db", "airgap-architect.db");
 
-fs.mkdirSync(dataDir, { recursive: true });
+fs.mkdirSync(path.join(dataDir, "db"), { recursive: true });
 
 const db = new Database(dbPath);
 

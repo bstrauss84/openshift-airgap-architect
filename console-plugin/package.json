@@ -1,0 +1,53 @@
+{
+  "name": "@airgap-architect/console-plugin",
+  "version": "1.0.0",
+  "description": "OpenShift Console Dynamic Plugin for Airgap Architect",
+  "main": "dist/plugin.js",
+  "scripts": {
+    "dev": "webpack serve --mode development",
+    "build": "webpack --mode production",
+    "clean": "rm -rf dist"
+  },
+  "consolePlugin": {
+    "name": "airgap-architect-plugin",
+    "version": "1.0.0",
+    "displayName": "Airgap Architect",
+    "description": "OpenShift Airgap Architect Console Plugin",
+    "exposedModules": {
+      "AirgapArchitectPage": "./src/pages/AirgapArchitectPage",
+      "CreateImageSetPage": "./src/pages/CreateImageSetPage",
+      "CollectionPipelineDetailPage": "./src/pages/CollectionPipelineDetailPage",
+      "CreateImportPage": "./src/pages/CreateImportPage",
+      "MirrorImportDetailPage": "./src/pages/MirrorImportDetailPage"
+    },
+    "dependencies": {
+      "@console/pluginAPI": "*"
+    }
+  },
+  "dependencies": {
+    "@openshift-console/dynamic-plugin-sdk": "^1.0.0",
+    "@openshift-console/dynamic-plugin-sdk-webpack": "^1.0.0",
+    "@patternfly/react-core": "^6.4.0",
+    "@patternfly/react-icons": "^6.4.0",
+    "@patternfly/react-table": "^6.4.0",
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
+    "react": "17.0.2",
+    "react-dom": "17.0.2",
+    "js-yaml": "^4.1.0",
+    "react-router-dom": "~5.3.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "css-loader": "^6.8.0",
+    "mini-css-extract-plugin": "^2.7.6",
+    "style-loader": "^3.3.0",
+    "ts-loader": "^9.4.0",
+    "typescript": "^5.0.0",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0",
+    "webpack-dev-server": "^4.15.0"
+  },
+  "author": "Joshua Mathianas",
+  "license": "MIT"
+}

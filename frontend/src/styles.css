@@ -2964,6 +2964,48 @@ body[data-theme="dark"] .modal-copy {
   color: #94a3b8;
 }
 
+/* Pop-out modal variant for host editing drawer */
+.modal-popout {
+  width: min(1100px, 94vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.modal-popout-header {
+  flex-shrink: 0;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-popout-header .card-header {
+  margin-bottom: 8px;
+}
+
+.modal-popout-header .host-inventory-v2-drawer-nav {
+  margin: 0 0 8px 0;
+  padding: 0;
+  border-bottom: none;
+}
+
+.modal-popout-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+}
+
+.modal-popout-header-buttons {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+body[data-theme="dark"] .modal-popout-header {
+  border-bottom-color: #475569;
+}
+
 .node-card {
   border: 1px solid #e5e7eb;
 }
@@ -3711,6 +3753,7 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   padding: 12px;
   background: #f0f4f8;
@@ -3728,7 +3771,9 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
 }
 
 .host-inventory-v2-drawer-header {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-y: auto;
   margin-bottom: 0.5rem;
 }
 
@@ -6394,4 +6439,59 @@ body[data-theme="dark"] .yaml-config-pane::-webkit-scrollbar-thumb:hover {
 
 .ocmirror-advanced-options .field-with-info-row > div:not(.field-title-line) {
   width: 100%;
+}
+
+/* ========================================
+   Pre-configured Mirror Registry Styles
+   ======================================== */
+
+/* Read-only input styling for pre-configured fields */
+input.readonly-input,
+textarea.readonly-input,
+select.readonly-input {
+  background-color: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+  border-color: #ddd;
+}
+
+input.readonly-input:focus,
+textarea.readonly-input:focus,
+select.readonly-input:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: #ddd;
+}
+
+/* Dark mode read-only styling */
+body[data-theme="dark"] input.readonly-input,
+body[data-theme="dark"] textarea.readonly-input,
+body[data-theme="dark"] select.readonly-input {
+  background-color: #2a2a2a;
+  color: #999;
+  border-color: #444;
+}
+
+body[data-theme="dark"] input.readonly-input:focus,
+body[data-theme="dark"] textarea.readonly-input:focus,
+body[data-theme="dark"] select.readonly-input:focus {
+  border-color: #444;
+}
+
+/* Badge for pre-configured fields */
+.badge.info {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0066cc;
+  background-color: #e6f2ff;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+body[data-theme="dark"] .badge.info {
+  color: #66b3ff;
+  background-color: #1a3d5c;
 }

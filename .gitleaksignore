@@ -1,0 +1,6 @@
+# Gitleaks ignore file for false positives
+# Documentation: https://patterns.security.redhat.com/docs
+
+# Test fixtures - not real secrets
+backend/test/mirrorRegistryConfigLoader.test.js:*:General Secret
+backend/test/fixtures/mirror-registry-config.json:*

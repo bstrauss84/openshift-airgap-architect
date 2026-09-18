@@ -20,6 +20,7 @@ import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
 
 const INSTALL_CONFIG = "install-config.yaml";
 
@@ -69,7 +70,7 @@ const summarizeReason = (code) => {
   }
 };
 
-function PemField({ label, required, value, onChange, onBlur, onFiles, error, placeholder, hint }) {
+function PemField({ label, required, value, onChange, onBlur, onFiles, error, placeholder, hint, disabled }) {
   if (hint) {
     // Use FieldLabelWithInfo when hint is provided
     return (
@@ -77,25 +78,29 @@ function PemField({ label, required, value, onChange, onBlur, onFiles, error, pl
         <FieldLabelWithInfo label={label} required={required} hint={hint}>
           <textarea
             value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onBlur={onBlur}
+            onChange={(e) => !disabled && onChange(e.target.value)}
+            onBlur={!disabled ? onBlur : undefined}
             rows={3}
             placeholder={placeholder}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
+            disabled={disabled}
+            className={disabled ? "readonly-input" : ""}
+            onDragOver={!disabled ? (e) => e.preventDefault() : undefined}
+            onDrop={!disabled ? (e) => {
               e.preventDefault();
               onFiles(e.dataTransfer.files);
-            }}
+            } : undefined}
           />
         </FieldLabelWithInfo>
         {error ? <div className="note warning">{error}</div> : null}
-        <input
-          type="file"
-          accept=".pem,.crt,.cer"
-          multiple
-          onChange={(e) => onFiles(e.target.files || [])}
-          className="trust-file-input"
-        />
+        {!disabled && (
+          <input
+            type="file"
+            accept=".pem,.crt,.cer"
+            multiple
+            onChange={(e) => onFiles(e.target.files || [])}
+            className="trust-file-input"
+          />
+        )}
       </div>
     );
   }
@@ -108,15 +113,17 @@ function PemField({ label, required, value, onChange, onBlur, onFiles, error, pl
         {required ? <span className="required-badge">required</span> : null}
         <textarea
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
+          onChange={(e) => !disabled && onChange(e.target.value)}
+          onBlur={!disabled ? onBlur : undefined}
           rows={3}
           placeholder={placeholder}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
+          disabled={disabled}
+          className={disabled ? "readonly-input" : ""}
+          onDragOver={!disabled ? (e) => e.preventDefault() : undefined}
+          onDrop={!disabled ? (e) => {
             e.preventDefault();
             onFiles(e.dataTransfer.files);
-          }}
+          } : undefined}
         />
         {error ? <div className="note warning">{error}</div> : null}
         <input
@@ -139,6 +146,7 @@ export default function TrustProxyStep({ highlightErrors }) {
   const proxies = strategy.proxies || {};
   const trust = state.trust || {};
   const selectedVersion = state.release?.patchVersion || state.version?.selectedVersion || "";
+  const mirrorConfigPreloaded = state.ui?.mirrorConfigPreloaded ?? false;
   const [proxyCaError, setProxyCaError] = React.useState("");
   const [mirrorCaError, setMirrorCaError] = React.useState("");
   const [analysis, setAnalysis] = React.useState(null);
@@ -774,6 +782,11 @@ Internal cluster networks, service CIDRs, localhost
                   {trust.mirrorRegistryUsesPrivateCa ? <span className="required-badge" style={{ marginLeft: 8 }}>required</span> : null}
                 </h4>
                 <p className="trust-section-desc">For a private or self-signed mirror registry. {trust.mirrorRegistryUsesPrivateCa ? "You must add the CA certificate(s) here for installs to succeed." : ""}</p>
+                {mirrorConfigPreloaded && trust.mirrorRegistryCaPem && (
+                  <PreloadedConfigBanner
+                    message="Mirror registry CA certificate was automatically loaded from the mounted config file."
+                  />
+                )}
                 <PemField
                   label="Mirror registry CA bundle"
                   required={trust.mirrorRegistryUsesPrivateCa}
@@ -782,7 +795,8 @@ Internal cluster networks, service CIDRs, localhost
                   onBlur={handleMirrorCaBlur}
                   onFiles={handleMirrorCaFiles}
                   error={mirrorCaError}
-                  placeholder="Paste or drop .pem/.crt here"
+                  placeholder={mirrorConfigPreloaded ? "Pre-configured from mounted CA certificate file" : "Paste or drop .pem/.crt here"}
+                  disabled={mirrorConfigPreloaded}
                   hint={`CA certificate(s) for authenticating to a private or self-signed mirror registry.
 
 **What is this:**

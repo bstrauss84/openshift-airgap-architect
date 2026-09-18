@@ -8,7 +8,7 @@ ARG OCP_CLIENT_URL=""
 ARG OCP_MIRROR_URL=""
 
 RUN dnf install -y --setopt=install_weak_deps=false \
-    ca-certificates tar python3 make gcc-c++ gpgme openssh-clients util-linux \
+    ca-certificates tar python3 make gcc-c++ gpgme openssh-clients util-linux nmstate \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 

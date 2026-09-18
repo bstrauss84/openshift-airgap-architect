@@ -4,6 +4,7 @@ import { useApp } from "../store.jsx";
 import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
 import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
+import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -50,6 +51,7 @@ const BlueprintStep = () => {
   const version = state.version || {};
   const locked = blueprint?.confirmed;
   const releaseLocked = version?.versionConfirmed ?? release?.confirmed;
+  const mirrorBundleDetected = blueprint?.mirrorBundleDetected ?? false;
 
   const [channels, setChannels] = useState([]);
   const [patches, setPatches] = useState([]);
@@ -410,7 +412,10 @@ const BlueprintStep = () => {
 
         <section className="card">
           <div className="card-header" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <h3 style={{ margin: 0 }}>OpenShift release</h3>
+            <h3 style={{ margin: 0 }}>
+              OpenShift release
+              {mirrorBundleDetected && <span className="badge info">Pre-configured</span>}
+            </h3>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
               <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
                 Update
@@ -430,6 +435,11 @@ const BlueprintStep = () => {
               )}
             </div>
           </div>
+          {mirrorBundleDetected && (
+            <PreloadedConfigBanner
+              message="OpenShift version pre-selected from imageset-config.yaml. This matches the mirrored content."
+            />
+          )}
           {refreshError ? (
             <div className="note" style={{ marginBottom: 12, color: "var(--danger, #c62828)" }} role="alert">
               {refreshError}

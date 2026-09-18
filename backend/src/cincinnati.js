@@ -42,12 +42,24 @@ const sortVersionsDesc = (versions) =>
   });
 
 const fetchChannelsFromGithub = async () => {
+  const headers = { "User-Agent": "airgap-architect" };
+
+  // Add GitHub token if available (increases rate limit from 60/hour to 5000/hour)
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (githubToken) {
+    headers.Authorization = `Bearer ${githubToken}`;
+  }
+
   const res = await fetch("https://api.github.com/repos/openshift/cincinnati-graph-data/contents/channels", {
-    headers: { "User-Agent": "airgap-architect" },
+    headers,
     signal: fetchSignal()
   });
   if (!res.ok) {
-    throw new Error(`Failed to fetch channels directory: ${res.status}`);
+    const rateLimitRemaining = res.headers.get('x-ratelimit-remaining');
+    const rateLimitReset = res.headers.get('x-ratelimit-reset');
+    const resetDate = rateLimitReset ? new Date(parseInt(rateLimitReset) * 1000).toISOString() : 'unknown';
+
+    throw new Error(`Failed to fetch channels directory: ${res.status} (rate limit remaining: ${rateLimitRemaining || 'unknown'}, resets: ${resetDate})`);
   }
   const data = await res.json();
   const channels = data
@@ -92,8 +104,17 @@ const fetchStableFile = async (channel) => {
       throw new Error(`Mock data error for channel ${channel}: ${err.message}`);
     }
   }
+
+  const headers = { "User-Agent": "airgap-architect" };
+
+  // Add GitHub token if available (raw.githubusercontent.com doesn't strictly require it but helps with rate limits)
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (githubToken) {
+    headers.Authorization = `Bearer ${githubToken}`;
+  }
+
   const url = `https://raw.githubusercontent.com/openshift/cincinnati-graph-data/master/channels/stable-${channel}.yaml`;
-  const res = await fetch(url, { headers: { "User-Agent": "airgap-architect" }, signal: fetchSignal() });
+  const res = await fetch(url, { headers, signal: fetchSignal() });
   if (!res.ok) {
     throw new Error(`Failed to fetch stable-${channel}.yaml: ${res.status}`);
   }

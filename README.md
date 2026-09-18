@@ -26,6 +26,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
 - **Platform, Security, and Operations**
   - [Platform and architecture (multi-arch / Apple Silicon)](#platform-and-architecture-multi-arch--apple-silicon)
   - [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret)
+  - [Run inside mirror operator collection bundle](#run-inside-mirror-operator-collection-bundle)
   - [Build info and update checks](#build-info-and-update-checks)
   - [Troubleshooting](#troubleshooting)
 - **Reference**
@@ -72,6 +73,7 @@ The app uses official OpenShift 4.17–4.20 parameter catalogs and aligns genera
 - **Live YAML Preview** — Right-side resizable drawer shows real-time generated YAML as you configure. Displays install-config.yaml (or split view with agent-config.yaml for agent-based scenarios). ImageSet config visible on Operators tab. Credentials obfuscated by default with "Show sensitive values" toggle. Download individual files. Syntax highlighting for readability. Available on all configuration tabs after Blueprint lock-in.
 - **IPv6-only single-stack support** — Configure OpenShift clusters with IPv6 networking only (no IPv4). IP stack mode selector supports IPv4-only, IPv6-only, and dual-stack (IPv4+IPv6) modes. Available for bare metal and vSphere platforms (all installation methods). Automatic state migration from v1.2.x exports.
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle. Advanced option to bundle a complete high-side runtime package (container images + deployment scripts) for deploying the application on fully disconnected systems.
+- **Run inside mirror operator collection bundle** — Deploy the wizard on high-side (air-gapped) networks with pre-loaded mirror registry configuration. When mounted config files are detected at startup, the wizard auto-populates mirror settings (pull secret, CA cert, IDMS/ITMS sources, OpenShift version) and locks them as read-only, allowing users to focus exclusively on cluster-specific settings (networking, platform credentials, host inventory). See [Mirror Operator Bundle Workflow](docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md) for complete documentation.
 
 <a id="quick-start-container"></a>
 ## Quick start (container)
@@ -219,6 +221,10 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 - **`MOCK_MODE=true`** — Bundled Cincinnati data; no GitHub (see [Mock mode (offline demo)](#mock-mode-offline-demo)).
 - **`CHECK_UPDATES=false`** — Disables the optional GitHub “new version” check on About.
 - **`FEEDBACK_MODE=offline`** — Avoids GitHub-oriented feedback behavior where applicable (see env table under [Build info and update checks](#build-info-and-update-checks)).
+
+**GitHub API rate limits:**
+
+- **`GITHUB_TOKEN=ghp_xxx`** — Optional GitHub personal access token for Cincinnati data fetching. Without this, GitHub API requests are unauthenticated and limited to 60 requests/hour. With a token, the limit increases to 5000 requests/hour. This is particularly important in operator-managed mode where multiple users may be browsing OpenShift versions simultaneously. Create a token at https://github.com/settings/tokens (no scopes required, just public repository access).
 
 If **GitHub is blocked** and you cannot use **`MOCK_MODE`**, live Cincinnati channel/patch lists cannot be loaded in the app; that is a policy constraint, not a missing UI setting. If **all** Red Hat registries are blocked with no proxy path, connected operator scan and connected **Run oc-mirror** cannot succeed in that environment; use a connected jump host and transfer artifacts per [Run oc-mirror](#run-oc-mirror).
 
@@ -931,6 +937,67 @@ secrets:
   pull-secret:
     file: /home/user/pull-secret.json
 ```
+
+## Run inside mirror operator collection bundle
+
+The wizard can run on high-side (air-gapped) networks with pre-loaded mirror registry configuration from a mirror operator collection bundle. This enables a **two-side workflow**:
+
+1. **Low-side (connected):** Mirror OpenShift content using Disconnected Mirror Operator or `oc-mirror`, generate config files
+2. **High-side (air-gapped):** Deploy wizard with mounted config files, wizard auto-populates all mirror settings
+
+When the backend detects mounted mirror registry config files at startup (via `MIRROR_REGISTRY_CONFIG` and `IMAGESET_CONFIG` environment variables), it:
+
+- ✅ **Auto-generates pull secret** from username/password
+- ✅ **Auto-loads CA certificate** from file
+- ✅ **Extracts mirror sources** from IDMS/ITMS YAML files
+- ✅ **Pre-selects OpenShift version** from imageset-config.yaml
+- ✅ **Locks mirror fields as read-only** with informational banners
+- ✅ **Hides Operators and Run oc-mirror steps** (already completed on low-side)
+
+**What users configure:**
+- Cluster identity (name, domain)
+- Networking (IP ranges, VIPs, DNS, NTP)
+- Platform credentials (vSphere, AWS, bare metal BMC)
+- Host inventory
+
+**What's pre-configured (read-only):**
+- Mirror registry URL, pull secret, CA certificate
+- Mirror sources (from IDMS/ITMS)
+- OpenShift version (pre-selected, can be changed if needed)
+- Operators (defined in imageset-config.yaml)
+
+**Example deployment with mounted configs:**
+
+```bash
+podman run -d \
+  -p 4000:4000 \
+  -v /path/to/mirror-config:/etc/mirror-config:ro \
+  -v /path/to/certs:/etc/mirror-certs:ro \
+  -e MIRROR_REGISTRY_CONFIG=/etc/mirror-config/registry-config.json \
+  -e IMAGESET_CONFIG=/etc/mirror-config/imageset-config.yaml \
+  airgap-architect-backend:latest
+```
+
+**Mirror registry config format (`registry-config.json`):**
+
+```json
+{
+  "hostname": "registry.example.com",
+  "port": 8443,
+  "username": "admin",
+  "password": "secret123",
+  "caCertPath": "/etc/mirror-certs/ca.pem",
+  "idmsPath": "/etc/mirror-config/idms-oc-mirror.yaml",
+  "itmsPath": "/etc/mirror-config/itms-oc-mirror.yaml"
+}
+```
+
+**See [Mirror Operator Bundle Workflow](docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md) for:**
+- Complete config file formats (IDMS, ITMS, imageset-config.yaml)
+- Kubernetes/OpenShift deployment examples with ConfigMaps and Secrets
+- Security considerations (credential handling, file permissions)
+- Troubleshooting guide (permission errors, missing files, etc.)
+- Testing procedures
 
 <a id="build-info-and-update-checks"></a>
 ## Build info and update checks

@@ -62,7 +62,11 @@ const getResults = (version, catalogId) => {
   return { results: JSON.parse(row.results_json), updatedAt: row.updated_at };
 };
 
-const authAvailable = () => {
+const authAvailable = (mountedSecret = null) => {
+  // Check for mounted secret first (passed from index.js)
+  if (mountedSecret) return true;
+
+  // Fallback to REGISTRY_AUTH_FILE
   const file = process.env.REGISTRY_AUTH_FILE;
   if (!file) return false;
   try {

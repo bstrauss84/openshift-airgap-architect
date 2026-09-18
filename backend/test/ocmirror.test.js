@@ -134,7 +134,7 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
     assert.strictEqual(jobRes.status, 200);
     const job = await jobRes.json();
     assert.strictEqual(job.type, "oc-mirror-run");
-    assert.ok(job.metadata_json !== undefined);
+    assert.ok(job.metadata_json);
     const meta = typeof job.metadata_json === "string" ? JSON.parse(job.metadata_json) : job.metadata_json;
     assert.strictEqual(meta.mode, "mirrorToDisk");
     assert.ok(meta.workspaceDir);

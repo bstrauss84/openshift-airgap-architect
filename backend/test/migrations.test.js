@@ -20,30 +20,43 @@ import { runMigrations, rollbackMigration, getMigrationStatus } from "../src/mig
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const testDbPath = path.join(__dirname, "test-migrations.db");
+// Use unique database file per test to avoid conflicts when running in parallel
+let testDbCounter = 0;
 
 /**
- * Create a temporary test database
+ * Create a temporary test database with unique name
  */
 function createTestDb() {
+  const testDbPath = path.join(__dirname, `test-migrations-${Date.now()}-${testDbCounter++}.db`);
   if (fs.existsSync(testDbPath)) {
     fs.unlinkSync(testDbPath);
   }
-  return new Database(testDbPath);
+  const db = new Database(testDbPath);
+  // Store path on db object for cleanup
+  db._testDbPath = testDbPath;
+  return db;
 }
 
 /**
  * Clean up test database
  */
-function cleanupTestDb() {
-  if (fs.existsSync(testDbPath)) {
+function cleanupTestDb(db) {
+  const testDbPath = db?._testDbPath;
+  if (testDbPath && fs.existsSync(testDbPath)) {
     fs.unlinkSync(testDbPath);
   }
 }
 
 describe("Migration System", () => {
   after(() => {
-    cleanupTestDb();
+    // Clean up any remaining test database files
+    const files = fs.readdirSync(__dirname).filter(f => f.startsWith('test-migrations-') && f.endsWith('.db'));
+    files.forEach(file => {
+      const filePath = path.join(__dirname, file);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    });
   });
 
   describe("runMigrations", () => {
@@ -56,7 +69,7 @@ describe("Migration System", () => {
       assert.strictEqual(tables.length, 1, "migrations table should exist");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should apply all pending migrations in order", async () => {
@@ -74,7 +87,7 @@ describe("Migration System", () => {
       assert.ok(migrations[1].name.includes("002"), "Second migration should be 002");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should create expected tables from migrations", async () => {
@@ -94,7 +107,7 @@ describe("Migration System", () => {
       assert.ok(tableNames.includes("migrations"), "migrations table should exist");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should add metadata_json column to jobs table", async () => {
@@ -109,7 +122,7 @@ describe("Migration System", () => {
       assert.ok(columnNames.includes("metadata_json"), "jobs table should have metadata_json column");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should be idempotent (no-op when migrations already applied)", async () => {
@@ -124,7 +137,7 @@ describe("Migration System", () => {
       assert.strictEqual(secondCount, 0, "Should apply zero migrations on second run");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should rollback on migration failure", async () => {
@@ -162,7 +175,7 @@ export const down = (db) => {
       fs.unlinkSync(badMigrationPath);
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
   });
 
@@ -193,7 +206,7 @@ export const down = (db) => {
       assert.ok(!columnNames.includes("metadata_json"), "metadata_json column should be removed");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should return null when no migrations to rollback", async () => {
@@ -207,7 +220,7 @@ export const down = (db) => {
       assert.strictEqual(result, null, "Should return null when no migrations to rollback");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should allow re-applying migration after rollback", async () => {
@@ -229,7 +242,7 @@ export const down = (db) => {
       assert.ok(columnNames.includes("metadata_json"), "metadata_json column should exist after re-apply");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
   });
 
@@ -255,7 +268,7 @@ export const down = (db) => {
       assert.strictEqual(status.pending.length, status.total, "pending array should match total");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should return correct status after applying migrations", async () => {
@@ -272,7 +285,7 @@ export const down = (db) => {
       assert.strictEqual(status.pending.length, 0, "pending array should be empty");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
 
     it("should return correct status after partial migration", async () => {
@@ -289,7 +302,7 @@ export const down = (db) => {
       assert.ok(status.pending[0].includes("002"), "Pending migration should be 002");
 
       db.close();
-      cleanupTestDb();
+      cleanupTestDb(db);
     });
   });
 

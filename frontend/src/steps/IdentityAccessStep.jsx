@@ -18,6 +18,7 @@ import { apiFetch } from "../api.js";
 import SecretInput from "../components/SecretInput.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import Switch from "../components/Switch.jsx";
+import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
 
 /**
  * Identity & Access replacement tab (Phase 5 segmented flow, Prompt E).
@@ -36,6 +37,7 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   const pullSecretPlaceholder = state.credentials?.pullSecretPlaceholder ?? "";
   const mirrorRegistryPullSecret = state.credentials?.mirrorRegistryPullSecret ?? "";
   const mirrorRegistryUnauthenticated = state.credentials?.mirrorRegistryUnauthenticated ?? false;
+  const mirrorConfigPreloaded = state.ui?.mirrorConfigPreloaded ?? false;
 
   const clusterName = state.blueprint?.clusterName ?? "";
   const baseDomain = state.blueprint?.baseDomain ?? "";
@@ -382,6 +384,12 @@ ocp.company.com`}
             </div>
           </div>
           <div className="card-body">
+            {mirrorConfigPreloaded && (
+              <PreloadedConfigBanner
+                message="Mirror registry credentials and settings were pre-configured from a mounted config file."
+              />
+            )}
+
             <div
               className="credentials-mirror-checkbox-grid"
               style={{
@@ -397,9 +405,11 @@ ocp.company.com`}
                   <span className="credentials-mirror-label">Using a mirror registry?</span>
                   <Switch
                     checked={usingMirrorRegistry}
-                    onChange={(checked) => updateCredentials({ usingMirrorRegistry: checked })}
+                    onChange={(checked) => !mirrorConfigPreloaded && updateCredentials({ usingMirrorRegistry: checked })}
+                    disabled={mirrorConfigPreloaded}
                     aria-describedby="credentials-mirror-helper"
                   />
+                  {mirrorConfigPreloaded && <span className="note">Pre-configured</span>}
                 </div>
                 {usingMirrorRegistry ? (
                   <p id="credentials-mirror-helper" className="note credentials-mirror-helper" style={{ marginTop: 0, marginBottom: 0, textAlign: "left" }}>
@@ -409,7 +419,7 @@ ocp.company.com`}
               </div>
               {usingMirrorRegistry ? (
                 <div className="credentials-mirror-auth-mode" style={{ gridColumn: "1 / -1", marginTop: 8 }}>
-                  <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
+                  <fieldset style={{ border: "none", margin: 0, padding: 0 }} disabled={mirrorConfigPreloaded}>
                     <legend className="credentials-mirror-label" style={{ marginBottom: 6 }}>Mirror registry authentication</legend>
                     <label className="toggle-row" style={{ display: "block", marginBottom: 6 }}>
                       <input
@@ -417,9 +427,12 @@ ocp.company.com`}
                         name="mirror-auth-mode"
                         checked={mirrorRegistryUnauthenticated}
                         onChange={() => {
-                          setMirrorSecretBackup(mirrorRegistryPullSecret);
-                          updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
+                          if (!mirrorConfigPreloaded) {
+                            setMirrorSecretBackup(mirrorRegistryPullSecret);
+                            updateCredentials({ mirrorRegistryUnauthenticated: true, mirrorRegistryPullSecret: buildUnauthMirrorSecret() });
+                          }
                         }}
+                        disabled={mirrorConfigPreloaded}
                         aria-describedby="credentials-mirror-okd-warning"
                       />
                       <span>Anonymous pulls</span>
@@ -435,8 +448,11 @@ ocp.company.com`}
                         name="mirror-auth-mode"
                         checked={!mirrorRegistryUnauthenticated}
                         onChange={() => {
-                          updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
+                          if (!mirrorConfigPreloaded) {
+                            updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: mirrorSecretBackup || "" });
+                          }
                         }}
+                        disabled={mirrorConfigPreloaded}
                       />
                       <span>Use mirror-registry credentials (paste, upload, or generate)</span>
                     </label>
@@ -520,14 +536,17 @@ If you toggle "Using a mirror registry?" above, this field is replaced with the 
                             <SecretInput
                               value={mirrorRegistryPullSecret}
                               onChange={(v) => {
-                                if (mirrorRegistryUnauthenticated) {
-                                  updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: v });
-                                } else {
-                                  updateCredentials({ mirrorRegistryPullSecret: v });
+                                if (!mirrorConfigPreloaded) {
+                                  if (mirrorRegistryUnauthenticated) {
+                                    updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: v });
+                                  } else {
+                                    updateCredentials({ mirrorRegistryPullSecret: v });
+                                  }
                                 }
                               }}
+                              disabled={mirrorConfigPreloaded}
                               label="Pull secret (Mirror registry)"
-                              labelEmphasis="Paste, drag and drop, or upload mirror registry pull secret (JSON)"
+                              labelEmphasis={mirrorConfigPreloaded ? "Pre-configured from mounted config" : "Paste, drag and drop, or upload mirror registry pull secret (JSON)"}
                               hint={`Authentication credentials for your local mirror registry in disconnected environments.
 
 **What is this:**
@@ -590,24 +609,26 @@ If you selected "Anonymous pulls" above, this field is auto-filled with an OKD-d
 • Test with \`podman login\` before installation
 • Mirror registry must be accessible from installer host and cluster nodes`}
                               required={requiredPullSecret}
-                              placeholder='{"auths":{...}}'
+                              placeholder={mirrorConfigPreloaded ? 'Pre-configured from mounted config' : '{"auths":{...}}'}
                               rows={5}
                               aria-label="Mirror registry pull secret JSON"
                               additionalButtons={
-                                <button
-                                  type="button"
-                                  className="ghost pull-secret-upload"
-                                  onClick={() => {
-                                    setShowKeygen(false);
-                                    if (mirrorRegistryUnauthenticated) {
-                                      updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: "" });
-                                    }
-                                    setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry }));
-                                    setShowMirrorSecretHelper(true);
-                                  }}
-                                >
-                                  Help me generate
-                                </button>
+                                !mirrorConfigPreloaded ? (
+                                  <button
+                                    type="button"
+                                    className="ghost pull-secret-upload"
+                                    onClick={() => {
+                                      setShowKeygen(false);
+                                      if (mirrorRegistryUnauthenticated) {
+                                        updateCredentials({ mirrorRegistryUnauthenticated: false, mirrorRegistryPullSecret: "" });
+                                      }
+                                      setMirrorHelper((h) => ({ ...h, registry: mirroring.registryFqdn || h.registry }));
+                                      setShowMirrorSecretHelper(true);
+                                    }}
+                                  >
+                                    Help me generate
+                                  </button>
+                                ) : null
                               }
                             />
                           </>

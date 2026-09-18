@@ -1,0 +1,9 @@
+{
+  "hostname": "registry.example.com",
+  "port": 8443,
+  "username": "admin",
+  "password": "secret123",
+  "caCertPath": "/tmp/test-ca.pem",
+  "idmsPath": "/tmp/test-idms.yaml",
+  "itmsPath": "/tmp/test-itms.yaml"
+}
