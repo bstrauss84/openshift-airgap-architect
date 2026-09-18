@@ -3859,7 +3859,7 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-subscription.yaml (${Buffer.byteLength(subscriptionYaml)} bytes)\n`);
 
       const openshiftMinor = getOpenShiftMinorFromState(state) || state.release?.channel || null;
-      const disconnectedPlatformYaml = buildDisconnectedPlatform(openshiftMinor);
+      const disconnectedPlatformYaml = buildDisconnectedPlatform(openshiftMinor, registryFqdn);
       fs.writeFileSync(path.join(openshiftDir, "99-mirror-operator-disconnected-platform.yaml"), disconnectedPlatformYaml, "utf8");
       appendJobOutput(jobId, `✓ Wrote openshift/99-mirror-operator-disconnected-platform.yaml (${Buffer.byteLength(disconnectedPlatformYaml)} bytes)\n\n`);
 

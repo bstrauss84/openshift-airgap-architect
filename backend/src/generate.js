@@ -2032,7 +2032,8 @@ const buildOperatorHubDisableDefaults = () => {
   return yaml.dump(manifest, { lineWidth: 120 });
 };
 
-const buildDisconnectedPlatform = (openshiftVersion) => {
+const buildDisconnectedPlatform = (openshiftVersion, registryFqdn) => {
+  const mirror = registryFqdn || "registry.local:5000";
   const manifest = {
     apiVersion: "mirror.mirror.mathianasj.github.com/v1",
     kind: "DisconnectedPlatform",
@@ -2050,6 +2051,7 @@ const buildDisconnectedPlatform = (openshiftVersion) => {
         bootstrapEnabled: true,
         importPath: "/mnt/physical-media",
         importScanSchedule: "*/30 * * * *",
+        mirrorRegistry: mirror,
         quay: {
           enabled: true,
           organizationName: "mirror",
@@ -2068,6 +2070,7 @@ const buildDisconnectedPlatform = (openshiftVersion) => {
             enabled: true,
             ...(openshiftVersion ? {
               versions: [{ openshiftVersion }],
+              rhcosImage: `${mirror}/mirror/rhcos-server:${openshiftVersion}`,
             } : {}),
           },
         },
