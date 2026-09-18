@@ -124,7 +124,7 @@ import { validateAllFiles } from "./yamlValidator.js";
 import { detectScenarioId } from "./catalogValidator.js";
 import { loadMirrorRegistryConfig } from "./mirrorRegistryConfigLoader.js";
 import { loadImageSetConfig } from "./imageSetConfigParser.js";
-import { extractCrdsFromCatalogImage } from "./crdExtractor.js";
+import { getBundledCrds } from "./crdExtractor.js";
 import { extractImageSetConfigFromTar } from "./tarImageSetExtractor.js";
 import Busboy from "busboy";
 import {
@@ -3832,39 +3832,15 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
 
       const registryFqdn = state.globalStrategy?.mirroring?.registryFqdn || "registry.local:5000";
 
-      // Extract CRD(s) from the operator catalog image so the cluster knows
-      // the DisconnectedPlatform kind before the 99- CR is applied
-      const catalogImage = `${registryFqdn}/mathianasj/mirror-operator-catalog:v0.0.1`;
-      appendJobOutput(jobId, `Extracting CRD(s) from catalog image: ${catalogImage}...\n`);
-
-      try {
-        const pullSecret = previewState.credentials?.mirrorRegistryPullSecret;
-        const crdAuthFile = pullSecret ? writeTempAuth(pullSecret) : null;
-        const extractDir = path.join(workDir, ".crd-extract");
-        fs.mkdirSync(extractDir, { recursive: true });
-
-        const useInsecure = !!previewState.trust?.mirrorRegistryUsesPrivateCa;
-        const crds = extractCrdsFromCatalogImage(catalogImage, crdAuthFile, extractDir, { insecure: useInsecure });
-
-        if (crds.length === 0) {
-          appendJobOutput(jobId, "⚠ No CRDs found in catalog image — the operator may install its own CRDs at runtime\n");
-          logger.warn({ tag: "agent-iso:mirror-operator", jobId, catalogImage }, "No CRDs extracted from catalog image");
-        } else {
-          for (let i = 0; i < crds.length; i++) {
-            const crdFilename = `00-mirror-operator-crd-${i}.yaml`;
-            fs.writeFileSync(path.join(openshiftDir, crdFilename), crds[i], "utf8");
-            appendJobOutput(jobId, `✓ Wrote openshift/${crdFilename} (${Buffer.byteLength(crds[i])} bytes)\n`);
-          }
-          logger.info({ tag: "agent-iso:mirror-operator", jobId, count: crds.length }, "Extracted and wrote CRD(s) from catalog image");
-        }
-
-        if (crdAuthFile) try { fs.unlinkSync(crdAuthFile); } catch { /* best-effort */ }
-        try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch { /* best-effort */ }
-      } catch (crdErr) {
-        appendJobOutput(jobId, `⚠ Could not extract CRD(s) from catalog image: ${crdErr.message}\n`);
-        appendJobOutput(jobId, "  The operator's OLM subscription may install the CRD at runtime, but timing-dependent failures are possible.\n");
-        logger.warn({ tag: "agent-iso:mirror-operator", jobId, err: crdErr.message, catalogImage }, "CRD extraction from catalog image failed");
+      // Write bundled CRDs so the cluster knows the DisconnectedPlatform kind
+      // before the 99- CR is applied during bootstrap
+      const crds = getBundledCrds();
+      for (let i = 0; i < crds.length; i++) {
+        const crdFilename = `00-mirror-operator-crd-${i}.yaml`;
+        fs.writeFileSync(path.join(openshiftDir, crdFilename), crds[i], "utf8");
+        appendJobOutput(jobId, `✓ Wrote openshift/${crdFilename} (${Buffer.byteLength(crds[i])} bytes)\n`);
       }
+      logger.info({ tag: "agent-iso:mirror-operator", jobId, count: crds.length }, "Wrote bundled operator CRDs");
 
       const operatorHubYaml = buildOperatorHubDisableDefaults();
       fs.writeFileSync(path.join(openshiftDir, "01-operatorhub-disable-defaults.yaml"), operatorHubYaml, "utf8");

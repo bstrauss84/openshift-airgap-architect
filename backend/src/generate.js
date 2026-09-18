@@ -2038,6 +2038,10 @@ const buildDisconnectedPlatform = (openshiftVersion) => {
     kind: "DisconnectedPlatform",
     metadata: {
       name: "disconnected-platform-airgapped",
+      labels: {
+        "app.kubernetes.io/name": "mirror-operator",
+        "app.kubernetes.io/managed-by": "kustomize",
+      },
     },
     spec: {
       mode: "airgapped",
