@@ -776,6 +776,22 @@ All conditions below are enforced by `validateArchiveBuffer` and `validateArchiv
 
 Legacy JSON run imports (via `POST /api/run/import`, without a manifest) continue through the existing explicit v1/v2→v3 migration path. The fail-closed conditions above apply only to manifest-bearing archives; manifest-less JSON run imports are a separate product surface and are not subject to archive integrity rules.
 
+### M01–M03 Integrity Milestone Summary (2026-09-17)
+
+The export/import integrity foundation is complete through three milestones:
+
+| Milestone | Commit | Scope | Status |
+|---|---|---|---|
+| M01 | 47e27d7 | Contract freeze: surface classification, manifest schema, checksum semantics, fail-closed conditions — documentation only | Accepted |
+| M02 | 8e3504d | version-manifest.json generation integrated into `buildBundleZip`; SHA-256 checksums; 25 tests | Accepted |
+| M03 | 0ca1126 | `POST /api/bundle.import` validation-only endpoint; validation-core 174 tests + HTTP 27 tests; human-checkpointed; archive-import semantics resolved as validation-only | Accepted/checkpointed |
+
+**Post-M03 documentation commits:** 93c958b (M03 closure evidence reconciliation across three canonical documents), 94e0cb3 (DOC-127 backlog item creation), 1d3b2e4 (DOC-127 integrity provenance correction). These are docs-only and do not constitute a separate milestone.
+
+**No M01–M03 implementation is reopened by this summary.** DOC-127 (frontend productization of the M03 backend capability) is tracked separately in `docs/BACKLOG_STATUS.md` and is non-blocking for application-code GA unless a human changes priority.
+
+**Residual GA register:** See `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` Section K for the complete application-code GA obligation classification.
+
 ---
 
 ## VERSION-GATING STRATEGY

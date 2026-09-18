@@ -1,11 +1,12 @@
 # Version-Awareness Completion Matrix
 
 **Created:** 2026-08-03
-**Last Updated:** 2026-09-16
+**Last Updated:** 2026-09-17
 **Parent:** DOC-059 (OpenShift version-aware system v2.0.0)
 **Branch:** supervised/v2.0
 **Accepted baseline at last review:** 2afd742 (PROD-014: application identity sync to 2.0.0-dev)
 **Preceding Field Guide milestone:** 8282f68 (DOC-103: AWS Field Guide AMI lookup context-safe)
+**M01 residual GA register baseline:** 1d3b2e4 (docs: correct DOC-127 integrity provenance)
 **Canonical status authority:** docs/BACKLOG_STATUS.md
 
 ---
@@ -395,7 +396,94 @@ After A2 acceptance, the Field Guide execution sequence is:
 
 ---
 
-## K. Explicit Definition of DONE for DOC-059
+## K. M01 Residual Application-Code GA Register (2026-09-17)
+
+**Baseline:** `supervised/v2.0` at `1d3b2e410aa4`, clean worktree. Application identity: `2.0.0-dev` (VERSION, backend/package.json, frontend/package.json, root package.json — synchronized, `git diff --check` exit 0).
+
+### K.1 Completed and Accepted Obligations
+
+| Item | Status | Evidence |
+|---|---|---|
+| DOC-100 (Phase 0 baseline) | verified_done | commit 94b5b14; 949 params with supportStatus |
+| DOC-101 (Phase 1 architecture) | verified_done | commits 8a879e7–bf7cfb3; 6/6 slices + 2 regression fixes |
+| DOC-102 (Phase 2 4.21 audit) | verified_done | 26 commits; all canonical slices + closure tranches; zero supported-backend-only unresolved (2026-08-13) |
+| DOC-106 (versioned copy audit) | verified_done | commit 94b5b14; 3,239 refs inventoried (Phase 0 inventory only; implementation owned by DOC-107) |
+| M01 contract freeze | accepted | commit 47e27d7; JSON run envelope vs ZIP surface classification frozen in VERSION_AWARENESS_MASTER_STRATEGY.md |
+| M02 manifest export integrity | accepted | commit 8e3504d; `backend/src/exportIntegrity.js` generates version-manifest.json with SHA-256 checksums; 25 tests |
+| M03 bundle import integrity | accepted/checkpointed | commit 0ca1126; `POST /api/bundle.import` validation-only endpoint; 27 HTTP + 174 validation-core tests; full backend 1705/0 fail/5 todo; all certification return codes zero |
+| M03 closure evidence reconciliation | accepted | commit 93c958b; docs-only reconciliation of M03 closure evidence across three canonical documents |
+| DOC-127 backlog creation | accepted | commits 94e0cb3, 1d3b2e4; DOC-127 (Artifact Bundle Validator UI) backlog item created and provenance corrected |
+| Archive-import semantics | resolved | Validation-only by design — ZIP contains no state.json; no state import/persistence/extraction |
+| FG-4.21-A2 stale-label cleanup | accepted | commit fc40c68; 17/21 Class A corrected; Class B replaced; 3 Class C protected |
+| FG-4.21-B strict version resolution | accepted | commit 49e12cb; 68/68 version-safety tests; deterministic 4.22 rejection |
+| DOC-107 versioned copy implementation | done_pending_verification | 25 violations resolved; CI guard passes clean; 42 tests |
+
+### K.2 Unresolved Application-Code GA Blockers
+
+| Item | Blocker Description | Owner | Required Action |
+|---|---|---|---|
+| DOC-103 (Phase 3 UI/UX) — remaining | Version locking and transitions are implemented (BlueprintStep lock/confirm, v3 locked field, release-unlock workflow with 63 deterministic tests). Remaining: deprecation badges, introduced/deprecated annotations, systematic version-correct copy, attributable deterministic verification evidence for lock workflow, repository-wide tooltip/helper/warning closure, version-specific link verification, accessibility | DOC-103 | Complete remaining UI/UX enhancements per Tranche V4 acceptance criteria |
+| DOC-104 (Phase 4 testing) — remaining | Parameterized version-matrix testing, Field Guide version-correctness tests, deprecation badge rendering tests, versioned copy correctness tests, manual visual verification | DOC-104 | Complete remaining test matrix per Tranche V5 acceptance criteria |
+| DOC-105 (Phase 5 release) — remaining | Migration guide, full README v2.0.0 update, CHANGELOG GA entry, security audit, dependency scan, release notes, final manual QA, generated artifact validation | DOC-105 | Complete remaining release closure per Tranche V6 acceptance criteria |
+| DOC-107 verification | done_pending_verification → needs verification pass | DOC-107 | Verify CI guard integration, all 42 tests, and user-facing copy correctness |
+| DOC-059 closure | Cannot be marked verified_done until DOC-103/104/105/107 complete | DOC-059 | See Section L (Definition of DONE) |
+
+### K.3 Non-Blocking Follow-Up Work (Not Application-Code GA Blockers)
+
+| Item | Classification | Rationale |
+|---|---|---|
+| DOC-127 (Artifact Bundle Validator UI) | Non-blocking / post-GA under settled human policy | Backend capability complete (M03); frontend UI is a productization opportunity scheduled after GA unless human priority is explicitly changed |
+
+### K.4 Production Readiness Obligations — Targeted Classification
+
+Option A settled: v2.0.0 GA = application-code GA. PROD-041 gates enterprise/customer distribution, not application-code GA. The following classification covers only the five PROD items targeted by this reconciliation (PROD-014, PROD-040, PROD-041, PROD-042, PROD-044). Other PROD items (PROD-024–039, PROD-043, PROD-045–046) were not examined in this tranche; their obligation-level classification relative to application-code GA is unestablished.
+
+**Application-code GA obligations (within PROD items):**
+
+| Item | Obligation | Rationale |
+|---|---|---|
+| PROD-014 | CHANGELOG v2.0.0 GA entry; VERSION file progression from `2.0.0-dev` to `2.0.0` | CHANGELOG GA entry and application version identity are application-code release artifacts, not enterprise distribution concerns. Currently blocked by feature completion (DOC-103/104/105). |
+| PROD-040 | Clean-build provenance at release commit; source-revision traceability | The application-code release must be reproducible from a known clean commit. Build metadata (commit SHA, build timestamp) is intrinsic to application identity. |
+
+**Enterprise/customer-distribution obligations (outside application-code GA gate):**
+
+| Item | Owner | Scope |
+|---|---|---|
+| PROD-041 (umbrella) | Enterprise productization | Gates enterprise distribution per Option A; children are prerequisites for customer-facing release, not application-code GA |
+| PROD-014 — remaining | Release process | Formal release-tag automation, release process documentation — enterprise distribution prerequisites |
+| PROD-040 — remaining | Release process | Versioned image tagging, container registry, promotion/rollback, multi-arch — enterprise distribution prerequisites |
+| PROD-042 (immutable release bundle) | Enterprise distribution | Container images, OCI archives, manifests, SBOMs — customer delivery artifact |
+| PROD-044 (release security gate) | Enterprise distribution | Supply chain verification, runtime verification, deployment verification, retained evidence — enterprise gate |
+
+### K.5 Source-Verification Obligations
+
+The following items require verification against official OpenShift installer structures or documentation for their respective supported minors (4.20 and 4.21). They are technical source-verification obligations — their resolution depends on evidence from authoritative sources.
+
+**Disposition status:** Current tracked evidence establishes neither application-code GA blocker nor non-blocker status for DOC-120 or DOC-122 individually. Each disposition remains unresolved until the specified authoritative OpenShift 4.20/4.21 source verification is completed.
+
+**Decision rule:** If source verification proves a supported-output correctness contradiction (the application generates output that the OpenShift installer rejects or that produces incorrect cluster behavior for a supported scenario), that contradiction is an application-code GA blocker requiring remediation and regression tests. If source verification finds no such contradiction (the application's current behavior produces installer-accepted output for all supported scenarios), that finding supports an evidence-backed non-blocking disposition for v2.0.0.
+
+**DOC-120 (vSphere full inventory-path correctness):** The generator passes configured vSphere values through. The canonical backlog (active, p1) documents that UI examples, fixtures, and validation permit ambiguous short names that may resolve incorrectly in multi-datacenter or nested-folder environments. The required scope includes full compute-cluster and datastore inventory paths, nested folders, duplicate short names, datacenter path context, legacy-derived vs explicit failure-domain modes, and generated YAML correctness. **Current disposition: unresolved.** No authoritative OpenShift 4.20/4.21 vSphere source evidence has been examined to determine whether the current pass-through behavior produces installer-accepted or installer-rejected output. **Required evidence:** Official OpenShift 4.20 and 4.21 vSphere installation documentation (`Installing_on_vSphere-en-US.pdf` or equivalent) establishing the exact inventory-path format required by the installer for `platform.vsphere.vcenters[].datacenters`, `platform.vsphere.failureDomains[].topology`, and legacy `platform.vsphere.{datacenter,cluster,defaultDatastore}` fields. Installer source (`pkg/types/vsphere/`) for struct definitions and validation rules. **Completion condition:** Each vSphere inventory-path field has (1) a documented authoritative format from official 4.20/4.21 sources, (2) a determination of whether the current application behavior contradicts that format, and (3) if contradiction is found: corrected UI placeholders/examples, validation that rejects ambiguous short names where the installer requires full inventory paths, and tests covering the corrected behavior.
+
+**DOC-122 (catalog structural path, type, and conditional-requiredness audit):** The canonical backlog (active, p1) documents confirmed metadata inconsistencies across controlPlane singular/array notation, platform type metadata, and conditional-requiredness rules. Individual corrections require installer structure verification. The required scope includes controlPlane singular-vs-array path notation, controlPlane/compute platform type metadata, AWS existing-VPC subnet conditional-requiredness, vSphere legacy-placement conditional-requiredness, and canonical/frontend-mirror parity. **Current disposition: unresolved.** No authoritative OpenShift 4.20/4.21 installer source examination has determined whether current metadata inconsistencies cause incorrect supported-output behavior or are classification-only discrepancies with no user-facing impact. **Required evidence:** Official OpenShift 4.20 and 4.21 installer source (`pkg/types/installconfig.go`, `pkg/types/*/platform.go`) for struct definitions that establish whether paths are singular objects or array elements, field types, and conditional-requiredness rules. **Completion condition:** A validator detects structural path contradictions, type contradictions, conditional-requiredness contradictions, and canonical/mirror divergence; each contradiction is assessed for supported-output correctness impact; contradictions with proven output impact are resolved against installer source evidence with regression tests; contradictions with no output impact receive evidence-backed non-blocking classification.
+
+### K.6 Recommended Next Executable Verification Tranche
+
+**DOC-120 (vSphere inventory-path correctness)** is the narrower candidate. DOC-122 spans all 13 scenario catalogs and requires a cross-cutting validator; DOC-120 is scoped to 3 vSphere scenarios (vsphere-agent, vsphere-ipi, vsphere-upi) with a well-defined evidence source (OCP vSphere installation docs + installer `pkg/types/vsphere/`). The DOC-120 canonical backlog entry already enumerates 17 specific scope items. **Owner:** DOC-120. **Estimated scope:** Read-only source-verification tranche producing an evidence-linked inventory-path format specification per vSphere field, followed by a bounded implementation tranche to correct UI placeholders/examples/validation and add tests. The source-verification tranche does not require code changes and can be completed as a documentation-only deliverable.
+
+### K.7 Pending Human Acceptance Checkpoints
+
+The following items have completed implementation and passing tests but have not received human acceptance. They are pending acceptance checkpoints, separate from the source-verification obligations in K.5. Their GA disposition follows from the human acceptance decision.
+
+**FG-DOCREF-MINOR (compartment docRef certification):** Implementation complete in `backend/src/fieldGuide/provenance.js` — `certifyDocRefs` enforces that official OCP docs URLs in Field Guide compartments match the resolved minor version. 62/62 certification tests pass. Integrated into `assembler.js` pre-selection certification. Pending human acceptance.
+
+**FG-4.21-C (provenance certification):** Implementation complete in `backend/src/fieldGuide/provenance.js` — deterministic provenance certification for Field Guide assembly inputs with stable object-identity inventory, shared input registry, exclusive export membership, and inventory completeness invariants. 37/37 certification tests pass (part of the 62-test suite above). Integrated into `assembler.js renderGuide` flow. Pending human acceptance.
+
+---
+
+## L. Explicit Definition of DONE for DOC-059
+
+(Moved from former Section K; content unchanged.)
 
 DOC-059 may be marked `verified_done` ONLY when ALL of the following are true:
 
