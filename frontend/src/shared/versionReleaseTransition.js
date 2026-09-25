@@ -73,7 +73,26 @@ export function computeReleaseTransition(currentState, targetMinor, options = {}
     followLatestMinor: currentState.release?.followLatestMinor ?? true,
   };
 
-  const operators = {
+  const currentMinor = parseMinorVersionCore(
+    currentState.version?.selectedMinor || currentState.release?.channel || ''
+  );
+  const isMinorChange = currentMinor && currentMinor !== parsedMinor;
+
+  const operators = isMinorChange ? {
+    selected: (currentState.operators?.selected || []).map(op => ({
+      name: op.name,
+      id: op.id,
+      sources: op.sources,
+    })),
+    scenarios: currentState.operators?.scenarios,
+    scenarioAdded: currentState.operators?.scenarioAdded,
+    catalogs: {},
+    version: null,
+    scanJobs: {},
+    cachedAt: null,
+    stale: true,
+    fastMode: currentState.operators?.fastMode,
+  } : {
     ...currentState.operators,
     stale: true,
   };

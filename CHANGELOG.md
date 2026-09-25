@@ -5,23 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v2.0.0 Work in Progress
+## [2.0.0] - 2026-09-18
 
 ### Breaking Changes
 
 **Version Support Scope:** OpenShift Airgap Architect v2.0.0 supports exactly:
 - **4.20** (baseline)
 - **4.21** (current)
-- **4.22 is unsupported** — unsupported-version HTTP boundaries enforced (HTTP 422 UNSUPPORTED_VERSION)
+- **4.22 and later are unsupported** — deterministic rejection at all boundaries (UI, HTTP 422, generation, Field Guide)
+
+**State Schema:** v3 (automatic migration from v1/v2). Exports use manifest schema 1.0.0 with state schema v3 and are not backward-compatible with v1.x.
+
+**Version Lock Required:** An explicit version lock is required before generation. The locked version determines parameter catalogs, Field Guide content, and validation rules.
 
 ### Added
 
-**Architecture Foundation (Slice 5A-5F):**
-- Version-aware catalog structure (frontend versioned catalog loading with blocking behavior)
-- 4.21 catalog baseline and high-confidence parameters (7 core params + 4 manual-review params)
-- 4.21 docs index and field guide (validated, no fallback permitted)
-- Canonical version state handling (backend state migration and validation)
-- Unsupported-version recovery UI (4.22 → 4.21 with "Switch to 4.21" button)
+**Version-Awareness Architecture:**
+- Version-aware parameter catalogs with per-minor-version field visibility (4.20 baseline, 4.21 additions)
+- Version-specific Field Guide content with version-correct documentation URLs and strict version resolution (no fallback)
+- Canonical version state handling with v3 schema (version lock, unlock/relock workflow)
+- State schema migration system (v1→v3, v2→v3, automatic at all boundaries)
+- Unsupported-version recovery UI (4.22 rejection with "Switch to 4.21" button)
+- Version-manifest in exported ZIP archives with integrity checksums
+- Archive validation endpoint (POST /api/bundle.import) with validation-only semantics
+
+**4.21 Parameter Support:**
+- AWS EBS root volume throughput (controlPlane and compute)
+- AWS Confidential Compute (SEV-SNP)
+- Azure shared key access control (allowSharedKeyAccess)
+- Azure BYO VNet named subnets (subnets[].name with role assignment)
+- Bare Metal BMC CA certificate verification (bmcVerifyCA)
+
+**UI/UX Enhancements:**
+- Metadata-driven "New in 4.21" annotations for introduced fields
+- Deprecation annotations for vSphere legacy placement fields
+- Version-neutral user-facing copy with CI guard enforcement
+- Field Guide provenance certification with version-correct docRef URLs
+
+**vSphere Improvements:**
+- Full inventory path support for failure-domain topology fields (computeCluster, datastore)
+- Automatic legacy-to-failure-domain path conversion in backend generation
+- Updated UI placeholders and hints with correct path format guidance
 
 ### Fixed
 
@@ -29,10 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Canonical version state handling repaired (commit 60862a0)
 - Frontend shared-module container runtime fixed (commit db4a526)
 - Unsupported-version HTTP boundaries enforced (commit d995e2f)
+- vSphere legacy mode now constructs full inventory paths for computeCluster and datastore
 
 **Frontend:**
 - Minor-version frontend coverage stabilized (commit 9b3327e)
 - Unsupported-version recovery button styling fixed (commit 2c15e82)
+- vSphere failure-domain placeholders corrected to show full inventory paths
 
 ### Security
 

@@ -1809,7 +1809,22 @@ const validateStep = (state, stepId) => {
       ]
     };
   }
-  if (stepId === "operators") return validateVersionConfirmed(state);
+  if (stepId === "operators") {
+    const versionCheck = validateVersionConfirmed(state);
+    if (versionCheck.errors.length > 0) return versionCheck;
+    const ops = state.operators || {};
+    const errors = [];
+    const warnings = [];
+    const selected = ops.selected || [];
+    const hasStaleSelected = selected.length > 0 && selected.some(op => !op.catalogImage || !op.defaultChannel);
+    if (hasStaleSelected) {
+      errors.push("Selected operators have stale metadata from a previous OpenShift version. Rescan operator catalogs to update.");
+    }
+    if (ops.stale && selected.length > 0) {
+      warnings.push("Operator selections may need review after version change.");
+    }
+    return { errors, warnings };
+  }
   if (stepId === "release") return validateVersionConfirmed(state);
   if (stepId === "operations") return { errors: [], warnings: [] };
   if (stepId === "identity-access") {
@@ -1962,15 +1977,15 @@ const validateStep = (state, stepId) => {
 
     if (scenarioId === "azure-government-ipi") {
       const azureErrors = [];
+      const azureFieldErrors = {};
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
-      // Note: cloudName is auto-filled to "AzureUSGovernmentCloud" in generation (only valid value)
-      // so no validation needed - field not shown in UI
       if (requiredPaths.includes("platform.azure.region") && !(azure.region || "").trim()) {
         azureErrors.push("Azure region is required for Azure Government IPI.");
+        azureFieldErrors.azureRegion = "Region is required.";
       }
-      // Note: resourceGroupName is optional for IPI (installer creates it), so no validation
       if (requiredPaths.includes("platform.azure.baseDomainResourceGroupName") && !(azure.baseDomainResourceGroupName || "").trim()) {
         azureErrors.push("Base domain resource group is required for Azure Government IPI.");
+        azureFieldErrors.azureBaseDomainResourceGroupName = "Base domain resource group is required.";
       }
 
       // v1.7.0: defaultMachinePlatform.zones validation
@@ -2007,7 +2022,7 @@ const validateStep = (state, stepId) => {
       const byoResult = validateAzureByoVnet(azure, azureMinor);
       if (!byoResult.valid) azureErrors.push(...byoResult.errors);
 
-      return { errors: [...errors, ...azureErrors], warnings: azureWarnings };
+      return { errors: [...errors, ...azureErrors], warnings: azureWarnings, fieldErrors: azureFieldErrors };
     }
     if (scenarioId === "azure-government-upi") {
       const azureErrors = [];
@@ -2030,6 +2045,7 @@ const validateStep = (state, stepId) => {
     }
     if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") {
       const vsphereErrors = [];
+      const vsphereFieldErrors = {};
       const label =
         scenarioId === "vsphere-upi" ? "vSphere UPI" : scenarioId === "vsphere-agent" ? "vSphere Agent-based" : "vSphere IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
@@ -2046,13 +2062,14 @@ const validateStep = (state, stepId) => {
       }
       // Legacy path: require only legacy-owned fields (vcenter, datacenter, defaultDatastore, cluster, network for single FD).
       if (placementMode === "legacy") {
-        if (!(vsphere.vcenter || "").trim()) vsphereErrors.push(`vCenter server is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.datacenter || "").trim()) vsphereErrors.push(`Datacenter is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.vcenter || "").trim()) { vsphereErrors.push(`vCenter server is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereVcenter = "vCenter server is required."; }
+        if (!(vsphere.datacenter || "").trim()) { vsphereErrors.push(`Datacenter is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereLegacyDatacenter = "Datacenter is required."; }
         if (requiredPaths.includes("platform.vsphere.defaultDatastore") && !(vsphere.datastore || "").trim()) {
           vsphereErrors.push(`Default datastore is required for ${label} when using legacy single placement.`);
+          vsphereFieldErrors.vsphereLegacyDatastore = "Default datastore is required.";
         }
-        if (!(vsphere.cluster || "").trim()) vsphereErrors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.network || "").trim()) vsphereErrors.push(`VM network is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.cluster || "").trim()) { vsphereErrors.push(`Compute cluster is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereLegacyCluster = "Compute cluster is required."; }
+        if (!(vsphere.network || "").trim()) { vsphereErrors.push(`VM network is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereLegacyNetwork = "VM network is required."; }
       } else {
         // Failure-domains path: require at least one valid FD for IPI and Agent-based multi-node (install-config platform.vsphere).
         if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-agent") {
@@ -2061,16 +2078,52 @@ const validateStep = (state, stepId) => {
           if (fds.length === 0 || !validFd) {
             vsphereErrors.push(`At least one failure domain with server, datacenter, compute cluster, datastore, and networks is required for ${label} when using failure domains.`);
           }
+          fds.forEach((fd, i) => {
+            const fdLabel = fd.name || "fd-" + i;
+            const topo = fd.topology || {};
+            if (topo.computeCluster && String(topo.computeCluster).trim()) {
+              if (!/^\/(.+?)\/host\/(.+)$/.test(String(topo.computeCluster).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": computeCluster must be a full inventory path matching /<datacenter>/host/<cluster> (e.g. /Datacenter1/host/Cluster1). The OpenShift installer rejects short names.");
+                vsphereFieldErrors["fd_" + i + "_computeCluster"] = "Must be a full inventory path: /<datacenter>/host/<cluster>";
+              }
+            }
+            if (topo.datastore && String(topo.datastore).trim()) {
+              if (!/^\/(.+?)\/datastore\/(.+)$/.test(String(topo.datastore).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": datastore must be a full inventory path matching /<datacenter>/datastore/<name> (e.g. /Datacenter1/datastore/DS1). The OpenShift installer rejects short names.");
+                vsphereFieldErrors["fd_" + i + "_datastore"] = "Must be a full inventory path: /<datacenter>/datastore/<name>";
+              }
+            }
+            if (topo.folder && String(topo.folder).trim()) {
+              if (!/^\/(.+?)\/vm\/(.+)$/.test(String(topo.folder).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": folder must be a full inventory path matching /<datacenter>/vm/<folder> (e.g. /Datacenter1/vm/OpenShift).");
+                vsphereFieldErrors["fd_" + i + "_folder"] = "Must be a full inventory path: /<datacenter>/vm/<folder>";
+              }
+            }
+            if (topo.resourcePool && String(topo.resourcePool).trim()) {
+              if (!/^\/(.+?)\/host\/(.+)$/.test(String(topo.resourcePool).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": resourcePool must be a full inventory path starting with /<datacenter>/host/<cluster>/... (e.g. /Datacenter1/host/Cluster1/Resources/pool).");
+                vsphereFieldErrors["fd_" + i + "_resourcePool"] = "Must be a full inventory path: /<datacenter>/host/<cluster>/...";
+              }
+            }
+            if (topo.template && String(topo.template).trim()) {
+              if (!/^\/(.+?)\/vm\/(.+)$/.test(String(topo.template).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": template must be a full inventory path matching /<datacenter>/vm/<path> (e.g. /Datacenter1/vm/rhcos-templates/rhcos-4.21).");
+                vsphereFieldErrors["fd_" + i + "_template"] = "Must be a full inventory path: /<datacenter>/vm/<path>";
+              }
+            }
+          });
         }
       }
-      return { errors: [...errors, ...vsphereErrors], warnings: [] };
+      return { errors: [...errors, ...vsphereErrors], warnings: [], fieldErrors: vsphereFieldErrors };
     }
     if (scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi") {
       const awsErrors = [];
+      const awsFieldErrors = {};
       const label = scenarioId === "aws-govcloud-upi" ? "AWS GovCloud UPI" : "AWS GovCloud IPI";
       const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       if (requiredPaths.includes("platform.aws.region") && !(aws.region || "").trim()) {
         awsErrors.push(`AWS GovCloud region is required for ${label}.`);
+        awsFieldErrors.awsRegion = "Region is required.";
       }
 
       // v1.7.0: defaultMachinePlatform.iamProfile validation (ARN format)
@@ -2098,7 +2151,10 @@ const validateStep = (state, stepId) => {
         const minor = getOpenShiftMinorFromState(state);
         if (minor && isVersionGTE(minor, "4.21") && aws.rootVolumeThroughput != null && aws.rootVolumeThroughput !== "") {
           const tpResult = validateAwsRootVolumeThroughput(aws.rootVolumeThroughput, (aws.rootVolumeType || "").trim() || undefined);
-          if (!tpResult.valid) awsErrors.push(tpResult.error);
+          if (!tpResult.valid) {
+            awsErrors.push(tpResult.error);
+            awsFieldErrors.awsThroughput = tpResult.error;
+          }
         }
         if (minor && isVersionGTE(minor, "4.21")) {
           const ccValue = aws.cpuOptions?.confidentialCompute;
@@ -2140,7 +2196,7 @@ const validateStep = (state, stepId) => {
           }
         }
       }
-      return { errors: [...errors, ...awsErrors], warnings: [] };
+      return { errors: [...errors, ...awsErrors], warnings: [], fieldErrors: awsFieldErrors };
     }
     if (scenarioId === "nutanix-ipi") {
       // v1.7.0: defaultMachinePlatform.bootType validation (dropdown handles enum, just document)

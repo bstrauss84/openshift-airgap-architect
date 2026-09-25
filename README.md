@@ -31,7 +31,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
 - **Reference**
   - [Screenshots](#screenshots)
   - [Architecture](#architecture)
-  - [Install-config references (4.20)](#install-config-references-420)
+  - [Install-config references (4.20/4.21)](#install-config-references-420421)
   - [Release notes](#release-notes)
   - [License and contributing](#license-and-contributing)
   - [Documentation and governance map](#documentation-and-governance-map)
@@ -44,7 +44,7 @@ OpenShift Airgap Architect guides you through scenario-based configuration (Bare
 - **install-config.yaml** — Installer input for your chosen platform
 - **agent-config.yaml** — For Bare Metal + Agent-Based Installer only
 - **imageset-config.yaml** — oc-mirror v2 format for mirroring release and operator content
-- **FIELD_MANUAL.md** — A compartmentalized, scenario-specific field guide with numbered, actionable sections drawn from OCP 4.17–4.20 documentation, tailored to your exact configuration (platform, connectivity, FIPS, proxy, NTP, mirroring, operators, and specific values like cluster name, VIPs, and registry FQDN). Each section cites official Red Hat doc sources.
+- **FIELD_MANUAL.md** — A compartmentalized, scenario-specific field guide with numbered, actionable sections drawn from official OCP documentation for the selected version (4.20 or 4.21), tailored to your exact configuration (platform, connectivity, FIPS, proxy, NTP, mirroring, operators, and specific values like cluster name, VIPs, and registry FQDN). Each section cites official Red Hat doc sources with version-correct URLs.
 - **NTP MachineConfigs** — When NTP servers are set (e.g. `99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`)
 
 The app uses official OpenShift 4.20–4.21 parameter catalogs and aligns generated YAML with the docs for the selected version.
@@ -60,7 +60,7 @@ The app uses official OpenShift 4.20–4.21 parameter catalogs and aligns genera
 ## Key features
 
 - **Scenario-driven UI** — Pick install method (e.g. Agent-Based, vSphere IPI); the wizard shows only relevant steps and fields
-- **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.20–4.21)
+- **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.20 or 4.21). Version-specific parameter catalogs, Field Guide content with version-correct documentation URLs, and metadata-driven annotations for fields introduced or deprecated across versions
 - **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion. Helpers generate pull secrets and SSH keypairs locally and are not stored (see [Identity & Access](#screenshots) and [Mirror secret helper](#screenshots)).
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
@@ -96,11 +96,13 @@ Then open the UI at **http://localhost:5173** (ports are bound to localhost by d
 
 The command flow to cleanly rebuild and restart the stack while keeping all existing state:
 
+**Podman**
 ```bash
-# Podman
 podman compose down --remove-orphans && podman image prune -f && podman compose up --build -d
+```
 
-# Docker
+**Docker**
+```bash
 docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
 ```
 
@@ -618,11 +620,13 @@ mkdir -p /mnt/fast-ssd/oc-mirror/cache
 
 #### Rebuild and restart after adding the override
 
+**Podman**
 ```bash
-# Podman
 podman compose down --remove-orphans && podman image prune -f && podman compose up --build -d
+```
 
-# Docker
+**Docker**
+```bash
 docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
 ```
 
@@ -723,11 +727,13 @@ The archive directory contains tar archives and a `working-dir/` subdirectory. *
 
 To find the archive on your host when using Compose with the default named volume:
 
+**Podman**
 ```bash
-# Podman
 podman volume inspect openshift-airgap-architect_backend-data
+```
 
-# Docker
+**Docker**
+```bash
 docker volume inspect openshift-airgap-architect_backend-data
 ```
 
@@ -1086,10 +1092,20 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 - **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 20; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. oc/oc-mirror are installed in-image from the OpenShift mirror.
 - **Data:** Parameter catalogs and doc index under `data/params` and `data/docs-index`; frontend copies under `frontend/src/data` for the build. See `docs/DATA_AND_FRONTEND_COPIES.md`.
 
-<a id="install-config-references-420"></a>
-## Install-config references (4.20)
+<a id="install-config-references-420421"></a>
+## Install-config references (4.20/4.21)
 
 Use these official docs to validate `install-config.yaml` for supported platforms:
+
+**OpenShift 4.21:**
+
+- [AWS GovCloud](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_aws/installation-config-parameters-aws)
+- [Azure Government](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure)
+- [VMware vSphere](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere)
+- [Nutanix](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_nutanix/installation-config-parameters-nutanix)
+- [Agent-based Installer](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent)
+
+**OpenShift 4.20:**
 
 - [AWS GovCloud](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws)
 - [Azure Government](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure)
@@ -1104,11 +1120,11 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 
 See [CHANGELOG.md](CHANGELOG.md) for version history, new features, bug fixes, and breaking changes.
 
-Current version: **v2.0.0-dev** (work in progress)
+Current version: **v2.0.0**
 
 **Version identity:** `v2.0.0` is the application-code GA version. It does not imply enterprise/customer-distribution readiness, security certification, signed/SBOM/provenance completion, immutable disconnected bundle availability, hosted multi-user readiness, ATO, or compliance readiness. Those gates are tracked separately under PROD-041 and its productization/security children.
 
-- **v2.0.0** — Version-awareness architecture foundation complete. Supports OpenShift 4.20 (baseline) and 4.21 (current). 4.22 is unsupported.
+- **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21 (current) with version-specific parameter catalogs, Field Guide content, and metadata-driven annotations. 4.22+ deterministically rejected.
 - **v1.7.0** — Latest stable v1.x release (2026-05-28)
 
 <a id="license-and-contributing"></a>

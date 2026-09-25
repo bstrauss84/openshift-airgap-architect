@@ -123,25 +123,6 @@ If the user asks for a new task and the working tree is dirty, stop and report s
 
 ---
 
-## Current Immediate Next Step
-
-**Slice 5F is accepted and committed.** The recovery button is styled and functional.
-
-**Next task:** Determine the next v2.0 version-aware slice from current code and canonical backlog.
-
-Read:
-- `docs/BACKLOG_STATUS.md` (DOC-102, DOC-103, DOC-104 status)
-- `docs/HANDOFF_PACKET.md` (current branch, HEAD, clean status)
-- Git log last 8 commits
-
-Then propose the next slice from DOC-102/DOC-103/DOC-104 work remaining.
-
-**Do not start Slice 5G or any new implementation until the next task is chosen from a read-only reconciliation.**
-
-**Do not trust old planning docs that claim implementation has not started.**
-
----
-
 ## Testing Requirements
 
 ### Before Marking Work Complete
@@ -161,5 +142,5 @@ Then propose the next slice from DOC-102/DOC-103/DOC-104 work remaining.
 
 ---
 
-**Last Updated:** 2026-07-09
-**Revision:** Slice 5F cleanup — concise durable rules, removed stale roadmap claims
+**Last Updated:** 2026-09-18
+**Revision:** v2.0.0 GA — removed stale next-step section, version awareness complete

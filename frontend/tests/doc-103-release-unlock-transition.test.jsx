@@ -161,20 +161,37 @@ describe('computeReleaseTransition', () => {
       expect(result.patch.release.channel).toBe('4.21');
     });
 
-    it('marks operators stale (existing staleness behavior)', () => {
+    it('marks operators stale on cross-minor transition', () => {
       const state = makeLockedState('4.20', '4.20.15');
       const result = computeReleaseTransition(state, '4.21', { timestamp: TS });
 
       expect(result.patch.operators.stale).toBe(true);
     });
 
-    it('preserves existing operator data in the stale-marked patch', () => {
+    it('invalidates stale resolved metadata on cross-minor transition', () => {
       const state = makeLockedState('4.20', '4.20.15');
       const result = computeReleaseTransition(state, '4.21', { timestamp: TS });
 
-      expect(result.patch.operators.selected).toEqual(state.operators.selected);
-      expect(result.patch.operators.catalogs).toEqual(state.operators.catalogs);
-      expect(result.patch.operators.version).toBe('4.20');
+      expect(result.patch.operators.catalogs).toEqual({});
+      expect(result.patch.operators.version).toBeNull();
+      expect(result.patch.operators.scanJobs).toEqual({});
+      expect(result.patch.operators.cachedAt).toBeNull();
+    });
+
+    it('preserves user intent (name/id/sources) on cross-minor transition', () => {
+      const state = makeLockedState('4.20', '4.20.15');
+      const result = computeReleaseTransition(state, '4.21', { timestamp: TS });
+
+      expect(result.patch.operators.selected).toHaveLength(1);
+      expect(result.patch.operators.selected[0].name).toBe('test-op');
+      expect(result.patch.operators.selected[0].catalogImage).toBeUndefined();
+      expect(result.patch.operators.selected[0].defaultChannel).toBeUndefined();
+    });
+
+    it('preserves scenario selections on cross-minor transition', () => {
+      const state = makeLockedState('4.20', '4.20.15');
+      const result = computeReleaseTransition(state, '4.21', { timestamp: TS });
+
       expect(result.patch.operators.scenarios).toEqual(state.operators.scenarios);
     });
 
@@ -217,13 +234,42 @@ describe('computeReleaseTransition', () => {
       expect(result.patch.release.confirmed).toBe(false);
     });
 
-    it('marks operators stale and preserves operator data', () => {
+    it('invalidates stale operator metadata on 4.21 → 4.20', () => {
       const state = makeLockedState('4.21', '4.21.3');
       const result = computeReleaseTransition(state, '4.20', { timestamp: TS });
 
       expect(result.patch.operators.stale).toBe(true);
+      expect(result.patch.operators.catalogs).toEqual({});
+      expect(result.patch.operators.version).toBeNull();
+      expect(result.patch.operators.scanJobs).toEqual({});
+      expect(result.patch.operators.selected).toHaveLength(1);
+      expect(result.patch.operators.selected[0].name).toBe('test-op');
+      expect(result.patch.operators.selected[0].catalogImage).toBeUndefined();
+    });
+  });
+
+  describe('same-minor transition preserves operator data', () => {
+    it('preserves all operator metadata when targeting the same minor', () => {
+      const state = makeLockedState('4.21', '4.21.3');
+      const result = computeReleaseTransition(state, '4.21', { timestamp: TS });
+
+      expect(result.ok).toBe(true);
+      expect(result.patch.operators.stale).toBe(true);
       expect(result.patch.operators.selected).toEqual(state.operators.selected);
       expect(result.patch.operators.catalogs).toEqual(state.operators.catalogs);
+      expect(result.patch.operators.version).toBe('4.21');
+      expect(result.patch.operators.scenarios).toEqual(state.operators.scenarios);
+      expect(result.patch.operators.scanJobs).toEqual(state.operators.scanJobs);
+    });
+
+    it('preserves operator data for 4.20 same-minor unlock', () => {
+      const state = makeLockedState('4.20', '4.20.15');
+      const result = computeReleaseTransition(state, '4.20', { timestamp: TS });
+
+      expect(result.ok).toBe(true);
+      expect(result.patch.operators.stale).toBe(true);
+      expect(result.patch.operators.selected).toEqual(state.operators.selected);
+      expect(result.patch.operators.version).toBe('4.20');
     });
   });
 

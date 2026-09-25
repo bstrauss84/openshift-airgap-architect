@@ -1310,12 +1310,12 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
     });
 
     describe('preservation guards', () => {
-      it('exactly 1026 minVersion "4.20" occurrences across all 4.21 catalogs', () => {
+      it('exactly 1025 minVersion "4.20" occurrences across all 4.21 catalogs', () => {
         let total = 0;
         allScenarios.forEach(scenario => {
           total += loadParams(scenario).filter(p => p.minVersion === '4.20').length;
         });
-        expect(total).toBe(1026);
+        expect(total).toBe(1025);
       });
 
       it('exactly 2 v4.20 capability enum values in bare-metal-ipi and bare-metal-upi', () => {

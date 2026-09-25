@@ -428,17 +428,19 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
         </section>
 
         <section className="card">
-          <div className="card-header" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div className="card-header" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px 16px" }}>
             <h3 style={{ margin: 0 }}>OpenShift release</h3>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-              {locked && releaseLocked && onRequestChangeRelease ? (
-                <button type="button" className="ghost" onClick={onRequestChangeRelease}>
-                  Change release
+              <div style={{ display: "flex", flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                {locked && releaseLocked && onRequestChangeRelease ? (
+                  <button type="button" className="ghost" onClick={onRequestChangeRelease}>
+                    Change release
+                  </button>
+                ) : null}
+                <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
+                  Update
                 </button>
-              ) : null}
-              <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
-                Update
-              </button>
+              </div>
               {((refreshing && refreshNote) || updatedMessage) && (
                 <span
                   className="subtle"

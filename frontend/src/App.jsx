@@ -585,14 +585,12 @@ const AppShell = () => {
     }
   }, [showLanding, state, foundationalLocked, active, visibleSteps, updateState]);
 
-  // Required-field highlighting (Workstream D): when landing on a step with errors, show highlights; clear when step has no errors.
+  // Clear step-wide highlight when navigating to a different step.
+  // highlightErrors is set ONLY by explicit Next/Proceed attempts (attemptNavigate).
+  // Auto-clear when all errors are resolved so the red state doesn't persist after correction.
   useEffect(() => {
-    const stepId = visibleSteps[active]?.id;
-    if (!stepId || !state) return;
-    const result = validateStep(state, stepId);
-    const hasErrors = (result.errors || []).length > 0;
-    setHighlightErrors(hasErrors);
-  }, [active, visibleSteps, state]);
+    setHighlightErrors(false);
+  }, [active]);
 
   // Sync active step index from persisted activeStepId. Fires on every change so programmatic
   // navigation (e.g. "View full logs in Operations") actually moves the user to the target step.
@@ -680,12 +678,6 @@ metadata:
   name: cluster-name
 # Complete configuration after confirming OpenShift version` : null
       });
-      return;
-    }
-
-    const platformResult = validateStep(state, "platform-specifics");
-    if (platformResult.errors?.length > 0) {
-      setPreviewLoading(false);
       return;
     }
 
@@ -888,10 +880,36 @@ metadata:
     try {
       const data = await apiFetch("/api/operators/confirm", { method: "POST" });
       setHighlightErrors(false);
+      const newMinor = data.version?.selectedMinor || state.release?.channel;
+      const operatorCatalogMinor = (state.operators?.selected || [])
+        .map(op => op.catalogImage).filter(Boolean)
+        .map(img => { const m = img.match(/:v(\d+\.\d+)/); return m ? m[1] : null; })
+        .find(Boolean);
+      const isMinorChange = operatorCatalogMinor && newMinor && operatorCatalogMinor !== newMinor;
+      const operatorPatch = isMinorChange ? {
+        operators: {
+          selected: (state.operators?.selected || []).map(op => ({
+            name: op.name,
+            id: op.id,
+            sources: op.sources,
+          })),
+          scenarios: state.operators?.scenarios,
+          scenarioAdded: state.operators?.scenarioAdded,
+          catalogs: {},
+          version: null,
+          scanJobs: {},
+          cachedAt: null,
+          stale: true,
+          fastMode: state.operators?.fastMode,
+        },
+        reviewFlags: { ...(state.reviewFlags || {}), release: false, operators: true },
+      } : {
+        reviewFlags: { ...(state.reviewFlags || {}), release: false },
+      };
       updateState({
         release: { ...state.release, confirmed: true },
         version: data.version,
-        reviewFlags: { ...(state.reviewFlags || {}), release: false }
+        ...operatorPatch,
       });
       setShowReleaseWarning(false);
       const target = pendingNavIndex ?? active + 1;
@@ -1041,17 +1059,28 @@ metadata:
   const importRun = async (file) => {
     if (!file) return;
     logAction("import_run");
-    const text = await file.text();
-    const payload = JSON.parse(text);
-
-    const data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
+    let data;
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
+    } catch (err) {
+      const errPayload = err?.payload || {};
+      if (errPayload.code === "UNSUPPORTED_VERSION") {
+        const requested = errPayload.requestedVersion || "unknown";
+        const supported = (errPayload.supportedVersions || SUPPORTED_MINORS).join(", ");
+        setBlockedMessage(`Cannot import: OpenShift version ${requested} is not supported. Supported versions: ${supported}. Use a run file created with a supported version, or start a new configuration.`);
+      } else {
+        setBlockedMessage(`Import failed: ${err?.message || String(err)}. The file may be malformed or incompatible.`);
+      }
+      return;
+    } finally {
+      if (importRef.current) {
+        importRef.current.value = "";
+      }
+    }
 
     setIsToolsOpen(false);
-
-    // Clear the file input value so re-selecting the same file will trigger onChange
-    if (importRef.current) {
-      importRef.current.value = "";
-    }
 
     const baseState = data.state || {};
 

@@ -399,7 +399,8 @@ describe("Version-gated field boundary — DOM layout regression", () => {
   it("throughput helper is inside field-control-support inside field-control-stack", () => {
     const state = makeState("AWS GovCloud", "IPI", "4.21", "4.21.8");
     const { container } = renderPlatformStep(state);
-    const helperEl = container.querySelector(".field-helper");
+    const helpers = container.querySelectorAll(".field-helper");
+    const helperEl = Array.from(helpers).find(el => /125.*2000.*gp3/.test(el.textContent));
     expect(helperEl).not.toBeNull();
     expect(helperEl.textContent).toMatch(/125.*2000.*gp3/);
     const support = helperEl.closest(".field-control-support");
@@ -539,7 +540,8 @@ describe("Version-gated field boundary — DOM layout regression", () => {
     expect(error).not.toBeNull();
     expect(error.textContent).toMatch(/2000/);
 
-    const helper = support.querySelector(".field-helper");
+    const helpers = support.querySelectorAll(".field-helper");
+    const helper = Array.from(helpers).find(el => /125.*2000.*gp3/.test(el.textContent));
     expect(helper).not.toBeNull();
     expect(helper.textContent).toMatch(/125.*2000.*gp3/);
   });

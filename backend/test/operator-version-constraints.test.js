@@ -199,3 +199,49 @@ test("buildImageSetConfig: handles empty string version constraints as undefined
   // Empty strings should not create includeConfig
   assert.strictEqual(channel.includeConfig, undefined);
 });
+
+test("buildImageSetConfig: kubeVirtContainer is nested under mirror.platform, not mirror", () => {
+  const state = {
+    release: { patchVersion: "4.21.3", channel: "4.21" },
+    operators: { selected: [] },
+    imagesetConfig: { kubeVirtContainer: true, graph: true },
+  };
+  const configYaml = buildImageSetConfig(state);
+  const config = yaml.load(configYaml);
+  assert.strictEqual(config.mirror.platform.kubeVirtContainer, true, "kubeVirtContainer under mirror.platform");
+  assert.strictEqual(config.mirror.kubeVirtContainer, undefined, "kubeVirtContainer NOT at mirror level");
+  assert.strictEqual(config.mirror.platform.graph, true, "graph remains under mirror.platform");
+});
+
+test("buildImageSetConfig: stale operator with wrong-minor catalogImage is excluded", () => {
+  const state = {
+    release: { patchVersion: "4.20.5", channel: "4.20" },
+    operators: {
+      selected: [
+        { name: "stale-op", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.21", defaultChannel: "stable-v1" },
+        { name: "current-op", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.20", defaultChannel: "stable-v2" },
+      ],
+    },
+  };
+  const configYaml = buildImageSetConfig(state);
+  const config = yaml.load(configYaml);
+  assert.strictEqual(config.mirror.operators.length, 1, "only current-minor operator emitted");
+  assert.strictEqual(config.mirror.operators[0].catalog, "registry.redhat.io/redhat/redhat-operator-index:v4.20");
+  assert.strictEqual(config.mirror.operators[0].packages[0].name, "current-op");
+});
+
+test("buildImageSetConfig: operator without catalogImage is skipped", () => {
+  const state = {
+    release: { patchVersion: "4.20.5", channel: "4.20" },
+    operators: {
+      selected: [
+        { name: "stripped-op", id: "stripped-op" },
+        { name: "valid-op", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.20", defaultChannel: "stable-v1" },
+      ],
+    },
+  };
+  const configYaml = buildImageSetConfig(state);
+  const config = yaml.load(configYaml);
+  assert.strictEqual(config.mirror.operators.length, 1, "only valid operator emitted");
+  assert.strictEqual(config.mirror.operators[0].packages[0].name, "valid-op");
+});

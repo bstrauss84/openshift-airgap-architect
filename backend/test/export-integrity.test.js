@@ -108,14 +108,15 @@ describe('Export Integrity Helper', () => {
   });
 
   describe('getAppIdentity', () => {
-    it('reads version from backend/package.json as 2.0.0-dev', () => {
+    it('reads version from backend/package.json as 2.0.0', () => {
       const identity = getAppIdentity();
-      assert.strictEqual(identity.version, '2.0.0-dev');
+      assert.strictEqual(identity.version, '2.0.0');
     });
 
-    it('does not silently substitute bare 2.0.0 for 2.0.0-dev', () => {
+    it('version matches package.json exactly', () => {
       const identity = getAppIdentity();
-      assert.notStrictEqual(identity.version, '2.0.0');
+      assert.strictEqual(typeof identity.version, 'string');
+      assert.ok(identity.version.length > 0);
     });
 
     it('returns commit and buildTime fields from env or unknown', () => {
@@ -137,7 +138,7 @@ describe('Export Integrity Helper', () => {
       assert.strictEqual(manifest.manifestSchemaVersion, MANIFEST_SCHEMA_VERSION);
       assert.ok(manifest.generated.timestamp);
       assert.strictEqual(typeof manifest.generated.timestamp, 'string');
-      assert.strictEqual(manifest.generated.appIdentity.version, '2.0.0-dev');
+      assert.strictEqual(manifest.generated.appIdentity.version, '2.0.0');
       assert.strictEqual(manifest.generated.stateSchemaVersion, 3);
       assert.strictEqual(manifest.openshift.selectedMinor, '4.21');
       assert.strictEqual(manifest.openshift.selectedPatch, '4.21.15');

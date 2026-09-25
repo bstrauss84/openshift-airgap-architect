@@ -308,8 +308,12 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
             };
           }
         });
+      } else if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
+        blockers.push("Unable to contact the Airgap Architect backend. Confirm the backend/container is running, then retry preflight.");
+      } else if (err.status >= 500) {
+        blockers.push(`Backend error (HTTP ${err.status}): ${err.message || "Internal server error"}. Check backend logs and retry.`);
       } else {
-        blockers.push(err.message || "Preflight failed.");
+        blockers.push(err.message || "Preflight check failed. Review your configuration and retry.");
       }
 
       setPreflightResult({ ok: false, blockers, warnings: [], checks: {}, fieldErrors });
@@ -586,8 +590,8 @@ Opens a file browser showing files in /data - easier than typing paths manually.
             ) : (
               <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border-subtle)" }}>
                 <OptionRow
-                  title="Include KubeVirt containers"
-                  description="Include images from the HyperShift KubeVirt CoreOS container. Enable this if you plan to run virtualization workloads or HyperShift deployments with KubeVirt provider."
+                  title="Include HyperShift KubeVirt container disk"
+                  description="Include the RHCOS container-disk image used by HyperShift with the KubeVirt provider. Enable only if deploying hosted control planes on KubeVirt. This is not required for general OpenShift Virtualization workloads."
                 >
                   <Switch
                     checked={Boolean(state.imagesetConfig?.kubeVirtContainer)}

@@ -50,7 +50,9 @@ export function getFieldMeta(scenarioId, outputFile, path, version = '4.20') {
     type: null,
     allowed: null,
     required: null,
-    default: undefined
+    default: undefined,
+    minVersion: param.minVersion || null,
+    deprecated: param.deprecated === true
   };
 
   if (isSpecified(param.type)) {
@@ -130,6 +132,29 @@ export function isParamVisibleForVersion(param, selectedMinor) {
   if (status !== 'supported-ui' && status !== 'deprecated-supported') return false;
   if (!param.minVersion) return false;
   return isParamSupportedForVersion(param, selectedMinor);
+}
+
+/**
+ * Returns annotation metadata for a version-gated field: whether it was introduced
+ * in the current version and its introduction version string.
+ * @param {string} path - catalog parameter path
+ * @param {string} outputFile - e.g. "install-config.yaml"
+ * @param {Array} catalogParams - the loaded catalog parameters array for the current version
+ * @param {string} selectedMinor - the user's locked minor version
+ * @param {string} baselineMinor - the baseline minor (lowest supported), e.g. "4.20"
+ * @returns {{ isIntroduced: boolean, introductionMinor: string|null, isDeprecated: boolean }}
+ */
+export function getFieldAnnotationInfo(path, outputFile, catalogParams, selectedMinor, baselineMinor) {
+  if (!catalogParams || !selectedMinor) return { isIntroduced: false, introductionMinor: null, isDeprecated: false };
+  const param = catalogParams.find(p => p.path === path && p.outputFile === outputFile);
+  if (!param) return { isIntroduced: false, introductionMinor: null, isDeprecated: false };
+  const minVer = param.minVersion || null;
+  const isIntroduced = minVer != null && minVer !== baselineMinor && minVer === selectedMinor;
+  return {
+    isIntroduced,
+    introductionMinor: isIntroduced ? minVer : null,
+    isDeprecated: param.deprecated === true
+  };
 }
 
 /**

@@ -28,12 +28,24 @@ All semantic colors are defined as CSS custom properties on `body` (light mode d
 | `--card-bg-subtle` | `#f9fafb` | `#1e293b` | Nested / inset backgrounds |
 | `--border-color` | `#d1d5db` | `#374151` | All borders, dividers |
 | `--text-subtle` | `#6b7280` | `#94a3b8` | Secondary / helper text |
+| `--text-secondary` | `#666` | `#94a3b8` | Field helper text |
 | `--code-bg` | `#f0f2f5` | `#0f172a` | Inline code, pre blocks |
 | `--code-color` | `#1f2937` | `#e2e8f0` | Inline code text |
 | `--color-danger` | `#c00` | `#f87171` | Danger text, error states |
+| `--error-color` | `#d32f2f` | `#f87171` | Inline field-level errors |
+| `--version-introduced-text` | `#0369a1` | `#38bdf8` | "New in 4.xx" annotations |
 
 Page background: light `#f5f6f8` / dark `#0b1120`.
 Body text: light `#1f2937` / dark `#e2e8f0`.
+
+### Dark/light theme parity
+
+Every new or modified form control, semantic helper, or annotation state must be verified in **both** light and dark mode. Verification covers:
+
+- **Form controls** (`input`, `select`, `textarea`): default, focus, invalid (`.input-error`), disabled, placeholder/unselected, and selected states.
+- **Native `<select>` elements**: Dark mode requires `color-scheme: dark` on the select and explicit `background`/`color` on `option` elements to prevent browser-default white-on-white rendering.
+- **Semantic annotations** (e.g., `[data-version-annotation]`): Must use theme-aware custom properties (`--version-introduced-text`). When an annotation element also carries a helper class (`.field-helper`), the annotation selector must have **higher specificity** than the helper selector to avoid being overridden.
+- **Specificity rule**: `.platform-specifics .field-control-stack .field-helper` has specificity (0,3,0). Any attribute-based override must include the same class chain plus the attribute selector for (0,4,0).
 
 ---
 
@@ -260,6 +272,67 @@ Outer `<label>` wrappers use `display: contents` so the inner `.field-with-info-
 
 ---
 
+## Validation Lifecycle (Truth vs Presentation)
+
+Validation truth and validation presentation are separate concerns.
+
+### Validation truth
+
+`validateStep(state, stepId)` computes errors and `fieldErrors` for gating Review, export, and step-completion flags. It runs on every state change and always reflects the current validity of every field.
+
+### Presentation timing
+
+Visible field-level error treatment (red borders, inline error text, `aria-invalid`) MUST NOT appear on first entry into a pristine step. Errors become visible when ANY of these conditions is true:
+
+1. **Attempted advance** — the user tried to proceed/navigate away from the current step while it had errors (`highlightErrors` flag).
+2. **Needs review** — the step is flagged for review after import, version change, or explicit skip (`state.reviewFlags[stepId]`).
+3. **Field-level interaction** — a specific field was changed or blurred into an invalid state (where implemented via local touch/blur tracking).
+
+Each step component computes a `showFieldErrors` boolean from these signals and gates all `fieldErrors.*` rendering on it:
+
+```jsx
+const needsReview = Boolean(state.reviewFlags?.[stepId]);
+const showFieldErrors = highlightErrors || needsReview;
+```
+
+When the user corrects a field, its error presentation clears immediately (the underlying `fieldErrors` object updates reactively).
+
+### Error placement
+
+Field-level errors belong in the support row (row 3) of the 3-row subgrid. Use the `.field-control-stack` + `.field-control-support` pattern:
+
+```jsx
+<div className="field-control-stack">
+  <FieldLabelWithInfo label="..." hint="..." required>
+    <input className={showFieldErrors && fieldErrors.x ? "input-error" : ""} />
+  </FieldLabelWithInfo>
+  <div className="field-control-support">
+    {showFieldErrors && fieldErrors.x && (
+      <span id="error-x" className="field-error">{fieldErrors.x}</span>
+    )}
+  </div>
+</div>
+```
+
+NEVER render an error span as a standalone grid child in `.field-grid` — it floats into the wrong column.
+
+### Accessibility
+
+Every visibly invalid control must have:
+
+- `aria-invalid="true"` (gated on `showFieldErrors`)
+- `aria-describedby` pointing to its error span's `id`
+
+### Conditional requiredness
+
+Fields that are required only under certain conditions (e.g., vSphere legacy fields when `placementMode === "legacy"`) follow the same lifecycle. The validator computes conditional errors; presentation is gated on `showFieldErrors`.
+
+### Theme verification
+
+Every form-control state (default, focus, invalid, disabled, placeholder/unselected, selected) and every semantic helper (errors, warnings, annotations) must be checked in both light and dark mode. Use CSS custom properties for theme-dependent colors; never hardcode hex values that only work in one theme.
+
+---
+
 ## Version-Aware Parameter Fields
 
 Fields whose visibility depends on the selected OpenShift minor version. These fields appear only when the user selects a version that includes them in the scenario catalog.
@@ -316,3 +389,61 @@ Version-gated fields participate in the same paired-field layout as all other Pl
 ### Responsive verification
 
 Version-gated fields must follow the same responsive rules as other fields: graceful column reduction at narrower viewports, readable widths maintained, labels and inputs aligned. Test at desktop (1920px+), laptop (1366px), tablet (768px), and mobile (375px).
+
+---
+
+## Validation Presentation Model
+
+Three independent concepts govern when inline field errors are visible:
+
+| Concept | What it controls | How it's set |
+|---|---|---|
+| **Validation truth** | Always computed; determines step completeness. | `validateStep()` runs on every render. |
+| **Needs-review state** | Sidebar indicator that a step requires attention after version change or import. | `state.reviewFlags[stepId]` set by version transitions and import. |
+| **Inline error visibility** | Whether a specific field's error message is rendered. | `fieldErrorVisible(fieldName)` in each step component. |
+
+### Inline error visibility rules
+
+An inline field error becomes visible when:
+- the field is **touched/blurred** while invalid (`touchedFields[fieldName]`); or
+- the user clicks **Next/Proceed** for the current step (`highlightErrors`).
+
+An inline field error does **NOT** become visible merely because:
+- the user navigated to the step for the first time;
+- the step has a Needs-review flag (`reviewFlags`);
+- the user switches a placement/mode radio and reveals new required dependent fields.
+
+### Structural mode changes
+
+When a mode toggle (e.g., FD ↔ legacy) reveals new required fields, those fields begin **visually pristine**. The step's `touchedFields` state is reset on mode change. The user must interact with the new fields or click Next for errors to appear.
+
+### `highlightErrors` lifecycle
+
+- Set to `true` only by explicit `attemptNavigate` / `proceed` attempts.
+- Cleared to `false` when the active step changes (user navigates away).
+- Not set by step entry, `needsReview`, or state changes.
+
+### Field error layout
+
+Every inline error MUST be inside the same `field-control-stack` as its control:
+
+```
+<div className="field-control-stack">
+  <FieldLabelWithInfo ...>
+    <input/select/textarea />
+  </FieldLabelWithInfo>
+  <div className="field-control-support">
+    {error && <span className="field-error">...</span>}
+  </div>
+</div>
+```
+
+Errors must NEVER be free-standing siblings in `.field-grid`. The `field-control-stack` wrapper ensures the error appears directly beneath its own control regardless of grid column layout.
+
+### Error color tokens
+
+- Field errors: `var(--error-color)` — semantic red/coral.
+- Version annotations: `var(--version-introduced-text)` — semantic cyan/blue.
+- Helper text: `var(--text-secondary)` — subdued.
+
+All three are theme-aware (light + dark mode).

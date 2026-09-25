@@ -297,7 +297,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       platformConfig: {
         vsphere: {
           placementMode: "failureDomains",
-          failureDomains: [{ name: "fd-0", server: "vcenter.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["VM Network"] } }]
+          failureDomains: [{ name: "fd-0", server: "vcenter.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } }]
         }
       }
     };
@@ -3490,6 +3490,580 @@ describe("DOC-102 Slice 5H PlatformSpecifics Visibility V6", () => {
       expect(findSelectInFieldWrapper("CPU partitioning mode")).not.toBeNull();
       expect(findSelectInFieldWrapper("Feature set")).not.toBeNull();
       expect(screen.getByPlaceholderText("https://example.com/agent-artifacts or leave empty")).toBeInTheDocument();
+    });
+  });
+
+  describe("11. vSphere failure-domain editor regression", () => {
+    function vsphereIpiState(overrides = {}) {
+      return stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        ...overrides,
+      });
+    }
+
+    it("failure-domain mode renders editor with Add failure domain button", () => {
+      const state = vsphereIpiState();
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.getByRole("radio", { name: /Use failure domains \(recommended\)/i })).toBeChecked();
+      expect(screen.getByRole("heading", { name: /Failure domains/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Add failure domain/i })).toBeInTheDocument();
+    });
+
+    it("existing FD state renders topology fields", () => {
+      const state = vsphereIpiState({
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] }
+            }]
+          }
+        }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.getByDisplayValue("/DC1/host/Cluster1")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("/DC1/datastore/ds1")).toBeInTheDocument();
+      expect(screen.getByText("Failure domain 1")).toBeInTheDocument();
+    });
+
+    it("multiple failure domains render with correct numbering", () => {
+      const state = vsphereIpiState({
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [
+              { name: "fd-0", region: "r1", zone: "z1", server: "vc1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: [] } },
+              { name: "fd-1", region: "r2", zone: "z2", server: "vc2", topology: { datacenter: "DC2", computeCluster: "/DC2/host/C2", datastore: "/DC2/datastore/ds2", networks: [] } },
+            ]
+          }
+        }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.getByText("Failure domain 1")).toBeInTheDocument();
+      expect(screen.getByText("Failure domain 2")).toBeInTheDocument();
+      const removeBtns = screen.getAllByRole("button", { name: /Remove failure domain/i });
+      expect(removeBtns.length).toBe(2);
+    });
+
+    it("legacy mode hides FD editor, FD mode shows it", () => {
+      const state = vsphereIpiState({
+        platformConfig: {
+          vsphere: {
+            placementMode: "legacy",
+            vcenter: "vc.example.com", datacenter: "DC1", datastore: "ds1", cluster: "C1", network: "net1",
+            failureDomains: [{ name: "fd-0", region: "", zone: "", server: "", topology: {} }]
+          }
+        }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.queryByRole("heading", { name: /Failure domains/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /Use legacy single placement/i })).toBeChecked();
+    });
+
+    it("FD validation errors only visible after highlightErrors", () => {
+      const state = vsphereIpiState({
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{ name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com", topology: { computeCluster: "BadShortName", datacenter: "DC1", datastore: "/DC1/datastore/ds1", networks: ["net"] } }]
+          }
+        }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      expect(validation.fieldErrors?.fd_0_computeCluster).toBeTruthy();
+
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      const { rerender } = render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={false} fieldErrors={validation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.queryByText(validation.fieldErrors.fd_0_computeCluster)).not.toBeInTheDocument();
+
+      rerender(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.getByText(validation.fieldErrors.fd_0_computeCluster)).toBeInTheDocument();
+    });
+
+    it("vsphere-agent: FD mode renders editor with Add failure domain button", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "Agent-Based Installer" },
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.getByRole("radio", { name: /Use failure domains \(recommended\)/i })).toBeChecked();
+      expect(screen.getByRole("heading", { name: /Failure domains/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Add failure domain/i })).toBeInTheDocument();
+    });
+
+    it("vsphere-agent: existing FD state renders topology fields", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "Agent-Based Installer" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] }
+            }]
+          }
+        }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.getByDisplayValue("/DC1/host/Cluster1")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("/DC1/datastore/ds1")).toBeInTheDocument();
+    });
+
+    it("vsphere-upi: FD mode renders editor", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "UPI" },
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.getByRole("radio", { name: /Use failure domains \(recommended\)/i })).toBeChecked();
+      expect(screen.getByRole("heading", { name: /Failure domains/i })).toBeInTheDocument();
+    });
+
+    it("vsphere-agent: template field hidden (IPI only per Red Hat docs)", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "Agent-Based Installer" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.queryByLabelText(/RHCOS template/i)).not.toBeInTheDocument();
+    });
+
+    it("vsphere-upi: template field hidden (not in UPI catalog)", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "UPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.queryByLabelText(/RHCOS template/i)).not.toBeInTheDocument();
+    });
+
+    it("vsphere-agent: zone placement section hidden (IPI-only)", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "Agent-Based Installer" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [
+              { name: "fd-0", region: "r1", zone: "z1", server: "vc1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: [] } },
+              { name: "fd-1", region: "r2", zone: "z2", server: "vc2", topology: { datacenter: "DC2", computeCluster: "/DC2/host/C2", datastore: "/DC2/datastore/ds2", networks: [] } },
+            ]
+          }
+        }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.queryByRole("heading", { name: /Zone placement/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("12. Per-field validation presentation timing", () => {
+    it("pristine entry: no error text visible even when fieldErrors exist", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "/DC1/datastore/ds1", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      expect(validation.fieldErrors?.fd_0_computeCluster).toBeTruthy();
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={false} fieldErrors={validation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.queryByText(validation.fieldErrors.fd_0_computeCluster)).not.toBeInTheDocument();
+    });
+
+    it("blur on invalid field: only that field's error appears", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "BadDS", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      expect(validation.fieldErrors?.fd_0_computeCluster).toBeTruthy();
+      expect(validation.fieldErrors?.fd_0_datastore).toBeTruthy();
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={false} fieldErrors={validation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      const ccInput = screen.getByDisplayValue("BadName");
+      fireEvent.blur(ccInput);
+      expect(screen.getByText(validation.fieldErrors.fd_0_computeCluster)).toBeInTheDocument();
+      expect(screen.queryByText(validation.fieldErrors.fd_0_datastore)).not.toBeInTheDocument();
+    });
+
+    it("highlightErrors shows all errors regardless of touch state", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "BadDS", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.getByText(validation.fieldErrors.fd_0_computeCluster)).toBeInTheDocument();
+      expect(screen.getByText(validation.fieldErrors.fd_0_datastore)).toBeInTheDocument();
+    });
+
+    it("needsReview alone does NOT show inline field errors (step-level indicator only)", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        reviewFlags: { "platform-specifics": true },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "BadDS", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={false} fieldErrors={validation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.queryByText(validation.fieldErrors.fd_0_computeCluster)).not.toBeInTheDocument();
+      expect(screen.queryByText(validation.fieldErrors.fd_0_datastore)).not.toBeInTheDocument();
+    });
+
+    it("corrected field: error clears when fieldErrors no longer contains it", () => {
+      const badState = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "/DC1/datastore/ds1", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const badValidation = validateStep(badState, "platform-specifics");
+      expect(badValidation.fieldErrors?.fd_0_computeCluster).toBeTruthy();
+      const value = { state: badState, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      const { rerender } = render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={true} fieldErrors={badValidation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.getByText(badValidation.fieldErrors.fd_0_computeCluster)).toBeInTheDocument();
+
+      const goodState = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const goodValidation = validateStep(goodState, "platform-specifics");
+      expect(goodValidation.fieldErrors?.fd_0_computeCluster).toBeFalsy();
+      const goodValue = { state: goodState, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      rerender(
+        <AppContext.Provider value={goodValue}>
+          <PlatformSpecificsStep highlightErrors={true} fieldErrors={goodValidation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.queryByText(/Must be a full inventory path/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("13. Field error DOM structure: error inside field-control-stack", () => {
+    const makeState = (overrides) => stateForPlatformSpecificsStep({
+      blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+      methodology: { method: "IPI" },
+      ...overrides,
+    });
+
+    it("AWS region error is inside field-control-stack", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "AWS GovCloud" },
+        methodology: { method: "IPI" },
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} /></AppContext.Provider>);
+      const errorEl = screen.getByText(validation.fieldErrors.awsRegion);
+      const stack = errorEl.closest(".field-control-stack");
+      expect(stack).toBeTruthy();
+      expect(stack.querySelector("select")).toBeTruthy();
+    });
+
+    it("vSphere FD computeCluster error is inside field-control-stack", () => {
+      const state = makeState({
+        platformConfig: { vsphere: { placementMode: "failureDomains", failureDomains: [{ name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "/DC1/datastore/ds1", networks: ["net"] } }] } }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} /></AppContext.Provider>);
+      const errorEl = screen.getByText(validation.fieldErrors.fd_0_computeCluster);
+      const stack = errorEl.closest(".field-control-stack");
+      expect(stack).toBeTruthy();
+    });
+
+    it("vSphere FD datastore error is inside field-control-stack", () => {
+      const state = makeState({
+        platformConfig: { vsphere: { placementMode: "failureDomains", failureDomains: [{ name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "BadDS", networks: ["net"] } }] } }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} /></AppContext.Provider>);
+      const errorEl = screen.getByText(validation.fieldErrors.fd_0_datastore);
+      const stack = errorEl.closest(".field-control-stack");
+      expect(stack).toBeTruthy();
+    });
+
+    it("vSphere FD computeCluster and datastore errors are each in their own stack (not shared)", () => {
+      const state = makeState({
+        platformConfig: { vsphere: { placementMode: "failureDomains", failureDomains: [{ name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "BadDS", networks: ["net"] } }] } }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} /></AppContext.Provider>);
+      const ccError = screen.getByText(validation.fieldErrors.fd_0_computeCluster);
+      const dsError = screen.getByText(validation.fieldErrors.fd_0_datastore);
+      const ccStack = ccError.closest(".field-control-stack");
+      const dsStack = dsError.closest(".field-control-stack");
+      expect(ccStack).toBeTruthy();
+      expect(dsStack).toBeTruthy();
+      expect(ccStack).not.toBe(dsStack);
+    });
+
+    it("vSphere legacy vCenter error is inside field-control-stack", () => {
+      const state = makeState({
+        platformConfig: { vsphere: { placementMode: "legacy" } }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} /></AppContext.Provider>);
+      const errorEl = screen.getByText(validation.fieldErrors.vsphereVcenter);
+      const stack = errorEl.closest(".field-control-stack");
+      expect(stack).toBeTruthy();
+    });
+
+    it("vSphere legacy datacenter error is inside field-control-stack", () => {
+      const state = makeState({
+        platformConfig: { vsphere: { placementMode: "legacy" } }
+      });
+      const validation = validateStep(state, "platform-specifics");
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep highlightErrors={true} fieldErrors={validation.fieldErrors || {}} /></AppContext.Provider>);
+      const errorEl = screen.getByText(validation.fieldErrors.vsphereLegacyDatacenter);
+      const stack = errorEl.closest(".field-control-stack");
+      expect(stack).toBeTruthy();
+    });
+  });
+
+  describe("14. Scenario-neutral FD banner and Advanced title", () => {
+    it("FD banner does not hardcode IPI", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "Agent-Based Installer" },
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.queryByText(/For vSphere IPI/)).not.toBeInTheDocument();
+      expect(screen.getByText(/failure-domain placement is selected/i)).toBeInTheDocument();
+    });
+
+    it("Advanced section title does not mention template for Agent-based", () => {
+      const state = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "Agent-Based Installer" },
+        platformConfig: { vsphere: { placementMode: "failureDomains", failureDomains: [{ name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: ["net"] } }] } }
+      });
+      const value = { state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      render(<AppContext.Provider value={value}><PlatformSpecificsStep /></AppContext.Provider>);
+      expect(screen.queryByText(/template, folder, resource pool/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/Advanced failure-domain options/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("15. Validation lifecycle integration (App-level)", () => {
+    it("fresh step entry via App: no field errors visible despite invalid vSphere state", async () => {
+      const vsphereState = stateWithSegmentedFlow(true, {
+        blueprint: {
+          arch: "x86_64",
+          platform: "VMware vSphere",
+          clusterName: "test-cluster",
+          baseDomain: "example.com",
+          confirmed: true,
+          confirmationTimestamp: Date.now()
+        },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "BadDS", networks: ["net"] }
+            }]
+          }
+        },
+        ui: {
+          segmentedFlowV1: true,
+          activeStepId: "platform-specifics",
+          visitedSteps: {
+            blueprint: true, methodology: true, "identity-access": true,
+            "networking-v2": true, "connectivity-mirroring": true,
+            "trust-proxy": true, "platform-specifics": true
+          },
+          completedSteps: {
+            blueprint: true, methodology: true, "identity-access": true,
+            "networking-v2": true, "connectivity-mirroring": true, "trust-proxy": true
+          }
+        }
+      });
+      vi.mocked(apiFetch).mockImplementation((path, opts) => {
+        if (path === "/api/state") {
+          const body = opts?.body ? JSON.parse(opts.body) : vsphereState;
+          return Promise.resolve(body);
+        }
+        return Promise.resolve({});
+      });
+      render(<App />);
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /Continue install/i })).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Continue install/i }));
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: /Platform Specifics/i })).toBeInTheDocument();
+      }, { timeout: 3000 });
+      expect(screen.queryByText(/Must be a full inventory path/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Must start with/)).not.toBeInTheDocument();
+    });
+
+    it("FD → legacy toggle clears touched state: previously-errored FD fields do not bleed into legacy view", () => {
+      const fdState = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: {
+            placementMode: "failureDomains",
+            failureDomains: [{
+              name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+              topology: { datacenter: "DC1", computeCluster: "BadName", datastore: "BadDS", networks: ["net"] }
+            }]
+          }
+        }
+      });
+      const fdValidation = validateStep(fdState, "platform-specifics");
+      expect(fdValidation.fieldErrors?.fd_0_computeCluster).toBeTruthy();
+
+      const updateState = vi.fn();
+      const value = { state: fdState, updateState, loading: false, startOver: vi.fn(), setState: vi.fn() };
+      const { rerender } = render(
+        <AppContext.Provider value={value}>
+          <PlatformSpecificsStep highlightErrors={false} fieldErrors={fdValidation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      const ccInput = screen.getByDisplayValue("BadName");
+      fireEvent.blur(ccInput);
+      expect(screen.getByText(fdValidation.fieldErrors.fd_0_computeCluster)).toBeInTheDocument();
+
+      const legacyState = stateForPlatformSpecificsStep({
+        blueprint: { ...stateForPlatformSpecificsStep().blueprint, platform: "VMware vSphere" },
+        methodology: { method: "IPI" },
+        platformConfig: {
+          vsphere: { placementMode: "legacy" }
+        }
+      });
+      const legacyValidation = validateStep(legacyState, "platform-specifics");
+      const legacyValue = { state: legacyState, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() };
+      rerender(
+        <AppContext.Provider value={legacyValue}>
+          <PlatformSpecificsStep highlightErrors={false} fieldErrors={legacyValidation.fieldErrors || {}} />
+        </AppContext.Provider>
+      );
+      expect(screen.queryByText(/Must be a full inventory path/)).not.toBeInTheDocument();
+      if (legacyValidation.fieldErrors?.vsphereVcenter) {
+        expect(screen.queryByText(legacyValidation.fieldErrors.vsphereVcenter)).not.toBeInTheDocument();
+      }
+      if (legacyValidation.fieldErrors?.vsphereLegacyDatacenter) {
+        expect(screen.queryByText(legacyValidation.fieldErrors.vsphereLegacyDatacenter)).not.toBeInTheDocument();
+      }
     });
   });
 });

@@ -687,6 +687,12 @@ const buildInstallConfig = (state) => {
         ];
       }
       if (server && datacenter && cluster && datastore && network) {
+        // Installer validates failureDomains topology with path patterns:
+        //   computeCluster: ^/(.*?)/host/(.*?)$
+        //   datastore: ^/(.*?)/datastore/(.*?)$
+        // Legacy fields are short names; prepend inventory path if not already absolute.
+        const ccPath = cluster.startsWith("/") ? cluster : `/${datacenter}/host/${cluster}`;
+        const dsPath = datastore.startsWith("/") ? datastore : `/${datacenter}/datastore/${datastore}`;
         vsphere.failureDomains = [
           {
             name: "fd-0",
@@ -695,8 +701,8 @@ const buildInstallConfig = (state) => {
             server,
             topology: {
               datacenter,
-              computeCluster: cluster,
-              datastore,
+              computeCluster: ccPath,
+              datastore: dsPath,
               networks: [network],
               ...(vs.folder ? { folder: vs.folder } : {}),
               ...(vs.resourcePool ? { resourcePool: vs.resourcePool } : {})
@@ -718,7 +724,6 @@ const buildInstallConfig = (state) => {
             ...(networksArray.length ? { networks: networksArray } : {}),
             ...(top.folder != null && top.folder !== "" ? { folder: top.folder } : {}),
             ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {}),
-            // topology.template: IPI only per doc 9.1.4; suppress when clusterOSImage is set (mutually exclusive).
             ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" && !(vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") ? { template: String(top.template).trim() } : {})
           };
           return {
@@ -1616,15 +1621,18 @@ const buildImageSetConfig = (state) => {
             maxVersion: version
           }
         ],
-        ...(includeGraph ? { graph: true } : {})
+        ...(includeGraph ? { graph: true } : {}),
+        ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
       },
       operators: [],
-      ...(additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {}),
-      ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
+      ...(additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {})
     }
   };
   const byCatalog = new Map();
   for (const op of operators) {
+    if (!op.catalogImage || !op.defaultChannel) continue;
+    const tagMatch = op.catalogImage.match(/:v(\d+\.\d+)/);
+    if (tagMatch && tagMatch[1] !== catalogMinor) continue;
     if (!byCatalog.has(op.catalogImage)) {
       byCatalog.set(op.catalogImage, []);
     }

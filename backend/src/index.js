@@ -1525,6 +1525,17 @@ app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
     );
   }
 
+  const importedMinor = getOpenShiftMinorFromState(v3State);
+  if (importedMinor && !isSupportedMinor(importedMinor)) {
+    const vErr = buildUnsupportedVersionError(importedMinor);
+    return res.status(422).json({
+      error: vErr.message,
+      code: vErr.code,
+      requestedVersion: vErr.requestedVersion,
+      supportedVersions: vErr.supportedVersions
+    });
+  }
+
   if (v3State.hostInventory) {
     const bmcResult = validateBmcVerifyCA(v3State.hostInventory.bmcVerifyCA);
     if (!bmcResult.valid) {

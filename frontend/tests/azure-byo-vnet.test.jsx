@@ -822,17 +822,17 @@ describe("Azure BYO VNet — App-level preview effect", () => {
   beforeEach(() => { localStorage.clear(); vi.mocked(apiFetch).mockReset(); });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-  it("incomplete Azure BYO VNet state blocks /api/generate call", async () => {
+  it("incomplete Azure BYO VNet state still calls /api/generate for partial preview", async () => {
     const incompleteState = makeLockedAzureAppState({
       vnetMode: "existing-vnet",
       virtualNetwork: "my-vnet",
     });
     makeAppMock(incompleteState);
     render(<App />);
-    await waitFor(() => { expect(apiFetch).toHaveBeenCalledWith("/api/state", expect.anything()); });
-    await new Promise(r => setTimeout(r, 500));
-    const generateCalls = vi.mocked(apiFetch).mock.calls.filter(c => c[0] === "/api/generate");
-    expect(generateCalls).toHaveLength(0);
+    await waitFor(() => {
+      const genCalls = vi.mocked(apiFetch).mock.calls.filter(c => c[0] === "/api/generate");
+      expect(genCalls.length).toBeGreaterThanOrEqual(1);
+    }, { timeout: 3000 });
   });
 
   it("complete Azure BYO VNet state permits /api/generate call", async () => {

@@ -2889,39 +2889,6 @@
       "maxVersion": null
     },
     {
-      "path": "platform.vsphere.failureDomains[].topology.template",
-      "outputFile": "install-config.yaml",
-      "type": "string",
-      "allowed": "absolute path to RHCOS image template or VM",
-      "default": "not specified in docs",
-      "required": false,
-      "description": "Absolute path to a pre-existing RHCOS image template or VM in vSphere. IPI only; speeds up RHCOS provisioning. Choose one: this OR platform.vsphere.clusterOSImage.",
-      "applies_to": [
-        "vsphere-agent"
-      ],
-      "ipi_only": true,
-      "conditionals": {
-        "mutuallyExclusiveWith": [
-          "platform.vsphere.clusterOSImage"
-        ],
-        "visibility": "IPI only; optional; one of two RHCOS image methods",
-        "requiredness": "If used, must be exclusive of clusterOSImage",
-        "placementLevel": "failureDomains[].topology (per failure domain)",
-        "narrative": "Choose one method for RHCOS image: topology.template path (pre-imported OVA in vCenter) OR clusterOSImage URL."
-      },
-      "citations": [
-        {
-          "docId": "installation-config-parameters-vsphere",
-          "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
-        }
-      ],
-      "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
-      "maxVersion": null
-    },
-    {
       "path": "platform.vsphere.failureDomains[].zone",
       "outputFile": "install-config.yaml",
       "type": "string",

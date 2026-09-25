@@ -674,8 +674,8 @@ test("buildInstallConfig for vsphere-ipi emits failureDomains when cluster and n
   const out = yaml.load(raw);
   assert.ok(Array.isArray(out.platform?.vsphere?.failureDomains) && out.platform.vsphere.failureDomains.length === 1);
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "DC1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "Cluster1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "datastore1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/datastore1");
   assert.deepStrictEqual(out.platform.vsphere.failureDomains[0].topology.networks, ["VM Network"]);
 });
 
@@ -765,8 +765,8 @@ test("buildInstallConfig for vSphere emits multiple failure domains and vcenters
     platformConfig: {
       vsphere: {
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], folder: "/DC1/vm/fd0", resourcePool: "/DC1/host/Cluster1/Resources" } },
-          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster2", datastore: "ds2", networks: ["VM Network"] } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], folder: "/DC1/vm/fd0", resourcePool: "/DC1/host/Cluster1/Resources" } },
+          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster2", datastore: "/DC1/datastore/ds2", networks: ["VM Network"] } }
         ]
       }
     }
@@ -779,13 +779,13 @@ test("buildInstallConfig for vSphere emits multiple failure domains and vcenters
   assert.strictEqual(out.platform.vsphere.failureDomains[0].zone, "Cluster1");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].server, "vcenter.example.com");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "DC1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "Cluster1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "ds1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/ds1");
   assert.deepStrictEqual(out.platform.vsphere.failureDomains[0].topology.networks, ["VM Network"]);
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.folder, "/DC1/vm/fd0");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.resourcePool, "/DC1/host/Cluster1/Resources");
   assert.strictEqual(out.platform.vsphere.failureDomains[1].name, "fd-1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[1].topology.datastore, "ds2");
+  assert.strictEqual(out.platform.vsphere.failureDomains[1].topology.datastore, "/DC1/datastore/ds2");
   assert.ok(Array.isArray(out.platform.vsphere.vcenters) && out.platform.vsphere.vcenters.length >= 1);
   assert.strictEqual(out.platform.vsphere.vcenters[0].server, "vcenter.example.com");
 });
@@ -801,7 +801,7 @@ test("buildInstallConfig for vsphere FD mode emits multiple networks per failure
       vsphere: {
         placementMode: "failureDomains",
         failureDomains: [
-          { name: "fd-0", server: "vc.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["VM Network", "DPG-1"] } }
+          { name: "fd-0", server: "vc.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: ["VM Network", "DPG-1"] } }
         ]
       }
     }
@@ -957,6 +957,62 @@ test("buildInstallConfig for vsphere-agent multi-node maps host VIPs to platform
   assert.strictEqual(out.platform.vsphere.vcenters?.[0]?.server, "vc.example.com");
 });
 
+test("buildInstallConfig for vsphere-agent multi-node emits failure domains without template", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa-fd" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      apiVip: "192.168.50.10",
+      ingressVip: "192.168.50.11",
+      nodes: [
+        { role: "master", hostname: "m-0", primary: { type: "ethernet", mode: "static", ipv4Cidr: "192.168.50.5/24", ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" } } },
+        { role: "master", hostname: "m-1", primary: { type: "ethernet", mode: "static", ipv4Cidr: "192.168.50.6/24", ethernet: { name: "ens192", macAddress: "00:11:22:33:44:02" } } },
+        { role: "master", hostname: "m-2", primary: { type: "ethernet", mode: "static", ipv4Cidr: "192.168.50.7/24", ethernet: { name: "ens192", macAddress: "00:11:22:33:44:03" } } }
+      ]
+    },
+    platformConfig: {
+      vsphere: {
+        placementMode: "failureDomains",
+        failureDomains: [{
+          name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+          topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-tmpl" }
+        }]
+      }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.vsphere, "platform.vsphere for agent FD");
+  assert.strictEqual(out.platform.vsphere.failureDomains?.length, 1, "one failure domain");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.template, undefined, "template NOT emitted for Agent-based (IPI only)");
+});
+
+test("buildInstallConfig for vsphere-upi emits failure domains without template", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsu-fd" },
+    methodology: { method: "UPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "failureDomains",
+        failureDomains: [{
+          name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+          topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-tmpl" }
+        }]
+      }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.vsphere, "platform.vsphere for UPI FD");
+  assert.strictEqual(out.platform.vsphere.failureDomains?.length, 1, "one failure domain");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.template, undefined, "template NOT emitted for UPI");
+});
+
 test("buildAgentConfig works for VMware vSphere Agent-based", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
@@ -993,7 +1049,7 @@ test("buildInstallConfig for vsphere-ipi emits template in failure domain topolo
     platformConfig: {
       vsphere: {
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
         ]
       }
     }
@@ -1015,7 +1071,7 @@ test("buildInstallConfig for vsphere-ipi emits clusterOSImage when set and no te
       vsphere: {
         clusterOSImage: "https://mirror.example.com/rhcos.ova",
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"] } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } }
         ]
       }
     }
@@ -1037,7 +1093,7 @@ test("buildInstallConfig for vsphere-ipi suppresses template in FD when clusterO
       vsphere: {
         clusterOSImage: "https://mirror.example.com/rhcos.ova",
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
         ]
       }
     }
@@ -1088,8 +1144,8 @@ test("buildInstallConfig for vsphere-ipi emits compute and controlPlane platform
     platformConfig: {
       vsphere: {
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"] } },
-          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster2", datastore: "ds1", networks: ["VM Network"] } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } },
+          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster2", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } }
         ],
         computeZones: ["fd-0", "fd-1"],
         controlPlaneZones: ["fd-0", "fd-1"]
@@ -1218,6 +1274,67 @@ test("buildInstallConfig for vsphere FD mode with no FDs: does not emit legacy-d
   const raw = buildInstallConfig(state);
   const out = yaml.load(raw);
   assert.strictEqual(out.platform?.vsphere?.failureDomains, undefined, "must not emit failureDomains from flat when FD mode and no FDs");
+});
+
+// DOC-120: vSphere inventory-path correctness — installer validates failureDomains topology
+// with path patterns: computeCluster ^/(.*?)/host/(.*?)$, datastore ^/(.*?)/datastore/(.*?)$
+test("DOC-120: legacy mode converts short computeCluster/datastore to full inventory paths", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "test" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "MyDC", datastore: "SAN01", cluster: "ProdCluster", network: "VM Network" }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/MyDC/host/ProdCluster");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/MyDC/datastore/SAN01");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "MyDC");
+  assert.deepStrictEqual(out.platform.vsphere.failureDomains[0].topology.networks, ["VM Network"]);
+});
+
+test("DOC-120: legacy mode does not double-prefix values already starting with /", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "test" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "/DC1/datastore/SAN01", cluster: "/DC1/host/ProdCluster", network: "VM Network" }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/ProdCluster");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/SAN01");
+});
+
+test("DOC-120: failure domain mode passes through full paths unchanged", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "test" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        failureDomains: [
+          { name: "fd-0", server: "vc.example.com", region: "DC1", zone: "Cluster1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], folder: "/DC1/vm/ocp", resourcePool: "/DC1/host/Cluster1/Resources/OCP" } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/ds1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.folder, "/DC1/vm/ocp");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.resourcePool, "/DC1/host/Cluster1/Resources/OCP");
 });
 
 test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and optional fields (Prompt J)", () => {

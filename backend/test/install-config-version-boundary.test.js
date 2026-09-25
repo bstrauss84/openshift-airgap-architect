@@ -807,8 +807,8 @@ describe("normalized-output regression (full deepStrictEqual)", () => {
             server: "vcenter.local",
             topology: {
               datacenter: "DC1",
-              computeCluster: "Cluster1",
-              datastore: "DS1",
+              computeCluster: "/DC1/host/Cluster1",
+              datastore: "/DC1/datastore/DS1",
               networks: ["VM Network"],
             },
           }],

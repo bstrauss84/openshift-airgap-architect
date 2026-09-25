@@ -14,7 +14,8 @@ import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
-import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { isParamVisibleForVersion, getFieldAnnotationInfo } from "../catalogFieldMeta.js";
+import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
 import { validateAwsRootVolumeThroughput } from "../validation.js";
 import { formatMACAsYouType } from "../formatUtils.js";
 import { validateBmcVerifyCA } from "../../../shared/bmcVerifyCA.js";
@@ -85,6 +86,18 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     );
     return isParamVisibleForVersion(param, selectedMinor);
   };
+  const needsReview = Boolean(state.reviewFlags?.["platform-specifics"]);
+  const showFieldErrors = highlightErrors;
+  const [touchedFields, setTouchedFields] = useState({});
+  const markTouched = useCallback((fieldName) => {
+    setTouchedFields(prev => prev[fieldName] ? prev : { ...prev, [fieldName]: true });
+  }, []);
+  const fieldErrorVisible = useCallback((fieldName) => {
+    return (showFieldErrors || Boolean(touchedFields[fieldName])) && Boolean(fieldErrors[fieldName]);
+  }, [showFieldErrors, touchedFields, fieldErrors]);
+  const baselineMinor = SUPPORTED_MINORS[0];
+  const fieldAnnotation = (path, outputFile) =>
+    getFieldAnnotationInfo(path, outputFile, catalogParams, selectedMinor, baselineMinor);
   const showAwsGovcloudSection = catalogParams.some(
     (p) => p.path === "platform.aws.region" && p.outputFile === INSTALL_CONFIG
   );
@@ -183,9 +196,13 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     apiFetch(
       `/api/aws/regions?version=${encodeURIComponent(selectedVersion)}&arch=${encodeURIComponent(arch)}`
     )
-      .then((data) => setAwsRegions(data.regions || []))
+      .then((data) => {
+        const allRegions = data.regions || [];
+        const isGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
+        setAwsRegions(isGovCloud ? allRegions.filter(r => r.startsWith("us-gov-")) : allRegions);
+      })
       .catch(() => setAwsRegions([]));
-  }, [showAwsAmiLookup, selectedVersion, arch]);
+  }, [showAwsAmiLookup, selectedVersion, arch, scenarioId]);
 
   // Sync local state when store values change (for imports/loads) - AWS
   useEffect(() => { setLocalAwsAmiId(platformConfig.aws?.amiId || ""); }, [platformConfig.aws?.amiId]);
@@ -296,6 +313,14 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     [selectedVersion, arch, updateAws]
   );
 
+  const awsRegionForAutoFill = platformConfig.aws?.region;
+  const awsAmiManuallySet = platformConfig.aws?.amiId && platformConfig.aws?.amiAutoFilled !== true;
+  useEffect(() => {
+    if (!showAwsAmiLookup || !awsRegionForAutoFill || awsAmiManuallySet) return;
+    fetchAmiFromInstaller(awsRegionForAutoFill, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable primitive deps; fetchAmiFromInstaller identity changes on every render due to updateAws
+  }, [showAwsAmiLookup, awsRegionForAutoFill, selectedVersion, arch]);
+
   const isAgentScenario = scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent";
   const showBootArtifactsBaseURL = isAgentScenario && isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG);
   const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG, state);
@@ -398,9 +423,11 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const showVsphereIpiSection = catalogParams.some(
     (p) => p.path === "platform.vsphere.vcenter" && p.outputFile === INSTALL_CONFIG
   );
-  // Failure domains are IPI-only (not valid for UPI or Agent-based)
-  const showFailureDomainsSection = scenarioId === "vsphere-ipi" && catalogParams.some(
+  const showFailureDomainsSection = catalogParams.some(
     (p) => p.path === "platform.vsphere.failureDomains" && p.outputFile === INSTALL_CONFIG
+  );
+  const showFdTemplateField = catalogParams.some(
+    (p) => p.path === "platform.vsphere.failureDomains[].topology.template" && p.outputFile === INSTALL_CONFIG
   );
   const metaVsphereVcenter = getParamMeta(scenarioId, "platform.vsphere.vcenter", INSTALL_CONFIG, state);
   const metaVsphereDatacenter = getParamMeta(scenarioId, "platform.vsphere.datacenter", INSTALL_CONFIG, state);
@@ -416,9 +443,8 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const updateFailureDomain = (index, patch) => setFailureDomains(failureDomains.map((fd, i) => (i === index ? { ...fd, ...patch } : fd)));
   const updateFailureDomainTopology = (index, topPatch) => setFailureDomains(failureDomains.map((fd, i) => (i === index ? { ...fd, topology: { ...(fd.topology || {}), ...topPatch } } : fd)));
 
-  /** When failure-domains mode is selected and none exist, render one empty FD by default (4.20 recommended path). */
   useEffect(() => {
-    if (!showVsphereIpiSection) return;
+    if (!showFailureDomainsSection) return;
     const mode = platformConfig.vsphere?.placementMode || "failureDomains";
     const fds = platformConfig.vsphere?.failureDomains;
     if (mode === "failureDomains" && (!fds || fds.length === 0)) {
@@ -429,7 +455,13 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
         }
       });
     }
-  }, [showVsphereIpiSection, platformConfig.vsphere?.placementMode, platformConfig.vsphere?.failureDomains?.length]);
+  }, [showFailureDomainsSection, platformConfig.vsphere?.placementMode, platformConfig.vsphere?.failureDomains?.length]);
+
+  // Reset per-field touched state when placement mode changes so newly-revealed fields start pristine.
+  const vsPlacementMode = platformConfig.vsphere?.placementMode || "failureDomains";
+  useEffect(() => {
+    setTouchedFields({});
+  }, [vsPlacementMode]);
 
   /** Provisioning network section is IPI-only (installer-provisioned). UPI does not use installer-managed provisioning network; do not show for bare-metal-upi or bare-metal-agent. */
   const showProvisioningNetworkSection = scenarioId === "bare-metal-ipi" && catalogParams.some(
@@ -553,6 +585,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
                   <p className="note subtle platform-specifics-region-note">Using archived region list. Installer metadata will replace this when the background download completes.</p>
                 )}
                 <div className="field-grid">
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="AWS GovCloud region"
                     hint={`AWS GovCloud region where the OpenShift cluster will be deployed.
@@ -568,22 +601,25 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
 **Example:** 'us-gov-west-1' for West Coast federal agencies, 'us-gov-east-1' for East Coast deployments.`}
                     required={metaAwsRegion?.required || isRequiredInstall("platform.aws.region")}
                   >
-                    {(() => {
-                      const regionsForDropdown = awsRegions.length > 0 ? awsRegions : AWS_GOVCLOUD_ARCHIVED_REGIONS;
-                      return (
-                        <select
-                          value={platformConfig.aws?.region || ""}
-                          onChange={(e) => updateAws({ region: e.target.value })}
-                          style={{ maxWidth: "280px" }}
-                        >
-                          <option value="" disabled>Select a region</option>
-                          {regionsForDropdown.map((r) => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                        </select>
-                      );
-                    })()}
+                    <select
+                      value={platformConfig.aws?.region || ""}
+                      onChange={(e) => { markTouched("awsRegion"); updateAws({ region: e.target.value }); }}
+                      onBlur={() => markTouched("awsRegion")}
+                      style={{ maxWidth: "280px" }}
+                      className={fieldErrorVisible("awsRegion") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("awsRegion") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("awsRegion") ? "error-awsRegion" : undefined}
+                    >
+                      <option value="" disabled>Select a region</option>
+                      {(awsRegions.length > 0 ? awsRegions : AWS_GOVCLOUD_ARCHIVED_REGIONS).map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("awsRegion") && <span id="error-awsRegion" className="field-error">{fieldErrors.awsRegion}</span>}
+                  </div>
+                  </div>
                   <FieldLabelWithInfo
                     label="RHCOS AMI ID (optional; gov/secret regions)"
                     hint={`Amazon Machine Image (AMI) ID for Red Hat CoreOS (RHCOS) in the selected AWS GovCloud region.
@@ -917,7 +953,7 @@ subnet-0def456abc789 (us-east-1b)`}
                       <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Confidential compute (optional)"
-                        hint={`Confidential compute policy for control plane instances (OpenShift 4.21+).
+                        hint={"Introduced in OpenShift " + selectedMinor + `. Confidential compute policy for control plane instances.
 
 **Use installer default:** No cpuOptions emitted — the installer uses its own default (currently Disabled).
 
@@ -948,6 +984,9 @@ Emitted to \`controlPlane.platform.aws.cpuOptions.confidentialCompute\` in insta
                         </select>
                       </FieldLabelWithInfo>
                       <div className="field-control-support">
+                        {fieldAnnotation("controlPlane.platform.aws.cpuOptions.confidentialCompute", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                        )}
                         {platformConfig.aws?.cpuOptions?.confidentialCompute === "AMDEncryptedVirtualizationNestedPaging" && (
                           <div className="field-helper">
                             AMD SEV-SNP requires a compatible AWS instance type, region, and AMI. This application does not verify that AWS compatibility offline.
@@ -1042,7 +1081,7 @@ Emitted to \`controlPlane.platform.aws.rootVolume.iops\` and \`compute[].platfor
                       <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Root volume throughput (MiB/s)"
-                        hint={`Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
+                        hint={"Introduced in OpenShift " + selectedMinor + `. Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
 
 **Range:** 125 to 2000 MiB/s (integer values only).
 
@@ -1084,6 +1123,9 @@ Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid fo
                         />
                       </FieldLabelWithInfo>
                       <div className="field-control-support">
+                        {fieldAnnotation("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                        )}
                         {awsThroughputError && (
                           <div id="aws-throughput-error" className="field-error" role="alert">
                             {awsThroughputError}
@@ -1512,6 +1554,7 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 12 }}>
+                <div className="field-control-stack">
                 <FieldLabelWithInfo
                   label="Region"
                   hint={`Azure Government region where the cluster will be deployed. This determines the physical datacenter location for all cluster resources (VMs, storage, networking).
@@ -1535,10 +1578,17 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
                   <input
                     value={localAzureRegion}
                     onChange={(e) => setLocalAzureRegion(e.target.value)}
-                    onBlur={() => updateAzure({ region: localAzureRegion })}
+                    onBlur={() => { markTouched("azureRegion"); updateAzure({ region: localAzureRegion }); }}
                     placeholder="e.g. usgovvirginia"
+                    className={fieldErrorVisible("azureRegion") ? "input-error" : ""}
+                    aria-invalid={fieldErrorVisible("azureRegion") ? "true" : undefined}
+                    aria-describedby={fieldErrorVisible("azureRegion") ? "error-azureRegion" : undefined}
                   />
                 </FieldLabelWithInfo>
+                <div className="field-control-support">
+                  {fieldErrorVisible("azureRegion") && <span id="error-azureRegion" className="field-error">{fieldErrors.azureRegion}</span>}
+                </div>
+                </div>
                 <FieldLabelWithInfo
                   label="Resource group name"
                   hint={`Name of the Azure resource group where the installer will create all cluster resources (VMs, disks, NSGs, load balancers, public IPs, availability sets, etc.). This resource group must ALREADY EXIST before installation - the installer will not create it.
@@ -1559,6 +1609,7 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
                     placeholder="Existing resource group for cluster"
                   />
                 </FieldLabelWithInfo>
+                <div className="field-control-stack">
                 <FieldLabelWithInfo
                   label="Base domain resource group"
                   hint={`Name of the Azure resource group that contains the DNS zone for your base domain (the parent domain under which the cluster will be created). This resource group must ALREADY EXIST and must contain a properly configured Azure DNS zone matching your base domain.
@@ -1583,10 +1634,17 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                   <input
                     value={localAzureBaseDomainResourceGroupName}
                     onChange={(e) => setLocalAzureBaseDomainResourceGroupName(e.target.value)}
-                    onBlur={() => updateAzure({ baseDomainResourceGroupName: localAzureBaseDomainResourceGroupName })}
+                    onBlur={() => { markTouched("azureBaseDomainResourceGroupName"); updateAzure({ baseDomainResourceGroupName: localAzureBaseDomainResourceGroupName }); }}
                     placeholder="Resource group containing DNS zone for base domain"
+                    className={fieldErrorVisible("azureBaseDomainResourceGroupName") ? "input-error" : ""}
+                    aria-invalid={fieldErrorVisible("azureBaseDomainResourceGroupName") ? "true" : undefined}
+                    aria-describedby={fieldErrorVisible("azureBaseDomainResourceGroupName") ? "error-azureBaseDomainResourceGroupName" : undefined}
                   />
                 </FieldLabelWithInfo>
+                <div className="field-control-support">
+                  {fieldErrorVisible("azureBaseDomainResourceGroupName") && <span id="error-azureBaseDomainResourceGroupName" className="field-error">{fieldErrors.azureBaseDomainResourceGroupName}</span>}
+                </div>
+                </div>
                 {showAzureBYOVNet && (
                 <FieldLabelWithInfo
                   label="VNet mode"
@@ -1698,6 +1756,9 @@ Use a pre-existing Azure VNet and provide its network resource group and subnet 
 **Example:** worker-subnet`}
                         required
                       />
+                      {fieldAnnotation("platform.azure.subnets.name", INSTALL_CONFIG).isIntroduced && (
+                        <div className="field-helper" data-version-annotation="introduced" style={{ marginTop: 4 }}>New in OpenShift {selectedMinor}: multiple node subnets supported</div>
+                      )}
                       <div className="list" style={{ marginTop: 6 }}>
                         {nodeSubnetDisplay.map((subnetName, idx) => (
                           <div key={idx} className="list-item" style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1732,7 +1793,7 @@ Use a pre-existing Azure VNet and provide its network resource group and subnet 
                 <div className="field-control-stack">
                 <FieldLabelWithInfo
                   label="Azure Storage shared-key access"
-                  hint={`OpenShift 4.21+ only. Controls whether Azure Storage accounts created during installation allow shared-key access.
+                  hint={"Introduced in OpenShift " + selectedMinor + `. Controls whether Azure Storage accounts created during installation allow shared-key access.
 
 **Use installer default (recommended):**
 Omits the field; the installer defaults to allowing shared-key access (equivalent to true).
@@ -1759,13 +1820,16 @@ Disables shared-key access. The installation identity must have appropriate Azur
                     <option value="false">Disallowed</option>
                   </select>
                 </FieldLabelWithInfo>
-                {platformConfig.azure?.allowSharedKeyAccess === false && (
-                  <div className="field-control-support">
+                <div className="field-control-support">
+                  {fieldAnnotation("platform.azure.allowSharedKeyAccess", INSTALL_CONFIG).isIntroduced && (
+                    <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                  )}
+                  {platformConfig.azure?.allowSharedKeyAccess === false && (
                     <p className="note warning" style={{ marginTop: 4 }}>
                       Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
                 </div>
                 )}
                 <FieldLabelWithInfo
@@ -3223,6 +3287,7 @@ The password is included in generated install-config.yaml **only when** you choo
                     </p>
                   </div>
                   <div className="field-grid">
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="vCenter server"
                     hint={`Fully qualified domain name (FQDN) or IP address of your vCenter Server.
@@ -3250,10 +3315,18 @@ vcenter.example.com (production)
                     <input
                       value={localVsphereVcenter}
                       onChange={(e) => setLocalVsphereVcenter(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: localVsphereVcenter } })}
+                      onBlur={() => { markTouched("vsphereVcenter"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: localVsphereVcenter } }); }}
                       placeholder="vcenter.example.com"
+                      className={fieldErrorVisible("vsphereVcenter") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereVcenter") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereVcenter") ? "error-vsphereVcenter" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereVcenter") && <span id="error-vsphereVcenter" className="field-error">{fieldErrors.vsphereVcenter}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Datacenter (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.datacenter instead for multi-zone deployments.
@@ -3280,10 +3353,18 @@ Datacenter-Production (descriptive naming)`}
                     <input
                       value={localVsphereDatacenter}
                       onChange={(e) => setLocalVsphereDatacenter(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: localVsphereDatacenter } })}
+                      onBlur={() => { markTouched("vsphereLegacyDatacenter"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: localVsphereDatacenter } }); }}
                       placeholder="Datacenter name"
+                      className={fieldErrorVisible("vsphereLegacyDatacenter") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyDatacenter") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyDatacenter") ? "error-vsphereLegacyDatacenter" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyDatacenter") && <span id="error-vsphereLegacyDatacenter" className="field-error">{fieldErrors.vsphereLegacyDatacenter}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Default datastore (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.datastore instead for multi-zone deployments.
@@ -3314,10 +3395,18 @@ Production-SAN-01 (descriptive naming)`}
                     <input
                       value={localVsphereDefaultDatastore}
                       onChange={(e) => setLocalVsphereDefaultDatastore(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: localVsphereDefaultDatastore } })}
+                      onBlur={() => { markTouched("vsphereLegacyDatastore"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: localVsphereDefaultDatastore } }); }}
                       placeholder="Datastore name"
+                      className={fieldErrorVisible("vsphereLegacyDatastore") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyDatastore") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyDatastore") ? "error-vsphereLegacyDatastore" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyDatastore") && <span id="error-vsphereLegacyDatastore" className="field-error">{fieldErrors.vsphereLegacyDatastore}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Compute cluster (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Legacy single-zone field. Use failureDomains[].topology.computeCluster instead.
@@ -3347,10 +3436,18 @@ Compute-Zone-A`}
                     <input
                       value={localVsphereCluster}
                       onChange={(e) => setLocalVsphereCluster(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: localVsphereCluster } })}
+                      onBlur={() => { markTouched("vsphereLegacyCluster"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: localVsphereCluster } }); }}
                       placeholder="e.g. Cluster1"
+                      className={fieldErrorVisible("vsphereLegacyCluster") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyCluster") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyCluster") ? "error-vsphereLegacyCluster" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyCluster") && <span id="error-vsphereLegacyCluster" className="field-error">{fieldErrors.vsphereLegacyCluster}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="VM network (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.networks[] instead for multi-zone deployments.
@@ -3396,9 +3493,17 @@ OCP-Production-VLAN100 (VLAN-backed network)`}
                     <input
                       value={platformConfig.vsphere?.network || ""}
                       onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, network: e.target.value } })}
+                      onBlur={() => markTouched("vsphereLegacyNetwork")}
                       placeholder="e.g. VM Network"
+                      className={fieldErrorVisible("vsphereLegacyNetwork") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyNetwork") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyNetwork") ? "error-vsphereLegacyNetwork" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyNetwork") && <span id="error-vsphereLegacyNetwork" className="field-error">{fieldErrors.vsphereLegacyNetwork}</span>}
+                  </div>
+                  </div>
                   </div>
                 </CollapsibleSection>
               )}
@@ -3407,7 +3512,7 @@ OCP-Production-VLAN100 (VLAN-backed network)`}
                 <div style={{ marginBottom: 20 }}>
                   <h4 className="card-title" style={{ marginBottom: 4, fontSize: "1rem" }}>Failure domains</h4>
                   <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                    For vSphere IPI, at least one failure domain is required (4.20+ recommended path). Add more for multi-zone placement. Only the selected path is emitted; legacy fields above are ignored when using failure domains.
+                    When failure-domain placement is selected, at least one failure domain is required. Add more for multi-zone placement. Only the selected placement model is emitted; legacy single-placement fields are ignored while failure domains are active.
                   </p>
                   <button type="button" className="ghost" onClick={addFailureDomain} style={{ marginBottom: 12 }}>Add failure domain</button>
                   {failureDomains.map((fd, index) => (
@@ -3549,12 +3654,17 @@ Production-DC`}
                         >
                           <input value={fd.topology?.datacenter || ""} onChange={(e) => updateFailureDomainTopology(index, { datacenter: e.target.value })} placeholder="Datacenter1" />
                         </FieldLabelWithInfo>
+                        <div className="field-control-stack">
                         <FieldLabelWithInfo
                           label="Topology: Compute cluster"
-                          hint={`vSphere compute cluster name where VMs for this failure domain will be provisioned.
+                          hint={`Full vSphere inventory path to the compute cluster where VMs for this failure domain will be provisioned. The installer validates this path with the pattern /<datacenter>/host/<cluster>.
+
+**Format:**
+/<datacenter-name>/host/<cluster-name>
 
 **Requirements:**
-• Must match the **exact** cluster name in vCenter (**case-sensitive**)
+• Must be a **full inventory path** starting with / (the installer rejects short names)
+• The datacenter segment must match this failure domain's datacenter field
 • Sufficient CPU, memory, and storage resources for nodes in this failure domain
 • **DRS enabled** recommended for automatic VM placement and load balancing
 
@@ -3564,25 +3674,30 @@ Collection of ESXi hosts that share resources and provide high availability feat
 **Zone separation:**
 Each failure domain can target a different cluster - this is how you achieve **true zone separation** in vSphere (nodes in different clusters can survive cluster-level failures)
 
-**How it's used:**
-The installer provisions VMs into this cluster according to your node distribution settings
+**How to find the full path:**
+vCenter → Hosts and Clusters → right-click cluster → Copy Path
 
 **Example:**
-Cluster1
-Production-Cluster
-Compute-Zone-A`}
+/Datacenter1/host/Cluster1
+/Production-DC/host/Production-Cluster`}
                         >
-                          <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} placeholder="Cluster1" />
+                          <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} onBlur={() => markTouched("fd_" + index + "_computeCluster")} placeholder="/Datacenter1/host/Cluster1" className={fieldErrorVisible("fd_" + index + "_computeCluster") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_computeCluster") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_computeCluster") ? `error-fd-${index}-computeCluster` : undefined} />
                         </FieldLabelWithInfo>
+                        <div className="field-control-support">
+                          {fieldErrorVisible("fd_" + index + "_computeCluster") && <span id={`error-fd-${index}-computeCluster`} className="field-error">{fieldErrors["fd_" + index + "_computeCluster"]}</span>}
+                        </div>
+                        </div>
+                        <div className="field-control-stack">
                         <FieldLabelWithInfo
                           label="Topology: Datastore"
-                          hint={`Absolute datastore path in vSphere inventory for VM disks in this failure domain.
+                          hint={`Absolute datastore path in vSphere inventory for VM disks in this failure domain. The installer validates this path with the pattern /<datacenter>/datastore/<datastore>.
 
 **Format:**
 /datacenter-name/datastore/datastore-name
 
 **Requirements:**
-• Must match the **exact** path as shown in vCenter
+• Must be a **full inventory path** starting with / (the installer rejects short names)
+• The datacenter segment must match this failure domain's datacenter field
 
 **What is a datastore:**
 Storage container (VMFS, NFS, vSAN, or vVols) where VM disk files (VMDK) are stored
@@ -3608,8 +3723,12 @@ vCenter → Storage → select datastore → Summary tab
 /Datacenter1/datastore/Production-SAN-01
 /Datacenter1/datastore/vsanDatastore`}
                         >
-                          <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="/datacenter/datastore/ds1" />
+                          <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} onBlur={() => markTouched("fd_" + index + "_datastore")} placeholder="/datacenter/datastore/ds1" className={fieldErrorVisible("fd_" + index + "_datastore") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_datastore") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_datastore") ? `error-fd-${index}-datastore` : undefined} />
                         </FieldLabelWithInfo>
+                        <div className="field-control-support">
+                          {fieldErrorVisible("fd_" + index + "_datastore") && <span id={`error-fd-${index}-datastore`} className="field-error">{fieldErrors["fd_" + index + "_datastore"]}</span>}
+                        </div>
+                        </div>
                         <FieldLabelWithInfo
                           label="Topology: Networks (comma delimited)"
                           hint={`One or more vSphere network names where OpenShift VMs in this failure domain will be connected and where cluster API/Ingress VIPs and DNS records will be assigned.
@@ -3658,11 +3777,11 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
                         </FieldLabelWithInfo>
                       </div>
                       <div style={{ marginTop: 12 }}>
-                        <CollapsibleSection title="Advanced (template, folder, resource pool)" defaultCollapsed={true}>
+                        <CollapsibleSection title="Advanced failure-domain options" defaultCollapsed={true}>
                           <div className="field-grid" style={{ marginTop: 4 }}>
-                          {scenarioId === "vsphere-ipi" && (
+                          {showFdTemplateField && (
                             <FieldLabelWithInfo
-                              label="Topology: RHCOS template (optional, IPI only)"
+                              label="Topology: RHCOS template (optional)"
                               hint={`Absolute path to a pre-deployed RHCOS (Red Hat CoreOS) OVA template in vSphere inventory that the installer will clone to create cluster VMs.
 
 **Format:**
@@ -3703,16 +3822,21 @@ vCenter → select the VM → Summary tab → VM Path field
                                 <input
                                   value={fd.topology?.template || ""}
                                   onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
+                                  onBlur={() => markTouched("fd_" + index + "_template")}
                                   placeholder="/datacenter/vm/rhcos-template"
                                   disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
                                   aria-describedby={platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined}
+                                  className={fieldErrorVisible("fd_" + index + "_template") ? "input-error" : ""}
+                                  aria-invalid={fieldErrorVisible("fd_" + index + "_template") ? "true" : undefined}
                                 />
+                                {fieldErrorVisible("fd_" + index + "_template") && <span id={`error-fd-${index}-template`} className="field-error">{fieldErrors["fd_" + index + "_template"]}</span>}
                                 {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
                                   <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
                                 )}
                               </div>
                             </FieldLabelWithInfo>
                           )}
+                          <div className="field-control-stack">
                           <FieldLabelWithInfo
                             label="Topology: Folder (optional)"
                             hint={`Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs for this failure domain.
@@ -3744,8 +3868,13 @@ vCenter → VMs and Templates → right-click datacenter → New Folder
 /Datacenter1/vm/OpenShift
 /Datacenter1/vm/Production/OCP-Cluster`}
                           >
-                            <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} placeholder="/datacenter/vm/folder" />
+                            <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} onBlur={() => markTouched("fd_" + index + "_folder")} placeholder="/datacenter/vm/folder" className={fieldErrorVisible("fd_" + index + "_folder") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_folder") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_folder") ? `error-fd-${index}-folder` : undefined} />
                           </FieldLabelWithInfo>
+                          <div className="field-control-support">
+                            {fieldErrorVisible("fd_" + index + "_folder") && <span id={`error-fd-${index}-folder`} className="field-error">{fieldErrors["fd_" + index + "_folder"]}</span>}
+                          </div>
+                          </div>
+                          <div className="field-control-stack">
                           <FieldLabelWithInfo
                             label="Topology: Resource pool (optional)"
                             hint={`Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs in this failure domain.
@@ -3777,8 +3906,12 @@ This setting does **NOT** affect storage (datastore) or network placement
 **Example:**
 /Datacenter1/host/Cluster1/Resources/OpenShift-Pool`}
                           >
-                            <input value={fd.topology?.resourcePool || ""} onChange={(e) => updateFailureDomainTopology(index, { resourcePool: e.target.value })} placeholder="/datacenter/host/cluster/Resources/pool" />
+                            <input value={fd.topology?.resourcePool || ""} onChange={(e) => updateFailureDomainTopology(index, { resourcePool: e.target.value })} onBlur={() => markTouched("fd_" + index + "_resourcePool")} placeholder="/datacenter/host/cluster/Resources/pool" className={fieldErrorVisible("fd_" + index + "_resourcePool") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_resourcePool") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_resourcePool") ? `error-fd-${index}-resourcePool` : undefined} />
                           </FieldLabelWithInfo>
+                          <div className="field-control-support">
+                            {fieldErrorVisible("fd_" + index + "_resourcePool") && <span id={`error-fd-${index}-resourcePool`} className="field-error">{fieldErrors["fd_" + index + "_resourcePool"]}</span>}
+                          </div>
+                          </div>
                         </div>
                       </CollapsibleSection>
                       </div>
@@ -4128,12 +4261,12 @@ http://192.168.1.100/images/rhcos-vmware.ova`
                         value={platformConfig.vsphere?.clusterOSImage || ""}
                         onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, clusterOSImage: e.target.value } })}
                         placeholder="https://mirror.example.com/rhcos.ova"
-                        disabled={scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")}
-                        aria-describedby={scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") ? "cluster-os-image-disabled-note" : undefined}
+                        disabled={showFdTemplateField && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")}
+                        aria-describedby={showFdTemplateField && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") ? "cluster-os-image-disabled-note" : undefined}
                       />
                     </FieldLabelWithInfo>
                   </div>
-                  {scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
+                  {showFdTemplateField && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
                     <p className="note subtle" style={{ marginBottom: 8 }} id="cluster-os-image-disabled-note">Disabled: a failure domain has Topology: RHCOS template set (choose one strategy only).</p>
                   )}
                   <div className="field-grid">
@@ -4366,15 +4499,17 @@ Value in MB (use multiples of 1024 for clean GB values):
                       : "CIDR (Classless Inter-Domain Routing) notation for the provisioning network's IP address range. Defines the subnet where the OpenShift installer runs provisioning services and assigns temporary IPs to nodes during bootstrap.\n\n**What is this:**\nIPv4 or IPv6 network range in CIDR format (e.g., 172.22.0.0/24) that defines the provisioning network's address space. The installer uses this subnet for DHCP assignments, bootstrap services, and node imaging.\n\n**Format:**\nNetwork address / prefix length\n• IPv4 example: 172.22.0.0/24 (256 addresses)\n• IPv6 example: fd00::/64\n\n**When to set:**\n• **Managed mode:** Optional but recommended - defines the provisioning subnet for DHCP and services\n• **Unmanaged mode:** Optional - documents your existing provisioning network CIDR\n• **Disabled mode:** Omit, or set to bare-metal network CIDR if provisioning services run on that network\n\n**Default behavior:**\nIf omitted in Managed mode, installer may use a default range (consult OpenShift docs for version-specific defaults)\n\n**Sizing guidelines:**\n• /24 (256 addresses) - Standard for small-medium clusters (up to 50 nodes)\n• /23 (512 addresses) - Large clusters or future expansion\n• /25 (128 addresses) - Small clusters (under 20 nodes)\n\n**Requirements:**\n• Must not overlap with Machine network, Cluster network, or Service network CIDRs (from Networking tab)\n• Must be routable only on the provisioning network segment (isolated from production traffic)\n• Enough addresses for all nodes + bootstrap + DHCP overhead (nodes × 2 recommended)\n\n**Relationship to other fields:**\n• **provisioningDHCPRange:** DHCP range must be within this CIDR\n• **clusterProvisioningIP:** Provisioning services IP must be within this CIDR\n\n**Example:**\n172.22.0.0/24 (common choice for isolated provisioning network)"}
                   >
                     <input
-                      className={fieldErrors.provisioningNetworkCIDR ? "input-error" : ""}
-                      title={fieldErrors.provisioningNetworkCIDR || ""}
+                      className={fieldErrorVisible("provisioningNetworkCIDR") ? "input-error" : ""}
+                      title={fieldErrorVisible("provisioningNetworkCIDR") ? fieldErrors.provisioningNetworkCIDR : ""}
                       value={localProvisioningNetworkCIDR}
                       onChange={(e) => setLocalProvisioningNetworkCIDR(e.target.value)}
-                      onBlur={() => updateInventory({ provisioningNetworkCIDR: localProvisioningNetworkCIDR.trim() })}
+                      onBlur={() => { markTouched("provisioningNetworkCIDR"); updateInventory({ provisioningNetworkCIDR: localProvisioningNetworkCIDR.trim() }); }}
                       placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : "e.g. 172.22.0.0/24"}
+                      aria-invalid={fieldErrorVisible("provisioningNetworkCIDR") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("provisioningNetworkCIDR") ? "error-provisioningNetworkCIDR" : undefined}
                     />
                   </FieldLabelWithInfo>
-                  {fieldErrors.provisioningNetworkCIDR && <span className="note warning inline">{fieldErrors.provisioningNetworkCIDR}</span>}
+                  {fieldErrorVisible("provisioningNetworkCIDR") && <span id="error-provisioningNetworkCIDR" className="field-error">{fieldErrors.provisioningNetworkCIDR}</span>}
                   <FieldLabelWithInfo
                     label="Provisioning network interface (optional)"
                     hint={provisioningMode === "Disabled"
@@ -4425,15 +4560,17 @@ Start IP, end IP (comma-separated, no spaces after comma)
 172.22.0.50,172.22.0.80 (31 addresses for smaller clusters)`}
                       >
                         <input
-                          className={fieldErrors.provisioningDHCPRange ? "input-error" : ""}
-                          title={fieldErrors.provisioningDHCPRange || ""}
+                          className={fieldErrorVisible("provisioningDHCPRange") ? "input-error" : ""}
+                          title={fieldErrorVisible("provisioningDHCPRange") ? fieldErrors.provisioningDHCPRange : ""}
                           value={localProvisioningDHCPRange}
                           onChange={(e) => setLocalProvisioningDHCPRange(e.target.value)}
-                          onBlur={() => updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange })}
+                          onBlur={() => { markTouched("provisioningDHCPRange"); updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange }); }}
                           placeholder="e.g. 172.22.0.10,172.22.0.254"
+                          aria-invalid={fieldErrorVisible("provisioningDHCPRange") ? "true" : undefined}
+                          aria-describedby={fieldErrorVisible("provisioningDHCPRange") ? "error-provisioningDHCPRange" : undefined}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.provisioningDHCPRange && <span className="note warning inline">{fieldErrors.provisioningDHCPRange}</span>}
+                      {fieldErrorVisible("provisioningDHCPRange") && <span id="error-provisioningDHCPRange" className="field-error">{fieldErrors.provisioningDHCPRange}</span>}
                     </>
                   ) : null}
                   <FieldLabelWithInfo
@@ -4443,15 +4580,17 @@ Start IP, end IP (comma-separated, no spaces after comma)
                       : "IPv4 or IPv6 address assigned to the provisioning host's interface where OpenShift installer provisioning services (DHCP, TFTP, HTTP) listen. This is the IP nodes contact to fetch boot images and configuration during installation.\n\n**What is this:**\nStatic IP address on the provisioning network that the installer binds its services to. Bare metal nodes PXE boot and download images from this IP during the bootstrap process.\n\n**Default behavior:**\nIf omitted, the installer typically uses the **third IP** of the provisioning subnet (catalog default). For example, if provisioningNetworkCIDR is 172.22.0.0/24, default might be 172.22.0.3.\n\n**When to set explicitly:**\n• When you need a specific IP for firewall rules or DNS entries\n• When the third IP of the subnet is already in use\n• When integrating with existing provisioning infrastructure that expects a particular IP\n\n**Requirements:**\n• **Managed/Unmanaged modes:** Must be within provisioningNetworkCIDR\n• **Disabled mode:** Must be on the bare-metal network (Machine network CIDR)\n• Must NOT conflict with provisioningDHCPRange\n• Must be statically assigned (not in DHCP dynamic range)\n• Must be reachable from bare metal node BMCs and boot interfaces\n\n**Provisioning mode specifics:**\n\n**Managed:** \nInstaller runs DHCP/TFTP on this IP on the provisioning network. Nodes receive this IP via DHCP options as their boot server.\n\n**Unmanaged:**\nYou run DHCP elsewhere, but installer HTTP/image services still bind to this IP. Configure your DHCP server to point nodes to this IP for image downloads.\n\n**Disabled:**\nNo dedicated provisioning network - installer services run on the bare-metal network. This IP is one of two IPs needed on the bare-metal network for provisioning (the other for bootstrap services).\n\n**How nodes use this IP:**\n• PXE boot: Fetch kernel/initrd via TFTP from this IP\n• Image download: Pull RHCOS images via HTTP from this IP\n• Ignition config: Retrieve bootstrap configuration from this IP\n\n**Example:**\n172.22.0.10 (Managed mode, within 172.22.0.0/24)\n10.0.0.100 (Disabled mode, on bare-metal network 10.0.0.0/24)"}
                   >
                     <input
-                      className={fieldErrors.clusterProvisioningIP ? "input-error" : ""}
-                      title={fieldErrors.clusterProvisioningIP || ""}
+                      className={fieldErrorVisible("clusterProvisioningIP") ? "input-error" : ""}
+                      title={fieldErrorVisible("clusterProvisioningIP") ? fieldErrors.clusterProvisioningIP : ""}
                       value={localClusterProvisioningIP}
                       onChange={(e) => setLocalClusterProvisioningIP(e.target.value)}
-                      onBlur={() => updateInventory({ clusterProvisioningIP: localClusterProvisioningIP.trim() })}
+                      onBlur={() => { markTouched("clusterProvisioningIP"); updateInventory({ clusterProvisioningIP: localClusterProvisioningIP.trim() }); }}
                       placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : "IP within provisioning subnet"}
+                      aria-invalid={fieldErrorVisible("clusterProvisioningIP") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("clusterProvisioningIP") ? "error-clusterProvisioningIP" : undefined}
                     />
                   </FieldLabelWithInfo>
-                  {fieldErrors.clusterProvisioningIP && <span className="note warning inline">{fieldErrors.clusterProvisioningIP}</span>}
+                  {fieldErrorVisible("clusterProvisioningIP") && <span id="error-clusterProvisioningIP" className="field-error">{fieldErrors.clusterProvisioningIP}</span>}
                   <FieldLabelWithInfo
                     label="Provisioning MAC address (optional)"
                     hint={`MAC (hardware) address of the network interface on the bootstrap/provisioning host where the OpenShift installer runs provisioning services (DHCP, TFTP, HTTP) during bare metal installation.
@@ -4586,7 +4725,7 @@ external-br (descriptive name)`}
           <section className="card">
             <div className="card-header">
               <h3 className="card-title">BMC CA Certificate</h3>
-              <div className="card-subtitle">Optional CA certificate for BMC TLS verification (OpenShift 4.21+).</div>
+              <div className="card-subtitle">Optional CA certificate for BMC TLS verification. Introduced in OpenShift {selectedMinor}.</div>
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 4 }}>
@@ -4598,7 +4737,7 @@ external-br (descriptive name)`}
 **What this is:**
 A CA certificate (or chain of certificates) in PEM format. When provided, the installer uses this to verify the TLS certificates presented by BMC endpoints (Redfish/IPMI over HTTPS). This is useful when BMCs use certificates signed by an internal or private CA.
 
-**Availability:** OpenShift 4.21 and later.
+**Availability:** Introduced in OpenShift ` + selectedMinor + `.
 
 **What the installer does with this value:**
 When non-empty, the installer writes:
@@ -4647,6 +4786,9 @@ Emitted to \`platform.baremetal.bmcVerifyCA\` in install-config.yaml.`}
                   />
                 </FieldLabelWithInfo>
                 <div className="field-control-support">
+                  {fieldAnnotation("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG).isIntroduced && (
+                    <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                  )}
                   {bmcVerifyCAError && (
                     <p className="note error" role="alert">{bmcVerifyCAError}</p>
                   )}
