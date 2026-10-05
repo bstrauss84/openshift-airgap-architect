@@ -187,8 +187,15 @@ test("v3 state merge: locked:false overwrites leaked locked:true via deepMerge",
   }
 });
 
-test("POST /api/ocmirror/run with version confirmed returns jobId and job has metadata", async () => {
+test("SUCCESS PATH: oc-mirror run with fake stub binary populates job metadata", async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocmirror-test-"));
+  const stubBin = path.join(tmpDir, "oc-mirror-stub");
+  fs.writeFileSync(stubBin, '#!/bin/sh\necho "oc-mirror-test-stub v0.0.0"\nexit 0\n');
+  fs.chmodSync(stubBin, 0o755);
+
+  const origEnv = process.env.OC_MIRROR_BIN;
+  process.env.OC_MIRROR_BIN = stubBin;
+
   const { server, baseUrl } = await createTestServer(app);
   try {
     await resetState(baseUrl);
@@ -225,20 +232,89 @@ test("POST /api/ocmirror/run with version confirmed returns jobId and job has me
     }
     assert.strictEqual(res.status, 200);
     const data = await res.json();
-    assert.ok(data.jobId);
+    assert.ok(data.jobId, "Endpoint must return a jobId");
+
     const jobRes = await fetch(`${baseUrl}/api/jobs/${data.jobId}`);
     assert.strictEqual(jobRes.status, 200);
     const job = await jobRes.json();
     assert.strictEqual(job.type, "oc-mirror-run");
-    assert.ok(job.metadata_json !== undefined);
+
+    assert.ok(job.metadata_json, "metadata_json must be populated when binary resolves");
     const meta = typeof job.metadata_json === "string" ? JSON.parse(job.metadata_json) : job.metadata_json;
-    assert.strictEqual(meta.mode, "mirrorToDisk");
-    assert.ok(meta.workspaceDir);
-    assert.ok(meta.startedAt);
+    assert.strictEqual(meta.mode, "mirrorToDisk", "Job metadata must record the requested mode");
+    assert.ok(meta.workspaceDir, "Job metadata must record workspaceDir");
+    assert.ok(meta.startedAt, "Job metadata must record startedAt timestamp");
+    assert.ok(meta.fullCommand, "Job metadata must record the full command");
+    assert.ok(meta.fullCommand.includes(stubBin), "Full command must reference the stub binary");
   } finally {
-    try {
-      fs.rmSync(tmpDir, { recursive: true });
-    } catch {}
+    if (origEnv === undefined) {
+      delete process.env.OC_MIRROR_BIN;
+    } else {
+      process.env.OC_MIRROR_BIN = origEnv;
+    }
+    try { fs.rmSync(tmpDir, { recursive: true }); } catch {}
+    await closeTestServer(server);
+  }
+});
+
+test("MISSING BINARY: oc-mirror run fails gracefully with descriptive message", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ocmirror-test-"));
+
+  const origEnv = process.env.OC_MIRROR_BIN;
+  process.env.OC_MIRROR_BIN = path.join(tmpDir, "nonexistent-oc-mirror");
+
+  const { server, baseUrl } = await createTestServer(app);
+  try {
+    await resetState(baseUrl);
+    const stateUpdateRes = await fetch(`${baseUrl}/api/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        version: { _schemaVersion: 3, locked: true, selectedMinor: "4.20", selectedPatch: "4.20.0" },
+        release: { channel: "stable-4.20", patchVersion: "4.20.0", confirmed: true }
+      })
+    });
+    assert.strictEqual(stateUpdateRes.status, 200, "State setup must succeed");
+
+    const res = await fetch(`${baseUrl}/api/ocmirror/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "mirrorToDisk",
+        archivePath: tmpDir,
+        workspacePath: tmpDir,
+        cachePath: tmpDir,
+        configSourceType: "generated",
+        authSource: "env"
+      })
+    });
+    assert.strictEqual(res.status, 200, "Endpoint returns 200 with jobId even on binary failure");
+    const data = await res.json();
+    assert.ok(data.jobId, "Endpoint must return a jobId");
+
+    const jobRes = await fetch(`${baseUrl}/api/jobs/${data.jobId}`);
+    assert.strictEqual(jobRes.status, 200);
+    const job = await jobRes.json();
+    assert.strictEqual(job.type, "oc-mirror-run");
+    assert.strictEqual(job.status, "failed", "Job must be marked failed when binary is unavailable");
+    assert.ok(job.message, "Failed job must have a descriptive error message");
+    assert.match(job.message, /not found|cannot run|no.*binary|oc-mirror/i,
+      "Error message must describe the binary resolution failure");
+
+    assert.ok(
+      !job.metadata_json || job.metadata_json === "" || job.metadata_json === "{}",
+      "metadata_json must be empty or absent when binary never resolved"
+    );
+
+    const healthRes = await fetch(`${baseUrl}/api/state`);
+    assert.strictEqual(healthRes.status, 200, "Application must remain responsive after binary failure");
+  } finally {
+    if (origEnv === undefined) {
+      delete process.env.OC_MIRROR_BIN;
+    } else {
+      process.env.OC_MIRROR_BIN = origEnv;
+    }
+    try { fs.rmSync(tmpDir, { recursive: true }); } catch {}
     await closeTestServer(server);
   }
 });

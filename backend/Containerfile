@@ -1,51 +1,93 @@
-# Stage: compute APP_GIT_SHA and APP_BUILD_TIME from .git when present (no git in final image)
+# Stage: compute APP_GIT_SHA and APP_BUILD_TIME
+# .git is excluded by .dockerignore, so pass SHA from the host:
+#   podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS build-info
-RUN microdnf install -y git && microdnf clean all
-COPY . /ctx
-WORKDIR /ctx
-RUN SHA="unknown"; [ -d .git ] && SHA=$(git rev-parse HEAD 2>/dev/null) || true; \
-    BT=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
-    echo "export APP_GIT_SHA=\"$SHA\"" > /tmp/build-env.sh && \
+ARG APP_GIT_SHA=unknown
+RUN BT=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+    echo "export APP_GIT_SHA=\"${APP_GIT_SHA}\"" > /tmp/build-env.sh && \
     echo "export APP_BUILD_TIME=\"$BT\"" >> /tmp/build-env.sh
 
-# Red Hat UBI 9 Node.js 20 — backend (Express API, oc/oc-mirror, better-sqlite3)
-FROM registry.access.redhat.com/ubi9/nodejs-20
+# Red Hat UBI 9 Node.js 22 — backend (Express API, oc/oc-mirror, better-sqlite3)
+FROM registry.access.redhat.com/ubi9/nodejs-22
 
 USER root
-# Override these ARGs to force a specific binary URL (optional — auto-detected by default)
+# Override these ARGs to force a specific binary URL (optional — auto-detected by default).
+# When overriding a URL, the corresponding SHA256 arg is REQUIRED.
 ARG OCP_CLIENT_URL=""
+ARG OCP_CLIENT_SHA256=""
 ARG OCP_MIRROR_URL=""
+ARG OCP_MIRROR_SHA256=""
 
 RUN dnf install -y --setopt=install_weak_deps=false \
     ca-certificates tar python3 make gcc-c++ gpgme openssh-clients util-linux \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
-# Detect build-host architecture and download matching binaries.
-# uname -m returns the native build architecture (no cross-compilation/emulation needed).
-# Supported: x86_64, aarch64 (arm64), ppc64le, s390x.
+# Bake oc and oc-mirror, resolved from Red Hat release channels (no hardcoded
+# z-stream) and verified against each channel's own sha256sum.txt.
+#
+#   oc-mirror -> "latest"       global latest; required because operator listing
+#                               ("--v2 list operators") does not exist in 4.21.x.
+#   oc        -> "latest-4.21"  highest supported target minor; convenience only.
+#                               Downloadable bundles resolve oc per selected
+#                               target minor at request time, not from this layer.
+#
+# Supported architectures: x86_64, aarch64 (arm64), ppc64le, s390x.
+# Custom URL overrides require a matching SHA256 arg — never silently skip verification.
+# The resolved versions/digests are written to /app/tools-provenance.env.
+ARG OC_CHANNEL=latest-4.21
+ARG OC_MIRROR_CHANNEL=latest
 RUN set -e && \
     _arch="$(uname -m)" && \
     case "$_arch" in \
-      x86_64)         _dir="x86_64" ;; \
-      aarch64|arm64)  _dir="aarch64" ;; \
-      ppc64le)        _dir="ppc64le" ;; \
-      s390x)          _dir="s390x" ;; \
-      *)              _dir="x86_64"; echo "WARNING: unknown arch $_arch, defaulting to x86_64" ;; \
+      x86_64)        _dir="x86_64" ;; \
+      aarch64|arm64) _dir="aarch64" ;; \
+      ppc64le)       _dir="ppc64le" ;; \
+      s390x)         _dir="s390x" ;; \
+      *) echo "FATAL: unsupported build architecture $_arch"; exit 1 ;; \
     esac && \
-    _base="https://mirror.openshift.com/pub/openshift-v4/${_dir}/clients/ocp/latest" && \
-    _oc_url="${OCP_CLIENT_URL:-${_base}/openshift-client-linux.tar.gz}" && \
-    _mirror_url="${OCP_MIRROR_URL:-${_base}/oc-mirror.tar.gz}" && \
-    echo "Downloading oc from: ${_oc_url}" && \
+    if [ -n "${OCP_CLIENT_URL}" ] && [ -z "${OCP_CLIENT_SHA256}" ]; then \
+      echo "FATAL: OCP_CLIENT_URL requires OCP_CLIENT_SHA256"; exit 1; \
+    fi && \
+    if [ -n "${OCP_MIRROR_URL}" ] && [ -z "${OCP_MIRROR_SHA256}" ]; then \
+      echo "FATAL: OCP_MIRROR_URL requires OCP_MIRROR_SHA256"; exit 1; \
+    fi && \
+    _cbase="https://mirror.openshift.com/pub/openshift-v4/${_dir}/clients/ocp" && \
+    _oc_base="${_cbase}/${OC_CHANNEL}" && \
+    _mirror_base="${_cbase}/${OC_MIRROR_CHANNEL}" && \
+    _oc_ver="$(curl -fsSL "${_oc_base}/release.txt" | awk '/^Name:/{print $2; exit}')" && \
+    _mirror_ver="$(curl -fsSL "${_mirror_base}/release.txt" | awk '/^Name:/{print $2; exit}')" && \
+    [ -n "${_oc_ver}" ] || { echo "FATAL: could not resolve oc version from ${_oc_base}"; exit 1; } && \
+    [ -n "${_mirror_ver}" ] || { echo "FATAL: could not resolve oc-mirror version from ${_mirror_base}"; exit 1; } && \
+    if [ -n "${OCP_CLIENT_SHA256}" ]; then _oc_check="${OCP_CLIENT_SHA256}"; else \
+      _oc_check="$(curl -fsSL "${_oc_base}/sha256sum.txt" | awk '$2=="openshift-client-linux.tar.gz"{print $1; exit}')"; fi && \
+    if [ -n "${OCP_MIRROR_SHA256}" ]; then _mirror_check="${OCP_MIRROR_SHA256}"; else \
+      _mirror_check="$(curl -fsSL "${_mirror_base}/sha256sum.txt" | awk '$2=="oc-mirror.tar.gz"{print $1; exit}')"; fi && \
+    [ -n "${_oc_check}" ] || { echo "FATAL: no SHA256 for openshift-client-linux.tar.gz"; exit 1; } && \
+    [ -n "${_mirror_check}" ] || { echo "FATAL: no SHA256 for oc-mirror.tar.gz"; exit 1; } && \
+    _oc_url="${OCP_CLIENT_URL:-${_oc_base}/openshift-client-linux.tar.gz}" && \
+    _mirror_url="${OCP_MIRROR_URL:-${_mirror_base}/oc-mirror.tar.gz}" && \
+    echo "Downloading oc ${_oc_ver} (${_dir}) from: ${_oc_url}" && \
     curl -fsSL "${_oc_url}" -o /tmp/oc.tgz && \
+    echo "${_oc_check}  /tmp/oc.tgz" | sha256sum --check --strict && \
     tar -xzf /tmp/oc.tgz -C /usr/local/bin oc && chmod +x /usr/local/bin/oc && rm -f /tmp/oc.tgz && \
-    echo "Downloading oc-mirror from: ${_mirror_url}" && \
+    echo "Downloading oc-mirror ${_mirror_ver} (${_dir}) from: ${_mirror_url}" && \
     curl -fsSL "${_mirror_url}" -o /tmp/oc-mirror.tgz && \
-    tar -xzf /tmp/oc-mirror.tgz -C /usr/local/bin oc-mirror && chmod +x /usr/local/bin/oc-mirror && rm -f /tmp/oc-mirror.tgz
+    echo "${_mirror_check}  /tmp/oc-mirror.tgz" | sha256sum --check --strict && \
+    tar -xzf /tmp/oc-mirror.tgz -C /usr/local/bin oc-mirror && chmod +x /usr/local/bin/oc-mirror && rm -f /tmp/oc-mirror.tgz && \
+    mkdir -p /app && { \
+      echo "OC_RESOLVED_VERSION=${_oc_ver}"; \
+      echo "OC_RESOLVED_SHA256=${_oc_check}"; \
+      echo "OC_RESOLVED_CHANNEL=${OC_CHANNEL}"; \
+      echo "OC_MIRROR_RESOLVED_VERSION=${_mirror_ver}"; \
+      echo "OC_MIRROR_RESOLVED_SHA256=${_mirror_check}"; \
+      echo "OC_MIRROR_RESOLVED_CHANNEL=${OC_MIRROR_CHANNEL}"; \
+      echo "TOOLS_RESOLVED_ARCH=${_dir}"; \
+    } > /app/tools-provenance.env && cat /app/tools-provenance.env
 
 WORKDIR /app
 COPY backend/package.json backend/package-lock.json* ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY backend/src ./src

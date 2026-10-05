@@ -1,3 +1,14 @@
+# ============================================================================
+# LEGACY / UNSUPPORTED — DO NOT USE FOR BUILDS
+# ============================================================================
+# This file is retained for reference only. It is unbuildable:
+#   - Line 44 (COPY ../data) escapes the build context (Podman/Docker reject).
+#   - Uses npm install instead of npm ci (non-deterministic).
+#   - Missing build-info stage, entrypoint, and build-arg support.
+#
+# The SUPPORTED build path is:  backend/Containerfile  (used by docker-compose.yml)
+# ============================================================================
+#
 # Red Hat UBI 9 Node.js 20 — backend (Express API, oc/oc-mirror, better-sqlite3)
 # Standalone build from backend/ context (no build-info). Compose uses backend/Containerfile.
 FROM registry.access.redhat.com/ubi9/nodejs-20

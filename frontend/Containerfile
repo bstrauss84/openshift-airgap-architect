@@ -1,5 +1,5 @@
-# Red Hat UBI 9 Node.js 20 — frontend (Vite dev server in container)
-FROM registry.access.redhat.com/ubi9/nodejs-20
+# Red Hat UBI 9 Node.js 22 — frontend (Vite dev server in container)
+FROM registry.access.redhat.com/ubi9/nodejs-22
 
 USER root
 RUN mkdir -p /app && chown -R 1001:0 /app

@@ -1,6 +1,6 @@
-# Red Hat UBI 9 Node.js 20 — frontend (Vite dev server in container)
+# Red Hat UBI 9 Node.js 22 — frontend (Vite dev server in container)
 # Kept in sync with Containerfile; compose uses Containerfile.
-FROM registry.access.redhat.com/ubi9/nodejs-20
+FROM registry.access.redhat.com/ubi9/nodejs-22
 
 USER root
 RUN mkdir -p /app && chown -R 1001:0 /app

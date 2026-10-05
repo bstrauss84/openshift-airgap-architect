@@ -3368,7 +3368,12 @@ const buildBundleZip = async (state, res) => {
   if (v3State.exportOptions?.includeClientTools) {
     try {
       const exportArch = v3State.exportOptions?.exportBinaryArch || getLocalBinaryArch();
-      const { ocPath, ocMirrorPath } = await getBinariesForExportArch(exportArch, dataDir);
+      // oc must match the selected target minor; oc-mirror is global-latest.
+      const { ocPath, ocMirrorPath, provenance } = await getBinariesForExportArch(
+        exportArch,
+        dataDir,
+        version
+      );
       const assertReadableFile = (filePath, label) => {
         if (!filePath || !fs.existsSync(filePath)) return false;
         fs.accessSync(filePath, fs.constants.R_OK);
@@ -3385,6 +3390,32 @@ const buildBundleZip = async (state, res) => {
       if (ocMirrorPath && fs.existsSync(ocMirrorPath)) {
         assertReadableFile(ocMirrorPath, "oc-mirror");
         tracked.file(ocMirrorPath, { name: "tools/oc-mirror" });
+      }
+      if (Array.isArray(provenance) && provenance.length > 0) {
+        tracked.append(
+          JSON.stringify(
+            {
+              generatedAt: new Date().toISOString(),
+              targetMinor: version,
+              architecture: exportArch,
+              policy: {
+                oc: "latest patch within the selected target OpenShift minor",
+                "oc-mirror": "latest available release globally, independent of target minor"
+              },
+              tools: provenance.map((p) => ({
+                tool: p.tool,
+                version: p.version,
+                sha256: p.sha256,
+                architecture: p.arch,
+                channel: p.channel,
+                sourceUrl: p.url
+              }))
+            },
+            null,
+            2
+          ) + "\n",
+          { name: "tools/TOOLS_PROVENANCE.json" }
+        );
       }
     } catch (e) {
       tracked.append(
