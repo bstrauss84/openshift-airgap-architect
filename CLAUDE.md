@@ -15,6 +15,14 @@ This file provides durable rules and current status for AI agents working on thi
 
 No fallback from 4.22 to 4.21 is allowed for catalogs, validation, preview, generated artifacts, bundle preparation, or bundle downloads.
 
+### Tool version is not target support
+
+A CLI binary distributed from a newer Red Hat client stream does **not** extend Architect's target OpenShift support. Architect may ship or execute an `oc-mirror` labelled 4.22+ while still supporting only target 4.20 and 4.21.
+
+Target-version rejection must remain enforced independently of tool versions, at every boundary: release selection, imported state, catalog selection, generated configuration, preview, validation, Field Guide behavior, persisted state, and the operator workflow.
+
+Never relax a target-version guard because a tool binary came from a newer stream.
+
 ---
 
 ## Version State Invariants
@@ -55,6 +63,51 @@ Unknown schemas block at all boundaries:
 - Backend: `shared/stateMigration.js` throws on `_schemaVersion > 3`
 - Frontend: `frontend/src/shared/versionHelpers.js detectUnknownSchema` blocks
 - API: `/api/state` validates migration before persist
+
+---
+
+## External tool version policy
+
+`oc` and `oc-mirror` follow **deliberately different** rules. Do not collapse them during future maintenance.
+
+| Tool | Policy | Channel |
+|---|---|---|
+| `oc-mirror` | Latest available release **globally**, independent of target minor | `clients/ocp/latest` |
+| `oc` | Latest patch **within the selected supported target minor** | `clients/ocp/latest-<minor>` |
+
+Rationale: Red Hat directs users to the latest `oc-mirror` v2 regardless of which OpenShift versions are mirrored, whereas `oc` carries a client/server compatibility expectation tied to the target cluster release. Operator discovery additionally *requires* a recent `oc-mirror`: `--v2 list operators` does not exist in 4.21.x.
+
+Both tools must always be:
+
+1. Resolved from the official Red Hat mirror (never a hardcoded z-stream default)
+2. Verified against that channel's own `sha256sum.txt` **before** use or packaging
+3. Recorded with exact resolved version, SHA256, architecture, and source URL
+
+Fail closed on download failure, missing/unparseable checksum metadata, checksum mismatch, or unsupported architecture. Never silently fall back to an older cached binary, to `--v1`, or to unverified bytes. A later rebuild legitimately resolving a newer `oc-mirror` is **intentional**, not a reproducibility defect.
+
+Do not rewrite Field Guide guidance to claim arbitrary future `oc` clients are supported against older clusters; Field Guide target-release compatibility guidance remains authoritative.
+
+---
+
+## OAA Implementation-Agent Execution Contract
+
+Follow this for any non-trivial implementation tranche.
+
+1. **Requirement Ledger before edits.** For each requirement record: current behavior → authoritative evidence → planned change → deterministic test → manual verification.
+2. **Identifiers are immutable.** Keep the user's requirement IDs (R1, R2, …) exactly as given. Never rename, renumber, merge, or reconstruct them from memory.
+3. **Verify external CLI/API behavior twice.** Check authoritative upstream docs/source **and** the exact binary actually shipped or executed. Documentation alone is not evidence that the bundled binary implements the documented contract.
+4. **Hypothesis ≠ root cause.** Label unproven mechanisms as hypotheses and say so.
+5. **"Edited" is not "fixed."** Only claim a fix after the real user-facing path is exercised and passes.
+6. **Behavior-level tests** for user-facing behavior wherever practical, not just string assertions.
+7. **Findings Queue.** Record unrelated discoveries for the backlog instead of silently expanding scope.
+8. **Reconcile docs last.** README and `docs/BACKLOG_STATUS.md` updates happen only after final tested behavior.
+9. **No final report while background work is running.** Wait for every shell/agent task to finish.
+10. **Final report maps:** requirement → implementation → test → manual verification → remaining work.
+11. **Never invent or reuse backlog IDs** without reading canonical `docs/BACKLOG_STATUS.md` first.
+12. **The human controls Git mutations** unless explicitly instructed otherwise.
+13. **When vendor behavior varies across versions**, exact-binary validation is mandatory.
+
+If a requirement conflicts with another requirement or with proven upstream behavior, **stop and report the conflict before editing**.
 
 ---
 
