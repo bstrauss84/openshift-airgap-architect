@@ -27,6 +27,40 @@ import { isVersionGTE } from "../../shared/versionUtils.js";
 import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
 import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
 
+/**
+ * vCenter server address validity, mirroring the OpenShift installer contract.
+ *
+ * Source: openshift/installer release-4.20 and release-4.21,
+ *   pkg/types/vsphere/validation/platform.go  -> validateVCenters/validateFailureDomains
+ *   call validate.Host(), which is pkg/validate/validate.go:
+ *     Host(v) = net.ParseIP(v) != nil || validateSubdomain(v)
+ *     validateSubdomain = k8s IsDNS1123Subdomain
+ *
+ * Consequences that a naive "domain regex" would get wrong, so do not add one:
+ *   - a single label with no dot ("vcenter") is VALID
+ *   - all-numeric labels ("1.2.3.4.5") are VALID
+ *   - IPv6 literals are VALID
+ *   - uppercase is INVALID (DNS-1123 is lowercase only)
+ */
+const DNS1123_SUBDOMAIN = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
+
+export function isValidVsphereHost(value) {
+  const v = String(value ?? "").trim();
+  if (!v) return false;
+  // net.ParseIP accepts IPv4 and IPv6 (including bracketless IPv6).
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) {
+    return v.split(".").every((o) => Number(o) <= 255);
+  }
+  if (v.includes(":")) {
+    // IPv6 literal: hex groups and at most one "::" elision.
+    return /^[0-9a-fA-F:]+$/.test(v) && (v.match(/::/g) || []).length <= 1 && v.split(":").length <= 8;
+  }
+  if (v.length > 253) return false;
+  return DNS1123_SUBDOMAIN.test(v);
+}
+
+const VSPHERE_HOST_HINT = "must be the hostname, FQDN, or IP address of the vCenter";
+
 export function validateAwsRootVolumeThroughput(value, volumeType) {
   if (value == null || value === "" || value === undefined) return { valid: true, blank: true };
   const num = Number(value);
@@ -2053,6 +2087,16 @@ const validateStep = (state, stepId) => {
       if (state.platformConfig?.publish === "Internal") {
         vsphereErrors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
       }
+      // installer: validateVCenters() requires server and applies validate.Host().
+      // Applies in both placement modes — vcenters[] is always required.
+      const vcenterServer = (vsphere.vcenter || "").trim();
+      if (!vcenterServer) {
+        vsphereErrors.push(`vCenter server is required for ${label}.`);
+        vsphereFieldErrors.vsphereVcenter = "vCenter server is required.";
+      } else if (!isValidVsphereHost(vcenterServer)) {
+        vsphereErrors.push(`vCenter server "${vcenterServer}": ${VSPHERE_HOST_HINT}.`);
+        vsphereFieldErrors.vsphereVcenter = `Must be a hostname, FQDN, or IP address (lowercase).`;
+      }
       if (scenarioId === "vsphere-ipi") {
         const hasClusterOSImage = (vsphere.clusterOSImage || "").trim() !== "";
         const hasTemplateInFd = Array.isArray(vsphere.failureDomains) && vsphere.failureDomains.some((fd) => (fd.topology?.template || "").trim() !== "");
@@ -2081,6 +2125,33 @@ const validateStep = (state, stepId) => {
           fds.forEach((fd, i) => {
             const fdLabel = fd.name || "fd-" + i;
             const topo = fd.topology || {};
+            // installer: failureDomain.server is required, must pass validate.Host(),
+            // and must match a server listed in platform.vsphere.vcenters[].
+            const fdServer = String(fd.server || "").trim();
+            if (!fdServer) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": must specify a vCenter server.");
+              vsphereFieldErrors["fd_" + i + "_server"] = "vCenter server is required.";
+            } else if (!isValidVsphereHost(fdServer)) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": server \"" + fdServer + "\": " + VSPHERE_HOST_HINT + ".");
+              vsphereFieldErrors["fd_" + i + "_server"] = "Must be a hostname, FQDN, or IP address (lowercase).";
+            } else if (vcenterServer && fdServer !== vcenterServer) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": server \"" + fdServer + "\" does not exist in vcenters. It must match the configured vCenter server \"" + vcenterServer + "\".");
+              vsphereFieldErrors["fd_" + i + "_server"] = "Must match the configured vCenter server.";
+            }
+            // installer: zone and region tag values are both required.
+            if (!String(fd.region || "").trim()) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": must specify region tag value.");
+              vsphereFieldErrors["fd_" + i + "_region"] = "Region is required.";
+            }
+            if (!String(fd.zone || "").trim()) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": must specify zone tag value.");
+              vsphereFieldErrors["fd_" + i + "_zone"] = "Zone is required.";
+            }
+            // installer: networks is capped at 10 (field.TooMany).
+            if (Array.isArray(topo.networks) && topo.networks.length > 10) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": a maximum of 10 networks are allowed (found " + topo.networks.length + ").");
+              vsphereFieldErrors["fd_" + i + "_networks"] = "A maximum of 10 networks are allowed.";
+            }
             if (topo.computeCluster && String(topo.computeCluster).trim()) {
               if (!/^\/(.+?)\/host\/(.+)$/.test(String(topo.computeCluster).trim())) {
                 vsphereErrors.push("Failure domain " + fdLabel + ": computeCluster must be a full inventory path matching /<datacenter>/host/<cluster> (e.g. /Datacenter1/host/Cluster1). The OpenShift installer rejects short names.");
@@ -2088,15 +2159,27 @@ const validateStep = (state, stepId) => {
               }
             }
             if (topo.datastore && String(topo.datastore).trim()) {
-              if (!/^\/(.+?)\/datastore\/(.+)$/.test(String(topo.datastore).trim())) {
+              const dsVal = String(topo.datastore).trim();
+              const dcVal = String(topo.datacenter || "").trim();
+              if (!/^\/(.+?)\/datastore\/(.+)$/.test(dsVal)) {
                 vsphereErrors.push("Failure domain " + fdLabel + ": datastore must be a full inventory path matching /<datacenter>/datastore/<name> (e.g. /Datacenter1/datastore/DS1). The OpenShift installer rejects short names.");
                 vsphereFieldErrors["fd_" + i + "_datastore"] = "Must be a full inventory path: /<datacenter>/datastore/<name>";
+              } else if (dcVal && !dsVal.includes(dcVal)) {
+                // installer: "the datastore defined does not exist in the correct datacenter"
+                vsphereErrors.push("Failure domain " + fdLabel + ": the datastore defined does not exist in the correct datacenter (path must contain \"" + dcVal + "\").");
+                vsphereFieldErrors["fd_" + i + "_datastore"] = "Path must be under datacenter \"" + dcVal + "\".";
               }
             }
             if (topo.folder && String(topo.folder).trim()) {
-              if (!/^\/(.+?)\/vm\/(.+)$/.test(String(topo.folder).trim())) {
+              const folderVal = String(topo.folder).trim();
+              const dcVal = String(topo.datacenter || "").trim();
+              if (!/^\/(.+?)\/vm\/(.+)$/.test(folderVal)) {
                 vsphereErrors.push("Failure domain " + fdLabel + ": folder must be a full inventory path matching /<datacenter>/vm/<folder> (e.g. /Datacenter1/vm/OpenShift).");
                 vsphereFieldErrors["fd_" + i + "_folder"] = "Must be a full inventory path: /<datacenter>/vm/<folder>";
+              } else if (dcVal && !folderVal.includes(dcVal)) {
+                // installer: "the folder defined does not exist in the correct datacenter"
+                vsphereErrors.push("Failure domain " + fdLabel + ": the folder defined does not exist in the correct datacenter (path must contain \"" + dcVal + "\").");
+                vsphereFieldErrors["fd_" + i + "_folder"] = "Path must be under datacenter \"" + dcVal + "\".";
               }
             }
             if (topo.resourcePool && String(topo.resourcePool).trim()) {

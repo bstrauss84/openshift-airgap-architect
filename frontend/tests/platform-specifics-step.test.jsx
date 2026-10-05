@@ -296,6 +296,10 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       ...state,
       platformConfig: {
         vsphere: {
+          // vcenter is required in both placement modes: the installer's
+          // validateVCenters() always requires vcenters[].server, and a failure
+          // domain's server must exist in vcenters[].
+          vcenter: "vcenter.example.com",
           placementMode: "failureDomains",
           failureDomains: [{ name: "fd-0", server: "vcenter.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } }]
         }
