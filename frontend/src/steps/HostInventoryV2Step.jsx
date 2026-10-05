@@ -10,6 +10,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useApp } from "../store.jsx";
 import { validateNode } from "../validation.js";
 import {
@@ -180,8 +181,24 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const [replicateTargetIndices, setReplicateTargetIndices] = useState(() => new Set());
   const [panelWidthPx, setPanelWidthPx] = useState(() => Math.min(420, typeof window !== "undefined" ? Math.max(280, window.innerWidth * 0.33) : 380));
   const [isResizing, setIsResizing] = useState(false);
+  /* DOC-131: presentation mode for the node editor — "docked" (the accepted
+     default) or "focus". This is a view modifier over the SAME editor render
+     tree and the same selected node; it is deliberately session-local and not
+     persisted, so opening a node always starts Docked. */
+  const [nodeEditorMode, setNodeEditorMode] = useState("docked");
+  const isNodeEditorFocused = nodeEditorMode === "focus";
   const [copiedGatherCommand, setCopiedGatherCommand] = useState("");
   const containerRef = useRef(null);
+  // Shell overlay layer (App.jsx). Resolved after mount; null in bare-component
+  // tests, where the drawer falls back to rendering in place.
+  const [overlayHost, setOverlayHost] = useState(null);
+  useEffect(() => {
+    setOverlayHost(document.getElementById("node-editor-portal-root"));
+  }, []);
+  const portalToShell = useCallback(
+    (node) => (overlayHost ? createPortal(node, overlayHost) : node),
+    [overlayHost]
+  );
 
   const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
   const availableReplicateKeys = useMemo(
@@ -207,15 +224,17 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
 
   const handleResizeMove = useCallback(
     (e) => {
-      if (!isResizing || !containerRef.current) return;
-      // Use container width instead of window width to account for YAML drawer
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const containerRight = containerRect.right;
+      // When portalled to the shell overlay layer the drawer's right edge is the
+      // overlay host's edge, not the step container's; anchor to whichever is live.
+      const anchorEl = overlayHost || containerRef.current;
+      if (!isResizing || !anchorEl) return;
+      // Anchor to the container's right edge so the YAML drawer is accounted for.
+      const containerRight = anchorEl.getBoundingClientRect().right;
       const distanceFromContainerRight = containerRight - e.clientX;
       const next = Math.min(MAX_PANEL_PX, Math.max(MIN_PANEL_PX, distanceFromContainerRight));
       setPanelWidthPx(next);
     },
-    [isResizing]
+    [isResizing, overlayHost]
   );
   const handleResizeEnd = useCallback(() => setIsResizing(false), []);
 
@@ -397,6 +416,37 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     return short;
   };
   const drawerOpen = selectedIndex != null && nodes.length > 0;
+
+  /* Closing the editor (or losing the node list to Start Over / step change)
+     drops Focus, so the next open starts Docked. */
+  useEffect(() => {
+    if (!drawerOpen && nodeEditorMode !== "docked") setNodeEditorMode("docked");
+  }, [drawerOpen, nodeEditorMode]);
+
+  /* Focus needs the Host Inventory node-card pane's width, which belongs to
+     <main> in the app shell. Mirror the mode onto <body> — the same convention
+     App.jsx uses for body[data-theme] — and let the shell stylesheet yield that
+     pane. <main> is hidden, never unmounted, so uncommitted field edits and the
+     step's own state survive the round trip. */
+  useEffect(() => {
+    if (!drawerOpen || !isNodeEditorFocused) return undefined;
+    document.body.dataset.nodeEditorMode = "focus";
+    return () => { delete document.body.dataset.nodeEditorMode; };
+  }, [drawerOpen, isNodeEditorFocused]);
+
+  /* Escape steps Focus back to Docked. It must never close the editor, and the
+     replicate modal keeps ownership of Escape while it is open. */
+  useEffect(() => {
+    if (!drawerOpen || !isNodeEditorFocused || showReplicate) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setNodeEditorMode("docked");
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [drawerOpen, isNodeEditorFocused, showReplicate]);
+
   const showBasicDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_BASIC);
   const showAdvancedDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_ADVANCED);
   const badgeBasicDrawer = null;
@@ -776,36 +826,97 @@ wipefs -a /dev/sdX`}</pre>
         })}
         </div>
 
-        {drawerOpen && (
+        {drawerOpen && portalToShell(
           <>
-            <div
-              role="separator"
-              aria-label="Resize panel"
-              className={`host-inventory-v2-drawer-resize-handle ${isResizing ? "resizing" : ""}`}
-              onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
-            />
+            {/* Manual width only applies to the docked panel; Focus is sized by
+                the shell row, so the handle would have nothing to drag. */}
+            {!isNodeEditorFocused && (
+              <div
+                role="separator"
+                aria-label="Resize panel"
+                className={`host-inventory-v2-drawer-resize-handle ${isResizing ? "resizing" : ""}`}
+                onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+              />
+            )}
             <aside
-              className="host-inventory-v2-drawer host-inventory-v2-section"
+              className={`host-inventory-v2-drawer host-inventory-v2-section${isNodeEditorFocused ? " host-inventory-v2-drawer-focus" : ""}`}
               role="dialog"
               aria-label="Edit node"
               data-section="drawer"
-              style={{ width: panelWidthPx, minWidth: MIN_PANEL_PX, maxWidth: MAX_PANEL_PX }}
+              data-node-editor-mode={isNodeEditorFocused ? "focus" : "docked"}
+              style={isNodeEditorFocused ? undefined : { width: panelWidthPx, minWidth: MIN_PANEL_PX, maxWidth: MAX_PANEL_PX }}
             >
               <div className="host-inventory-v2-drawer-inner card">
                 <div className="host-inventory-v2-drawer-header">
-                  <div className="card-header">
-                    <h3>Edit: {effectiveHostname(selectedNode) || `Node ${selectedIndex + 1}`}</h3>
-                    <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
+                  {/* One control region for both presentation modes. DOM order
+                      is the canonical action order and therefore also the tab
+                      order: title, node operations (Previous / position / Next
+                      / Apply), then the editor-surface pair (Focus/Restore,
+                      Close). Nothing is reordered with CSS `order`, so
+                      responsive wrapping can never put an action after Close. */}
+                  <div className="host-inventory-v2-drawer-controls">
+                    <h3 className="card-title host-inventory-v2-drawer-title">
+                      Edit: {effectiveHostname(selectedNode) || `Node ${selectedIndex + 1}`}
+                    </h3>
+                    <div className="host-inventory-v2-drawer-nav">
+                      <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1} aria-label={`Previous node (${selectedIndex + 1} of ${nodes.length})`}>← Previous</button>
+                      <span className="subtle" aria-live="polite" aria-atomic="true">{selectedIndex + 1} / {nodes.length}</span>
+                      <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1} aria-label={`Next node (${selectedIndex + 1} of ${nodes.length})`}>Next →</button>
+                    </div>
+                    {!isArbiterDrawer ? (
+                      <button type="button" className="ghost host-inventory-v2-drawer-apply" onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
+                    ) : null}
+                    {/* Editor-surface actions. Kept in their own nowrap group
+                        so wrapping can never separate Focus/Restore from
+                        Close, and Close is always the last action. */}
+                    <div className="host-inventory-v2-drawer-header-actions">
+                      {/* Presentation only — never closes or mutates the node. */}
+                      <button
+                        type="button"
+                        className="ghost host-inventory-v2-drawer-mode-toggle"
+                        onClick={() => setNodeEditorMode((mode) => (mode === "focus" ? "docked" : "focus"))}
+                        aria-pressed={isNodeEditorFocused}
+                        aria-label={isNodeEditorFocused ? "Exit focus mode" : "Expand node editor to focus mode"}
+                        title={isNodeEditorFocused ? "Restore the docked editor" : "Expand the editor across the full workspace"}
+                      >
+                        {/* The app ships no icon library, so this is an inline
+                            SVG rather than a new dependency or a Unicode glyph
+                            that depends on the user's font. Corners point
+                            outward to maximize, inward to restore. */}
+                        <svg
+                          viewBox="0 0 16 16"
+                          width="13"
+                          height="13"
+                          aria-hidden="true"
+                          focusable="false"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          {isNodeEditorFocused ? (
+                            <>
+                              <path d="M1.75 6H6V1.75" />
+                              <path d="M14.25 6H10V1.75" />
+                              <path d="M14.25 10H10v4.25" />
+                              <path d="M1.75 10H6v4.25" />
+                            </>
+                          ) : (
+                            <>
+                              <path d="M6 1.75H1.75V6" />
+                              <path d="M10 1.75h4.25V6" />
+                              <path d="M14.25 10v4.25H10" />
+                              <path d="M6 14.25H1.75V10" />
+                            </>
+                          )}
+                        </svg>
+                      </button>
+                      <button type="button" className="ghost host-inventory-v2-drawer-close" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
+                    </div>
                   </div>
-                  <div className="host-inventory-v2-drawer-nav">
-                    <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1} aria-label={`Previous node (${selectedIndex + 1} of ${nodes.length})`}>← Previous</button>
-                    <span className="subtle" aria-live="polite" aria-atomic="true">{selectedIndex + 1} / {nodes.length}</span>
-                    <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1} aria-label={`Next node (${selectedIndex + 1} of ${nodes.length})`}>Next →</button>
-                  </div>
-                  {!isArbiterDrawer ? (
-                    <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
-                  ) : (
-                    <p className="note subtle" style={{ marginBottom: 8 }}>
+                  {isArbiterDrawer && (
+                    <p className="note subtle host-inventory-v2-drawer-arbiter-note">
                       Bulk “Apply settings to other nodes” is not available while editing an arbiter. Configure the arbiter directly; other nodes can copy from a control plane or worker.
                     </p>
                   )}
@@ -915,7 +1026,7 @@ wipefs -a /dev/sdX`}</pre>
             <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default. Arbiter nodes are excluded from targets.</p>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
-                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>Settings to copy</h4>
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600 }}>Settings to copy</h4>
                 {REPLICATE_OPTIONS.filter((opt) => availableReplicateKeys.has(opt.key)).map((opt) => {
                   const inputId = `replicate-field-${opt.key}`;
                   const isDisabled = arbiterTargetsSelected && (opt.key === "rootDevice" || opt.key === "primary.advanced");
@@ -937,7 +1048,7 @@ wipefs -a /dev/sdX`}</pre>
                 })}
               </div>
               <div className="list">
-                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>Apply to nodes</h4>
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600 }}>Apply to nodes</h4>
                 <div style={{ marginBottom: "0.75rem", padding: "0.625rem 0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <input
                     type="checkbox"

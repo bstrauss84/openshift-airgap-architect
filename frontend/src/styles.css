@@ -3567,8 +3567,29 @@ body[data-theme="dark"] .landing-page {
   overflow: hidden;
 }
 
+/* DOC-131 / R3: the node editor is portalled out of this step and into the
+   shell overlay layer (#node-editor-portal-root, a sibling of <main> inside
+   .main-layout). An earlier attempt set a viewport-derived height on this
+   nested container instead; that failed because the element still lived inside
+   <main>'s own scroll box, so the editor stayed visually trapped in the Host
+   Inventory section. Height now comes from the shell row, not from here. */
 .host-inventory-v2-body.host-inventory-v2-body-with-drawer {
   flex-direction: row;
+  min-height: 0;
+}
+
+/* Shell overlay layer: a flex item of .main-layout, so its height is the full
+   application row (header excluded) and it sits beside the YAML drawer rather
+   than over it. Collapses entirely when no step has portalled anything. */
+.shell-overlay-root {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.shell-overlay-root:empty {
+  display: none;
 }
 
 .host-inventory-v2-main {
@@ -3727,6 +3748,13 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Fill the viewport-height editing region; inner body provides the scroll.
+     Width is still driven by the inline resize style (default/min/max px). */
+  height: 100%;
+  max-height: 100%;
+  /* Below .step-header and .app-header (6) and the Tools dropdown (20) so
+     header controls and Tools stay reachable and on top. */
+  z-index: 5;
   padding: 12px;
   background: #f0f4f8;
   border-left: 1px solid #e2e8f0;
@@ -3755,15 +3783,6 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
   padding-bottom: 1rem; /* Ensure validation messages don't overlap bottom edge */
 }
 
-.host-inventory-v2-drawer-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 0 0 0.75rem 0;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #e2e8f0;
-}
 
 .host-inventory-v2-editor h4 {
   margin: 1rem 0 0.5rem;
@@ -3797,13 +3816,261 @@ body[data-theme="dark"] .host-inventory-v2-drawer-resize-handle.resizing {
   font-size: 0.8125rem;
 }
 
+/* One control region serving Docked and Focus alike — there is no separate
+   docked header and focus header to drift apart. DOM order is the canonical
+   action order (title, Previous/position/Next, Apply, Focus/Restore, Close)
+   and nothing is repositioned with `order`, so tab order matches what is on
+   screen and wrapping can never move an action past Close.
+
+   Wrapping is intrinsic rather than stepped: this is a flex-wrap row, so it
+   reflows continuously with the drawer's real inline size. That is the right
+   behaviour for a drawer the user drags between 400 and 800px, and it gives
+   Focus the one-row layout for free. Controls never shrink to fit; the title
+   gives way first, then the row wraps. */
+.host-inventory-v2-drawer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* The title is the only flexible element on this row, and it must yield
+   before any control wraps.
+
+   Why `flex-basis: 0` rather than a comfortable basis: a flex container
+   breaks lines using each item's *hypothetical* main size — flex-basis
+   clamped by min/max — and only applies flex-shrink afterwards, within a line
+   that has already been formed. A `flex: 1 1 12rem` title therefore reserved
+   12rem at line-break time and could never shrink to make room, so the
+   terminal Focus/Close pair was pushed onto a second row even when it would
+   comfortably have fitted. Shrink was never reachable.
+
+   With a 0 basis the line-break cost of the title is just its min-width, and
+   `flex-grow: 1` still hands it every pixel the controls do not use, so the
+   rendered title is no narrower than before on a row that fits. min-width is
+   the readable floor and the only thing that can still force a wrap; it is
+   deliberately well below the width of the terminal pair it has to make room
+   for. No threshold is involved: the row fits whenever the controls plus this
+   floor fit, and wraps when they genuinely do not. */
+.host-inventory-v2-drawer-title {
+  flex: 1 1 0;
+  min-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-inventory-v2-drawer-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
+}
+
+.host-inventory-v2-drawer-apply {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* Editor-surface pair: Focus/Restore then Close. `nowrap` keeps them adjacent
+   through every wrap, and `margin-left: auto` keeps Close terminal on whatever
+   row the pair lands on. The auto margin is inert on a row that fits — flex
+   lengths resolve before main-axis alignment, so the title's flex-grow has
+   already consumed the free space and there is none left for the margin to
+   absorb. It only does work on a wrapped row, which is exactly where it is
+   wanted. It never affects line breaking. */
+.host-inventory-v2-drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+
+/* One control family. Apply is wider because it carries more text; it is never
+   shorter. A previous attempt zeroed its padding to squeeze the row onto one
+   line, which made it read as a subordinate chip beside its peers — no rule
+   below may reduce its padding, min-height or font size. Width pressure is
+   resolved by wrapping the row, not by shrinking a control. */
+.host-inventory-v2-drawer-controls .ghost {
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Square icon buttons for the terminal pair, same height as their peers. */
+.host-inventory-v2-drawer-mode-toggle,
+.host-inventory-v2-drawer-close {
+  flex-shrink: 0;
+  min-width: 2.25rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.host-inventory-v2-drawer-arbiter-note {
+  margin: 0 0 0.5rem;
+}
+
+/* Narrow drawer: give the title its own line so the controls keep the full
+   width and are more likely to share a single row. Keyed to the drawer's
+   container, never the viewport. */
+@container oaa-node-editor-shell (max-width: 28rem) {
+  .host-inventory-v2-drawer-title {
+    flex: 1 1 100%;
+  }
+}
+
+.host-inventory-v2-drawer-mode-toggle svg {
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   DOC-131 — node editor Focus / Maximized presentation mode.
+
+   Docked (everything above) is unchanged and remains the default. Focus is a
+   presentation modifier over the SAME editor render tree, not a second
+   component: the step mirrors its mode onto <body> using the same convention
+   App.jsx already uses for body[data-theme], and the shell yields the Host
+   Inventory node-card pane.
+
+   Two earlier attempts failed human acceptance by enlarging the container
+   without increasing visible form density; the container queries below exist
+   specifically so the reclaimed width becomes columns rather than dead space.
+   --------------------------------------------------------------------------- */
+
+/* Yield the node-card pane. <main> is hidden, never unmounted, so uncommitted
+   field edits survive Docked -> Focus -> Docked and nothing underneath the
+   focus surface stays tabbable. The YAML drawer is a separate flex sibling of
+   <main>, so it is untouched and the editor sits beside it — never over it. */
+body[data-node-editor-mode="focus"] .main-layout > .main {
+  display: none;
+}
+
+body[data-node-editor-mode="focus"] .shell-overlay-root {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* No width cap: the docked 400/800px bounds are what Focus exists to escape. */
+.host-inventory-v2-drawer-focus {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  border-left: none;
+  box-shadow: none;
+}
+
+/* The drawer is the size container for its own control region. Declared here
+   so .host-inventory-v2-drawer-controls above can key its narrow-title rule to
+   the drawer's real inline size rather than the viewport: the user drags this
+   drawer between 400 and 800px, and at 1280x720 the viewport is wide while the
+   drawer is not. The control row itself needs no breakpoint — it is flex-wrap,
+   so it reflows continuously.
+
+   The editor chrome already sits outside the scrolling body, so it stays put
+   while the form scrolls. Folding the bulk-apply action into the control row
+   removed its former standalone row outright; validation and the scrolling
+   body move up by that much. */
+.host-inventory-v2-drawer {
+  container-type: inline-size;
+  container-name: oaa-node-editor-shell;
+}
+
+/* Validation is a full-width row of its own immediately below the control
+   region and immediately above the scrolling form — never beside the
+   controls, and with no leftover gap where the Apply row used to be. */
+.host-inventory-v2-validation-summary {
+  display: block;
+  width: 100%;
+  margin: 0 0 0.5rem;
+}
+
+body[data-theme="dark"] .host-inventory-v2-drawer-header {
+  border-bottom-color: #1e293b;
+}
+
+/* Width-aware field density. The container is the scrolling editor body, so
+   these respond to the editor's ACTUAL width — correct whether or not the YAML
+   drawer is open — instead of to the viewport. Columns are capped at 3 on
+   purpose: the groups are semantic, and the inherited auto-fill track would
+   shred them into five or six columns of unrelated controls at focus width. */
+.host-inventory-v2-drawer-focus .host-inventory-v2-drawer-body {
+  container-type: inline-size;
+  container-name: oaa-node-editor;
+}
+
+@container oaa-node-editor (min-width: 720px) {
+  .host-inventory-v2-drawer-focus .field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Prose and separators span their group instead of becoming a stray cell. */
+  .host-inventory-v2-drawer-focus .field-grid > .note,
+  .host-inventory-v2-drawer-focus .field-grid > .divider,
+  .host-inventory-v2-drawer-focus .field-grid > .field-grid-span-full {
+    grid-column: 1 / -1;
+  }
+}
+
+@container oaa-node-editor (min-width: 1120px) {
+  .host-inventory-v2-drawer-focus .field-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Repeated bond members are small two-field objects. Stacked one per row (the
+   docked arrangement, which stays) they leave most of a focus-width row empty.
+   Here they wrap left-to-right instead.
+
+   Track size is derived from the widest ordinary control in the card, the MAC
+   input: placeholder "52:54:00:aa:11:02" is 17 characters at the drawer's
+   0.8125rem input font plus 0.625rem of side padding, so it needs roughly 9rem
+   of usable width. A 14-16rem track is about 1.5x that once the card's 0.75rem
+   padding, border and the "MAC address" label are included — comfortable, but
+   not a wide box of dead space.
+
+   The bounded max is the whole point: a 1fr max would stretch two members
+   across an entire 1920px row and rebuild the problem this replaces. Each card
+   keeps its own header, Interface, MAC and remove action as one unit; only the
+   collection's arrangement changes.
+
+   Applied in BOTH modes (scoped to the v2 drawer, so the legacy Host Inventory
+   step is untouched). No breakpoint is needed and none is used: `auto-fit`
+   with `min(100%, 14rem)` collapses to a single column whenever the collection
+   is narrower than one track, so the arrangement follows the container's real
+   width. Dragging the docked drawer across its 400-800px bounds crosses the
+   two-card threshold at roughly 530px of drawer width (two 16rem tracks plus
+   the 0.75rem gap, inside the drawer and card padding), so the one -> two
+   transition is reachable by dragging and the existing Focus sizing needed no
+   adjustment to behave correctly at docked widths. */
+.host-inventory-v2-drawer .bond-members-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 16rem));
+  justify-content: start;
+  align-items: start;
+  gap: 0.75rem;
+}
+
 body[data-theme="dark"] .host-inventory-v2-drawer {
   background: #0f172a;
   border-left-color: #1e293b;
   box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.2);
 }
 
-body[data-theme="dark"] .host-inventory-v2-drawer-nav {
+body[data-theme="dark"] .host-inventory-v2-drawer-focus .host-inventory-v2-drawer-header {
+  border-bottom-color: #1e293b;
+}
+
+body[data-theme="dark"] .host-inventory-v2-drawer-controls {
   border-bottom-color: #1e293b;
 }
 
@@ -6472,4 +6739,38 @@ body[data-theme="dark"] .yaml-config-pane::-webkit-scrollbar-thumb:hover {
 
 .ocmirror-advanced-options .field-with-info-row > div:not(.field-title-line) {
   width: 100%;
+}
+
+/* 1080p vertical space optimization — reclaim chrome height for editing controls */
+@media (max-height: 1100px) {
+  .step-header {
+    padding: 6px 24px;
+  }
+  .step-header-main h2 {
+    font-size: 1.15rem;
+    margin-bottom: 2px;
+  }
+  .step-header-main .subtle {
+    font-size: 0.8125rem;
+  }
+  .host-inventory-v2-drawer-header {
+    margin-bottom: 0.25rem;
+  }
+  /* The pager is a flex item of the control row now, not a standalone band;
+     its own margin/padding would misalign it against its row peers. The 1080p
+     height saving it used to provide came from folding that band into the
+     control row, which is now unconditional. */
+  .host-inventory-v2-drawer-controls {
+    margin-bottom: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  .host-inventory-v2-editor h4 {
+    margin: 0.5rem 0 0.25rem;
+  }
+  .host-inventory-v2-drawer .field-with-info-row {
+    margin-bottom: 0.5rem;
+  }
+  .host-inventory-v2-drawer .field-grid {
+    gap: 0.5rem;
+  }
 }

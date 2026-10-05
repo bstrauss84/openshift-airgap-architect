@@ -15,6 +15,7 @@ import { getScenarioId, getParamMeta, getCatalogForScenario } from "../catalogRe
 import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import Banner from "../components/Banner.jsx";
+import CommaListInput from "../components/CommaListInput.jsx";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
@@ -253,22 +254,12 @@ registry.corp.local:5000`}
                       }}
                       placeholder="quay.io/openshift-release-dev/ocp-release"
                     />
-                    <input
-                      value={(source.mirrors || []).join(",")}
-                      onChange={(e) => {
+                    <CommaListInput
+                      value={source.mirrors || []}
+                      separator=","
+                      onCommit={(mirrors) => {
                         const next = [...sources];
-                        next[idx] = {
-                          ...next[idx],
-                          mirrors: e.target.value.split(",").map((m) => m.trim())
-                        };
-                        updateMirroring({ sources: next });
-                      }}
-                      onBlur={(e) => {
-                        const next = [...sources];
-                        next[idx] = {
-                          ...next[idx],
-                          mirrors: e.target.value.split(",").map((m) => m.trim())
-                        };
+                        next[idx] = { ...next[idx], mirrors };
                         updateMirroring({ sources: next });
                       }}
                       placeholder={`${mirroring.registryFqdn || "registry.local:5000"}/ocp-release`}

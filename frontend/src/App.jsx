@@ -1413,6 +1413,12 @@ metadata:
                   />
               </ErrorBoundary>
             </main>
+            {/* Shell-level overlay layer for step-owned editors (DOC-131 node
+                editor). Sibling of <main>, so a portalled drawer is sized by the
+                application shell row rather than by a step's own scroll box, and
+                sits beside — never over — the YAML drawer. Collapses to nothing
+                when empty. */}
+            <div id="node-editor-portal-root" className="shell-overlay-root" />
             {yamlDrawerOpen && previewEnabled && (
               <YamlDrawer
                 isOpen={yamlDrawerOpen}

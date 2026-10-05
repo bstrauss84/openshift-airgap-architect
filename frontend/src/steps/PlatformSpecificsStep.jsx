@@ -22,6 +22,7 @@ import { validateBmcVerifyCA } from "../../../shared/bmcVerifyCA.js";
 import { isAgentSingleNodeTopology } from "../hostInventoryV2Helpers.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
+import CommaListInput from "../components/CommaListInput.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
@@ -1356,12 +1357,10 @@ Written to install-config.yaml platform.aws.defaultMachinePlatform.zones as arra
 **Example:**
 us-gov-west-1a,us-gov-west-1b,us-gov-west-1c`}
                       >
-                        <input
-                          value={(platformConfig.aws?.defaultMachinePlatformZones || []).join(",")}
-                          onChange={(e) => {
-                            const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                            updateAws({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
-                          }}
+                        <CommaListInput
+                          value={platformConfig.aws?.defaultMachinePlatformZones || []}
+                          separator=","
+                          onCommit={(zones) => updateAws({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined })}
                           placeholder="e.g. us-gov-west-1a,us-gov-west-1b,us-gov-west-1c"
                           style={{ maxWidth: "500px" }}
                         />
@@ -2039,12 +2038,10 @@ Written to install-config.yaml platform.azure.defaultMachinePlatform.zones as ar
 **Example:**
 1,2,3 (for regions with 3 availability zones)`}
                 >
-                  <input
-                    value={(platformConfig.azure?.defaultMachinePlatformZones || []).join(",")}
-                    onChange={(e) => {
-                      const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                      updateAzure({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
-                    }}
+                  <CommaListInput
+                    value={platformConfig.azure?.defaultMachinePlatformZones || []}
+                    separator=","
+                    onCommit={(zones) => updateAzure({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined })}
                     placeholder="e.g. 1,2,3"
                     style={{ maxWidth: "200px" }}
                   />
@@ -2753,12 +2750,10 @@ Written to install-config.yaml platform.ibmcloud.defaultMachinePlatform.zones as
 us-east-1,us-east-2,us-east-3 (for us-east region with 3 zones)
 us-south-1,us-south-2 (for us-south region with 2 zones)`}
                 >
-                  <input
-                    value={(platformConfig.ibmcloud?.defaultMachinePlatformZones || []).join(",")}
-                    onChange={(e) => {
-                      const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                      updateIbmCloud({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
-                    }}
+                  <CommaListInput
+                    value={platformConfig.ibmcloud?.defaultMachinePlatformZones || []}
+                    separator=","
+                    onCommit={(zones) => updateIbmCloud({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined })}
                     placeholder="e.g. us-east-1,us-east-2,us-east-3"
                     style={{ maxWidth: "400px" }}
                   />
@@ -3597,9 +3592,10 @@ If you have three compute clusters (Cluster1, Cluster2, Cluster3):
                         >
                           <input value={fd.zone || ""} onChange={(e) => updateFailureDomain(index, { zone: e.target.value })} placeholder="cluster-01" />
                         </FieldLabelWithInfo>
+                        <div className="field-control-stack">
                         <FieldLabelWithInfo
-                          label="Server (vCenter FQDN or IP)"
-                          hint={`Fully qualified domain name (FQDN) or IP address of the vCenter Server managing this failure domain.
+                          label="Server (vCenter hostname, FQDN, or IP)"
+                          hint={`Hostname, fully qualified domain name (FQDN), or IP address of the vCenter Server managing this failure domain.
 
 **Deployment patterns:**
 
@@ -3622,8 +3618,12 @@ This allows OpenShift to span multiple vCenter instances in a single cluster dep
 vcenter.example.com
 192.168.1.10`}
                         >
-                          <input value={fd.server || ""} onChange={(e) => updateFailureDomain(index, { server: e.target.value })} placeholder="vcenter.example.com" />
+                          <input value={fd.server || ""} onChange={(e) => updateFailureDomain(index, { server: e.target.value })} onBlur={() => markTouched("fd_" + index + "_server")} placeholder="vcenter.example.com" className={fieldErrorVisible("fd_" + index + "_server") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_server") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_server") ? `error-fd-${index}-server` : undefined} />
                         </FieldLabelWithInfo>
+                        <div className="field-control-support">
+                          {fieldErrorVisible("fd_" + index + "_server") && <span id={`error-fd-${index}-server`} className="field-error">{fieldErrors["fd_" + index + "_server"]}</span>}
+                        </div>
+                        </div>
                         <FieldLabelWithInfo
                           label="Topology: Datacenter"
                           hint={`vSphere datacenter name where resources for this failure domain are located.
@@ -3769,9 +3769,9 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
 • Multiple networks: \`DPG-Management, DPG-Storage\` (comma-separated, no quotes)
 • Space in name: \`OCP Prod Network\` (include spaces exactly as shown in vCenter)`}
                         >
-                          <input
-                            value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")}
-                            onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()) })}
+                          <CommaListInput
+                            value={fd.topology?.networks}
+                            onCommit={(networks) => updateFailureDomainTopology(index, { networks })}
                             placeholder="e.g. VM Network or VM Network, DPG-1"
                           />
                         </FieldLabelWithInfo>
@@ -4031,9 +4031,9 @@ Comma-separated names, spaces allowed, no quotes needed
 fd-0, fd-1, fd-2
 zone-east, zone-west (matching your failure domain names)`}
                     >
-                      <input
-                        value={Array.isArray(platformConfig.vsphere?.computeZones) ? platformConfig.vsphere.computeZones.join(", ") : ""}
-                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, computeZones: e.target.value.split(",").map((z) => z.trim()).filter(Boolean) } })}
+                      <CommaListInput
+                        value={platformConfig.vsphere?.computeZones}
+                        onCommit={(computeZones) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, computeZones } })}
                         placeholder="e.g. fd-0, fd-1"
                       />
                     </FieldLabelWithInfo>
@@ -4073,9 +4073,9 @@ Comma-separated names, spaces allowed, no quotes needed
 fd-0, fd-1, fd-2
 zone-east, zone-central, zone-west (matching your failure domain names)`}
                     >
-                      <input
-                        value={Array.isArray(platformConfig.vsphere?.controlPlaneZones) ? platformConfig.vsphere.controlPlaneZones.join(", ") : ""}
-                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, controlPlaneZones: e.target.value.split(",").map((z) => z.trim()).filter(Boolean) } })}
+                      <CommaListInput
+                        value={platformConfig.vsphere?.controlPlaneZones}
+                        onCommit={(controlPlaneZones) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, controlPlaneZones } })}
                         placeholder="e.g. fd-0, fd-1"
                       />
                     </FieldLabelWithInfo>
