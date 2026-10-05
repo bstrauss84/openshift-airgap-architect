@@ -198,7 +198,10 @@ export default function YamlDrawer({
             type="button"
             className="ghost small"
             onClick={() => downloadFile(content, filename)}
-            disabled={!content}
+            /* Fail closed: while the current state failed to generate, this
+               content describes a state the user has moved away from and must
+               not be handed over as current output. */
+            disabled={!content || !!error || loading}
           >
             Download
           </button>
@@ -247,6 +250,24 @@ metadata:
     // Highlighting is now done inline without memoization
     const installHighlighted = installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
     const agentHighlighted = agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
+
+    /* renderSingleConfig gates its content on !loading && !error; this split
+       view did not, so a failed generation left the previous agent-based YAML
+       on screen looking current, and its per-pane Download still offered that
+       stale text. Same gate here: surface the error instead of the document,
+       and offer no Download while there is nothing current to download. */
+    if (error) {
+      return (
+        <div className="yaml-config-pane" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+          <p className="error">{error}</p>
+          <p className="subtle">
+            The preview could not be generated for the current configuration, so the previously
+            generated files are no longer shown. Your entries are unchanged; fix the reported
+            problem and the preview will regenerate.
+          </p>
+        </div>
+      );
+    }
 
     return (
       <div ref={splitContainerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -376,7 +397,7 @@ metadata:
             type="button"
             className="ghost small"
             onClick={() => downloadFile(content, 'imageset-config.yaml')}
-            disabled={!content}
+            disabled={!content || !!error || loading}
           >
             Download
           </button>

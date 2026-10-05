@@ -1399,6 +1399,23 @@ const buildNmState = (node) => {
     return entry;
   };
 
+  /* A bond member the user has added but not yet named is an incomplete row,
+     not malformed data. Feeding its empty name to addEthernet tripped the
+     end-of-function NMState name invariant, which threw and failed the whole
+     document — so the UI kept rendering the last successful preview and the
+     newly added member appeared to be missing from agent-config.yaml.
+     Incomplete repeatable rows are skipped here, matching how extraRoutes
+     above already ignores entries missing a destination or next hop. The
+     member is still reported by validation ("Bond member interface name is
+     required."), and addBond's port list already filtered blanks. */
+  const addBondMemberEthernets = (bond, mtu, sriov) => {
+    (bond?.slaves || []).forEach((slave) => {
+      const name = String(slave?.name || "").trim();
+      if (!name) return;
+      addEthernet(name, mtu, sriov);
+    });
+  };
+
   const addVlan = (vlan, mtu) => {
     const baseIface = vlan.baseIface;
     const id = Number(vlan.id);
@@ -1424,9 +1441,7 @@ const buildNmState = (node) => {
   }
 
   if (primary.type === "bond") {
-    (primary.bond?.slaves || []).forEach((slave) => {
-      addEthernet(slave.name, baseMtu, sriovConfig);
-    });
+    addBondMemberEthernets(primary.bond, baseMtu, sriovConfig);
     const bond = addBond(primary.bond || {}, baseMtu);
     addIpConfig(bond, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
   }
@@ -1441,9 +1456,7 @@ const buildNmState = (node) => {
   }
 
   if (primary.type === "vlan-on-bond") {
-    (primary.bond?.slaves || []).forEach((slave) => {
-      addEthernet(slave.name, baseMtu, sriovConfig);
-    });
+    addBondMemberEthernets(primary.bond, baseMtu, sriovConfig);
     const bond = addBond(primary.bond || {}, baseMtu);
     const vlan = addVlan(
       { ...primary.vlan, baseIface: primary.vlan.baseIface || bond.name },
@@ -1482,8 +1495,29 @@ const buildNmState = (node) => {
 
   addVrfInterface(primary.advanced?.vrf, primaryIfaceName);
 
+  /* Same incomplete-row rule as addBondMemberEthernets: an additional
+     interface whose identifying name is still blank cannot be expressed in
+     NMState, and letting it through tripped the name/duplicate invariants
+     below — failing the whole document and freezing the preview on its last
+     good render. (A blank additional bond was the worse case: addBond
+     substituted the default "bond0", which then collided with the primary
+     bond.) Skip it; validation already reports "Additional ethernet interface
+     name is required." / "Additional bond name is required.". A genuine
+     conflict — two interfaces the user actually named the same thing — is a
+     different situation and still throws. */
+  const hasResolvableIdentity = (iface) => {
+    if (iface?.type === "ethernet" || iface?.type === "vlan-on-ethernet") {
+      return String(iface?.ethernet?.name || "").trim() !== "";
+    }
+    if (iface?.type === "bond" || iface?.type === "vlan-on-bond") {
+      return String(iface?.bond?.name || "").trim() !== "";
+    }
+    return true;
+  };
+
   const extraIfaces = node.additionalInterfaces || [];
   extraIfaces.forEach((iface) => {
+    if (!hasResolvableIdentity(iface)) return;
     const mode = iface.mode || "dhcp";
     const ipv4Addr = iface.ipv4Cidr?.split("/")?.[0];
     const ipv4Prefix = Number(iface.ipv4Cidr?.split("/")?.[1] || 24);
@@ -1500,7 +1534,7 @@ const buildNmState = (node) => {
       logicalIfaceName = eth.name;
     }
     if (iface.type === "bond") {
-      (iface.bond?.slaves || []).forEach((slave) => addEthernet(slave.name, baseMtu, sriovConfig));
+      addBondMemberEthernets(iface.bond, baseMtu, sriovConfig);
       const bond = addBond(iface.bond || {}, baseMtu);
       addIpConfig(bond, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
       logicalIfaceName = bond.name;
@@ -1515,7 +1549,7 @@ const buildNmState = (node) => {
       logicalIfaceName = vlan.name;
     }
     if (iface.type === "vlan-on-bond") {
-      (iface.bond?.slaves || []).forEach((slave) => addEthernet(slave.name, baseMtu, sriovConfig));
+      addBondMemberEthernets(iface.bond, baseMtu, sriovConfig);
       const bond = addBond(iface.bond || {}, baseMtu);
       const vlan = addVlan(
         { ...iface.vlan, baseIface: iface.vlan.baseIface || bond.name },

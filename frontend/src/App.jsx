@@ -726,6 +726,16 @@ metadata:
             if (error.name === 'AbortError') return;
             // Only show error if this is still the latest request
             if (currentRequestId === previewRequestIdRef.current) {
+              /* Fail closed. The previous files describe a state the user has
+                 already moved away from, so continuing to render them presents
+                 a stale configuration as the current one — and the YAML
+                 drawer's per-pane Download would hand that stale YAML over as
+                 current output. Invalidate them and let the error surface.
+                 Only generated output is dropped; `state` (everything the user
+                 typed) is untouched, and the next successful generation
+                 repopulates normally. Guarded by the request-id check above,
+                 so a late failure cannot clear a newer success. */
+              setPreviewFiles({});
               setPreviewError(String(error?.message || error));
               setPreviewLoading(false);
             }
@@ -757,7 +767,9 @@ metadata:
     state?.blueprint,           // Catches ALL blueprint changes
     state?.methodology,         // Catches methodology changes
     state?.release,             // Catches release changes
-    state?.version              // Catches version changes
+    state?.version,             // Catches version changes
+    state?.imagesetConfig,      // Catches imagesetConfig changes (kubeVirt, graph, additionalImages, archiveSize)
+    state?.exportOptions        // Catches export option changes (includeCredentials for preview)
     // NOTE: We depend on top-level objects, NOT the entire 'state', to avoid
     // triggering on UI-only changes (activeStepId, visitedSteps, completedSteps, etc.)
   ]);
