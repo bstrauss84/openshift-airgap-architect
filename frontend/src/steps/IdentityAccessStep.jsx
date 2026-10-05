@@ -789,7 +789,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
             {keygenLoading ? <div className="loading">Generating keypair…</div> : null}
             {!keygenLoading && keypair ? (
               <>
-                <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated keypair</h4>
+                <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600 }}>Generated keypair</h4>
 
                 <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <input
@@ -880,7 +880,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
               Credentials entered here are used only to generate the JSON locally. They are not stored or exported.
             </div>
 
-            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Registry credentials</h4>
+            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600 }}>Registry credentials</h4>
 
             <label style={{ display: "block", marginBottom: "1rem" }}>
               Registry FQDN
@@ -903,7 +903,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
               <input value={mirrorHelper.email} onChange={(e) => setMirrorHelper((h) => ({ ...h, email: e.target.value }))} placeholder="ops@example.com" style={{ width: "100%" }} />
             </label>
 
-            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated pull secret</h4>
+            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600 }}>Generated pull secret</h4>
             <label>
               <textarea className="textarea" rows={6} value={generateMirrorPullSecret()} readOnly style={{ fontFamily: "monospace", fontSize: "0.8125rem" }} />
             </label>

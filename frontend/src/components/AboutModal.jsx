@@ -67,8 +67,8 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
             width: "90%",
             maxHeight: "90vh",
             overflow: "auto",
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-primary)",
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
             borderRadius: "8px",
             padding: "24px",
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
@@ -97,7 +97,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
               <p style={{ margin: 0, lineHeight: 1.6, color: "var(--text-secondary)" }}>
                 <strong>Bill Strauss</strong>
               </p>
-              <p style={{ margin: "4px 0 0", fontSize: "14px", color: "var(--text-muted)" }}>
+              <p style={{ margin: "4px 0 0", fontSize: "14px", color: "var(--text-subtle)" }}>
                 Developed with AI assistance from <strong>Claude (Anthropic)</strong> and <strong>Cursor AI</strong>
               </p>
             </section>
@@ -117,7 +117,6 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
                     href="https://github.com/billstrauss/openshift-airgap-architect"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: "var(--link-color)" }}
                   >
                     GitHub Repository
                   </a>
@@ -127,7 +126,6 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
                     href={`https://docs.redhat.com/en/documentation/openshift_container_platform/${getNewestSupportedMinor()}/html/installing/index`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: "var(--link-color)" }}
                   >
                     OpenShift Documentation
                   </a>
@@ -137,7 +135,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
 
             <section>
               <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>Disclaimer</h3>
-              <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.6, color: "var(--text-muted)" }}>
+              <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.6, color: "var(--text-subtle)" }}>
                 This tool generates installation configuration files based on user input. Always validate
                 generated configurations against official Red Hat OpenShift Container Platform documentation
                 before use in production environments.

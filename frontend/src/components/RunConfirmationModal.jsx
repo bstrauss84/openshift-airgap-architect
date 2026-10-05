@@ -83,8 +83,8 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
             width: "90%",
             maxHeight: "90vh",
             overflow: "auto",
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-primary)",
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
             borderRadius: "8px",
             padding: "24px",
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
@@ -103,7 +103,7 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
 
           <div className="run-confirmation-modal-content" style={{ marginBottom: "24px" }}>
             <section style={{ marginBottom: "16px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px", color: "var(--text-primary)" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
                 Mode
               </h3>
               <p style={{ margin: 0, fontSize: "14px", color: "var(--text-secondary)" }}>
@@ -112,13 +112,13 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
             </section>
 
             <section style={{ marginBottom: "16px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px", color: "var(--text-primary)" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
                 Paths
               </h3>
               <dl style={{ margin: 0, fontSize: "14px", lineHeight: 1.6 }}>
                 {archivePath && (
                   <>
-                    <dt style={{ fontWeight: 500, color: "var(--text-primary)" }}>Archive:</dt>
+                    <dt style={{ fontWeight: 500 }}>Archive:</dt>
                     <dd style={{ margin: "0 0 8px 16px", color: "var(--text-secondary)", fontFamily: "monospace" }}>
                       {archivePath}
                     </dd>
@@ -126,7 +126,7 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
                 )}
                 {workspacePath && (
                   <>
-                    <dt style={{ fontWeight: 500, color: "var(--text-primary)" }}>Workspace:</dt>
+                    <dt style={{ fontWeight: 500 }}>Workspace:</dt>
                     <dd style={{ margin: "0 0 8px 16px", color: "var(--text-secondary)", fontFamily: "monospace" }}>
                       {workspacePath}
                     </dd>
@@ -134,7 +134,7 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
                 )}
                 {cachePath && (
                   <>
-                    <dt style={{ fontWeight: 500, color: "var(--text-primary)" }}>Cache:</dt>
+                    <dt style={{ fontWeight: 500 }}>Cache:</dt>
                     <dd style={{ margin: "0 0 8px 16px", color: "var(--text-secondary)", fontFamily: "monospace" }}>
                       {cachePath}
                     </dd>
@@ -145,7 +145,7 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
 
             {registryUrl && (
               <section style={{ marginBottom: "16px" }}>
-                <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px", color: "var(--text-primary)" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
                   Registry URL
                 </h3>
                 <p style={{ margin: 0, fontSize: "14px", color: "var(--text-secondary)", fontFamily: "monospace" }}>
@@ -155,7 +155,7 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
             )}
 
             <section style={{ marginBottom: "16px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px", color: "var(--text-primary)" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
                 Configuration Source
               </h3>
               <p style={{ margin: 0, fontSize: "14px", color: "var(--text-secondary)" }}>
@@ -165,7 +165,7 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
 
             {hasNonDefaultAdvanced && (
               <section style={{ marginBottom: "16px" }}>
-                <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px", color: "var(--text-primary)" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>
                   Advanced Options
                 </h3>
                 <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", lineHeight: 1.6 }}>
