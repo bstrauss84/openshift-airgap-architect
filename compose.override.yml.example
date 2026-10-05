@@ -1,0 +1,64 @@
+# compose.override.yml.example — copy to compose.override.yml and uncomment as needed.
+# compose.override.yml is gitignored and machine-local.
+#
+# Docker Compose auto-merges compose.override.yml by default.
+# Podman Compose MAY NOT auto-merge in all provider/RHEL combinations.
+# Supported deterministic workflow (works with both):
+#   podman compose -f docker-compose.yml -f compose.override.yml up --build -d
+#
+# Uncomment only the blocks you need. Each is independently valid.
+#
+# Sequence keys (environment:, volumes:, ports:) are APPENDED across -f files,
+# not replaced. The blocks below rely on that: they add to the base definition.
+# If you instead need to REPLACE a list — most often ports:, where appending
+# leaves the base 4000/5173 bindings in place and can collide with another
+# stack — use the provider's list-replacement mechanism (!override in the
+# Compose provider tested here):
+#
+#   services:
+#     backend:
+#       ports: !override
+#         - "127.0.0.1:4000:4000"
+#
+# Confirm the merged result with:
+#   podman compose -f docker-compose.yml -f compose.override.yml config
+
+services:
+  backend:
+    # --- Corporate HTTP proxy (backend egress to GitHub, registries, mirrors) ---
+    # environment:
+    #   - HTTP_PROXY=http://proxy.corp.example:8080
+    #   - HTTPS_PROXY=http://proxy.corp.example:8080
+    #   - NO_PROXY=localhost,127.0.0.1,.svc.cluster.local
+
+    # --- Mount external storage for large oc-mirror archives (50-200+ GB) ---
+    # volumes:
+    #   - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
+
+    # --- Mount Red Hat pull secret ---
+    # environment:
+    #   - PULL_SECRET_FILE=/run/secrets/pull-secret
+    # secrets:
+    #   - pull-secret
+
+    # Placeholder to keep service definition non-empty when all above are commented.
+    # Remove this line once you uncomment any block above.
+    labels:
+      com.example.override: "template"
+
+  frontend:
+    # --- Allowed hosts for reverse proxy / OpenShift Route access ---
+    # Uncomment and set to your hostname(s), comma-separated:
+    # environment:
+    #   - VITE_ALLOWED_HOSTS=airgap-architect.example.com
+
+    # Placeholder to keep service definition non-empty when all above are commented.
+    # Remove this line once you uncomment any block above.
+    labels:
+      com.example.override: "template"
+
+# --- Pull secret (Compose secrets) ---
+# Uncomment if using the pull secret mount above.
+# secrets:
+#   pull-secret:
+#     file: ./pull-secret.json

@@ -126,13 +126,17 @@ The backend uses SQLite for state and job history; the frontend uses React + Vit
 
 If you prefer not to use Docker Compose or Podman Compose, you can run the frontend and backend yourself on the host.
 
-1. **Backend** (Node 20+):
+**Supported runtime: Node.js 22.** Both container images use UBI 9 Node.js 22, and host-native development targets the same major version. Node.js 20 is retired on RHEL 9 and is not a supported target.
+
+1. **Backend** (Node 22):
    ```bash
    cd backend && npm install && npm run dev
    ```
    The API listens on `http://localhost:4000` by default. Set `DATA_DIR` if you want state in a specific directory (e.g. `./data`).
 
-2. **Frontend** (Node 20+):
+   **Host build prerequisites:** `better-sqlite3` publishes no prebuilt binary for Node 22, so a host-native `npm install` / `npm ci` compiles it from source. Install `make`, `gcc-c++`, and `python3` first (on Fedora/RHEL: `sudo dnf install make gcc-c++ python3`). To avoid host build tooling entirely, use the supported container workflow (`podman compose up --build`) — the UBI 9 Node.js 22 image already ships these tools.
+
+2. **Frontend** (Node 22):
    ```bash
    cd frontend && npm install && npm run dev
    ```
@@ -155,8 +159,8 @@ The stack is two services (frontend, backend). Ports in `docker-compose.yml` are
 
 Both containers use **Red Hat UBI 9** images and run the application **non-root** where possible:
 
-- **Frontend:** UBI 9 Node.js 20; app runs as UID 1001. No writable volume; no root needed.
-- **Backend:** UBI 9 Node.js 20; the **Node process runs as UID 1001** (user `appuser` in the image). The mounted data volume (`/data`) must be writable by that user. The backend image uses an **entrypoint script** that:
+- **Frontend:** UBI 9 Node.js 22; app runs as UID 1001. No writable volume; no root needed.
+- **Backend:** UBI 9 Node.js 22; the **Node process runs as UID 1001** (user `appuser` in the image). The mounted data volume (`/data`) must be writable by that user. The backend image uses an **entrypoint script** that:
   1. Runs initially as root (only to fix volume permissions).
   2. Runs `chown -R 1001:0` on `DATA_DIR` (default `/data`) so the volume is writable by the app user.
   3. Drops to UID 1001 via `runuser` and starts the Node server.
@@ -187,7 +191,7 @@ services:
 
 Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common stacks. **`curl`** (used to download `openshift-install` from `mirror.openshift.com`) and **Go-based tools** (`oc-mirror`, `oc`) inherit the same environment when the backend spawns them, so operator scan and Run oc-mirror benefit from these variables once they are set for the backend process.
 
-**Container image build (pre-baked `oc` / `oc-mirror`):** In [`backend/Containerfile`](backend/Containerfile), a **`RUN`** layer uses **`curl`** to download `openshift-client-linux.tar.gz` and **`oc-mirror.tar.gz`** from **`mirror.openshift.com`** and bakes them into the image. That happens during **`docker compose build` / `podman compose build`**, not when the container starts—so **runtime** `HTTP_PROXY` on the backend service does **not** apply to those downloads. On the **build host**, export `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` (Docker BuildKit and Podman usually forward them into build steps), or configure proxy for the build daemon. For fully disconnected **builds**, use build-args **`OCP_CLIENT_URL`** and **`OCP_MIRROR_URL`** to point `curl` at internal mirrors of the same tarballs (see [Platform and architecture](#platform-and-architecture-multi-arch--apple-silicon)). The same stage runs **`npm install`** for backend dependencies; restricted networks may need access to **`registry.npmjs.org`** (or an internal npm mirror via `.npmrc` during the image build—advanced).
+**Container image build (pre-baked `oc` / `oc-mirror`):** In [`backend/Containerfile`](backend/Containerfile), a **`RUN`** layer uses **`curl`** to download `openshift-client-linux.tar.gz` and **`oc-mirror.tar.gz`** from **`mirror.openshift.com`** and bakes them into the image. That happens during **`docker compose build` / `podman compose build`**, not when the container starts—so **runtime** `HTTP_PROXY` on the backend service does **not** apply to those downloads. On the **build host**, export `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` (Docker BuildKit and Podman usually forward them into build steps), or configure proxy for the build daemon. For fully disconnected **builds**, use build-args **`OCP_CLIENT_URL`** and **`OCP_MIRROR_URL`** to point `curl` at internal mirrors of the same tarballs (see [Platform and architecture](#platform-and-architecture-multi-arch--apple-silicon)). The same stage runs **`npm ci`** for backend dependencies (lockfile-exact, deterministic installs); restricted networks may need access to **`registry.npmjs.org`** (or an internal npm mirror via `.npmrc` during the image build—advanced).
 
 **Feedback (Tools → Feedback):** With **`FEEDBACK_MODE=github`** (default), the backend **does not** submit issues to the GitHub API. It validates input and returns a pre-filled **`githubIssueUrl`**. Opening that link runs in the **user’s browser**, which must reach **`github.com`** (and related GitHub hosts) via the **workstation** proxy or allowlist—or use the drawer’s copy / JSON export instead of opening the link. **`FEEDBACK_MODE=offline`** avoids GitHub-oriented behavior entirely (see [Build info and update checks](#build-info-and-update-checks)). Feedback API calls stay between the browser and your backend only.
 
@@ -202,7 +206,7 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 | Operator scan or Run oc-mirror fails with registry timeouts | **Proxy** or **firewall** to `registry.redhat.io` / `quay.io` (and other image hosts in your `imageset-config.yaml`); confirm **`REGISTRY_AUTH_FILE`** is set for auth (separate from HTTP proxy). |
 | AWS GovCloud region list empty or errors | Backend needs **`mirror.openshift.com`** for the `openshift-install` tarball used to read stream metadata. |
 | **`docker compose build` / `podman build` fails** downloading oc or oc-mirror | **Build-time** egress: set proxy on the **build host** or pass build proxy settings; or use **`OCP_CLIENT_URL`** / **`OCP_MIRROR_URL`** to internal tarball URLs. |
-| **`npm install` fails inside backend image build** | Allow **`registry.npmjs.org`** (or npm mirror) from the build environment through the proxy. |
+| **`npm ci` fails inside backend image build** | Allow **`registry.npmjs.org`** (or npm mirror) from the build environment through the proxy. |
 | Feedback “open GitHub” does nothing or errors in the browser | **Browser** cannot reach **`github.com`**; fix workstation proxy/allowlist or use **`FEEDBACK_MODE=offline`** / copy-export workflow. |
 
 **Optional firewall / proxy allow list:** Some teams allow direct egress to specific hosts instead of (or in addition to) forwarding through a proxy. The table below lists **fixed** targets the app code hits; **oc-mirror runs are not fully covered** by any static list because they pull arbitrary image references from your `imageset-config.yaml` (release payload, operators, `additionalImages`, your mirror host, and transitive registries). For full mirror requirements, use Red Hat’s disconnected installation and oc-mirror v2 documentation.
@@ -212,7 +216,7 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 | **1 — App-defined HTTPS** | `api.github.com`, `raw.githubusercontent.com` | Cincinnati channel/patch lists (`openshift/cincinnati-graph-data`). |
 | | `mirror.openshift.com` | **Image build** (`Containerfile` `curl`) and **runtime** client downloads (`openshift-install`, optional `oc-mirror` resolution / export). |
 | | `docs.redhat.com` | **Update Docs Links** (field manual doc cache). |
-| | `registry.npmjs.org` | **Image build** only: `npm install` for backend (and frontend) dependencies in Containerfiles. |
+| | `registry.npmjs.org` | **Image build** only: `npm ci` for backend (and frontend) dependencies in Containerfiles. |
 | **Browser (Feedback, github mode)** | `github.com` (and related GitHub hosts) | User opens pre-filled issue link from Tools → Feedback; not a backend `fetch`. |
 | **2 — Representative registries** (not exhaustive) | `registry.redhat.io`, `quay.io`, `registry.access.redhat.com`, `registry.connect.redhat.com`, `cloud.openshift.com` | Operator catalog scan (`oc-mirror list operators`), typical connected **Run oc-mirror** pulls; align with your pull secret and official mirror docs. |
 
@@ -578,7 +582,7 @@ All three paths live inside the `backend-data` Docker/Podman named volume by def
 
 ### Mounting external storage for oc-mirror (recommended for large mirrors)
 
-Create a `compose.override.yml` file in the same directory as `docker-compose.yml`. This file is gitignored and will never be committed.
+Create a `compose.override.yml` file in the same directory as `docker-compose.yml`. This file is gitignored and will never be committed. A tracked template **`compose.override.yml.example`** is included in the repository with annotated examples for common overrides (external storage, proxy, VITE_ALLOWED_HOSTS, REGISTRY_AUTH_FILE) and notes on Docker vs Podman auto-merge behavior.
 
 #### Option A — Single path (all three subdirs under one mount)
 
@@ -620,17 +624,30 @@ mkdir -p /mnt/fast-ssd/oc-mirror/cache
 
 #### Rebuild and restart after adding the override
 
-**Podman**
+**Podman** (explicit `-f` for reliable override consumption on RHEL 9/10):
 ```bash
-podman compose down --remove-orphans && podman image prune -f && podman compose up --build -d
+podman compose -f docker-compose.yml -f compose.override.yml down --remove-orphans && podman image prune -f && podman compose -f docker-compose.yml -f compose.override.yml up --build -d
 ```
 
-**Docker**
+**Docker:**
 ```bash
 docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
 ```
 
-The named `backend-data` volume (app state, SQLite database) is **preserved** — only the `oc-mirror` paths are now served from your external mount. Compose merges `docker-compose.yml` and `compose.override.yml` automatically; you do not need to modify `docker-compose.yml` directly.
+The named `backend-data` volume (app state, SQLite database) is **preserved** — only the `oc-mirror` paths are now served from your external mount.
+
+> **Docker Compose** merges `compose.override.yml` automatically. **Podman Compose** may not — the behavior depends on the Compose provider installed (`podman-compose` Python package vs Docker Compose V2 plugin). **On RHEL 9/10**, always pass both files explicitly with `-f` flags as shown above to guarantee the override is applied.
+
+> **Sequence keys are appended, not replaced.** Across `-f` files Compose merges list-valued keys such as `ports:`, `volumes:`, and `environment:`. For `volumes:` and `environment:` that is usually what you want — the override adds to the base. For `ports:` it is not: an override that lists a different host port yields **both** mappings, so the base `4000`/`5173` bindings stay bound and can collide with another stack. To replace a list rather than extend it, use the provider's explicit list-replacement mechanism — `!override` in the Compose provider tested here:
+>
+> ```yaml
+> services:
+>   backend:
+>     ports: !override
+>       - "127.0.0.1:4000:4000"
+> ```
+>
+> Verify the result with `podman compose -f docker-compose.yml -f compose.override.yml config` before starting the stack.
 
 ### Permissions and SELinux (Podman on Fedora/RHEL/CentOS)
 
@@ -696,7 +713,7 @@ services:
       - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
 ```
 
-The `REGISTRY_AUTH_FILE` variable is already declared in `docker-compose.yml` pointing at `/data/registry-auth.json`; you only need to mount the file there. This also satisfies the "retain Red Hat pull secret" option in the Blueprint tab — the mounted file is available to both the Operators scan and the Run oc-mirror tab.
+`REGISTRY_AUTH_FILE` is intentionally NOT set in `docker-compose.yml`. The backend reads `REGISTRY_AUTH_FILE` from its own environment to locate the auth JSON, then passes credentials to oc-mirror via `--authfile=<path>` — the env var itself is stripped from the child oc-mirror process because oc-mirror v2's embedded cache registry (distribution/distribution v3) interprets `REGISTRY_*` env vars as registry config keys, causing a goroutine panic at startup (`registry/handlers/app.go NewApp`). Set `REGISTRY_AUTH_FILE` only in a `compose.override.yml` alongside the file mount. This also satisfies the "retain Red Hat pull secret" option in the Blueprint tab — the mounted file is available to both the Operators scan and the Run oc-mirror tab.
 
 Alternatively, on the Blueprint step check **"Retain pull secret for this session"** after entering your Red Hat pull secret. The session-retained secret is then available as a one-click option in the Run oc-mirror Authentication section for the mirror-to-disk and mirror-to-mirror workflows.
 
@@ -900,10 +917,15 @@ kubectl top pod -l app=airgap-architect
 **The backend image builds natively for the host architecture.** `Containerfile` detects `$(uname -m)` at build time and downloads the matching `oc`/`oc-mirror` binaries (x86_64, aarch64, ppc64le, s390x). No `platform: linux/amd64` override is needed — Apple Silicon users get a native aarch64 image that runs without emulation.
 
 - **Supported build architectures:** x86_64 (amd64), aarch64 (arm64), ppc64le, s390x.
-- **Custom binary URLs:** Pass `--build-arg OCP_CLIENT_URL=<url>` and/or `--build-arg OCP_MIRROR_URL=<url>` to override the auto-detected download URLs at build time.
-- **Runtime override:** Set **`OC_MIRROR_BIN`** to a path or **`OC_MIRROR_URL`** to a download URL to override the baked-in binary at runtime without rebuilding.
-- **Mirror path pattern:** `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/latest/` — Supported `<arch>`: x86_64, amd64, aarch64, arm64, ppc64le, s390x.
-- **Export bundle:** The Assets step can include oc/oc-mirror in the download bundle; you can select which architecture to include (default: reuse the backend's local binaries when the selected arch matches). That selection does not change the backend's Operators scan binary.
+- **Tool version policy (oc and oc-mirror differ deliberately):**
+  - **`oc-mirror` → global latest.** Resolved from `clients/ocp/latest`, independent of the target OpenShift minor. Red Hat directs users to the latest oc-mirror v2 regardless of which releases are mirrored, and operator discovery needs it: `--v2 list operators` does not exist in 4.21.x.
+  - **`oc` → latest patch within the selected target minor.** Resolved from `clients/ocp/latest-<minor>`, so a 4.20 bundle gets the newest 4.20.z and a 4.21 bundle gets the newest 4.21.z. Never a different minor.
+  - No z-stream is hardcoded. Each artifact is verified against that channel's own `sha256sum.txt` before use, and the resolved version/digest is recorded. Acquisition fails closed on download, checksum-metadata, or integrity errors.
+  - A later rebuild may legitimately pick up a newer `oc-mirror`. That is intentional. **A tool binary from a newer stream does not extend supported target versions — Architect still targets 4.20 and 4.21 only.**
+- **Custom binary URLs:** Pass `--build-arg OCP_CLIENT_URL=<url> --build-arg OCP_CLIENT_SHA256=<hex>` and/or `--build-arg OCP_MIRROR_URL=<url> --build-arg OCP_MIRROR_SHA256=<hex>` to override the resolved download URLs at build time. The SHA256 arg is required when overriding a URL — the build fails without it. `--build-arg OC_CHANNEL=` / `OC_MIRROR_CHANNEL=` select a different release channel.
+- **Runtime override:** Set **`OC_MIRROR_BIN`** to a path to override the baked-in binary at runtime without rebuilding. For URL-based override, set **`OC_MIRROR_URL`** and **`OC_MIRROR_SHA256`** (both required).
+- **Mirror path pattern:** `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/<channel>/` where `<channel>` is `latest` (oc-mirror) or `latest-<minor>` (oc). Supported `<arch>`: x86_64, amd64, aarch64, arm64, ppc64le, s390x.
+- **Export bundle:** The Assets step can include oc/oc-mirror in the download bundle and lets you pick the architecture. Both binaries are resolved and checksum-verified per request, and the bundle carries `tools/TOOLS_PROVENANCE.json` recording the exact resolved version, SHA256, channel, and source URL for each. That selection does not change the backend's Operators scan binary.
 
 See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Podman/macOS notes.
 
@@ -961,7 +983,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 
 **Wiring examples:**
 
-- **Podman Compose / Docker Compose:** The backend image computes **APP_GIT_SHA** and **APP_BUILD_TIME** from **.git** during the image build (see `backend/Containerfile`). Run **`podman compose up --build`** from a **git clone** (with `.git` present) and Tools → About will show the current commit and build time. **If you build from a tarball or snapshot that has no `.git` directory**, the image cannot determine build SHA or time, so Tools → About will show "Build unknown • unknown • main" and update availability cannot be determined (update check will show as unavailable). That is expected behavior, not a bug. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
+- **Podman Compose / Docker Compose:** The backend image accepts **APP_GIT_SHA** as a **build-arg** (see `backend/Containerfile`). Pass it at build time from the host: **`podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)`** (or `docker compose build --build-arg ...`). **APP_BUILD_TIME** is computed automatically during the build. If you omit the build-arg (or build from a tarball without `.git`), Tools → About will show "Build unknown" and update availability cannot be determined — that is expected behavior, not a bug. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
 
 - **Docker / Podman run:** Pass at start:
   ```bash
@@ -984,7 +1006,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
       value: "2025-03-03"
   ```
 
-**Git clone vs tarball:** Builds from a normal **git clone** (with `.git`) get real build SHA and time; Tools → About and update checks work as intended. Builds from a **tarball or archive without `.git`** get "unknown" build info and cannot determine update availability; that is expected. No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
+**Git clone vs tarball:** When building from a **git clone**, pass `--build-arg APP_GIT_SHA=$(git rev-parse HEAD)` so Tools → About and update checks show the correct commit. Builds from a **tarball or archive without `.git`** can pass the SHA manually or omit it (defaults to "unknown"). No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
 
 <a id="troubleshooting"></a>
 ## Troubleshooting
@@ -1088,8 +1110,8 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 <a id="architecture"></a>
 ## Architecture
 
-- **Frontend:** React, Vite, PatternFly-derived styling. Container image: Red Hat UBI 9 Node.js 20.
-- **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 20; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. oc/oc-mirror are installed in-image from the OpenShift mirror.
+- **Frontend:** React, Vite, PatternFly-derived styling. Container image: Red Hat UBI 9 Node.js 22.
+- **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 22; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. oc/oc-mirror pinned to OCP 4.21.36 with per-architecture SHA256 verification.
 - **Data:** Parameter catalogs and doc index under `data/params` and `data/docs-index`; frontend copies under `frontend/src/data` for the build. See `docs/DATA_AND_FRONTEND_COPIES.md`.
 
 <a id="install-config-references-420421"></a>
