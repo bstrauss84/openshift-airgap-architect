@@ -1064,9 +1064,11 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
             {selected.length === 0 ? <div className="subtle">No operators selected.</div> : null}
             {selected.map((op) => (
               <div key={op.id} className="selected-card">
-                <div className="operator-name">{op.name}</div>
-                <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
-                {op.displayName ? <div className="subtle">{op.displayName}</div> : null}
+                {/* Human-readable displayName leads; `op.name` stays the canonical
+                    package identifier used for selection, state and generation. */}
+                <div className="operator-name">{op.displayName || op.name}</div>
+                {op.displayName ? <div className="subtle">Package: {op.name}</div> : null}
+                <div className="subtle">Default channel: {op.defaultChannel || "unknown"}</div>
                 <button className="ghost" onClick={() => removeOperator(op.id)}>Remove</button>
               </div>
             ))}
@@ -1220,9 +1222,11 @@ Set maxVersion: "4.14.5" to cap at version 4.14.5 (avoid 4.15+ until tested)`}
           <div className="operator-grid">
             {(filteredCatalogs[activeTab] || []).map((op) => (
               <button key={op.id} className="operator-card" onClick={() => selectOperator(op)}>
-                <div className="operator-name">{op.name}</div>
-                <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
-                {op.displayName ? <div className="subtle">{op.displayName}</div> : null}
+                {/* Human-readable displayName leads; `op.name` stays the canonical
+                    package identifier used for selection, state and generation. */}
+                <div className="operator-name">{op.displayName || op.name}</div>
+                {op.displayName ? <div className="subtle">Package: {op.name}</div> : null}
+                <div className="subtle">Default channel: {op.defaultChannel || "unknown"}</div>
                 <span className="operator-add">Add</span>
               </button>
             ))}
