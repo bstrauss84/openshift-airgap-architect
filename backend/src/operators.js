@@ -10,6 +10,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import { db } from "./db.js";
 import { appendJobOutput, createJob, updateJob, safeUnlink } from "./utils.js";
 import logger from "./logger.js";
@@ -66,9 +67,8 @@ const authAvailable = () => {
   const file = process.env.REGISTRY_AUTH_FILE;
   if (!file) return false;
   try {
-    return !!file && !!require("node:fs").existsSync(file);
+    return fs.existsSync(file);
   } catch {
-    // Intentionally suppressed - auth file check failure means auth unavailable
     return false;
   }
 };
@@ -82,8 +82,13 @@ const runScanJob = ({ version, catalogId, catalogImage, authFile, jobType = "ope
 
   updateJob(jobId, { status: "running", progress: 5 });
 
-  const args = ["--v1", "list", "operators", `--catalog=${catalogImage}`];
-  const env = { ...process.env, REGISTRY_AUTH_FILE: authFile || process.env.REGISTRY_AUTH_FILE };
+  const resolvedAuthFile = authFile || process.env.REGISTRY_AUTH_FILE;
+  const args = ["--v2", "list", "operators", `--catalog=${catalogImage}`];
+  if (resolvedAuthFile) {
+    args.push(`--authfile=${resolvedAuthFile}`);
+  }
+  const { REGISTRY_AUTH_FILE: _drop, ...envWithoutRegistryAuthFile } = process.env;
+  const env = { ...envWithoutRegistryAuthFile };
   const bin = ocMirrorPath || "oc-mirror";
 
   const child = spawn(bin, args, { env });

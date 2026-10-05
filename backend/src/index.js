@@ -1626,6 +1626,11 @@ app.get("/api/operators/credentials", (req, res) => {
 
 app.post("/api/operators/confirm", validateBody(operatorConfirmSchema), (req, res) => {
   const state = ensureState();
+  const confirmMinor = getOpenShiftMinorFromState(state);
+  if (confirmMinor && !isSupportedMinor(confirmMinor)) {
+    const vErr = buildUnsupportedVersionError(confirmMinor);
+    return res.status(422).json({ error: vErr.message, code: vErr.code, requestedVersion: vErr.requestedVersion, supportedVersions: vErr.supportedVersions });
+  }
   const release = { ...state.release, confirmed: true };
   // DOC-101 Phase 1: Use v3 canonical fields (locked, selectedMinor, selectedPatch, _schemaVersion)
   // Preserve existing v3 schema marker and locked state if already set
@@ -1680,6 +1685,11 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
       error: "OpenShift release minor is not set. Select minor channel and patch in Blueprint (or ensure patchVersion is set)."
     });
   }
+  if (!isSupportedMinor(catalogMinor)) {
+    if (tempAuthFile) safeUnlink(tempAuthFile);
+    const vErr = buildUnsupportedVersionError(catalogMinor);
+    return res.status(422).json({ error: vErr.message, code: vErr.code, requestedVersion: vErr.requestedVersion, supportedVersions: vErr.supportedVersions });
+  }
 
   if (process.env.NODE_ENV !== "test") {
     logger.info({ tag: "operator-scan:start", requestId: req.requestId, version: catalogMinor, catalogCount: getCatalogs().length, authMethod: tempAuthFile ? "pull-secret" : "mounted" }, "Operator scan started");
@@ -1731,6 +1741,10 @@ app.post("/api/operators/prefetch", validateBody(operatorsPrefetchSchema), async
     return res.status(400).json({
       error: "OpenShift release minor is not set. Select minor channel and patch in Blueprint (or ensure patchVersion is set)."
     });
+  }
+  if (!isSupportedMinor(catalogMinor)) {
+    const vErr = buildUnsupportedVersionError(catalogMinor);
+    return res.status(422).json({ error: vErr.message, code: vErr.code, requestedVersion: vErr.requestedVersion, supportedVersions: vErr.supportedVersions });
   }
   const resolved = await resolveOcMirrorBinary(dataDir);
   const jobs = {};
