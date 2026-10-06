@@ -188,11 +188,14 @@ describe('computeReleaseTransition', () => {
       expect(result.patch.operators.selected[0].defaultChannel).toBeUndefined();
     });
 
-    it('preserves scenario selections on cross-minor transition', () => {
+    it('preserves scenario INTENT on cross-minor transition without presenting it as active', () => {
       const state = makeLockedState('4.20', '4.20.15');
       const result = computeReleaseTransition(state, '4.21', { timestamp: TS });
 
-      expect(result.patch.operators.scenarios).toEqual(state.operators.scenarios);
+      // Intent survives for reconciliation against the new minor...
+      expect(result.patch.operators.pendingScenarios).toEqual(state.operators.scenarios);
+      // ...but it is no longer a current/active selection.
+      expect(result.patch.operators.scenarios).toEqual({});
     });
 
     it('preserves unrelated state sections (not included in patch)', () => {

@@ -2858,6 +2858,14 @@ body[data-theme="dark"] .scan-status-card {
   cursor: not-allowed;
 }
 
+/* Preserved intent awaiting reconciliation against the locked minor.
+   Deliberately NOT the ".selected" treatment: it is not a current selection. */
+.scenario-pick.pending {
+  border-style: dashed;
+  border-color: #b45309;
+  background: transparent;
+}
+
 .scenario-pick-label {
   flex: 1;
   min-width: 0;
@@ -2881,6 +2889,17 @@ body[data-theme="dark"] .scan-status-card {
   border-radius: 4px;
   background: #e0e7ff;
   color: #3730a3;
+  line-height: 1.2;
+}
+
+.scenario-pick-pending {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
   line-height: 1.2;
 }
 
@@ -2908,6 +2927,16 @@ body[data-theme="dark"] .scenario-pick-check {
 body[data-theme="dark"] .scenario-pick-version {
   background: #1e3a5f;
   color: #a5b4fc;
+}
+
+body[data-theme="dark"] .scenario-pick.pending {
+  border-color: #d97706;
+  background: transparent;
+}
+
+body[data-theme="dark"] .scenario-pick-pending {
+  background: #422006;
+  color: #fcd34d;
 }
 
 .app-loading {

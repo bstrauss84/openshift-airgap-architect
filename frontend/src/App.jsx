@@ -53,6 +53,7 @@ import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
 import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
 import { computeReleaseTransition } from "./shared/versionReleaseTransition.js";
+import { computeOperatorMinorInvalidation } from "./shared/operatorMinorReconciliation.js";
 
 /** Used for Landing banner and tests; true only when update is available and no error/unknown. */
 export function shouldShowUpdateBanner(updateInfo) {
@@ -786,16 +787,20 @@ metadata:
       completedSteps[prevStepId] = true;
     }
 
-    const nextReviewFlags = { ...(state.reviewFlags || {}) };
+    // Only the flag for the step being LEFT changes here. Everything else must
+    // be merged from the latest state inside the updater — a caller that set a
+    // review flag immediately before navigating (e.g. locking a new minor flags
+    // Operators) would otherwise have it clobbered by this stale closure.
+    const reviewFlagDelta = {};
     if (prevStepId && prevStepId !== nextStepId) {
       if (options.skipReviewForStep && prevStepId === options.skipReviewForStep) {
-        nextReviewFlags[prevStepId] = false;
+        reviewFlagDelta[prevStepId] = false;
       } else {
         const validation = validateStep(state, prevStepId);
         if (validation.errors?.length) {
-          nextReviewFlags[prevStepId] = true;
+          reviewFlagDelta[prevStepId] = true;
         } else {
-          if (nextReviewFlags[prevStepId]) nextReviewFlags[prevStepId] = false;
+          reviewFlagDelta[prevStepId] = false;
           const autoCompleteOnValidLeave = new Set(["hosts-inventory", "inventory-v2", "inventory"]);
           if (autoCompleteOnValidLeave.has(prevStepId)) {
             completedSteps[prevStepId] = true;
@@ -811,21 +816,22 @@ metadata:
     if (prevStepId !== nextStepId) {
       logAction("step_change", { fromStepId: prevStepId, toStepId: nextStepId });
     }
-    if (nextStepId && state.ui?.activeStepId !== nextStepId) {
-      updateState({
+
+    const stepIdChanged = Boolean(nextStepId) && state.ui?.activeStepId !== nextStepId;
+    const reviewFlagsChanged = Object.entries(reviewFlagDelta).some(
+      ([stepId, value]) => Boolean(state.reviewFlags?.[stepId]) !== Boolean(value)
+    );
+    if (stepIdChanged || reviewFlagsChanged) {
+      setState((prev) => ({
+        ...prev,
+        reviewFlags: { ...(prev.reviewFlags || {}), ...reviewFlagDelta },
         ui: {
-          ...state.ui,
-          activeStepId: nextStepId,
-          visitedSteps,
-          completedSteps
-        },
-        reviewFlags: nextReviewFlags
-      });
-    } else if (JSON.stringify(nextReviewFlags) !== JSON.stringify(state.reviewFlags || {})) {
-      updateState({
-        reviewFlags: nextReviewFlags,
-        ui: { ...state.ui, visitedSteps, completedSteps }
-      });
+          ...prev.ui,
+          ...(stepIdChanged ? { activeStepId: nextStepId } : {}),
+          visitedSteps: { ...(prev.ui?.visitedSteps || {}), ...visitedSteps },
+          completedSteps: { ...(prev.ui?.completedSteps || {}), ...completedSteps }
+        }
+      }));
     }
   };
 
@@ -893,27 +899,9 @@ metadata:
       const data = await apiFetch("/api/operators/confirm", { method: "POST" });
       setHighlightErrors(false);
       const newMinor = data.version?.selectedMinor || state.release?.channel;
-      const operatorCatalogMinor = (state.operators?.selected || [])
-        .map(op => op.catalogImage).filter(Boolean)
-        .map(img => { const m = img.match(/:v(\d+\.\d+)/); return m ? m[1] : null; })
-        .find(Boolean);
-      const isMinorChange = operatorCatalogMinor && newMinor && operatorCatalogMinor !== newMinor;
-      const operatorPatch = isMinorChange ? {
-        operators: {
-          selected: (state.operators?.selected || []).map(op => ({
-            name: op.name,
-            id: op.id,
-            sources: op.sources,
-          })),
-          scenarios: state.operators?.scenarios,
-          scenarioAdded: state.operators?.scenarioAdded,
-          catalogs: {},
-          version: null,
-          scanJobs: {},
-          cachedAt: null,
-          stale: true,
-          fastMode: state.operators?.fastMode,
-        },
+      const invalidated = computeOperatorMinorInvalidation(state.operators, newMinor);
+      const operatorPatch = invalidated ? {
+        operators: invalidated,
         reviewFlags: { ...(state.reviewFlags || {}), release: false, operators: true },
       } : {
         reviewFlags: { ...(state.reviewFlags || {}), release: false },
@@ -976,6 +964,14 @@ metadata:
     setLockAndProceedLoading(true);
     try {
       const data = await apiFetch("/api/operators/confirm", { method: "POST" });
+      // This is the live re-lock path after "Change OpenShift release". If the
+      // newly locked minor differs from the one the stored operator metadata was
+      // resolved against, that metadata and the active selection it drives are
+      // no longer current: invalidate them and flag Operators for review.
+      const lockedMinor = data.version?.selectedMinor
+        ?? data.release?.channel
+        ?? getOpenShiftMinorFromState(state);
+      const invalidated = computeOperatorMinorInvalidation(state.operators, lockedMinor);
       updateState({
         blueprint: {
           ...state.blueprint,
@@ -985,7 +981,13 @@ metadata:
         },
         release: data.release ?? { ...state.release, confirmed: true },
         version: data.version ?? state.version,
-        reviewFlags: { ...(state.reviewFlags || {}), blueprint: false, release: false },
+        reviewFlags: {
+          ...(state.reviewFlags || {}),
+          blueprint: false,
+          release: false,
+          ...(invalidated ? { operators: true } : {})
+        },
+        ...(invalidated ? { operators: invalidated } : {}),
         ...(state.blueprint?.blueprintRetainPullSecret && secretValid
           ? { credentials: { ...state.credentials, pullSecretPlaceholder: ephemeralSecret } }
           : {})
@@ -1008,7 +1010,10 @@ metadata:
           if (Object.keys(scanJobs).length) {
             updateState({
               operators: {
-                ...state.operators,
+                // Base on the invalidated operators, never the pre-lock closure —
+                // otherwise this would resurrect the old minor's catalogs and
+                // active selection after they were deliberately cleared above.
+                ...(invalidated ?? state.operators),
                 scanJobs
               }
             });

@@ -108,8 +108,12 @@ describe('Operator state across version transitions', () => {
       }
     });
 
-    it('preserves scenario selections', () => {
-      expect(result.patch.operators.scenarios).toEqual({ odf: true });
+    it('clears the ACTIVE scenario selection — it is no longer current', () => {
+      expect(result.patch.operators.scenarios).toEqual({});
+    });
+
+    it('preserves the quick-pick INTENT separately for reconciliation', () => {
+      expect(result.patch.operators.pendingScenarios).toEqual({ odf: true });
     });
 
     it('preserves scenarioAdded', () => {

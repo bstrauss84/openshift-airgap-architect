@@ -9,11 +9,15 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
+import {
+  catalogImagesForMinor,
+  reconcileOperatorsForMinor
+} from "../shared/operatorMinorReconciliation.js";
 import { useCatalogScanProgress } from "../useCatalogScanProgress.js";
 import SecretInput from "../components/SecretInput.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
@@ -181,11 +185,7 @@ const scenarios = [
   }
 ];
 
-const catalogImages = (version) => ({
-  redhat: `registry.redhat.io/redhat/redhat-operator-index:v${version}`,
-  certified: `registry.redhat.io/redhat/certified-operator-index:v${version}`,
-  community: `registry.redhat.io/redhat/community-operator-index:v${version}`
-});
+const catalogImages = catalogImagesForMinor;
 
 const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const { state, updateState, setState } = useApp();
@@ -244,7 +244,12 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const catalogsData = (state.operators?.version === version) ? (state.operators?.catalogs || {}) : {};
   const catalogs = normalizeCatalogs(catalogsData);
   const selected = state.operators?.selected || [];
+  // Active (reconciled) quick-pick selection vs. preserved intent awaiting
+  // reconciliation against the currently locked minor. Only the former may be
+  // presented as currently selected.
   const scenarioSelections = state.operators?.scenarios || {};
+  const pendingScenarioIntent = state.operators?.pendingScenarios || {};
+  const unreconciledSelections = selected.filter((op) => !op.catalogImage || !op.defaultChannel);
   const confirmed = getVersionLocked(state);
   const selectionsKey = `${version}-${confirmed}`;
   const hasResults = catalogs.redhat.length || catalogs.certified.length || catalogs.community.length;
@@ -257,15 +262,41 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     community: catalogs.community.filter((op) => !selectedIds.has(op.id))
   };
 
-  // Calculate actual row count for selected operators grid
+  // Measured width of the selected-operators grid.
+  //
+  // This must come from a layout effect, not from reading the ref inside a memo:
+  // a ref is not a reactive dependency and is null on the first render, so a memo
+  // keyed on selected.length computed 0 before the node existed and never
+  // re-ran unless the *count* changed. Reconciling onto a new minor replaces the
+  // selected entries while keeping the count identical, so the stale 0 survived
+  // and collapsed the grid wrapper to max-height: 0 — the operators were in the
+  // DOM, in canonical state and in the generated ImageSet, but invisible until
+  // the user toggled a selection and incidentally changed the count.
+  const [selectedGridWidth, setSelectedGridWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = selectedGridRef.current;
+    if (!el) return undefined;
+    const measure = () => setSelectedGridWidth(el.offsetWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [selected.length]);
+
+  // Rows needed by the selected operators at the measured width. Floored at one
+  // row whenever anything is selected: a not-yet-measured grid must never hide
+  // operators that are part of the current selection and generated output.
   const actualRowCount = useMemo(() => {
-    if (!selectedGridRef.current || selected.length === 0) return 0;
-    const gridWidth = selectedGridRef.current.offsetWidth;
+    if (selected.length === 0) return 0;
     const cardMinWidth = 220; // From grid minmax(min(100%, 220px), 1fr)
     const gap = 12;
-    const columnsPerRow = Math.floor((gridWidth + gap) / (cardMinWidth + gap)) || 1;
-    return Math.ceil(selected.length / columnsPerRow);
-  }, [selected.length]);
+    const columnsPerRow = Math.max(1, Math.floor((selectedGridWidth + gap) / (cardMinWidth + gap)));
+    return Math.max(1, Math.ceil(selected.length / columnsPerRow));
+  }, [selected.length, selectedGridWidth]);
 
   const maxExpandableRows = Math.max(2, actualRowCount);
   const showScrollbar = actualRowCount > selectedGridRows;
@@ -345,15 +376,23 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     setLoadingCatalogs(true);
     apiFetch(`/api/operators/status?version=${version}`)
       .then((data) => {
-        setState((prev) => ({
-          ...prev,
-          operators: {
-            ...prev.operators,
-            catalogs: normalizeCatalogs(data),
-            version,
-            cachedAt: Object.values(data || {}).find((item) => item?.updatedAt)?.updatedAt || null
-          }
-        }));
+        setState((prev) => {
+          const nextCatalogs = normalizeCatalogs(data);
+          // Catalogs for the currently locked minor have landed: turn preserved
+          // intent back into a reconciled, current active selection where the
+          // package still exists. Anything unavailable stays pending intent.
+          const reconciled = reconcileOperatorsForMinor(prev.operators, nextCatalogs, version);
+          return {
+            ...prev,
+            operators: {
+              ...prev.operators,
+              ...(reconciled || {}),
+              catalogs: nextCatalogs,
+              version,
+              cachedAt: Object.values(data || {}).find((item) => item?.updatedAt)?.updatedAt || null
+            }
+          };
+        });
       })
       .finally(() => setLoadingCatalogs(false));
   }, [selectionsKey]);
@@ -690,6 +729,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           ...prev.operators,
           selected: [],
           scenarios: {},
+          pendingScenarios: {},
           scenarioAdded: {},
           version
         }
@@ -731,6 +771,15 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         ) : null}
         {!hasCredentialSource && !discoveryAlreadyRunningOrDone ? (
           <Banner variant="info">Operator discovery disabled; provide registry.redhat.io credentials to populate catalogs.</Banner>
+        ) : null}
+        {hasResults && unreconciledSelections.length > 0 ? (
+          <Banner variant="warning">
+            {unreconciledSelections.length} previously selected{" "}
+            {unreconciledSelections.length === 1 ? "operator is" : "operators are"} not available in the
+            OpenShift {version} catalogs and {unreconciledSelections.length === 1 ? "has" : "have"} not been
+            re-selected: {unreconciledSelections.map((op) => op.displayName || op.name).join(", ")}.
+            They are excluded from the generated ImageSet configuration until resolved.
+          </Banner>
         ) : null}
         {warnVersionChange ? (
           <Banner variant="warning">
@@ -1012,22 +1061,30 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
             {scenarios.map((scenario) => {
               const isVersionAware = Boolean(scenario.versionPicks);
               const effectiveVersion = isVersionAware ? (scenario.versionPicks[version] ? version : "default") : null;
-              const titleText = !scenarioReady
-                ? "Scenario picks need operator catalogs"
-                : scenario.description
-                  ? `${scenario.description}${isVersionAware ? ` (${effectiveVersion})` : ""}`
-                  : isVersionAware
-                    ? `Version-aware quick pick (${effectiveVersion})`
-                    : "";
+              const isActive = Boolean(scenarioSelections?.[scenario.id]);
+              // Chosen under a previous minor and not yet reconciled: this is
+              // intent, not a current selection, so it must not read as active.
+              const isPending = !isActive && Boolean(pendingScenarioIntent?.[scenario.id]);
+              const titleText = isPending
+                ? `Previously selected — will be re-applied after the OpenShift ${version} operator scan`
+                : !scenarioReady
+                  ? "Scenario picks need operator catalogs"
+                  : scenario.description
+                    ? `${scenario.description}${isVersionAware ? ` (${effectiveVersion})` : ""}`
+                    : isVersionAware
+                      ? `Version-aware quick pick (${effectiveVersion})`
+                      : "";
 
               return (
                 <button
                   key={scenario.id}
                   type="button"
-                  className={`scenario-pick ${scenarioSelections?.[scenario.id] ? "selected" : ""}`}
+                  className={`scenario-pick ${isActive ? "selected" : ""}${isPending ? " pending" : ""}`}
                   onClick={() => handleScenarioClick(scenario)}
                   title={titleText}
                   disabled={!scenarioReady}
+                  aria-pressed={isActive}
+                  data-selection-state={isActive ? "active" : isPending ? "pending" : "none"}
                 >
                   <span className="scenario-pick-label">{scenario.label}</span>
                   {isVersionAware && effectiveVersion && (
@@ -1035,7 +1092,10 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
                       {effectiveVersion}
                     </span>
                   )}
-                  {scenarioSelections?.[scenario.id] ? <span className="scenario-pick-check" aria-hidden>✓</span> : null}
+                  {isActive ? <span className="scenario-pick-check" aria-hidden>✓</span> : null}
+                  {isPending ? (
+                    <span className="scenario-pick-pending">Pending review</span>
+                  ) : null}
                 </button>
               );
             })}

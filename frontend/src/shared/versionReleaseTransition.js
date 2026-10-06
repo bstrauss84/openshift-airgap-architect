@@ -1,5 +1,6 @@
 import { isSupportedMinor } from './versionPolicy.js';
 import { parseMinorVersionCore } from './openShiftMinor.js';
+import { buildInvalidatedOperatorState } from './operatorMinorReconciliation.js';
 
 export const TRANSITION_ERRORS = Object.freeze({
   UNSUPPORTED_VERSION: 'UNSUPPORTED_VERSION',
@@ -78,24 +79,15 @@ export function computeReleaseTransition(currentState, targetMinor, options = {}
   );
   const isMinorChange = currentMinor && currentMinor !== parsedMinor;
 
-  const operators = isMinorChange ? {
-    selected: (currentState.operators?.selected || []).map(op => ({
-      name: op.name,
-      id: op.id,
-      sources: op.sources,
-    })),
-    scenarios: currentState.operators?.scenarios,
-    scenarioAdded: currentState.operators?.scenarioAdded,
-    catalogs: {},
-    version: null,
-    scanJobs: {},
-    cachedAt: null,
-    stale: true,
-    fastMode: currentState.operators?.fastMode,
-  } : {
-    ...currentState.operators,
-    stale: true,
-  };
+  // Cross-minor: resolved metadata and the active selection it drives are no
+  // longer current. Intent is retained (pendingScenarios + unresolved selected
+  // entries) and reconciled after a successful scan on the new minor.
+  const operators = isMinorChange
+    ? buildInvalidatedOperatorState(currentState.operators)
+    : {
+        ...currentState.operators,
+        stale: true,
+      };
 
   return {
     ok: true,
