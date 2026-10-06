@@ -128,6 +128,27 @@ Use `.modal-backdrop` + `.modal` for all overlay dialogs:
 
 ---
 
+## Help and Info Popovers
+
+All field help uses `FieldLabelWithInfo` (`src/components/FieldLabelWithInfo.jsx`). Short hints (≤180 chars) become a hover tooltip; longer hints become a click-triggered, persistent, scrollable popover. Both are portaled to `document.body` and positioned `fixed`.
+
+### Viewport containment contract
+
+A help panel must never be laid out past the usable viewport. Internal scrolling does not rescue a panel whose own box starts off-screen, so placement is computed from measured geometry, not from a fixed threshold:
+
+1. Measure the trigger rect and the panel's **natural** (unconstrained) size — the panel is rendered hidden for one paint to do this.
+2. Prefer placing above; flip below when the panel does not fit above.
+3. When neither side fits at the desired height, anchor to the side with more room and bound the height to that space; when both sides are too cramped to be readable, clamp the panel against the whole viewport.
+4. Clamp `top` and `left` to a viewport margin on every edge.
+5. Apply the computed `max-height` so overflow scrolls **inside** the panel.
+6. Recompute on resize, and on page scroll for persistent popovers (hover tooltips close instead).
+
+The math lives in the pure helper `computePopoverPlacement` (`src/shared/popoverPlacement.js`) and is unit-tested independently of the DOM. Do not re-solve clipping with per-field CSS: fix it in the shared helper so every field benefits.
+
+Keyboard and focus behaviour (Escape, Close button, click-outside) and light/dark parity must be preserved by any change to placement.
+
+---
+
 ## Pull Secret / Credential Fields
 
 Always use the `SecretInput` component (`src/components/SecretInput.jsx`) for any field containing credentials or secrets. It provides:
@@ -355,6 +376,20 @@ All version parsing and comparison must use `shared/versionUtils.js`, `shared/ca
 
 When a field appears only in newer versions, display a helper note indicating the version context. Use `FieldLabelWithInfo` `hint` for tooltip explanations. Error and helper text coexist inside `.field-control-support`; they are not mutually exclusive.
 
+### Introduced-version annotations: provenance vs contextual badge
+
+Three concepts are separate and must not be conflated. `getFieldAnnotationInfo` in `frontend/src/catalogFieldMeta.js` is the single source for all three:
+
+| Concept | Source | Changes when the user re-targets? |
+|---|---|---|
+| Support visibility | `supportStatus` + `minVersion`/`maxVersion` (`isParamVisibleForVersion`) | yes |
+| Historical provenance | `introducedInMinor` — the minor the field first appeared in | **no** |
+| Contextual presentation | `isIntroduced` — `introducedInMinor === lockedTargetMinor` | yes |
+
+The visible `New in OpenShift X.Y` badge is contextual, not provenance. A field introduced in 4.21 is badged only while 4.21 is the locked target; once the locked target moves past 4.21 the badge disappears, and a field introduced in that later minor receives it instead. Fields introduced in the baseline minor are never badged — everything is new at the baseline, so the badge would carry no information.
+
+The rule is data-driven and contains no hardcoded minor, so onboarding a later supported minor requires no change here. Hint/tooltip copy that states provenance ("Introduced in OpenShift X.Y.") must read `introducedInMinor`, never the locked target minor — otherwise the hint silently misreports history as the target changes.
+
 ### Visibility test contract
 
 Every version-gated UI field must have an entry in `VERSION_GATED_UI_FIELD_REGISTRY` (in `frontend/tests/version-gated-field-boundary.test.jsx`) with:
@@ -376,6 +411,43 @@ Bidirectional catalog cross-checks enforce:
 ### State retention
 
 When a field becomes inapplicable because of a version or scenario change, preserve its state unless that field's established state-transition contract explicitly requires clearing. Hidden retained state must never leak into inapplicable generated output. Returning to an applicable state restores the retained value when retention is the defined behavior. For the currently implemented AWS throughput and Azure shared-key fields, retention is expected.
+
+### Operator selections across a minor change: intent vs active selection
+
+Operator state carries three separable things. Conflating them is what makes a cross-minor transition look stale:
+
+| Concept | Where it lives | Survives a minor change? |
+|---|---|---|
+| **Intent** — packages and quick picks the user asked for | `operators.selected[].name` / `.sources`, `operators.pendingScenarios` | yes |
+| **Resolved metadata** — catalog image, default channel, scan results for one minor | `operators.selected[].catalogImage` / `.defaultChannel`, `operators.catalogs`, `.version`, `.scanJobs` | no |
+| **Active selection** — what the UI presents as currently selected | `operators.scenarios`, resolved `selected` entries | no, until reconciled |
+
+On a confirmed change of locked target minor (`computeOperatorMinorInvalidation` in `frontend/src/shared/operatorMinorReconciliation.js`):
+
+- resolved metadata, catalogs, scan identity and cache are cleared, and `operators.stale` is set;
+- `operators.scenarios` is emptied — a quick pick chosen under the previous minor must **not** render with the active `.selected` treatment;
+- that intent moves to `operators.pendingScenarios` and renders with the distinct `.scenario-pick.pending` treatment;
+- the Operators step is flagged `reviewFlags.operators` until reconciled.
+
+After catalogs for the locked minor arrive, `reconcileOperatorsForMinor` re-resolves intent: packages still available regain their metadata and their quick pick returns to active; packages that no longer exist stay unresolved, keep their quick pick pending, and are surfaced as an explicit conflict. Unresolved entries are omitted from generated output.
+
+Generator safety is independent and must remain: `buildImageSetConfig` drops any operator whose catalog tag does not match the current minor. Never rely on that guard as a substitute for correct UI state — safe output with stale presentation is still a defect.
+
+#### Active-selection representations must agree
+
+"Currently selected" is rendered in three places, and all three derive from the same reconciled canonical state:
+
+| Representation | Source |
+|---|---|
+| Quick Pick active styling | `operators.scenarios` |
+| Selected Operators section | resolved entries in `operators.selected` |
+| Generated ImageSet | `operators.selected` entries carrying a current-minor `catalogImage` + `defaultChannel` |
+
+Rules:
+
+- Any operator that contributes to generated output **must** be visible in the Selected Operators section. The converse also holds — unresolved intent is shown as a conflict, never as an active selection, and is never fabricated into output.
+- No view may require an artificial unselect/reselect cycle to resynchronise. If toggling a selection "fixes" a display, that is the bug.
+- **Do not measure layout inside a `useMemo`.** Refs are not reactive and are null on first render, so a memo that reads `ref.current` but depends on an unrelated value (e.g. `selected.length`) silently caches a first-render measurement. Because reconciliation replaces selected entries while keeping the count identical, such a memo never re-runs and can collapse a populated section to `max-height: 0`. Measure in a layout effect (ResizeObserver, with a `window.resize` fallback) into state, and floor any derived row/height count at one row whenever a selection exists.
 
 ### Field layout contract
 
