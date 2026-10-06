@@ -141,12 +141,18 @@ describe("AMI auto-population behavior", () => {
     });
     const { updateState } = renderWithState(state);
 
+    const refreshBtn = await screen.findByRole("button", { name: "Refresh from installer" });
+
+    // Mounting with a region already set kicks off the automatic AMI lookup, and
+    // the product deliberately disables Refresh while a lookup is in flight so
+    // two lookups cannot race. Clicking a disabled button is a no-op, so wait for
+    // the causal precondition — that initial lookup having settled — rather than
+    // for the button merely being present. Waiting on presence alone is what made
+    // this test fail intermittently under full-suite load.
     await waitFor(() => {
-      const refreshBtn = screen.queryByText("Refresh from installer");
-      expect(refreshBtn).not.toBeNull();
+      expect(refreshBtn).toBeEnabled();
     });
 
-    const refreshBtn = screen.getByText("Refresh from installer");
     fireEvent.click(refreshBtn);
 
     await waitFor(() => {
@@ -156,13 +162,17 @@ describe("AMI auto-population behavior", () => {
       expect(forceCalls.length).toBeGreaterThanOrEqual(1);
     });
 
-    expect(updateState).toHaveBeenCalledWith(
-      expect.objectContaining({
-        platformConfig: expect.objectContaining({
-          aws: expect.objectContaining({ amiId: "ami-auto-us-gov-west-1", amiAutoFilled: true })
+    // The force request having been *issued* does not mean its response has been
+    // applied; updateState runs after the fetch resolves.
+    await waitFor(() => {
+      expect(updateState).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platformConfig: expect.objectContaining({
+            aws: expect.objectContaining({ amiId: "ami-auto-us-gov-west-1", amiAutoFilled: true })
+          })
         })
-      })
-    );
+      );
+    });
   });
 
   it("auto-fill does not create infinite lookup calls", async () => {

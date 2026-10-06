@@ -4,7 +4,7 @@
  * state should always produce a best-effort preview after version lock.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, cleanup, waitFor } from "@testing-library/react";
+import { render, cleanup, waitFor, screen, fireEvent, act } from "@testing-library/react";
 
 vi.mock("../src/api.js", async () => {
   return { apiFetch: vi.fn(() => Promise.resolve({})) };
@@ -31,6 +31,25 @@ function setupAppMock(initialState) {
     if (path === "/api/feedback/config") return Promise.resolve({ mode: "disabled" });
     if (path === "/api/generate") {
       return Promise.resolve({ files: { "install-config.yaml": "apiVersion: v1\nmetadata:\n  name: test\n" } });
+    }
+    // Release controls need real Cincinnati data: with no channels the minor
+    // selector has no options, and with no versions BlueprintStep nulls out
+    // release.patchVersion.
+    if (String(path).startsWith("/api/cincinnati/patches")) {
+      const m = String(path).match(/channel=([^&]+)/);
+      const ch = m ? decodeURIComponent(m[1]) : "4.21";
+      return Promise.resolve({ versions: [`${ch}.8`, `${ch}.3`] });
+    }
+    if (String(path).startsWith("/api/cincinnati")) {
+      return Promise.resolve({ channels: ["4.20", "4.21"] });
+    }
+    if (path === "/api/operators/confirm") {
+      // Mirrors the real endpoint: it returns the now-locked canonical version,
+      // which is what re-enables preview generation after a release change.
+      return Promise.resolve({
+        version: { ...currentState.version, locked: true, confirmedByUser: true },
+        release: { ...currentState.release, confirmed: true },
+      });
     }
     return Promise.resolve({});
   });
@@ -108,39 +127,99 @@ describe("Preview generation without platform-specifics gate", () => {
     }, { timeout: 3000 });
   });
 
+  /**
+   * Minor versions seen by POST /api/generate, in call order.
+   *
+   * Asserting on the *content* of the generate requests is what makes this test
+   * meaningful: a bare call-count delta cannot distinguish "regenerated for the
+   * new version" from "a second start-up render happened to land".
+   */
+  /** Minor versions the frontend has actually persisted, in call order. */
+  function persistedMinors() {
+    return vi.mocked(apiFetch).mock.calls
+      .filter((c) => c[0] === "/api/state" && c[1]?.method === "POST" && c[1]?.body)
+      .map((c) => {
+        try { return JSON.parse(c[1].body)?.version?.selectedMinor ?? null; }
+        catch { return null; }
+      });
+  }
+
+  function generatedMinors() {
+    return vi.mocked(apiFetch).mock.calls
+      .filter((c) => c[0] === "/api/generate" && c[1]?.body)
+      .map((c) => {
+        try { return JSON.parse(c[1].body)?.state?.version?.selectedMinor ?? null; }
+        catch { return null; }
+      });
+  }
+
   it("version transition 4.21 → 4.20 triggers preview regeneration", async () => {
     const state421 = makeLockedState("AWS GovCloud", "IPI", "4.21", {
       aws: { region: "us-gov-west-1" },
     });
+    // Start on Blueprint: the release change is driven through the real UI.
+    state421.ui.activeStepId = "blueprint";
     setupAppMock(state421);
-    const { rerender } = render(<App />);
+    render(<App />);
+
+    // Preview generated for the originally locked minor.
     await waitFor(() => {
-      const genCalls = vi.mocked(apiFetch).mock.calls.filter(c => c[0] === "/api/generate");
-      expect(genCalls.length).toBeGreaterThanOrEqual(1);
+      expect(generatedMinors()).toContain("4.21");
     }, { timeout: 3000 });
 
-    const firstGenCount = vi.mocked(apiFetch).mock.calls.filter(c => c[0] === "/api/generate").length;
+    // Real transition: unlock the release, pick 4.20, re-lock. A bare
+    // rerender(<App />) cannot do this — App loads state from the store once at
+    // mount, so re-rendering the same element changes no version state at all
+    // and never actually exercised a transition.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Change release/i }));
+    });
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: /Yes, unlock release/i }));
+    });
 
-    const state420 = makeLockedState("AWS GovCloud", "IPI", "4.20", {
-      aws: { region: "us-gov-west-1" },
+    // The minor selector stays disabled until the unlock has been applied;
+    // firing change on a disabled control is a silent no-op.
+    const channelSelect = screen.getByLabelText(/Minor channel/i);
+    await waitFor(() => {
+      expect(channelSelect).toBeEnabled();
+    }, { timeout: 3000 });
+    await act(async () => {
+      fireEvent.change(channelSelect, { target: { value: "4.20" } });
     });
-    vi.mocked(apiFetch).mockImplementation((path, options) => {
-      if (path === "/api/state") {
-        if (options?.method === "POST") return Promise.resolve(state420);
-        return Promise.resolve(state420);
-      }
-      if (path === "/api/schema/stepMap") return Promise.resolve({});
-      if (path === "/api/build-info") return Promise.resolve({ gitSha: "test", buildTime: "2026-01-01T00:00:00Z", repo: "test/repo", branch: "develop" });
-      if (path === "/api/update-info") return Promise.resolve({ enabled: false });
-      if (path === "/api/feedback/config") return Promise.resolve({ mode: "disabled" });
-      if (path === "/api/generate") return Promise.resolve({ files: { "install-config.yaml": "apiVersion: v1\n" } });
-      return Promise.resolve({});
+
+    // Changing the channel refetches the patch list; re-locking is rejected
+    // until a patch for the new minor is resolved. Wait for that causal state
+    // rather than for the button merely existing — the lock button is disabled
+    // meanwhile, and clicking a disabled button is a silent no-op.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Patch version/i)).toHaveValue("4.20.8");
+    }, { timeout: 3000 });
+
+    // /api/operators/confirm resolves against the *persisted* state, so the new
+    // minor must have reached the backend before the lock is confirmed —
+    // otherwise confirm legitimately echoes back the previous version. The
+    // frontend persists on a debounce, hence waiting on the POST rather than
+    // on the control state alone.
+    await waitFor(() => {
+      expect(persistedMinors()).toContain("4.20");
+    }, { timeout: 3000 });
+
+    // Preview is gated on the version being locked, so the transition is only
+    // complete once 4.20 is re-locked through the Core Lock confirmation.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Confirm & Proceed/i }));
     });
-    rerender(<App />);
+    const lockButton = await screen.findByRole("button", { name: /Yes, lock selections/i });
+    await waitFor(() => {
+      expect(lockButton).toBeEnabled();
+    }, { timeout: 3000 });
+    await act(async () => {
+      fireEvent.click(lockButton);
+    });
 
     await waitFor(() => {
-      const genCalls = vi.mocked(apiFetch).mock.calls.filter(c => c[0] === "/api/generate");
-      expect(genCalls.length).toBeGreaterThan(firstGenCount);
+      expect(generatedMinors()).toContain("4.20");
     }, { timeout: 3000 });
   });
 });
