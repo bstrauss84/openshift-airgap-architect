@@ -9,10 +9,19 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { computePopoverPlacement, POPOVER_TRIGGER_GAP } from "../shared/popoverPlacement.js";
 
 const TOOLTIP_Z_INDEX = 10050;
+
+/**
+ * Design caps on panel height. Actual applied height is the smaller of these and
+ * the space the viewport really has — see computePopoverPlacement.
+ */
+const TOOLTIP_PREFERRED_MAX_HEIGHT = 200;
+const POPOVER_PREFERRED_MAX_HEIGHT = 360;
+const POPOVER_PREFERRED_MAX_VH = 0.7;
 
 /**
  * Character count above which the hint is shown in a click-triggered persistent popover
@@ -78,10 +87,11 @@ function parseHintMarkdown(text) {
 
 function FieldLabelWithInfo({ label, hint, required, id: idProp, children, className: wrapperClassName }) {
   const [visible, setVisible] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const [placement, setPlacement] = useState("above");
+  // null while the panel is being measured (first paint, off-screen and hidden).
+  const [panelBox, setPanelBox] = useState(null);
   const iconRef = useRef(null);
   const popoverRef = useRef(null);
+  const naturalSizeRef = useRef(null);
   const leaveTimeoutRef = useRef(null);
   const id = idProp || `field-info-${Math.random().toString(36).slice(2, 9)}`;
   const controlIdRef = useRef(null);
@@ -91,48 +101,80 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
   const controlId = children != null ? (React.Children.only(children)?.props?.id ?? controlIdRef.current) : null;
 
   const isLongHint = hint && hint.length > LONG_HINT_CHARS;
-  const gap = 8;
+  const gap = POPOVER_TRIGGER_GAP;
   const tooltipMaxWidth = 320;
   const popoverMaxWidth = 380;
+  const maxWidth = isLongHint ? popoverMaxWidth : tooltipMaxWidth;
 
-  const updatePosition = () => {
-    if (!iconRef.current) return;
-    const rect = iconRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const maxW = isLongHint ? popoverMaxWidth : tooltipMaxWidth;
-    if (rect.top >= 120) {
-      setPlacement("above");
-      setPosition({
-        top: rect.top - gap,
-        left: Math.max(16, Math.min(rect.left, vw - maxW - 16)),
-        maxWidth: maxW
-      });
-    } else {
-      setPlacement("right");
-      setPosition({
-        top: rect.top,
-        left: Math.min(rect.right + gap, vw - maxW - 16),
-        maxWidth: maxW
-      });
+  /**
+   * Position the panel from its measured natural size and the real space the
+   * viewport has above/below the trigger. Never lays the panel out past the
+   * usable viewport: it flips, then clamps and bounds its height so overflowing
+   * content scrolls inside the panel rather than off-screen.
+   */
+  const reposition = useCallback(() => {
+    const trigger = iconRef.current;
+    const natural = naturalSizeRef.current;
+    if (!trigger || !natural) return;
+    const viewportHeight = window.innerHeight;
+    const preferredMaxHeight = isLongHint
+      ? Math.min(POPOVER_PREFERRED_MAX_HEIGHT, viewportHeight * POPOVER_PREFERRED_MAX_VH)
+      : TOOLTIP_PREFERRED_MAX_HEIGHT;
+    setPanelBox(
+      computePopoverPlacement({
+        triggerRect: trigger.getBoundingClientRect(),
+        panelWidth: natural.width,
+        panelHeight: natural.height,
+        viewportWidth: window.innerWidth,
+        viewportHeight,
+        gap,
+        preferredMaxHeight,
+        preferAbove: true
+      })
+    );
+  }, [isLongHint, gap]);
+
+  // Measure the panel at its natural height on the paint after it opens, then
+  // position it. Measuring first is what makes flip/clamp decisions correct —
+  // the previous implementation guessed from a fixed 120px threshold.
+  useLayoutEffect(() => {
+    if (!visible || !hint) {
+      naturalSizeRef.current = null;
+      setPanelBox(null);
+      return;
     }
-  };
+    if (panelBox !== null) return;
+    const panel = popoverRef.current;
+    if (!panel) return;
+    naturalSizeRef.current = {
+      width: panel.offsetWidth || maxWidth,
+      height: panel.offsetHeight || 0
+    };
+    reposition();
+  }, [visible, hint, panelBox, reposition, maxWidth]);
 
   useEffect(() => {
     if (!visible || !hint) return;
-    updatePosition();
     const onScroll = (e) => {
-      // Don't close if scrolling inside the popover itself (for long hints)
-      if (isLongHint && popoverRef.current?.contains(e.target)) return;
+      // e.target is `window`/`document` for page-level scrolls, which Node.contains rejects.
+      const target = e.target instanceof Node ? e.target : null;
+      if (target && popoverRef.current?.contains(target)) return;
+      // Long-hint popovers are persistent: follow the trigger instead of
+      // closing, so the panel stays reachable while the page moves.
+      if (isLongHint) {
+        reposition();
+        return;
+      }
       setVisible(false);
     };
-    const onResize = () => updatePosition();
+    const onResize = () => reposition();
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
     };
-  }, [visible, hint, isLongHint]);
+  }, [visible, hint, isLongHint, reposition]);
 
   useEffect(() => {
     if (!visible) return;
@@ -167,20 +209,25 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
     }
   };
 
+  // First paint renders the panel hidden and unconstrained so its natural size
+  // can be measured; the second paint applies the clamped box.
+  const measuring = panelBox === null;
   const panelContent = visible && hint ? (
     <div
-      ref={isLongHint ? popoverRef : undefined}
+      ref={popoverRef}
       id={id}
       role={isLongHint ? "dialog" : "tooltip"}
       aria-label={isLongHint ? "Help" : undefined}
+      data-placement={measuring ? undefined : panelBox.placement}
       className={isLongHint ? "field-tooltip-portal field-help-popover" : "field-tooltip-portal"}
       style={{
         position: "fixed",
-        top: placement === "above" ? position.top - gap : position.top,
-        left: position.left,
-        maxWidth: position.maxWidth,
-        zIndex: TOOLTIP_Z_INDEX,
-        transform: placement === "above" ? "translateY(-100%)" : undefined
+        top: measuring ? 0 : panelBox.top,
+        left: measuring ? 0 : panelBox.left,
+        maxWidth,
+        maxHeight: measuring ? "none" : panelBox.maxHeight,
+        visibility: measuring ? "hidden" : undefined,
+        zIndex: TOOLTIP_Z_INDEX
       }}
       onMouseEnter={isLongHint ? undefined : () => { cancelClose(); setVisible(true); }}
       onMouseLeave={isLongHint ? undefined : () => { setVisible(false); }}

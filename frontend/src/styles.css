@@ -5615,9 +5615,13 @@ body[data-theme="dark"] .field-info-icon:active {
   background: rgba(59, 130, 246, 0.2);
 }
 
-/* Allow pointer-events so user can hover tooltip to keep it open and scroll long content */
+/* Allow pointer-events so user can hover tooltip to keep it open and scroll long content.
+   Column flex so the JS-computed viewport-clamped max-height on this element bounds the
+   scrollable content child (see src/shared/popoverPlacement.js). */
 .field-tooltip-portal {
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .field-tooltip-content {
@@ -5628,8 +5632,9 @@ body[data-theme="dark"] .field-info-icon:active {
   line-height: 1.4;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  max-height: 200px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
   white-space: pre-wrap;
 }
 
