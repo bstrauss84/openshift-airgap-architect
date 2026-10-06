@@ -135,24 +135,41 @@ export function isParamVisibleForVersion(param, selectedMinor) {
 }
 
 /**
- * Returns annotation metadata for a version-gated field: whether it was introduced
- * in the current version and its introduction version string.
+ * Returns annotation metadata for a version-gated field.
+ *
+ * Three concepts are deliberately kept separate (see docs/DESIGN_SYSTEM.md):
+ *
+ *   - support visibility      — minVersion/maxVersion/supportStatus (isParamVisibleForVersion)
+ *   - historical provenance   — `introducedInMinor`: the minor the field first appeared in.
+ *                               This never changes as the user re-targets.
+ *   - contextual presentation — `isIntroduced`: whether the field is new *in the minor the
+ *                               user currently has locked. A field introduced in 4.21 is NOT
+ *                               "New in 4.21" once the locked target has moved past 4.21.
+ *
+ * The contextual rule is data-driven (`introducedInMinor === selectedMinor`), so it needs no
+ * change as new target minors become supported. Fields introduced in the baseline minor are
+ * never badged: everything is "new" at the baseline, so the badge would carry no information.
+ *
  * @param {string} path - catalog parameter path
  * @param {string} outputFile - e.g. "install-config.yaml"
  * @param {Array} catalogParams - the loaded catalog parameters array for the current version
  * @param {string} selectedMinor - the user's locked minor version
  * @param {string} baselineMinor - the baseline minor (lowest supported), e.g. "4.20"
- * @returns {{ isIntroduced: boolean, introductionMinor: string|null, isDeprecated: boolean }}
+ * @returns {{ isIntroduced: boolean, introductionMinor: string|null, introducedInMinor: string|null, isDeprecated: boolean }}
  */
 export function getFieldAnnotationInfo(path, outputFile, catalogParams, selectedMinor, baselineMinor) {
-  if (!catalogParams || !selectedMinor) return { isIntroduced: false, introductionMinor: null, isDeprecated: false };
+  const none = { isIntroduced: false, introductionMinor: null, introducedInMinor: null, isDeprecated: false };
+  if (!catalogParams || !selectedMinor) return none;
   const param = catalogParams.find(p => p.path === path && p.outputFile === outputFile);
-  if (!param) return { isIntroduced: false, introductionMinor: null, isDeprecated: false };
+  if (!param) return none;
   const minVer = param.minVersion || null;
   const isIntroduced = minVer != null && minVer !== baselineMinor && minVer === selectedMinor;
   return {
     isIntroduced,
+    // Contextual: only set when the badge applies.
     introductionMinor: isIntroduced ? minVer : null,
+    // Provenance: always the field's true introduction minor, badge or not.
+    introducedInMinor: minVer,
     isDeprecated: param.deprecated === true
   };
 }

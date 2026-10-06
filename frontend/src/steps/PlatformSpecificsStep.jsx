@@ -99,6 +99,13 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const baselineMinor = SUPPORTED_MINORS[0];
   const fieldAnnotation = (path, outputFile) =>
     getFieldAnnotationInfo(path, outputFile, catalogParams, selectedMinor, baselineMinor);
+  /**
+   * Historical provenance for hint copy: the minor the field was actually
+   * introduced in, which is NOT the same as the currently locked target. Falls
+   * back to the locked minor only when the catalog records no introduction.
+   */
+  const fieldIntroducedIn = (path, outputFile) =>
+    fieldAnnotation(path, outputFile).introducedInMinor || selectedMinor;
   const showAwsGovcloudSection = catalogParams.some(
     (p) => p.path === "platform.aws.region" && p.outputFile === INSTALL_CONFIG
   );
@@ -221,6 +228,32 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     const result = validateAwsRootVolumeThroughput(localAwsRootVolumeThroughput, (platformConfig.aws?.rootVolumeType || "").trim() || undefined);
     setAwsThroughputError(result.valid ? "" : result.error);
   }, [platformConfig.aws?.rootVolumeType]);
+
+  /**
+   * Commit an AWS root-volume throughput edit to canonical state.
+   *
+   * Called on every change so the live YAML preview stays in step with the
+   * input, and again on blur. `surfaceError` is false while typing: a partially
+   * entered number ("1" on the way to "125") must not flash a range error
+   * before the field has been left.
+   */
+  const commitAwsRootVolumeThroughput = (raw, { surfaceError }) => {
+    if (raw === "" || raw == null) {
+      setAwsThroughputError("");
+      updateAws({ rootVolumeThroughput: undefined });
+      return;
+    }
+    const result = validateAwsRootVolumeThroughput(
+      raw,
+      (platformConfig.aws?.rootVolumeType || "").trim() || undefined
+    );
+    if (!result.valid) {
+      if (surfaceError) setAwsThroughputError(result.error);
+      return;
+    }
+    setAwsThroughputError("");
+    updateAws({ rootVolumeThroughput: Number(raw) });
+  };
 
   // Sync local state when store values change (for imports/loads) - Azure
   useEffect(() => { setLocalAzureRegion(platformConfig.azure?.region || ""); }, [platformConfig.azure?.region]);
@@ -954,7 +987,7 @@ subnet-0def456abc789 (us-east-1b)`}
                       <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Confidential compute (optional)"
-                        hint={"Introduced in OpenShift " + selectedMinor + `. Confidential compute policy for control plane instances.
+                        hint={"Introduced in OpenShift " + fieldIntroducedIn("controlPlane.platform.aws.cpuOptions.confidentialCompute", INSTALL_CONFIG) + `. Confidential compute policy for control plane instances.
 
 **Use installer default:** No cpuOptions emitted — the installer uses its own default (currently Disabled).
 
@@ -1082,7 +1115,7 @@ Emitted to \`controlPlane.platform.aws.rootVolume.iops\` and \`compute[].platfor
                       <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Root volume throughput (MiB/s)"
-                        hint={"Introduced in OpenShift " + selectedMinor + `. Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
+                        hint={"Introduced in OpenShift " + fieldIntroducedIn("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) + `. Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
 
 **Range:** 125 to 2000 MiB/s (integer values only).
 
@@ -1102,21 +1135,20 @@ Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid fo
                           max={2000}
                           step={1}
                           value={localAwsRootVolumeThroughput}
-                          onChange={(e) => setLocalAwsRootVolumeThroughput(e.target.value)}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setLocalAwsRootVolumeThroughput(raw);
+                            // Commit valid edits as they are typed so the live
+                            // YAML preview tracks the field like the other
+                            // numeric controls. Intermediate invalid text is
+                            // held in local state only: canonical state keeps
+                            // its last good value and the error is still
+                            // surfaced on blur, preserving first-entry/touch
+                            // validation behaviour.
+                            commitAwsRootVolumeThroughput(raw, { surfaceError: false });
+                          }}
                           onBlur={() => {
-                            const raw = localAwsRootVolumeThroughput;
-                            if (raw === "" || raw == null) {
-                              setAwsThroughputError("");
-                              updateAws({ rootVolumeThroughput: undefined });
-                              return;
-                            }
-                            const result = validateAwsRootVolumeThroughput(raw, (platformConfig.aws?.rootVolumeType || "").trim() || undefined);
-                            if (!result.valid) {
-                              setAwsThroughputError(result.error);
-                            } else {
-                              setAwsThroughputError("");
-                              updateAws({ rootVolumeThroughput: Number(raw) });
-                            }
+                            commitAwsRootVolumeThroughput(localAwsRootVolumeThroughput, { surfaceError: true });
                           }}
                           aria-invalid={awsThroughputError ? "true" : undefined}
                           aria-describedby={awsThroughputError ? "aws-throughput-error" : undefined}
@@ -1792,7 +1824,7 @@ Use a pre-existing Azure VNet and provide its network resource group and subnet 
                 <div className="field-control-stack">
                 <FieldLabelWithInfo
                   label="Azure Storage shared-key access"
-                  hint={"Introduced in OpenShift " + selectedMinor + `. Controls whether Azure Storage accounts created during installation allow shared-key access.
+                  hint={"Introduced in OpenShift " + fieldIntroducedIn("platform.azure.allowSharedKeyAccess", INSTALL_CONFIG) + `. Controls whether Azure Storage accounts created during installation allow shared-key access.
 
 **Use installer default (recommended):**
 Omits the field; the installer defaults to allowing shared-key access (equivalent to true).
@@ -4725,7 +4757,7 @@ external-br (descriptive name)`}
           <section className="card">
             <div className="card-header">
               <h3 className="card-title">BMC CA Certificate</h3>
-              <div className="card-subtitle">Optional CA certificate for BMC TLS verification. Introduced in OpenShift {selectedMinor}.</div>
+              <div className="card-subtitle">Optional CA certificate for BMC TLS verification. Introduced in OpenShift {fieldIntroducedIn("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG)}.</div>
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 4 }}>
@@ -4737,7 +4769,7 @@ external-br (descriptive name)`}
 **What this is:**
 A CA certificate (or chain of certificates) in PEM format. When provided, the installer uses this to verify the TLS certificates presented by BMC endpoints (Redfish/IPMI over HTTPS). This is useful when BMCs use certificates signed by an internal or private CA.
 
-**Availability:** Introduced in OpenShift ` + selectedMinor + `.
+**Availability:** Introduced in OpenShift ` + fieldIntroducedIn("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG) + `.
 
 **What the installer does with this value:**
 When non-empty, the installer writes:
