@@ -1,5 +1,10 @@
 # Pre-commit hooks. Install: pre-commit install
-# Secret scan runs only if gitleaks is installed; CI runs gitleaks always.
+#
+# Every hook here is READ-ONLY: hooks report problems and tell you what to run.
+# None modifies or stages a file. Staging is the author's decision.
+#
+# Each invariant below is ALSO enforced in CI, so correctness never depends on
+# a contributor having installed these hooks.
 repos:
   - repo: local
     hooks:
@@ -8,3 +13,28 @@ repos:
         entry: bash scripts/check-secrets.sh .
         language: system
         pass_filenames: false
+
+      # Replaces a previously untracked .git/hooks/pre-commit that ran the
+      # catalog sync and git-add-ed its output mid-commit. That hook was
+      # load-bearing but lived on one machine; this one is tracked, and it
+      # checks instead of mutating.
+      - id: catalog-mirror-sync
+        name: catalog and docs-index mirrors match canonical
+        entry: bash scripts/precommit-catalog-sync-check.sh
+        language: system
+        pass_filenames: false
+        files: ^(data/(params|docs-index)/|frontend/src/data/(catalogs|docs-index)/)
+
+      - id: supported-minors
+        name: cumulative minor-support guards
+        entry: node scripts/validate-supported-minors.mjs
+        language: system
+        pass_filenames: false
+        files: ^(backend/src/versionPolicy\.js|frontend/src/shared/versionPolicy\.js|scripts/lib/released-minor-support\.json)$
+
+      - id: app-version-sync
+        name: application version synchronized across manifests
+        entry: node scripts/validate-app-version.mjs
+        language: system
+        pass_filenames: false
+        files: ^(VERSION|(backend/|frontend/|shared/)?package(-lock)?\.json)$

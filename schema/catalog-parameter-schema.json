@@ -1,7 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "OpenShift Airgap Architect Parameter Catalog Schema",
-  "description": "JSON Schema for parameter catalog files in data/params/4.20/*.json",
+  "description": "JSON Schema for parameter catalog files in data/params/<minor>/*.json",
+  "enforcement": {
+    "executableValidator": "scripts/validate-catalog.js",
+    "conformanceTest": "scripts/validate-catalog-schema-conformance.test.js",
+    "note": "This schema is NOT executed at validation time. scripts/validate-catalog.js implements the rules in code and is what runs in CI. The conformance test holds the two to each other by importing the validator's exported CONTRACT and comparing it against this file, so the pair can no longer drift silently. Known, reviewed divergences are enumerated in the conformance test's DIVERGENCE_REGISTER, each with a reason and an owning tranche; an unregistered divergence fails the test."
+  },
   "version": "2.0.0",
   "changelog": [
     {
@@ -43,7 +48,7 @@
       "description": "Array of parameter definitions",
       "items": {
         "type": "object",
-        "required": ["path", "outputFile", "type", "required", "description", "supportStatus", "minVersion", "maxVersion"],
+        "required": ["path", "outputFile", "type", "allowed", "default", "required", "description", "applies_to", "citations", "supportStatus", "minVersion", "maxVersion"],
         "properties": {
           "path": {
             "type": "string",

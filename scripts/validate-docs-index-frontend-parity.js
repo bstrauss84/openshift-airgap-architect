@@ -40,7 +40,18 @@ function stableStringify(data) {
 }
 
 function main() {
-  const version = process.argv[2] || "4.20";
+  // Required, not defaulted: a forgotten argument must not silently check one
+  // minor and report success for the repository.
+  const version = process.argv[2];
+  if (!version) {
+    console.error("Usage: node scripts/validate-docs-index-frontend-parity.js <minor>");
+    console.error("Example: node scripts/validate-docs-index-frontend-parity.js 4.21");
+    process.exit(1);
+  }
+  if (!/^\d+\.\d+$/.test(version)) {
+    console.error(`Invalid minor "${version}" (expected form: 4.21)`);
+    process.exit(1);
+  }
   const fePath = path.join(repoRoot, "frontend", "src", "data", "docs-index", `${version}.json`);
   const canonPath = path.join(repoRoot, "data", "docs-index", `${version}.json`);
   const errs = [];
@@ -65,8 +76,10 @@ function main() {
   if (stableStringify(feJson) !== stableStringify(caJson)) {
     console.error(
       `Docs index mismatch for ${version}.json. ` +
-        `Sync: cp frontend/src/data/docs-index/${version}.json data/docs-index/${version}.json ` +
-        `(or the reverse) so canonical and frontend stay identical, then re-run validation.`
+        `data/docs-index/${version}.json is canonical; frontend/src/data/docs-index/${version}.json is a generated mirror. ` +
+        `Fix the canonical file, then regenerate the mirror with: npm run sync-docs-index ` +
+        `(verify first with npm run sync-docs-index:check). ` +
+        `Never copy the mirror back over canonical.`
     );
     process.exit(1);
   }

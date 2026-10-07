@@ -23,7 +23,7 @@ Use this checklist when reconciling a scenario’s params catalog against offici
 
 ## 3. Params in catalog
 
-- [ ] Open the scenario’s params file: `data/params/<version>/<scenario>.json` or frontend copy `frontend/src/data/catalogs/<scenario>.json`.
+- [ ] Open the scenario’s canonical params file: `data/params/<version>/<scenario>.json`. Reconcile against canonical only — `frontend/src/data/catalogs/<version>/` is a generated mirror, not a source.
 - [ ] List every **path** in the catalog that applies to this scenario (filter by applies_to or scenarioId).
 
 ---

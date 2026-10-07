@@ -29,7 +29,7 @@ This file is a quick "README for AI" to keep work consistent.
 - Frontend: `frontend/src`
 - Backend: `backend/src`
 - Docs cache: `docs/` (saved reference docs and review notes)
-- **Frontend copies of repo data:** `frontend/src/data/` only — `data/catalogs/<version>/` (param catalogs) and `data/docs-index/<version>/` (scenario doc links). Canonical source is `data/params/<version>/` and `data/docs-index/<version>/` at repo root.
+- **Frontend copies of repo data:** `frontend/src/data/` only — `data/catalogs/<version>/<scenario>.json` (param catalogs, a versioned **directory**) and `data/docs-index/<version>.json` (scenario doc links, a flat **file** per minor, not a directory). Canonical sources are `data/params/<version>/<scenario>.json` and `data/docs-index/<version>.json` at repo root. Both frontend trees are **generated mirrors**: regenerate with `npm run sync-catalogs` and `npm run sync-docs-index`; never hand-edit one and never copy a mirror back over canonical.
 
 ## Documentation Hierarchy
 

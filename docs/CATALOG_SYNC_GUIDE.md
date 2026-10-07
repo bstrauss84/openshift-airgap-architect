@@ -1,261 +1,145 @@
-# Catalog Sync Guide
+# Catalog and Docs-Index Sync Guide
 
-## Overview
+How the generated frontend mirrors are kept identical to canonical data.
 
-This project maintains catalog parameter files in **two locations**:
-
-1. **`data/params/4.20/`** - Backend/canonical source (12 files)
-2. **`frontend/src/data/catalogs/`** - Frontend source (12 files)
-
-These files **must stay synchronized** to ensure consistency across the application.
+Authority: `docs/PARAM_AUTHORITY.md`. Locations: `docs/DATA_AND_FRONTEND_COPIES.md`.
 
 ---
 
-## Automatic Sync
+## The model
 
-### Pre-commit Hook ✅ ACTIVE
-
-A Git pre-commit hook automatically syncs catalogs when you commit changes to catalog files.
-
-**How it works:**
-- Detects if you're committing any `*.json` files in catalog directories
-- Runs `scripts/sync-catalogs.js` to ensure both locations match
-- Auto-stages newly synced files
-- Blocks commit if sync fails
-
-**What you see:**
-```bash
-$ git commit -m "Update bare-metal catalog"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Pre-commit: Catalog files detected
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Catalog files being committed:
-  • data/params/4.20/bare-metal-ipi.json
-
-Running catalog sync...
-  ✓ bare-metal-ipi.json - SYNCED
-
-✓ Catalog sync complete - proceeding with commit
+```
+data/params/<minor>/<scenario>.json    ->  frontend/src/data/catalogs/<minor>/<scenario>.json
+data/docs-index/<minor>.json           ->  frontend/src/data/docs-index/<minor>.json
+         CANONICAL                                     GENERATED MIRROR
 ```
 
-### npm Scripts
+One direction only. The mirrors exist because the frontend container ships only
+the frontend tree — `data/` is not present at runtime.
 
-Run sync manually anytime:
+**Current minors:** 4.20 (13 catalogs, including `oc-mirror-v2.json`) and
+4.21 (12 catalogs). The scripts discover minors from the directory; they are not
+enumerated anywhere.
+
+---
+
+## Commands
 
 ```bash
-# Sync catalogs (from data/params → frontend/catalogs)
+# Regenerate the mirrors (canonical -> frontend)
 npm run sync-catalogs
+npm run sync-docs-index
 
-# Check sync status without modifying (dry run)
+# GATE: read-only, exits non-zero on any drift  (this is what CI and the hook run)
 npm run sync-catalogs:check
+npm run sync-docs-index:check
 
-# Verbose output (shows all files)
+# PREVIEW: same report, but always exits 0. Human inspection only — never CI.
+npm run sync-catalogs:preview
+npm run sync-docs-index:preview
+
+# Verbose
 npm run sync-catalogs:verbose
 
-# Validate catalog schemas
-npm run validate-catalogs
+# Validate canonical data
+node scripts/validate-catalog.js data/params/<minor>
+node scripts/validate-docs-index.js
+
+# Full authority gate (every supported minor)
+node scripts/validate-param-authority.js
 ```
 
 ---
 
-## Manual Sync
+## Workflow
 
-If you need to sync outside of Git workflow:
+**Always edit canonical.**
 
 ```bash
-# Run from repo root
-node scripts/sync-catalogs.js
+# 1. Edit the canonical catalog
+$EDITOR data/params/4.21/vsphere-ipi.json
 
-# Options
-node scripts/sync-catalogs.js --dry-run    # Preview changes
-node scripts/sync-catalogs.js --verbose    # Show all files
-node scripts/sync-catalogs.js --help       # Show help
+# 2. Validate it
+node scripts/validate-catalog.js data/params/4.21
+
+# 3. Regenerate the mirror
+npm run sync-catalogs
+
+# 4. Stage both the canonical file and the regenerated mirror
+git add data/params/4.21/vsphere-ipi.json frontend/src/data/catalogs/4.21/vsphere-ipi.json
 ```
+
+### If you edited a mirror by mistake
+
+Do **not** copy it back. The mirror is generated output; treating it as a source
+is how canonical data silently acquires edits nobody reviewed.
+
+```bash
+# Discard the mirror edit and re-derive it from canonical
+git checkout -- frontend/src/data/catalogs/
+npm run sync-catalogs
+```
+
+Then make the change in `data/params/<minor>/` and regenerate.
+
+> An earlier revision of this guide documented copying
+> `frontend/src/data/catalogs/<scenario>.json` back into `data/params/4.20/` as
+> the "better" option. That was wrong and it propagated: three scripts and three
+> documents ended up treating the mirror as a source. One of them,
+> `analyze-catalog-gaps.js`, read the mirror with a flat `readdir` and now
+> silently sees zero catalogs.
 
 ---
 
-## Workflow Guidelines
+## Enforcement
 
-### ✅ Recommended: Edit in `data/params/4.20/`
+Drift is caught in **CI**, so the guarantee does not depend on anyone's local setup:
 
-**Why?** This is the canonical source. Pre-commit hook will auto-sync to frontend.
+| Gate | Asserts |
+|---|---|
+| `npm run sync-catalogs:check` | Every canonical catalog has an identical mirror. |
+| `npm run sync-docs-index:check` | Every canonical docs index has an identical mirror. |
+| `validate-catalog-frontend-parity.js <minor>` | Mirror ≡ canonical after stable normalization, per minor. |
+| `validate-docs-index-frontend-parity.js <minor>` | Same for the docs index. |
 
-```bash
-# 1. Edit catalog file
-vim data/params/4.20/bare-metal-ipi.json
+A tracked pre-commit hook is available for local use and runs the same **check**
+commands. It is deliberately **read-only**: it reports drift and tells you to run
+the sync, and never modifies or re-stages files on your behalf.
 
-# 2. Commit (sync happens automatically)
-git add data/params/4.20/bare-metal-ipi.json
-git commit -m "Update bare-metal catalog"
-
-# Pre-commit hook syncs to frontend/src/data/catalogs/ automatically
-```
-
-### ⚠️ If you edit `frontend/src/data/catalogs/`
-
-If you edit frontend catalogs directly, you need to sync back to `data/params`:
-
-**Option 1: Let pre-commit handle it**
-```bash
-git add frontend/src/data/catalogs/vsphere-ipi.json
-git commit -m "Update vSphere catalog"
-# Hook will sync, but in wrong direction - frontend is not canonical source
-```
-
-**Option 2: Manual sync (better)**
-```bash
-# Copy your changes to canonical source first
-cp frontend/src/data/catalogs/vsphere-ipi.json data/params/4.20/
-
-# Then commit from canonical source
-git add data/params/4.20/vsphere-ipi.json
-git commit -m "Update vSphere catalog"
-```
-
----
-
-## Sync Script Details
-
-### What it does
-
-1. Compares MD5 hashes of all `*.json` files in both directories
-2. Copies files from `data/params/4.20/` → `frontend/src/data/catalogs/`
-3. Reports: identical, synced, errors
-
-### Output
+Install it with:
 
 ```bash
-═══════════════════════════════════════════════════
-  Catalog Sync Utility
-═══════════════════════════════════════════════════
-
-📂 Source: data/params/4.20
-📂 Target: frontend/src/data/catalogs
-📄 Files: 12 catalog files
-
-  ✓ aws-govcloud-ipi.json - SYNCED
-  ≡ nutanix-ipi.json - IDENTICAL
-  ✓ vsphere-ipi.json - SYNCED
-  ...
-
-═══════════════════════════════════════════════════
-  Summary
-═══════════════════════════════════════════════════
-  ✓ Identical: 10
-  ↻ Synced:    2
-  ✗ Errors:    0
-═══════════════════════════════════════════════════
-
-✅ Catalogs synchronized successfully!
+pre-commit install          # uses .pre-commit-config.yaml
 ```
+
+> The hook does not auto-fix. An earlier untracked hook ran the sync and
+> `git add`-ed the result mid-commit, so a commit could contain files the author
+> never saw. Staging is the author's decision.
+
+**Do not bypass hooks** with `--no-verify`. If a hook fails, fix the cause.
 
 ---
 
 ## Troubleshooting
 
-### Commit blocked by sync failure
+**`sync-catalogs:check` reports drift.** Canonical and mirror disagree. Decide
+which side is *correct* — it should always be canonical — then run
+`npm run sync-catalogs` and stage both files.
 
-```bash
-✗ Catalog sync failed!
-  Fix sync errors before committing.
-```
+**Mirror files appear after `git pull`.** Someone added a scenario or a minor.
+Run both sync commands; if they report no changes, you are already current.
 
-**Solution:**
-1. Check error message from sync script
-2. Verify both directories exist
-3. Ensure files are valid JSON
-4. Fix issues and try committing again
-
-### Files out of sync after pull
-
-```bash
-# Check sync status
-npm run sync-catalogs:check
-
-# Re-sync if needed
-npm run sync-catalogs
-```
-
-### Disable pre-commit hook temporarily
-
-```bash
-# Skip hooks for one commit (NOT RECOMMENDED)
-git commit --no-verify -m "Emergency commit"
-
-# Better: fix the underlying issue
-```
+**Parity passes but `validate-catalog.js` fails.** Those are different problems.
+Parity says the mirror matches canonical; `validate-catalog.js` says whether the
+canonical content satisfies catalog schema v2.0.0. A faithfully mirrored
+invalid catalog fails the second and passes the first.
 
 ---
 
-## File Locations
+## Adding a new minor
 
-| Location | Role | Notes |
-|----------|------|-------|
-| `data/params/4.20/*.json` | **Canonical source** | Edit here |
-| `frontend/src/data/catalogs/*.json` | Frontend copy | Auto-synced |
-| `scripts/sync-catalogs.js` | Sync utility | Run manually or via hook |
-| `.git/hooks/pre-commit` | Git hook | Auto-runs on commit |
-
----
-
-## Catalog Files (12 total)
-
-1. aws-govcloud-ipi.json
-2. aws-govcloud-upi.json
-3. azure-government-ipi.json
-4. azure-government-upi.json
-5. bare-metal-agent.json
-6. bare-metal-ipi.json
-7. bare-metal-upi.json
-8. ibm-cloud-ipi.json
-9. nutanix-ipi.json
-10. vsphere-agent.json
-11. vsphere-ipi.json
-12. vsphere-upi.json
-
----
-
-## Best Practices
-
-✅ **DO:**
-- Edit catalogs in `data/params/4.20/`
-- Run `npm run sync-catalogs:check` before committing
-- Let pre-commit hook handle sync
-- Commit catalog changes separately from code changes
-
-❌ **DON'T:**
-- Edit same catalog in both locations simultaneously
-- Skip pre-commit hook with `--no-verify` (unless emergency)
-- Assume catalogs are synced without checking
-- Mix catalog edits with unrelated changes in same commit
-
----
-
-## Integration with CI/CD
-
-Add to your CI pipeline:
-
-```yaml
-# Example GitHub Actions
-- name: Check catalog sync
-  run: npm run sync-catalogs:check
-
-- name: Validate catalogs
-  run: npm run validate-catalogs
-```
-
----
-
-**Questions or Issues?**
-
-If catalogs get out of sync or sync script fails:
-1. Check this guide
-2. Run `npm run sync-catalogs:verbose` to see detailed status
-3. Review error messages
-4. Manually verify JSON file validity
-5. Re-run sync: `npm run sync-catalogs`
-
-**Last Updated:** 2026-05-09  
-**Version:** 1.0
+Do not copy another minor's catalogs. Follow
+`docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md`: author `data/params/<minor>/`
+from that minor's own authoritative sources, with its own citations, then run the
+sync scripts. A cloned catalog carries the previous minor's citation URLs, which
+is how 810 stale citations reached `data/params/4.21/`.

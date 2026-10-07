@@ -124,8 +124,13 @@ If a requirement conflicts with another requirement or with proven upstream beha
 
 1. **`docs/BACKLOG_STATUS.md`** — Single source of truth for all status claims
 2. **`CLAUDE.md`** (this file) — Durable agent rules and current immediate task
-3. **`docs/HANDOFF_PACKET.md`** — Latest accepted work, next task pointer
-4. **`docs/IMPLEMENTATION_ROADMAP_2026-05-14.md`** — Versioned roadmap
+3. **`docs/IMPLEMENTATION_ROADMAP_2026-05-14.md`** — Versioned roadmap
+
+> A previous revision listed `docs/HANDOFF_PACKET.md` at position 3. That file
+> has never been tracked in this repository, and `docs/LOCAL_IGNORED_DOCS_TRIAGE.md`
+> classifies it as a local handoff note, "non-canonical by design", triaged
+> `archive_now`. The dangling entry is removed rather than replaced: no
+> substitute document is invented to satisfy a stale link.
 
 **UI contract:** `docs/DESIGN_SYSTEM.md` is the canonical UI consistency contract.
 Before adding or modifying version-gated UI fields, read `docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md`.

@@ -45,7 +45,7 @@ For every parameter in scope, map to one of:
 Then verify coverage across all layers:
 
 - canonical params file (`data/params/<version>/<scenario>.json`)
-- frontend catalog copy (`frontend/src/data/catalogs/<scenario>.json`)
+- generated frontend mirror (`frontend/src/data/catalogs/<version>/<scenario>.json`, via `npm run sync-catalogs`)
 - UI/form placement in the correct tab
 - validation behavior (requiredness, allowed values, conditional logic)
 - backend emission (`install-config.yaml` and related outputs)

@@ -16,6 +16,12 @@ import { baseStates } from './fixtures/index.js';
 import { migrateStateToV3 } from '../../shared/stateMigration.js';
 import { assertSupportedOpenShiftMinorForGeneration } from '../src/versionPolicy.js';
 
+// Canonical application identity. See backend/test/build-info.test.js for why
+// this is read rather than pinned.
+const CANONICAL_VERSION = fs
+  .readFileSync(path.join(import.meta.dirname, '..', '..', 'VERSION'), 'utf-8')
+  .trim();
+
 function parseZipEntries(buffer) {
   let eocdOffset = -1;
   for (let i = buffer.length - 22; i >= 0; i--) {
@@ -108,9 +114,9 @@ describe('Export Integrity Helper', () => {
   });
 
   describe('getAppIdentity', () => {
-    it('reads version from backend/package.json as 2.0.0', () => {
+    it('reads version from backend/package.json matching the canonical VERSION file', () => {
       const identity = getAppIdentity();
-      assert.strictEqual(identity.version, '2.0.0');
+      assert.strictEqual(identity.version, CANONICAL_VERSION);
     });
 
     it('version matches package.json exactly', () => {
@@ -138,7 +144,7 @@ describe('Export Integrity Helper', () => {
       assert.strictEqual(manifest.manifestSchemaVersion, MANIFEST_SCHEMA_VERSION);
       assert.ok(manifest.generated.timestamp);
       assert.strictEqual(typeof manifest.generated.timestamp, 'string');
-      assert.strictEqual(manifest.generated.appIdentity.version, '2.0.0');
+      assert.strictEqual(manifest.generated.appIdentity.version, CANONICAL_VERSION);
       assert.strictEqual(manifest.generated.stateSchemaVersion, 3);
       assert.strictEqual(manifest.openshift.selectedMinor, '4.21');
       assert.strictEqual(manifest.openshift.selectedPatch, '4.21.15');

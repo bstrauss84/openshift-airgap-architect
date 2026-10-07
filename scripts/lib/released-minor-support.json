@@ -1,0 +1,16 @@
+{
+  "_purpose": "Tracked record of the OpenShift minor-support contract the product has already shipped. Read by scripts/validate-supported-minors.mjs.",
+  "_rule": "Supported OpenShift minors are CUMULATIVE by default. Adding a minor must never remove one. Retirement of a supported minor is a standalone, human-authorized product decision with its own scope, migration story and acceptance criteria. It is never a side effect of onboarding a newer minor.",
+  "_howToChange": "Add a minor to previouslyReleasedMinors only when that minor has actually shipped as supported. REMOVING an entry, or changing baselineMinor, is permitted only in an explicit, reviewed support-retirement or baseline-change commit that says so in its message. A routine onboarding change that edits this file is out of procedure.",
+  "_doNotInfer": "No agent or process may infer retirement from age, EUS status, odd/even release number, supported-window size, or the addition of a newer minor. None of those is evidence of retirement.",
+  "_reference": "docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md rule 1; OCP-4.22 v2.1 implementation plan Revision 3 §1.0 (R8).",
+
+  "baselineMinor": "4.20",
+  "_baselineMinorNote": "The version-awareness baseline: SUPPORTED_MINORS[0], and the minor that catalogFieldMeta.js compares against when deciding whether to show a contextual 'New in OpenShift X.Y' badge. A field introduced in 4.21 must show no badge at 4.22 while keeping its minVersion provenance, which is achieved by NOT moving this baseline. Changing it is a standalone human decision, not a consequence of adding minors.",
+
+  "previouslyReleasedMinors": ["4.20", "4.21"],
+  "_previouslyReleasedMinorsNote": "As shipped in v2.0.0. v2.1.0 will add 4.22; when it does, 4.22 is appended here in the same reviewed commit that widens SUPPORTED_MINORS. 4.20 and 4.21 remain.",
+
+  "lastReviewed": "2026-10-06",
+  "lastReviewedContext": "Tranche 0A-1. Live SUPPORTED_MINORS is still exactly [4.20, 4.21]; 4.22 remains fail-closed."
+}

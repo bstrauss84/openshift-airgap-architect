@@ -24,6 +24,68 @@ const path = require("path");
 const repoRoot = path.resolve(__dirname, "..");
 const defaultTarget = path.join(repoRoot, "data", "params", "4.20");
 
+/**
+ * The contract this validator actually enforces, exported so it can be compared
+ * mechanically against schema/catalog-parameter-schema.json.
+ *
+ * The schema file documents catalog schema v2.0.0 but nothing executes it: the
+ * rules below are what run. That made the schema decorative and allowed the two
+ * to drift silently. scripts/validate-catalog-schema-conformance.test.js now
+ * holds them to each other, and it reads these constants rather than restating
+ * them, so a change here is detected instead of quietly diverging.
+ *
+ * Keep every rule below sourced from these constants.
+ */
+const CONTRACT = Object.freeze({
+  /** Catalog-file top-level keys that must be present. */
+  fileRequired: Object.freeze(["version", "scenarioId", "parameters"]),
+
+  /** Parameter fields that must be present and non-null. */
+  paramRequired: Object.freeze([
+    "path",
+    "outputFile",
+    "description",
+    "applies_to",
+    "citations",
+    "supportStatus",
+    "minVersion",
+    "maxVersion"
+  ]),
+
+  /**
+   * Parameter fields that must also be PRESENT, but may carry the sentinel
+   * string "not specified in docs" when the documentation does not state a
+   * value. Presence is mandatory; a concrete value is not.
+   */
+  paramRequiredConcrete: Object.freeze(["allowed", "type", "required", "default"]),
+
+  /** Sentinel permitted for the paramRequiredConcrete fields. */
+  notSpecifiedSentinel: "not specified in docs",
+
+  /** Fields that must be present but are allowed to be explicitly null. */
+  nullableRequired: Object.freeze(["maxVersion"]),
+
+  /** Permitted supportStatus values. */
+  supportStatuses: Object.freeze([
+    "supported-ui",
+    "supported-backend-only",
+    "supported-derived",
+    "docs-only-not-supported",
+    "hidden-not-applicable",
+    "deprecated-supported",
+    "removed"
+  ]),
+
+  /** Explicitly CI-fatal supportStatus value (never valid in a committed catalog). */
+  forbiddenSupportStatus: "unknown-needs-review",
+
+  /** Minor-version format for minVersion, maxVersion and validationRules keys. */
+  versionPattern: /^4\.\d+$/,
+
+  /** Citation sub-fields that must be present and non-empty. */
+  citationRequired: Object.freeze(["docId", "docTitle", "sectionHeading", "url"])
+});
+
 function getFilesToValidate(targetPath) {
   const resolved = path.isAbsolute(targetPath) ? targetPath : path.join(repoRoot, targetPath);
   const stat = fs.statSync(resolved);
@@ -43,11 +105,11 @@ function getFilesToValidate(targetPath) {
 
 function validateParam(p, i, scenarioId) {
   const errs = [];
-  const need = ["path", "outputFile", "description", "applies_to", "citations", "supportStatus", "minVersion", "maxVersion"];
+  const need = CONTRACT.paramRequired;
   for (const k of need) {
-    // maxVersion can be null (unbounded), but field must exist
-    if (k === "maxVersion") {
-      if (!p.hasOwnProperty(k)) errs.push(`param[${i}].maxVersion required (use null for unbounded)`);
+    // Nullable-required fields (maxVersion) must exist but may be null.
+    if (CONTRACT.nullableRequired.includes(k)) {
+      if (!p.hasOwnProperty(k)) errs.push(`param[${i}].${k} required (use null for unbounded)`);
     } else if (p[k] === undefined || p[k] === null) {
       errs.push(`param[${i}].${k} required`);
     }
@@ -55,25 +117,17 @@ function validateParam(p, i, scenarioId) {
 
   // Schema v2.0.0: supportStatus validation
   if (p.supportStatus !== undefined) {
-    const validStatuses = [
-      "supported-ui",
-      "supported-backend-only",
-      "supported-derived",
-      "docs-only-not-supported",
-      "hidden-not-applicable",
-      "deprecated-supported",
-      "removed"
-    ];
+    const validStatuses = CONTRACT.supportStatuses;
     if (!validStatuses.includes(p.supportStatus)) {
       errs.push(`param[${i}].supportStatus must be one of: ${validStatuses.join(", ")}`);
     }
-    if (p.supportStatus === "unknown-needs-review") {
-      errs.push(`param[${i}].supportStatus CANNOT be "unknown-needs-review" in committed catalogs (CI FAIL)`);
+    if (p.supportStatus === CONTRACT.forbiddenSupportStatus) {
+      errs.push(`param[${i}].supportStatus CANNOT be "${CONTRACT.forbiddenSupportStatus}" in committed catalogs (CI FAIL)`);
     }
   }
 
   // Schema v2.0.0: minVersion/maxVersion format validation
-  const versionPattern = /^4\.\d+$/;
+  const versionPattern = CONTRACT.versionPattern;
   if (p.minVersion !== undefined && p.minVersion !== null) {
     if (!versionPattern.test(p.minVersion)) {
       errs.push(`param[${i}].minVersion must be minor version format "4.20" (got: ${p.minVersion})`);
@@ -115,22 +169,23 @@ function validateParam(p, i, scenarioId) {
       }
     }
   }
-  const optionalConcrete = ["allowed", "type", "required", "default"];
+  const optionalConcrete = CONTRACT.paramRequiredConcrete;
+  const sentinel = CONTRACT.notSpecifiedSentinel;
   for (const k of optionalConcrete) {
     if (p[k] === undefined || p[k] === null) {
-      errs.push(`param[${i}].${k} required (use "not specified in docs" if not in docs)`);
+      errs.push(`param[${i}].${k} required (use "${sentinel}" if not in docs)`);
     } else if (k === "required") {
-      if (p[k] !== true && p[k] !== false && p[k] !== "not specified in docs") {
-        errs.push(`param[${i}].required must be true, false, or "not specified in docs"`);
+      if (p[k] !== true && p[k] !== false && p[k] !== sentinel) {
+        errs.push(`param[${i}].required must be true, false, or "${sentinel}"`);
       }
-    } else if (typeof p[k] === "string" && p[k] !== "not specified in docs") {
+    } else if (typeof p[k] === "string" && p[k] !== sentinel) {
       // concrete string value is ok
-    } else if (p[k] === "not specified in docs") {
+    } else if (p[k] === sentinel) {
       // ok
     } else if (Array.isArray(p[k]) || typeof p[k] === "number" || typeof p[k] === "boolean") {
       // concrete value ok (for allowed as array, default as various)
     } else {
-      errs.push(`param[${i}].${k} must be concrete or the string "not specified in docs"`);
+      errs.push(`param[${i}].${k} must be concrete or the string "${sentinel}"`);
     }
   }
   return errs;
@@ -210,4 +265,7 @@ function main() {
   process.exit(0);
 }
 
-main();
+// Guarded so the conformance test can import CONTRACT without running the CLI.
+if (require.main === module) main();
+
+module.exports = { CONTRACT, validateParam, validateFile };

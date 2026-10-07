@@ -6,6 +6,65 @@ on:
     branches: [master, main, develop]
 
 jobs:
+  # Hermetic repository gates. No dependency install, no network, no containers.
+  #
+  # NO `npm ci` ON PURPOSE. Every script invoked below uses Node built-ins only
+  # (node:fs, node:path, node:crypto, node:url, node:child_process, node:test).
+  # The two guards that need SUPPORTED_MINORS read it by dynamically importing
+  # backend/src/versionPolicy.js and frontend/src/shared/versionPolicy.js, both
+  # of which import only relative modules. Verified by running this exact
+  # sequence with node_modules/, backend/node_modules/ and frontend/node_modules/
+  # all removed: 8/8 steps exit 0. If a future step needs a package, add
+  # `npm ci` here rather than assuming a warm cache.
+  #
+  # Kept in its own job so a failure in the catalog-data gate below cannot mask
+  # these, and so results are attributable at a glance.
+  tooling-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Application version synchronized (VERSION + 4 manifests + 3 lockfiles)
+        run: npm run check:app-version
+
+      - name: Application version validator tests
+        run: npm run test:app-version
+
+      - name: Cumulative minor-support guards (superset, baseline, fe/be agreement)
+        run: npm run check:supported-minors
+
+      - name: Stale version-list guard (repo-wide tracked JSON)
+        run: npm run check:version-lists
+
+      # --check is the GATE: read-only, non-zero exit on any drift including
+      # orphan mirror files. Do NOT substitute --dry-run here: that mode is a
+      # human preview and exits 0 even when it reports drift, which would make
+      # this step incapable of failing.
+      - name: Catalog mirror drift (canonical -> frontend, --check gate)
+        run: npm run sync-catalogs:check
+
+      - name: Docs-index mirror drift (canonical -> frontend, --check gate)
+        run: npm run sync-docs-index:check
+
+      - name: Repository tooling tests (guards, sync gates, schema conformance, scripts/minor)
+        run: npm run test:tooling
+
+      # EXPLICIT --report mode (npm run check:citation-minor). The guard has no
+      # default mode: omitting --report/--strict exits 2, so this cannot
+      # silently become permissive.
+      #
+      # TRANCHE 0B CUTOVER: once the 810 wrong-minor citations in
+      # data/params/4.21/ are repaired and `npm run check:citation-minor:strict`
+      # exits 0, change the line below to `npm run check:citation-minor:strict`
+      # and drop "(report-only, pre-0B)" from this step name.
+      - name: Catalog citation minor guard (report-only, pre-0B)
+        run: npm run check:citation-minor
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -62,6 +121,15 @@ jobs:
             frontend/test-output.log
           retention-days: 7
 
+      # Iterates every supported minor from the canonical SUPPORTED_MINORS and
+      # prints a PASS/FAIL summary tagged [mechanism] or [data], so a red result
+      # is attributable rather than opaque.
+      #
+      # EXPECTED RED until Tranche 0B. As of v2.1 Tranche 0A-1 every [mechanism]
+      # check passes and the single [data] failure is the measured 4.20/4.21
+      # catalog schema debt (296 + 445 = 741 errors) that 0B owns. The gate is
+      # deliberately NOT skipped, softened or continue-on-error'd: suppressing
+      # it would hide the next real tooling regression behind known data debt.
       - name: Validate param catalog authority (docs index, catalogs, parity, NMState guards)
         run: node scripts/validate-param-authority.js
 

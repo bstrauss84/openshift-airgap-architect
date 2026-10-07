@@ -201,34 +201,57 @@ Every parameter in the catalog **MUST** have an explicit `supportStatus` field:
 
 ### CI Enforcement
 
-**Pre-commit hook:**
+> **Correction (v2.1, Tranche 0A-1).** This section previously specified a
+> `scripts/validate-param-support-status.js` pre-commit hook and CI step. **That
+> script was never written.** The requirement itself was implemented, but inside
+> the existing catalog validator rather than as a separate script, so the
+> reference here pointed at nothing for the whole of v2.0.0. The design below
+> reflects what actually runs.
+
+Both rules are enforced by `scripts/validate-catalog.js`, which runs in CI via
+`scripts/validate-param-authority.js`:
+
+| Rule | Where |
+|---|---|
+| Every parameter must carry `supportStatus` | `CONTRACT.paramRequired` — a missing or null value is an error |
+| `supportStatus` must be one of the seven decided values | `CONTRACT.supportStatuses` |
+| `unknown-needs-review` is **CI-fatal** | `CONTRACT.forbiddenSupportStatus` — rejected explicitly, with its own message, so it can never be mistaken for a merely-unrecognised value |
+
 ```bash
-# scripts/validate-param-support-status.js
-for file in data/params/**/*.json; do
-  if jq '.parameters[] | select(.supportStatus == "unknown-needs-review")' "$file" | grep .; then
-    echo "ERROR: $file has params with unknown-needs-review status"
-    echo "All params must have explicit support decision before commit"
-    exit 1
-  fi
-  
-  if jq '.parameters[] | select(.supportStatus == null)' "$file" | grep .; then
-    echo "ERROR: $file has params without supportStatus field"
-    exit 1
-  fi
-done
+# All minors, recursive:
+node scripts/validate-catalog.js data/params
+
+# Full authority gate (adds docs-index, parity for every supported minor, NMState guards):
+node scripts/validate-param-authority.js
 ```
 
-**GitHub Actions:**
-```yaml
-- name: Validate param support decisions
-  run: node scripts/validate-param-support-status.js
-```
+The declared schema `schema/catalog-parameter-schema.json` and the executable
+validator are held to each other by
+`scripts/validate-catalog-schema-conformance.test.js`, so the contract above
+cannot drift from what the code enforces.
 
-### Support Status Migration (4.20 → 2.0.0)
+### Support Status Migration (4.20 → 2.0.0) — COMPLETED in v2.0.0
 
-**Current State:** No `supportStatus` field exists in params (v1.1.0 schema)
+> **Status corrected in v2.1 Tranche 0A-1.** This section previously opened
+> *"Current State: No `supportStatus` field exists in params (v1.1.0 schema)"*
+> and described the migration in the future tense. That had been false since
+> v2.0.0 shipped. It is retained below as the historical plan of record, with
+> the actual outcome stated first.
 
-**Migration Required:**
+**Actual current state (verified 2026-10-07):**
+
+- `supportStatus` is **present and REQUIRED** on every catalog parameter. All
+  2,121 parameters across `data/params/4.20/` and `data/params/4.21/` carry one.
+- Catalog schema is **v2.0.0**, not v1.1.0. `supportStatus`, `minVersion` and
+  `maxVersion` are required fields.
+- `scripts/validate-catalog.js` enforces the seven-value enum and treats
+  `unknown-needs-review` as CI-fatal. CI runs it via
+  `scripts/validate-param-authority.js`.
+- The declared schema and the executable validator are held to each other by
+  `scripts/validate-catalog-schema-conformance.test.js`.
+
+**Historical plan (executed in v2.0.0, retained for provenance):**
+
 1. Review all 949 existing params in 4.20 catalogs
 2. Assign support status based on current behavior:
    - Has UI field? → `supported-ui`
@@ -237,7 +260,13 @@ done
 3. Update schema to v2.0 with required `supportStatus` field
 4. Add CI enforcement
 
-**Effort:** 2-3 days (can use scripts to infer from current UI/backend, human review for edge cases)
+> **Do not repeat step 2 mechanically for a new minor.** Inferring
+> `supportStatus` from whether a UI field happens to exist is a heuristic, and
+> the one-shot scripts that did it (`add-support-status-all.js`,
+> `add-support-status-oc-mirror.js`) are retired for that reason. Under **O1**,
+> supportedness is a recorded product decision sourced from Red Hat
+> documentation, not a property derived from our own code. See
+> `docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md` rule 2.
 
 ---
 

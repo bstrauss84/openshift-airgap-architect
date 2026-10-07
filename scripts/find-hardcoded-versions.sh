@@ -21,6 +21,7 @@
 #   ENUMVAL — API enum values (baselineCapabilitySet)
 #   VMAP    — OperatorsStep version-keyed data maps and format examples
 #   VGATED  — PlatformSpecificsStep version-gated delta descriptions (isCatalogFieldVisible)
+#   SVGPATH — SVG <path d="..."> coordinate data (not a version reference at all)
 #
 # Previously unexempted findings in NetworkingV2Step.jsx (10) and
 # NodeDrawerAgentContent.jsx (1) have been resolved via production edits.
@@ -31,8 +32,22 @@ MODE="audit"
 if [ "${1:-}" = "--check" ]; then MODE="check"; fi
 if [ "${1:-}" = "--self-test" ]; then MODE="self-test"; fi
 
-# Detect OpenShift 4.x version references (4.20+ including any future minor)
-SEARCH_PATTERN='4\.([0-9]{2,})'
+# Detect OpenShift 4.x version references (4.20+ including any future minor).
+#
+# The leading (^|[^0-9.]) boundary is load-bearing. Without it the pattern also
+# matches the tail of any decimal whose integer part ends in 4 and whose
+# fraction has two or more digits — "14.25" contains "4.25" — which produced six
+# false positives against SVG path coordinates in HostInventoryV2Step.jsx and
+# left the CI guard red. The boundary rejects a 4 preceded by a digit or a dot
+# and nothing else, so every real reference form still matches: "OpenShift 4.22",
+# "(4.22)", "v4.22", "4.22+", '"4.22":' and a line-initial 4.22.
+SEARCH_PATTERN='(^|[^0-9.])4\.[0-9]{2,}'
+
+# awk builds a regex from a string, so the backslash must survive string-escape
+# processing (a bare "\." becomes "any character" plus a warning). The interval
+# {2,} is spelled out as two classes because not every awk implementation
+# supports interval expressions; for presence-detection the two are equivalent.
+SEARCH_PATTERN_AWK='(^|[^0-9.])4\\.[0-9][0-9]'
 
 # ---------------------------------------------------------------------------
 # classify_raw — the single adjudication filter chain
@@ -45,6 +60,26 @@ classify_raw() {
   local f
   f=$(cat)
 
+  [ -z "$f" ] && return 0
+
+  # Step 1.5: SVGPATH — SVG <path d="..."> coordinate data is geometry, not copy.
+  #
+  # This is deliberately NOT a line-level exclusion. A line is kept or dropped by
+  # stripping ONLY the path-data attribute value and then re-testing the remainder,
+  # so a genuine version reference sitting next to SVG markup on the same line is
+  # still reported. The reported text is always the untouched original line.
+  #
+  # The attribute value must consist exclusively of SVG path-command syntax
+  # (command letters, digits, whitespace, comma, dot, sign). Anything else — a
+  # stray word, a template expression — fails the pattern and the line is judged
+  # on its full content, so this cannot be widened into a file or element escape.
+  f=$(echo "$f" | awk -v pat="$SEARCH_PATTERN_AWK" '
+    {
+      stripped = $0
+      gsub(/d="[MmLlHhVvCcSsQqTtAaZz0-9 \t,.+-]*"/, "d=\"\"", stripped)
+      if (stripped ~ pat) print $0
+    }
+  ' || true)
   [ -z "$f" ] && return 0
 
   # Step 2: INFRA — enumerated version infrastructure authority files
@@ -219,6 +254,18 @@ const EXEMPT_cdeflt = getOpenShiftMinorFromState(state) || "4.20";
 const VIOLATE_new_step_copy = "Requires OpenShift 4.30 for full support";
 FIXTURE
 
+  # --- Fixture: SvgIconStep.jsx (SVGPATH exemption + adjacency regression) ---
+  # Guards the defect class that left --check red at the v2.0.0 baseline:
+  # SVG coordinates such as "14.25" and "v4.25" were read as version references.
+  # The last line is the adjacency control — stripping path data must NOT hide a
+  # real version reference that happens to share the line with SVG markup.
+  cat > "$SYNTH_DIR/frontend/src/steps/SvgIconStep.jsx" << 'FIXTURE'
+const EXEMPT_svg_leading = '<path d="M14.25 6H10V1.75" />';
+const EXEMPT_svg_command_prefixed = '<path d="M14.25 10H10v4.25" />';
+const EXEMPT_svg_multi = '<path d="M6 14.25H1.75V10" /><path d="M10 1.75h4.25V6" />';
+const VIOLATE_svg_adjacent = '<path d="M14.25 6H10V1.75" /> {/* OpenShift 4.30 only */}';
+FIXTURE
+
   # --- Grep the synthetic tree exactly as --check does ---
   raw=$(grep -rn --include="*.jsx" --include="*.js" \
     -E "$SEARCH_PATTERN" \
@@ -277,6 +324,9 @@ FIXTURE
   assert_violation "VIOLATE_enumval_future"
   assert_violation "VIOLATE_quoted_copy"
   assert_violation "VIOLATE_new_step_copy"
+  # SVGPATH must not become an escape hatch: a real reference sharing a line
+  # with SVG path data is still a violation.
+  assert_violation "VIOLATE_svg_adjacent"
   echo ""
 
   # Must-exempt assertions (reviewed 4.20/4.21 exclusions)
@@ -306,6 +356,9 @@ FIXTURE
   assert_exemption "EXEMPT_infra"
   assert_exemption "EXEMPT_cdeflt"
   assert_exemption "EXEMPT_comment"
+  assert_exemption "EXEMPT_svg_leading"
+  assert_exemption "EXEMPT_svg_command_prefixed"
+  assert_exemption "EXEMPT_svg_multi"
   echo ""
 
   # Structural: guard must exit nonzero (violations exist)
@@ -325,11 +378,12 @@ FIXTURE
   else
     vcount=0
   fi
-  if [ "$vcount" -eq 11 ]; then
-    echo "  PASS [structural]: exactly 11 violations found"
+  # 11 original fixtures + 1 SVG-adjacency regression fixture.
+  if [ "$vcount" -eq 12 ]; then
+    echo "  PASS [structural]: exactly 12 violations found"
     pass_count=$((pass_count + 1))
   else
-    echo "  FAIL [structural]: expected 11 violations, got $vcount"
+    echo "  FAIL [structural]: expected 12 violations, got $vcount"
     fail_count=$((fail_count + 1))
   fi
 

@@ -1,36 +1,83 @@
 # Parameter authority (catalogs and docs index)
 
-This project treats **versioned JSON under `data/params/<version>/`** as the single source of truth for installation parameters: paths, types, required flags, allowed values, defaults, and which output file (`install-config.yaml`, `agent-config.yaml`, etc.) each field belongs to.
+This project treats **versioned JSON under `data/params/<version>/`** as the single source of truth for installation parameters: paths, types, required flags, allowed values, defaults, and which output file (`install-config.yaml`, `agent-config.yaml`, `imageset-config.yaml`) each field belongs to.
 
-**Doc links per scenario** live in **`data/docs-index/<version>.json`** (canonical). The UI copy is `frontend/src/data/docs-index/<version>.json`; it must match canonical after the same normalization used in CI.
+**Doc links per scenario** live in **`data/docs-index/<version>.json`** (canonical).
+
+## Canonical and mirror
+
+```
+data/params/<version>/<scenario-id>.json   ->  frontend/src/data/catalogs/<version>/<scenario-id>.json
+data/docs-index/<version>.json             ->  frontend/src/data/docs-index/<version>.json
+        CANONICAL  (edit this)                         GENERATED MIRROR  (never edit)
+```
+
+Both frontend trees are **generated mirrors**. They are produced by the sync
+scripts, never hand-edited, and never read as a data source by tooling.
+
+> **Never copy a mirror back over canonical.** Earlier revisions of this document
+> and of `docs/CATALOG_SYNC_GUIDE.md` showed exactly that, and three scripts
+> learned the habit — one of which now reads the mirror with a flat `readdir`
+> and silently sees zero catalogs.
 
 ## Rules for contributors and automation
 
-1. **Edit canonical first** when adding or changing a parameter: update `data/params/<version>/<scenario-id>.json`, run `node scripts/validate-catalog.js data/params/<version>`, then copy the file to `frontend/src/data/catalogs/<scenario-id>.json` so the UI and backend assumptions stay aligned (see `docs/DATA_AND_FRONTEND_COPIES.md`). When doc links or scenario headers change, edit **`data/docs-index/<version>.json`**, run `node scripts/validate-docs-index.js`, then copy to **`frontend/src/data/docs-index/`**.
-2. **Never invent YAML keys** for NMState / agent `networkConfig` that are not spelled exactly as in the catalog paths (kebab-case, e.g. `prefix-length`, `base-iface`, `link-aggregation`). Internal app state may stay camelCase; emitted YAML must match NMState and the catalog.
-3. **After any catalog or generator change**, run the full authority gate locally:
+1. **Edit canonical first.** Update `data/params/<version>/<scenario-id>.json`, then:
 
    ```bash
-   node scripts/validate-param-authority.js
-   cd backend && npm test
-   cd frontend && npm test
+   node scripts/validate-catalog.js data/params/<version>
+   npm run sync-catalogs            # regenerate frontend/src/data/catalogs/<version>/
    ```
 
-   CI runs `validate-param-authority.js` on every push/PR to `main`/`master`.
+   For doc links, edit `data/docs-index/<version>.json`, then:
 
-## What `validate-param-authority.js` enforces
+   ```bash
+   node scripts/validate-docs-index.js
+   npm run sync-docs-index          # regenerate frontend/src/data/docs-index/<version>.json
+   ```
 
-| Check | Script | Purpose |
-|--------|--------|---------|
-| Docs index schema | `validate-docs-index.js` | Required keys, scenario map shape, doc entries, `configTypes` / `tags`. |
-| Catalog schema | `validate-catalog.js` | Required fields, citations, duplicates, docs-index scenario coverage. |
-| Docs index ↔ frontend parity | `validate-docs-index-frontend-parity.js` | `data/docs-index/<version>.json` matches `frontend/src/data/docs-index/<version>.json` after stable sort. |
-| Canonical ↔ frontend parity | `validate-catalog-frontend-parity.js` | Same scenario file in `data/params/4.20/` and `frontend/src/data/catalogs/` must match after stable sort of `parameters`. |
-| NMState path spelling | `validate-catalog-agent-networkconfig-paths.js` | No camelCase leak in `agent-config.yaml` paths that include `networkConfig`. |
-| Generator guard | `validate-agent-nmstate-generator.js` | `buildNmState` must not reintroduce forbidden dump keys (`prefixLength`, `linkAggregation`, `vlan: { baseIface`). |
+2. **Verify before you sync.** `npm run sync-catalogs:check` and
+   `npm run sync-docs-index:check` are the read-only **gates**: they write
+   nothing and exit non-zero on any drift, including an orphan mirror file.
+   These are what CI and the pre-commit hook run.
 
-Optional manual diff tooling: `scripts/validate-catalog-vs-doc-params.js` (see `docs/PARAMS_RECONCILIATION_CHECKLIST.md`).
+   The `:preview` variants (`--dry-run`) print the same information but exit 0
+   even when drift exists, so they are for human inspection only. Never wire a
+   `--dry-run` invocation into CI — it produces a gate that cannot fail.
 
-## Version drift
+3. **One minor at a time, from that minor's own sources.** A correction to
+   `data/params/4.20/**` is sourced from OpenShift 4.20 documentation and/or the
+   `release-4.20` installer branch. Evidence from a different minor may trigger
+   *investigation* of a row; it may never populate or overwrite one. See
+   `docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md` rule 4.
 
-When OpenShift doc version bumps (e.g. 4.21), add `data/params/4.21/` and wire the app to that version deliberately; rerun all checks for the new directory.
+4. **Do not guess.** A field whose correct value is not derivable from an
+   authoritative source is a stop-and-report, not a judgement call. Do not make
+   a validator green by weakening the schema or backfilling invented values.
+
+## Enforcement
+
+`node scripts/validate-param-authority.js` is the single entrypoint, and runs in CI.
+It iterates **every** supported minor from the canonical `SUPPORTED_MINORS`
+rather than defaulting to one, and reports a PASS/FAIL summary for:
+
+| Check | Scope |
+|---|---|
+| `validate-docs-index.js` | docs-index schema, all minors present |
+| `validate-catalog.js data/params` | catalog schema v2.0.0, recursive, all minors |
+| `validate-docs-index-frontend-parity.js <minor>` | once per supported minor |
+| `validate-catalog-frontend-parity.js <minor>` | once per supported minor |
+| `validate-catalog-agent-networkconfig-paths.js` | canonical and mirror trees |
+| `validate-agent-nmstate-generator.js` | generator naming contract |
+
+The schema itself is `schema/catalog-parameter-schema.json`. It is **documentation,
+not the executable rule set** — `scripts/validate-catalog.js` implements the rules
+in code. `scripts/validate-catalog-schema-conformance.test.js` holds the two to
+each other so they cannot drift.
+
+## Related
+
+- `docs/DATA_AND_FRONTEND_COPIES.md` — where repo data and its mirrors live
+- `docs/PARAMS_CATALOG_RULES.md` — catalog file format
+- `docs/DOC_INDEX_RULES.md` — docs-index rules
+- `docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md` — adding a new minor

@@ -1,6 +1,7 @@
 # Versioned Copy Adjudication Ledger
 
-**Updated:** 2026-08-26 (DOC-107 narrow adjudication revision)
+**Updated:** 2026-10-06 (Tranche 0A-1: decimal-fragment boundary + SVGPATH category)
+**Previously:** 2026-08-26 (DOC-107 narrow adjudication revision)
 **Tool:** `scripts/find-hardcoded-versions.sh --check`
 **Phase 0 inventory:** DOC-106 (verified_done, commit 94b5b14)
 
@@ -10,7 +11,19 @@
 
 `scripts/find-hardcoded-versions.sh --check` exits nonzero for unclassified hardcoded version references in production frontend code. CI workflow: `.github/workflows/validate-versioned-copy.yml`.
 
-Search pattern: `4\.([0-9]{2,})` — detects all OpenShift 4.x two-digit minors (4.10+), including unsupported/future versions.
+Search pattern: `(^|[^0-9.])4\.[0-9]{2,}` — detects all OpenShift 4.x two-digit minors (4.10+), including unsupported/future versions.
+
+### Search-pattern boundary (added 0A-1)
+
+The leading `(^|[^0-9.])` boundary is load-bearing, not cosmetic.
+
+The previous pattern `4\.([0-9]{2,})` was unanchored on the left, so it also matched the **tail of any decimal** whose integer part ends in `4` and whose fraction has two or more digits: `14.25` contains the substring `4.25`. That is not a version reference.
+
+**Observed consequence.** At the v2.0.0 baseline (`09703fa`) `--check` exited 1 with 6 unclassified findings, all SVG path coordinates in `frontend/src/steps/HostInventoryV2Step.jsx` lines 901-903 and 908-910. The coordinates entered in commit `6e54610` (2026-10-05), confirmed by `git merge-base` to be an ancestor of the baseline, so the Versioned Copy Guard workflow was red from that commit onward. This was identified by the Tranche 0A-0 harvest (discrepancy D1, finding F12).
+
+**Why the boundary alone was insufficient.** Of the six findings it resolves only two. Lines 902, 903, 908 and 909 contain a standalone `4.25` preceded by an SVG command letter (`v4.25`, `h4.25`), which no digit-boundary rule can exclude. The `SVGPATH` category below closes the remainder.
+
+**No detection weakened.** The boundary rejects a `4` preceded by a digit or a dot and nothing else. Every real reference form still matches: `OpenShift 4.22`, `(4.22)`, `v4.22`, `4.22+`, `"4.22":`, and a line-initial `4.22`.
 
 ---
 
@@ -141,6 +154,25 @@ User-facing text that accurately describes version-specific behavior AND is corr
 | 1723 | Subnet count warning for 4.20 / upgrade guidance for 4.21 | `canAddNodeSubnet` gate | `4\.20 supports only one node subnet`, `Remove extras to generate for 4\.20`, `must use OpenShift 4\.21` |
 | 4601 | "Availability: OpenShift 4.21 and later" | `showBmcVerifyCA` (4.21+ catalog visibility) | `OpenShift 4\.21 and later` |
 
+### SVGPATH — SVG Path-Coordinate Data (added 0A-1)
+
+SVG `<path d="…">` attribute values are geometry. Coordinates such as `14.25`, `v4.25` and `h4.25` are not OpenShift version references and never were.
+
+**This is not a file, element or line exclusion.** The classifier strips **only** the path-data attribute value from a copy of the line and then re-tests the remainder against the search pattern. The line is dropped only if nothing version-like survives, and the text reported for any surviving violation is always the untouched original line.
+
+Two properties make this safe to adjudicate:
+
+1. **The attribute value must be pure path syntax.** The exemption pattern accepts only SVG path command letters (`MmLlHhVvCcSsQqTtAaZz`), digits, whitespace, comma, dot and sign. A `d` attribute containing a stray word or a template expression fails the pattern, and the line is then judged on its full content. The category cannot be widened into an element or file escape.
+2. **Adjacency is still caught.** A genuine version reference sharing a line with SVG markup survives the strip and is reported. This is pinned by the `VIOLATE_svg_adjacent` self-test fixture:
+   `'<path d="M14.25 6H10V1.75" /> {/* OpenShift 4.30 only */}'` must fail the guard.
+
+| File | Lines | Content | Guard mechanism |
+|------|-------|---------|-----------------|
+| `frontend/src/steps/HostInventoryV2Step.jsx` | 901, 902, 903 | `<path d="M14.25 6H10V1.75" />` and siblings | path-data strip, then re-test |
+| `frontend/src/steps/HostInventoryV2Step.jsx` | 908, 909, 910 | `<path d="M10 1.75h4.25V6" />` and siblings | path-data strip, then re-test |
+
+**Explicitly rejected alternative:** adding `HostInventoryV2Step.jsx` to a file or directory exemption list. That file carries real user-facing copy and was itself the subject of three DOC-107 resolutions (lines 540, 582, 664). A whole-file exemption would have silently disarmed the guard for a component that has already needed it. Verified by negative control: a `"Requires OpenShift 4.30 or later"` string appended to that same file is still reported.
+
 ### DOCSRC — PlatformSpecificsStep Doc-Source Citations (RESOLVED)
 
 All 7 DOCSRC findings resolved via production edits in PlatformSpecificsStep.jsx. Catalog evidence confirms all claims are identical across 4.20 and 4.21. No guard exemption needed — these lines no longer match the search pattern.
@@ -184,7 +216,7 @@ Backend code (`backend/src/`) is outside the `--check` guard's frontend scope. T
 
 ## Guard Design
 
-The `--check` mode searches `frontend/src/**/*.{js,jsx}` (excluding tests) for `4\.([0-9]{2,})`, then subtracts each adjudicated exclusion category in sequence using narrow, attributable patterns. Any remaining match is an unclassified violation that fails the guard.
+The `--check` mode searches `frontend/src/**/*.{js,jsx}` (excluding tests) for `(^|[^0-9.])4\.[0-9]{2,}`, then subtracts each adjudicated exclusion category in sequence using narrow, attributable patterns. Any remaining match is an unclassified violation that fails the guard.
 
 Key design properties:
 - **No whole-file exclusions** for user-facing components (PlatformSpecificsStep, NetworkingV2Step, OperatorsStep)
@@ -193,7 +225,9 @@ Key design properties:
 - **Pinned VGATED**: version-gated phrases are pinned to specific versions ("required for OpenShift 4.20", "must use OpenShift 4.21"); "required for OpenShift 4.30" is NOT exempted
 - **Object-key VMAP**: OperatorsStep version-map keys require trailing-colon syntax (`"4.XX":`); quoted versions in other positions are NOT exempted
 - **All user-facing violations resolved**: NetworkingV2Step.jsx (10 findings) and NodeDrawerAgentContent.jsx (1 finding) resolved via version-neutral wording — guard passes clean
-- **Future-version guarantee**: `bash scripts/find-hardcoded-versions.sh --self-test` runs 38 deterministic assertions (11 violation, 25 exemption, 2 structural) against synthetic fixtures using the exact `classify_raw` function shared with `--check`. Violations proven: "OpenShift 4.30+", "OpenShift 4.22+", "required for OpenShift 4.30", "Deprecated in OpenShift 4.30+", "must use OpenShift 4.30", "OpenShift 4.30 supports multiple node subnets", "baselineCapability v4.30", "Requires OpenShift 4.30 or later", "OpenShift 4.30 introduces new lifecycle", "OpenShift 4.30 and later", and user-facing copy in a non-adjudicated step file. Exemptions proven: all 9 adjudication categories (INFRA, CDEFLT, COMMENT, LOGIC, FMT, THRESH, ENUMVAL, VMAP, VGATED) with representative fixtures.
+- **No decimal-fragment false positives**: the search pattern is left-anchored so a `4` preceded by a digit or dot is not a match; SVG path data is additionally handled by SVGPATH (see above). Neither change exempts any real version reference.
+- **Future-version guarantee**: `bash scripts/find-hardcoded-versions.sh --self-test` runs **42** deterministic assertions (12 violation, 28 exemption, 2 structural) against synthetic fixtures using the exact `classify_raw` function shared with `--check`. Violations proven: "OpenShift 4.30+", "OpenShift 4.22+", "required for OpenShift 4.30", "Deprecated in OpenShift 4.30+", "must use OpenShift 4.30", "OpenShift 4.30 supports multiple node subnets", "baselineCapability v4.30", "Requires OpenShift 4.30 or later", "OpenShift 4.30 introduces new lifecycle", "OpenShift 4.30 and later", user-facing copy in a non-adjudicated step file, and **a real version reference sharing a line with SVG path markup**. Exemptions proven: all 10 adjudication categories (INFRA, CDEFLT, COMMENT, LOGIC, FMT, THRESH, ENUMVAL, VMAP, VGATED, SVGPATH) with representative fixtures.
+  - *Assertion-count history:* 38 before Tranche 0A-1. All 36 original fixture assertions are retained unchanged; 0A-1 added 3 SVGPATH exemption fixtures and 1 SVG-adjacency violation fixture, so the structural expected-violation count moved 11 → 12.
 - **Narrow patterns**: each exclusion matches specific text phrases, not file names; new hardcoded version copy in adjudicated files still fails
 - **CI execution**: `.github/workflows/validate-versioned-copy.yml` runs `--self-test` then `--check` in sequence; no dependency installation required
 
