@@ -1,0 +1,147 @@
+{
+  "schema": "oaa.minor.supportability/1",
+  "minor": "4.22",
+  "tranche": "Phase 1 / Tranche 1",
+  "implemented": false,
+  "note": "Proposed classifications only. 4.22 remains unsupported and fail-closed. No catalog row, UI control, validation rule or Field Guide text is created by this file.",
+  "authorityModel": "Installer owns mechanical reality; same-minor Red Hat documentation owns user-facing supportedness and holds veto (runbook Rule 2.4, plan O1).",
+  "documentationRetrieved": "2026-10-07",
+  "installerEvidence": {
+    "baseline": { "release": "4.21.35", "commit": "006669f5812a47dbc733b6736584b87ef696e898" },
+    "target":   { "release": "4.22.16", "commit": "92820966521d640aa5f0edfb69bcfd9c168c2210" },
+    "binarySha256": "62b3a91ca3f242dd6feec1aefec8f5f5e7af4e13982f65600eb84fc56ca71a33"
+  },
+  "summary": {
+    "SUPPORTED-UI": 1,
+    "SUPPORTED-BACKEND-ONLY": 0,
+    "DOCS-ONLY-NOT-SUPPORTED": 3,
+    "HIDDEN-NOT-APPLICABLE": 1,
+    "HUMAN-REVIEW-REQUIRED": 4
+  },
+  "rows": [
+    {
+      "id": "C1",
+      "paths": ["platform.baremetal.provisioningNetworkGateway"],
+      "classification": "SUPPORTED-UI",
+      "mechanicalEvidence": "pkg/types/baremetal/platform.go Platform.ProvisioningNetworkGateway; string; omitempty; +optional; +kubebuilder:validation:Format=ip; NO feature gate",
+      "binaryEvidence": "openshift-install 4.22.16 create manifests: accepted with provisioningNetwork Managed; rejected 'not-an-ip' as not a valid IP; accepted and ignored with provisioningNetwork Disabled",
+      "documentationEvidence": "OCP 4.22 Installing on bare metal, section 3.3.15 Configuring the install-config.yaml file: 'The IP address of the gateway for the network on the provisioning interface.' Not listed as Technology Preview in the 4.22 release notes.",
+      "scenarioApplicability": ["bare-metal-ipi", "bare-metal-agent"],
+      "installMethodApplicability": ["ipi", "agent"],
+      "notApplicableTo": ["bare-metal-upi"],
+      "architectureApplicability": "no architecture dependency found",
+      "minVersionCandidate": "4.22",
+      "maxVersionCandidate": null,
+      "introducedInMinorCandidate": "4.22",
+      "deprecationCandidate": null,
+      "conditionalRelationship": "only honoured when provisioningNetwork is Managed; ignored for Unmanaged and Disabled",
+      "citations": ["https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_bare_metal/installer-provisioned-infrastructure"],
+      "ownershipRecommendation": "frontend UI field in the bare-metal provisioning section, data/params/4.22 catalog row, backend generation",
+      "testsRequired": [
+        "catalog row passes validate-catalog",
+        "generation emits only when provisioningNetwork is Managed",
+        "validation rejects a non-IP value",
+        "negative: not offered for bare-metal-upi",
+        "version gating: invisible at 4.20 and 4.21"
+      ],
+      "doNot": "Do not implement the installer's DHCP-range overlap rule in the UI. It is inert against the shipped binary (see mechanical delta ledger section 7, D1)."
+    },
+    {
+      "id": "C2",
+      "paths": ["osImageStream"],
+      "classification": "DOCS-ONLY-NOT-SUPPORTED",
+      "mechanicalEvidence": "pkg/types/installconfig.go InstallConfig.OSImageStream; enum rhel-9|rhel-10; gated by FeatureGateOSStreams which openshift/api enables only inTechPreviewNoUpgrade() and inDevPreviewNoUpgrade(), not inDefault()",
+      "binaryEvidence": "osImageStream: Forbidden: this field is protected by the OSStreams feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set; bogus value additionally rejected with 'Unsupported OS Image Stream. Supported values are: rhel-9, rhel-10'",
+      "documentationEvidence": "OCP 4.22 release notes, Installation Technology Preview table 1.9.5: installing with RHEL 10 is a Technology Preview requiring the TechPreviewNoUpgrade feature set and osImageStream: rhel-10",
+      "scenarioApplicability": "all in-scope scenarios",
+      "installMethodApplicability": "all",
+      "architectureApplicability": "not architecture-specific; rhel-10 forbidden on SCOS/OKD",
+      "minVersionCandidate": "4.22",
+      "introducedInMinorCandidate": "4.22",
+      "citations": ["https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/release_notes/ocp-4-22-release-notes"],
+      "ownershipRecommendation": "catalog row with supportStatus docs-only-not-supported and the O3 rationale recorded in the note; no UI surface",
+      "testsRequired": ["catalog supportStatus asserted", "no UI surface renders it", "generation never emits it"],
+      "resolves": "plan open decision O3"
+    },
+    {
+      "id": "C3",
+      "paths": [
+        "controlPlane.platform.aws.hostPlacement", "controlPlane.platform.aws.hostPlacement.affinity",
+        "controlPlane.platform.aws.hostPlacement.dedicatedHost[]", "controlPlane.platform.aws.hostPlacement.dedicatedHost[].id",
+        "compute[].platform.aws.hostPlacement", "compute[].platform.aws.hostPlacement.affinity",
+        "compute[].platform.aws.hostPlacement.dedicatedHost[]", "compute[].platform.aws.hostPlacement.dedicatedHost[].id",
+        "arbiter.platform.aws.hostPlacement", "arbiter.platform.aws.hostPlacement.affinity",
+        "arbiter.platform.aws.hostPlacement.dedicatedHost[]", "arbiter.platform.aws.hostPlacement.dedicatedHost[].id",
+        "platform.aws.defaultMachinePlatform.hostPlacement", "platform.aws.defaultMachinePlatform.hostPlacement.affinity",
+        "platform.aws.defaultMachinePlatform.hostPlacement.dedicatedHost[]", "platform.aws.defaultMachinePlatform.hostPlacement.dedicatedHost[].id"
+      ],
+      "classification": "DOCS-ONLY-NOT-SUPPORTED",
+      "mechanicalEvidence": "pkg/types/aws/machinepool.go MachinePool.HostPlacement, HostPlacement, DedicatedHost; gated by FeatureGateAWSDedicatedHosts enabled only inTechPreviewNoUpgrade() and inDevPreviewNoUpgrade()",
+      "binaryEvidence": "compute[0].platform.aws.hostPlacement: Forbidden: this field is protected by the AWSDedicatedHosts feature gate",
+      "documentationEvidence": "OCP 4.22 release notes, Machine management Technology Preview table 1.9.7: AWS Dedicated Host support is Technology Preview in 4.22",
+      "scenarioApplicability": ["aws-govcloud-ipi", "aws-govcloud-upi"],
+      "scopeCaveat": "Architect models AWS GovCloud, not commercial AWS. The release note does not state GovCloud applicability.",
+      "minVersionCandidate": "4.22",
+      "introducedInMinorCandidate": "4.22",
+      "citations": ["https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/release_notes/ocp-4-22-release-notes"]
+    },
+    {
+      "id": "C4",
+      "paths": ["controlPlane.management", "compute[].management", "arbiter.management"],
+      "classification": "HIDDEN-NOT-APPLICABLE",
+      "mechanicalEvidence": "pkg/types/machinepools.go MachinePool.Management; enum ClusterAPI|MachineAPI; +kubebuilder:default=ClusterAPI; gated by FeatureGateClusterAPIControlPlaneInstall / FeatureGateClusterAPIComputeInstall, enabled inDevPreviewNoUpgrade() ONLY",
+      "binaryEvidence": "controlPlane.management: Forbidden: this field is protected by the ClusterAPIControlPlaneInstall feature gate",
+      "documentationEvidence": "NOT PRESENT in the OCP 4.22 release notes, including the Technology Preview tables. Go doc comment states 'Supported platforms: aws'.",
+      "rationale": "DOCS-ONLY-NOT-SUPPORTED implies documentation describes it; nothing does. DevPreview-only and undocumented for users.",
+      "nuance": "The gate fires only when the value is explicitly ClusterAPI. Omitting the field defaults to ClusterAPI later without tripping the gate, so omission is correct and safe.",
+      "minVersionCandidate": "4.22",
+      "introducedInMinorCandidate": "4.22"
+    },
+    {
+      "id": "H1",
+      "paths": ["platform.azure.ipFamily"],
+      "classification": "HUMAN-REVIEW-REQUIRED",
+      "reason": "Installer mechanics and documentation disagree (plan O1, runbook Rule 2.5). Record both; choose neither silently.",
+      "mechanicalEvidence": "pkg/types/azure/platform.go Platform.IPFamily; enum IPv4|DualStackIPv4Primary|DualStackIPv6Primary; gated by FeatureGateAzureDualStackInstall (TechPreview, DevPreview)",
+      "documentationEvidence": "The OCP 4.22 release notes Installation Technology Preview table 1.9.5 lists 'Installing a cluster on Amazon Web Services (AWS) with dual-stack networking' as Technology Preview in 4.22 and Not Available in 4.20/4.21. No Azure dual-stack entry was found.",
+      "smallestDecisionRequired": "Does an undocumented but feature-gated capability get docs-only-not-supported (parity with AWS, both unreachable without TechPreviewNoUpgrade) or hidden-not-applicable (nothing documents it)?",
+      "blocksTranche2": false,
+      "blocksTranche2Rationale": "Not exposed in v2.1 under either status; only the recorded catalog status differs.",
+      "openSubQuestion": "Architect models Azure Government. Commercial-cloud TP status is not automatically government-cloud TP status."
+    },
+    {
+      "id": "H2",
+      "paths": ["platform.aws.ipFamily"],
+      "classification": "HUMAN-REVIEW-REQUIRED",
+      "reason": "AWS dual-stack is documented Technology Preview for AWS; Architect's scenarios are aws-govcloud-ipi and aws-govcloud-upi. No 4.22 evidence found either way for GovCloud regions.",
+      "proposedDisposition": "DOCS-ONLY-NOT-SUPPORTED on Technology Preview grounds regardless of the GovCloud question",
+      "blocksTranche2": false,
+      "recordedSo": "the catalog note does not overclaim GovCloud applicability"
+    },
+    {
+      "id": "H3",
+      "paths": ["platform.aws.lbType"],
+      "classification": "HUMAN-REVIEW-REQUIRED",
+      "reason": "Documented default changed from unconditional Classic to conditional on ipFamily. The catalog schema has no representation for a conditional default.",
+      "behaviourImpact": "None. ipFamily will not be exposed, so Architect always lands in the Classic branch.",
+      "smallestDecisionRequired": "Keep the flat Classic default with an explanatory note, or extend the catalog schema for conditional defaults?",
+      "recommendation": "Keep the note. A schema change for one row is not proportionate.",
+      "additionalFinding": "The new +kubebuilder:validation:Enum on lbType is NOT enforced by openshift-install (binary accepted lbType: Bogus). Do not add UI validation citing it as installer-enforced.",
+      "blocksTranche2": false
+    },
+    {
+      "id": "H4",
+      "paths": ["platform.baremetal.bootstrapOSImage", "platform.baremetal.clusterOSImage"],
+      "classification": "HUMAN-REVIEW-REQUIRED",
+      "reason": "Newly deprecated at 4.22 with an installer Deprecated: marker, but the runbook requires a replacement already present in the catalog before removal, and the stated replacement is the absence of a field rather than a replacement field.",
+      "tier": "P1 mark, not P0 remove",
+      "mechanicalEvidence": "Go symbols renamed to DeprecatedBootstrapOSImage / DeprecatedClusterOSImage; JSON tags unchanged; 4.22 logs '<field> is no longer required' at info level when set",
+      "binaryEvidence": "both still accepted by openshift-install 4.22.16",
+      "smallestDecisionRequired": "Should 4.22 catalogs carry deprecated / deprecationNote metadata, and does that make DOC-167 a schema question rather than a per-field one?",
+      "backlogNote": "docs/BACKLOG_STATUS.md read first (execution-contract rule 11). DOC-167 is active/p2 and scoped to the Azure subnet fields. NO new backlog ID is invented here; referred to the human as a possible DOC-167 scope extension.",
+      "blocksTranche2": false
+    }
+  ],
+  "notClassifiedOutOfScope": ["platform.gcp.*", "powervc", "powervs", "openstack", "ovirt", "external", "none", "Azure Stack Hub"],
+  "agentConfig": { "deltas": 0, "rowsRequiringClassification": 0 }
+}

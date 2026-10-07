@@ -1,0 +1,820 @@
+{
+  "schema": "oaa.minor.mechanicalDelta/1",
+  "previousMinor": "4.21",
+  "minor": "4.22",
+  "baseline": {
+    "release": "4.21.35",
+    "installerCommit": "006669f5812a47dbc733b6736584b87ef696e898"
+  },
+  "target": {
+    "release": "4.22.16",
+    "installerCommit": "92820966521d640aa5f0edfb69bcfd9c168c2210"
+  },
+  "basis": "exact released source for both minors; NOT release-X.Y branch tips",
+  "surfaces": {
+    "install-config": {
+      "baselineCount": 1104,
+      "targetCount": 1127
+    },
+    "agent-config": {
+      "baselineCount": 21,
+      "targetCount": 21
+    }
+  },
+  "counts": {
+    "added": 23,
+    "removed": 0,
+    "typeChanges": 0,
+    "requirednessChanges": 0,
+    "omitemptyChanges": 0,
+    "enumChanges": 1,
+    "descriptionChanges": 11,
+    "goSymbolRenames": 2,
+    "optionalMarkerChanges": 8,
+    "newDeprecations": 2,
+    "agentConfigDeltas": 0
+  },
+  "added": [
+    {
+      "path": "arbiter.management",
+      "type": "string",
+      "required": false,
+      "goType": "MachineManagementAPI",
+      "struct": "types.MachinePool",
+      "field": "Management",
+      "file": "pkg/types/machinepools.go",
+      "line": 143,
+      "enum": [
+        "ClusterAPI",
+        "MachineAPI"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:default=ClusterAPI",
+        "+kubebuilder:validation:Enum=ClusterAPI;MachineAPI",
+        "+optional"
+      ],
+      "description": "Management is the API that will be used for machine management in the cluster. Using this field for control plane machines requires the ClusterAPIControlPlaneInstall feature gate. Using this field for compute machines requires the ClusterAPIComputeInstall feature gate. Supported platforms: aws Default is ClusterAPI.",
+      "candidateOwner": [
+        "ALL in-scope scenarios"
+      ]
+    },
+    {
+      "path": "arbiter.platform.aws.hostPlacement",
+      "type": "object",
+      "required": false,
+      "goType": "*HostPlacement",
+      "struct": "aws.MachinePool",
+      "field": "HostPlacement",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 66,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+openshift:enable:FeatureGate=AWSDedicatedHosts",
+        "+optional"
+      ],
+      "description": "hostPlacement configures placement on AWS Dedicated Hosts. This allows admins to assign instances to specific host for a variety of needs including for regulatory compliance, to leverage existing per-socket or per-core software licenses (BYOL), and to gain visibility and control over instance placement on a physical server. When omitted, the instance is not constrained to a dedicated host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "arbiter.platform.aws.hostPlacement.affinity",
+      "type": "string",
+      "required": false,
+      "goType": "*HostAffinity",
+      "struct": "aws.HostPlacement",
+      "field": "Affinity",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 221,
+      "enum": [
+        "DedicatedHost",
+        "AnyAvailable"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+required",
+        "+unionDiscriminator"
+      ],
+      "description": "affinity specifies the affinity setting for the instance. Allowed values are AnyAvailable and DedicatedHost. When Affinity is set to DedicatedHost, an instance started onto a specific host always restarts on the same host if stopped. In this scenario, the `dedicatedHost` field must be set. When Affinity is set to AnyAvailable, and you stop and restart the instance, it can be restarted on any available host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "arbiter.platform.aws.hostPlacement.dedicatedHost[]",
+      "type": "array",
+      "required": false,
+      "goType": "[]DedicatedHost",
+      "struct": "aws.HostPlacement",
+      "field": "DedicatedHost",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 227,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+optional",
+        "+unionMember"
+      ],
+      "description": "dedicatedHost specifies the exact host that an instance should be restarted on if stopped. dedicatedHost is required when 'affinity' is set to DedicatedHost, and forbidden otherwise.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "arbiter.platform.aws.hostPlacement.dedicatedHost[].id",
+      "type": "string",
+      "required": false,
+      "goType": "string",
+      "struct": "aws.DedicatedHost",
+      "field": "ID",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 251,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:validation:XValidation:rule=\"self.matches('^h-[0-9a-f]{17}$')\",message=\"hostID must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)\"",
+        "+kubebuilder:validation:MinLength=19",
+        "+kubebuilder:validation:MaxLength=19",
+        "+required"
+      ],
+      "description": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by 17 lowercase hexadecimal characters (0-9 and a-f). Must be exactly 19 characters in length.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "compute[].management",
+      "type": "string",
+      "required": false,
+      "goType": "MachineManagementAPI",
+      "struct": "types.MachinePool",
+      "field": "Management",
+      "file": "pkg/types/machinepools.go",
+      "line": 143,
+      "enum": [
+        "ClusterAPI",
+        "MachineAPI"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:default=ClusterAPI",
+        "+kubebuilder:validation:Enum=ClusterAPI;MachineAPI",
+        "+optional"
+      ],
+      "description": "Management is the API that will be used for machine management in the cluster. Using this field for control plane machines requires the ClusterAPIControlPlaneInstall feature gate. Using this field for compute machines requires the ClusterAPIComputeInstall feature gate. Supported platforms: aws Default is ClusterAPI.",
+      "candidateOwner": [
+        "ALL in-scope scenarios"
+      ]
+    },
+    {
+      "path": "compute[].platform.aws.hostPlacement",
+      "type": "object",
+      "required": false,
+      "goType": "*HostPlacement",
+      "struct": "aws.MachinePool",
+      "field": "HostPlacement",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 66,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+openshift:enable:FeatureGate=AWSDedicatedHosts",
+        "+optional"
+      ],
+      "description": "hostPlacement configures placement on AWS Dedicated Hosts. This allows admins to assign instances to specific host for a variety of needs including for regulatory compliance, to leverage existing per-socket or per-core software licenses (BYOL), and to gain visibility and control over instance placement on a physical server. When omitted, the instance is not constrained to a dedicated host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "compute[].platform.aws.hostPlacement.affinity",
+      "type": "string",
+      "required": false,
+      "goType": "*HostAffinity",
+      "struct": "aws.HostPlacement",
+      "field": "Affinity",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 221,
+      "enum": [
+        "DedicatedHost",
+        "AnyAvailable"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+required",
+        "+unionDiscriminator"
+      ],
+      "description": "affinity specifies the affinity setting for the instance. Allowed values are AnyAvailable and DedicatedHost. When Affinity is set to DedicatedHost, an instance started onto a specific host always restarts on the same host if stopped. In this scenario, the `dedicatedHost` field must be set. When Affinity is set to AnyAvailable, and you stop and restart the instance, it can be restarted on any available host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "compute[].platform.aws.hostPlacement.dedicatedHost[]",
+      "type": "array",
+      "required": false,
+      "goType": "[]DedicatedHost",
+      "struct": "aws.HostPlacement",
+      "field": "DedicatedHost",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 227,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+optional",
+        "+unionMember"
+      ],
+      "description": "dedicatedHost specifies the exact host that an instance should be restarted on if stopped. dedicatedHost is required when 'affinity' is set to DedicatedHost, and forbidden otherwise.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "compute[].platform.aws.hostPlacement.dedicatedHost[].id",
+      "type": "string",
+      "required": false,
+      "goType": "string",
+      "struct": "aws.DedicatedHost",
+      "field": "ID",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 251,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:validation:XValidation:rule=\"self.matches('^h-[0-9a-f]{17}$')\",message=\"hostID must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)\"",
+        "+kubebuilder:validation:MinLength=19",
+        "+kubebuilder:validation:MaxLength=19",
+        "+required"
+      ],
+      "description": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by 17 lowercase hexadecimal characters (0-9 and a-f). Must be exactly 19 characters in length.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "controlPlane.management",
+      "type": "string",
+      "required": false,
+      "goType": "MachineManagementAPI",
+      "struct": "types.MachinePool",
+      "field": "Management",
+      "file": "pkg/types/machinepools.go",
+      "line": 143,
+      "enum": [
+        "ClusterAPI",
+        "MachineAPI"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:default=ClusterAPI",
+        "+kubebuilder:validation:Enum=ClusterAPI;MachineAPI",
+        "+optional"
+      ],
+      "description": "Management is the API that will be used for machine management in the cluster. Using this field for control plane machines requires the ClusterAPIControlPlaneInstall feature gate. Using this field for compute machines requires the ClusterAPIComputeInstall feature gate. Supported platforms: aws Default is ClusterAPI.",
+      "candidateOwner": [
+        "ALL in-scope scenarios"
+      ]
+    },
+    {
+      "path": "controlPlane.platform.aws.hostPlacement",
+      "type": "object",
+      "required": false,
+      "goType": "*HostPlacement",
+      "struct": "aws.MachinePool",
+      "field": "HostPlacement",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 66,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+openshift:enable:FeatureGate=AWSDedicatedHosts",
+        "+optional"
+      ],
+      "description": "hostPlacement configures placement on AWS Dedicated Hosts. This allows admins to assign instances to specific host for a variety of needs including for regulatory compliance, to leverage existing per-socket or per-core software licenses (BYOL), and to gain visibility and control over instance placement on a physical server. When omitted, the instance is not constrained to a dedicated host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "controlPlane.platform.aws.hostPlacement.affinity",
+      "type": "string",
+      "required": false,
+      "goType": "*HostAffinity",
+      "struct": "aws.HostPlacement",
+      "field": "Affinity",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 221,
+      "enum": [
+        "DedicatedHost",
+        "AnyAvailable"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+required",
+        "+unionDiscriminator"
+      ],
+      "description": "affinity specifies the affinity setting for the instance. Allowed values are AnyAvailable and DedicatedHost. When Affinity is set to DedicatedHost, an instance started onto a specific host always restarts on the same host if stopped. In this scenario, the `dedicatedHost` field must be set. When Affinity is set to AnyAvailable, and you stop and restart the instance, it can be restarted on any available host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "controlPlane.platform.aws.hostPlacement.dedicatedHost[]",
+      "type": "array",
+      "required": false,
+      "goType": "[]DedicatedHost",
+      "struct": "aws.HostPlacement",
+      "field": "DedicatedHost",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 227,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+optional",
+        "+unionMember"
+      ],
+      "description": "dedicatedHost specifies the exact host that an instance should be restarted on if stopped. dedicatedHost is required when 'affinity' is set to DedicatedHost, and forbidden otherwise.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "controlPlane.platform.aws.hostPlacement.dedicatedHost[].id",
+      "type": "string",
+      "required": false,
+      "goType": "string",
+      "struct": "aws.DedicatedHost",
+      "field": "ID",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 251,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:validation:XValidation:rule=\"self.matches('^h-[0-9a-f]{17}$')\",message=\"hostID must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)\"",
+        "+kubebuilder:validation:MinLength=19",
+        "+kubebuilder:validation:MaxLength=19",
+        "+required"
+      ],
+      "description": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by 17 lowercase hexadecimal characters (0-9 and a-f). Must be exactly 19 characters in length.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "osImageStream",
+      "type": "string",
+      "required": false,
+      "goType": "OSImageStream",
+      "struct": "types.InstallConfig",
+      "field": "OSImageStream",
+      "file": "pkg/types/installconfig.go",
+      "line": 233,
+      "enum": [
+        "rhel-9",
+        "rhel-10"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+optional"
+      ],
+      "description": "OSImageStream is the global OS Image Stream to be used for all machines in the cluster.",
+      "candidateOwner": [
+        "ALL in-scope scenarios"
+      ]
+    },
+    {
+      "path": "platform.aws.defaultMachinePlatform.hostPlacement",
+      "type": "object",
+      "required": false,
+      "goType": "*HostPlacement",
+      "struct": "aws.MachinePool",
+      "field": "HostPlacement",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 66,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+openshift:enable:FeatureGate=AWSDedicatedHosts",
+        "+optional"
+      ],
+      "description": "hostPlacement configures placement on AWS Dedicated Hosts. This allows admins to assign instances to specific host for a variety of needs including for regulatory compliance, to leverage existing per-socket or per-core software licenses (BYOL), and to gain visibility and control over instance placement on a physical server. When omitted, the instance is not constrained to a dedicated host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "platform.aws.defaultMachinePlatform.hostPlacement.affinity",
+      "type": "string",
+      "required": false,
+      "goType": "*HostAffinity",
+      "struct": "aws.HostPlacement",
+      "field": "Affinity",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 221,
+      "enum": [
+        "DedicatedHost",
+        "AnyAvailable"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+required",
+        "+unionDiscriminator"
+      ],
+      "description": "affinity specifies the affinity setting for the instance. Allowed values are AnyAvailable and DedicatedHost. When Affinity is set to DedicatedHost, an instance started onto a specific host always restarts on the same host if stopped. In this scenario, the `dedicatedHost` field must be set. When Affinity is set to AnyAvailable, and you stop and restart the instance, it can be restarted on any available host.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "platform.aws.defaultMachinePlatform.hostPlacement.dedicatedHost[]",
+      "type": "array",
+      "required": false,
+      "goType": "[]DedicatedHost",
+      "struct": "aws.HostPlacement",
+      "field": "DedicatedHost",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 227,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+optional",
+        "+unionMember"
+      ],
+      "description": "dedicatedHost specifies the exact host that an instance should be restarted on if stopped. dedicatedHost is required when 'affinity' is set to DedicatedHost, and forbidden otherwise.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "platform.aws.defaultMachinePlatform.hostPlacement.dedicatedHost[].id",
+      "type": "string",
+      "required": false,
+      "goType": "string",
+      "struct": "aws.DedicatedHost",
+      "field": "ID",
+      "file": "pkg/types/aws/machinepool.go",
+      "line": 251,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:validation:XValidation:rule=\"self.matches('^h-[0-9a-f]{17}$')\",message=\"hostID must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)\"",
+        "+kubebuilder:validation:MinLength=19",
+        "+kubebuilder:validation:MaxLength=19",
+        "+required"
+      ],
+      "description": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by 17 lowercase hexadecimal characters (0-9 and a-f). Must be exactly 19 characters in length.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "platform.aws.ipFamily",
+      "type": "string",
+      "required": false,
+      "goType": "network.IPFamily",
+      "struct": "aws.Platform",
+      "field": "IPFamily",
+      "file": "pkg/types/aws/platform.go",
+      "line": 144,
+      "enum": [
+        "IPv4",
+        "DualStackIPv4Primary",
+        "DualStackIPv6Primary"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:default:=\"IPv4\"",
+        "+default=\"IPv4\"",
+        "+kubebuilder:validation:Enum=\"IPv4\";\"DualStackIPv4Primary\";\"DualStackIPv6Primary\"",
+        "+optional"
+      ],
+      "description": "IPFamily specifies the IP address family for the cluster network. Use \"IPv4\" for IPv4-only networking, \"DualStackIPv4Primary\" for dual-stack networking with IPv4 as the primary address family, or \"DualStackIPv6Primary\" for dual-stack networking with IPv6 as the primary address family. When using dual-stack, the VPC and subnets must be configured with both IPv4 and IPv6 CIDR blocks.",
+      "candidateOwner": [
+        "aws-govcloud-ipi",
+        "aws-govcloud-upi"
+      ]
+    },
+    {
+      "path": "platform.azure.ipFamily",
+      "type": "string",
+      "required": false,
+      "goType": "network.IPFamily",
+      "struct": "azure.Platform",
+      "field": "IPFamily",
+      "file": "pkg/types/azure/platform.go",
+      "line": 142,
+      "enum": [
+        "IPv4",
+        "DualStackIPv4Primary",
+        "DualStackIPv6Primary"
+      ],
+      "enumSource": "kubebuilder-enum-marker",
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:default:=\"IPv4\"",
+        "+default=\"IPv4\"",
+        "+kubebuilder:validation:Enum=\"IPv4\";\"DualStackIPv4Primary\";\"DualStackIPv6Primary\"",
+        "+optional"
+      ],
+      "description": "IPFamily specifies the IP address family for the cluster network. Use \"IPv4\" for IPv4-only networking, \"DualStackIPv4Primary\" for dual-stack networking with IPv4 as the primary address family, or \"DualStackIPv6Primary\" for dual-stack networking with IPv6 as the primary address family. When using dual-stack, the VNet and subnets must be configured with both IPv4 and IPv6 CIDR blocks.",
+      "candidateOwner": [
+        "azure-government-ipi",
+        "azure-government-upi"
+      ]
+    },
+    {
+      "path": "platform.baremetal.provisioningNetworkGateway",
+      "type": "string",
+      "required": false,
+      "goType": "string",
+      "struct": "baremetal.Platform",
+      "field": "ProvisioningNetworkGateway",
+      "file": "pkg/types/baremetal/platform.go",
+      "line": 178,
+      "enum": null,
+      "enumSource": null,
+      "deprecated": false,
+      "markers": [
+        "+kubebuilder:validation:Format=ip",
+        "+optional"
+      ],
+      "description": "ProvisioningNetworkGateway is the IP address of the default gateway for the provisioning network. This gateway is provided to baremetal hosts via DHCP to enable routing to external networks during introspection and provisioning. This field is only honored when provisioningNetwork is set to Managed (installer-managed DHCP). It is ignored when provisioningNetwork is Unmanaged or Disabled.",
+      "candidateOwner": [
+        "bare-metal-ipi",
+        "bare-metal-upi",
+        "bare-metal-agent"
+      ]
+    }
+  ],
+  "removed": [],
+  "typeChanges": [],
+  "requirednessChanges": [],
+  "enumChanges": [
+    {
+      "path": "platform.aws.lbType",
+      "old": null,
+      "new": [
+        "Classic",
+        "NLB"
+      ],
+      "file4.21": "pkg/types/aws/platform.go",
+      "line4.21": 106,
+      "file4.22": "pkg/types/aws/platform.go",
+      "line4.22": 110
+    }
+  ],
+  "goSymbolRenames": [
+    {
+      "path": "platform.baremetal.bootstrapOSImage",
+      "old": "BootstrapOSImage",
+      "new": "DeprecatedBootstrapOSImage",
+      "file4.21": "pkg/types/baremetal/platform.go",
+      "line4.21": 214,
+      "file4.22": "pkg/types/baremetal/platform.go",
+      "line4.22": 226
+    },
+    {
+      "path": "platform.baremetal.clusterOSImage",
+      "old": "ClusterOSImage",
+      "new": "DeprecatedClusterOSImage",
+      "file4.21": "pkg/types/baremetal/platform.go",
+      "line4.21": 221,
+      "file4.22": "pkg/types/baremetal/platform.go",
+      "line4.22": 235
+    }
+  ],
+  "optionalMarkerChanges": [
+    {
+      "path": "arbiter.platform.azure.osDisk.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "arbiter.platform.azure.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "compute[].platform.azure.osDisk.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "compute[].platform.azure.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "controlPlane.platform.azure.osDisk.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "controlPlane.platform.azure.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "platform.azure.defaultMachinePlatform.osDisk.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "platform.azure.defaultMachinePlatform.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    }
+  ],
+  "deprecationChanges": [
+    {
+      "path": "platform.baremetal.bootstrapOSImage",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/baremetal/platform.go",
+      "line4.21": 214,
+      "file4.22": "pkg/types/baremetal/platform.go",
+      "line4.22": 226
+    },
+    {
+      "path": "platform.baremetal.clusterOSImage",
+      "old": false,
+      "new": true,
+      "file4.21": "pkg/types/baremetal/platform.go",
+      "line4.21": 221,
+      "file4.22": "pkg/types/baremetal/platform.go",
+      "line4.22": 235
+    }
+  ],
+  "descriptionChanges": [
+    {
+      "path": "arbiter.platform.azure.osDisk.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "arbiter.platform.azure.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "compute[].platform.azure.osDisk.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "compute[].platform.azure.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "controlPlane.platform.azure.osDisk.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "controlPlane.platform.azure.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "platform.aws.lbType",
+      "old": "LBType is an optional field to specify a load balancer type. When this field is specified, all ingresscontrollers (including the default ingresscontroller) will be created using the specified load-balancer type by default. Following are the accepted values: * \"Classic\": A Classic Load Balancer that makes routing decisions at either the transport layer (TCP/SSL) or the application layer (HTTP/HTTPS). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#clb * \"NLB\": A Network Load Balancer that makes routing decisions at the transport layer (TCP/SSL). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#nlb If this field is not set explicitly, it defaults to \"Classic\". This default is subject to change over time.",
+      "new": "LBType is an optional field to specify a load balancer type. When this field is specified, all ingresscontrollers (including the default ingresscontroller) will be created using the specified load-balancer type by default. Following are the accepted values: * \"Classic\": A Classic Load Balancer that makes routing decisions at either the transport layer (TCP/SSL) or the application layer (HTTP/HTTPS). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#clb * \"NLB\": A Network Load Balancer that makes routing decisions at the transport layer (TCP/SSL). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#nlb If this field is not set explicitly, the default value depends on the ipFamily field: * \"Classic\" when ipFamily is not set or set to \"IPv4\" * \"NLB\" when ipFamily is set to \"DualStackIPv4Primary\" or \"DualStackIPv6Primary\" This default is subject to change over time.",
+      "file4.21": "pkg/types/aws/platform.go",
+      "line4.21": 106,
+      "file4.22": "pkg/types/aws/platform.go",
+      "line4.22": 110
+    },
+    {
+      "path": "platform.azure.defaultMachinePlatform.osDisk.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "platform.azure.defaultMachinePlatform.osDisk.securityProfile.diskEncryptionSet.subscriptionId",
+      "old": "SubscriptionID defines the Azure subscription the disk encryption set is in.",
+      "new": "SubscriptionID defines the Azure subscription the disk encryption set is in. Must be the same subscription ID as the resource group of the installer.",
+      "file4.21": "pkg/types/azure/disk.go",
+      "line4.21": 53,
+      "file4.22": "pkg/types/azure/disk.go",
+      "line4.22": 56
+    },
+    {
+      "path": "platform.baremetal.bootstrapOSImage",
+      "old": "BootstrapOSImage is a URL to override the default OS image for the bootstrap node. The URL must contain a sha256 hash of the image e.g https://mirror.example.com/images/qemu.qcow2.gz?sha256=a07bd...",
+      "new": "BootstrapOSImage is a URL to override the default OS image for the bootstrap node. The URL must contain a sha256 hash of the image e.g https://mirror.example.com/images/qemu.qcow2.gz?sha256=a07bd... Deprecated: This is no longer used.",
+      "file4.21": "pkg/types/baremetal/platform.go",
+      "line4.21": 214,
+      "file4.22": "pkg/types/baremetal/platform.go",
+      "line4.22": 226
+    },
+    {
+      "path": "platform.baremetal.clusterOSImage",
+      "old": "ClusterOSImage is a URL to override the default OS image for cluster nodes. The URL must contain a sha256 hash of the image e.g https://mirror.example.com/images/metal.qcow2.gz?sha256=3b5a8...",
+      "new": "ClusterOSImage is a URL to override the default OS image for cluster nodes. The URL must contain a sha256 hash of the image e.g https://mirror.example.com/images/metal.qcow2.gz?sha256=3b5a8... Deprecated: This is no longer required, the OS image is now part of the OpenShift release.",
+      "file4.21": "pkg/types/baremetal/platform.go",
+      "line4.21": 221,
+      "file4.22": "pkg/types/baremetal/platform.go",
+      "line4.22": 235
+    }
+  ]
+}

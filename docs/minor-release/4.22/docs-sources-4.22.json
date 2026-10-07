@@ -1,0 +1,80 @@
+{
+  "schema": "oaa.minor.docsSources/1",
+  "minor": "4.22",
+  "implemented": false,
+  "note": "Source inventory for the FUTURE data/docs-index/4.22.json and backend/src/fieldGuide/v4.22/**. Neither is created in this tranche.",
+  "baseUrl": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/",
+  "acquisitionNotes": {
+    "curl": "HTTP 403 for every docs.redhat.com URL attempted, html and html-single alike. This is the documented anti-bot behaviour already recorded in the 0B ledger section 8.2. A 403 is NOT evidence of absence (runbook Rule 2.4.1).",
+    "workingSurface": "The agent fetch tool retrieves the same URLs with HTTP 200 and converts to text.",
+    "htmlSingleCaution": "The first ~100000 characters of an html-single page are site-wide product navigation. Reading only the start yields the GLOBAL chapter list, not the book's. Every retrieval below that mattered was read at an offset past the chrome.",
+    "citationForm": "Catalog and Field Guide citations use the paginated html/<book>/<chapter> form that readers land on. html-single is a verification surface, not a citation target.",
+    "liveness": "HEAD/liveness validation of every URL belongs to Tranche 2 docs-index authoring, run as an acquisition step, never from a test (runbook Phase 4, plan R4). curl cannot perform it here because of the 403 behaviour above."
+  },
+  "retrievedAndUsedThisTranche": [
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html-single/release_notes/index", "usedFor": ["deprecated and removed features", "Technology Preview tables 1.9.3 / 1.9.5 / 1.9.7", "multi-architecture ARM-on-x86 bare metal", "RHEL 10 / osImageStream TP", "AWS Dedicated Hosts TP", "AWS dual-stack TP", "two-node with fencing GA"], "offsetsRead": [0, 100000, 200000, 300000], "citationForm": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/release_notes/ocp-4-22-release-notes"},
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_bare_metal/installer-provisioned-infrastructure", "usedFor": ["provisioningNetworkGateway documented, section 3.3.15 Configuring the install-config.yaml file"], "offsetsRead": [0, 100000]},
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installation_overview/installing-preparing", "usedFor": ["Table 2.1 Installer-provisioned infrastructure options", "Support for FIPS cryptography: x86_64, ppc64le, s390x only"], "offsetsRead": [0, 100000]},
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer", "usedFor": ["NMState networkConfig examples, sections 1.5.3, 1.8, 1.9"], "offsetsRead": [100000, 200000], "notRead": [0]},
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent", "usedFor": ["section 9.2 Available Agent configuration parameters; NMState tokens verified NOT PRESENT"], "offsetsRead": [0, 100000]},
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html-single/disconnected_environments/index", "usedFor": ["oc-mirror v2 is Chapter 5 at 4.22 (Chapter 7 at 4.20)", "apiVersion mirror.openshift.io/v2alpha1 confirmed"], "offsetsRead": [100000, 200000]},
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/disconnected_environments/about-installing-oc-mirror-v2", "usedFor": ["section 5.13 ImageSet configuration parameters for oc-mirror plugin v2"], "offsetsRead": [100000, 200000]},
+    {"url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html-single/kubernetes_nmstate/index", "usedFor": ["NEGATIVE RESULT: scoped to the NMState Operator on a running cluster, not agent-config. No enumerated supported bond-mode list."], "offsetsRead": [100000]},
+    {"url": "https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/planning_your_deployment/disconnected-environment_rhodf", "usedFor": ["ODF 4.22 package set 12/13/16; CatalogSource must be named redhat-operators"], "offsetsRead": [0]}
+  ],
+  "bookInventory": {
+    "_provenance": "Book root URLs supplied by the human operator 2026-10-07 and recorded here so the set is not re-derived. Liveness not yet validated (see acquisitionNotes.liveness).",
+    "inScope": [
+      {"book": "disconnected_environments", "compartment": "mirror", "why": "oc-mirror v2, OLM in restricted networks; Chapter 5 at 4.22"},
+      {"book": "installation_overview", "compartment": "global", "why": "install-method table, FIPS architecture statement"},
+      {"book": "installing_on_bare_metal", "compartment": "platform-specific", "why": "bare-metal-ipi, bare-metal-upi"},
+      {"book": "installing_an_on-premise_cluster_with_the_agent-based_installer", "compartment": "agent-nmstate", "why": "bare-metal-agent, vsphere-agent; NMState examples"},
+      {"book": "installing_on_vmware_vsphere", "compartment": "platform-specific", "why": "vsphere-ipi, vsphere-upi, vsphere-agent. FILENAME CAUTION: Installing_on_VMware_vSphere, not Installing_on_vSphere"},
+      {"book": "installing_on_aws", "compartment": "platform-specific", "why": "aws-govcloud-ipi, aws-govcloud-upi"},
+      {"book": "installing_on_azure", "compartment": "platform-specific", "why": "azure-government-ipi, azure-government-upi"},
+      {"book": "installing_on_ibm_cloud", "compartment": "platform-specific", "why": "ibm-cloud-ipi"},
+      {"book": "installing_on_nutanix", "compartment": "platform-specific", "why": "nutanix-ipi"},
+      {"book": "installing_on_any_platform", "compartment": "global", "why": "platform-agnostic install, cluster-wide proxy section cited by 48 catalog rows"},
+      {"book": "configuring_network_settings", "compartment": "global", "why": "custom PKI / trust bundle"},
+      {"book": "edge_computing", "compartment": "platform-specific", "why": "image-based installation for single-node OpenShift; cited by ~30 catalog rows"},
+      {"book": "release_notes", "compartment": "global", "why": "deprecations, removals, Technology Preview tables. NEW to the inventory; the 4.21 docs-index does not reference it."},
+      {"book": "kubernetes_nmstate", "compartment": "agent-nmstate", "why": "REFERENCE ONLY. Verified scoped to the NMState Operator on a running cluster; NOT authority for agent-config networkConfig. Record the scoping so a future agent does not mis-cite it."},
+      {"book": "installing_on_a_single_node", "compartment": "platform-specific", "why": "SNO topology; candidate, not currently in the 4.21 docs-index"},
+      {"book": "installing_a_two_node_openshift_cluster", "compartment": "platform-specific", "why": "NEW BOOK at 4.22. Two-node with fencing moved TP to GA. Candidate; product decision required before use."},
+      {"book": "validation_and_troubleshooting", "compartment": "global", "why": "candidate for Field Guide troubleshooting compartment; not currently used"},
+      {"book": "installation_configuration", "compartment": "global", "why": "candidate; not currently used"},
+      {"book": "postinstallation_configuration", "compartment": "global", "why": "candidate; not currently used"}
+    ],
+    "outOfScope": [
+      {"book": "installing_on_alibaba_cloud", "why": "platform not modelled by Architect"},
+      {"book": "installing_on_azure_stack_hub", "why": "platform not modelled"},
+      {"book": "installing_on_google_cloud", "why": "platform not modelled"},
+      {"book": "installing_on-premise_with_assisted_installer", "why": "Assisted Installer is a connected hosted service; out of the disconnected product scope"},
+      {"book": "installing_ibm_cloud_bare_metal_classic", "why": "platform not modelled"},
+      {"book": "installing_on_ibm_z_and_ibm_linuxone", "why": "s390x target arch is offered in the Blueprint, but no IBM Z scenario catalog exists. Relevant to the arch matrix OPEN cells, not to a scenario."},
+      {"book": "installing_on_ibm_power", "why": "as above for ppc64le"},
+      {"book": "installing_on_ibm_power_virtual_server", "why": "platform not modelled"},
+      {"book": "installing_on_ibm_powervc", "why": "platform not modelled; PowerVC added 32 installer parameters at 4.21 and is a product decision, not an onboarding task (runbook Rule 7 item 4)"},
+      {"book": "installing_on_openstack", "why": "platform not modelled"},
+      {"book": "installing_on_oracle_database_appliance", "why": "platform not modelled"},
+      {"book": "installing_on_oracle_distributed_cloud", "why": "platform not modelled"},
+      {"book": "installing_on_oracle_edge_cloud", "why": "platform not modelled"},
+      {"book": "virtualization/installing", "why": "OpenShift Virtualization is an operator workload, not an install target. Note kubeVirtContainer in ImageSetConfiguration relates to hosted control planes KubeVirt, a separate concern."},
+      {"book": "assisted_installer_for_openshift_container_platform/2026", "why": "separate product documentation set, not OCP 4.22 same-minor; connected hosted service"}
+    ],
+    "external": [
+      {"url": "https://nmstate.io/examples.html", "why": "already cited in data/docs-index/4.21.json. UPSTREAM CAPABILITY ONLY, never Red Hat OCP supportability (see DOC165_GENERATED_CONFIG_COVERAGE_4.22.md)."}
+    ]
+  },
+  "compartmentPlan": {
+    "global": {"v421Modules": "global.js", "changesFor422": ["RHCOS is RHEL 9.8 at 4.22; RHEL 10 is Technology Preview (Class B re-verification required)", "binary download contract is already templated and must be copied VERBATIM, not rewritten", "FIPS architecture statement x86_64/ppc64le/s390x"]},
+    "mirror": {"v421Modules": "mirror.js", "changesFor422": ["oc-mirror v2 topic moved from Chapter 7 (4.20) to Chapter 5 (4.22); chapter numbers in prose must be re-verified, slugs are stable", "oc adm release mirror deprecated at 4.22", "oc-mirror v1 deprecated", "Docker v2 registries deprecated", "ImageContentSourcePolicy (ICSP) deprecated; Architect emits imageDigestSources, which is correct", "CatalogSource must be named redhat-operators", "Red Hat Marketplace removed"]},
+    "platform-specific": {"changesFor422": ["bare metal: provisioningNetworkGateway is new and documented", "bare metal: bootstrapOSImage and clusterOSImage newly deprecated", "bare metal: Fujitsu iRMC drivers deprecated", "bare metal: ARM compute on x86 control planes exists but Architect does not model it (state the limitation, do not stay silent)"]},
+    "agent-nmstate": {"changesFor422": ["zero agent-config mechanical deltas", "bond example at 4.22 uses mode 802.3ad; the 4.21 example used active-backup with miimon", "kubernetes_nmstate book must NOT be cited as agent-config authority"]},
+    "operator-odf": {"changesFor422": ["ocs-tls-profiles added", "odr-volsync-plugin-operator added", "SQLite catalog format deprecated", "IBM FlashSystem packages not listed in the ODF 4.22 disconnected chapter"]},
+    "architecture": {"changesFor422": ["FIPS is NOT validated on aarch64", "bare metal 64-bit ARM IPI is documented", "homogeneous-only boundary must be stated explicitly"]},
+    "disconnected-install": {"changesFor422": ["mirror registries absent from pullSecret.auths now produce an installer WARNING (not a rejection)"]},
+    "binary-tool-guidance": {"changesFor422": ["NO CHANGE. The contract is templated: clients/ocp/{{version}}/openshift-install-linux.tar.gz, clients/ocp/latest-{{versionMajorMinor}}/openshift-client-linux.tar.gz, clients/ocp/latest/oc-mirror.tar.gz. Do NOT pin oc-mirror to 4.22. field-guide-certification command-audit.json records ZERO minor-dependent commands."]}
+  },
+  "guardThatProtectsThis": "backend/src/fieldGuide/provenance.js certifyDocRefs throws if any docs.redhat.com openshift_container_platform/<X>/ URL's <X> does not equal the resolved minor. It is the model the catalog-citation guard was ported from."
+}
