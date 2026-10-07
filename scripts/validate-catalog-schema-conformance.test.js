@@ -40,47 +40,20 @@ const paramSchema = schema.properties.parameters.items;
  * list. Entries should shrink over time.
  */
 const DIVERGENCE_REGISTER = [
-  {
-    id: "type-enum-not-enforced",
-    field: "type",
-    stricterSide: "schema",
-    detail:
-      "The schema enumerates type values (string, integer, boolean, array, object, cidr, ipv4, ipv6). " +
-      "The validator only requires `type` to be present and concrete; it does not check the value.",
-    whyNotClosedNow:
-      "Enforcing the enum today would newly fail 194 existing parameters that use the aliases " +
-      "`int` (137) and `bool` (57) instead of `integer`/`boolean`. That is catalog data " +
-      "normalization, and closing it in 0A-1 would silently change the measured 4.20/4.21 " +
-      "data-debt baseline that Tranche 0B is scoped against. The schema is deliberately left " +
-      "strict (it describes the target state) rather than widened to accept the aliases.",
-    owner: "Tranche 0B (catalog data reconciliation)",
-  },
-  {
-    id: "required-field-accepts-sentinel",
-    field: "required",
-    stricterSide: "schema",
-    detail:
-      'The schema declares `required` as a boolean. The validator additionally accepts the ' +
-      'sentinel string "not specified in docs".',
-    whyNotClosedNow:
-      "All 2121 current catalog parameters already carry a boolean, so the sentinel allowance is " +
-      "unused in practice. Removing it from the validator is safe but is a validator-behaviour " +
-      "change with no 0A-1 driver; it is recorded rather than done opportunistically.",
-    owner: "Tranche 0B (may drop the sentinel once data is confirmed clean)",
-  },
-  {
-    id: "outputfile-enum-not-enforced",
-    field: "outputFile",
-    stricterSide: "schema",
-    detail:
-      "The schema enumerates outputFile values (install-config.yaml, agent-config.yaml, " +
-      "imageset-config.yaml). The validator only requires presence.",
-    whyNotClosedNow:
-      "Every present value already satisfies the enum; the only failures are the 78 parameters " +
-      "missing outputFile entirely, which the validator already reports and which are part of " +
-      "the 0B data debt. Enforcement adds nothing until those are fixed.",
-    owner: "Tranche 0B (then enforcement can be switched on at zero cost)",
-  },
+  // Tranche 0B closed all three entries this register previously held:
+  //
+  //   type-enum-not-enforced          194 parameters used the `int`/`bool`
+  //                                   aliases. Normalized; the validator now
+  //                                   enforces CONTRACT.typeEnum.
+  //   outputfile-enum-not-enforced    78 parameters lacked `outputFile`.
+  //                                   Filled; the validator now enforces
+  //                                   CONTRACT.outputFileEnum.
+  //   required-field-accepts-sentinel the sentinel allowance was unused by all
+  //                                   2121 parameters. Dropped; `required` is
+  //                                   a boolean in both artifacts.
+  //
+  // An empty register is the target state, not an oversight. A new divergence
+  // must be added here with a reason and an owner, or the tests below fail.
 ];
 
 const registered = new Set(DIVERGENCE_REGISTER.map((d) => d.field));
@@ -124,6 +97,22 @@ describe("catalog schema <-> validator conformance", () => {
   });
 
   describe("enumerations", () => {
+    test("type enum matches exactly and is enforced", () => {
+      assert.deepStrictEqual(
+        [...paramSchema.properties.type.enum].sort(),
+        [...CONTRACT.typeEnum].sort(),
+        "the documented type enum and the enforced one must agree"
+      );
+    });
+
+    test("outputFile enum matches exactly and is enforced", () => {
+      assert.deepStrictEqual(
+        [...paramSchema.properties.outputFile.enum].sort(),
+        [...CONTRACT.outputFileEnum].sort(),
+        "the documented outputFile enum and the enforced one must agree"
+      );
+    });
+
     test("supportStatus enum matches exactly", () => {
       assert.deepStrictEqual(
         [...paramSchema.properties.supportStatus.enum].sort(),
@@ -176,6 +165,32 @@ describe("catalog schema <-> validator conformance", () => {
     });
   });
 
+  describe("sentinel contract", () => {
+    test("the sentinel is permitted for exactly the fields the schema allows a string on", () => {
+      assert.deepStrictEqual(
+        [...CONTRACT.sentinelAllowedFor].sort(),
+        ["allowed", "default"],
+        "`type` and `required` must not accept the sentinel: both are always concrete"
+      );
+    });
+
+    test("`default` does not permit null in either artifact", () => {
+      const variants = paramSchema.properties.default.oneOf.map((v) => v.type);
+      assert.ok(
+        !variants.includes("null"),
+        "the schema previously permitted null while the validator rejected it; 17 4.21 rows used it"
+      );
+      assert.ok(
+        !CONTRACT.sentinelAllowedFor.includes("type"),
+        "sanity: the sentinel contract is the one above"
+      );
+    });
+
+    test("`required` is declared boolean, with no sentinel escape", () => {
+      assert.strictEqual(paramSchema.properties.required.type, "boolean");
+    });
+  });
+
   describe("citations", () => {
     test("citation required sub-fields match", () => {
       const schemaCitation = paramSchema.properties.citations.items;
@@ -209,8 +224,9 @@ describe("catalog schema <-> validator conformance", () => {
         .filter(([, decl]) => Array.isArray(decl.enum))
         .map(([field]) => field);
 
-      // supportStatus is the one enum the validator does enforce.
-      const enforcedEnumFields = new Set(["supportStatus"]);
+      // Enums the validator enforces. `type` and `outputFile` joined
+      // `supportStatus` when Tranche 0B cleaned the data behind them.
+      const enforcedEnumFields = new Set(["supportStatus", "type", "outputFile"]);
 
       const unenforced = schemaEnumFields.filter((f) => !enforcedEnumFields.has(f));
       const unregistered = unenforced.filter((f) => !registered.has(f));
@@ -229,11 +245,19 @@ describe("catalog schema <-> validator conformance", () => {
       // loosening the documented contract to match imperfect data.
       assert.ok(
         !paramSchema.properties.type.enum.includes("int"),
-        "schema type enum must not be widened to accept the `int` alias; normalize the data in 0B"
+        "schema type enum must not be widened to accept the `int` alias"
       );
       assert.ok(
         !paramSchema.properties.type.enum.includes("bool"),
-        "schema type enum must not be widened to accept the `bool` alias; normalize the data in 0B"
+        "schema type enum must not be widened to accept the `bool` alias"
+      );
+    });
+
+    test("the register is empty, and an entry may only be added with full documentation", () => {
+      assert.deepStrictEqual(
+        DIVERGENCE_REGISTER,
+        [],
+        "Tranche 0B closed every entry. A new one is a regression unless deliberately added."
       );
     });
   });

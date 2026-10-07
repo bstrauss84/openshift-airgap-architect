@@ -92,18 +92,17 @@
             ]
           },
           "default": {
-            "description": "Default value if not provided by user. Null if no default.",
+            "description": "Default value if not provided by user. Use the sentinel \"not specified in docs\" when the documentation states no default; null is NOT permitted (the executable validator rejects it, and 4.20 never used it).",
             "oneOf": [
               { "type": "string" },
               { "type": "number" },
-              { "type": "boolean" },
-              { "type": "null" }
+              { "type": "boolean" }
             ],
-            "examples": ["OVNKubernetes", 443, true, null]
+            "examples": ["OVNKubernetes", 443, true, "not specified in docs"]
           },
           "required": {
             "type": "boolean",
-            "description": "Whether parameter is required for the scenario. Conditional requirements should be false with conditions noted in description."
+            "description": "Whether parameter is required for the scenario. Always a concrete boolean; the \"not specified in docs\" sentinel is not permitted here. Conditional requirements should be false with conditions noted in description."
           },
           "description": {
             "type": "string",

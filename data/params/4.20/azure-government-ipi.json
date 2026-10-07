@@ -301,7 +301,7 @@
     {
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer >= 2",
       "default": 3,
       "required": false,
@@ -359,8 +359,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -369,18 +369,27 @@
     },
     {
       "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -402,8 +411,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.Azure",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.Azure",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -412,19 +421,27 @@
     },
     {
       "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
       "required": false,
       "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
-      "default": 3,
+      "applies_to": [
+        "azure-government-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -538,7 +555,7 @@
     {
       "path": "controlPlane[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": [
         3,
         4,
@@ -666,7 +683,7 @@
     {
       "path": "fips",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -748,10 +765,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -771,10 +788,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -794,10 +811,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -922,7 +939,7 @@
     {
       "path": "networking.clusterNetwork[].hostPrefix",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "subnet prefix",
       "default": "23 IPv4, 64 IPv6",
       "required": false,
@@ -955,10 +972,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.ClusterNetworkMTU",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1222,10 +1239,10 @@
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         },
         {
-          "docId": "installing-azure-government-ipi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installing-azure-government-ipi"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1245,10 +1262,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-ipi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1270,10 +1287,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-ipi",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1293,10 +1310,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.ComputeSubnet",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1316,10 +1333,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.ControlPlaneSubnet",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1339,10 +1356,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, machine pool section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.DefaultMachinePlatform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1351,19 +1368,27 @@
     },
     {
       "path": "platform.azure.defaultMachinePlatform.osDisk.diskSizeGB",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer disk size in GB",
+      "default": 128,
       "required": false,
       "description": "OS disk size in GB for Azure machines.",
-      "default": 128,
+      "applies_to": [
+        "azure-government-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/azure/machinepool.go OSDisk.DiskSizeGB",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/azure/disk.go - OSDisk.DiskSizeGB",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/azure/disk.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 Azure install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1372,19 +1397,28 @@
     },
     {
       "path": "platform.azure.defaultMachinePlatform.zones",
+      "outputFile": "install-config.yaml",
       "type": "array",
+      "items_type": "string",
+      "allowed": "Array of Azure availability zone names",
+      "default": "not specified in docs",
       "required": false,
       "description": "Default availability zones for Azure machines.",
-      "items_type": "string",
+      "applies_to": [
+        "azure-government-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/azure/machinepool.go Zones",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/azure/machinepool.go - MachinePool.Zones",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/azure/machinepool.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 Azure install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1404,10 +1438,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.NetworkResourceGroupName",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1427,10 +1461,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-ipi",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1450,10 +1484,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-ipi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-ipi"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1473,10 +1507,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.VirtualNetwork",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",

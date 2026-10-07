@@ -52,7 +52,7 @@
     {
       "path": "archiveSize",
       "outputFile": "imageset-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "Integer (GiB)",
       "default": "not specified in docs",
       "required": false,
@@ -75,7 +75,7 @@
     {
       "path": "kubeVirtContainer",
       "outputFile": "imageset-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         "true",
         "false"
@@ -515,7 +515,7 @@
     {
       "path": "mirror.operators[].full",
       "outputFile": "imageset-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         "true",
         "false"
@@ -822,7 +822,7 @@
     {
       "path": "mirror.platform.graph",
       "outputFile": "imageset-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         "true",
         "false"
@@ -971,7 +971,7 @@
     {
       "path": "mirror.platform.channels[].includeMin",
       "outputFile": "imageset-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         "true",
         "false"
@@ -997,7 +997,7 @@
     {
       "path": "mirror.platform.channels[].includeMax",
       "outputFile": "imageset-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         "true",
         "false"
@@ -1023,7 +1023,7 @@
     {
       "path": "mirror.platform.channels[].shortestPath",
       "outputFile": "imageset-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         "true",
         "false"
@@ -1049,7 +1049,7 @@
     {
       "path": "mirror.platform.channels[].full",
       "outputFile": "imageset-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         "true",
         "false"

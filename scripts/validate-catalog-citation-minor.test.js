@@ -23,7 +23,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { auditCitationMinors } = require("./validate-catalog-citation-minor.js");
+const { auditCitationMinors, citationMinorSignals } = require("./validate-catalog-citation-minor.js");
 
 const SCRIPT = path.join(__dirname, "validate-catalog-citation-minor.js");
 const REPO_ROOT = path.join(__dirname, "..");
@@ -198,15 +198,15 @@ describe("catalog citation minor guard", () => {
     test("--report detects the drift but exits 0", () => {
       const r = cli(["--report", "--root", driftedFixture()]);
       assert.strictEqual(r.status, 0, "report mode must not fail the tooling job");
-      assert.match(r.stdout, /1 citation URL\(s\) reference the wrong minor/);
+      assert.match(r.stdout, /1 citation\(s\) carry another minor's provenance/);
       assert.match(r.stdout, /--report MODE \(exit 0\)/);
-      assert.match(r.stdout, /check:citation-minor:strict/, "must name the 0B cutover action");
+      assert.match(r.stdout, /CI enforces --strict/, "report mode must not read as the enforced path");
     });
 
     test("--strict detects the same drift and exits 1", () => {
       const r = cli(["--strict", "--root", driftedFixture()]);
       assert.strictEqual(r.status, 1);
-      assert.match(r.stdout, /1 citation URL\(s\) reference the wrong minor/);
+      assert.match(r.stdout, /1 citation\(s\) carry another minor's provenance/);
       assert.match(r.stderr, /FAIL \(--strict\)/);
       assert.match(r.stderr, /blind string replacement is NOT acceptable/);
     });
@@ -216,7 +216,7 @@ describe("catalog citation minor guard", () => {
       assert.strictEqual(cli(["--report", "--root", clean]).status, 0);
       const strict = cli(["--strict", "--root", clean]);
       assert.strictEqual(strict.status, 0);
-      assert.match(strict.stdout, /All citation URLs reference their own minor/);
+      assert.match(strict.stdout, /All citations carry only their own minor's provenance/);
     });
 
     test("fails closed when data/params is absent", () => {
@@ -227,25 +227,133 @@ describe("catalog citation minor guard", () => {
     });
   });
 
-  describe("live repository (read-only)", () => {
-    test("reports exactly the known 0B debt: 810 in 4.21, 0 in 4.20", () => {
-      const { findings, scanned } = auditCitationMinors({ root: REPO_ROOT });
-      const byMinor = findings.reduce((acc, f) => {
-        acc[f.minor] = (acc[f.minor] || 0) + 1;
-        return acc;
-      }, {});
-      assert.deepStrictEqual(scanned.minors, ["4.20", "4.21"]);
-      assert.strictEqual(byMinor["4.20"] ?? 0, 0, "4.20 cites its own minor correctly");
-      assert.strictEqual(byMinor["4.21"] ?? 0, 810, "the known 0B citation debt");
-      assert.ok(findings.every((f) => f.urlMinor === "4.20"), "all 4.21 drift points at 4.20");
+  describe("(7) every structurally identifiable cross-minor class", () => {
+    const sig = (c) => citationMinorSignals(c).map((s) => `${s.signal}:${s.minor}`).sort();
+
+    test("current docs.redhat.com documentation URL", () => {
+      assert.deepStrictEqual(
+        sig({ url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/x/y" }),
+        ["doc-url:4.20"]
+      );
     });
 
-    test("report mode keeps the tooling job green against that debt", () => {
+    test("retired docs.openshift.com documentation URL", () => {
+      assert.deepStrictEqual(
+        sig({ url: "https://docs.openshift.com/container-platform/4.20/installing/x.html" }),
+        ["legacy-doc-url:4.20"]
+      );
+    });
+
+    test("openshift/installer release branch permalink", () => {
+      assert.deepStrictEqual(
+        sig({ url: "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go" }),
+        ["installer-branch:4.20"]
+      );
+    });
+
+    test("minor-labelled installer source citation title", () => {
+      assert.deepStrictEqual(sig({ docTitle: "OpenShift Installer 4.20 Source Code" }), ["installer-title:4.20"]);
+    });
+
+    test("a single citation can declare several signals at once", () => {
+      assert.deepStrictEqual(
+        sig({
+          docTitle: "OpenShift Installer 4.20 Source Code",
+          url: "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go",
+        }),
+        ["installer-branch:4.20", "installer-title:4.20"]
+      );
+    });
+
+    test("a wrong-minor installer permalink is detected in a catalog", () => {
+      const root = fixture({
+        "4.21": {
+          "a.json": [
+            {
+              path: "x",
+              citations: [
+                {
+                  docId: "installer-source-code",
+                  docTitle: "OpenShift Installer 4.20 Source Code",
+                  sectionHeading: "pkg/types/installconfig.go - Platform.AWS",
+                  url: "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go",
+                },
+              ],
+            },
+          ],
+        },
+      });
+      const { findings } = auditCitationMinors({ root });
+      assert.strictEqual(findings.length, 2, "branch and title are both defects");
+      assert.ok(findings.every((f) => f.urlMinor === "4.20"));
+    });
+  });
+
+  describe("(8) precision — the guard is not 'any 4.xx is drift'", () => {
+    const none = (c) => assert.deepStrictEqual(citationMinorSignals(c), [], JSON.stringify(c));
+
+    test("an unversioned external schema reference carries no minor", () => {
+      none({ docTitle: "NMState state examples", url: "https://nmstate.io/examples.html" });
+    });
+
+    test("a version number in prose is not provenance", () => {
+      none({ docTitle: "Upgrading from 4.20 to 4.21", url: "https://example.com/guide" });
+    });
+
+    test("an installer permalink pinned to a SHA rather than a release branch is not judged", () => {
+      none({ url: "https://github.com/openshift/installer/blob/1accb6487cf3784561665c08048dde20ad672c39/pkg/types/installconfig.go" });
+    });
+
+    test("a non-installer GitHub release-4.20 path is not judged", () => {
+      none({ url: "https://github.com/someone/other-repo/blob/release-4.20/file.go" });
+    });
+
+    test("a CIDR or port that happens to look like a minor is not judged", () => {
+      none({ docTitle: "Networking", url: "https://example.com/10.4.20/ports/4.21" });
+    });
+
+    test("a differently-worded installer title is not matched", () => {
+      none({ docTitle: "Notes about OpenShift Installer 4.20 Source Code and more" });
+    });
+  });
+
+  describe("live repository (read-only)", () => {
+    test("4.20 carries no foreign provenance at all", () => {
+      const { findings, scanned } = auditCitationMinors({ root: REPO_ROOT });
+      assert.deepStrictEqual(scanned.minors, ["4.20", "4.21"]);
+      assert.strictEqual(
+        findings.filter((f) => f.minor === "4.20").length,
+        0,
+        "data/params/4.20/** must carry only 4.20 provenance"
+      );
+    });
+
+    test("no catalog carries another minor's provenance", () => {
+      const { findings } = auditCitationMinors({ root: REPO_ROOT });
+      assert.deepStrictEqual(
+        findings,
+        [],
+        "Tranche 0B repaired all 939 cross-minor references; strict is enforced in CI"
+      );
+    });
+
+    test("report mode exits 0", () => {
       assert.strictEqual(cli(["--report"]).status, 0);
     });
 
-    test("strict mode would fail today, which is why 0B owns the cutover", () => {
-      assert.strictEqual(cli(["--strict"]).status, 1);
+    test("strict mode exits 0 — with no suppression list in the guard", () => {
+      assert.strictEqual(cli(["--strict"]).status, 0, "strict passes because the data is correct");
+      // Structural, not textual: the guard's own comments legitimately say
+      // that no suppression list exists, which a substring scan would flag.
+      const code = fs
+        .readFileSync(SCRIPT, "utf-8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      const declaration = /\b(?:const|let|var)\s+\w*(?:suppress|allowlist|whitelist|ignorelist|exception|waiver)\w*/i;
+      assert.ok(
+        !declaration.test(code),
+        "the guard must not declare a suppression/allowlist structure"
+      );
     });
   });
 });

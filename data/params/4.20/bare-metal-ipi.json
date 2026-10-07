@@ -123,7 +123,7 @@
     {
       "path": "arbiter.replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": 1,
       "default": "not specified in docs",
       "required": false,
@@ -371,7 +371,7 @@
     {
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer >= 2",
       "default": 3,
       "required": false,
@@ -429,8 +429,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -452,8 +452,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.Fencing",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Fencing",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -462,18 +462,21 @@
     },
     {
       "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
-          "note": "Go struct definition"
-        },
-        {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -495,8 +498,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.BareMetal",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.BareMetal",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -505,19 +508,21 @@
     },
     {
       "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
       "required": false,
       "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
-      "default": 3,
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
-          "note": "Go struct definition"
-        },
-        {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -631,7 +636,7 @@
     {
       "path": "controlPlane[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": [
         1,
         2,
@@ -760,7 +765,7 @@
     {
       "path": "fips",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -842,10 +847,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -865,10 +870,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -888,10 +893,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1016,7 +1021,7 @@
     {
       "path": "networking.clusterNetwork[].hostPrefix",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "subnet prefix",
       "default": "23 IPv4, 64 IPv6",
       "required": false,
@@ -1049,10 +1054,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.ClusterNetworkMTU",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1258,7 +1263,7 @@
         {
           "docId": "installing-bare-metal-ipi",
           "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
-          "sectionHeading": "Bare metal API and Ingress VIPs",
+          "sectionHeading": "2.5.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
         }
       ],
@@ -1279,10 +1284,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 bare-metal IPI docs, RHCOS image section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.BootstrapOSImage",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1302,10 +1307,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 bare-metal IPI docs, RHCOS image section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.ClusterOSImage",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1337,18 +1342,21 @@
     },
     {
       "path": "platform.baremetal.defaultMachinePlatform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "baremetal.MachinePool object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Default machine platform configuration for bare-metal machines.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/baremetal/platform.go DefaultMachinePlatform",
-          "note": "Go struct definition"
-        },
-        {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 bare-metal install-config reference"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.DefaultMachinePlatform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1357,18 +1365,21 @@
     },
     {
       "path": "platform.baremetal.externalBridge",
+      "outputFile": "install-config.yaml",
       "type": "string",
+      "allowed": "Name of an existing network bridge on the provisioning host",
+      "default": "baremetal",
       "required": false,
       "description": "External network bridge name for baremetal network.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/baremetal/platform.go ExternalBridge",
-          "note": "Go struct definition"
-        },
-        {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 bare-metal install-config reference"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.ExternalBridge",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1389,9 +1400,9 @@
       "citations": [
         {
           "docId": "installing-bare-metal-ipi",
-          "sectionHeading": "Bare metal hosts",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure",
-          "docTitle": "Installing on bare metal with installer-provisioned infrastructure"
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "2.5.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1417,8 +1428,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/baremetal/host.go - Host.BootMode",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/host.go"
+          "sectionHeading": "pkg/types/baremetal/platform.go - Host.BootMode",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1446,8 +1457,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/baremetal/host.go - Host.HardwareProfile",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/host.go"
+          "sectionHeading": "pkg/types/baremetal/platform.go - Host.HardwareProfile",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1472,8 +1483,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/baremetal/host.go - Host.Role",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/host.go"
+          "sectionHeading": "pkg/types/baremetal/platform.go - Host.Role",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1495,8 +1506,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/baremetal/host.go - RootDeviceHints.WWNVendorExtension",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/host.go"
+          "sectionHeading": "pkg/types/baremetal/rootdevice.go - RootDeviceHints.WWNVendorExtension",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/rootdevice.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1518,8 +1529,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/baremetal/host.go - RootDeviceHints.WWNWithExtension",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/host.go"
+          "sectionHeading": "pkg/types/baremetal/rootdevice.go - RootDeviceHints.WWNWithExtension",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/rootdevice.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1575,7 +1586,7 @@
     {
       "path": "platform.baremetal.hosts[].bmc.disableCertificateVerification",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -1705,7 +1716,7 @@
         {
           "docId": "ocp-4.20-baremetal-ipi",
           "docTitle": "Installing OpenShift Container Platform 4.20 on bare metal (IPI)",
-          "sectionHeading": "3.3.13.2 Additional install-config parameters - Hosts parameter (Table 3.10)",
+          "sectionHeading": "3.3.13.2.1. Hosts",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/"
         }
       ],
@@ -1785,7 +1796,7 @@
     {
       "path": "platform.baremetal.hosts[].rootDeviceHints.minSizeGigabytes",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer >= 0",
       "default": "not specified in docs",
       "required": false,
@@ -1831,7 +1842,7 @@
     {
       "path": "platform.baremetal.hosts[].rootDeviceHints.rotational",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -1938,7 +1949,7 @@
         {
           "docId": "installing-bare-metal-ipi",
           "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
-          "sectionHeading": "Bare metal API and Ingress VIPs",
+          "sectionHeading": "2.5.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
         }
       ],
@@ -1948,19 +1959,21 @@
     },
     {
       "path": "platform.baremetal.libvirtURI",
+      "outputFile": "install-config.yaml",
       "type": "string",
+      "allowed": "libvirt connection URI",
+      "default": "qemu:///system",
       "required": false,
       "description": "Libvirt connection URI for bare-metal provisioning host.",
-      "default": "qemu:///system",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/baremetal/platform.go LibvirtURI",
-          "note": "Go struct definition"
-        },
-        {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 bare-metal install-config reference"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.LibvirtURI",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/baremetal/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -2031,9 +2044,9 @@
       "citations": [
         {
           "docId": "installing-bare-metal-ipi",
-          "sectionHeading": "Provisioning network",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure",
-          "docTitle": "Installing on bare metal with installer-provisioned infrastructure"
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "2.5.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_bare_metal/installer-provisioned-infrastructure"
         }
       ],
       "supportStatus": "supported-ui",

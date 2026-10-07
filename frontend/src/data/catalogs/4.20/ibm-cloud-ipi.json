@@ -41,10 +41,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-ibm-cloud",
-          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -100,7 +100,7 @@
     {
       "path": "arbiter.replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": 1,
       "default": "not specified in docs",
       "required": false,
@@ -366,7 +366,7 @@
     {
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer >= 2",
       "default": 3,
       "required": false,
@@ -424,8 +424,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -434,18 +434,27 @@
     },
     {
       "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -467,8 +476,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.IBMCloud",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.IBMCloud",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -500,19 +509,27 @@
     },
     {
       "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
       "required": false,
       "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
-      "default": 3,
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -622,7 +639,7 @@
     {
       "path": "controlPlane[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": [
         3,
         4,
@@ -747,7 +764,7 @@
     {
       "path": "fips",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -829,10 +846,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-platform-agnostic",
-          "docTitle": "Installing a cluster (platform-agnostic)",
-          "sectionHeading": "Disconnected installation mirroring",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -852,10 +869,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-ibm-cloud",
-          "docTitle": "Installation configuration parameters for IBM Cloud",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -875,10 +892,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-ibm-cloud",
-          "docTitle": "Installation configuration parameters for IBM Cloud",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1003,7 +1020,7 @@
     {
       "path": "networking.clusterNetwork[].hostPrefix",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "subnet prefix",
       "default": 23,
       "required": false,
@@ -1036,10 +1053,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.ClusterNetworkMTU",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1326,18 +1343,27 @@
     },
     {
       "path": "platform.ibmcloud.defaultMachinePlatform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "ibmcloud.MachinePool object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Default machine platform configuration for IBM Cloud machines.",
+      "applies_to": [
+        "ibm-cloud-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/ibmcloud/platform.go DefaultMachinePlatform",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/ibmcloud/platform.go - Platform.DefaultMachinePlatform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/ibmcloud/platform.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 IBM Cloud install-config reference"
+          "docId": "installation-config-parameters-ibm-cloud",
+          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "sectionHeading": "9.1.4. Additional IBM Cloud configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1541,10 +1567,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-ibm-cloud",
-          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1564,10 +1590,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-ibm-cloud",
-          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1587,10 +1613,10 @@
       ],
       "citations": [
         {
-          "docId": "installation-config-parameters-ibm-cloud",
-          "docTitle": "Installation configuration parameters for IBM Cloud",
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",

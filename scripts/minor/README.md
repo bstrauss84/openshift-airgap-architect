@@ -1,5 +1,13 @@
 # `scripts/minor/**` — minor-release onboarding automation
 
+> **Authority model.** These scripts implement the ingestion order in
+> `docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md` Rule 2: mechanical discovery
+> is installer-first, pinned to the exact released `x.y.z` and its matching
+> source revision; same-minor Red Hat documentation then enriches the result and
+> holds veto authority over user-facing supportedness. Installer presence alone
+> never authorizes `supported-ui`. The previous minor is a diff baseline, never
+> an authority for the new one.
+
 Tracked, un-forked tooling for onboarding a new OpenShift minor.
 
 Design and traceability: [`docs/minor-release/SCRIPTS_MINOR_SPECIFICATION.md`](../../docs/minor-release/SCRIPTS_MINOR_SPECIFICATION.md).

@@ -1328,16 +1328,26 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
         expect(total).toBe(2);
       });
 
-      it('exactly 24 "absent in 4.20" historical comparison notes', () => {
-        let total = 0;
+      // Tranche 0B removed the 24 free-text "absent in 4.20" delta-analysis
+      // citations: they pointed at untracked paths under local-docs/, were not
+      // URIs, and the catalog schema has no representation for internal
+      // archaeology. The fact they carried is not lost — it lives in the
+      // structured `minVersion` field, and was independently re-confirmed by
+      // locating each Go symbol in release-4.21 and failing to locate it in
+      // release-4.20.
+      it('records 4.21 introduction structurally, not as free-text citation notes', () => {
+        let legacyNotes = 0;
+        let introducedIn421 = 0;
         allScenarios.forEach(scenario => {
           loadParams(scenario).forEach(p => {
+            if (p.minVersion === '4.21') introducedIn421++;
             (p.citations || []).forEach(c => {
-              if (c.note && c.note.includes('absent in 4.20')) total++;
+              if (c.note || c.source) legacyNotes++;
             });
           });
         });
-        expect(total).toBe(24);
+        expect(legacyNotes).toBe(0);
+        expect(introducedIn421).toBeGreaterThan(0);
       });
     });
 
@@ -1496,14 +1506,31 @@ describe('4.21 catalog support (DOC-102 Slice 5B)', () => {
       ];
 
       allDnsEntries.forEach(({ scenario, path }) => {
-        it(`${scenario} retains all 3 original citations`, () => {
+        // Tranche 0B normalized these onto the schema-shaped
+        // installer-source-code citation and dropped the two internal-analysis
+        // entries. What must survive is the verifiable provenance, pinned to
+        // this row's own minor.
+        it(`${scenario} retains verifiable same-minor installer provenance`, () => {
           const params = loadCanonical(scenario);
           const entry = params.find(p => p.path === path);
-          expect(entry.citations).toHaveLength(3);
-          const sources = entry.citations.map(c => c.source);
-          expect(sources).toContain('installer_source');
-          expect(sources).toContain('delta_analysis');
-          expect(sources).toContain('slice_5c_investigation');
+
+          expect(entry.citations.length).toBeGreaterThan(0);
+          entry.citations.forEach(c => {
+            expect(c).toHaveProperty('docId');
+            expect(c).toHaveProperty('docTitle');
+            expect(c).toHaveProperty('sectionHeading');
+            expect(c).toHaveProperty('url');
+            expect(c.source).toBeUndefined();
+            expect(c.note).toBeUndefined();
+          });
+
+          const installer = entry.citations.find(c => c.docId === 'installer-source-code');
+          expect(installer).toBeDefined();
+          expect(installer.docTitle).toBe('OpenShift Installer 4.21 Source Code');
+          expect(installer.url).toContain('/blob/release-4.21/');
+          expect(installer.sectionHeading).toContain('DNSRecordsType');
+
+          expect(entry.citations.some(c => /local-docs/.test(c.url))).toBe(false);
         });
       });
     });

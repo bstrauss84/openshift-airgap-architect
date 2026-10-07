@@ -54,16 +54,20 @@ jobs:
       - name: Repository tooling tests (guards, sync gates, schema conformance, scripts/minor)
         run: npm run test:tooling
 
-      # EXPLICIT --report mode (npm run check:citation-minor). The guard has no
-      # default mode: omitting --report/--strict exits 2, so this cannot
-      # silently become permissive.
+      # EXPLICIT --strict mode. The guard has no default mode: omitting
+      # --report/--strict exits 2, so this cannot silently become permissive.
       #
-      # TRANCHE 0B CUTOVER: once the 810 wrong-minor citations in
-      # data/params/4.21/ are repaired and `npm run check:citation-minor:strict`
-      # exits 0, change the line below to `npm run check:citation-minor:strict`
-      # and drop "(report-only, pre-0B)" from this step name.
-      - name: Catalog citation minor guard (report-only, pre-0B)
-        run: npm run check:citation-minor
+      # The guard judges six structurally identifiable ways a citation can
+      # carry a minor (current and retired documentation hosts, installer
+      # release-branch permalinks, and minor-labelled citation ids/titles).
+      # It has NO suppression list and no exclusions: Tranche 0B repaired all
+      # 939 cross-minor references in data/params/4.21/** rather than excusing
+      # any of them, so strict passes because the data is correct.
+      #
+      # --report remains available as a human diagnostic (it prints the same
+      # findings and exits 0) but must never be the enforced CI path.
+      - name: Catalog citation and provenance minor guard
+        run: npm run check:citation-minor:strict
 
   build-and-test:
     runs-on: ubuntu-latest

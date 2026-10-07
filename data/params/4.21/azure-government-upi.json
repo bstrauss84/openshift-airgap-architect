@@ -18,7 +18,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -44,7 +44,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -67,7 +67,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-derived",
@@ -90,7 +90,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -113,7 +113,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -136,7 +136,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -164,7 +164,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -187,7 +187,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -215,7 +215,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -241,7 +241,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -264,7 +264,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -291,7 +291,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -301,7 +301,7 @@
     {
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer >= 2",
       "default": 3,
       "required": false,
@@ -314,7 +314,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -337,7 +337,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -358,9 +358,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -369,18 +369,27 @@
     },
     {
       "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "azure-government-upi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -401,9 +410,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.Azure",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.Azure",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -412,19 +421,27 @@
     },
     {
       "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
       "required": false,
       "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
-      "default": 3,
+      "applies_to": [
+        "azure-government-upi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -452,7 +469,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -478,7 +495,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -501,7 +518,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -528,7 +545,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -538,7 +555,7 @@
     {
       "path": "controlPlane[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": [
         3,
         4,
@@ -556,7 +573,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -582,7 +599,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -610,7 +627,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -631,9 +648,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -656,7 +673,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -666,7 +683,7 @@
     {
       "path": "fips",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -682,7 +699,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -705,7 +722,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -728,7 +745,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -748,10 +765,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -771,10 +788,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -794,10 +811,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -820,7 +837,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -843,7 +860,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-derived",
@@ -866,7 +883,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -889,7 +906,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -912,7 +929,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -922,7 +939,7 @@
     {
       "path": "networking.clusterNetwork[].hostPrefix",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "subnet prefix",
       "default": "23 IPv4, 64 IPv6",
       "required": false,
@@ -935,7 +952,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -955,10 +972,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.ClusterNetworkMTU",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -981,7 +998,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1004,7 +1021,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1027,7 +1044,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1048,9 +1065,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1073,7 +1090,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1096,7 +1113,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1117,9 +1134,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.OperatorPublishingStrategy",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1144,9 +1161,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - OperatorPublishingStrategy.APIServer",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1171,9 +1188,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - OperatorPublishingStrategy.Ingress",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1196,7 +1213,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1217,15 +1234,15 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - Platform.Azure",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         },
         {
-          "docId": "installing-azure-government-ipi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure/installing-azure-government-ipi"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1245,10 +1262,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-upi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-upi"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1270,10 +1287,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-upi",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-upi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1291,17 +1308,17 @@
       "applies_to": [
         "azure-government-upi"
       ],
-      "citations": [
-        {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
-        }
-      ],
       "deprecated": true,
       "deprecatedReason": "Replaced by platform.azure.subnets[] with role: node in 4.21. Installer auto-converts flat field to subnets array entry.",
       "replacementPath": "platform.azure.subnets",
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.DeprecatedComputeSubnet",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
+        }
+      ],
       "supportStatus": "docs-only-not-supported",
       "minVersion": "4.20",
       "maxVersion": null,
@@ -1318,17 +1335,17 @@
       "applies_to": [
         "azure-government-upi"
       ],
-      "citations": [
-        {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
-        }
-      ],
       "deprecated": true,
       "deprecatedReason": "Replaced by platform.azure.subnets[] with role: control-plane in 4.21. Installer auto-converts flat field to subnets array entry.",
       "replacementPath": "platform.azure.subnets",
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.DeprecatedControlPlaneSubnet",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
+        }
+      ],
       "supportStatus": "docs-only-not-supported",
       "minVersion": "4.20",
       "maxVersion": null,
@@ -1336,19 +1353,27 @@
     },
     {
       "path": "platform.azure.defaultMachinePlatform.osDisk.diskSizeGB",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer disk size in GB",
+      "default": 128,
       "required": false,
       "description": "OS disk size in GB for Azure machines.",
-      "default": 128,
+      "applies_to": [
+        "azure-government-upi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/azure/machinepool.go OSDisk.DiskSizeGB",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/disk.go - OSDisk.DiskSizeGB",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/disk.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 Azure install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1357,19 +1382,28 @@
     },
     {
       "path": "platform.azure.defaultMachinePlatform.zones",
+      "outputFile": "install-config.yaml",
       "type": "array",
+      "items_type": "string",
+      "allowed": "Array of Azure availability zone names",
+      "default": "not specified in docs",
       "required": false,
       "description": "Default availability zones for Azure machines.",
-      "items_type": "string",
+      "applies_to": [
+        "azure-government-upi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/azure/machinepool.go Zones",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/machinepool.go - MachinePool.Zones",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/machinepool.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 Azure install-config reference"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1389,10 +1423,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.NetworkResourceGroupName",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1412,10 +1446,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-upi",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-upi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1435,10 +1469,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-azure-government-upi",
-          "docTitle": "Installing a cluster on Azure Government with installer-provisioned infrastructure",
-          "sectionHeading": "Azure Government install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_azure_government/installing-azure-government-upi"
+          "docId": "installation-config-parameters-azure",
+          "docTitle": "Installation configuration parameters for Azure",
+          "sectionHeading": "7.1.4. Additional Azure configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_azure/installation-config-parameters-azure"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1458,10 +1492,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on Azure docs, BYO VNet section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.VirtualNetwork",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1484,9 +1518,10 @@
       ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go AllowSharedKeyAccess",
-          "note": "Optional *bool, default true. Added in 4.21."
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.AllowSharedKeyAccess",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1498,7 +1533,7 @@
       "outputFile": "install-config.yaml",
       "type": "array",
       "allowed": "Array of subnet specification objects with name and role",
-      "default": null,
+      "default": "not specified in docs",
       "required": false,
       "description": "Azure subnet specifications for BYO VNet networking. Array of subnet objects, each with name (string) and role (control-plane or node). Exactly one control-plane subnet and one or more node subnets required when virtualNetwork is specified.",
       "applies_to": [
@@ -1507,14 +1542,10 @@
       ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go Subnets",
-          "note": "Added in 4.21. Replaces deprecated controlPlaneSubnet and computeSubnet flat fields."
-        },
-        {
-          "source": "delta_analysis",
-          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
-          "note": "Confirmed added in 4.21, absent in 4.20"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - Platform.Subnets",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-derived",
@@ -1527,7 +1558,7 @@
       "outputFile": "install-config.yaml",
       "type": "string",
       "allowed": "Azure subnet name",
-      "default": null,
+      "default": "not specified in docs",
       "required": true,
       "description": "Name of the Azure subnet. Required within each subnet entry. Must be unique across all entries.",
       "applies_to": [
@@ -1536,14 +1567,10 @@
       ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go SubnetSpec.Name",
-          "note": "Added in 4.21, required within SubnetSpec"
-        },
-        {
-          "source": "delta_analysis",
-          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
-          "note": "Confirmed added in 4.21, absent in 4.20"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - SubnetSpec.Name",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1558,7 +1585,7 @@
         "control-plane",
         "node"
       ],
-      "default": null,
+      "default": "not specified in docs",
       "required": true,
       "description": "Role designation for the Azure subnet. Exactly one control-plane subnet and one or more node subnets required. CAPZ SubnetRole enum: control-plane or node.",
       "applies_to": [
@@ -1567,14 +1594,10 @@
       ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/azure/platform.go SubnetSpec.Role",
-          "note": "Added in 4.21, CAPZ SubnetRole type (string enum: control-plane, node)"
-        },
-        {
-          "source": "delta_analysis",
-          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
-          "note": "Confirmed added in 4.21, absent in 4.20"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/azure/platform.go - SubnetSpec.Role",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/azure/platform.go"
         }
       ],
       "supportStatus": "supported-derived",
@@ -1595,15 +1618,15 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         },
         {
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1626,7 +1649,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1649,7 +1672,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1672,7 +1695,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1698,7 +1721,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1721,7 +1744,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1744,7 +1767,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",

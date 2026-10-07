@@ -312,10 +312,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -325,7 +325,7 @@
     {
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer >= 2",
       "default": 3,
       "required": false,
@@ -383,8 +383,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -393,18 +393,27 @@
     },
     {
       "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "aws-govcloud-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -426,8 +435,8 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.AWS",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.AWS",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -447,10 +456,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -459,19 +468,27 @@
     },
     {
       "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
       "required": false,
       "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
-      "default": 3,
+      "applies_to": [
+        "aws-govcloud-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -586,7 +603,7 @@
     {
       "path": "controlPlane[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": [
         3,
         4,
@@ -714,7 +731,7 @@
     {
       "path": "fips",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -796,10 +813,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -819,10 +836,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -842,10 +859,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -970,7 +987,7 @@
     {
       "path": "networking.clusterNetwork[].hostPrefix",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "subnet prefix",
       "default": "23 IPv4, 64 IPv6",
       "required": false,
@@ -1193,10 +1210,10 @@
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         },
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1216,10 +1233,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1239,10 +1256,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on AWS docs, machine pool section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/aws/platform.go - Platform.DefaultMachinePlatform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/aws/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1251,18 +1268,27 @@
     },
     {
       "path": "platform.aws.defaultMachinePlatform.iamProfile",
+      "outputFile": "install-config.yaml",
       "type": "string",
+      "allowed": "Existing AWS IAM instance profile name",
+      "default": "not specified in docs",
       "required": false,
       "description": "Default IAM instance profile for AWS machines (ARN).",
+      "applies_to": [
+        "aws-govcloud-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/aws/machinepool.go IAMProfile",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/aws/machinepool.go - MachinePool.IAMProfile",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/aws/machinepool.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 AWS install-config reference"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1271,19 +1297,28 @@
     },
     {
       "path": "platform.aws.defaultMachinePlatform.zones",
+      "outputFile": "install-config.yaml",
       "type": "array",
+      "items_type": "string",
+      "allowed": "Array of AWS availability zone names",
+      "default": "not specified in docs",
       "required": false,
       "description": "Default availability zones for AWS machines.",
-      "items_type": "string",
+      "applies_to": [
+        "aws-govcloud-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/aws/machinepool.go Zones",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/aws/machinepool.go - MachinePool.Zones",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/aws/machinepool.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 AWS install-config reference"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1303,10 +1338,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1326,10 +1361,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1353,10 +1388,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1376,10 +1411,10 @@
       ],
       "citations": [
         {
-          "docId": "installing-aws-govcloud-ipi",
-          "sectionHeading": "AWS GovCloud install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws_govcloud/installing-aws-govcloud-ipi",
-          "docTitle": "Installing a cluster on AWS GovCloud with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-aws",
+          "docTitle": "Installation configuration parameters for AWS",
+          "sectionHeading": "7.1.4. Optional AWS configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_aws/installation-config-parameters-aws"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1399,10 +1434,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on AWS docs, BYO VPC section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/aws/platform.go - Platform.DeprecatedSubnets",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/aws/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1422,10 +1457,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Installing on AWS docs, BYO VPC section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/aws/platform.go - Platform.VPC",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/aws/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",

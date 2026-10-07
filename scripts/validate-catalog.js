@@ -53,14 +53,39 @@ const CONTRACT = Object.freeze({
   ]),
 
   /**
-   * Parameter fields that must also be PRESENT, but may carry the sentinel
-   * string "not specified in docs" when the documentation does not state a
-   * value. Presence is mandatory; a concrete value is not.
+   * Parameter fields that must also be PRESENT. Presence is mandatory for all
+   * four; whether a concrete value is required differs per field and is
+   * governed by sentinelAllowedFor below.
    */
   paramRequiredConcrete: Object.freeze(["allowed", "type", "required", "default"]),
 
-  /** Sentinel permitted for the paramRequiredConcrete fields. */
+  /** Sentinel for a value the documentation does not state. */
   notSpecifiedSentinel: "not specified in docs",
+
+  /**
+   * Fields where the sentinel is a legitimate value.
+   *
+   * `type` and `required` are deliberately absent: a parameter always has a
+   * data type and is always either required or not, independently of whether
+   * the documentation spells it out. Tranche 0B confirmed all 2121 parameters
+   * carry a concrete value for both, closing DIVERGENCE_REGISTER entry
+   * `required-field-accepts-sentinel`.
+   */
+  sentinelAllowedFor: Object.freeze(["allowed", "default"]),
+
+  /**
+   * Permitted `type` values. Enforced since Tranche 0B normalized the 194
+   * parameters that used the `int`/`bool` aliases, closing DIVERGENCE_REGISTER
+   * entry `type-enum-not-enforced`.
+   */
+  typeEnum: Object.freeze(["string", "integer", "boolean", "array", "object", "cidr", "ipv4", "ipv6"]),
+
+  /**
+   * Permitted `outputFile` values. Enforced since Tranche 0B filled the 78
+   * parameters that lacked the field, closing DIVERGENCE_REGISTER entry
+   * `outputfile-enum-not-enforced`.
+   */
+  outputFileEnum: Object.freeze(["install-config.yaml", "agent-config.yaml", "imageset-config.yaml"]),
 
   /** Fields that must be present but are allowed to be explicitly null. */
   nullableRequired: Object.freeze(["maxVersion"]),
@@ -172,11 +197,20 @@ function validateParam(p, i, scenarioId) {
   const optionalConcrete = CONTRACT.paramRequiredConcrete;
   const sentinel = CONTRACT.notSpecifiedSentinel;
   for (const k of optionalConcrete) {
+    const sentinelOk = CONTRACT.sentinelAllowedFor.includes(k);
     if (p[k] === undefined || p[k] === null) {
-      errs.push(`param[${i}].${k} required (use "${sentinel}" if not in docs)`);
+      errs.push(
+        sentinelOk
+          ? `param[${i}].${k} required (use "${sentinel}" if not in docs)`
+          : `param[${i}].${k} required`
+      );
     } else if (k === "required") {
-      if (p[k] !== true && p[k] !== false && p[k] !== sentinel) {
-        errs.push(`param[${i}].required must be true, false, or "${sentinel}"`);
+      if (p[k] !== true && p[k] !== false) {
+        errs.push(`param[${i}].required must be true or false`);
+      }
+    } else if (k === "type") {
+      if (!CONTRACT.typeEnum.includes(p[k])) {
+        errs.push(`param[${i}].type must be one of: ${CONTRACT.typeEnum.join(", ")} (got: ${p[k]})`);
       }
     } else if (typeof p[k] === "string" && p[k] !== sentinel) {
       // concrete string value is ok
@@ -188,6 +222,11 @@ function validateParam(p, i, scenarioId) {
       errs.push(`param[${i}].${k} must be concrete or the string "${sentinel}"`);
     }
   }
+
+  if (p.outputFile !== undefined && p.outputFile !== null && !CONTRACT.outputFileEnum.includes(p.outputFile)) {
+    errs.push(`param[${i}].outputFile must be one of: ${CONTRACT.outputFileEnum.join(", ")} (got: ${p.outputFile})`);
+  }
+
   return errs;
 }
 

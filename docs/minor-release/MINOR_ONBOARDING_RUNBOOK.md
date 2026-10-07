@@ -39,30 +39,159 @@ Changing it is a separate human decision.
 
 ---
 
-## Rule 2 — Source authority, and what to do when sources disagree
+## Rule 2 — Source authority: installer-first for mechanics, docs veto supportedness
+
+Mechanical discovery is **installer-first**. Documentation **enriches and
+qualifies** what discovery finds, and holds **veto authority** over user-facing
+supportedness.
+
+### 2.1 Pin the exact released artifact, not the branch tip
+
+For each supported or target minor:
+
+1. Resolve the latest available official `x.y.z` release within that minor.
+2. Acquire and verify **both**:
+   - the exact released `openshift-install` binary for that `x.y.z`;
+   - the `openshift/installer` source revision, tag or commit **corresponding to
+     that released artifact**.
+3. Record the resolved `x.y.z`, the binary SHA256, and the source commit SHA.
+
+A `release-<minor>` branch tip is **not** the same artifact as a released
+`x.y.z` and must not be substituted for it.
+
+> **Resolved 2026-10-07.** Tranche 0B originally derived from branch tips
+> (`release-4.20` @ `13a5f6b9…`, `release-4.21` @ `1accb648…`). Those are now
+> superseded by exact-release provenance, recorded in
+> `scripts/minor/repair/proven-repairs.js` `INSTALLER_PINS` and certified in
+> `docs/minor-release/CATALOG_REPAIR_LEDGER_0B.md`:
+>
+> | Minor | Release | Installer commit |
+> |---|---|---|
+> | 4.20 | `4.20.40` | `0c11c37e83ad8b8a328ffe0d0888ef70ed5bab56` |
+> | 4.21 | `4.21.35` | `006669f5812a47dbc733b6736584b87ef696e898` |
+>
+> **The branch tips were not harmless.** `azure.Platform.AllowSharedKeyAccess`
+> was absent from the April 4.20 tip and is present in released 4.20.40, having
+> been backported into the z-stream afterwards — so a recorded "absent at 4.20"
+> claim was false against the artifact users actually run. This is precisely
+> why 2.1 exists.
+>
+> `scripts/minor/repair/exact-release-provenance.test.js` now fails if any
+> supported minor lacks a released `x.y.z`, a payload digest, binary and
+> tarball SHA256s, an architecture, or a 40-character installer commit — or if
+> that commit equals the superseded branch tip.
+
+### 2.2 The installer is PRIMARY for mechanical truth
+
+Parameter and path existence; types; object structure; mechanically accepted
+values and enums; defaults actually applied; validation constraints; conditional
+relationships; platform and install-method schema; `Deprecated:` markers present
+in source; generation behaviour; and mechanical differences from the previous
+supported minor.
+
+### 2.3 Documentation ENRICHES and QUALIFIES
+
+Red Hat supportedness; documented applicability; Technology Preview, deprecated
+or unsupported status; operational requirements; platform and install-method
+restrictions; user-facing descriptions; examples; caveats; recommended values;
+and the authoritative citation itself.
+
+### 2.4 Documentation has veto authority over supportedness
+
+**Installer or source presence alone does NOT authorize `supported-ui`.** A
+capability may mechanically exist while remaining `docs-only-not-supported`,
+`supported-backend-only`, `hidden-not-applicable`, or held for human review.
 
 | Question | Authority |
 |---|---|
-| Is this **supported** for users? | **Red Hat product and installation documentation.** |
-| What does the installer **mechanically accept** (schema, types, validation)? | **Installer source** (`pkg/types/**`, `pkg/types/*/validation/**`, `pkg/asset/installconfig/**`). |
-| What does **this product** expose? | The reconciled catalog entry, which records an explicit product decision. |
+| Does this field exist, and what does it mechanically accept? | **Released installer binary + its matching source.** |
+| Is it **supported** for users? | **Red Hat product and installation documentation for that same minor.** |
+| What does **this product** expose? | The reconciled catalog entry, recording an explicit decision. |
 
-**On disagreement: record both facts, choose neither silently, and escalate to a
-human.** Never expose a feature as supported merely because installer code
-accepts it.
+### 2.4.1 Verifying a documentation page
 
-> **This corrects the previous runbook.** `AUDIT_AUTOMATION_GUIDE.md` stated
+Prefer the **`html-single`** rendering when confirming that a section exists:
+
+```
+https://docs.redhat.com/en/documentation/openshift_container_platform/<minor>/html-single/<book>/index
+```
+
+One stable URL per book puts the entire book — and its full table of contents —
+on a single page, so a section can be confirmed without first guessing the
+per-chapter slug in the paginated `html/<book>/<chapter>` form. Large chapter
+pages in the paginated form also return HTTP 503 to automated fetches
+(reproduced at both 4.20 and 4.21 for the bare-metal
+`installer-provisioned-infrastructure` chapter), where `html-single` succeeds.
+
+Two cautions:
+
+- The first ~100 KB of an `html-single` page is site-wide product navigation.
+  Reading only the start yields the **global** chapter list, not the book's —
+  which will confidently report the wrong chapter titles. Page past the chrome
+  before trusting a table of contents.
+- A transient 403 or 503 is **not** evidence that a page is absent. Fall back to
+  already-acquired same-minor extracted documentation, which ranks first in the
+  evidence order, and record which source established the fact.
+
+Catalog citations should continue to use the paginated `html/<book>/<chapter>`
+form that readers land on; `html-single` is a verification tool, not the
+citation target.
+
+### 2.5 When sources disagree
+
+- **Binary vs its matching source, mechanically:** reproduce against the exact
+  released binary; treat shipped binary behaviour as runtime truth; record the
+  source discrepancy.
+- **Installer mechanics vs documentation, on supportability:** record both,
+  choose neither silently, and do not expose a capability merely because the
+  installer accepts it. Classify for human review where needed.
+
+> **This corrects the previous runbook.** `AUDIT_AUTOMATION_GUIDE.md` said
 > *"When docs conflict with installer code, trust installer code"* unconditionally
-> and ranked documentation third of four. That rule is right about mechanical
-> reality and wrong about supportedness — the installer accepting a field says
-> nothing about whether Red Hat supports it. The `supportStatus` value
+> and ranked documentation third of four. That is right about mechanical reality
+> and wrong about supportedness. The `supportStatus` value
 > `docs-only-not-supported` exists for exactly this case.
 
 Worked example: `osImageStream` (`rhel-9` | `rhel-10`) is accepted by the 4.22
 installer, but RHEL 10 is Technology Preview behind `TechPreviewNoUpgrade`, so
 the catalog records `docs-only-not-supported` with the rationale attached.
 
----
+Counter-example from Tranche 0B: `imageDigestSources` exists in both release
+branches and Architect emits it, but appears in **no** Red Hat documentation
+book at 4.20 or 4.21. Installer evidence settled the citation; it did **not**
+settle supportedness, which is tracked as `DOC-168`.
+
+### 2.6 Ingestion order
+
+```
+resolve latest official stable x.y.z within the minor
+     (same mechanism the product uses for target-minor latest-patch
+      resolution: the Cincinnati stable-<minor>.yaml channel.
+      NOT nightly, CI, RC, prerelease, or release-X.Y HEAD)
+  -> acquire the exact openshift-install binary for that x.y.z
+  -> verify SHA256 against the mirror's own sha256sum.txt       [FAIL CLOSED]
+  -> determine the exact installer source commit
+     (`openshift-install version` reports it; cross-check the release image
+      digest it prints against release.txt)
+  -> read that exact commit in a temporary evidence location
+     (never move the application repository to it)
+  -> extract the mechanical inventory
+  -> diff against the PREVIOUS supported minor's exact-release inventory
+  -> enrich and classify using same-minor Red Hat documentation
+  -> explicit product disposition
+  -> canonical data/params/<minor> metadata
+  -> canonical data/docs-index/<minor> updates where appropriate
+  -> generated frontend mirrors
+  -> frontend/backend behaviour and tests
+```
+
+Fail closed if the binary-to-source relationship cannot be established. Do not
+silently substitute a branch HEAD; `scripts/minor/repair/exact-release-provenance.test.js`
+rejects it.
+
+**Never populate a newer minor primarily by copying the previous minor and
+editing what the docs happen to mention.** The previous minor is a **diff
+baseline**, not an authority for the new one. See Rule 5.
 
 ## Rule 3 — Data direction is one-way
 
@@ -162,10 +291,37 @@ Stop and ask a human; do not decide silently:
 
 ### Phase 1 — Acquisition *(network; human-run; `scripts/minor/acquire/**`)*
 
-- [ ] Documentation for the minor. **Check the vSphere filename**: it is `Installing_on_VMware_vSphere`, not `Installing_on_vSphere` — the short form 404s and has already cost one cycle.
-- [ ] Installer source, shallow clone of `release-<minor>`. **Record the resolved commit SHA.**
-- [ ] Client binaries, each verified against that channel's own `sha256sum.txt` **before** use. Fail closed on download failure, missing or unparseable checksum metadata, checksum mismatch, or unsupported architecture.
-- [ ] Record every asset: size, SHA256, source URL, retrieval date.
+Acquire the installer artifacts **first** — they drive mechanical discovery
+(Rule 2.6). Documentation is acquired to enrich what they reveal.
+
+- [ ] **Resolve the latest official stable `x.y.z` within the minor**, using the
+      Cincinnati `stable-<minor>.yaml` channel — the same mechanism the product
+      uses for target-minor latest-patch resolution. **Never** nightly, CI,
+      release-candidate, prerelease, or the `release-<minor>` branch tip (Rule 2.1).
+      Record the version and the resolution timestamp.
+- [ ] **Record the release payload digest** from
+      `clients/ocp/<x.y.z>/release.txt`, and cross-check it against the digest
+      the binary itself prints.
+- [ ] **The exact released `openshift-install` binary for that `x.y.z`**, verified
+      against its channel `sha256sum.txt` before use. This is runtime truth when
+      binary and source disagree (Rule 2.5).
+- [ ] **The `openshift/installer` source revision corresponding to that released
+      artifact** — the tag or commit the build came from, not merely the branch
+      head. **Record the resolved commit SHA**, and record explicitly if only a
+      branch tip was obtainable, since that is a Rule 2.1 gap.
+- [ ] Documentation for the same minor. **Check the vSphere filename**: it is
+      `Installing_on_VMware_vSphere`, not `Installing_on_vSphere` — the short form
+      404s and has already cost one cycle.
+- [ ] Remaining client binaries, each verified against that channel's own
+      `sha256sum.txt` **before** use. Fail closed on download failure, missing or
+      unparseable checksum metadata, checksum mismatch, or unsupported architecture.
+- [ ] Record every asset: size, SHA256, source URL, retrieval date, and for the
+      installer the resolved `x.y.z`, payload digest, binary SHA256, the
+      architecture inspected, and the matching source commit.
+- [ ] Add the result to `INSTALLER_PINS` in
+      `scripts/minor/repair/proven-repairs.js`. The provenance guard fails the
+      build if a supported minor is missing any of those fields, or if the
+      recorded commit is a branch tip.
 
 > **`oc` and `oc-mirror` follow deliberately different policies. Do not collapse them.**
 > `oc-mirror` comes from `clients/ocp/latest` — the latest available globally,
@@ -179,7 +335,11 @@ Stop and ask a human; do not decide silently:
 
 ### Phase 2 — Extraction and delta
 
+Mechanical inventory comes from the pinned installer, before any documentation
+is consulted (Rule 2.6). Documentation enrichment happens in Phase 3.
+
 - [ ] Extract install-config and agent-config parameters from the pinned clone. Capture stderr to a workspace log; **never `2>/dev/null`** — a 91%-failing parser once surfaced only as suspiciously low counts.
+- [ ] Where the released binary can answer a mechanical question directly — an applied default, a validation rejection, an accepted enum — **prefer the binary over inference from source**, and record the discrepancy if they differ (Rule 2.5).
 - [ ] `diff-params.js --baseline <prev> --target <new> --previous-minor <P> --minor <M>`.
 - [ ] `corrected-analysis.js --minor <M> --workspace $WS`.
 
@@ -199,6 +359,11 @@ Known limits of extraction, unchanged since 4.20 — plan for manual work:
 For each delta row record: path, type, requiredness, **source file and line**,
 verbatim source evidence, feature gate and condition, validation constraint and
 file, the recommended action, and the target catalogs.
+
+Then **enrich each row from that same minor's documentation** and record the
+supportedness decision separately from the mechanical finding. A row with
+mechanical evidence and no documentation evidence may not be classified
+`supported-ui` (Rule 2.4).
 
 Reading the raw comparison, these are **not** defects:
 - **Catalogs may legitimately be stricter than Go structs.** Agent scenarios require VIPs though the struct marks them optional.

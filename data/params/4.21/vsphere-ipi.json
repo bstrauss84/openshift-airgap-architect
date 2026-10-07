@@ -18,7 +18,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -44,7 +44,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -67,7 +67,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-derived",
@@ -90,7 +90,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -100,7 +100,7 @@
     {
       "path": "arbiter.replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": 1,
       "default": "not specified in docs",
       "required": false,
@@ -113,7 +113,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -136,7 +136,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -159,7 +159,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -182,7 +182,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -210,7 +210,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -233,7 +233,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -261,7 +261,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -287,7 +287,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -310,7 +310,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -337,7 +337,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -351,7 +351,7 @@
       "allowed": "array of zone names (failure domain names)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Machine-pool placement: zone names for worker placement when using multiple failure domains. Must match failureDomains[].name. Doc \u00a72.4.5.4.",
+      "description": "Machine-pool placement: zone names for worker placement when using multiple failure domains. Must match failureDomains[].name. Doc §2.4.5.4.",
       "applies_to": [
         "vsphere-ipi"
       ],
@@ -364,7 +364,7 @@
           "docId": "installing-vsphere-ipi",
           "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure",
           "sectionHeading": "2.4.5.4 Configuring regions and zones for a VMware vCenter",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -374,7 +374,7 @@
     {
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer >= 2",
       "default": 3,
       "required": false,
@@ -387,7 +387,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -410,7 +410,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -431,9 +431,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -442,18 +442,27 @@
     },
     {
       "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "vsphere-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -474,9 +483,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.VSphere",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.VSphere",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -490,7 +499,7 @@
       "allowed": "array of zone names (failure domain names)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Machine-pool placement: zone names for control plane placement when using multiple failure domains. Must match failureDomains[].name. Doc \u00a72.4.5.4.",
+      "description": "Machine-pool placement: zone names for control plane placement when using multiple failure domains. Must match failureDomains[].name. Doc §2.4.5.4.",
       "applies_to": [
         "vsphere-ipi"
       ],
@@ -503,7 +512,7 @@
           "docId": "installing-vsphere-ipi",
           "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure",
           "sectionHeading": "2.4.5.4 Configuring regions and zones for a VMware vCenter",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -512,19 +521,27 @@
     },
     {
       "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
       "required": false,
       "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
-      "default": 3,
+      "applies_to": [
+        "vsphere-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -552,7 +569,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -578,7 +595,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -601,7 +618,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -628,7 +645,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -638,7 +655,7 @@
     {
       "path": "controlPlane[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": [
         3,
         4,
@@ -656,7 +673,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -682,7 +699,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -710,7 +727,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -731,9 +748,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -756,7 +773,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -766,7 +783,7 @@
     {
       "path": "fips",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -782,7 +799,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -805,7 +822,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -828,7 +845,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -848,10 +865,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -871,10 +888,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -894,10 +911,10 @@
       ],
       "citations": [
         {
-          "docId": "image-based-installation-sno",
-          "docTitle": "Image-based installation for single-node OpenShift",
-          "sectionHeading": "17.3.3. Reference specifications for the image-based-installation-config.yaml manifest",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/edge_computing/image-based-installation-for-single-node-openshift#ibi-installer-installation-config_ibi-factory-image-based-install"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -920,7 +937,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -943,7 +960,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-derived",
@@ -966,7 +983,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -989,7 +1006,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1012,7 +1029,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1022,7 +1039,7 @@
     {
       "path": "networking.clusterNetwork[].hostPrefix",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "subnet prefix",
       "default": "23 IPv4, 64 IPv6",
       "required": false,
@@ -1035,7 +1052,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1055,10 +1072,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.ClusterNetworkMTU",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1081,7 +1098,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1104,7 +1121,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1127,7 +1144,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1148,9 +1165,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1173,7 +1190,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1196,7 +1213,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.2. Network configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1219,7 +1236,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1240,9 +1257,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - Platform.VSphere",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1262,7 +1279,7 @@
       ],
       "ipi_only": true,
       "conditionals": {
-        "omitWhen": "using an external load balancer \u2014 leave blank; doc: parameter applies only to IPI without external LB",
+        "omitWhen": "using an external load balancer — leave blank; doc: parameter applies only to IPI without external LB",
         "visibility": "IPI only; not for UPI"
       },
       "citations": [
@@ -1270,7 +1287,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1302,7 +1319,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1312,7 +1329,7 @@
     {
       "path": "platform.vsphere.coresPerSocket",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer; cpus / coresPerSocket = number of sockets",
       "default": "not specified in docs",
       "required": false,
@@ -1329,7 +1346,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1339,7 +1356,7 @@
     {
       "path": "platform.vsphere.cpus",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer; must be multiple of coresPerSocket",
       "default": "not specified in docs",
       "required": false,
@@ -1356,7 +1373,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1370,8 +1387,6 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "deprecated": true,
-      "replacement": "failureDomains[].topology.datacenter and vcenters[].datacenters",
       "description": "vSphere datacenter name. Deprecated in 4.13+; prefer failureDomains[].topology.datacenter and vcenters[].datacenters; still supported.",
       "applies_to": [
         "vsphere-ipi"
@@ -1383,12 +1398,14 @@
           "platform.vsphere.failureDomains"
         ]
       },
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.datacenter and vcenters[].datacenters",
       "citations": [
         {
-          "docId": "installing-vsphere-ipi",
-          "sectionHeading": "vSphere install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
-          "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1402,8 +1419,6 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "deprecated": true,
-      "replacement": "failureDomains[].topology.datastore",
       "description": "Default datastore for cluster VMs. Deprecated in 4.13+; prefer failureDomains[].topology.datastore; still supported.",
       "applies_to": [
         "vsphere-ipi"
@@ -1414,12 +1429,14 @@
           "platform.vsphere.failureDomains"
         ]
       },
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.datastore",
       "citations": [
         {
-          "docId": "installing-vsphere-ipi",
-          "sectionHeading": "vSphere install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
-          "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1439,10 +1456,10 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 vSphere IPI docs, machine pool section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/vsphere/platform.go - Platform.DefaultMachinePlatform",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/vsphere/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1469,7 +1486,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1491,8 +1508,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1517,9 +1534,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/vsphere/platform.go - FailureDomain.RegionType",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/vsphere/platform.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/vsphere/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1540,9 +1557,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/vsphere/platform.go - FailureDomain.Topology",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/vsphere/platform.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/vsphere/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1567,9 +1584,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/vsphere/platform.go - FailureDomain.ZoneType",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/vsphere/platform.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/vsphere/platform.go"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1591,8 +1608,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1614,8 +1631,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1637,8 +1654,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1660,8 +1677,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1683,8 +1700,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1706,8 +1723,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1729,8 +1746,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1752,8 +1769,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1775,8 +1792,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1809,7 +1826,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1831,8 +1848,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1846,8 +1863,6 @@
       "allowed": "absolute VM folder path in vSphere inventory",
       "default": "datacenter root VM folder",
       "required": false,
-      "deprecated": true,
-      "replacement": "failureDomains[].topology.folder",
       "description": "VM folder path in vSphere inventory (e.g., /datacenter/vm/folder). Deprecated in 4.13+; prefer failureDomains[].topology.folder; still supported for legacy single placement.",
       "applies_to": [
         "vsphere-ipi"
@@ -1859,12 +1874,14 @@
         ],
         "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
       },
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.folder",
       "citations": [
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1884,7 +1901,7 @@
       ],
       "ipi_only": true,
       "conditionals": {
-        "omitWhen": "using an external load balancer \u2014 leave blank; doc: parameter applies only to IPI without external LB",
+        "omitWhen": "using an external load balancer — leave blank; doc: parameter applies only to IPI without external LB",
         "visibility": "IPI only; not for UPI"
       },
       "citations": [
@@ -1892,7 +1909,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1902,7 +1919,7 @@
     {
       "path": "platform.vsphere.memoryMB",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer (MB)",
       "default": "not specified in docs",
       "required": false,
@@ -1919,7 +1936,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1933,8 +1950,6 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": false,
-      "deprecated": true,
-      "replacement": "failureDomains[].topology.networks[]",
       "description": "Legacy single-zone network name. Deprecated in 4.13+; prefer failureDomains[].topology.networks[] for multi-zone deployments; still supported for legacy single placement.",
       "applies_to": [
         "vsphere-ipi"
@@ -1946,12 +1961,14 @@
         ],
         "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
       },
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.networks[]",
       "citations": [
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -1961,7 +1978,7 @@
     {
       "path": "platform.vsphere.osDisk.diskSizeGB",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "integer (GB)",
       "default": "not specified in docs",
       "required": false,
@@ -1978,7 +1995,7 @@
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.6. Optional VMware vSphere machine pool configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -1992,8 +2009,6 @@
       "allowed": "absolute resource pool path in vSphere inventory",
       "default": "root resource pool of the cluster",
       "required": false,
-      "deprecated": true,
-      "replacement": "failureDomains[].topology.resourcePool",
       "description": "Resource pool path in vSphere inventory (e.g., /datacenter/host/cluster/Resources/pool). Deprecated in 4.13+; prefer failureDomains[].topology.resourcePool; still supported for legacy single placement.",
       "applies_to": [
         "vsphere-ipi"
@@ -2005,12 +2020,14 @@
         ],
         "note": "Only used when placementMode is legacy; ignored when failureDomains are defined"
       },
+      "deprecated": true,
+      "replacement": "failureDomains[].topology.resourcePool",
       "citations": [
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
           "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -2024,8 +2041,6 @@
       "allowed": "not specified in docs",
       "default": "not specified in docs",
       "required": true,
-      "deprecated": true,
-      "replacement": "vcenters[].server",
       "description": "vCenter server FQDN or IP. Deprecated in 4.13+; prefer vcenters[].server; still supported.",
       "applies_to": [
         "vsphere-ipi"
@@ -2036,12 +2051,14 @@
           "platform.vsphere.vcenters"
         ]
       },
+      "deprecated": true,
+      "replacement": "vcenters[].server",
       "citations": [
         {
-          "docId": "installing-vsphere-ipi",
-          "sectionHeading": "vSphere install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure",
-          "docTitle": "Installing a cluster on vSphere with installer-provisioned infrastructure"
+          "docId": "installation-config-parameters-vsphere",
+          "docTitle": "Installation configuration parameters for vSphere",
+          "sectionHeading": "9.1.5. Deprecated VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2063,8 +2080,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -2086,8 +2103,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -2109,8 +2126,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2120,7 +2137,7 @@
     {
       "path": "platform.vsphere.vcenters[].port",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "not specified in docs",
       "default": 443,
       "required": false,
@@ -2132,8 +2149,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -2155,8 +2172,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -2178,8 +2195,8 @@
         {
           "docId": "installation-config-parameters-vsphere",
           "docTitle": "Installation configuration parameters for vSphere",
-          "sectionHeading": "9.1.4. VMware vSphere cluster parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
+          "sectionHeading": "9.1.4. Additional VMware vSphere configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere"
         }
       ],
       "supportStatus": "supported-backend-only",
@@ -2202,19 +2219,10 @@
       "notes": "Cataloged for documentation completeness. The OnPremDNSRecords feature gate can be enabled via TechPreviewNoUpgrade, DevPreviewNoUpgrade, or CustomNoUpgrade with an explicit featureGates entry. External mode also requires loadBalancer.type=UserManaged. This application omits the field entirely (defaulting to Internal) because it does not configure the required feature gate or loadBalancer.type selection.",
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer release-4.21 pkg/types/vsphere/platform.go line 166",
-          "note": "DNSRecordsType configv1.DNSRecordsType field definition"
-        },
-        {
-          "source": "delta_analysis",
-          "url": "local-docs/ocp-4.21/analysis/delta-installer-params.json",
-          "note": "Confirmed added in 4.21, absent in 4.20"
-        },
-        {
-          "source": "slice_5c_investigation",
-          "url": "local-docs/ocp-4.21/analysis/SLICE-5C-MANUAL-REVIEW-PARAMS.md",
-          "note": "Evidence-based investigation completed 2026-06-30"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
+          "sectionHeading": "pkg/types/vsphere/platform.go - Platform.DNSRecordsType",
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/vsphere/platform.go"
         }
       ],
       "supportStatus": "docs-only-not-supported",
@@ -2235,9 +2243,9 @@
       "citations": [
         {
           "docId": "installer-source-code",
-          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "docTitle": "OpenShift Installer 4.21 Source Code",
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "url": "https://github.com/openshift/installer/blob/release-4.21/pkg/types/installconfig.go"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2260,7 +2268,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2283,7 +2291,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2306,7 +2314,7 @@
           "docId": "installing-platform-agnostic",
           "docTitle": "Installing a cluster (platform-agnostic)",
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2338,7 +2346,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2361,7 +2369,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.1. Required configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
@@ -2384,7 +2392,7 @@
           "docId": "installation-config-parameters-agent",
           "docTitle": "Installation configuration parameters for the Agent-based Installer",
           "sectionHeading": "9.1.3. Optional configuration parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
         }
       ],
       "supportStatus": "supported-ui",
