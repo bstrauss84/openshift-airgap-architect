@@ -66,6 +66,7 @@ carries hashes plus deterministic reproduction instructions for all of it.
 | Document | Contents |
 |---|---|
 | [`TRANCHE_2_ASSET_AUTHORING_4.22.md`](TRANCHE_2_ASSET_AUTHORING_4.22.md) | the 4.22 catalogs, docs-index, architecture-support matrix and Field Guide, with acquisition-time URL validation, the citation section-heading remapping, and the fail-closed proof |
+| [`TRANCHE_3_RUNTIME_PREREQUISITES.md`](TRANCHE_3_RUNTIME_PREREQUISITES.md) | D3 as the runtime architecture authority, the `provisioningNetworkGateway` runtime prerequisite, the DOC-166 audit, and the support-flip fallback audit — all behind the closed gate |
 
 Tranche 2 **supersedes** the Tranche 1 "deliberately not done" list below: those assets
 now exist. Classification **C1 stands as written** — its documentation citation was
@@ -84,7 +85,10 @@ No `backend/src/fieldGuide/v4.22/**`.
 
 - **Tranche 2 assets are complete** — catalogs, docs-index, architecture-support matrix
   and Field Guide source, all validated.
+- **Tranche 3 runtime prerequisites are complete** — the architecture matrix is the
+  runtime authority, `provisioningNetworkGateway` has UI, state, validation and
+  version-gated generation, and the support-flip fallback audit is closed.
 - **4.22 remains UNSUPPORTED and fail-closed.** `SUPPORTED_MINORS` is unchanged and no
   public boundary accepts 4.22.
-- **No product UI or backend behaviour changed.**
-- **Tranche 3 has not begun.**
+- **4.20 and 4.21 behaviour is unchanged**, including byte-identical install-config.
+- **Tranche 4 has not begun, and the support flip has not begun.**

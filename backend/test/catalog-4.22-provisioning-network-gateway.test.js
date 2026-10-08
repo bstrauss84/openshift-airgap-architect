@@ -32,9 +32,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, "..", "..");
 const PATH = "platform.baremetal.provisioningNetworkGateway";
 
-/** Scenarios that model the installer-managed provisioning network family. */
-const OWNING_SCENARIOS = ["bare-metal-ipi", "bare-metal-agent"];
-/** Every other 4.22 scenario must NOT carry the row. */
+/**
+ * Scenario contract, reconciled in Tranche 3.
+ *
+ *   bare-metal-ipi    supported-ui          control + validation + generation
+ *   bare-metal-agent  hidden-not-applicable recorded, never shown, never emitted
+ *
+ * `supported-ui` means "field has input control, validation, tooltip, flows to
+ * backend" (docs/VERSION_AWARENESS_MASTER_STRATEGY.md). Architect offers no
+ * Agent control, and the OCP Agent-based Installer parameter chapter does not
+ * list the field among the additional platform.baremetal parameters it accepts
+ * — it appears ZERO times in the whole Agent book at 4.20, 4.21 and 4.22, while
+ * provisioningNetworkCIDR appears twice in each. A shared Go struct is not a
+ * licence to emit an undocumented key into an Agent install-config.
+ */
+const UI_SCENARIOS = ["bare-metal-ipi"];
+const RECORDED_NOT_OFFERED_SCENARIOS = ["bare-metal-agent"];
+const OWNING_SCENARIOS = [...UI_SCENARIOS, ...RECORDED_NOT_OFFERED_SCENARIOS];
+/** Every other 4.22 scenario must NOT carry the row at all. */
 const NON_OWNING_SCENARIOS = [
   "aws-govcloud-ipi", "aws-govcloud-upi", "azure-government-ipi", "azure-government-upi",
   "bare-metal-upi", "ibm-cloud-ipi", "nutanix-ipi", "vsphere-agent", "vsphere-ipi", "vsphere-upi",
@@ -74,11 +89,30 @@ describe("4.22 catalog asset — platform.baremetal.provisioningNetworkGateway",
   });
 
   describe("metadata", () => {
+    for (const s of UI_SCENARIOS) {
+      it(`${s} is supported-ui — it has a control, validation and generation`, () => {
+        assert.equal(row(s).supportStatus, "supported-ui");
+      });
+    }
+
+    for (const s of RECORDED_NOT_OFFERED_SCENARIOS) {
+      it(`${s} is hidden-not-applicable — recorded, not offered, not emitted`, () => {
+        const r = row(s);
+        assert.equal(r.supportStatus, "hidden-not-applicable");
+        assert.match(r.description, /NOT EXPOSED and NOT EMITTED/);
+        assert.match(r.versionNotes, /appears ZERO times/);
+      });
+
+      it(`${s} does not claim supported-ui without an Agent control`, () => {
+        // The contract this reconciliation exists to enforce.
+        assert.notEqual(row(s).supportStatus, "supported-ui");
+      });
+    }
+
     for (const s of OWNING_SCENARIOS) {
       describe(s, () => {
-        it("is supported-ui, introduced at 4.22, with no maximum", () => {
+        it("is introduced at 4.22, with no maximum", () => {
           const r = row(s);
-          assert.equal(r.supportStatus, "supported-ui");
           assert.equal(r.minVersion, "4.22");
           assert.equal(r.maxVersion, null);
         });
@@ -105,7 +139,7 @@ describe("4.22 catalog asset — platform.baremetal.provisioningNetworkGateway",
   });
 
   describe("documented constraints are encoded", () => {
-    for (const s of OWNING_SCENARIOS) {
+    for (const s of UI_SCENARIOS) {
       describe(s, () => {
         it("records the Managed-only conditional relationship", () => {
           const c = row(s).conditionals;
@@ -182,9 +216,20 @@ describe("4.22 catalog asset — platform.baremetal.provisioningNetworkGateway",
           }
         });
 
-        it("records that the field is absent from the 4.21 release source", () => {
-          assert.match(row(s).versionNotes, /absent from the exact 4\.21\.35 release source/);
+        it("records that the field is new at 4.22", () => {
+          // Both rows must state the introduction minor; only the supported-ui
+          // row carries the full exact-release provenance sentence, because the
+          // agent row's notes are given over to its non-applicability evidence.
+          assert.match(row(s).versionNotes, /Introduced at 4\.22/);
         });
+      });
+    }
+  });
+
+  describe("exact-release provenance on the offered row", () => {
+    for (const s of UI_SCENARIOS) {
+      it(`${s} records absence from the exact 4.21.35 release source`, () => {
+        assert.match(row(s).versionNotes, /absent from the exact 4\.21\.35 release source/);
       });
     }
   });
@@ -218,9 +263,15 @@ describe("4.22 catalog asset — platform.baremetal.provisioningNetworkGateway",
       }
     });
 
-    it("no generator emits the field — generation wiring is Tranche 3 work", () => {
+    it("generation wiring exists but is version-gated, not reachable for 4.22 publicly", () => {
+      // Tranche 2 asserted the generator did not mention the field at all,
+      // because the wiring was explicitly deferred. Tranche 3 added it, so that
+      // assertion is obsolete by design. What must stay true is the gate: the
+      // emission helper is guarded by isVersionGTE(selectedMinor, "4.22") and
+      // buildInstallConfig() still refuses a 4.22 state outright.
       const gen = readFileSync(join(REPO, "backend/src/generate.js"), "utf8");
-      assert.doesNotMatch(gen, /provisioningNetworkGateway/);
+      assert.match(gen, /applyProvisioningNetworkGateway/);
+      assert.match(gen, /isVersionGTE\(selectedMinor, "4\.22"\)/);
     });
   });
 });

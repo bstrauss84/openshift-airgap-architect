@@ -179,6 +179,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localProvisioningDHCPRange, setLocalProvisioningDHCPRange] = useState(inventory.provisioningDHCPRange || "");
   const [localClusterProvisioningIP, setLocalClusterProvisioningIP] = useState(inventory.clusterProvisioningIP || "");
   const [localProvisioningMACAddress, setLocalProvisioningMACAddress] = useState(inventory.provisioningMACAddress || "");
+  const [localProvisioningNetworkGateway, setLocalProvisioningNetworkGateway] = useState(inventory.provisioningNetworkGateway || "");
 
   // Local state for BMC Verify CA
   const [localBmcVerifyCA, setLocalBmcVerifyCA] = useState(inventory.bmcVerifyCA || "");
@@ -306,6 +307,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   useEffect(() => { setLocalProvisioningDHCPRange(inventory.provisioningDHCPRange || ""); }, [inventory.provisioningDHCPRange]);
   useEffect(() => { setLocalClusterProvisioningIP(inventory.clusterProvisioningIP || ""); }, [inventory.clusterProvisioningIP]);
   useEffect(() => { setLocalProvisioningMACAddress(inventory.provisioningMACAddress || ""); }, [inventory.provisioningMACAddress]);
+  useEffect(() => { setLocalProvisioningNetworkGateway(inventory.provisioningNetworkGateway || ""); }, [inventory.provisioningNetworkGateway]);
 
   // Sync local state for BMC Verify CA
   useEffect(() => { setLocalBmcVerifyCA(inventory.bmcVerifyCA || ""); }, [inventory.bmcVerifyCA]);
@@ -507,6 +509,14 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const metaProvisioningDHCPRange = getParamMeta(scenarioId, "platform.baremetal.provisioningDHCPRange", INSTALL_CONFIG, state);
   const metaClusterProvisioningIP = getParamMeta(scenarioId, "platform.baremetal.clusterProvisioningIP", INSTALL_CONFIG, state);
   const metaProvisioningMAC = getParamMeta(scenarioId, "platform.baremetal.provisioningMACAddress", INSTALL_CONFIG, state);
+  /**
+   * New at OpenShift 4.22. Version gating is catalog-driven via
+   * isCatalogFieldVisible, exactly as platform.baremetal.bmcVerifyCA was gated
+   * when it arrived at 4.21 — so the control appears only on minors whose
+   * catalog carries the row as supported-ui, and nothing needs editing at the
+   * support flip.
+   */
+  const showProvisioningNetworkGateway = isCatalogFieldVisible("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG);
 
   const provisioningNetworkOptions = Array.isArray(metaProvisioningNetwork?.allowed)
     ? metaProvisioningNetwork.allowed
@@ -4623,6 +4633,31 @@ Start IP, end IP (comma-separated, no spaces after comma)
                     />
                   </FieldLabelWithInfo>
                   {fieldErrorVisible("clusterProvisioningIP") && <span id="error-clusterProvisioningIP" className="field-error">{fieldErrors.clusterProvisioningIP}</span>}
+                  {showProvisioningNetworkGateway && provisioningMode === "Managed" ? (
+                    <>
+                      <FieldLabelWithInfo
+                        label="Provisioning network gateway (optional)"
+                        hint={`Default gateway handed to bare-metal hosts over DHCP on the provisioning network, so they can route to external networks during inspection and provisioning.\n\n**When it applies:**\nOnly when provisioning network mode is **Managed** (installer-managed DHCP). openshift-install accepts the field with Unmanaged or Disabled but ignores it, so this tool omits it in those modes.\n\n**Requirements (Red Hat documented):**\n\u2022 Must be within the provisioning network CIDR\n\u2022 Must be OUTSIDE the provisioning DHCP range\n\u2022 Must not be the same address as the cluster provisioning IP\n\n**Verify these yourself.** openshift-install rejects a malformed IP, but its own DHCP-range overlap check does not fire against the shipped binary \u2014 an overlapping gateway is accepted at validation time and then fails during provisioning. This tool checks the relationships for you.\n\n**Example:**\n172.22.0.254 (for CIDR 172.22.0.0/24 with DHCP range 172.22.0.10,172.22.0.100)`}
+                      >
+                        <input
+                          className={fieldErrorVisible("provisioningNetworkGateway") ? "input-error" : ""}
+                          title={fieldErrorVisible("provisioningNetworkGateway") ? fieldErrors.provisioningNetworkGateway : ""}
+                          value={localProvisioningNetworkGateway}
+                          onChange={(e) => setLocalProvisioningNetworkGateway(e.target.value)}
+                          onBlur={() => { markTouched("provisioningNetworkGateway"); updateInventory({ provisioningNetworkGateway: localProvisioningNetworkGateway.trim() }); }}
+                          placeholder="e.g. 172.22.0.254"
+                          aria-invalid={fieldErrorVisible("provisioningNetworkGateway") ? "true" : undefined}
+                          aria-describedby={fieldErrorVisible("provisioningNetworkGateway") ? "error-provisioningNetworkGateway" : undefined}
+                        />
+                      </FieldLabelWithInfo>
+                      <div className="field-control-support">
+                        {fieldAnnotation("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                        )}
+                      </div>
+                      {fieldErrorVisible("provisioningNetworkGateway") && <span id="error-provisioningNetworkGateway" className="field-error">{fieldErrors.provisioningNetworkGateway}</span>}
+                    </>
+                  ) : null}
                   <FieldLabelWithInfo
                     label="Provisioning MAC address (optional)"
                     hint={`MAC (hardware) address of the network interface on the bootstrap/provisioning host where the OpenShift installer runs provisioning services (DHCP, TFTP, HTTP) during bare metal installation.

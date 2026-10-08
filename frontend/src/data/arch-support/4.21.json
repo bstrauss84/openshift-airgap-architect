@@ -1,0 +1,348 @@
+{
+  "schema": "oaa.archSupport.projection/1",
+  "_generated": "GENERATED from data/arch-support/4.21.json by scripts/sync-arch-support.js. Do not edit. Audit fields (reason, provenance, sources) are deliberately omitted; read the canonical file for those.",
+  "minor": "4.21",
+  "homogeneousOnly": {
+    "value": true,
+    "mixedArchitectureSupported": false,
+    "statement": "Every cell in this matrix describes a HOMOGENEOUS cluster: one target architecture for all machine pools. The presence of more than one architecture in a platform's row is a list of alternatives, NOT permission to mix them in one cluster."
+  },
+  "fipsValidatedArchitectures": {
+    "architectures": [
+      "x86_64",
+      "ppc64le",
+      "s390x"
+    ],
+    "excludes": [
+      "aarch64"
+    ],
+    "axis": "targetCluster",
+    "scope": "Cluster nodes only. This is NOT a statement about which openshift-install, oc or oc-mirror binaries Red Hat publishes — see architectureAxes.exportBinary."
+  },
+  "matrix": [
+    {
+      "platform": "bare-metal",
+      "installMethod": "ipi",
+      "scenarioId": "bare-metal-ipi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 bare metal book documents arm64, and the install-method table carries a separate 64-bit ARM bare-metal column. Note: aarch64 is not FIPS-validated for cluster nodes."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "bare-metal",
+      "installMethod": "upi",
+      "scenarioId": "bare-metal-upi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 bare metal book documents arm64, and the install-method table carries a separate 64-bit ARM bare-metal column. Note: aarch64 is not FIPS-validated for cluster nodes."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "bare-metal",
+      "installMethod": "agent",
+      "scenarioId": "bare-metal-agent",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Agent-based Installer and bare metal books both document 64-bit ARM. Note: aarch64 is not FIPS-validated for cluster nodes."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: ppc64le agent-based installation is IBM Power installation — a separate platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: s390x agent-based installation is IBM Z installation — a separate platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "vsphere",
+      "installMethod": "ipi",
+      "scenarioId": "vsphere-ipi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid architecture for this platform, on every install method."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "vsphere",
+      "installMethod": "upi",
+      "scenarioId": "vsphere-upi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid architecture for this platform, on every install method."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "vsphere",
+      "installMethod": "agent",
+      "scenarioId": "vsphere-agent",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid architecture for this platform, on every install method."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "nutanix",
+      "installMethod": "ipi",
+      "scenarioId": "nutanix-ipi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on Nutanix book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Nutanix book documents amd64 as the only valid architecture for this platform, on every install method."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Nutanix book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Nutanix book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "aws-govcloud",
+      "installMethod": "ipi",
+      "scenarioId": "aws-govcloud-ipi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on AWS book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers AWS GovCloud regions."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "aws-govcloud",
+      "installMethod": "upi",
+      "scenarioId": "aws-govcloud-upi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on AWS book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers AWS GovCloud regions."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "azure-government",
+      "installMethod": "ipi",
+      "scenarioId": "azure-government-ipi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on Azure book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers Azure Government regions."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "azure-government",
+      "installMethod": "upi",
+      "scenarioId": "azure-government-upi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on Azure book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers Azure Government regions."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    },
+    {
+      "platform": "ibm-cloud",
+      "installMethod": "ipi",
+      "scenarioId": "ibm-cloud-ipi",
+      "architectures": {
+        "x86_64": {
+          "disposition": "supported",
+          "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on IBM Cloud book documents amd64 as a valid install-config architecture for this platform."
+        },
+        "aarch64": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on IBM Cloud book documents amd64 as the only valid architecture for this platform, on every install method."
+        },
+        "ppc64le": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on IBM Cloud book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model."
+        },
+        "s390x": {
+          "disposition": "hidden",
+          "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on IBM Cloud book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model."
+        }
+      }
+    }
+  ]
+}

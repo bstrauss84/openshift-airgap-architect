@@ -44,7 +44,16 @@ function normalizeChannelToMinor(channel) {
     return null; // Malformed channel
   }
 
-  return stripped || '4.20';
+  // Return the validated minor as-is. There is deliberately NO `|| '4.20'` here.
+  //
+  // The guard above already rejected anything that is not /^\d+\.\d+$/, so a
+  // default could never fire today — but this is the state-MIGRATION boundary,
+  // where an imported state's target minor is established. A default sitting
+  // here means that the day someone loosens the pattern, an unreadable channel
+  // silently becomes 4.20 instead of being rejected, and an import would be
+  // retargeted without telling anyone. Malformed returns null above; callers
+  // treat null as "no minor", which is the fail-closed outcome.
+  return stripped;
 }
 
 /**

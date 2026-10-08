@@ -2,7 +2,9 @@
 
 > **4.22 is still UNSUPPORTED and fail-closed.** This tranche authored the underlying
 > **assets** behind the closed gate. `SUPPORTED_MINORS` is unchanged, no public boundary
-> accepts 4.22, and Tranche 3 has not begun.
+> accepts 4.22. *(Tranche 3 has since implemented the runtime prerequisites behind the
+> same closed gate — see [`TRANCHE_3_RUNTIME_PREREQUISITES.md`](TRANCHE_3_RUNTIME_PREREQUISITES.md).
+> 4.22 is still unsupported.)*
 >
 > Status authority remains [`../../BACKLOG_STATUS.md`](../../BACKLOG_STATUS.md)
 > (rows DOC-179, DOC-180, DOC-181, and the DOC-156 annotation).

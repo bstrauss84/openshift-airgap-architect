@@ -144,6 +144,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -159,6 +160,7 @@
         "aarch64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 bare metal book documents arm64, and the install-method table carries a separate 64-bit ARM bare-metal column. Note: aarch64 is not FIPS-validated for cluster nodes.",
           "reason": "The OCP 4.21 Installing on bare metal book documents arm64 as a valid install-config architecture, and the Installation overview install-method table lists a separate \"Bare metal (64-bit ARM)\" column with a restricted-network checkmark. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -174,6 +176,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -185,6 +188,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -203,6 +207,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -214,6 +219,7 @@
         "aarch64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 bare metal book documents arm64, and the install-method table carries a separate 64-bit ARM bare-metal column. Note: aarch64 is not FIPS-validated for cluster nodes.",
           "reason": "The OCP 4.21 Installing on bare metal book documents arm64 as a valid install-config architecture, and the Installation overview install-method table lists a separate \"Bare metal (64-bit ARM)\" column with a restricted-network checkmark. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -229,6 +235,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -240,6 +247,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on bare metal book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -258,6 +266,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on bare metal book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -273,6 +282,7 @@
         "aarch64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Agent-based Installer and bare metal books both document 64-bit ARM. Note: aarch64 is not FIPS-validated for cluster nodes.",
           "reason": "The OCP 4.21 Agent-based Installer book lists 64-bit ARM as supported for both connected and disconnected installation, and the bare metal book documents arm64 as a valid install-config architecture. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -288,6 +298,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: ppc64le agent-based installation is IBM Power installation — a separate platform Architect does not model.",
           "reason": "Resolved: ppc64le agent-based installation is IBM Power installation, not bare-metal installation. The OCP 4.21 Agent-based Installer book lists ppc64le in its installer-wide supported-architectures table, but that table is not split by platform, and the book handles IBM Power through dedicated procedures — for s390x it documents adding IBM Z agents with z/VM, RHEL KVM or LPAR and restricts ISO boot to RHEL KVM, with PXE-only for z/VM and LPAR. Installing on IBM Power is a separate platform with its own book, out of Architect's modelled scenario set, and the Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for THIS platform. ppc64le is therefore not applicable to the bare-metal agent scenario and is not presented.",
           "provenance": [
             {
@@ -307,6 +318,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: s390x agent-based installation is IBM Z installation — a separate platform Architect does not model.",
           "reason": "Resolved: s390x agent-based installation is IBM Z installation, not bare-metal installation. The OCP 4.21 Agent-based Installer book lists s390x in its installer-wide supported-architectures table, but that table is not split by platform, and the book handles IBM Z through dedicated procedures — for s390x it documents adding IBM Z agents with z/VM, RHEL KVM or LPAR and restricts ISO boot to RHEL KVM, with PXE-only for z/VM and LPAR. Installing on IBM Z and IBM LinuxONE is a separate platform with its own book, out of Architect's modelled scenario set, and the Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for THIS platform. s390x is therefore not applicable to the bare-metal agent scenario and is not presented.",
           "provenance": [
             {
@@ -333,6 +345,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -344,6 +357,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid architecture for this platform, on every install method.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid install-config architecture for this platform, so 64-bit ARM is not applicable here and is not presented.",
           "provenance": [
             {
@@ -355,6 +369,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the valid install-config architecture for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -366,6 +381,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the valid install-config architecture for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -384,6 +400,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -395,6 +412,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid architecture for this platform, on every install method.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid install-config architecture for this platform, so 64-bit ARM is not applicable here and is not presented.",
           "provenance": [
             {
@@ -406,6 +424,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the valid install-config architecture for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -417,6 +436,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the valid install-config architecture for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -435,6 +455,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -450,6 +471,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 as the only valid architecture for this platform, on every install method.",
           "reason": "Resolved in favour of the platform-specific authority. The OCP 4.21 Agent-based Installer book lists 64-bit ARM in its supported-architectures table, but that table describes what the INSTALLER supports and is not split by platform; the Installing on VMware vSphere book documents amd64 as the only valid install-config architecture for the vSphere platform, and the vSphere agent-based installer chapter contains no architecture statement at all. Platform applicability is governed by the platform's own documentation, so vSphere is amd64-only regardless of install method — which is also what the vsphere/ipi and vsphere/upi rows record. 64-bit ARM is not presented. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -469,6 +491,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the valid install-config architecture for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -480,6 +503,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on VMware vSphere book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on VMware vSphere book documents amd64 as the valid install-config architecture for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -498,6 +522,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on Nutanix book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on Nutanix book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -509,6 +534,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Nutanix book documents amd64 as the only valid architecture for this platform, on every install method.",
           "reason": "The OCP 4.21 Installing on Nutanix book documents amd64 as the only valid install-config architecture for this platform, so 64-bit ARM is not applicable here and is not presented.",
           "provenance": [
             {
@@ -520,6 +546,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Nutanix book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on Nutanix book documents amd64 as the valid install-config architecture for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -531,6 +558,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Nutanix book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on Nutanix book documents amd64 as the valid install-config architecture for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -549,6 +577,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on AWS book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on AWS book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -560,6 +589,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers AWS GovCloud regions.",
           "reason": "Resolved against the OCP 4.21 Installing on AWS book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the AWS GovCloud (US) material covers Route 53 / Ingress Operator endpoints and the us-gov-east-1 disconnected restriction and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models AWS GovCloud (US) specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -575,6 +605,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on AWS book documents amd64 and arm64 as the valid install-config architectures for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -586,6 +617,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on AWS book documents amd64 and arm64 as the valid install-config architectures for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -604,6 +636,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on AWS book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on AWS book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -615,6 +648,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers AWS GovCloud regions.",
           "reason": "Resolved against the OCP 4.21 Installing on AWS book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the AWS GovCloud (US) material covers Route 53 / Ingress Operator endpoints and the us-gov-east-1 disconnected restriction and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models AWS GovCloud (US) specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -630,6 +664,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on AWS book documents amd64 and arm64 as the valid install-config architectures for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -641,6 +676,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on AWS book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on AWS book documents amd64 and arm64 as the valid install-config architectures for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -659,6 +695,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on Azure book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on Azure book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -670,6 +707,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers Azure Government regions.",
           "reason": "Resolved against the OCP 4.21 Installing on Azure book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the \"Supported Azure Government regions\" section enumerates usgovtexas and usgovvirginia and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models Azure Government specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -685,6 +723,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on Azure book documents amd64 and arm64 as the valid install-config architectures for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -696,6 +735,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on Azure book documents amd64 and arm64 as the valid install-config architectures for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -714,6 +754,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on Azure book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on Azure book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -725,6 +766,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: OCP 4.21 documents 64-bit ARM for the commercial platform only — no statement covers Azure Government regions.",
           "reason": "Resolved against the OCP 4.21 Installing on Azure book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the \"Supported Azure Government regions\" section enumerates usgovtexas and usgovvirginia and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models Azure Government specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
@@ -740,6 +782,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on Azure book documents amd64 and arm64 as the valid install-config architectures for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -751,6 +794,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on Azure book documents amd64 and arm64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on Azure book documents amd64 and arm64 as the valid install-config architectures for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -769,6 +813,7 @@
         "x86_64": {
           "disposition": "supported",
           "offered": true,
+          "summary": "Supported: the OCP 4.21 Installing on IBM Cloud book documents amd64 as a valid install-config architecture for this platform.",
           "reason": "The OCP 4.21 Installing on IBM Cloud book documents amd64 as a valid install-config architecture for this platform.",
           "provenance": [
             {
@@ -780,6 +825,7 @@
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on IBM Cloud book documents amd64 as the only valid architecture for this platform, on every install method.",
           "reason": "The OCP 4.21 Installing on IBM Cloud book documents amd64 as the only valid install-config architecture for this platform, so 64-bit ARM is not applicable here and is not presented.",
           "provenance": [
             {
@@ -791,6 +837,7 @@
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on IBM Cloud book documents amd64 only; ppc64le belongs to IBM Power, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on IBM Cloud book documents amd64 as the valid install-config architecture for this platform; ppc64le belongs to Installing on IBM Power, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {
@@ -802,6 +849,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
+          "summary": "Not offered: the OCP 4.21 Installing on IBM Cloud book documents amd64 only; s390x belongs to IBM Z, a platform Architect does not model.",
           "reason": "The OCP 4.21 Installing on IBM Cloud book documents amd64 as the valid install-config architecture for this platform; s390x belongs to Installing on IBM Z and IBM LinuxONE, which is a separate platform Architect does not model. Not applicable here and not presented.",
           "provenance": [
             {

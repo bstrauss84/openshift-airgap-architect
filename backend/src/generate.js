@@ -18,6 +18,7 @@ import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
 import { validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES } from "../../shared/bmcVerifyCA.js";
+import { validateProvisioningNetworkGateway } from "../../shared/provisioningNetworkGateway.js";
 import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
 import { stripProxyCredentials } from "../../shared/stateSanitizer.js";
 
@@ -92,6 +93,31 @@ const buildRootDeviceHints = (node) => {
  * @param {string|undefined} arch Blueprint architecture value
  * @returns {string|undefined} artifact spelling, or undefined when unset
  */
+/**
+ * platform.baremetal.provisioningNetworkGateway (OpenShift 4.22+).
+ *
+ * Emitted only when the target minor carries the field AND the provisioning
+ * network is Managed. openshift-install accepts the key with Unmanaged or
+ * Disabled and then ignores it, so emitting it there would put a line in the
+ * user's install-config that does nothing.
+ *
+ * The documented relationships are enforced before emission because the shipped
+ * 4.22.16 binary does not enforce them (shared/provisioningNetworkGateway.js).
+ */
+const applyProvisioningNetworkGateway = (baremetal, hi, selectedMinor) => {
+  if (!isVersionGTE(selectedMinor, "4.22")) return;
+  const result = validateProvisioningNetworkGateway({
+    gateway: hi.provisioningNetworkGateway,
+    provisioningNetwork: hi.provisioningNetwork,
+    cidr: hi.provisioningNetworkCIDR,
+    dhcpRange: hi.provisioningDHCPRange,
+    clusterProvisioningIP: hi.clusterProvisioningIP,
+  });
+  if (!result.valid) throw new Error(result.errors[0]);
+  if (result.blank || !result.applicable) return;
+  baremetal.provisioningNetworkGateway = result.value;
+};
+
 const normalizeBlueprintArch = (arch) => {
   if (!arch) return undefined;
   if (arch === "x86_64") return "amd64";
@@ -363,6 +389,14 @@ const buildInstallConfig = (state) => {
         if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
         if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
         if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
+        // provisioningNetworkGateway is deliberately NOT emitted here. The OCP
+        // Agent-based Installer parameter chapter lists the additional
+        // platform.baremetal fields it accepts and does not include it (verified
+        // absent from the whole Agent book at 4.20, 4.21 and 4.22), and §9.1.4
+        // frames that family as Day-2 content "not used during the initial
+        // provisioning of the cluster". The shared baremetal Go struct would
+        // accept the key; that is not a reason to write it. The bare-metal-agent
+        // catalog records it as hidden-not-applicable to match.
         const baremetalBaseDomain = state.blueprint?.baseDomain;
         const hosts = (hi.nodes || []).map((node) => {
           // §9.1.4 install-config hosts: name, bootMACAddress, bmc only (role/rootDeviceHints → agent-config).
@@ -406,6 +440,7 @@ const buildInstallConfig = (state) => {
       if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
       if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
       if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
+      applyProvisioningNetworkGateway(baremetal, hi, selectedMinor);
 
       // Bare metal IPI: libvirtURI and externalBridge (v1.7.0: DOC-082 MISSING-V1.7-019, MISSING-V1.7-020)
       if ((hi.libvirtURI || "").trim()) baremetal.libvirtURI = hi.libvirtURI.trim();
@@ -2035,4 +2070,9 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   return lines.join("\n");
 };
 
-export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_COMPUTE_POLICIES, validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES };
+// `applyProvisioningNetworkGateway` is exported as a NARROW TEST SEAM. The field
+// is 4.22-only, and buildInstallConfig() asserts a supported minor before it is
+// reached, so the emission rule cannot be exercised end-to-end until the support
+// flip. Exporting the helper lets the rule be tested without weakening
+// assertSupportedOpenShiftMinorForGeneration(). No production caller uses it.
+export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_COMPUTE_POLICIES, validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES, applyProvisioningNetworkGateway };

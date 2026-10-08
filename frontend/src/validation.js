@@ -26,6 +26,7 @@ import { normalizeMAC } from "./formatUtils.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
 import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
 import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
+import { validateProvisioningNetworkGateway } from "../../shared/provisioningNetworkGateway.js";
 
 /**
  * vCenter server address validity, mirroring the OpenShift installer contract.
@@ -1301,6 +1302,25 @@ const validateNetworkingFormat = (state) => {
         }
       }
     }
+  }
+
+  // platform.baremetal.provisioningNetworkGateway (new at OpenShift 4.22).
+  // One implementation, shared with backend/src/generate.js, so live feedback and
+  // the emission boundary cannot drift. See shared/provisioningNetworkGateway.js
+  // for why the tool checks the relationships itself rather than deferring to
+  // the installer.
+  const gatewayResult = validateProvisioningNetworkGateway({
+    gateway: hostInventory.provisioningNetworkGateway,
+    provisioningNetwork: hostInventory.provisioningNetwork,
+    cidr: provisioningCIDR,
+    dhcpRange,
+    clusterProvisioningIP,
+  });
+  for (const msg of gatewayResult.errors) {
+    errors.push(msg);
+    fieldErrors.provisioningNetworkGateway = msg;
+    if (/DHCP range/.test(msg)) fieldErrors.provisioningDHCPRange = msg;
+    if (/cluster provisioning IP/.test(msg)) fieldErrors.clusterProvisioningIP = msg;
   }
 
   // Validate cluster provisioning IP is within provisioning CIDR (when both are set)

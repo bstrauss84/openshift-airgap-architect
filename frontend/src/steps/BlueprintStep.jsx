@@ -7,6 +7,8 @@ import SecretInput from "../components/SecretInput.jsx";
 import { sortChannelsBySemverDescending, getNewestSupportedChannel, classifyChannels } from "../shared/cincinnatiChannels.js";
 import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
 import { parseMinorVersionCore } from "../shared/openShiftMinor.js";
+import { getScenarioId } from "../hostInventoryV2Helpers.js";
+import { listArchSupportForState } from "../archSupportResolver.js";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -15,15 +17,20 @@ const archOptions = [
   { value: "s390x", label: "s390x", sub: "IBM Z" }
 ];
 
-/** OCP 4.20 supported architectures per platform (from platform-specific install docs). */
-const PLATFORM_ARCH_SUPPORT = {
-  "Bare Metal":       ["x86_64", "aarch64", "ppc64le", "s390x"],
-  "VMware vSphere":   ["x86_64", "aarch64"],
-  "Nutanix":          ["x86_64"],
-  "AWS GovCloud":     ["x86_64", "aarch64"],
-  "Azure Government": ["x86_64"],
-  "IBM Cloud":        ["x86_64"]
-};
+/**
+ * Target-cluster architecture support is resolved from the canonical D3 matrix
+ * (`data/arch-support/<minor>.json`) via `archSupportResolver`. It is keyed by
+ * OpenShift minor AND install method, and every cell carries a reason.
+ *
+ * This replaced a platform-keyed `PLATFORM_ARCH_SUPPORT` constant that had no
+ * minor, no install method and no citation, and whose
+ * `|| archOptions.map(...)` fallback opened all four architectures for any
+ * unrecognised platform. See DOC-156.
+ *
+ * This is the TARGET-CLUSTER axis only. The `openshift-install` / `oc` /
+ * `oc-mirror` download architecture on the Review step is a different axis and
+ * is not governed by this matrix.
+ */
 
 const platformOptions = [
   { value: "Bare Metal", label: "Bare Metal", rec: "Rec: Agent" },
@@ -81,21 +88,39 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
     return r.valid ? "" : r.error;
   }, [blueprintPullSecretTrimmed]);
 
-  const allowedArchs = PLATFORM_ARCH_SUPPORT[blueprint?.platform] || archOptions.map((a) => a.value);
+  const archScenarioId = getScenarioId(blueprint?.platform, state.methodology?.method);
+  const archSupport = useMemo(
+    () => listArchSupportForState(state, archScenarioId),
+    // Only the inputs the matrix is keyed by. Re-resolving on every state change
+    // would rebuild the cells on each keystroke elsewhere in the step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [archScenarioId, version?.selectedMinor, version?.selectedVersion, release?.channel, release?.patchVersion]
+  );
+  const archSupportByValue = useMemo(
+    () => new Map(archSupport.cells.map((c, i) => [c.architecture ?? archOptions[i].value, c])),
+    [archSupport]
+  );
+  const allowedArchs = archSupport.cells.filter((c) => c.offered).map((c, i) => c.architecture ?? archOptions[i].value);
 
   const updateBlueprint = (patch) => {
     if (locked) return;
     updateState({ blueprint: { ...blueprint, ...patch, confirmed: false, confirmationTimestamp: null } });
   };
 
-  // When platform changes, reset arch to x86_64 if the current selection is no longer supported.
+  // If the selected architecture stops being offered — because the platform, the
+  // install method or the OpenShift minor changed — fall back to the first
+  // architecture that IS offered rather than assuming x86_64 is always valid.
+  // Nothing is reset while no architecture can be resolved: that state means
+  // "not decidable yet", not "unsupported".
   useEffect(() => {
     if (locked) return;
-    const supported = PLATFORM_ARCH_SUPPORT[blueprint?.platform];
-    if (supported && blueprint?.arch && !supported.includes(blueprint.arch)) {
-      updateState({ blueprint: { ...blueprint, arch: "x86_64", confirmed: false, confirmationTimestamp: null } });
+    if (allowedArchs.length === 0) return;
+    if (blueprint?.arch && !allowedArchs.includes(blueprint.arch)) {
+      const next = allowedArchs.includes("x86_64") ? "x86_64" : allowedArchs[0];
+      updateState({ blueprint: { ...blueprint, arch: next, confirmed: false, confirmationTimestamp: null } });
     }
-  }, [blueprint?.platform]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedArchs.join(","), locked]);
 
   // Check for a mounted Red Hat pull secret and pre-populate if the field is empty and not locked.
   useEffect(() => {
@@ -410,13 +435,17 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
           </p>
           <div className="grid">
             {archOptions.map((option) => {
-              const isSupported = allowedArchs.includes(option.value);
+              const cell = archSupportByValue.get(option.value);
+              const isSupported = Boolean(cell?.offered);
               return (
                 <button
                   key={option.value}
                   className={`select-card ${blueprint?.arch === option.value ? "selected" : ""}`}
                   disabled={locked || !isSupported}
-                  title={!isSupported ? `Not supported on ${blueprint?.platform || "this platform"}` : undefined}
+                  // The matrix carries a reason for every closed cell, so the
+                  // tooltip can name the OpenShift minor and the documentation
+                  // instead of the old version-blind "Not supported on <platform>".
+                  title={!isSupported ? cell?.summary || "Not available for this platform and installation method." : undefined}
                   onClick={() => updateBlueprint({ arch: option.value })}
                 >
                   <div className="card-title">{option.label}</div>
