@@ -22,6 +22,34 @@ import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import { canonicalizeExportOptions, resolveSecretInclusion } from "../exportInclusion.js";
 
+/**
+ * FIPS_EXPORT_BINARY_NOTE - do not narrow the FIPS download list using cluster text.
+ *
+ * `installerUseFips` + `installerPlatformArch` select which **openshift-install client
+ * binary** to download into the exported bundle. That is the EXPORT/DOWNLOAD TOOL
+ * BINARY architecture axis. It is NOT the target-cluster architecture axis, and the two
+ * must not be conflated (see docs/minor-release/4.22/PLATFORM_METHOD_ARCH_MATRIX_4.22.md
+ * section 1).
+ *
+ * Red Hat's statement that FIPS 140-2/140-3 validated RHEL crypto applies "on only the
+ * x86_64, ppc64le, and s390x architectures" concerns CLUSTER NODES running RHEL/RHCOS.
+ * It says nothing about which client binaries Red Hat publishes.
+ *
+ * Verified against the official client artifact inventories (each minor's own
+ * sha256sum.txt) on 2026-10-07 - `openshift-install-rhel9-<arch>.tar.gz` is published
+ * for ALL FOUR architectures at 4.20.40, 4.21.35 and 4.22.16:
+ *
+ *   amd64 . arm64 . ppc64le . s390x
+ *
+ * The arm64 artifact was additionally downloaded, SHA256-verified against the mirror's
+ * own checksum file, and confirmed to extract to an `ELF 64-bit LSB executable, ARM
+ * aarch64` named `openshift-install-fips`.
+ *
+ * An earlier revision of this file removed the ARM64 FIPS option on the strength of the
+ * cluster-node sentence alone. That was an axis-conflation error, and it hid a binary
+ * Red Hat does ship. Regression coverage: tests/fips-installer-architectures.test.jsx.
+ */
+
 const DEFAULT_PREVIEW_HEIGHT = 320;
 const MIN_PREVIEW_HEIGHT = 120;
 const MAX_PREVIEW_HEIGHT = 800;
@@ -604,7 +632,13 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                   >
                     <option value="">Default (match backend)</option>
                     {exportOptions.installerUseFips ? (
-                      // FIPS variants (Linux RHEL 9 only)
+                      // FIPS variants (Linux RHEL 9 only).
+                      //
+                      // All four architectures are offered because Red Hat publishes
+                      // openshift-install-rhel9-<arch>.tar.gz for amd64, arm64, ppc64le
+                      // AND s390x. This list is the EXPORT/DOWNLOAD TOOL BINARY axis and
+                      // must not be narrowed using cluster-node FIPS validation text:
+                      // see FIPS_EXPORT_BINARY_NOTE.
                       <>
                         <option value="linux-amd64">Linux x86_64 (RHEL 9 FIPS)</option>
                         <option value="linux-arm64">Linux ARM64 (RHEL 9 FIPS)</option>

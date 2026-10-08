@@ -11,6 +11,7 @@
  */
 
 import { resolveFieldGuideVersion } from "./versionResolution.js";
+import { stripProxyCredentials } from "../../../shared/stateSanitizer.js";
 const normalizeNtpServers = (raw) => {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
@@ -64,8 +65,17 @@ const buildContext = (state) => {
   const workspacePath = mirrorWorkflow.workspacePath || "/data/oc-mirror/workspace";
 
   const proxyEnabled = Boolean(globalStrategy.proxyEnabled);
-  const httpProxy = proxies.httpProxy || "";
-  const httpsProxy = proxies.httpsProxy || "";
+  // Single choke point: every Field Guide consumer (assembler summary lines and the
+  // {{httpProxy}} / {{httpsProxy}} command templates) reads these. Embedded `user:pass`
+  // userinfo is a credential and is removed unless the user explicitly opted into
+  // credential inclusion, matching install-config generation. The endpoint is preserved.
+  const includeCredentials = Boolean(state?.exportOptions?.includeCredentials);
+  const proxyValue = (raw) => {
+    const v = raw || "";
+    return includeCredentials ? v : stripProxyCredentials(v);
+  };
+  const httpProxy = proxyValue(proxies.httpProxy);
+  const httpsProxy = proxyValue(proxies.httpsProxy);
   const noProxy = proxies.noProxy || "";
 
   const fips = Boolean(globalStrategy.fips);

@@ -5,6 +5,15 @@
  * Verifies that version constraints from operator state are correctly included in
  * generated imageset-config.yaml.
  *
+ * CORRECTED (FQ-9). Until Tranche 1.5 every assertion here required a channel-level
+ * `includeConfig` wrapper, so this file actively codified a defect: oc-mirror v2 has
+ * never accepted an `includeConfig` key and rejected the artifact with
+ * `json: unknown field "includeConfig"`. `IncludeConfig` is a Go type embedded with
+ * `json:",inline"`, so minVersion/maxVersion are channel-level keys.
+ *
+ * Schema conformance against the oc-mirror v2 API lives in
+ * backend/test/imageset-config-schema.test.js; this file keeps the behavioural cases.
+ *
  * @author Bill Strauss
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
@@ -45,9 +54,8 @@ test("buildImageSetConfig: includes version constraints when both minVersion and
   assert.strictEqual(operator.packages[0].name, "kubevirt-hyperconverged");
   assert.strictEqual(operator.packages[0].channels.length, 1);
   assert.strictEqual(operator.packages[0].channels[0].name, "stable");
-  assert.ok(operator.packages[0].channels[0].includeConfig);
-  assert.strictEqual(operator.packages[0].channels[0].includeConfig.minVersion, "4.15.0");
-  assert.strictEqual(operator.packages[0].channels[0].includeConfig.maxVersion, "4.16.5");
+  assert.strictEqual(operator.packages[0].channels[0].minVersion, "4.15.0");
+  assert.strictEqual(operator.packages[0].channels[0].maxVersion, "4.16.5");
 });
 
 test("buildImageSetConfig: includes only minVersion when maxVersion not specified", () => {
@@ -64,9 +72,8 @@ test("buildImageSetConfig: includes only minVersion when maxVersion not specifie
   const config = yaml.load(configYaml);
 
   const channel = config.mirror.operators[0].packages[0].channels[0];
-  assert.ok(channel.includeConfig);
-  assert.strictEqual(channel.includeConfig.minVersion, "4.14.0");
-  assert.strictEqual(channel.includeConfig.maxVersion, undefined);
+  assert.strictEqual(channel.minVersion, "4.14.0");
+  assert.strictEqual(channel.maxVersion, undefined);
 });
 
 test("buildImageSetConfig: includes only maxVersion when minVersion not specified", () => {
@@ -83,12 +90,11 @@ test("buildImageSetConfig: includes only maxVersion when minVersion not specifie
   const config = yaml.load(configYaml);
 
   const channel = config.mirror.operators[0].packages[0].channels[0];
-  assert.ok(channel.includeConfig);
-  assert.strictEqual(channel.includeConfig.minVersion, undefined);
-  assert.strictEqual(channel.includeConfig.maxVersion, "3.0.0");
+  assert.strictEqual(channel.minVersion, undefined);
+  assert.strictEqual(channel.maxVersion, "3.0.0");
 });
 
-test("buildImageSetConfig: omits includeConfig when no version constraints specified", () => {
+test("buildImageSetConfig: omits version constraints when none specified", () => {
   const state = createStateWithOperators([
     {
       name: "compliance-operator",
@@ -102,7 +108,7 @@ test("buildImageSetConfig: omits includeConfig when no version constraints speci
 
   const channel = config.mirror.operators[0].packages[0].channels[0];
   assert.strictEqual(channel.name, "stable");
-  assert.strictEqual(channel.includeConfig, undefined);
+  assert.deepStrictEqual(Object.keys(channel), ["name"], "channel carries name only");
 });
 
 test("buildImageSetConfig: handles multiple operators with mixed version constraints", () => {
@@ -134,17 +140,16 @@ test("buildImageSetConfig: handles multiple operators with mixed version constra
   assert.strictEqual(config.mirror.operators[0].packages.length, 3);
 
   const kubevirt = config.mirror.operators[0].packages.find((p) => p.name === "kubevirt-hyperconverged");
-  assert.ok(kubevirt.channels[0].includeConfig);
-  assert.strictEqual(kubevirt.channels[0].includeConfig.minVersion, "4.15.0");
-  assert.strictEqual(kubevirt.channels[0].includeConfig.maxVersion, "4.16.0");
+  assert.strictEqual(kubevirt.channels[0].minVersion, "4.15.0");
+  assert.strictEqual(kubevirt.channels[0].maxVersion, "4.16.0");
 
   const localStorage = config.mirror.operators[0].packages.find((p) => p.name === "local-storage-operator");
-  assert.strictEqual(localStorage.channels[0].includeConfig, undefined);
+  assert.strictEqual(localStorage.channels[0].minVersion, undefined);
+  assert.strictEqual(localStorage.channels[0].maxVersion, undefined);
 
   const nfd = config.mirror.operators[0].packages.find((p) => p.name === "nfd");
-  assert.ok(nfd.channels[0].includeConfig);
-  assert.strictEqual(nfd.channels[0].includeConfig.minVersion, "2.0.0");
-  assert.strictEqual(nfd.channels[0].includeConfig.maxVersion, undefined);
+  assert.strictEqual(nfd.channels[0].minVersion, "2.0.0");
+  assert.strictEqual(nfd.channels[0].maxVersion, undefined);
 });
 
 test("buildImageSetConfig: handles operators from different catalogs with version constraints", () => {
@@ -172,13 +177,13 @@ test("buildImageSetConfig: handles operators from different catalogs with versio
     (op) => op.catalog === "registry.redhat.io/redhat/redhat-operator-index:v4.20"
   );
   assert.ok(redhatCatalog);
-  assert.strictEqual(redhatCatalog.packages[0].channels[0].includeConfig.minVersion, "4.15.0");
+  assert.strictEqual(redhatCatalog.packages[0].channels[0].minVersion, "4.15.0");
 
   const certifiedCatalog = config.mirror.operators.find(
     (op) => op.catalog === "registry.redhat.io/redhat/certified-operator-index:v4.20"
   );
   assert.ok(certifiedCatalog);
-  assert.strictEqual(certifiedCatalog.packages[0].channels[0].includeConfig.maxVersion, "23.9.0");
+  assert.strictEqual(certifiedCatalog.packages[0].channels[0].maxVersion, "23.9.0");
 });
 
 test("buildImageSetConfig: handles empty string version constraints as undefined", () => {
@@ -196,8 +201,8 @@ test("buildImageSetConfig: handles empty string version constraints as undefined
   const config = yaml.load(configYaml);
 
   const channel = config.mirror.operators[0].packages[0].channels[0];
-  // Empty strings should not create includeConfig
-  assert.strictEqual(channel.includeConfig, undefined);
+  // Empty strings must not emit minVersion/maxVersion keys at all.
+  assert.deepStrictEqual(Object.keys(channel), ["name"]);
 });
 
 test("buildImageSetConfig: kubeVirtContainer is nested under mirror.platform, not mirror", () => {

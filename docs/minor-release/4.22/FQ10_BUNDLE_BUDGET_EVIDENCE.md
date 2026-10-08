@@ -2,6 +2,57 @@
 
 > **Tranche 1 deliverable 9 of 10.** Measurement and options only.
 > **The threshold is not changed. No bundle architecture is implemented.**
+>
+> ## ✅ RESOLVED in Tranche 1.5
+>
+> Option **A** (lazy-load catalogs per minor) was implemented. Outcome:
+>
+> | Metric | Before | After |
+> |---|---|---|
+> | **A** eager app JS+CSS (gating) | 2,698 KB | **1,146 KB** |
+> | **B** largest lazy chunk (gating) | n/a (nothing was lazy) | **96 KB** |
+> | **C** total dist (reported only) | 3,577 KB | 3,577 KB |
+>
+> The single misleading recursive-dist number is replaced by three explicit metrics;
+> artwork (879 KB) is excluded from the gates; and the budget now runs in CI against the
+> production build. Thresholds and their derivation:
+> `frontend/scripts/bundle-budget.json`. The blocker is cleared.
+>
+> Option B (PNG optimisation) was **not** done — it is an asset question, not a bundle-
+> architecture one, and metric A no longer counts artwork. `info-icon.png` at 243 KB
+> remains worth someone's attention.
+>
+> ### Lazy-resource readiness design (final review correction)
+>
+> Catalogs and docs-index have **independent** caches. Readiness is therefore derived
+> from actual residency of **both**, by `isVersionedDataReady(minor)` in
+> `frontend/src/App.jsx`:
+>
+> ```js
+> areCatalogsLoadedForMinor(minor) && isDocsIndexResolvedForMinor(minor)
+> ```
+>
+> An earlier revision initialised readiness from catalogs alone. That let a
+> **warm-catalog / cold-docs-index** state look ready, which short-circuited the load
+> effect and left the docs-index permanently unresolved.
+>
+> `isDocsIndexResolvedForMinor` is true once resolution **completes**, which includes
+> completing as *"this supported minor ships no docs-index"* — recorded as an explicit
+> `null` in the cache. That keeps the legitimate no-docs outcome distinguishable from a
+> cold cache, so the gate can neither hang on it nor pass by accident.
+>
+> `VersionSupportGate` applies three guards before mounting children: a cancellation
+> flag, a resolved-minor identity check, and a final structural re-derivation of
+> readiness from the caches themselves.
+>
+> Catalog reads remain **fail-closed** (`CatalogNotLoadedError`); only the docs-index may
+> legitimately resolve to "nothing to show".
+>
+> Covered by `frontend/tests/version-gate-cache-matrix.test.jsx` (12 tests), which drives
+> the **real gate from a deliberately cold cache** so that `tests/setup.js` preloading
+> cannot mask the lifecycle contract.
+>
+> The analysis below is retained as the evidence the decision rested on.
 
 > **Identifier note.** `FQ-10` was supplied by the tranche prompt and is kept **exactly as
 > given** (execution-contract rule 2). `docs/BACKLOG_STATUS.md` was read first

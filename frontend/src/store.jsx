@@ -11,34 +11,35 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api.js";
 import { detectUnknownSchema } from "./shared/versionHelpers.js";
+import { sanitizeStateForPersistence } from "../../shared/stateSanitizer.js";
 
 const AppContext = createContext(null);
 
 const STORAGE_KEY = "airgap-architect-state";
 
-/** State suitable for persistence: never includes ephemeral or credential secrets unless opted in. Exported for tests. */
+/**
+ * State suitable for browser persistence (localStorage).
+ *
+ * Delegates to the SHARED sanitizer, the same one the backend applies before writing
+ * SQLite, so the two persistence boundaries cannot disagree about what counts as a
+ * credential.
+ *
+ * This previously stripped only the pull secrets and vSphere, while the backend's list
+ * also covered AWS `secretAccessKey`, Azure `clientSecret`, IBM Cloud `apiKey`, Nutanix
+ * `prismPassword`, BMC passwords, embedded proxy passwords and `sshPrivateKey`. Those
+ * therefore reached localStorage even though the server deliberately refused to store
+ * them. Runtime credential canaries caught it; see
+ * frontend/tests/credential-canary-browser-storage.test.js.
+ *
+ * Nothing functional is lost by stripping more here: on mount the app hydrates from
+ * GET /api/state, which already returns the server-sanitized state, so localStorage was
+ * never able to carry these fields across a reload in a usable way.
+ *
+ * Exported for tests.
+ */
 export function getStateForPersistence(state) {
   if (!state) return state;
-  const next = JSON.parse(JSON.stringify(state));
-  if (next?.blueprint && "blueprintPullSecretEphemeral" in next.blueprint) {
-    delete next.blueprint.blueprintPullSecretEphemeral;
-  }
-  if (next?.credentials) {
-    delete next.credentials.pullSecretPlaceholder;
-    delete next.credentials.mirrorRegistryPullSecret;
-  }
-  if (next?.platformConfig?.vsphere) {
-    const vs = next.platformConfig.vsphere;
-    delete vs.username;
-    delete vs.password;
-    if (Array.isArray(vs.vcenters)) {
-      vs.vcenters = vs.vcenters.map((vc) => {
-        const { user, password, ...rest } = vc;
-        return rest;
-      });
-    }
-  }
-  return next;
+  return sanitizeStateForPersistence(state);
 }
 
 const useAppProvider = () => {

@@ -41,3 +41,29 @@ import { cleanup } from "@testing-library/react";
 afterEach(() => {
   cleanup();
 });
+
+/**
+ * FQ-10: preload every supported minor's catalog and docs-index data before any test
+ * runs.
+ *
+ * Production loads this data lazily, per selected minor, behind `VersionSupportGate`
+ * (see frontend/src/catalogPaths.js). Unit tests exercise functions that sit *below*
+ * that gate — `validateStep`, `getParamMeta`, the step components — and so would
+ * otherwise hit `CatalogNotLoadedError` for data the running application always has
+ * resident by the time those functions are reachable.
+ *
+ * Preloading here reproduces the application's post-gate state. It does not weaken the
+ * production guarantee: the gate is what enforces load-before-read at runtime, and
+ * tests/catalog-lazy-loading.test.js asserts the gate's behaviour directly, including
+ * that an unloaded read fails closed rather than returning empty data.
+ */
+import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
+import { ensureCatalogsForMinor } from "../src/catalogPaths.js";
+import { ensureDocsIndexForMinor } from "../src/docsIndexResolver.js";
+
+await Promise.all(
+  SUPPORTED_MINORS.flatMap((minor) => [
+    ensureCatalogsForMinor(minor),
+    ensureDocsIndexForMinor(minor),
+  ])
+);

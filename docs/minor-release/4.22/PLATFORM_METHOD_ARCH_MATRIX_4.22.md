@@ -21,9 +21,14 @@ that research, not its implementation.
 | **Runtime / container architecture** | the arch Architect itself runs on | `backend/Containerfile` |
 
 These are independent. The matrix below is **target cluster architecture** unless a row
-says otherwise. Conflating them is how `ReviewStep.jsx:610` came to offer
-*"Linux ARM64 (RHEL 9 FIPS)"* — a **local binary** label asserting a **FIPS** property that
-§4 shows is false.
+says otherwise.
+
+Conflating them is an **analysis** error, and this document made it: an earlier revision
+of §4 read the cluster-node FIPS validation statement as though it restricted the
+**export/download binary** axis, and on that basis called `ReviewStep.jsx`'s
+*"Linux ARM64 (RHEL 9 FIPS)"* download option a defect. It is not a defect — Red Hat
+publishes `openshift-install-rhel9-arm64.tar.gz`, and the option is correct for the axis
+it belongs to. See the corrected §4.
 
 ## 2. Current product state (unchanged, for comparison)
 
@@ -82,15 +87,37 @@ Verbatim, OCP 4.22 *Installation overview*, **Support for FIPS cryptography**:
 > cryptographic libraries that have been submitted to NIST for FIPS 140-2/140-3 Validation
 > on only the x86_64, ppc64le, and s390x architectures."
 
-**aarch64 / arm64 is not FIPS-validated at 4.22.**
+**aarch64 / arm64 is not FIPS-validated for CLUSTER NODES at 4.22.** That is the
+target-cluster architecture axis (§1), and it belongs in the matrix below.
 
-`frontend/src/steps/ReviewStep.jsx:610` offers `<option value="linux-arm64">Linux ARM64
-(RHEL 9 FIPS)</option>`. That label asserts a property Red Hat does not claim. **O6 is
-confirmed as a correctness defect, not inherited debt**, and it is confirmed against 4.22
-documentation rather than inferred.
-
-It is **out of scope for this tranche** (research only, and the string is also live for
-4.20/4.21). Carried to the findings queue.
+> ### ⚠ Correction (Tranche 1.5 final review) — this is NOT an export-binary restriction
+>
+> An earlier revision of this section read the sentence above as proving that
+> `ReviewStep.jsx`'s *"Linux ARM64 (RHEL 9 FIPS)"* **download option** was a defect. That
+> was an axis-conflation error: the quoted statement concerns RHEL/RHCOS **cluster
+> nodes**, not which client binaries Red Hat publishes.
+>
+> Checked against the official per-architecture client inventories (each release's own
+> `sha256sum.txt`), 2026-10-07:
+>
+> | Artifact | 4.20.40 | 4.21.35 | 4.22.16 |
+> |---|---|---|---|
+> | `openshift-install-rhel9-amd64.tar.gz` | ✅ | ✅ | ✅ |
+> | `openshift-install-rhel9-arm64.tar.gz` | ✅ | ✅ | ✅ |
+> | `openshift-install-rhel9-ppc64le.tar.gz` | ✅ | ✅ | ✅ |
+> | `openshift-install-rhel9-s390x.tar.gz` | ✅ | ✅ | ✅ |
+>
+> The arm64 artifact was downloaded (437 MB, HTTP 200), **SHA256-verified against the
+> mirror's own checksum file**, and extracts to
+> `ELF 64-bit LSB executable, ARM aarch64` named `openshift-install-fips`.
+>
+> **Red Hat ships a FIPS `openshift-install` for ARM64.** The UI option is correct and
+> the removal was reverted. There is **no O6 export-binary defect**; the O6 concern
+> reduces to the cluster-node statement, which is recorded in the matrix below where it
+> belongs. Regression coverage: `frontend/tests/fips-installer-architectures.test.jsx`.
+>
+> Standing rule: do not infer export/download tool-binary availability from
+> cluster-node support text. The three axes in §1 are independent.
 
 ## 5. Proposed matrix, in the D3 shape
 
@@ -160,7 +187,8 @@ at 4.22 is a product decision, not an onboarding task (runbook Rule 7 item 4).
 ## 8. Open items for Tranche 2
 
 1. Close every `OPEN` cell from the per-platform 4.22 install books (**S8**).
-2. Decide the O6 FIPS/ARM64 remediation (findings queue FQ-11).
+2. ~~Decide the O6 FIPS/ARM64 remediation~~ — **closed.** No export-binary defect
+   exists; see §4. The cluster-node FIPS architecture limit is matrix data, below.
 3. Author `data/arch-support/<minor>.json` for **all three** minors in the D3 shape with
    per-cell provenance, per plan Tranche 2.
 4. Resolve whether `multi` (the oc-mirror payload value) belongs in the target-cluster arch

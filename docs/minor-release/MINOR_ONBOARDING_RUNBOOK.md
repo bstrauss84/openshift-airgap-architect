@@ -267,6 +267,69 @@ substitution is not evidence.
 
 ---
 
+## Rule 6.1 — Every tranche ends with a GREEN Tranche Security Gate
+
+> **No commit may be recommended for any implementation tranche until
+> `./scripts/security/tranche-security-gate.sh` reports `OVERALL: GREEN`.**
+
+This is a per-tranche checkpoint, not a release gate, and it does not replace the broader
+enterprise-security items tracked in `docs/BACKLOG_STATUS.md` (`PROD-020`, `PROD-035`,
+`PROD-037`, `PROD-044`), which remain open on their own terms.
+
+The gate is fail-closed and covers:
+
+| Half | Checks |
+|---|---|
+| Repository / supply chain | secret scan of worktree, index and reachable history; sensitive-file hygiene; production dependency severity policy (Critical/High block, Moderate/Low report) |
+| Runtime credential lifecycle | synthetic per-class credential canaries across SQLite, browser storage, logs, HTTP error bodies, temp/cache, Field Guide, preview and the default export |
+
+Two rules learned the hard way, both on 2026-10-07:
+
+- **A clean secret scan proves nothing unless the scanner is proven live.** This
+  repository's `.gitleaks.toml` had no `[extend] useDefault`, so gitleaks loaded **zero
+  rules** and every local scan and pre-commit hook passed vacuously.
+  `scripts/security/gitleaks-selftest.sh` now runs first and fails if that recurs.
+- **A credential claim in prose is not evidence.** Every user-facing "not persisted"
+  statement must map to an automated invariant, and where the test proves the wording too
+  strong, the wording is corrected rather than the test weakened.
+
+A tranche that cannot reach GREEN stops and reports, with the finding described in safe
+metadata only. A real credential found in tracked content or reachable history is an
+incident: rotate first, do not rewrite history automatically, and do not print the value.
+
+### 6.1.1 Resolved history findings are reconciled, never suppressed
+
+A finding in reachable history cannot always be removed. Once a repository has been
+public, forks and clones hold independent copies, so rewriting refs sanitizes future
+archive generation without recalling anything. When a finding is instead resolved at the
+source and verified, it is **not** hidden with a scanner allowlist. The scanner keeps
+detecting it, and `scripts/security/history-scan-baseline-cli.mjs` accounts for every
+finding against the opaque digests in `scripts/security/history-scan-baseline.json`.
+
+Three rules make this safe; the contract is the scan-baseline section of
+`docs/SECURITY_NOTES.md`:
+
+- **The baseline is opaque.** It stores SHA-256 digests only — no path, commit, detector
+  name or descriptive metadata. It cannot be widened by editing a string, because every
+  value must be re-derived from the scan to match.
+- **Matching is exact and content-verified.** Identity, occurrence count and the
+  re-read historical content must all agree. Anything unregistered, changed, added or
+  miscounted is RED, including a new occurrence of already-known content and a
+  registered identity that disappears.
+- **A resolved status requires recorded evidence.** It needs a recognised evidence class
+  and an evidence digest; the detailed record is retained outside the repository.
+  Choosing not to rewrite history is not evidence, and an expiry date is a deadline, not
+  proof.
+
+Because resolved history is retained, the current tree is the boundary that matters: a
+content-aware guard fails if tracked source carries a credential-bearing cluster-import
+manifest or an embedded kubeconfig with real credential material. Ordinary
+credential-free `kind: Secret` templates remain allowed.
+
+Gate output for an exact match is just `resolved baseline matched; unexpected=0`. Raw
+scanner reports stay in a temporary directory, are never committed, and are never
+uploaded as a CI artifact.
+
 ## Rule 7 — The human review boundary
 
 Stop and ask a human; do not decide silently:

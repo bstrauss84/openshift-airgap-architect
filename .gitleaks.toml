@@ -1,12 +1,98 @@
-# Allowlist only. Gitleaks uses default rules; this file prevents obvious false positives.
-# Do not add rules here that weaken secret detection.
-[allowlist]
+# Gitleaks configuration.
+#
+# POLICY: allowlist-only. Do not add rules here that weaken secret detection, and do not
+# add a path/stopword exception without a proven false positive and a negative control.
+#
+# [extend] useDefault IS LOAD-BEARING. Without it gitleaks loads ZERO rules from this
+# file and every scan passes vacuously. That was the state until the Tranche 1.5 security
+# gate tested the config against runtime-generated synthetic secrets: a GitHub PAT, a
+# private key, a Slack bot token and two generic API keys were all missed, by this file
+# and therefore by scripts/check-secrets.sh and the check-secrets pre-commit hook.
+# scripts/security/gitleaks-selftest.sh proves the rules are live; it runs inside the
+# tranche security gate so the vacuum cannot silently return.
+
+[extend]
+useDefault = true
+
+# Pre-existing global allowlist, unchanged in substance. Converted from the deprecated
+# singular [allowlist] form, which gitleaks 8.30 refuses to load alongside [[allowlists]].
+# Default condition is OR, matching the original block's behaviour.
+[[allowlists]]
 description = "Test fixtures, mock data, schema placeholders; OKD dummy pull secret (auth only)"
 paths = [
   "frontend/tests/fixtures/",
   "backend/mock-data/",
   "schema/"
 ]
-# OKD-documented dummy for unauthenticated registry (https://github.com/orgs/okd-project/discussions/1930).
-# Only this exact value is allowlisted; no other pull-secret content is permitted.
-stopwords = ["aWQ6cGFzcwo="]
+# EXACT-VALUE allowlist (stopwords). This is the NARROWEST mechanism gitleaks offers:
+# it matches one literal string, not a path, not a directory, not a rule. Every entry
+# below was individually triaged during the Tranche 1.5 security forensics pass and
+# proven non-secret. No path, directory, fixture tree or detector class is exempted.
+#
+# Adding an entry requires: (a) the literal decodes to, or plainly is, a placeholder with
+# no credential value; (b) a negative control in scripts/security/gitleaks-selftest.sh
+# proving a REAL secret in the same file still fires.
+#
+#   aWQ6cGFzcwo=              -> "id:pass"            OKD-documented dummy for an
+#                                                      unauthenticated registry
+#                                                      (https://github.com/orgs/okd-project/discussions/1930)
+#   dXNlcm5hbWU6cGFzc3dvcmQ=  -> "username:password"  literal placeholder in the UPI prep
+#                                                      guides and the Run oc-mirror paste
+#                                                      field's example text
+#   dGVzdDp0ZXN0              -> "test:test"          e2e mock pull secret
+#   bWlycm9yOnRlc3Q=          -> "mirror:test"        e2e mock mirror pull secret
+#   ZXhhbXBsZTpzZWNyZXQ=      -> "example:secret"     fixture for the oc-mirror log
+#                                                      REDACTION test - the test exists to
+#                                                      prove this value gets redacted
+#   NutanixTestPass123        -> literal test password in e2e fixtures
+#   eyJhbGciOiJIUzI1NiIs...   -> TRUNCATED JWT prefix in docs/API.md; ends in a literal
+#                                "..." and is not a parseable token
+#   nutanixApiVIPV6           -> a SOURCE IDENTIFIER in frontend/src/validation.js (the
+#                                validation field key for the Nutanix IPv6 API VIP), not a
+#                                value at all; generic-api-key matched the symbol name.
+#                                Renaming it was rejected: the key is part of the UI
+#                                error-field contract.
+stopwords = [
+  "aWQ6cGFzcwo=",
+  "dXNlcm5hbWU6cGFzc3dvcmQ=",
+  "dGVzdDp0ZXN0",
+  "bWlycm9yOnRlc3Q=",
+  "ZXhhbXBsZTpzZWNyZXQ=",
+  "NutanixTestPass123",
+  "eyJhbGciOiJIUzI1NiIs...",
+  "nutanixApiVIPV6",
+]
+
+# ---------------------------------------------------------------------------
+# Narrow false positive: upstream Git SHA-1 provenance, not a credential.
+#
+# data/oc-mirror-v2/imageset-config-schema.json records the exact openshift/oc-mirror
+# commit its ImageSetConfiguration schema was derived from (DOC-166). A 40-hex Git SHA-1
+# matches the default generic-api-key entropy heuristic.
+#
+# Scoped as tightly as the format allows, all four conditions ANDed:
+#   - targetRules : generic-api-key ONLY (the rule is NOT disabled anywhere else)
+#   - paths       : that one file, end-anchored (NOT the directory)
+#   - regexes     : an "apiCommit" key whose value is EXACTLY 40 lowercase hex
+#   - regexTarget : the matched line, so unrelated lines in the same file still scan
+#
+# Deliberately NOT done: no directory exemption, no global SHA-like exemption, no
+# exemption for every field named apiCommit, no disabling of generic-api-key.
+#
+# Negative control: scripts/security/gitleaks-selftest.sh plants a synthetic
+# generic-api-key in a DIFFERENT field of this same file, and in a different file, and
+# fails if either is suppressed.
+# ---------------------------------------------------------------------------
+#
+# condition = "AND" IS LOAD-BEARING. Gitleaks combines allowlist criteria with OR by
+# default, so path + regex without it means "exempt anything in this file", which is
+# exactly the over-broad exemption this is meant to avoid. The self-test caught that:
+# controls C and E failed until this line was added.
+#
+[[allowlists]]
+description = "DOC-166 provenance Git SHA-1 in imageset-config-schema.json apiCommit"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''data/oc-mirror-v2/imageset-config-schema\.json$''']
+regexes = ['''"apiCommit"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"''']
+regexTarget = "line"

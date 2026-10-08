@@ -2787,6 +2787,23 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
 
   if (configSourceType === "generated") {
+    // The other two buildImageSetConfig call sites already assert this. Without it
+    // here, an unsupported or unresolvable minor reached the generator directly, and
+    // before the FQ-9 fix the generator's `|| "4.20"` default turned that into a
+    // silently wrong mirror configuration instead of a refusal.
+    try {
+      assertSupportedOpenShiftVersion(v3State);
+    } catch (error) {
+      if (error.code === "UNSUPPORTED_VERSION") {
+        return res.status(422).json({
+          error: error.message,
+          code: error.code,
+          requestedVersion: error.requestedVersion,
+          supportedVersions: error.supportedVersions
+        });
+      }
+      throw error;
+    }
     const configContents = buildImageSetConfig(v3State);
     configPathToUse = path.join(tmpDir, `imageset-${jobId}.yaml`);
     fs.writeFileSync(configPathToUse, configContents, "utf8");

@@ -86,6 +86,13 @@ Confirms plan decision **O3** from three independent directions.
 
 ## 6. HUMAN-REVIEW-REQUIRED
 
+> **⚠ RESOLVED in Tranche 1.5.** All four items below now have deterministic
+> dispositions in [`H_ITEM_DISPOSITIONS.md`](H_ITEM_DISPOSITIONS.md), which supersedes
+> this section. Note in particular that the "the catalog schema cannot express this"
+> premise used in H3 and H4 below was **wrong**: `versionNotes`, `conditionals`,
+> `deprecated`, `deprecatedReason` and `replacementPath` all already exist and are in
+> use. No schema change is required for any of the four.
+
 ### H1 — `platform.azure.ipFamily`: installer mechanics and documentation disagree
 
 **This is the O1 / Rule 2.5 case and must not be decided silently.**

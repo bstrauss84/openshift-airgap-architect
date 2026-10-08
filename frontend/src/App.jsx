@@ -47,6 +47,23 @@ import { computeVisibleWizardRows, findFirstAttentionStepIndex } from "./wizardV
 import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
+import { ensureCatalogsForMinor, areCatalogsLoadedForMinor } from "./catalogPaths.js";
+import { ensureDocsIndexForMinor, isDocsIndexResolvedForMinor } from "./docsIndexResolver.js";
+
+/**
+ * Readiness for a minor's lazily loaded versioned data (FQ-10).
+ *
+ * BOTH resources are required, and readiness is derived from actual cache residency
+ * rather than from "a load promise settled". The two caches are independent, so
+ * checking only catalogs let a warm-catalog / cold-docs-index state look ready and
+ * short-circuit the load effect, leaving the docs-index permanently unresolved.
+ *
+ * `isDocsIndexResolvedForMinor` is true once resolution COMPLETES, including completing
+ * as "this supported minor ships no docs-index" — an explicit resolved outcome, not an
+ * accidental pass.
+ */
+export const isVersionedDataReady = (minor) =>
+  Boolean(minor) && areCatalogsLoadedForMinor(minor) && isDocsIndexResolvedForMinor(minor);
 import { SUPPORTED_MINORS } from "./shared/versionPolicy.js";
 import { compareVersions } from "../../shared/versionUtils.js";
 import { apiFetch } from "./api.js";
@@ -186,9 +203,63 @@ class ErrorBoundary extends React.Component {
  * Prevents catalog-dependent validation and hooks from running for 4.22+.
  * Shows recoverable UI with explicit version selection instead of generic error boundary.
  */
-const VersionSupportGate = ({ children }) => {
+// Exported for tests/version-gate-data-loading.test.jsx: this gate is the single
+// load-and-support boundary, so its behaviour is asserted directly rather than
+// inferred through the whole App tree.
+export const VersionSupportGate = ({ children }) => {
   const { state, startOver, updateState } = useApp();
   const selectedMinor = getOpenShiftMinorFromState(state);
+
+  // FQ-10: versioned catalog and docs-index data is loaded per minor, on demand, so the
+  // initial chunk does not carry every supported minor's data. This gate is the right
+  // place for the load because it is already the single version boundary: nothing
+  // catalog-dependent mounts above it.
+  const [dataMinor, setDataMinor] = useState(() =>
+    selectedMinor && isVersionedDataReady(selectedMinor) ? selectedMinor : null
+  );
+  const [dataError, setDataError] = useState(null);
+
+  useEffect(() => {
+    if (!selectedMinor || !SUPPORTED_MINORS.includes(selectedMinor)) return undefined;
+    if (dataMinor === selectedMinor) return undefined;
+
+    let cancelled = false;
+    setDataError(null);
+    Promise.all([
+      ensureCatalogsForMinor(selectedMinor),
+      ensureDocsIndexForMinor(selectedMinor),
+    ])
+      .then(([loadedMinor]) => {
+        // Three guards. A version switch during an in-flight load must never show one
+        // minor's data under another minor's selection, and a half-warm cache must
+        // never be mistaken for a ready one:
+        //   - `cancelled` drops the result of a superseded effect run;
+        //   - the identity check rejects a resolution that is not for the currently
+        //     selected minor, even if the effect was not torn down;
+        //   - isVersionedDataReady re-derives readiness from ACTUAL cache residency of
+        //     BOTH resources, so readiness can never be inferred from promise
+        //     bookkeeping alone.
+        if (cancelled || loadedMinor !== selectedMinor) return;
+        if (!isVersionedDataReady(selectedMinor)) {
+          setDataError(
+            new Error(
+              `Versioned data for OpenShift ${selectedMinor} did not fully resolve ` +
+                "(catalogs and docs-index must both be resident)."
+            )
+          );
+          return;
+        }
+        setDataMinor(selectedMinor);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDataError(err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMinor, dataMinor]);
 
   // No version selected yet - let app proceed normally
   if (!selectedMinor) {
@@ -271,7 +342,32 @@ const VersionSupportGate = ({ children }) => {
     );
   }
 
-  // Supported version - proceed normally
+  // Supported version, but its catalog data is not resident yet. Blocking here keeps
+  // every downstream consumer synchronous: no step component had to learn about
+  // loading states, which is what kept the FQ-10 change small.
+  if (dataError) {
+    return (
+      <div className="app-loading" role="alert">
+        <div style={{ maxWidth: '600px', textAlign: 'left' }}>
+          <h2>Could not load OpenShift {selectedMinor} data</h2>
+          <p>{dataError.message}</p>
+          <button type="button" className="primary" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataMinor !== selectedMinor) {
+    return (
+      <div className="app-loading" role="status" aria-live="polite">
+        Loading OpenShift {selectedMinor} configuration data…
+      </div>
+    );
+  }
+
+  // Supported version with its data resident - proceed normally
   return children;
 };
 

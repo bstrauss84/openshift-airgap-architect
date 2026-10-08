@@ -27,6 +27,16 @@ Produced by Phase 1 / Tranche 1 of the v2.1 OCP 4.22 onboarding effort, followin
 | 9 | [`FQ10_BUNDLE_BUDGET_EVIDENCE.md`](FQ10_BUNDLE_BUDGET_EVIDENCE.md) | bundle baseline — **blocker before Tranche 2** |
 | 10 | [`AUTOMATION_REUSE_REPORT_TRANCHE_1.md`](AUTOMATION_REUSE_REPORT_TRANCHE_1.md) | reuse vs improvement, gap status |
 
+## Tranche 1.5 — blocker closure
+
+| Document | Contents |
+|---|---|
+| [`FQ9_IMAGESET_CONFIG_REMEDIATION.md`](FQ9_IMAGESET_CONFIG_REMEDIATION.md) | FQ-9 root cause and fix, full field audit, catalog reconciliation, DOC-166 status |
+| [`H_ITEM_DISPOSITIONS.md`](H_ITEM_DISPOSITIONS.md) | final deterministic dispositions for H1–H4 |
+
+Both **supersede** parts of the Tranche-1 documents above; the superseded sections carry
+inline pointers.
+
 ## The short version
 
 - Exact release **4.22.16**, installer commit **`92820966521d640aa5f0edfb69bcfd9c168c2210`**,
@@ -37,8 +47,12 @@ Produced by Phase 1 / Tranche 1 of the v2.1 OCP 4.22 onboarding effort, followin
 - Exactly **one** `SUPPORTED-UI` candidate: `platform.baremetal.provisioningNetworkGateway`.
   Everything else new is behind a non-default feature gate.
 - **Four HUMAN-REVIEW-REQUIRED items**; none blocks Tranche 2.
-- **FQ-10 does block Tranche 2**: the frontend bundle is already 1,077 KB over budget
-  before 4.22 adds ~810 KB more.
+- **FQ-10 blocked Tranche 2 and is now closed** (Tranche 1.5): per-minor lazy loading
+  took the eager bundle from 2,698 KB to 1,146 KB, and an explicit three-metric budget
+  now gates CI.
+- **FQ-9 is closed** (Tranche 1.5): the generated `imageset-config.yaml` is accepted by
+  the exact current oc-mirror v2, and a second silent defect — the mirror payload
+  architecture — was found and fixed alongside it.
 
 ## Raw evidence
 

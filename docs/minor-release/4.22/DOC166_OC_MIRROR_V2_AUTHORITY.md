@@ -2,8 +2,25 @@
 
 > **Tranche 1 deliverable 7 of 10.** Research and disposition proposal for **DOC-166**,
 > `active`/`p1` in `docs/BACKLOG_STATUS.md`.
-> **Nothing is migrated. No per-minor copy is created.** `data/params/4.20/oc-mirror-v2.json`
-> is unchanged; no `4.21` or `4.22` counterpart exists or is created.
+>
+> ## ⚠ Partly superseded by Tranche 1.5
+>
+> Read [`FQ9_IMAGESET_CONFIG_REMEDIATION.md`](FQ9_IMAGESET_CONFIG_REMEDIATION.md) first.
+> Three statements below are now out of date:
+>
+> 1. **`includeConfig` is NOT "a v1 construct".** It has never been a YAML key in any
+>    oc-mirror API version. `IncludeConfig` is a Go type embedded `json:",inline"`, so
+>    its `packages` field surfaces at the operator level and the type name itself never
+>    serializes. Corrected after reading both the v1alpha2 and v2alpha1 sources.
+> 2. **There were seven wrong catalog rows, not four.** `mirror.operators[].targetName`,
+>    `mirror.platform.channels[].includeMin` and `...includeMax` were also rejected by
+>    the binary.
+> 3. **The generator defect and the catalog rows are now FIXED**, and the global
+>    structural authority exists at `data/oc-mirror-v2/imageset-config-schema.json`.
+>    The *relocation* of `data/params/4.20/oc-mirror-v2.json` remains deferred, for the
+>    reasons in §6 below, which still stand.
+>
+> The authority-split analysis in §5 and §6 is unchanged and is what Tranche 2 should act on.
 
 ---
 

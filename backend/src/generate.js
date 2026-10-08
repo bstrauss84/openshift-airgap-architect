@@ -19,6 +19,7 @@ import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
 import { validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES } from "../../shared/bmcVerifyCA.js";
 import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
+import { stripProxyCredentials } from "../../shared/stateSanitizer.js";
 
 function validateAwsRootVolumeThroughput(value, volumeType) {
   if (value == null || value === "") return { valid: true, blank: true };
@@ -73,6 +74,29 @@ const buildRootDeviceHints = (node) => {
     if (normalized === "true" || normalized === "false") hints.rotational = normalized === "true";
   }
   return Object.keys(hints).length > 0 ? hints : undefined;
+};
+
+/**
+ * Blueprint target-cluster architecture -> the spelling generated artifacts use.
+ *
+ * The Blueprint stores `x86_64 | aarch64 | ppc64le | s390x`. Both consumers of this
+ * mapping want the same output spelling:
+ *   - install-config `compute[].architecture` / `controlPlane.architecture`
+ *   - imageset-config `mirror.platform.architectures[]`, whose accepted values are
+ *     `amd64 | arm64 | multi | ppc64le | s390x` (oc-mirror v2 ImageSetConfiguration).
+ *
+ * Shared rather than duplicated because the two artifacts disagreeing about the
+ * target architecture is exactly the defect this consolidates away: an aarch64
+ * install-config paired with an amd64 mirror payload.
+ *
+ * @param {string|undefined} arch Blueprint architecture value
+ * @returns {string|undefined} artifact spelling, or undefined when unset
+ */
+const normalizeBlueprintArch = (arch) => {
+  if (!arch) return undefined;
+  if (arch === "x86_64") return "amd64";
+  if (arch === "aarch64") return "arm64";
+  return arch; // ppc64le, s390x pass through unchanged
 };
 
 /**
@@ -260,12 +284,7 @@ const buildInstallConfig = (state) => {
   const pullSecret = normalizePullSecretString(rawPullSecret);
 
   // Blueprint carry-over: architecture (x86_64→amd64, aarch64→arm64) and platform (Bare Metal→baremetal, etc.)
-  const archForInstallConfig = (arch) => {
-    if (!arch) return undefined;
-    if (arch === "x86_64") return "amd64";
-    if (arch === "aarch64") return "arm64";
-    return arch; // ppc64le, s390x pass through
-  };
+  const archForInstallConfig = normalizeBlueprintArch;
   const platformKey = normalizePlatformKey(state.blueprint?.platform);
 
   const clusterNetwork = buildClusterNetwork(networkingState, effectiveIpStackMode);
@@ -522,9 +541,20 @@ const buildInstallConfig = (state) => {
   }
 
   if (state.globalStrategy?.proxyEnabled) {
+    // Proxy URLs may embed `user:password`. That userinfo is a CREDENTIAL and obeys the
+    // same opt-in rule as every other credential class here (pull secret, BMC, vSphere,
+    // Nutanix): excluded unless the user explicitly asked for credential inclusion.
+    //
+    // Proxy was previously the only credential class that ignored `includeCredentials`,
+    // so a default export carried the proxy password. The endpoint itself is non-secret
+    // configuration and is always preserved - only the userinfo is removed.
+    const proxyValue = (raw) => {
+      if (!raw) return raw;
+      return includeCredentials ? raw : stripProxyCredentials(raw);
+    };
     installConfig.proxy = {
-      httpProxy: state.globalStrategy?.proxies?.httpProxy,
-      httpsProxy: state.globalStrategy?.proxies?.httpsProxy,
+      httpProxy: proxyValue(state.globalStrategy?.proxies?.httpProxy),
+      httpsProxy: proxyValue(state.globalStrategy?.proxies?.httpsProxy),
       noProxy: state.globalStrategy?.proxies?.noProxy
     };
   }
@@ -1632,15 +1662,39 @@ const sortNodes = (nodes) => {
   });
 };
 
+/**
+ * Build `imageset-config.yaml` for oc-mirror v2.
+ *
+ * Schema authority is the oc-mirror v2 `ImageSetConfiguration` API
+ * (`internal/pkg/api/v2alpha1/type_config.go`), which is GLOBAL and independent of
+ * the target OpenShift minor. See docs/minor-release/4.22/DOC166_OC_MIRROR_V2_AUTHORITY.md.
+ * oc-mirror decodes with `DisallowUnknownFields`, so any key not in that API is a
+ * hard parse failure, not a tolerated extra.
+ */
 const buildImageSetConfig = (state) => {
   const version = state.release?.patchVersion;
-  const catalogMinor = getOpenShiftMinorFromState(state) || "4.20";
+  // Fail closed at the GENERATION BOUNDARY, using the same policy buildInstallConfig
+  // applies: throws UNSUPPORTED_VERSION for an unresolvable minor AND for a resolvable
+  // but unsupported one (4.22 today).
+  //
+  // Not delegated to callers. Route-level guards are necessary but not sufficient — a
+  // caller that forgets one must not be able to produce an unsupported configuration,
+  // and before this the generator's `|| "4.20"` default turned exactly that mistake
+  // into a silently wrong mirror config rather than a refusal (CLAUDE.md "No Fallback
+  // Rule"; `POST /api/ocmirror/run` was the call site that had no guard).
+  const catalogMinor = assertSupportedOpenShiftMinorForGeneration(state);
   const operators = state.operators?.selected || [];
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
   const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
   const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
   const kubeVirtContainer = Boolean(cfg.kubeVirtContainer);
+  // When `architectures` is absent, oc-mirror's config defaulting
+  // (`completeReleaseArchitectures`) substitutes `amd64`, so omitting it for a
+  // non-x86 cluster mirrors the wrong release payload while the configuration still
+  // parses cleanly. Verified against oc-mirror 4.22.17: with no architectures it
+  // requests `...graph?arch=amd64`; with `[arm64]` it requests `arch=arm64`.
+  const mirrorArch = normalizeBlueprintArch(state.blueprint?.arch);
 
   const images = {
     apiVersion: "mirror.openshift.io/v2alpha1",
@@ -1655,6 +1709,7 @@ const buildImageSetConfig = (state) => {
             maxVersion: version
           }
         ],
+        ...(mirrorArch ? { architectures: [mirrorArch] } : {}),
         ...(includeGraph ? { graph: true } : {}),
         ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
       },
@@ -1671,12 +1726,18 @@ const buildImageSetConfig = (state) => {
       byCatalog.set(op.catalogImage, []);
     }
     const channel = { name: op.defaultChannel };
-    // Add version constraints if specified
-    if (op.minVersion || op.maxVersion) {
-      channel.includeConfig = {};
-      if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
-      if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
-    }
+    // Version constraints sit DIRECTLY on the channel.
+    //
+    // oc-mirror v2 embeds `IncludeConfig` into `Operator` with `json:",inline"`, and
+    // `IncludeChannel` embeds `IncludeBundle` the same way, so `minVersion`/`maxVersion`
+    // are channel-level keys. `includeConfig` is a Go *type* name, never a YAML key —
+    // it has never existed in v1alpha1, v1alpha2 or v2alpha1. Emitting it produced
+    // `json: unknown field "includeConfig"` and made the artifact unusable (FQ-9).
+    //
+    // Keep these channel-level only: oc-mirror rejects a package that carries both
+    // package-level and channel-level version filters.
+    if (op.minVersion) channel.minVersion = op.minVersion;
+    if (op.maxVersion) channel.maxVersion = op.maxVersion;
     byCatalog.get(op.catalogImage).push({
       name: op.name,
       channels: [channel]

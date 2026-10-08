@@ -13,38 +13,166 @@
     "runtimeContainer": "arch Architect itself runs on"
   },
   "fips": {
-    "validatedArchitectures": ["x86_64", "ppc64le", "s390x"],
+    "validatedArchitectures": [
+      "x86_64",
+      "ppc64le",
+      "s390x"
+    ],
     "arm64Validated": false,
     "quote": "When running Red Hat Enterprise Linux (RHEL) or Red Hat Enterprise Linux CoreOS (RHCOS) booted in FIPS mode, OpenShift Container Platform core components use the RHEL cryptographic libraries that have been submitted to NIST for FIPS 140-2/140-3 Validation on only the x86_64, ppc64le, and s390x architectures.",
     "source": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installation_overview/installing-preparing",
     "retrieved": "2026-10-07",
     "resolvesPlanDecision": "O6",
-    "productDefect": "frontend/src/steps/ReviewStep.jsx:610 offers 'Linux ARM64 (RHEL 9 FIPS)'. Confirmed a correctness defect against 4.22 documentation. Out of scope for this tranche; findings queue FQ-11."
+    "productDefect": "NONE. Corrected in Tranche 1.5 final review. An earlier revision claimed frontend/src/steps/ReviewStep.jsx offering 'Linux ARM64 (RHEL 9 FIPS)' was a defect; that conflated the cluster-node FIPS statement with the export/download tool-binary axis. Red Hat publishes openshift-install-rhel9-arm64.tar.gz for 4.20.40, 4.21.35 and 4.22.16 (verified against each release's own sha256sum.txt; the arm64 artifact was downloaded, checksum-verified, and confirmed to be an ELF aarch64 executable). The UI option is correct and the removal was reverted.",
+    "axis": "TARGET CLUSTER NODES ONLY",
+    "exportBinaryAvailability": {
+      "axis": "export/download tool binary - INDEPENDENT of cluster-node FIPS validation",
+      "artifactPattern": "openshift-install-rhel9-<arch>.tar.gz",
+      "availableFor": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "verifiedReleases": [
+        "4.20.40",
+        "4.21.35",
+        "4.22.16"
+      ],
+      "verifiedOn": "2026-10-07",
+      "method": "per-architecture clients/ocp/<release>/sha256sum.txt; arm64 additionally downloaded and SHA256-verified, extracts to ELF 64-bit LSB executable ARM aarch64",
+      "standingRule": "Do not infer export/download tool-binary availability from cluster-node support text."
+    }
   },
   "documentedIpiTable": {
     "source": "OCP 4.22 Installation overview, Table 2.1 Installer-provisioned infrastructure options",
     "retrieved": "2026-10-07",
-    "archSplitPlatforms": ["AWS", "Azure", "GCP", "bare metal"],
-    "noArchSplitPlatforms": ["vSphere", "Nutanix", "IBM Cloud", "Azure Stack Hub", "RHOSP"],
-    "noIpiCheckmark": ["IBM Z", "IBM Power", "IBM Power Virtual Server"],
+    "archSplitPlatforms": [
+      "AWS",
+      "Azure",
+      "GCP",
+      "bare metal"
+    ],
+    "noArchSplitPlatforms": [
+      "vSphere",
+      "Nutanix",
+      "IBM Cloud",
+      "Azure Stack Hub",
+      "RHOSP"
+    ],
+    "noIpiCheckmark": [
+      "IBM Z",
+      "IBM Power",
+      "IBM Power Virtual Server"
+    ],
     "caution": "Absence of an architecture split is not evidence that only x86_64 is supported. It is no evidence either way at this source."
   },
   "matrix": [
-    {"platform": "Bare Metal", "method": "ipi",   "x86_64": "supported", "aarch64": "supported", "ppc64le": "OPEN", "s390x": "OPEN", "aarch64Source": "Table 2.1 'Bare metal (64-bit ARM)'"},
-    {"platform": "Bare Metal", "method": "upi",   "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "OPEN", "s390x": "OPEN"},
-    {"platform": "Bare Metal", "method": "agent", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "OPEN", "s390x": "OPEN"},
-    {"platform": "VMware vSphere", "method": "ipi",   "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform"},
-    {"platform": "VMware vSphere", "method": "upi",   "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform"},
-    {"platform": "VMware vSphere", "method": "agent", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform"},
-    {"platform": "Nutanix", "method": "ipi", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform"},
-    {"platform": "AWS GovCloud", "method": "ipi", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform", "note": "commercial AWS 64-bit ARM is documented; GovCloud is not addressed by Table 2.1"},
-    {"platform": "AWS GovCloud", "method": "upi", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform"},
-    {"platform": "Azure Government", "method": "ipi", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform", "note": "commercial Azure 64-bit ARM is documented; Azure Government is not addressed by Table 2.1"},
-    {"platform": "Azure Government", "method": "upi", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform"},
-    {"platform": "IBM Cloud", "method": "ipi", "x86_64": "supported", "aarch64": "OPEN", "ppc64le": "hidden/platform", "s390x": "hidden/platform"}
+    {
+      "platform": "Bare Metal",
+      "method": "ipi",
+      "x86_64": "supported",
+      "aarch64": "supported",
+      "ppc64le": "OPEN",
+      "s390x": "OPEN",
+      "aarch64Source": "Table 2.1 'Bare metal (64-bit ARM)'"
+    },
+    {
+      "platform": "Bare Metal",
+      "method": "upi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "OPEN",
+      "s390x": "OPEN"
+    },
+    {
+      "platform": "Bare Metal",
+      "method": "agent",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "OPEN",
+      "s390x": "OPEN"
+    },
+    {
+      "platform": "VMware vSphere",
+      "method": "ipi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform"
+    },
+    {
+      "platform": "VMware vSphere",
+      "method": "upi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform"
+    },
+    {
+      "platform": "VMware vSphere",
+      "method": "agent",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform"
+    },
+    {
+      "platform": "Nutanix",
+      "method": "ipi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform"
+    },
+    {
+      "platform": "AWS GovCloud",
+      "method": "ipi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform",
+      "note": "commercial AWS 64-bit ARM is documented; GovCloud is not addressed by Table 2.1"
+    },
+    {
+      "platform": "AWS GovCloud",
+      "method": "upi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform"
+    },
+    {
+      "platform": "Azure Government",
+      "method": "ipi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform",
+      "note": "commercial Azure 64-bit ARM is documented; Azure Government is not addressed by Table 2.1"
+    },
+    {
+      "platform": "Azure Government",
+      "method": "upi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform"
+    },
+    {
+      "platform": "IBM Cloud",
+      "method": "ipi",
+      "x86_64": "supported",
+      "aarch64": "OPEN",
+      "ppc64le": "hidden/platform",
+      "s390x": "hidden/platform"
+    }
   ],
   "currentProductClaimsNotConfirmedAt422": [
-    "Bare Metal ppc64le", "Bare Metal s390x", "VMware vSphere aarch64", "AWS GovCloud aarch64"
+    "Bare Metal ppc64le",
+    "Bare Metal s390x",
+    "VMware vSphere aarch64",
+    "AWS GovCloud aarch64"
   ],
   "currentProductClaimsNote": "These originate from a 4.20-era scan. They may be correct, but they were NOT confirmed against 4.22 evidence in this tranche. Closing them from the per-platform 4.22 books (plan source S8) is Tranche 2 work and is exactly what DOC-156 exists to force.",
   "installMethodDependence": "Agent-based installer architecture support depends on whether the release image is multi-payload or single-arch, a property of the install method rather than the platform. A platform-keyed table cannot express this; this is the structural justification for D3 independent of which cells are true.",
@@ -55,12 +183,20 @@
     "obligation": "Tranche 2 must mark the arch data homogeneousOnly and state the limitation in bare-metal Field Guide/help text, because silence now reads as 'not possible', which is wrong."
   },
   "otherTopologyChanges": [
-    {"finding": "Two-node OpenShift with fencing moved Technology Preview (4.20, 4.21) to General Availability (4.22)", "source": "OCP 4.22 release notes Edge computing Technology Preview table 1.9.3", "disposition": "recorded, not actioned; new product capability is a human decision per runbook Rule 7 item 4", "newBook": "installing_a_two_node_openshift_cluster"},
-    {"finding": "Configuring a local arbiter node is GA across 4.20, 4.21 and 4.22", "source": "same table", "disposition": "corroborates removal of the HighlyAvailableArbiter feature gate at 4.22 observed in installer source"}
+    {
+      "finding": "Two-node OpenShift with fencing moved Technology Preview (4.20, 4.21) to General Availability (4.22)",
+      "source": "OCP 4.22 release notes Edge computing Technology Preview table 1.9.3",
+      "disposition": "recorded, not actioned; new product capability is a human decision per runbook Rule 7 item 4",
+      "newBook": "installing_a_two_node_openshift_cluster"
+    },
+    {
+      "finding": "Configuring a local arbiter node is GA across 4.20, 4.21 and 4.22",
+      "source": "same table",
+      "disposition": "corroborates removal of the HighlyAvailableArbiter feature gate at 4.22 observed in installer source"
+    }
   ],
   "openForTranche2": [
     "Close every OPEN cell from the per-platform 4.22 install books (plan source S8)",
-    "Decide the O6 FIPS/ARM64 remediation (FQ-11)",
     "Author data/arch-support/<minor>.json for all three minors in the D3 shape with per-cell provenance",
     "Decide whether 'multi' belongs in the target-cluster arch model at all; it is a mirror-payload concept"
   ]

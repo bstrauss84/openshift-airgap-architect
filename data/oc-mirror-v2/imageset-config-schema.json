@@ -1,0 +1,168 @@
+{
+  "_purpose": "Canonical structural authority for the oc-mirror v2 ImageSetConfiguration document that Airgap Architect generates. Consumed by backend/test/imageset-config-schema.test.js.",
+  "_authorityScope": "GLOBAL. This schema belongs to oc-mirror v2, NOT to any OpenShift minor. oc-mirror is resolved from clients/ocp/latest, the latest available globally, independent of the target cluster minor (CLAUDE.md 'External tool version policy'). Do NOT copy this file under data/params/<minor>/ — per-minor copies would encode a dependency that does not exist and would reproduce the clone-and-drift pattern that produced 810 stale citations.",
+  "_doNotInfer": "A key's absence from this file means oc-mirror rejects it, not that it is merely undocumented. oc-mirror decodes with DisallowUnknownFields, so any unlisted key is a hard parse failure.",
+  "_relatedBacklog": "DOC-166. This file is the first implementation slice: it establishes the global structural authority in a form tests can enforce. The relocation of data/params/4.20/oc-mirror-v2.json into this scope is deliberately NOT done here (see docs/minor-release/4.22/DOC166_OC_MIRROR_V2_AUTHORITY.md).",
+
+  "provenance": {
+    "apiSource": "github.com/openshift/oc-mirror internal/pkg/api/v2alpha1",
+    "apiCommit": "3f66edaf31831b93043b0baa55d02462d4e7ee39",
+    "apiFiles": {
+      "type_config.go": "7e0900621632148bd811d3b40a0c5d763de3e4d139f2db5f1900be36f69beccb",
+      "type_config_include.go": "535450b6e7159ef9c9515f1cb6fce428f498e791fac3f4f4a6a6b6e24b3c13cd"
+    },
+    "binaryVerifiedAgainst": {
+      "channel": "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest",
+      "channelReleaseName": "4.22.17",
+      "componentVersion": "4.22.0-202609301304.p2.g3f66eda.assembly.stream.el9-3f66eda",
+      "binarySha256": "e03f81341d1186a03504a1be8f356265b974004782f07a35123e9cf6e35808d8"
+    },
+    "verifiedOn": "2026-10-07",
+    "method": "Every path below was either read from the pinned API source or probed directly with `oc-mirror --v2 -c <file> --dry-run`. Rejected paths carry the verbatim error."
+  },
+
+  "apiVersion": "mirror.openshift.io/v2alpha1",
+  "kind": "ImageSetConfiguration",
+
+  "strictDecoding": true,
+  "strictDecodingEvidence": "internal/pkg/config/load.go calls yaml.UnmarshalStrict and dec.DisallowUnknownFields(). Probing a deliberately bogus top-level key returns: json: unknown field \"totallyBogusTopLevelField\".",
+
+  "paths": [
+    "apiVersion",
+    "kind",
+    "archiveSize",
+    "mirror",
+    "mirror.platform",
+    "mirror.platform.graph",
+    "mirror.platform.architectures",
+    "mirror.platform.release",
+    "mirror.platform.kubeVirtContainer",
+    "mirror.platform.channels",
+    "mirror.platform.channels[].name",
+    "mirror.platform.channels[].type",
+    "mirror.platform.channels[].minVersion",
+    "mirror.platform.channels[].maxVersion",
+    "mirror.platform.channels[].shortestPath",
+    "mirror.platform.channels[].full",
+    "mirror.operators",
+    "mirror.operators[].catalog",
+    "mirror.operators[].targetCatalog",
+    "mirror.operators[].targetTag",
+    "mirror.operators[].full",
+    "mirror.operators[].skipDependencies",
+    "mirror.operators[].targetCatalogSourceTemplate",
+    "mirror.operators[].packages",
+    "mirror.operators[].packages[].name",
+    "mirror.operators[].packages[].defaultChannel",
+    "mirror.operators[].packages[].minVersion",
+    "mirror.operators[].packages[].maxVersion",
+    "mirror.operators[].packages[].channels",
+    "mirror.operators[].packages[].channels[].name",
+    "mirror.operators[].packages[].channels[].minVersion",
+    "mirror.operators[].packages[].channels[].maxVersion",
+    "mirror.additionalImages",
+    "mirror.additionalImages[].name",
+    "mirror.additionalImages[].targetRepo",
+    "mirror.additionalImages[].targetTag",
+    "mirror.blockedImages",
+    "mirror.blockedImages[].name",
+    "mirror.helm",
+    "mirror.helm.local",
+    "mirror.helm.local[].name",
+    "mirror.helm.local[].version",
+    "mirror.helm.local[].path",
+    "mirror.helm.local[].imagePaths",
+    "mirror.helm.repositories",
+    "mirror.helm.repositories[].url",
+    "mirror.helm.repositories[].name",
+    "mirror.helm.repositories[].charts",
+    "mirror.helm.repositories[].charts[].name",
+    "mirror.helm.repositories[].charts[].version",
+    "mirror.helm.repositories[].charts[].path",
+    "mirror.helm.repositories[].charts[].imagePaths",
+    "mirror.samples",
+    "mirror.samples[].name"
+  ],
+
+  "rejectedPaths": {
+    "kubeVirtContainer": {
+      "error": "json: unknown field \"kubeVirtContainer\"",
+      "correctPath": "mirror.platform.kubeVirtContainer",
+      "note": "The OCP 4.22 documentation table lists this among the top-level entries. The binary rejects it there. Binary wins mechanically (runbook Rule 2.5); the documentation discrepancy is recorded, not silently resolved."
+    },
+    "mirror.operators[].packages[].channels[].includeConfig": {
+      "error": "json: unknown field \"includeConfig\"",
+      "correctPath": "mirror.operators[].packages[].channels[].minVersion / .maxVersion",
+      "note": "IncludeConfig is a Go type embedded with json:\",inline\", never a YAML key. It has never existed as a key in v1alpha1, v1alpha2 or v2alpha1. This was defect FQ-9."
+    },
+    "mirror.operators[].targetName": {
+      "error": "json: unknown field \"targetName\"",
+      "correctPath": "mirror.operators[].targetCatalog",
+      "note": "Present in v1alpha2 and deprecated there in oc-mirror 4.13; removed entirely from v2alpha1."
+    },
+    "mirror.helm.local[].charts.imagePaths": {
+      "error": "json: unknown field \"charts\"",
+      "correctPath": "mirror.helm.local[].imagePaths",
+      "note": "charts belongs to Repository, not to a local Chart. A local chart carries imagePaths directly."
+    },
+    "mirror.platform.channels[].includeMin": {
+      "error": "json: unknown field \"includeMin\"",
+      "correctPath": null,
+      "note": "No such field. Unlike targetName and includeConfig this is not even a v1 carry-over: it appears in neither v1alpha2 nor v2alpha1. The v2alpha1 ReleaseChannel carries exactly name, type, minVersion, maxVersion, shortestPath and full."
+    },
+    "mirror.platform.channels[].includeMax": {
+      "error": "json: unknown field \"includeMax\"",
+      "correctPath": null,
+      "note": "As includeMin. Never emitted by the generator, so catalog-only: no generated artifact was affected."
+    }
+  },
+
+  "valueShapeRules": [
+    {
+      "path": "mirror.blockedImages",
+      "rule": "array of OBJECTS each carrying name; an array of bare strings is rejected",
+      "error": "json: cannot unmarshal string into Go struct field Mirror.ImageSetConfigurationSpec.mirror.blockedImages of type v2alpha1.BlockedImage",
+      "note": "The OCP 4.22 documentation describes this as 'Array of strings'. The binary disagrees. Binary wins mechanically; discrepancy recorded."
+    },
+    {
+      "path": "mirror.platform.channels[].type",
+      "rule": "ocp | okd",
+      "default": "ocp"
+    }
+  ],
+
+  "semanticRules": [
+    {
+      "id": "architectures-default",
+      "rule": "When mirror.platform.channels is non-empty and mirror.platform.architectures is absent, oc-mirror defaults architectures to [amd64].",
+      "sourceEvidence": "internal/pkg/config/defaults.go completeReleaseArchitectures sets DefaultPlatformArchitecture = \"amd64\"",
+      "binaryEvidence": "With no architectures the binary requests .../graph?arch=amd64; with architectures [arm64] it requests arch=arm64.",
+      "consequence": "Omitting architectures for a non-x86_64 target cluster mirrors the WRONG release payload while the configuration still parses cleanly. Architect must emit architectures whenever the Blueprint architecture is known.",
+      "acceptedValues": ["amd64", "arm64", "multi", "ppc64le", "s390x"]
+    },
+    {
+      "id": "no-mixed-version-filters",
+      "rule": "A package may filter by package-level minVersion/maxVersion OR by channel-level minVersion/maxVersion, never both.",
+      "error": "mixing both filtering by minVersion/maxVersion and filtering by channel minVersion/maxVersion is not allowed",
+      "consequence": "Architect emits channel-level filters only."
+    },
+    {
+      "id": "semver-version-filters",
+      "rule": "Operator minVersion/maxVersion must parse as semantic versions. Partial versions such as 4.22 are coerced and accepted.",
+      "sourceEvidence": "internal/pkg/config/validate.go validatePackageChannel / validateOperator call semver.NewVersion"
+    },
+    {
+      "id": "no-duplicates",
+      "rule": "Duplicate catalog entries, duplicate package names within a catalog, duplicate channel names within a package, and duplicate release channel names are each rejected.",
+      "sourceEvidence": "internal/pkg/config/validate.go validateOperatorOptions / validateOperator / validatePackageChannels / validateReleaseChannels"
+    }
+  ],
+
+  "architectMapping": {
+    "_note": "Blueprint target-cluster architecture -> mirror.platform.architectures value. Implemented by normalizeBlueprintArch in backend/src/generate.js, shared with install-config architecture.",
+    "x86_64": "amd64",
+    "aarch64": "arm64",
+    "ppc64le": "ppc64le",
+    "s390x": "s390x"
+  }
+}

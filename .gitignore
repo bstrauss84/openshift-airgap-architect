@@ -52,6 +52,10 @@ data/cache/
 !/data/docs-index/**
 !/data/params/
 !/data/params/**
+# Global oc-mirror v2 ImageSetConfiguration structural authority (DOC-166). Canonical
+# tracked data, not runtime scratch: backend/test/imageset-config-schema.test.js reads it.
+!/data/oc-mirror-v2/
+!/data/oc-mirror-v2/**
 **/openshift-install-*
 **/openshift-install-*.tar.gz
 # When DATA_DIR is backend/ (e.g. local dev)
