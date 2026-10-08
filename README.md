@@ -2,6 +2,38 @@
 
 A local-first wizard that generates OpenShift disconnected (air-gapped) installation assets. It runs entirely on your machine using Docker or Podman—no data is sent to external services except when you explicitly trigger operator discovery or release-channel updates.
 
+<!--
+  TEMPORARY RELEASE NOTICE — maintainer note.
+
+  This block announces the v2.x transition and is deliberately short-lived. Remove it
+  once the v2 transition is no longer news, at a normal release of the maintainer's
+  choosing. No removal version or date is fixed here on purpose.
+
+  The "Release history" section further down is PERMANENT and must stay when this
+  block is removed.
+-->
+
+## 🚀 Major v2.x update available
+
+This is a big one — the largest change since the project started, and it took a while.
+Thanks for your patience.
+
+OpenShift Airgap Architect is maintained by one person in spare time. Most of the last
+several months went into this update: the app is now built around the OpenShift version
+you select, rather than assuming a single release. It supports **OpenShift 4.20, 4.21
+and 4.22**, and the parameter catalogs, validation, documentation links and Field Guide
+all follow your chosen version.
+
+**If you are upgrading, please read the release notes before you start.** There are
+changes to how saved configurations work and a required version-confirmation step, and
+a few things behave differently on purpose.
+
+- [Changelog](CHANGELOG.md) — everything, newest first
+- [v2.1 release notes](docs/releases/v2.1.0.md) — OpenShift 4.22 support
+- [v2.0 release notes](docs/releases/v2.0.0.md) — the version-awareness rebuild
+- [Migration guide: v1.x → v2.0](docs/MIGRATION_GUIDE_v1_to_v2.md) — **read this if you are coming from v1.x**
+
+
 ## Table of contents
 
 - **Overview**
@@ -32,7 +64,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   - [Screenshots](#screenshots)
   - [Architecture](#architecture)
   - [Install-config references (4.20/4.21/4.22)](#install-config-references-420421)
-  - [Release notes](#release-notes)
+  - [Release history](#release-history)
   - [License and contributing](#license-and-contributing)
   - [Documentation and governance map](#documentation-and-governance-map)
 
@@ -1137,17 +1169,31 @@ Use these official docs to validate `install-config.yaml` for supported platform
 
 Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, Nutanix, and bare metal agent-based installs, see the platform-specific docs for required and optional fields.
 
+<a id="release-history"></a>
 <a id="release-notes"></a>
-## Release notes
+## Release history
 
-See [CHANGELOG.md](CHANGELOG.md) for version history, new features, bug fixes, and breaking changes.
+| Where to look | What it covers |
+|---|---|
+| [CHANGELOG.md](CHANGELOG.md) | Every release, newest first — features, fixes and breaking changes |
+| [v2.1 release notes](docs/releases/v2.1.0.md) | OpenShift 4.22 support, operator preset corrections, version-transition safety |
+| [v2.0 release notes](docs/releases/v2.0.0.md) | The version-awareness rebuild; OpenShift 4.20 and 4.21 support |
+| [Migration guide: v1.x → v2.0](docs/MIGRATION_GUIDE_v1_to_v2.md) | What changes when upgrading from v1.x |
 
-Current version: **v2.0.0**
+**Supported OpenShift versions:** 4.20 (baseline), 4.21, 4.22. Later releases are
+rejected deterministically rather than approximated — see the v2.1 notes for why.
 
-**Version identity:** `v2.0.0` is the application-code GA version. It does not imply enterprise/customer-distribution readiness, security certification, signed/SBOM/provenance completion, immutable disconnected bundle availability, hosted multi-user readiness, ATO, or compliance readiness. Those gates are tracked separately under PROD-041 and its productization/security children.
+### At a glance
 
-- **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21 (current) with version-specific parameter catalogs, Field Guide content, and metadata-driven annotations. 4.22+ deterministically rejected.
+- **v2.1.0** *(in progress)* — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
+- **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations.
 - **v1.7.0** — Latest stable v1.x release (2026-05-28)
+
+**Version identity:** the application-code version does not by itself imply
+enterprise/customer-distribution readiness, security certification, signed/SBOM/provenance
+completion, immutable disconnected bundle availability, hosted multi-user readiness, ATO,
+or compliance readiness. Those gates are tracked separately under PROD-041 and its
+productization/security children.
 
 <a id="license-and-contributing"></a>
 ## License and contributing

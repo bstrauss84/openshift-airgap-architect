@@ -568,7 +568,13 @@ for (const version of VERSIONS) {
     const nmstate = parsed.hosts[0].networkConfig;
     const ethIface = nmstate.interfaces.find(i => i.name === "eth16" && i.type === "ethernet");
     assert.ok(ethIface, "ethernet interface should exist");
-    assert.strictEqual(ethIface.sriov["total-vfs"], 8, "SR-IOV should be preserved");
+    // NMState nests SR-IOV under the interface's `ethernet` object. This
+    // assertion previously read `ethIface.sriov["total-vfs"]`, pinning a
+    // top-level key that does not exist in the schema — which is precisely why
+    // the defect shipped. Both halves are asserted now: the correct path must
+    // be present AND the invalid one must be absent.
+    assert.strictEqual(ethIface.ethernet["sr-iov"]["total-vfs"], 8, "SR-IOV must nest under ethernet.sr-iov");
+    assert.equal("sriov" in ethIface, false, "no top-level `sriov` key may be emitted");
     const vrfIface = nmstate.interfaces.find(i => i.name === "vrf-sriov");
     assert.ok(vrfIface, "VRF should also be generated");
   });

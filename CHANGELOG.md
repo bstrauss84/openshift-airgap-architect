@@ -5,7 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - Unreleased
+
+> Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)
+>
+> Code complete and certified by automated testing. Final human QA and release tagging
+> are outstanding, so this version is not yet released.
+
+### Added
+
+**OpenShift 4.22 support** — the supported set is now **4.20, 4.21 and 4.22**. 4.23 and
+later are rejected deterministically, as 4.22 previously was.
+
+- Full 4.22 parameter catalogs for all twelve platform and install-method combinations
+- 4.22 Field Guide content and documentation index, with 4.22-correct documentation links
+- 4.22 operator catalog handling and trust-bundle policy support
+- Built and verified against the exact released 4.22.16 installer, checksum-verified before use
+
+**New bare-metal setting:** provisioning network gateway
+(`platform.baremetal.provisioningNetworkGateway`) for installer-provisioned bare-metal
+clusters on 4.22 and later. Applies only when the provisioning network is Managed.
+Validated for IPv4 and IPv6 against Red Hat's documented rules — inside the provisioning
+network, outside the DHCP range, and distinct from the cluster provisioning IP.
+
+**Architecture enforcement at generation.** Unsupported platform/architecture
+combinations are now refused when configuration is generated, not only hidden in the UI.
+This affects configurations saved by v2.0.0 that contain combinations the product does
+not support, such as vSphere on arm64.
+
+### Changed
+
+- **Operator Quick Picks follow the selected OpenShift version.** The ODF presets gain
+  the packages Red Hat's 4.22 documentation adds (`ocs-tls-profiles`, and
+  `odr-volsync-plugin-operator` for disaster recovery).
+- **OpenShift AI preset at 4.22** no longer requests `rhods-prometheus-operator`, which
+  does not exist in Red Hat's 4.22 catalog. 4.20 and 4.21 are unchanged. No replacement
+  was substituted.
+- **Service Mesh preset** no longer requests `jaeger-product`. Red Hat removed the
+  Jaeger operator from its catalog and ended support before any version this tool
+  supports. The preset is now `servicemeshoperator` and `kiali-ossm`; distributed
+  tracing is a separate, optional concern.
+- **Switching OpenShift versions** consistently re-applies the new version across
+  catalogs, documentation, architecture options, operator state and the preview.
+  Settings that exist only in a newer release are retained in your configuration but
+  neither shown nor written out while an older version is selected.
+- Configurations whose version fields contradict each other now produce a readable
+  configuration error instead of a generic server error. Nothing is generated either
+  way.
+
+### Fixed
+
+- Corrected Day-1 SR-IOV host network generation: the virtual-function count is now
+  emitted under the documented `ethernet.sr-iov` structure. It was previously placed at
+  the wrong level, which OpenShift rejects for the whole host network configuration, so
+  an Agent-based install would fail. Saved configurations regenerate correctly with no
+  user action. Affected v2.0.0 equally.
+- A stale provisioning-network-gateway value no longer blocks generation after the
+  provisioning network is switched to Unmanaged or Disabled — modes in which OpenShift
+  ignores the field and the UI hides the control, leaving no way to correct it.
+- Operator presets no longer silently drop packages missing from a catalog; every
+  package a preset names now resolves.
+- The end-to-end test harness verifies which application build it is testing and
+  refuses to run against a mismatched one.
+
+### Security
+
+- Credential handling and export sanitisation re-certified across all three supported
+  versions.
+- Error responses for invalid configurations verified to contain no credentials, server
+  file paths or stack traces.
+- Production dependency audits clean for backend and frontend.
+
+### Known limitations
+
+- Human QA is not yet complete; this release is not final.
+- Host networking supports a documented subset of NMState, not all of it. Advanced bond
+  options beyond bond mode and bond members (for example `xmit_hash_policy`,
+  `lacp_rate`, `updelay`, `downdelay`) remain unavailable, as does the `balance-xor`
+  bond mode. Unchanged from v2.0.0 and identical across 4.20, 4.21 and 4.22.
+- Bare-metal IPI host networking is limited to a single ethernet interface with an IPv4
+  address, DNS and a default route; bond, VLAN, IPv6 and MTU are Agent-based only.
+- The Service Mesh preset no longer includes distributed tracing; add the Tempo and
+  OpenTelemetry operators manually if you need it.
+
+---
+
 ## [2.0.0] - 2026-09-18
+
+> Detailed notes: [docs/releases/v2.0.0.md](docs/releases/v2.0.0.md) ·
+> Upgrading from v1.x: [Migration Guide](docs/MIGRATION_GUIDE_v1_to_v2.md)
 
 ### Breaking Changes
 

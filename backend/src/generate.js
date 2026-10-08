@@ -1579,10 +1579,28 @@ const buildNmState = (node) => {
     });
   });
 
+  /**
+   * Add an ethernet interface to the NMState document.
+   *
+   * SR-IOV NESTING. NMState places SR-IOV under the interface's `ethernet`
+   * object: `interfaces[].ethernet.sr-iov.total-vfs`. This is confirmed by the
+   * upstream NMState YAML API and, for the Day-1 Agent surface specifically, by
+   * Red Hat's own "Bonds and SR-IOV dual-NIC node network configuration"
+   * example at OCP 4.20, 4.21 and 4.22 alike (§1.9 in each).
+   *
+   * An earlier version assigned a TOP-LEVEL `entry.sriov` instead. That key does
+   * not exist in the schema, and NMState's deserializer is strict — an unknown
+   * property aborts the parse, so the whole host networkConfig was rejected
+   * rather than merely losing the SR-IOV setting.
+   *
+   * The assignment merges into any existing `ethernet` object rather than
+   * replacing it, so a future ethernet-level field cannot be clobbered by
+   * ordering.
+   */
   const addEthernet = (name, mtu, sriov) => {
     const entry = { name, type: "ethernet", state: "up" };
     if (mtu) entry.mtu = mtu;
-    if (sriov) entry.sriov = sriov;
+    if (sriov) entry.ethernet = { ...entry.ethernet, "sr-iov": sriov };
     config.interfaces.push(entry);
     return entry;
   };
