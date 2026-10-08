@@ -19,7 +19,7 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.js',
 
-  globalSetup: './e2e/global-setup.js',
+  globalSetup: './e2e/global-setup.mjs',
 
   timeout: 120 * 1000,
 

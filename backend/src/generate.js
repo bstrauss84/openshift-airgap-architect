@@ -107,6 +107,33 @@ const buildRootDeviceHints = (node) => {
  * The documented relationships are enforced before emission because the shipped
  * 4.22.16 binary does not enforce them (shared/provisioningNetworkGateway.js).
  */
+/**
+ * Emit `platform.baremetal.provisioningNetworkGateway` when, and only when, the
+ * field is applicable.
+ *
+ * APPLICABILITY IS CHECKED BEFORE VALIDITY, and the two inapplicability kinds
+ * are treated identically:
+ *
+ *   - wrong target minor  (< 4.22 — the field does not exist there)
+ *   - wrong provisioning mode (not Managed — openshift-install accepts the
+ *     field and IGNORES it, per the OCP Provisioning APIs chapter: "only used
+ *     when ProvisioningNetwork is set to Managed")
+ *
+ * An earlier ordering validated first and checked applicability second. That
+ * was internally inconsistent — the version gate already returned before
+ * validating — and it had a user-visible consequence once 4.22 became
+ * supported: the UI renders this control only in Managed mode and PRESERVES the
+ * value when the mode changes, so a user who entered a bad gateway and then
+ * switched to Unmanaged/Disabled hit a hard generation failure naming a field
+ * they could no longer see or correct without switching back.
+ *
+ * Preserving the value on a mode change is deliberate and unchanged — the same
+ * choice the version transition makes, because silently destroying user input
+ * is worse. What changes is that an ignored field no longer blocks generation.
+ *
+ * Managed-mode relational validation (CIDR containment, DHCP-range overlap,
+ * provisioning-IP collision, address family) is untouched.
+ */
 const applyProvisioningNetworkGateway = (baremetal, hi, selectedMinor) => {
   if (!isVersionGTE(selectedMinor, "4.22")) return;
   const result = validateProvisioningNetworkGateway({
@@ -116,8 +143,16 @@ const applyProvisioningNetworkGateway = (baremetal, hi, selectedMinor) => {
     dhcpRange: hi.provisioningDHCPRange,
     clusterProvisioningIP: hi.clusterProvisioningIP,
   });
+
+  // A non-string value is a state-integrity fault, not an applicability
+  // question. The validator reports it with no `value`, and it is refused in
+  // every provisioning mode rather than quietly ignored.
+  if (!result.valid && result.value === undefined && !result.blank) {
+    throw new Error(result.errors[0]);
+  }
+
+  if (!result.applicable || result.blank) return;
   if (!result.valid) throw new Error(result.errors[0]);
-  if (result.blank || !result.applicable) return;
   baremetal.provisioningNetworkGateway = result.value;
 };
 

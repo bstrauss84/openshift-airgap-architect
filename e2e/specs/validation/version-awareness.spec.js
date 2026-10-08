@@ -93,6 +93,16 @@ test.describe('Version Awareness — imageset-config channel names', () => {
     expect(isc).toContain('4.21.2');
   });
 
+  test('4.22 → stable-4.22 channel in imageset-config', async ({ request }) => {
+    const fixture = makeVersionFixture('4.22', '4.22.16');
+    await importState(request, fixture);
+    const resp = await request.post(`${BACKEND}/api/generate`);
+    expect(resp.ok()).toBeTruthy();
+    const isc = (await resp.json()).files['imageset-config.yaml'];
+    expect(isc).toContain('stable-4.22');
+    expect(isc).toContain('4.22.16');
+  });
+
   test('version change from 4.20 to 4.21 updates channel name', async ({ request }) => {
     const fix420 = makeVersionFixture('4.20', '4.20.0');
     await importState(request, fix420);
@@ -126,6 +136,17 @@ test.describe('Version Awareness — operator catalog image tags', () => {
     }
   });
 
+  test('4.22 → operator index uses v4.22 tag', async ({ request }) => {
+    const fixture = makeVersionFixture('4.22', '4.22.16');
+    await importState(request, fixture);
+    const resp = await request.post(`${BACKEND}/api/generate`);
+    expect(resp.ok()).toBeTruthy();
+    const isc = (await resp.json()).files['imageset-config.yaml'];
+    if (isc.includes('operator-index')) {
+      expect(isc).toContain('v4.22');
+    }
+  });
+
   test('4.21 → operator index uses v4.21 tag', async ({ request }) => {
     const fixture = makeVersionFixture('4.21', '4.21.0');
     fixture.operators.selected = [
@@ -146,40 +167,43 @@ test.describe('Version Awareness — unsupported version rejection', () => {
     await resetState(request);
   });
 
-  test('unsupported version 4.19 → generate returns error', async ({ request }) => {
-    const fixture = makeVersionFixture('4.19', '4.19.0');
-    await importState(request, fixture);
+  // Strict: an unsupported version must FAIL. An earlier form accepted either
+  // outcome via if/else, so it could not have detected a regression.
+  //
+  // The state is supplied INLINE rather than imported first. /api/run/import
+  // correctly refuses an unsupported minor, so importing leaves the previous
+  // (unconfirmed) state in place and /api/generate then answers "Version not
+  // confirmed" — a true statement about the wrong thing. Passing the state to
+  // the generator directly is what actually exercises the generation boundary.
+  for (const [minor, patch] of [['4.19', '4.19.0'], ['4.23', '4.23.0']]) {
+    test(`unsupported version ${minor} → import AND generate both reject it`, async ({ request }) => {
+      const fixture = makeVersionFixture(minor, patch);
 
-    const resp = await request.post(`${BACKEND}/api/generate`);
-    // Backend should reject unsupported versions with 4xx
-    if (!resp.ok()) {
-      const body = await resp.json().catch(() => null);
-      if (body) {
-        const text = JSON.stringify(body).toLowerCase();
-        expect(text).toMatch(/unsupported|version|not supported/i);
-      }
-    } else {
-      // If generate succeeds anyway, the test still documents the behavior
-      const { files } = await resp.json();
-      expect(files['imageset-config.yaml']).toBeDefined();
-    }
-  });
+      const imported = await request.post(`${BACKEND}/api/run/import`, {
+        data: { schemaVersion: 2, state: fixture },
+      });
+      expect(imported.status(), `${minor} must not import`).toBe(422);
 
-  test('unsupported version 4.22 → generate returns error', async ({ request }) => {
-    const fixture = makeVersionFixture('4.22', '4.22.0');
-    await importState(request, fixture);
+      const resp = await request.post(`${BACKEND}/api/generate`, { data: { state: fixture } });
+      expect(resp.ok(), `${minor} must not generate`).toBeFalsy();
+      expect(resp.status()).toBe(422);
 
-    const resp = await request.post(`${BACKEND}/api/generate`);
-    if (!resp.ok()) {
-      const body = await resp.json().catch(() => null);
-      if (body) {
-        const text = JSON.stringify(body).toLowerCase();
-        expect(text).toMatch(/unsupported|version|not supported/i);
-      }
-    } else {
-      const { files } = await resp.json();
-      expect(files['imageset-config.yaml']).toBeDefined();
-    }
+      const body = await resp.json();
+      expect(body.code).toBe('UNSUPPORTED_VERSION');
+      expect(body.requestedVersion).toBe(minor);
+      expect(body.files, 'no artifacts may be produced').toBeUndefined();
+    });
+  }
+
+  test('4.23 does not fall back to 4.22', async ({ request }) => {
+    const fixture = makeVersionFixture('4.23', '4.23.0');
+    const resp = await request.post(`${BACKEND}/api/generate`, { data: { state: fixture } });
+    expect(resp.status()).toBe(422);
+    const body = JSON.stringify(await resp.json());
+    expect(body).not.toContain('stable-4.22');
+    expect(body).toContain('4.23');
+    // The refusal names the real supported set rather than silently degrading.
+    expect(body).toContain('4.22');
   });
 });
 
@@ -193,7 +217,7 @@ test.describe('Version Awareness — VersionSupportGate browser boundary (DOC-10
     });
   });
 
-  test('locked 4.22 → unsupported-version recovery boundary blocks wizard', async ({ page }) => {
+  test('locked 4.23 → unsupported-version recovery boundary blocks wizard', async ({ page }) => {
     const pageErrors = [];
     const consoleErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
@@ -201,7 +225,7 @@ test.describe('Version Awareness — VersionSupportGate browser boundary (DOC-10
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
 
-    const state = makeCanonicalLockedVersionState('4.22', '4.22.0');
+    const state = makeCanonicalLockedVersionState('4.23', '4.23.0');
     await interceptStateHydration(page, state);
 
     await page.goto('/');
@@ -209,10 +233,10 @@ test.describe('Version Awareness — VersionSupportGate browser boundary (DOC-10
     const alert = page.getByRole('alert');
     await expect(alert).toBeVisible();
     await expect(alert.getByRole('heading', { name: 'Unsupported OpenShift Version' })).toBeVisible();
-    await expect(alert).toContainText('4.22');
-    await expect(alert).toContainText('4.20, 4.21');
+    await expect(alert).toContainText('4.23');
+    await expect(alert).toContainText('4.20, 4.21, 4.22');
     await expect(alert.getByRole('button', { name: 'Start Over' })).toBeVisible();
-    await expect(alert.getByRole('button', { name: 'Switch to 4.21' })).toBeVisible();
+    await expect(alert.getByRole('button', { name: 'Switch to 4.22' })).toBeVisible();
 
     await expect(page.getByRole('main', { name: 'Wizard step content' })).toHaveCount(0);
 
@@ -220,7 +244,7 @@ test.describe('Version Awareness — VersionSupportGate browser boundary (DOC-10
     expect(consoleErrors, 'Unexpected console errors').toEqual([]);
   });
 
-  for (const [minor, patch] of [['4.20', '4.20.5'], ['4.21', '4.21.2']]) {
+  for (const [minor, patch] of [['4.20', '4.20.5'], ['4.21', '4.21.2'], ['4.22', '4.22.16']]) {
     test(`locked ${minor} → passes gate, renders wizard`, async ({ page }) => {
       const pageErrors = [];
       const consoleErrors = [];
@@ -275,7 +299,7 @@ test.describe('Version Awareness — install-config version differences', () => 
   });
 
   test('agent-config generated correctly for both versions', async ({ request }) => {
-    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0']]) {
+    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0'], ['4.22', '4.22.16']]) {
       const fixture = makeVersionFixture(minor, patch);
       fixture.globalStrategy.ntpServers = ['ntp.version-test.local'];
       await importState(request, fixture);
@@ -323,7 +347,7 @@ test.describe('Version Awareness — platform-specific version behavior', () => 
   });
 
   test('AWS GovCloud generates correctly for both versions', async ({ request }) => {
-    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0']]) {
+    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0'], ['4.22', '4.22.16']]) {
       const fixture = scenarios.awsGovcloudIpi();
       fixture.release.channel = minor;
       fixture.release.patchVersion = patch;
@@ -339,7 +363,7 @@ test.describe('Version Awareness — platform-specific version behavior', () => 
   });
 
   test('vSphere generates correctly for both versions', async ({ request }) => {
-    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0']]) {
+    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0'], ['4.22', '4.22.16']]) {
       const fixture = scenarios.vsphereIpi();
       fixture.release.channel = minor;
       fixture.release.patchVersion = patch;
@@ -356,7 +380,7 @@ test.describe('Version Awareness — platform-specific version behavior', () => 
   });
 
   test('Nutanix generates correctly for both versions', async ({ request }) => {
-    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0']]) {
+    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0'], ['4.22', '4.22.16']]) {
       const fixture = scenarios.nutanixIpi();
       fixture.release.channel = minor;
       fixture.release.patchVersion = patch;
@@ -377,8 +401,8 @@ test.describe('Version Awareness — chrony/NTP configs across versions', () => 
     await resetState(request);
   });
 
-  test('NTP chrony machine configs generated for both 4.20 and 4.21', async ({ request }) => {
-    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0']]) {
+  test('NTP chrony machine configs generated for every supported minor', async ({ request }) => {
+    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0'], ['4.22', '4.22.16']]) {
       const fixture = makeVersionFixture(minor, patch);
       fixture.globalStrategy.ntpServers = ['ntp-ver.test.local'];
       await importState(request, fixture);
@@ -402,7 +426,7 @@ test.describe('Version Awareness — trust bundle policy', () => {
   });
 
   test('trust bundle policy Proxyonly works for both versions', async ({ request }) => {
-    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0']]) {
+    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0'], ['4.22', '4.22.16']]) {
       const fixture = makeVersionFixture(minor, patch);
       fixture.trust.mirrorRegistryCaPem = '-----BEGIN CERTIFICATE-----\nVERSIONTEST\n-----END CERTIFICATE-----';
       fixture.trust.additionalTrustBundlePolicy = 'Proxyonly';
@@ -415,7 +439,7 @@ test.describe('Version Awareness — trust bundle policy', () => {
   });
 
   test('trust bundle policy Always works for both versions', async ({ request }) => {
-    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0']]) {
+    for (const [minor, patch] of [['4.20', '4.20.0'], ['4.21', '4.21.0'], ['4.22', '4.22.16']]) {
       const fixture = makeVersionFixture(minor, patch);
       fixture.trust.mirrorRegistryCaPem = '-----BEGIN CERTIFICATE-----\nALWAYSTEST\n-----END CERTIFICATE-----';
       fixture.trust.additionalTrustBundlePolicy = 'Always';
@@ -492,6 +516,22 @@ test.describe('Version Awareness — all 12 scenarios generate for both versions
       const { files } = await generate(request);
       expect(files['install-config.yaml']).toBeTruthy();
       expect(files['imageset-config.yaml']).toContain('stable-4.20');
+    });
+
+    test(`${name} generates successfully for 4.22`, async ({ request }) => {
+      const fixture = fn();
+      fixture.release.channel = '4.22';
+      fixture.release.patchVersion = '4.22.16';
+      fixture.version.selectedChannel = 'stable-4.22';
+      fixture.version.selectedVersion = '4.22.16';
+      await importState(request, fixture);
+      const resp = await request.post(`${BACKEND}/api/generate`);
+      expect(resp.ok(), `${name} must generate at 4.22`).toBeTruthy();
+      const { files } = await resp.json();
+      expect(files['install-config.yaml']).toBeDefined();
+      expect(files['imageset-config.yaml']).toContain('stable-4.22');
+      expect(files['imageset-config.yaml']).not.toContain('stable-4.21');
+      expect(files['imageset-config.yaml']).not.toContain('stable-4.20');
     });
 
     test(`${name} generates successfully for 4.21`, async ({ request }) => {

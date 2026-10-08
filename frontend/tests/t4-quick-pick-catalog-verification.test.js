@@ -174,16 +174,18 @@ const RHOAI = JSON.parse(
  * fails too, so a disposition cannot outlive the fact it describes.
  */
 const DISPOSITIONED_ABSENCES = {
-  // `rhods-prometheus-operator` (B1) is no longer listed. Tranche 5 removed it
-  // from the 4.22 `openshift-ai` row, so no Quick Pick names it at 4.22 and
-  // there is no absence left to disposition. The registry below rejects unused
-  // entries, which is what forced this deletion rather than leaving it to rot.
-  "jaeger-product": {
-    finding: "B2",
-    absentAt: ["4.20", "4.21", "4.22"],
-    disposition: "pre-existing-backlog-debt",
-    owner: "pre-release closure, independent of the 4.22 flip",
-  },
+  // DELIBERATELY EMPTY, and that is the strongest state this registry can be in.
+  //
+  // `rhods-prometheus-operator` (B1) left in Tranche 5, when the 4.22
+  // `openshift-ai` row stopped naming it. `jaeger-product` (B2 / DOC-184) left
+  // in Tranche 6A, when the stale reference was removed from the `service-mesh`
+  // Quick Pick on Red Hat's own evidence that the Jaeger Operator is gone from
+  // the redhat-operators catalog and its support ended 2025-11-03.
+  //
+  // Both deletions were forced by the "no entry for a package no Quick Pick
+  // names" assertion below, not remembered. With the registry empty, the
+  // absence invariant has no exemptions at all: every package every Quick Pick
+  // names must resolve in the catalog of its own minor.
 };
 
 describe("T4A — a required Quick Pick package cannot disappear silently", () => {
@@ -245,6 +247,13 @@ describe("T4A — a required Quick Pick package cannot disappear silently", () =
       });
     }
   }
+
+  it("the registry is empty, so the absence invariant has no exemptions", () => {
+    // If this ever becomes non-empty again, a Quick Pick is knowingly shipping
+    // a package the catalog does not carry, and `applyScenario` will drop it
+    // silently. That should be a deliberate, reviewed state — never a default.
+    expect(Object.keys(DISPOSITIONED_ABSENCES)).toEqual([]);
+  });
 
   it("the disposition registry carries no entry for a package no Quick Pick names", () => {
     const named = new Set([

@@ -1,6 +1,17 @@
 import fs from 'fs';
 import path from 'path';
-import yaml from 'js-yaml';
+// Namespace import, not `import yaml from 'js-yaml'`.
+//
+// The repository root resolves js-yaml v5, which is ESM-first and exports only
+// NAMED bindings — it has no default export — so a default import threw
+// "does not provide an export named 'default'" and this module could not be
+// loaded at all under Node ESM. That silently broke
+// `e2e/specs/validation/asset-structure.spec.js` at import time.
+//
+// A namespace import resolves `yaml.load` against both the root's v5 and the
+// backend's v4 (CJS), so no dependency change is needed and every call site
+// below is unchanged.
+import * as yaml from 'js-yaml';
 
 const REPO_ROOT = path.resolve(process.cwd());
 const PARAMS_DIR = path.join(REPO_ROOT, 'data', 'params');

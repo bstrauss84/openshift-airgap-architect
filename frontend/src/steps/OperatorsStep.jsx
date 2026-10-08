@@ -165,8 +165,21 @@ const scenarios = [
   {
     id: "service-mesh",
     label: "Service Mesh",
-    description: "Istio-based service mesh with Kiali observability and Jaeger distributed tracing",
-    picks: { redhat: ["servicemeshoperator", "kiali-ossm", "jaeger-product"] }
+    // `jaeger-product` was removed here: Red Hat's own distributed-tracing
+    // documentation states the Jaeger Operator is removed from the
+    // redhat-operators catalog, support for Jaeger 3.5 ended 2025-11-03 —
+    // before any minor this tool supports — and the real `oc-mirror --v2 list
+    // operators` scan confirms it is absent at 4.20, 4.21 and 4.22 alike. It was
+    // therefore a stale reference that `applyScenario` skipped silently, so this
+    // Quick Pick promised three operators and mirrored two.
+    //
+    // NOT replaced by Tempo/OpenTelemetry. Service Mesh 3 no longer installs or
+    // manages tracing components at all, and the OSSM distributed-tracing
+    // chapter lists the Tempo and OpenTelemetry operators as prerequisites of an
+    // OPTIONAL tracing integration, not of Service Mesh. Offering a tracing
+    // Quick Pick is a separate product decision. See DOC-184.
+    description: "Istio-based service mesh with Kiali observability",
+    picks: { redhat: ["servicemeshoperator", "kiali-ossm"] }
   },
   {
     id: "serverless",

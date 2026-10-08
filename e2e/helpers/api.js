@@ -3,7 +3,10 @@
  * Uses Playwright's APIRequestContext to communicate with the backend at localhost:4000.
  */
 
-const BASE_URL = 'http://localhost:4000';
+// Overridable for the same reason global-setup verifies backend identity
+// (finding F4): a hardcoded URL silently pins the suite to whatever happens to
+// be listening on 4000, which during Tranche 6 was a stale v2.0.0 container.
+const BASE_URL = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL || 'http://localhost:4000';
 
 /**
  * POST /api/start-over — reset all wizard state to defaults.

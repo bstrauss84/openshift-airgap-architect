@@ -34,7 +34,8 @@ const SRC = path.join(__dirname, "../src/ocMirrorRuntime.js");
 const CHANNEL_VERSION = {
   latest: "4.22.16",
   "latest-4.20": "4.20.40",
-  "latest-4.21": "4.21.35"
+  "latest-4.21": "4.21.35",
+  "latest-4.22": "4.22.16"
 };
 
 let fixtureDir;
@@ -128,6 +129,18 @@ test("R2.2 target 4.21 resolves latest oc within 4.21.x", async () => {
   assert.match(r.version, /^4\.21\./);
 });
 
+test("R2.2b target 4.22 resolves latest oc within 4.22.x", async () => {
+  const dest = path.join(fixtureDir, "out22");
+  const r = await acquireVerifiedTool({
+    archDir: "x86_64", channel: ocChannelForMinor("4.22"),
+    fileName: "openshift-client-linux.tar.gz", member: "oc",
+    finalPath: path.join(dest, "oc")
+  });
+  assert.equal(r.version, "4.22.16");
+  assert.match(r.version, /^4\.22\./);
+  assert.equal(r.channel, "latest-4.22");
+});
+
 test("R2.3/R2.4 oc never silently resolves another minor or the global channel", async () => {
   const b20 = await getBinariesForExportArch("x86_64", path.join(fixtureDir, "d20"), "4.20");
   const oc20 = b20.provenance.find((p) => p.tool === "oc");
@@ -140,6 +153,16 @@ test("R2.3/R2.4 oc never silently resolves another minor or the global channel",
   assert.equal(oc21.channel, "latest-4.21");
   assert.match(oc21.version, /^4\.21\./);
   assert.notEqual(oc21.version, CHANNEL_VERSION.latest);
+
+  // 4.22 is the interesting case after the support flip: the global oc-mirror
+  // channel ALSO resolves 4.22.16 here, so `oc` landing on the right version
+  // is not sufficient evidence — the CHANNEL it came from is what proves the
+  // per-minor rule still applies rather than the global one.
+  const b22 = await getBinariesForExportArch("x86_64", path.join(fixtureDir, "d22"), "4.22");
+  const oc22 = b22.provenance.find((p) => p.tool === "oc");
+  assert.equal(oc22.channel, "latest-4.22");
+  assert.match(oc22.version, /^4\.22\./);
+  assert.notEqual(oc22.channel, OC_MIRROR_CHANNEL);
 });
 
 test("ocChannelForMinor rejects malformed minors (fail closed)", () => {
@@ -152,7 +175,7 @@ test("ocChannelForMinor rejects malformed minors (fail closed)", () => {
 // --------------------------------------------------------- oc-mirror policy
 
 test("R2.11 oc-mirror resolves the GLOBAL latest channel regardless of target minor", async () => {
-  for (const minor of ["4.20", "4.21"]) {
+  for (const minor of ["4.20", "4.21", "4.22"]) {
     const b = await getBinariesForExportArch("x86_64", path.join(fixtureDir, `m${minor}`), minor);
     const om = b.provenance.find((p) => p.tool === "oc-mirror");
     assert.equal(om.channel, "latest");

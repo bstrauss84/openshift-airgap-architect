@@ -7,17 +7,20 @@
  * actually put the right architecture in the YAML — and for every cell it
  * closes, does anything leak?
  *
- * SCOPE LIMIT, STATED UP FRONT. The matrix is exercised for 4.20 and 4.21 only.
- * `buildInstallConfig()` and `buildImageSetConfig()` assert a supported minor
- * before doing anything, so real 4.22 output cannot be produced while 4.22 is
- * unsupported. That gate is correct and Tranche 4 does not weaken it; the
- * resulting coverage gap is recorded in
- * `docs/minor-release/4.22/TRANCHE_4_PRE_FLIP_VERIFICATION.md` rather than
- * papered over here.
+ * SCOPE, UPDATED AT TRANCHE 6. This file originally covered 4.20 and 4.21 only:
+ * both builders assert a supported minor first, so no real 4.22 output could be
+ * produced while 4.22 was fail-closed. Tranche 4 recorded that as gap **G1**
+ * rather than weakening the gate.
  *
- * What makes the 4.20/4.21 result meaningful for 4.22 anyway is narrow and is
- * asserted below rather than assumed: the architecture emission path takes the
- * minor as no input at all.
+ * The Tranche 5 flip made 4.22 supported, and because `CELLS` is derived from
+ * `SUPPORTED_MINORS` this file extended itself: **144 cells** (was 96), 45
+ * supported, 99 hidden, 0 locked — 15/33 per minor, identical at 4.20, 4.21 and
+ * 4.22. That closes the generation half of G1 against real parsed YAML, with no
+ * test-only support bypass anywhere.
+ *
+ * The property that made the pre-flip 4.20/4.21 result meaningful for 4.22 is
+ * still asserted rather than assumed, and is now also directly confirmed: the
+ * architecture emission path takes the minor as no input at all.
  */
 
 import { describe, it } from "node:test";

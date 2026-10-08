@@ -3241,7 +3241,7 @@ app.get("/api/generate", (req, res) => {
         details: error.details || {}
       });
     }
-    if (error.code === 'CONFIGURATION_VALIDATION') {
+    if (error.code === 'CONFIGURATION_VALIDATION' || error.code === 'FIELD_GUIDE_VERSION_ERROR') {
       return res.status(400).json({ error: error.message, code: error.code });
     }
     return res.status(500).json({ error: String(error?.message || error) });
@@ -3308,7 +3308,7 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
         details: error.details || {}
       });
     }
-    if (error.code === 'CONFIGURATION_VALIDATION') {
+    if (error.code === 'CONFIGURATION_VALIDATION' || error.code === 'FIELD_GUIDE_VERSION_ERROR') {
       return res.status(400).json({ error: error.message, code: error.code });
     }
     return res.status(500).json({ error: String(error?.message || error) });
@@ -3683,6 +3683,15 @@ app.get("/api/fs/ls", (req, res) => {
 
 const handleBundleZipError = (res, error) => {
   // DOC-102 Slice 5F.13: Handle unsupported version errors from bundle generation
+  //
+  // FIELD_GUIDE_VERSION_ERROR is mapped alongside CONFIGURATION_VALIDATION
+  // (400). It is raised when a CLIENT-supplied state's version sources
+  // contradict each other — e.g. `version.selectedMinor` says 4.20 while a
+  // stale `version.selectedVersion` says 4.22.16, which a partial POST to
+  // /api/state can leave behind because that endpoint merges. Falling through
+  // to the 500 default reported a server fault for a client-input condition.
+  // No new taxonomy: this reuses the existing validation status and surfaces
+  // the error's own stable code.
   if (error.code === 'UNSUPPORTED_VERSION') {
     return res.status(422).json({
       error: error.message,
@@ -3707,7 +3716,7 @@ const handleBundleZipError = (res, error) => {
       details: error.details || {}
     });
   }
-  if (error.code === 'CONFIGURATION_VALIDATION') {
+  if (error.code === 'CONFIGURATION_VALIDATION' || error.code === 'FIELD_GUIDE_VERSION_ERROR') {
     return res.status(400).json({ error: error.message, code: error.code });
   }
   return res.status(500).json({ error: String(error?.message || error) });
