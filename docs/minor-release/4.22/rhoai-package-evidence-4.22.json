@@ -1,0 +1,111 @@
+{
+  "schema": "oaa.minor.packageDependencyEvidence/1",
+  "_purpose": "Authoritative OLM metadata for the two RHOAI packages behind Tranche 4 blocker B1, captured as an ACQUISITION step in v2.1 Tranche 4A and committed so tests can consume it without network access (runbook Rule 6: no test may reach the network). Answers one question with catalog facts rather than inference: is `rhods-prometheus-operator` omitted, renamed or replaced at 4.22? Analysis lives in TRANCHE_4_PRE_FLIP_VERIFICATION.md; this file is evidence only.",
+  "provenance": {
+    "tool": "oc image extract --path=/configs/<package>/",
+    "ocVersion": "4.22",
+    "capturedOn": "2026-10-08",
+    "registry": "registry.redhat.io",
+    "indexes": {
+      "redhat-4.20": {
+        "ref": "registry.redhat.io/redhat/redhat-operator-index:v4.20",
+        "manifestList": "sha256:36e93242b11eb15957ea686201198dab6aa20c96fd837ebe168da982a35f7855",
+        "amd64Manifest": "sha256:9c15736bcad2006ccc84397249de1668f0c7760cb1fd9096b2662477d2419fdf"
+      },
+      "redhat-4.21": {
+        "ref": "registry.redhat.io/redhat/redhat-operator-index:v4.21",
+        "manifestList": "sha256:d92553a16b2170bd3970d7c6cba047dd5053fa78d544ea9db99193000231d009",
+        "amd64Manifest": "sha256:fd8677790b37865e19bd8c27a608fa01e3b2e07140c614aadf636007ac1345b4"
+      },
+      "redhat-4.22": {
+        "ref": "registry.redhat.io/redhat/redhat-operator-index:v4.22",
+        "manifestList": "sha256:f84590856f219c021734b2ff8f69251da8ce87953d3c0368b02f8e65c7e89f0c",
+        "amd64Manifest": "sha256:f07cc65aff5911af99fe1bab229a2d45c08744520df709e5e2b4decfbdfc7b77"
+      }
+    },
+    "extractedFileSha256": {
+      "4.20/rhods-operator/catalog.json": "51b2944a93994dda584ca51239d2f28ad6ca858a79bccf62b610c5e6682a0585",
+      "4.20/rhods-prometheus-operator/catalog.json": "859e97d28d959130b07bc458f4c42709949e3f8b3c38cef92912058ffa315450",
+      "4.21/rhods-operator/catalog.json": "a30a87b6345f655286e51a70f541ce1fc239ff5e2dc7806751b6d8c63c73af7d",
+      "4.21/rhods-prometheus-operator/catalog.json": "859e97d28d959130b07bc458f4c42709949e3f8b3c38cef92912058ffa315450",
+      "4.22/rhods-operator/catalog.json": "57a8425b2627ffe107592dd6a61598f12ceaffc5ff2df1b92e9a40c90affd306"
+    },
+    "reproduce": "export REGISTRY_AUTH_FILE=<pull-secret>; oc image extract registry.redhat.io/redhat/redhat-operator-index:v<minor> --path=/configs/<package>/:<outdir>/ --confirm"
+  },
+
+  "rhods-operator": {
+    "presentIn": ["4.20", "4.21", "4.22"],
+    "defaultChannel": "stable-3.x",
+    "bundleCount": { "4.20": 86, "4.21": 85, "4.22": 79 },
+    "stable-3.x": {
+      "4.22": {
+        "entries": [
+          "rhods-operator.3.3.0", "rhods-operator.3.3.1", "rhods-operator.3.3.2",
+          "rhods-operator.3.4.0", "rhods-operator.3.4.1", "rhods-operator.3.4.2",
+          "rhods-operator.3.4.3", "rhods-operator.3.5.0", "rhods-operator.3.5.1"
+        ],
+        "head": "rhods-operator.3.5.1"
+      }
+    },
+    "dependencyProperties": {
+      "olm.package.required": 0,
+      "olm.gvk.required": 0,
+      "note": "Zero dependency properties on ANY bundle of this package at 4.20, 4.21 or 4.22. rhods-operator has never declared an OLM-resolvable dependency, so OLM would never have pulled rhods-prometheus-operator in."
+    },
+    "crossReferencesToRhodsPrometheusOperator": { "4.20": 0, "4.21": 0, "4.22": 0 },
+    "headBundleRelatedImages": {
+      "4.22": {
+        "bundle": "rhods-operator.3.5.1",
+        "count": 150,
+        "prometheusImages": []
+      }
+    },
+    "vendoredPrometheusImageHistory": {
+      "note": "Every rhods-operator bundle from 1.20.1-8 through 3.0.0 carries four registry.redhat.io/openshift4/ose-prometheus-* relatedImages. Bundles 3.2.0 and later carry none (there is no 3.1.x bundle in any of the three indexes). Those images were vendored INSIDE the rhods-operator bundle; they are not the rhods-prometheus-operator package. The same boundary holds identically at 4.20, 4.21 and 4.22.",
+      "lastBundleWithPrometheusImages": "rhods-operator.3.0.0",
+      "firstBundleWithout": "rhods-operator.3.2.0"
+    }
+  },
+
+  "rhods-prometheus-operator": {
+    "presentIn": ["4.20", "4.21"],
+    "absentFrom": ["4.22"],
+    "defaultChannel": "beta",
+    "channels": { "beta": ["rhods-prometheus-operator.4.10.0"] },
+    "bundleCount": { "4.20": 1, "4.21": 1 },
+    "onlyBundle": {
+      "name": "rhods-prometheus-operator.4.10.0",
+      "image": "registry.redhat.io/rhods/odh-prometheus-bundle-rhel8@sha256:d3767059a2f45ca57f31df1dccb2849e19ca2d3ec697ae5de84dbc6d8eae497c",
+      "createdAt": "21-04-15T23:43:00Z",
+      "provider": "Red Hat",
+      "relatedImages": [
+        "registry.redhat.io/openshift4/ose-prometheus-operator@sha256:370f2fa849f8045964e30c3a4d34be022f419d243b0cf37c2c81ea19faaab4a8",
+        "registry.redhat.io/rhods/odh-prometheus-bundle-rhel8@sha256:d3767059a2f45ca57f31df1dccb2849e19ca2d3ec697ae5de84dbc6d8eae497c"
+      ]
+    },
+    "fourTwentyAndFourTwentyOneAreByteIdentical": true,
+    "note": "A single frozen 2021-vintage bundle, published only on a `beta` channel, carried forward unchanged at 4.20 and 4.21 (identical SHA256) and dropped at 4.22. It is a standalone Prometheus operator, not an OpenShift AI component, and no rhods-operator bundle references it."
+  },
+
+  "documentation": {
+    "_note": "Fetched 2026-10-08. Red Hat OpenShift AI Self-Managed 3.x is the stream whose operator (`stable-3.x`) the 4.22 catalog carries.",
+    "sources": [
+      {
+        "title": "Deploy or decommission OpenShift AI in disconnected environments (RHOAI Self-Managed 3.3)",
+        "url": "https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.3/html-single/installing_and_uninstalling_openshift_ai_self-managed_in_a_disconnected_environment/index",
+        "findings": [
+          "The ImageSetConfiguration example names exactly one OpenShift AI package: `rhods-operator`.",
+          "The string `prometheus` does not occur anywhere in the document (both halves checked).",
+          "Dependent operators named for 3.x components: cert-manager, Red Hat build of Kueue, Red Hat OpenShift Service Mesh 3.x, Llama Stack, Red Hat Connectivity Link, Red Hat Leader Worker Set, Node Feature Discovery, NVIDIA GPU Operator."
+        ]
+      }
+    ]
+  },
+
+  "disposition": {
+    "option": "A",
+    "statement": "Omit `rhods-prometheus-operator` at 4.22 with NO replacement.",
+    "notRenamed": "No 4.22 package carries the bundle image `rhods/odh-prometheus-bundle-rhel8`, and `odf-prometheus-operator` is an OpenShift Data Foundation component with a different provider and purpose. No replacement is claimed, because no evidence supports one.",
+    "notADependency": "rhods-operator declares zero OLM dependency properties at every minor examined, so omitting the package cannot break operator resolution."
+  }
+}

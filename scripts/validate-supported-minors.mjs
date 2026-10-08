@@ -106,6 +106,49 @@ export async function validateSupportedMinors(root) {
     );
   }
 
+  // 2b. Bidirectional support-metadata invariant (Tranche 4 finding G3).
+  //
+  // Check 2 is a SUPERSET check: it stops a released minor being dropped from
+  // the code. It deliberately says nothing about the other direction, and
+  // Tranche 4's adversarial matrix proved the consequence — code could support
+  // 4.22 while this record omitted it, and every guard passed.
+  //
+  // That matters beyond tidiness. With a minor supported but unrecorded, the
+  // cumulative guard above has never learned it shipped, so a later change
+  // could quietly remove it again and check 2 would raise nothing. The
+  // record's own `_previouslyReleasedMinorsNote` already states the intended
+  // procedure — 4.22 "is appended here in the same reviewed commit that widens
+  // SUPPORTED_MINORS" — so this makes a documented rule enforceable.
+  //
+  // SEMANTICS: `previouslyReleasedMinors` is the only key in the record that
+  // asserts application support. The `_`-prefixed keys are documentation and
+  // `baselineMinor` is a separate concept with its own check, so neither is
+  // included here.
+  const unrecorded = supported.filter((m) => !previouslyReleased.includes(m));
+  checks.push({ id: "support-metadata-bidirectional", ok: unrecorded.length === 0 });
+  if (unrecorded.length > 0) {
+    errors.push(
+      `SUPPORT METADATA INCOMPLETE: minor(s) [${unrecorded.join(", ")}] are in SUPPORTED_MINORS ` +
+        `but absent from previouslyReleasedMinors [${previouslyReleased.join(", ")}].\n` +
+        "  Enabling a minor and recording it are one atomic change. Append the minor to\n" +
+        "  scripts/lib/released-minor-support.json in the same reviewed commit that widens\n" +
+        "  SUPPORTED_MINORS — otherwise the cumulative guard never learns the minor shipped and\n" +
+        "  cannot protect it from being dropped later."
+    );
+  }
+
+  // 2c. Record well-formedness, so a malformed record cannot make 2/2b vacuous.
+  const recMalformed = previouslyReleased.filter((m) => typeof m !== "string" || !MINOR_RE.test(m));
+  const recDuplicates = previouslyReleased.filter((m, i) => previouslyReleased.indexOf(m) !== i);
+  const recOk = Array.isArray(record.previouslyReleasedMinors) && recMalformed.length === 0 && recDuplicates.length === 0;
+  checks.push({ id: "support-metadata-well-formed", ok: recOk });
+  if (!Array.isArray(record.previouslyReleasedMinors)) {
+    errors.push("previouslyReleasedMinors is missing or not an array in scripts/lib/released-minor-support.json");
+  } else {
+    if (recMalformed.length) errors.push(`Malformed entry in previouslyReleasedMinors: [${recMalformed.join(", ")}]`);
+    if (recDuplicates.length) errors.push(`Duplicate entry in previouslyReleasedMinors: [${recDuplicates.join(", ")}]`);
+  }
+
   // 3. Baseline guard.
   const baselineOk = supported[0] === baselineMinor;
   checks.push({ id: "baseline-minor", ok: baselineOk });

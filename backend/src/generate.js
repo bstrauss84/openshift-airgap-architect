@@ -19,6 +19,9 @@ import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
 import { validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES } from "../../shared/bmcVerifyCA.js";
 import { validateProvisioningNetworkGateway } from "../../shared/provisioningNetworkGateway.js";
+import { resolveArchitectureSupport, ARCHITECTURES } from "../../shared/archSupport.js";
+import { getScenarioId } from "../../shared/scenarioId.js";
+import { loadArchSupportDataset } from "./archSupportData.js";
 import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
 import { stripProxyCredentials } from "../../shared/stateSanitizer.js";
 
@@ -118,6 +121,108 @@ const applyProvisioningNetworkGateway = (baremetal, hi, selectedMinor) => {
   baremetal.provisioningNetworkGateway = result.value;
 };
 
+/**
+ * Target-cluster architecture support guard (D3 / DOC-156, finding G2).
+ *
+ * WHY THIS EXISTS. Tranche 3 made `data/arch-support/<minor>.json` the runtime
+ * authority for target-cluster architecture — but only on the UI surface,
+ * because generation had no architecture gate to migrate. Tranche 4 proved the
+ * consequence: a state carrying an architecture the matrix CLOSES still
+ * generated. `vsphere-ipi` + `aarch64` is hidden at every minor, yet it emitted
+ * `architecture: arm64` into install-config and `architectures: [arm64]` into
+ * the mirror payload.
+ *
+ * That is reachable without the UI: a state saved by v2.0.0, whose
+ * PLATFORM_ARCH_SUPPORT table DID offer vSphere aarch64 and AWS GovCloud
+ * aarch64, imports cleanly and generates.
+ *
+ * Holds no table of its own: the decision is `shared/archSupport.js` over the
+ * canonical data.
+ *
+ * REJECTS, never repairs. No silent rewrite, no amd64 fallback, no dropping the
+ * architecture — any of those would hand the user a cluster they did not ask
+ * for, which is worse than a clear refusal.
+ *
+ * Scope: target-cluster architecture only. The installer/download binary
+ * architecture (`exportOptions.installerPlatformArch`) and the Architect
+ * runtime architecture are different axes and are untouched.
+ */
+const buildUnsupportedArchitectureError = (details) => {
+  const where = details.scenarioId
+    ? `${details.scenarioId} on OpenShift ${details.minor}`
+    : `OpenShift ${details.minor}`;
+  const err = new Error(
+    `Target cluster architecture "${details.architecture}" is not supported for ${where}. ${details.summary}`
+  );
+  err.code = "UNSUPPORTED_ARCHITECTURE";
+  // Identifying fields only — never the state.
+  err.requestedArchitecture = details.architecture;
+  err.selectedMinor = details.minor;
+  err.platform = details.platform ?? null;
+  err.installMethod = details.installMethod ?? null;
+  err.scenarioId = details.scenarioId ?? null;
+  err.disposition = details.disposition;
+  return err;
+};
+
+/**
+ * Blueprint spelling is `x86_64 | aarch64 | ppc64le | s390x`, but state in the
+ * wild also carries the install-config spelling (`amd64`, `arm64`) — the
+ * pass-through in `normalizeBlueprintArch` has always emitted those correctly,
+ * and `installer.js` / `ocMirrorRuntime.js` already treat the pairs as aliases.
+ * They denote the same architecture, so the support question must be asked of
+ * the canonical spelling. Accepting the alias is not a weakening; rejecting it
+ * would refuse configurations that generate correct output today.
+ */
+const ARCH_ALIASES = Object.freeze({ amd64: "x86_64", arm64: "aarch64" });
+const canonicalTargetArch = (arch) =>
+  typeof arch === "string" ? ARCH_ALIASES[arch.trim()] ?? arch.trim() : arch;
+
+const assertTargetArchitectureSupported = (state, selectedMinor) => {
+  const requested = state?.blueprint?.arch;
+  // No architecture selected means none is emitted. Nothing to validate.
+  if (!requested) return;
+  const architecture = canonicalTargetArch(requested);
+
+  const platform = state?.blueprint?.platform;
+  const installMethod = state?.methodology?.method;
+  const scenarioId = getScenarioId(platform, installMethod);
+  const dataset = loadArchSupportDataset();
+
+  if (scenarioId) {
+    const cell = resolveArchitectureSupport({ dataset, minor: selectedMinor, scenarioId, architecture });
+    if (cell.offered) return;
+    throw buildUnsupportedArchitectureError({
+      architecture: requested, minor: selectedMinor, platform, installMethod, scenarioId,
+      disposition: cell.disposition, summary: cell.summary,
+    });
+  }
+
+  // The scenario is not resolvable — the state carries no platform/method pair
+  // this product models. The matrix cannot be consulted per-scenario, so fall
+  // back to the WEAKER but still closed question: does ANY scenario at this
+  // minor offer the architecture? This is not a default; it is the broadest
+  // statement the authority supports, and it still rejects an architecture the
+  // product offers nowhere.
+  if (!ARCHITECTURES.includes(architecture)) {
+    throw buildUnsupportedArchitectureError({
+      architecture: requested, minor: selectedMinor, platform, installMethod, scenarioId: null,
+      disposition: "unknown", summary: "It is not a target-cluster architecture this product models.",
+    });
+  }
+  const doc = dataset?.[selectedMinor];
+  const offeredAnywhere = (doc?.matrix ?? []).some(
+    (row) => row.architectures?.[architecture]?.disposition === "supported"
+  );
+  if (!offeredAnywhere) {
+    throw buildUnsupportedArchitectureError({
+      architecture: requested, minor: selectedMinor, platform, installMethod, scenarioId: null,
+      disposition: "hidden",
+      summary: `No scenario offers ${architecture} on OpenShift ${selectedMinor}.`,
+    });
+  }
+};
+
 const normalizeBlueprintArch = (arch) => {
   if (!arch) return undefined;
   if (arch === "x86_64") return "amd64";
@@ -192,6 +297,7 @@ const effectiveHostname = (node, baseDomain) => {
 // Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
   const selectedMinor = assertSupportedOpenShiftMinorForGeneration(state);
+  assertTargetArchitectureSupported(state, selectedMinor);
 
   const mirror = state.globalStrategy?.mirroring || {};
   const imageDigestSources = mirror.sources?.map((s) => ({
@@ -1718,6 +1824,7 @@ const buildImageSetConfig = (state) => {
   // into a silently wrong mirror config rather than a refusal (CLAUDE.md "No Fallback
   // Rule"; `POST /api/ocmirror/run` was the call site that had no guard).
   const catalogMinor = assertSupportedOpenShiftMinorForGeneration(state);
+  assertTargetArchitectureSupported(state, catalogMinor);
   const operators = state.operators?.selected || [];
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
@@ -2075,4 +2182,4 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
 // reached, so the emission rule cannot be exercised end-to-end until the support
 // flip. Exporting the helper lets the rule be tested without weakening
 // assertSupportedOpenShiftMinorForGeneration(). No production caller uses it.
-export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_COMPUTE_POLICIES, validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES, applyProvisioningNetworkGateway };
+export { buildInstallConfig, buildAgentConfig, buildImageSetConfig, buildFieldManual, buildNtpMachineConfigs, validateAwsRootVolumeThroughput, validateAwsConfidentialCompute, VALID_CONFIDENTIAL_COMPUTE_POLICIES, validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES, applyProvisioningNetworkGateway, assertTargetArchitectureSupported };

@@ -85,8 +85,13 @@ const ALL_SHAPES = {
   operatorMax: stateWith({ operators: { selected: [operator({ maxVersion: "4.21.9" })] } }),
   operatorBoth: stateWith({ operators: { selected: [operator({ minVersion: "4.21.0", maxVersion: "4.21.9" })] } }),
   archAarch64: stateWith({ blueprint: { arch: "aarch64" } }),
-  archS390x: stateWith({ blueprint: { arch: "s390x" } }),
-  archPpc64le: stateWith({ blueprint: { arch: "ppc64le" } }),
+  // ppc64le and s390x were shapes here until Tranche 4A. The D3 architecture
+  // matrix offers them for NO scenario at any supported minor — every platform
+  // book documents amd64, or amd64 and arm64 — and generation now enforces
+  // that, so these states no longer produce a document to conform-check. The
+  // arch -> mirror-arch MAPPING for both is still covered below; what changed
+  // is that the product refuses to build such a cluster, which is asserted
+  // explicitly rather than dropped.
   noArch: stateWith({ blueprint: {} }),
   noPatchVersion: stateWith({ release: { channel: "4.21" } }),
   everything: stateWith({
@@ -213,11 +218,11 @@ mirror:
 describe("mirror.platform.architectures reflects the Blueprint target architecture", () => {
   // Omitting architectures is NOT harmless: oc-mirror defaults to amd64, so a
   // non-x86 cluster silently gets the wrong release payload while the config parses.
+  // Only architectures the D3 matrix actually offers can be generated. See
+  // ARCHITECTURES_OFFERED_BY_NO_SCENARIO below for the other two.
   const cases = [
     ["x86_64", "amd64"],
     ["aarch64", "arm64"],
-    ["ppc64le", "ppc64le"],
-    ["s390x", "s390x"],
   ];
   for (const [blueprintArch, mirrorArch] of cases) {
     test(`${blueprintArch} emits architectures: [${mirrorArch}]`, () => {
@@ -240,6 +245,24 @@ describe("mirror.platform.architectures reflects the Blueprint target architectu
     const cfg = load(stateWith({ blueprint: {} }));
     assert.equal(cfg.mirror.platform.architectures, undefined);
   });
+
+  const ARCHITECTURES_OFFERED_BY_NO_SCENARIO = ["ppc64le", "s390x"];
+
+  for (const arch of ARCHITECTURES_OFFERED_BY_NO_SCENARIO) {
+    test(`${arch} is refused by generation — no scenario offers it (D3)`, () => {
+      assert.throws(
+        () => load(stateWith({ blueprint: { arch } })),
+        (err) => err.code === "UNSUPPORTED_ARCHITECTURE" && err.requestedArchitecture === arch
+      );
+    });
+
+    test(`${arch} still has a correct arch -> mirror mapping recorded`, () => {
+      // The mapping is not wrong; the product simply does not offer a cluster
+      // on it. Keeping this pinned means a future scenario that DOES offer
+      // ppc64le/s390x inherits a verified mapping.
+      assert.equal(SCHEMA.architectMapping[arch], arch);
+    });
+  }
 
   test("the imageset architecture agrees with the install-config architecture", () => {
     // The defect this guards against is the two artifacts disagreeing: an aarch64

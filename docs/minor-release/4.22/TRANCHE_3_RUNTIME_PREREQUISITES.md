@@ -294,7 +294,7 @@ the single atomic flip in Tranche 5.**
 | Tranche | Owns | Public support behaviour |
 |---|---|---|
 | **3** (this one) | runtime prerequisites behind the closed gate | **unchanged — 4.22 closed** |
-| **4** | verification only: real install-config generation matrix across the D3 combinations; confirming the 15 version-independent Quick Picks against real 4.22 catalog data; the exact flip-surface inventory; proof every flip surface can change atomically | **unchanged — 4.22 closed** |
+| **4** | verification only: real install-config generation matrix across the D3 combinations; confirming the 16 version-independent Quick Picks against real 4.22 catalog data; the exact flip-surface inventory; proof every flip surface can change atomically | **unchanged — 4.22 closed** |
 | **5** | **the single atomic support flip** | 4.22 becomes supported |
 | **6** | post-flip certification, transition and E2E | supported |
 | **7** | human QA and release closure | supported |

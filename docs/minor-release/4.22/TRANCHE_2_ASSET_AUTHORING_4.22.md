@@ -63,6 +63,17 @@ binary, not a target minor, and a per-minor copy would be the same rows three ti
 | `vsphere-upi` | 91 | **94** | +3 |
 | **total** | 1,051 | **1,097** | +46 |
 
+> **A row count is not a field count.** These are catalog **rows**, keyed by
+> (`path`, `outputFile`) per scenario. The +46 is **9 distinct new install-config
+> paths** multiplied across the scenarios that model their parent surface — e.g.
+> `osImageStream` is one installer field and twelve rows. The 1,051/1,097 totals
+> likewise exceed the number of distinct paths: the two agent scenarios each carry
+> `apiVersion`, `metadata` and `metadata.name` twice, once for `install-config.yaml`
+> and once for `agent-config.yaml`. For the per-field view, see
+> [`MECHANICAL_DELTA_LEDGER_4.21_TO_4.22.md`](MECHANICAL_DELTA_LEDGER_4.21_TO_4.22.md)
+> §1–2 (**23** new install-config paths at the installer, 0 removed), and §2.6 below
+> for the mapping between the two counts.
+
 `supportStatus` distribution across the 1,097 rows:
 
 | Status | Count |
@@ -82,14 +93,32 @@ exposed. The existing 4.21 catalogs follow exactly this convention — they reco
 `platform.*.dnsRecordsType`, the Azure subnet fields and the AWS `cpuOptions` family as
 `docs-only-not-supported` / `hidden-not-applicable` rather than omitting them.
 
-| Path | Status | Scenarios | Authority |
-|---|---|---|---|
-| `osImageStream` | `docs-only-not-supported` | all 12 | C2 / plan O3 — RHEL 10 is Technology Preview at 4.22 |
-| `platform.aws.ipFamily` | `docs-only-not-supported` | 2 AWS | H2 — AWS dual-stack is TP at 4.22 |
-| `platform.azure.ipFamily` | `hidden-not-applicable` | 2 Azure | H1 — mechanically present, undocumented; no Azure citation exists to carry |
-| `{controlPlane,compute[]}.management` | `hidden-not-applicable` | all 12 | C4 — DevPreview-only, undocumented |
-| `{controlPlane,compute[],platform.aws.defaultMachinePlatform}.hostPlacement` | `docs-only-not-supported` | 2 AWS | C3 — AWS Dedicated Hosts, TP at 4.22 |
-| `platform.baremetal.provisioningNetworkGateway` | **`supported-ui`** | `bare-metal-ipi`, `bare-metal-agent` | C1 — documented at 4.22, ungated; see §2.5 |
+9 distinct paths, 46 rows. The last column records the **evidence or provenance** the
+classification rests on; it is deliberately not called an "authority", because a
+`hidden-not-applicable` row rests on the *absence* of same-minor product documentation,
+which is a provenance statement and not a positive citation. Only rows whose evidence is
+a same-minor product-doc citation carry one, and only those can be `supported-*`
+(runbook Rule 2: absence of documentation never becomes `supported-ui`).
+
+| Path | Status | Scenarios | Rows | Evidence / provenance |
+|---|---|---|---|---|
+| `osImageStream` | `docs-only-not-supported` | all 12 | 12 | C2 / plan O3 — RHEL 10 is Technology Preview at 4.22 (positive doc citation) |
+| `controlPlane.management` | `hidden-not-applicable` | all 12 | 12 | C4 — DevPreview-only; **no** same-minor product doc exists (negative result) |
+| `compute[].management` | `hidden-not-applicable` | all 12 | 12 | C4 — as above |
+| `platform.aws.ipFamily` | `docs-only-not-supported` | 2 AWS | 2 | H2 — AWS dual-stack is TP at 4.22 (positive doc citation) |
+| `platform.azure.ipFamily` | `hidden-not-applicable` | 2 Azure | 2 | H1 — mechanically present in 4.22.16 source; **no** Azure citation exists to carry |
+| `controlPlane.platform.aws.hostPlacement` | `docs-only-not-supported` | 2 AWS | 2 | C3 — AWS Dedicated Hosts, TP at 4.22 |
+| `compute[].platform.aws.hostPlacement` | `docs-only-not-supported` | 1 AWS | 1 | C3 — as above |
+| `platform.aws.defaultMachinePlatform.hostPlacement` | `docs-only-not-supported` | 1 AWS | 1 | C3 — as above |
+| `platform.baremetal.provisioningNetworkGateway` | **`supported-ui`** (`bare-metal-ipi`) / `hidden-not-applicable` (`bare-metal-agent`) | 2 bare-metal | 2 | C1 — OCP 4.22 Provisioning APIs Ch. 13 §13.1.1 `.spec` + 4.22.16 source; see §2.5 |
+
+> **`bare-metal-agent` corrected in Tranche 3.** This table originally recorded
+> `supported-ui` for both bare-metal scenarios. The Agent-based Installer parameter
+> chapter does not list the field (zero occurrences in the whole Agent book at 4.20,
+> 4.21 and 4.22), Architect offers no Agent control, and the Agent Day-2 emission was
+> removed — so the catalog now says `hidden-not-applicable` there. The data has carried
+> the corrected value since Tranche 3; this prose had not caught up. See
+> [`TRANCHE_3_RUNTIME_PREREQUISITES.md`](TRANCHE_3_RUNTIME_PREREQUISITES.md).
 
 **`hostPlacement` is recorded as the parent object only**, at the three machine-pool mount
 points Architect actually models. The four leaf paths (`affinity`,
@@ -208,7 +237,40 @@ DHCP-overlap check is **inert against the shipped 4.22.16 binary** — a gateway
 allocated range was accepted, and the pre-existing `clusterProvisioningIP` check of the
 same shape is equally inert. Only the IP-format rejection is binary-verified, and only
 that is claimed. `backend/test/catalog-4.22-provisioning-network-gateway.test.js` pins
-both halves, including that no generator emits the field.
+both halves.
+
+> **Generation wiring, corrected in Tranche 3.** At Tranche 2 this paragraph also said
+> "no generator emits the field", which was true then because the wiring was deferred.
+> Tranche 3 added it for `bare-metal-ipi`, gated by
+> `isVersionGTE(selectedMinor, "4.22")`, and the test above was rewritten to pin the
+> *gate* instead of the absence. 4.20/4.21 install-config remains byte-identical with
+> and without the field in state.
+
+### 2.6 Reconciling the three counts
+
+Three different numbers describe the same 4.21 → 4.22 change, and they are not
+interchangeable:
+
+| Count | Value | What it measures |
+|---|---|---|
+| Installer parameter paths added | **23** | distinct new `install-config.yaml` paths between exact 4.21.35 and exact 4.22.16, including leaf paths and all four machine-pool mount points |
+| Installer parameter paths removed | **0** | — |
+| Distinct catalog paths added | **9** | the subset Architect models, with `hostPlacement` recorded as the parent object only (its 4 leaf paths live in `versionNotes`) and `arbiter.*` mount points not modelled at all |
+| Catalog rows added | **46** | the 9 paths × the scenarios whose parent surface Architect models |
+
+23 → 9: the 16 `hostPlacement` leaf paths collapse to 3 parent rows at the three
+machine-pool mount points Architect emits, and the `arbiter` mount points are dropped —
+`23 − 16 + 3 − 1 (arbiter.management) = 9`.
+
+9 → 46: `osImageStream` ×12, `controlPlane.management` ×12, `compute[].management` ×12,
+`platform.aws.ipFamily` ×2, `platform.azure.ipFamily` ×2,
+`controlPlane.platform.aws.hostPlacement` ×2, `compute[].platform.aws.hostPlacement` ×1,
+`platform.aws.defaultMachinePlatform.hostPlacement` ×1,
+`platform.baremetal.provisioningNetworkGateway` ×2.
+
+For where each of the 9 is represented in the frontend and the backend today, and whether
+it should be, see
+[`TRANCHE_4_PRE_FLIP_VERIFICATION.md`](TRANCHE_4_PRE_FLIP_VERIFICATION.md) §10.
 
 ---
 

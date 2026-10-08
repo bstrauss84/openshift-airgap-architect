@@ -66,13 +66,20 @@ reader does not read silence as an oversight.
 
 ## 4. All Quick Picks against 4.22 — inventory
 
-`OperatorsStep.jsx` defines 20 Quick Picks. Five are version-aware (`versionPicks`), 15 are
-flat `picks`.
+`OperatorsStep.jsx` defines **21** Quick Picks. Five are version-aware (`versionPicks`), **16**
+are flat `picks`.
+
+> **Corrected in Tranche 4A.** This section originally said "20 … 15 flat". The
+> `scenarios` array is byte-identical to its state when that sentence was written, so the
+> original figure was an off-by-one in the evidence, not a code change. Counting only 15
+> would have left one flat Quick Pick unverified. The count is now derived from the array
+> rather than asserted in prose — see
+> `frontend/tests/t4-quick-pick-catalog-verification.test.js`.
 
 | Group | Picks | 4.22 status |
 |---|---|---|
 | Version-aware | `odf`, `odf-local-storage`, `odf-disaster-recovery`, `platform-plus`, `app-dev-suite` | need an explicit `"4.22"` row. The first four need package additions per §2; `app-dev-suite` defines only `default`. |
-| Version-independent | the remaining 15 (incl. `logging`) | **unverified against the real `:v4.22` catalog.** Per plan **O5** each needs a package-presence check; `applyScenario` currently skips not-found packages silently (`OperatorsStep.jsx:434`). |
+| Version-independent | the remaining 16 (incl. `logging`) | **verified against the real `:v4.22` catalog in Tranche 4** (findings B1 and B2). Per plan **O5** each needs a package-presence check; `applyScenario` currently skips not-found packages silently (`OperatorsStep.jsx:434`). |
 
 ### The `default` key is the live hazard
 

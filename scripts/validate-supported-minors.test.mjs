@@ -56,7 +56,9 @@ describe("cumulative minor-support guards", () => {
 
   test("passes when a minor is ADDED (widening is expected)", async () => {
     const r = await validateSupportedMinors(
-      fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21"] })
+      // Widening must record the minor too (G3); recording it here is the
+      // point of the invariant, not a weakening of this test.
+      fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] })
     );
     assert.strictEqual(r.ok, true, r.errors.join("\n"));
   });
@@ -83,6 +85,55 @@ describe("cumulative minor-support guards", () => {
     });
   });
 
+  describe("bidirectional support-metadata invariant (G3)", () => {
+    test("FAILS when code supports a minor the record omits", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20", "4.21", "4.22"], frontend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21"] }));
+      assert.equal(r.ok, false);
+      assert.match(r.errors.join("\n"), /SUPPORT METADATA INCOMPLETE/);
+      assert.match(r.errors.join("\n"), /4\.22/);
+    });
+
+    test("FAILS when the record claims a minor the code does not support", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20", "4.21"], frontend: ["4.20", "4.21"], previouslyReleased: ["4.20", "4.21", "4.22"] }));
+      assert.equal(r.ok, false);
+      assert.match(r.errors.join("\n"), /CUMULATIVE SUPPORT VIOLATION/);
+    });
+
+    test("FAILS when a currently supported minor disappears from the record", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20", "4.21"], frontend: ["4.20", "4.21"], previouslyReleased: ["4.20"] }));
+      assert.equal(r.ok, false);
+      assert.match(r.errors.join("\n"), /SUPPORT METADATA INCOMPLETE/);
+    });
+
+    test("FAILS when a currently supported minor disappears from the code", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20"], frontend: ["4.20"], previouslyReleased: ["4.20", "4.21"] }));
+      assert.equal(r.ok, false);
+      assert.match(r.errors.join("\n"), /CUMULATIVE SUPPORT VIOLATION/);
+    });
+
+    test("FAILS on a duplicate record entry", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20", "4.21"], frontend: ["4.20", "4.21"], previouslyReleased: ["4.20", "4.21", "4.21"] }));
+      assert.equal(r.ok, false);
+      assert.match(r.errors.join("\n"), /Duplicate entry in previouslyReleasedMinors/);
+    });
+
+    test("FAILS on a malformed record entry", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20", "4.21"], frontend: ["4.20", "4.21"], previouslyReleased: ["4.20", "4.21", "latest"] }));
+      assert.equal(r.ok, false);
+      assert.match(r.errors.join("\n"), /Malformed entry in previouslyReleasedMinors/);
+    });
+
+    test("PASSES for a complete, coherent flip — the invariant is not vacuous", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20", "4.21", "4.22"], frontend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] }));
+      assert.equal(r.ok, true, JSON.stringify(r.errors));
+    });
+
+    test("PASSES for the current pre-flip state", async () => {
+      const r = await validateSupportedMinors(fixture({ backend: ["4.20", "4.21"], frontend: ["4.20", "4.21"], previouslyReleased: ["4.20", "4.21"] }));
+      assert.equal(r.ok, true, JSON.stringify(r.errors));
+    });
+  });
+
   describe("baseline guard", () => {
     test("FAILS when SUPPORTED_MINORS[0] no longer equals the recorded baseline", async () => {
       const r = await validateSupportedMinors(
@@ -95,7 +146,7 @@ describe("cumulative minor-support guards", () => {
 
     test("passes when the baseline is retained at the head of a widened list", async () => {
       const r = await validateSupportedMinors(
-        fixture({ backend: ["4.20", "4.21", "4.22"], baselineMinor: "4.20" })
+        fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"], baselineMinor: "4.20" })
       );
       assert.strictEqual(r.ok, true, r.errors.join("\n"));
     });
@@ -140,7 +191,7 @@ describe("cumulative minor-support guards", () => {
 
     test("sorts numerically, not lexically (4.9 before 4.21 would be wrong)", async () => {
       const r = await validateSupportedMinors(
-        fixture({ backend: ["4.9", "4.21"], previouslyReleased: ["4.9"], baselineMinor: "4.9" })
+        fixture({ backend: ["4.9", "4.21"], previouslyReleased: ["4.9", "4.21"], baselineMinor: "4.9" })
       );
       assert.strictEqual(r.ok, true, `numeric ordering expected: ${r.errors.join("\n")}`);
     });

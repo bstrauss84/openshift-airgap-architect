@@ -10,6 +10,8 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
+import { getScenarioId as sharedGetScenarioId } from "../../shared/scenarioId.js";
+
 /** Section IDs for scenario-aware layout (Phase 4.2). API/Ingress VIPs are on the Networking tab only. */
 export const SECTION_IDS = {
   AGENT_OPTIONS: "agentOptions",
@@ -67,37 +69,13 @@ export const SCENARIO_IDS_WITH_HOST_INVENTORY = ["bare-metal-agent", "bare-metal
  * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-agent" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "ibm-cloud-ipi" | "nutanix-ipi" | null
  */
 export function getScenarioId(platform, method) {
-  if (platform === "Bare Metal") {
-    if (method === "Agent-Based Installer") return "bare-metal-agent";
-    if (method === "IPI") return "bare-metal-ipi";
-    if (method === "UPI") return "bare-metal-upi";
-    return null;
-  }
-  if (platform === "VMware vSphere") {
-    if (method === "Agent-Based Installer") return "vsphere-agent";
-    if (method === "IPI") return "vsphere-ipi";
-    if (method === "UPI") return "vsphere-upi";
-    return null;
-  }
-  if (platform === "AWS GovCloud") {
-    if (method === "IPI") return "aws-govcloud-ipi";
-    if (method === "UPI") return "aws-govcloud-upi";
-    return null;
-  }
-  if (platform === "Azure Government") {
-    if (method === "IPI") return "azure-government-ipi";
-    if (method === "UPI") return "azure-government-upi";
-    return null;
-  }
-  if (platform === "IBM Cloud") {
-    if (method === "IPI") return "ibm-cloud-ipi";
-    return null;
-  }
-  if (platform === "Nutanix") {
-    if (method === "IPI") return "nutanix-ipi";
-    return null;
-  }
-  return null;
+  // Delegates to the canonical map in shared/scenarioId.js. The table used to
+  // live here, which was fine while only the UI needed it; the generation
+  // boundary now needs the same answer to consult the D3 architecture matrix,
+  // and two copies of a platform/method table is the duplication this work has
+  // been removing. Behaviour is unchanged — this export and its ten-plus import
+  // sites are untouched.
+  return sharedGetScenarioId(platform, method);
 }
 
 /**
