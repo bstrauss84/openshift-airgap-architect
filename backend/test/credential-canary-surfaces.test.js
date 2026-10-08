@@ -316,8 +316,8 @@ describe("error paths do not echo credentials", () => {
   const malformed = () => {
     const s = seededState();
     // Force validation/generation failure while credentials are present.
-    s.version = { selectedMinor: "4.22", selectedPatch: "4.22.16", selectedChannel: "stable-4.22", locked: true };
-    s.release = { channel: "4.22", patchVersion: "4.22.16", confirmed: true };
+    s.version = { selectedMinor: "4.23", selectedPatch: "4.23.16", selectedChannel: "stable-4.23", locked: true };
+    s.release = { channel: "4.23", patchVersion: "4.23.16", confirmed: true };
     return s;
   };
 
@@ -339,7 +339,7 @@ describe("error paths do not echo credentials", () => {
     } catch (err) {
       message = `${err.message} ${err.stack || ""}`;
     }
-    assert.ok(message.length > 0, "expected the generator to throw for 4.22");
+    assert.ok(message.length > 0, "expected the generator to throw for 4.23");
     assert.deepEqual(leaked(message), [], "error message/stack leaked credential canaries");
   });
 

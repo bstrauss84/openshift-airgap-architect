@@ -295,23 +295,24 @@ describe("generation boundary enforces the supported-minor policy", () => {
     assert.equal(cfg.mirror.platform.channels[0].name, "stable-4.21");
   });
 
-  test("4.22 fails deterministically with UNSUPPORTED_VERSION", () => {
+  test("4.23 fails deterministically with UNSUPPORTED_VERSION", () => {
     assert.throws(
-      () => buildImageSetConfig(forMinor("4.22", "4.22.16")),
+      () => buildImageSetConfig(forMinor("4.23", "4.23.0")),
       (err) => {
         assert.equal(err.code, "UNSUPPORTED_VERSION");
-        assert.equal(err.requestedVersion, "4.22");
+        assert.equal(err.requestedVersion, "4.23");
         assert.deepEqual(err.supportedVersions, SUPPORTED_MINORS);
         return true;
       }
     );
   });
 
-  test("4.22 rejection is not a fallback: nothing is generated", () => {
-    // The failure mode this replaces produced a stable-4.20 config for a 4.22 state.
+  test("4.23 rejection is not a fallback: nothing is generated", () => {
+    // The failure mode this replaces produced a stable-4.20 config for an
+    // unsupported state. 4.22 is supported now, so 4.23 carries the case.
     let produced = null;
     try {
-      produced = buildImageSetConfig(forMinor("4.22", "4.22.16"));
+      produced = buildImageSetConfig(forMinor("4.23", "4.23.0"));
     } catch {
       /* expected */
     }
@@ -322,7 +323,7 @@ describe("generation boundary enforces the supported-minor policy", () => {
     for (const minor of SUPPORTED_MINORS) {
       assert.ok(buildImageSetConfig(forMinor(minor, `${minor}.1`)).includes(`stable-${minor}`));
     }
-    for (const minor of ["4.19", "4.22", "4.23", "5.0"]) {
+    for (const minor of ["4.19", "4.23", "4.24", "5.0"]) {
       assert.throws(
         () => buildImageSetConfig(forMinor(minor, `${minor}.1`)),
         (err) => err.code === "UNSUPPORTED_VERSION",

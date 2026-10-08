@@ -1934,24 +1934,25 @@ describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
     expect(screen.getByText("Primary Network")).toBeInTheDocument();
   });
 
-  it("unsupported 4.22 remains rejected deterministically", () => {
-    const assert422Rejected = () => {
+  it("unsupported 4.23 remains rejected deterministically", () => {
+    const assert423Rejected = () => {
       let error;
       try {
-        catalogPathsModule.getCatalogForScenario("bare-metal-agent", "4.22");
+        catalogPathsModule.getCatalogForScenario("bare-metal-agent", "4.23");
         throw new Error("Expected UnsupportedVersionError but call succeeded");
       } catch (e) {
         error = e;
       }
       expect(error).toBeInstanceOf(catalogPathsModule.UnsupportedVersionError);
-      expect(error.requestedVersion).toBe("4.22");
-      expect(error.supportedVersions).toEqual(["4.20", "4.21"]);
+      expect(error.requestedVersion).toBe("4.23");
+      expect(error.supportedVersions).toEqual(["4.20", "4.21", "4.22"]);
       expect(error.message).toContain("4.20");
       expect(error.message).toContain("4.21");
+      expect(error.message).toContain("4.22");
       expect(error.message).toContain("not supported");
     };
-    assert422Rejected();
-    assert422Rejected();
+    assert423Rejected();
+    assert423Rejected();
   });
 
   // --- Mode coverage ---
@@ -2819,8 +2820,8 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
   });
 
-  // --- G. Unsupported version regression: 4.22 test runs unchanged ---
-  // (The existing deterministic 4.22 test in the Primary Networking block serves this purpose.)
+  // --- G. Unsupported version regression: the unsupported-minor test runs unchanged ---
+  // (The deterministic 4.23 test in the Primary Networking block serves this purpose.)
 
   // --- Regression boundaries ---
 

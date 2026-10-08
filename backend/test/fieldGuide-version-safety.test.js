@@ -14,6 +14,7 @@ import {
   resolveFieldGuideVersion,
   FieldGuideVersionError,
 } from "../src/fieldGuide/versionResolution.js";
+import { SUPPORTED_MINORS } from "../src/versionPolicy.js";
 
 // --- Helpers ---
 
@@ -54,11 +55,18 @@ const assertThrowsFieldGuide = (state, pattern, label) => {
 // --- Tests ---
 
 describe("FIELD_GUIDE_SUPPORTED_MINORS policy", () => {
-  it("contains exactly 4.20 and 4.21", () => {
+  it("contains exactly 4.20, 4.21 and 4.22", () => {
     assert.deepStrictEqual(
       [...FIELD_GUIDE_SUPPORTED_MINORS],
-      ["4.20", "4.21"]
+      ["4.20", "4.21", "4.22"]
     );
+  });
+
+  it("equals the product support list — a separate declaration that must not drift", () => {
+    // S3 is its own constant, so it CAN diverge from SUPPORTED_MINORS. A Field
+    // Guide that rejects a supported minor, or accepts an unsupported one, is a
+    // half-flip; this is the assertion that makes the two move together.
+    assert.deepStrictEqual([...FIELD_GUIDE_SUPPORTED_MINORS], [...SUPPORTED_MINORS]);
   });
 
   it("is frozen", () => {
@@ -317,85 +325,85 @@ describe("malformed legacy data alongside valid canonical data", () => {
   });
 });
 
-describe("unsupported 4.22 in each source category", () => {
-  it("throws for 4.22 in version.selectedMinor", () => {
-    const state = makeCanonicalState("4.22", "4.22.0", { selectedChannel: "stable-4.22" });
-    assertThrowsFieldGuide(state, /4\.22.*not supported/, "4.22 selectedMinor");
+describe("unsupported 4.23 in each source category", () => {
+  it("throws for 4.23 in version.selectedMinor", () => {
+    const state = makeCanonicalState("4.23", "4.23.0", { selectedChannel: "stable-4.23" });
+    assertThrowsFieldGuide(state, /4\.23.*not supported/, "4.23 selectedMinor");
   });
 
-  it("throws for 4.22 in version.selectedPatch", () => {
-    const state = makeCanonicalState("4.21", "4.22.0", { selectedChannel: "stable-4.21" });
+  it("throws for 4.23 in version.selectedPatch", () => {
+    const state = makeCanonicalState("4.21", "4.23.0", { selectedChannel: "stable-4.21" });
     state.version.selectedMinor = "4.21";
-    state.version.selectedPatch = "4.22.0";
-    assertThrowsFieldGuide(state, /4\.22.*not supported/, "4.22 selectedPatch");
+    state.version.selectedPatch = "4.23.0";
+    assertThrowsFieldGuide(state, /4\.23.*not supported/, "4.23 selectedPatch");
   });
 
-  it("throws for 4.22 in version.selectedChannel", () => {
-    const state = makeCanonicalState("4.21", "4.21.5", { selectedChannel: "stable-4.22" });
-    assertThrowsFieldGuide(state, /4\.22.*not supported/, "4.22 selectedChannel");
+  it("throws for 4.23 in version.selectedChannel", () => {
+    const state = makeCanonicalState("4.21", "4.21.5", { selectedChannel: "stable-4.23" });
+    assertThrowsFieldGuide(state, /4\.23.*not supported/, "4.23 selectedChannel");
   });
 
-  it("throws for 4.22 in release.patchVersion even when canonical is 4.21", () => {
+  it("throws for 4.23 in release.patchVersion even when canonical is 4.21", () => {
     assertThrowsFieldGuide(
       {
         blueprint: { platform: "Bare Metal", clusterName: "test", baseDomain: "example.com" },
         methodology: { method: "IPI" },
         version: { selectedMinor: "4.21", locked: true },
-        release: { patchVersion: "4.22.0" },
+        release: { patchVersion: "4.23.0" },
       },
-      /4\.22.*not supported/,
-      "4.22 release.patchVersion"
+      /4\.23.*not supported/,
+      "4.23 release.patchVersion"
     );
   });
 
-  it("throws for 4.22 in release.channel even when canonical is 4.21", () => {
+  it("throws for 4.23 in release.channel even when canonical is 4.21", () => {
     assertThrowsFieldGuide(
       {
         blueprint: { platform: "Bare Metal", clusterName: "test", baseDomain: "example.com" },
         methodology: { method: "IPI" },
         version: { selectedMinor: "4.21", locked: true },
-        release: { channel: "stable-4.22" },
+        release: { channel: "stable-4.23" },
       },
-      /4\.22.*not supported/,
-      "4.22 release.channel"
+      /4\.23.*not supported/,
+      "4.23 release.channel"
     );
   });
 
-  it("throws for 4.22 in version.selectedVersion even when canonical is 4.21", () => {
+  it("throws for 4.23 in version.selectedVersion even when canonical is 4.21", () => {
     assertThrowsFieldGuide(
       {
         blueprint: { platform: "Bare Metal", clusterName: "test", baseDomain: "example.com" },
         methodology: { method: "IPI" },
-        version: { selectedMinor: "4.21", selectedVersion: "4.22.0", locked: true },
+        version: { selectedMinor: "4.21", selectedVersion: "4.23.0", locked: true },
         release: {},
       },
-      /4\.22.*not supported/,
-      "4.22 version.selectedVersion"
+      /4\.23.*not supported/,
+      "4.23 version.selectedVersion"
     );
   });
 
-  it("throws for 4.22 in release.selectedVersion even when canonical is 4.21", () => {
+  it("throws for 4.23 in release.selectedVersion even when canonical is 4.21", () => {
     assertThrowsFieldGuide(
       {
         blueprint: { platform: "Bare Metal", clusterName: "test", baseDomain: "example.com" },
         methodology: { method: "IPI" },
         version: { selectedMinor: "4.21", locked: true },
-        release: { selectedVersion: "4.22.0" },
+        release: { selectedVersion: "4.23.0" },
       },
-      /4\.22.*not supported/,
-      "4.22 release.selectedVersion"
+      /4\.23.*not supported/,
+      "4.23 release.selectedVersion"
     );
   });
 
-  it("throws for 4.22 in legacy-only state", () => {
+  it("throws for 4.23 in legacy-only state", () => {
     assertThrowsFieldGuide(
       {
         blueprint: { platform: "Bare Metal", clusterName: "test", baseDomain: "example.com" },
         methodology: { method: "IPI" },
-        release: { patchVersion: "4.22.0", channel: "stable-4.22" },
+        release: { patchVersion: "4.23.0", channel: "stable-4.23" },
       },
-      /4\.22.*not supported/,
-      "4.22 legacy-only"
+      /4\.23.*not supported/,
+      "4.23 legacy-only"
     );
   });
 });
@@ -495,9 +503,9 @@ describe("FieldGuideVersionError identity", () => {
   });
 });
 
-// --- M03: Deterministic 4.22 rejection — production boundary evidence ---
+// --- M03: Deterministic 4.23 rejection — production boundary evidence ---
 
-describe("M03: deterministic 4.22 rejection — production boundary evidence", () => {
+describe("M03: deterministic 4.23 rejection — production boundary evidence", () => {
   const assertRejectsUnsupported = (state, label) => {
     let returned;
     try {
@@ -518,87 +526,87 @@ describe("M03: deterministic 4.22 rejection — production boundary evidence", (
 
   // --- Canonical locked single-source isolation ---
 
-  it("rejects sole version.selectedMinor='4.22' (locked)", () => {
+  it("rejects sole version.selectedMinor='4.23' (locked)", () => {
     assertRejectsUnsupported(
-      { version: { selectedMinor: "4.22", locked: true } },
+      { version: { selectedMinor: "4.23", locked: true } },
       "sole selectedMinor"
     );
   });
 
-  it("rejects sole version.selectedPatch='4.22.0' (locked)", () => {
+  it("rejects sole version.selectedPatch='4.23.0' (locked)", () => {
     assertRejectsUnsupported(
-      { version: { selectedPatch: "4.22.0", locked: true } },
+      { version: { selectedPatch: "4.23.0", locked: true } },
       "sole selectedPatch"
     );
   });
 
-  it("rejects sole version.selectedChannel='stable-4.22' (locked)", () => {
+  it("rejects sole version.selectedChannel='stable-4.23' (locked)", () => {
     assertRejectsUnsupported(
-      { version: { selectedChannel: "stable-4.22", locked: true } },
+      { version: { selectedChannel: "stable-4.23", locked: true } },
       "sole selectedChannel"
     );
   });
 
   // --- Legacy-only single-source isolation ---
 
-  it("rejects sole release.patchVersion='4.22.0'", () => {
+  it("rejects sole release.patchVersion='4.23.0'", () => {
     assertRejectsUnsupported(
-      { release: { patchVersion: "4.22.0" } },
+      { release: { patchVersion: "4.23.0" } },
       "sole release.patchVersion"
     );
   });
 
-  it("rejects sole release.channel='stable-4.22'", () => {
+  it("rejects sole release.channel='stable-4.23'", () => {
     assertRejectsUnsupported(
-      { release: { channel: "stable-4.22" } },
+      { release: { channel: "stable-4.23" } },
       "sole release.channel"
     );
   });
 
-  it("rejects sole version.selectedVersion='4.22.0' without canonical state", () => {
+  it("rejects sole version.selectedVersion='4.23.0' without canonical state", () => {
     assertRejectsUnsupported(
-      { version: { selectedVersion: "4.22.0" } },
+      { version: { selectedVersion: "4.23.0" } },
       "sole version.selectedVersion"
     );
   });
 
-  it("rejects sole release.selectedVersion='4.22.0'", () => {
+  it("rejects sole release.selectedVersion='4.23.0'", () => {
     assertRejectsUnsupported(
-      { release: { selectedVersion: "4.22.0" } },
+      { release: { selectedVersion: "4.23.0" } },
       "sole release.selectedVersion"
     );
   });
 
   // --- Fail-closed: supported + unsupported coexistence, position-independent ---
 
-  it("rejects when all prior sources=4.21 but release.selectedVersion=4.22 (last source)", () => {
+  it("rejects when all prior sources=4.21 but release.selectedVersion=4.23 (last source)", () => {
     assertRejectsUnsupported({
       version: { selectedMinor: "4.21", selectedPatch: "4.21.5", selectedChannel: "stable-4.21", locked: true },
-      release: { patchVersion: "4.21.5", channel: "stable-4.21", selectedVersion: "4.22.0" },
-    }, "4.22 in last-checked source");
+      release: { patchVersion: "4.21.5", channel: "stable-4.21", selectedVersion: "4.23.0" },
+    }, "4.23 in last-checked source");
   });
 
-  it("rejects when selectedMinor=4.22 but all other sources=4.21 (first source)", () => {
+  it("rejects when selectedMinor=4.23 but all other sources=4.21 (first source)", () => {
     assertRejectsUnsupported({
-      version: { selectedMinor: "4.22", selectedPatch: "4.21.5", selectedChannel: "stable-4.21", locked: true },
+      version: { selectedMinor: "4.23", selectedPatch: "4.21.5", selectedChannel: "stable-4.21", locked: true },
       release: { patchVersion: "4.21.5", channel: "stable-4.21" },
-    }, "4.22 in first-checked source");
+    }, "4.23 in first-checked source");
   });
 
-  it("rejects when only selectedChannel=stable-4.22 among supported sources (middle)", () => {
+  it("rejects when only selectedChannel=stable-4.23 among supported sources (middle)", () => {
     assertRejectsUnsupported({
-      version: { selectedMinor: "4.21", selectedPatch: "4.21.5", selectedChannel: "stable-4.22", locked: true },
+      version: { selectedMinor: "4.21", selectedPatch: "4.21.5", selectedChannel: "stable-4.23", locked: true },
       release: { patchVersion: "4.21.5" },
-    }, "4.22 in middle-checked source");
+    }, "4.23 in middle-checked source");
   });
 
   // --- No fallback, no partial markdown ---
 
-  it("buildFieldGuide returns no markdown for 4.22 canonical locked state", () => {
+  it("buildFieldGuide returns no markdown for 4.23 canonical locked state", () => {
     let returned;
     let error;
     try {
-      returned = buildFieldGuide(makeCanonicalState("4.22", "4.22.0", { selectedChannel: "stable-4.22" }));
+      returned = buildFieldGuide(makeCanonicalState("4.23", "4.23.0", { selectedChannel: "stable-4.23" }));
     } catch (err) {
       error = err;
     }
@@ -607,11 +615,11 @@ describe("M03: deterministic 4.22 rejection — production boundary evidence", (
     assert(error instanceof FieldGuideVersionError, "should be FieldGuideVersionError");
   });
 
-  it("resolveFieldGuideVersion throws FieldGuideVersionError for 4.22, not a descriptor", () => {
+  it("resolveFieldGuideVersion throws FieldGuideVersionError for 4.23, not a descriptor", () => {
     let descriptor;
     let error;
     try {
-      descriptor = resolveFieldGuideVersion({ version: { selectedMinor: "4.22", locked: true } });
+      descriptor = resolveFieldGuideVersion({ version: { selectedMinor: "4.23", locked: true } });
     } catch (err) {
       error = err;
     }
@@ -621,23 +629,25 @@ describe("M03: deterministic 4.22 rejection — production boundary evidence", (
     assert.equal(error.code, 'FIELD_GUIDE_VERSION_ERROR');
   });
 
-  // --- Positive controls: 4.20 and 4.21 produce markdown, no 4.22 content ---
+  // --- Positive controls: every supported minor produces its OWN markdown ---
+  // Cross-minor leakage is the real hazard, so each control also asserts that
+  // no OTHER supported minor's version string appears in the output.
 
-  it("4.20 locked canonical produces valid markdown without 4.22 content", () => {
-    const md = buildFieldGuide(makeCanonicalState("4.20", "4.20.15"));
-    assert.equal(typeof md, "string");
-    assert(md.length > 100, "should produce substantial output");
-    assert(md.includes("4.20"), "should reference 4.20");
-    assert(!md.includes("4.22"), "must not contain 4.22");
-  });
-
-  it("4.21 locked canonical produces valid markdown without 4.22 content", () => {
-    const md = buildFieldGuide(makeCanonicalState("4.21", "4.21.5"));
-    assert.equal(typeof md, "string");
-    assert(md.length > 100, "should produce substantial output");
-    assert(md.includes("4.21"), "should reference 4.21");
-    assert(!md.includes("4.22"), "must not contain 4.22");
-  });
+  for (const [minor, patch] of [["4.20", "4.20.15"], ["4.21", "4.21.5"], ["4.22", "4.22.16"]]) {
+    it(`${minor} locked canonical produces valid markdown with no other minor's content`, () => {
+      const md = buildFieldGuide(makeCanonicalState(minor, patch));
+      assert.equal(typeof md, "string");
+      assert(md.length > 100, "should produce substantial output");
+      assert(md.includes(minor), `should reference ${minor}`);
+      // A guide may cite an OLDER minor as provenance ("bmcVerifyCA is available
+      // in OpenShift 4.21 and later" is correct in the 4.22 guide). What it must
+      // never do is name a NEWER minor, which would mean content from a release
+      // this guide does not describe leaked in.
+      for (const newer of ["4.20", "4.21", "4.22", "4.23"].filter((m) => m > minor)) {
+        assert(!md.includes(newer), `${minor} guide must not contain newer minor ${newer}`);
+      }
+    });
+  }
 
   // --- Missing/unlocked/incoherent state: error identity proves no silent 4.20 fallback ---
 

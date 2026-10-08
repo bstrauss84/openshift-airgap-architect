@@ -287,7 +287,7 @@ describe('computeReleaseTransition', () => {
     it('does not mutate input on rejection', () => {
       const state = makeLockedState('4.20', '4.20.15');
       const snapshot = JSON.parse(JSON.stringify(state));
-      computeReleaseTransition(state, '4.22', { timestamp: TS });
+      computeReleaseTransition(state, '4.23', { timestamp: TS });
       expect(state).toEqual(snapshot);
     });
   });
@@ -303,9 +303,15 @@ describe('computeReleaseTransition', () => {
       expect(computeReleaseTransition(state, '4.21', { timestamp: TS }).ok).toBe(true);
     });
 
-    it('rejects 4.22 as unsupported without fallback', () => {
+    it('accepts 4.22 as a supported target', () => {
       const state = makeLockedState('4.21', '4.21.3');
-      const result = computeReleaseTransition(state, '4.22', { timestamp: TS });
+      expect(computeReleaseTransition(state, '4.22', { timestamp: TS }).ok).toBe(true);
+    });
+
+    it('rejects 4.23 as unsupported without fallback', () => {
+      // No fallback from 4.23 down to the newly supported 4.22.
+      const state = makeLockedState('4.22', '4.22.3');
+      const result = computeReleaseTransition(state, '4.23', { timestamp: TS });
 
       expect(result.ok).toBe(false);
       expect(result.code).toBe(TRANSITION_ERRORS.UNSUPPORTED_VERSION);
@@ -372,7 +378,7 @@ describe('computeReleaseTransition', () => {
     });
 
     it('produces no partial mutation or patch on any rejection', () => {
-      const result = computeReleaseTransition(state, '4.22', { timestamp: TS });
+      const result = computeReleaseTransition(state, '4.23', { timestamp: TS });
       expect(result.ok).toBe(false);
       expect(result.patch).toBeUndefined();
     });

@@ -95,7 +95,9 @@ const LOCKED_CELLS = CELLS.filter(([, , , d]) => d === "locked");
 describe("T4 — matrix shape", () => {
   it("evaluates every cell of every generatable minor", () => {
     assert.equal(CELLS.length, SUPPORTED_MINORS.length * 12 * 4);
-    assert.equal(CELLS.length, 96);
+    // 96 before the 4.22 flip; 4.22 added its 48 cells with no change here,
+    // because the minor list is derived from SUPPORTED_MINORS.
+    assert.equal(CELLS.length, 144);
   });
 
   it("partitions into supported / hidden / locked with nothing unresolved", () => {
@@ -104,9 +106,20 @@ describe("T4 — matrix shape", () => {
   });
 
   it("records the counts this tranche reports", () => {
-    assert.equal(SUPPORTED_CELLS.length, 30);
-    assert.equal(HIDDEN_CELLS.length, 66);
+    // 15 supported / 33 hidden per minor, identical at 4.20, 4.21 and 4.22.
+    // Tranche 4 §2 predicted this from `{x86_64: 12, aarch64: 3}`; the "12
+    // supported / 36 hidden" figure in its G1 closure-condition paragraph was
+    // an arithmetic slip that omitted the 3 aarch64 cells.
+    assert.equal(SUPPORTED_CELLS.length, 45);
+    assert.equal(HIDDEN_CELLS.length, 99);
     assert.equal(LOCKED_CELLS.length, 0, "the matrix declares no locked cell; see the evidence document");
+  });
+
+  it("every supported minor contributes the same shape — 4.22 is not special-cased", () => {
+    for (const minor of SUPPORTED_MINORS) {
+      assert.equal(SUPPORTED_CELLS.filter(([m]) => m === minor).length, 15, minor);
+      assert.equal(HIDDEN_CELLS.filter(([m]) => m === minor).length, 33, minor);
+    }
   });
 });
 
@@ -153,7 +166,7 @@ describe("T4 — no cross-minor fallback in generated output", () => {
   });
 
   it("an unsupported minor produces no output at all", () => {
-    for (const minor of ["4.19", "4.22", "4.23"]) {
+    for (const minor of ["4.19", "4.23", "4.24"]) {
       assert.throws(
         () => buildInstallConfig(stateFor("bare-metal-ipi", minor, "x86_64")),
         (e) => e.code === "UNSUPPORTED_VERSION" && e.requestedVersion === minor

@@ -48,21 +48,21 @@ describe("state migration does not default an unreadable minor", () => {
   });
 
   test("migration PARSES an unsupported minor rather than rewriting it — support is enforced elsewhere", () => {
-    // Rewriting 4.22 to a supported minor here would be the worst possible
+    // Rewriting 4.23 to a supported minor here would be the worst possible
     // fallback: an import would be silently retargeted. Migration records what
     // the state says; the generation and resolver boundaries reject it.
-    assert.equal(migrateStateToV3(v1("stable-4.22")).migrated.version.selectedMinor, "4.22");
+    assert.equal(migrateStateToV3(v1("stable-4.23")).migrated.version.selectedMinor, "4.23");
   });
 
   test("BEHAVIOURAL: an unsupported minor is never rewritten to 4.20 anywhere in the migrated state", () => {
     // The runnable counterpart to the source-grep below. The removed tail was
     // unreachable, so only a grep can prove its absence — but the property that
     // actually matters is behavioural, and this proves it: no part of a
-    // migrated 4.22 state may come back as a supported minor.
-    const out = migrateStateToV3(v1("stable-4.22")).migrated;
-    assert.equal(out.version.selectedMinor, "4.22");
+    // migrated 4.23 state may come back as a supported minor.
+    const out = migrateStateToV3(v1("stable-4.23")).migrated;
+    assert.equal(out.version.selectedMinor, "4.23");
     const serialized = JSON.stringify(out);
-    assert.doesNotMatch(serialized, /4\.20/, "no 4.20 may appear in a migrated 4.22 state");
+    assert.doesNotMatch(serialized, /4\.20/, "no 4.20 may appear in a migrated 4.23 state");
     assert.doesNotMatch(serialized, /4\.21/, "nor 4.21");
   });
 
@@ -88,7 +88,7 @@ describe("state migration does not default an unreadable minor", () => {
   test("RETAINED, documented: a legacy state with NO channel at all still migrates to 4.20", () => {
     // Audited and deliberately left alone in Tranche 3. It is not flip-blocking:
     // it fires only when a v1/v2 state carries neither a channel nor a
-    // selectedMinor, so a 4.22 state can never reach it, and 4.22 therefore
+    // selectedMinor, so a 4.23 state can never reach it, and 4.23 therefore
     // cannot inherit 4.20 semantics through this path. Removing it would change
     // which legacy bundles import successfully — 4.20/4.21 behaviour this
     // tranche must not alter. Pinned here so the pre-flip review sees it as a
@@ -139,7 +139,7 @@ describe("generation throws rather than choosing a minor", () => {
   });
 
   test("an unsupported minor is rejected, not downgraded", () => {
-    for (const minor of ["4.19", "4.22", "4.23"]) {
+    for (const minor of ["4.19", "4.23", "4.24"]) {
       const state = { _schemaVersion: 3, version: { selectedMinor: minor, selectedPatch: `${minor}.1` }, operators: { selected: [] }, imagesetConfig: {} };
       assert.throws(
         () => buildImageSetConfig(state),
@@ -152,7 +152,7 @@ describe("generation throws rather than choosing a minor", () => {
 
 describe("the Field Guide has no default branch", () => {
   test("an unsupported minor throws instead of resolving", () => {
-    for (const minor of ["4.19", "4.22", "4.23"]) {
+    for (const minor of ["4.19", "4.23", "4.24"]) {
       assert.throws(() => selectAndOrder(minor, {}), new RegExp(minor.replace(".", "\\.")));
     }
   });

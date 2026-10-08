@@ -186,7 +186,7 @@ describe("VersionSupportGate gates on per-minor data", () => {
   });
 
   test("an unsupported minor shows the recovery UI and never loads data", () => {
-    mockState.current = stateFor("4.22");
+    mockState.current = stateFor("4.23");
     render(
       <VersionSupportGate>
         <div data-testid="child">loaded</div>
@@ -194,8 +194,8 @@ describe("VersionSupportGate gates on per-minor data", () => {
     );
     expect(screen.queryByTestId("child")).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent("Unsupported OpenShift Version");
-    // Fail-closed: 4.22 must not even attempt a catalog load.
-    expect(loadCalls).not.toContain("4.22");
+    // Fail-closed: 4.23 must not even attempt a catalog load.
+    expect(loadCalls).not.toContain("4.23");
   });
 
   test("a load failure surfaces an error instead of mounting children", async () => {

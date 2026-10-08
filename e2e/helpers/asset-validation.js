@@ -206,6 +206,7 @@ export function makeVersionedFixture(scenarioFn, minor, patch) {
 export const SUPPORTED_VERSIONS = [
   { minor: '4.20', patch: '4.20.0' },
   { minor: '4.21', patch: '4.21.0' },
+  { minor: '4.22', patch: '4.22.0' },
 ];
 
 export const SCENARIO_MAP = [

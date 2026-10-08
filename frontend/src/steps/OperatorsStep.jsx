@@ -43,7 +43,17 @@ const scenarios = [
   {
     id: "openshift-ai",
     label: "OpenShift AI",
-    picks: { redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"], certified: ["gpu-operator-certified"] }
+    // Version-aware since the 4.22 flip: `rhods-prometheus-operator` is present in the
+    // redhat catalog at 4.20 and 4.21 but ABSENT at 4.22, and applyScenario skips a
+    // not-found package silently. 4.20/4.21 keep the shipped set unchanged; 4.22 omits
+    // the package with NO replacement — the 4.22 rhods-operator FBC declares no OLM
+    // dependency on it, never references it, and ships no Prometheus image.
+    // Evidence: docs/minor-release/4.22/rhoai-package-evidence-4.22.json (finding B1).
+    versionPicks: {
+      "4.20": { redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"], certified: ["gpu-operator-certified"] },
+      "4.21": { redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"], certified: ["gpu-operator-certified"] },
+      "4.22": { redhat: ["rhods-operator", "nfd"], certified: ["gpu-operator-certified"] }
+    }
   },
   {
     id: "compliance",
@@ -88,7 +98,7 @@ const scenarios = [
       "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
       "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
       "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
+      "4.22": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles"] }
     }
   },
   {
@@ -102,7 +112,7 @@ const scenarios = [
       "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
       "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
       "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
-      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] }
+      "4.22": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles", "local-storage-operator"] }
     }
   },
   {
@@ -116,7 +126,7 @@ const scenarios = [
       "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
       "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
       "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] }
+      "4.22": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator", "odr-volsync-plugin-operator"] }
     }
   },
   {
@@ -130,15 +140,20 @@ const scenarios = [
       "4.19": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
       "4.20": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
       "4.21": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "default": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
+      "4.22": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles"] }
     }
   },
   {
     id: "app-dev-suite",
     label: "App Development Suite",
     description: "GitOps, CI/CD pipelines, cloud IDE, and web terminal",
+    // The package set genuinely does not vary by minor, but it is still declared
+    // per-minor: with `default` removed there is no fallback, so a supported minor
+    // without a row has no Quick Pick at all.
     versionPicks: {
-      "default": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] }
+      "4.20": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] },
+      "4.21": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] },
+      "4.22": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] }
     }
   },
   {
@@ -186,6 +201,26 @@ const scenarios = [
 ];
 
 const catalogImages = catalogImagesForMinor;
+
+/**
+ * Resolve a Quick Pick's package set for one OpenShift minor.
+ *
+ * There is deliberately NO `default` fallback. A version-aware Quick Pick that
+ * has no row for the selected minor returns `null` and fails closed, because
+ * the alternative is worse than no Quick Pick: resolution used to fall through
+ * to `default`, so enabling a new minor without authoring its rows made every
+ * ODF Quick Pick silently serve the previous minor's package list, and
+ * `applyScenario` skips a not-found package without warning. The user would
+ * mirror a short set and be told nothing.
+ *
+ * Flat Quick Picks keep their minor-independent `picks`.
+ *
+ * @returns {Object|null} `{ catalogId: string[] }`, or null when undefined for this minor
+ */
+const resolveScenarioPicks = (scenario, minor) => {
+  if (scenario?.versionPicks) return scenario.versionPicks[minor] || null;
+  return scenario?.picks || null;
+};
 
 const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const { state, updateState, setState } = useApp();
@@ -423,8 +458,10 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       const nextSelected = [...prevSelected];
       const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
 
-      // Get version-specific picks or fall back to static picks
-      const picks = scenario.versionPicks?.[version] || scenario.versionPicks?.["default"] || scenario.picks;
+      // Version-specific picks, or a flat pick's static list. Never a fallback
+      // to another minor's list — handleScenarioClick refuses before we get here.
+      const picks = resolveScenarioPicks(scenario, version);
+      if (!picks) return prev;
 
       Object.entries(picks).forEach(([catalogId, names]) => {
         const list = catalogs[catalogId] || [];
@@ -502,8 +539,16 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       return;
     }
 
+    // Fail closed rather than serve another minor's package list.
+    const picks = resolveScenarioPicks(scenario, version);
+    if (!picks) {
+      setScanError(
+        `Quick Pick "${scenario.label}" is not defined for OpenShift ${version || "(no version selected)"}.`
+      );
+      return;
+    }
+
     // Check if ALL operators from this scenario are currently selected
-    const picks = scenario.versionPicks?.[version] || scenario.versionPicks?.["default"] || scenario.picks;
     const allPickNames = Object.values(picks).flat().map((name) => name.toLowerCase());
     const allOperatorsSelected = allPickNames.every((name) =>
       selected.some((op) => op.name?.toLowerCase() === name)
@@ -668,7 +713,8 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         if (!scenarioDef) return;
 
         // Get version-aware or static picks
-        const picks = scenarioDef.versionPicks?.[version] || scenarioDef.versionPicks?.["default"] || scenarioDef.picks;
+        const picks = resolveScenarioPicks(scenarioDef, version);
+        if (!picks) return;
         const allPickNames = Object.values(picks).flat().map((name) => name.toLowerCase());
 
         // Check if ALL operators from this scenario are still selected
@@ -1060,20 +1106,25 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
           <div className="scenario-picks">
             {scenarios.map((scenario) => {
               const isVersionAware = Boolean(scenario.versionPicks);
-              const effectiveVersion = isVersionAware ? (scenario.versionPicks[version] ? version : "default") : null;
+              // No `default` fallback: a version-aware pick with no row for this
+              // minor is undefined, not "the previous minor's list".
+              const effectiveVersion = isVersionAware && scenario.versionPicks[version] ? version : null;
+              const isUndefinedForVersion = isVersionAware && !effectiveVersion;
               const isActive = Boolean(scenarioSelections?.[scenario.id]);
               // Chosen under a previous minor and not yet reconciled: this is
               // intent, not a current selection, so it must not read as active.
               const isPending = !isActive && Boolean(pendingScenarioIntent?.[scenario.id]);
               const titleText = isPending
                 ? `Previously selected — will be re-applied after the OpenShift ${version} operator scan`
-                : !scenarioReady
-                  ? "Scenario picks need operator catalogs"
-                  : scenario.description
-                    ? `${scenario.description}${isVersionAware ? ` (${effectiveVersion})` : ""}`
-                    : isVersionAware
-                      ? `Version-aware quick pick (${effectiveVersion})`
-                      : "";
+                : isUndefinedForVersion
+                  ? `Not defined for OpenShift ${version || "(no version selected)"}`
+                  : !scenarioReady
+                    ? "Scenario picks need operator catalogs"
+                    : scenario.description
+                      ? `${scenario.description}${isVersionAware ? ` (${effectiveVersion})` : ""}`
+                      : isVersionAware
+                        ? `Version-aware quick pick (${effectiveVersion})`
+                        : "";
 
               return (
                 <button
@@ -1082,7 +1133,7 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
                   className={`scenario-pick ${isActive ? "selected" : ""}${isPending ? " pending" : ""}`}
                   onClick={() => handleScenarioClick(scenario)}
                   title={titleText}
-                  disabled={!scenarioReady}
+                  disabled={!scenarioReady || isUndefinedForVersion}
                   aria-pressed={isActive}
                   data-selection-state={isActive ? "active" : isPending ? "pending" : "none"}
                 >

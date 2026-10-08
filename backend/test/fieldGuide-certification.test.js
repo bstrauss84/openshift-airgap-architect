@@ -98,7 +98,7 @@ describe("Field Guide Provenance Certification (FG-4.21-C)", () => {
     });
 
     it("getAuthoritativeExport returns null for unsupported versions", () => {
-      assert.strictEqual(getAuthoritativeExport("4.22"), null);
+      assert.strictEqual(getAuthoritativeExport("4.23"), null);
       assert.strictEqual(getAuthoritativeExport("4.19"), null);
       assert.strictEqual(getAuthoritativeExport(""), null);
     });
@@ -222,8 +222,10 @@ describe("Field Guide Provenance Certification (FG-4.21-C)", () => {
     });
   });
 
-  describe("unsupported 4.22 structured provenance", () => {
-    it("compartment claiming version 4.22 fails at buildFieldGuide boundary", () => {
+  describe("cross-minor and unsupported structured provenance", () => {
+    it("compartment claiming a different supported version fails at buildFieldGuide boundary", () => {
+      // 4.22 is supported now, so this is the stronger case: a compartment that
+      // claims a REAL other minor must still be refused for the resolved minor.
       const saved = compartments_v421[0].version;
       try {
         compartments_v421[0].version = "4.22";
@@ -241,16 +243,20 @@ describe("Field Guide Provenance Certification (FG-4.21-C)", () => {
       }
     });
 
-    it("certifyExport rejects 4.22 as unsupported version", () => {
+    it("certifyExport rejects 4.23 as unsupported version", () => {
       assert.throws(
-        () => certifyExport("4.22"),
+        () => certifyExport("4.23"),
         (err) => {
           assert.equal(err.name, "ProvenanceError");
-          assert.match(err.message, /4\.22/);
+          assert.match(err.message, /4\.23/);
           assert.equal(err.invariant, "supported-version");
           return true;
         }
       );
+    });
+
+    it("certifyExport accepts 4.22 now that it is supported", () => {
+      assert.doesNotThrow(() => certifyExport("4.22"));
     });
   });
 

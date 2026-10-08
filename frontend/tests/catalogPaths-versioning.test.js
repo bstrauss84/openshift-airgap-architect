@@ -48,10 +48,10 @@ describe('Catalog versioning (ADR-005)', () => {
   });
 
   describe('Unsupported version blocking', () => {
-    it('throws clear error for 4.22 (future version, catalog does not exist)', () => {
-      expect(() => getCatalogForScenario('bare-metal-agent', '4.22'))
-        .toThrow(/OpenShift 4.22 is not supported by this version of OpenShift Airgap Architect/);
-      expect(() => getCatalogForScenario('bare-metal-agent', '4.22'))
+    it('throws clear error for 4.23 (future version, catalog does not exist)', () => {
+      expect(() => getCatalogForScenario('bare-metal-agent', '4.23'))
+        .toThrow(/OpenShift 4.23 is not supported by this version of OpenShift Airgap Architect/);
+      expect(() => getCatalogForScenario('bare-metal-agent', '4.23'))
         .toThrow(/Supported versions: 4.20, 4.21/);
     });
 
@@ -97,7 +97,7 @@ describe('Catalog versioning (ADR-005)', () => {
 
   describe('No silent fallback', () => {
     it('does not silently return empty array for unsupported version', () => {
-      expect(() => getCatalogForScenario('bare-metal-agent', '4.22'))
+      expect(() => getCatalogForScenario('bare-metal-agent', '4.23'))
         .toThrow();
       // Should NOT return []
     });
@@ -123,8 +123,8 @@ describe('Catalog versioning (ADR-005)', () => {
     });
 
     it('throws same errors for unsupported versions', () => {
-      expect(() => getCatalogParameters('bare-metal-agent', '4.22'))
-        .toThrow(/OpenShift 4.22 is not supported by this version of OpenShift Airgap Architect/);
+      expect(() => getCatalogParameters('bare-metal-agent', '4.23'))
+        .toThrow(/OpenShift 4.23 is not supported by this version of OpenShift Airgap Architect/);
     });
   });
 
@@ -137,8 +137,8 @@ describe('Catalog versioning (ADR-005)', () => {
     });
 
     it('throws error for unsupported version', () => {
-      expect(() => getCatalogPaths('bare-metal-agent', '4.22'))
-        .toThrow(/OpenShift 4.22 is not supported by this version of OpenShift Airgap Architect/);
+      expect(() => getCatalogPaths('bare-metal-agent', '4.23'))
+        .toThrow(/OpenShift 4.23 is not supported by this version of OpenShift Airgap Architect/);
     });
   });
 });

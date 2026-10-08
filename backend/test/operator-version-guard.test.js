@@ -81,11 +81,11 @@ describe("Operator endpoints reject unsupported OCP versions", () => {
     fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
   });
 
-  test("POST /api/operators/confirm returns 422 for unsupported 4.22 (state written directly)", async () => {
+  test("POST /api/operators/confirm returns 422 for unsupported 4.23 (state written directly)", async () => {
     writeStateDirectly({
       _schemaVersion: 3,
-      release: { channel: "4.22", patchVersion: "4.22.1", confirmed: false },
-      version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1", locked: false },
+      release: { channel: "4.23", patchVersion: "4.23.1", confirmed: false },
+      version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1", locked: false },
       methodology: { method: "Agent-Based Installer" },
       blueprint: { clusterName: "test", baseDomain: "example.com" },
     });
@@ -94,11 +94,11 @@ describe("Operator endpoints reject unsupported OCP versions", () => {
     assert.equal(res.body?.code, "UNSUPPORTED_VERSION");
   });
 
-  test("POST /api/operators/scan returns 422 for unsupported 4.22 (state written directly)", async () => {
+  test("POST /api/operators/scan returns 422 for unsupported 4.23 (state written directly)", async () => {
     writeStateDirectly({
       _schemaVersion: 3,
-      release: { channel: "4.22", patchVersion: "4.22.1", confirmed: true },
-      version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1", locked: true },
+      release: { channel: "4.23", patchVersion: "4.23.1", confirmed: true },
+      version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1", locked: true },
       methodology: { method: "Agent-Based Installer" },
       blueprint: { clusterName: "test", baseDomain: "example.com" },
     });
@@ -107,11 +107,11 @@ describe("Operator endpoints reject unsupported OCP versions", () => {
     assert.equal(res.body?.code, "UNSUPPORTED_VERSION");
   });
 
-  test("POST /api/operators/prefetch returns 422 for unsupported 4.22 (state written directly)", async () => {
+  test("POST /api/operators/prefetch returns 422 for unsupported 4.23 (state written directly)", async () => {
     writeStateDirectly({
       _schemaVersion: 3,
-      release: { channel: "4.22", patchVersion: "4.22.1", confirmed: true },
-      version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1", locked: true },
+      release: { channel: "4.23", patchVersion: "4.23.1", confirmed: true },
+      version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1", locked: true },
       methodology: { method: "Agent-Based Installer" },
       blueprint: { clusterName: "test", baseDomain: "example.com" },
     });
@@ -134,11 +134,11 @@ describe("Operator endpoints reject unsupported OCP versions", () => {
     assert.ok(res.body?.ok, "confirm should succeed");
   });
 
-  test("POST /api/state rejects 4.22 at persistence boundary", async () => {
+  test("POST /api/state rejects 4.23 at persistence boundary", async () => {
     const postRes = await postState({
       _schemaVersion: 3,
-      release: { channel: "4.22", patchVersion: "4.22.1" },
-      version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1" },
+      release: { channel: "4.23", patchVersion: "4.23.1" },
+      version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1" },
       methodology: { method: "Agent-Based Installer" },
       blueprint: { clusterName: "test", baseDomain: "example.com" },
     });

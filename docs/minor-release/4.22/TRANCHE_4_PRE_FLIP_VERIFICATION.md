@@ -1,7 +1,11 @@
 # OCP 4.22 pre-flip verification — Tranche 4, corrected by Tranche 4A
 
-> **4.22 IS NOT SUPPORTED.** Nothing in either tranche enables it. `SUPPORTED_MINORS`
-> is still `["4.20","4.21"]` on both sides; see §11.
+> **Superseded by Tranche 5.** When this document was written, 4.22 was not supported
+> and nothing in Tranche 4 or 4A enabled it — §11 records that fail-closed state, which
+> was accurate at the Tranche 4A commit. The atomic flip landed in **Tranche 5**; see
+> [`TRANCHE_5_ATOMIC_SUPPORT_FLIP.md`](TRANCHE_5_ATOMIC_SUPPORT_FLIP.md). This document
+> is retained as the pre-flip evidence and as the authoritative S1–S11 flip checklist;
+> its present-tense claims about 4.22 being unsupported describe the pre-flip state.
 >
 > **Tranche 4 outcome: the atomic flip was BLOCKED** — blockers **B1** and **G2**,
 > coverage gaps **G1** and **G3**, plus pre-existing defect **B2**.
@@ -128,6 +132,15 @@ both of which the G2 guard now also exercises for the architectures it refuses.
 **Closure condition for Tranche 6:** re-run `backend/test/t4-d3-generation-matrix.test.js`
 with `"4.22"` added to its minor list, post-flip. Expected result: 48 further cells,
 12 supported, 36 hidden, 0 failures.
+
+> **Corrected in Tranche 5.** The cell count (48) was right; "12 supported, 36 hidden"
+> was not. It contradicts §2 of this same document, which states the supported
+> distribution is `{x86_64: 12, aarch64: 3}` — **15** per minor, not 12 — so the figure
+> omitted the three `aarch64` cells. The matrix derives its minor list from
+> `SUPPORTED_MINORS`, so it auto-extended at the flip with no edit, and the measured
+> result is **48 further cells, 15 supported, 33 hidden, 0 failures**, giving totals of
+> 144 / 45 / 99. The dataset is 15/33 at every minor, 4.22 included. An arithmetic slip
+> in this paragraph, not a change in the data.
 
 ### G2 — a hidden architecture was not rejected by generation — **CLOSED in Tranche 4A**
 

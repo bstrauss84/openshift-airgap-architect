@@ -412,10 +412,10 @@ describe('Export Integrity Helper', () => {
       assert.strictEqual(confirmed, false, 'unlocked state must fail confirmation');
     });
 
-    it('unsupported 4.22 fails with UNSUPPORTED_VERSION error', () => {
+    it('unsupported 4.23 fails with UNSUPPORTED_VERSION error', () => {
       const state = baseStates.minimal({
-        version: { selectedMinor: '4.22', selectedPatch: '4.22.1', locked: true },
-        release: { channel: '4.22', patchVersion: '4.22.1', confirmed: true }
+        version: { selectedMinor: '4.23', selectedPatch: '4.23.1', locked: true },
+        release: { channel: '4.23', patchVersion: '4.23.1', confirmed: true }
       });
       const result = migrateStateToV3(state);
       assert.ok(!result.error);
@@ -423,7 +423,7 @@ describe('Export Integrity Helper', () => {
         () => assertSupportedOpenShiftMinorForGeneration(result.migrated),
         (err) => {
           assert.strictEqual(err.code, 'UNSUPPORTED_VERSION');
-          assert.deepStrictEqual(err.supportedVersions, ['4.20', '4.21']);
+          assert.deepStrictEqual(err.supportedVersions, ['4.20', '4.21', '4.22']);
           return true;
         }
       );

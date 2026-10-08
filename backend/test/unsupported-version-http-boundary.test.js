@@ -1,12 +1,12 @@
 /**
  * Unsupported Version - HTTP Boundary Tests
  *
- * DOC-102 Slice 5F.13: Unsupported OpenShift versions (4.22) must return HTTP 422
+ * DOC-102 Slice 5F.13: Unsupported OpenShift versions (4.23) must return HTTP 422
  * UNSUPPORTED_VERSION at all HTTP route boundaries before artifact builders execute.
  *
  * Product truth:
  * - v2.0.0 supports 4.20 and 4.21 only
- * - 4.22 is unsupported even if Cincinnati offers it
+ * - 4.23 is unsupported even if Cincinnati offers it
  * - Unsupported versions must not silently fall back to 4.21 catalogs or artifacts
  *
  * @author Bill Strauss
@@ -17,34 +17,39 @@ import { describe, it } from 'node:test';
 import { app } from '../src/index.js';
 import { setState } from '../src/utils.js';
 import { createTestServer, closeTestServer } from './helpers/httpServerLifecycle.js';
+import { SUPPORTED_MINORS } from '../src/versionPolicy.js';
 
 /**
  * Assert HTTP 422 UNSUPPORTED_VERSION response shape.
  */
 function assertUnsupportedVersionResponse(body) {
   assert.strictEqual(body.code, 'UNSUPPORTED_VERSION', 'Response must include code: UNSUPPORTED_VERSION');
-  assert.strictEqual(body.requestedVersion, '4.22', 'Response must include requestedVersion: 4.22');
+  assert.strictEqual(body.requestedVersion, '4.23', 'Response must include requestedVersion: 4.23');
   assert.ok(Array.isArray(body.supportedVersions), 'Response must include supportedVersions array');
   assert.ok(
     body.supportedVersions.includes('4.20') && body.supportedVersions.includes('4.21'),
     'supportedVersions must include 4.20 and 4.21'
   );
-  assert.strictEqual(body.supportedVersions.length, 2, 'supportedVersions must contain exactly 2 entries');
+  assert.deepStrictEqual(
+    [...body.supportedVersions].sort(),
+    [...SUPPORTED_MINORS].sort(),
+    'supportedVersions must be exactly the supported set'
+  );
 }
 
 /**
- * Confirmed 4.22 state fixture (v3 canonical schema).
+ * Confirmed 4.23 state fixture (v3 canonical schema).
  */
-const confirmed422State = {
+const confirmed423State = {
   version: {
     _schemaVersion: 3,
-    selectedMinor: '4.22',
-    selectedPatch: '4.22.1',
+    selectedMinor: '4.23',
+    selectedPatch: '4.23.1',
     locked: true
   },
   release: {
-    channel: '4.22',
-    patchVersion: '4.22.1',
+    channel: '4.23',
+    patchVersion: '4.23.1',
     confirmed: true
   },
   blueprint: {
@@ -79,18 +84,18 @@ const confirmed422State = {
 };
 
 /**
- * Unconfirmed 4.22 state fixture (version.locked = false).
+ * Unconfirmed 4.23 state fixture (version.locked = false).
  */
-const unconfirmed422State = {
+const unconfirmed423State = {
   version: {
     _schemaVersion: 3,
-    selectedMinor: '4.22',
-    selectedPatch: '4.22.1',
+    selectedMinor: '4.23',
+    selectedPatch: '4.23.1',
     locked: false
   },
   release: {
-    channel: '4.22',
-    patchVersion: '4.22.1',
+    channel: '4.23',
+    patchVersion: '4.23.1',
     confirmed: false
   },
   blueprint: {
@@ -189,14 +194,14 @@ const confirmed421State = {
 
 describe('Unsupported Version - HTTP Boundary Tests', () => {
   describe('GET /api/generate', () => {
-    it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
+    it('rejects confirmed 4.23 state with 422 UNSUPPORTED_VERSION', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
-        // Seed 4.22 state directly via database (bypasses POST persistence boundary)
-        setState(confirmed422State);
+        // Seed 4.23 state directly via database (bypasses POST persistence boundary)
+        setState(confirmed423State);
 
         const res = await fetch(`${baseUrl}/api/generate`);
-        assert.strictEqual(res.status, 422, 'GET /api/generate must return 422 for 4.22');
+        assert.strictEqual(res.status, 422, 'GET /api/generate must return 422 for 4.23');
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
@@ -204,20 +209,49 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
       }
     });
 
-    it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION (support check before confirmation check)', async () => {
+    it('rejects unconfirmed 4.23 state with 422 UNSUPPORTED_VERSION (support check before confirmation check)', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
-        // Seed 4.22 state directly via database (bypasses POST persistence boundary)
-        setState(unconfirmed422State);
+        // Seed 4.23 state directly via database (bypasses POST persistence boundary)
+        setState(unconfirmed423State);
 
         const res = await fetch(`${baseUrl}/api/generate`);
         assert.strictEqual(
           res.status,
           422,
-          'GET /api/generate must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.22'
+          'GET /api/generate must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.23'
         );
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
+      } finally {
+        await closeTestServer(server);
+      }
+    });
+
+    it('accepts a valid confirmed 4.22 state — the flip is visible over HTTP', async () => {
+      // The positive half of the boundary. Before the flip this exact state
+      // returned 422; the same request must now get past the support gate with
+      // no fallback to 4.21 or 4.20 anywhere in the generated output.
+      const { server, baseUrl } = await createTestServer(app);
+      try {
+        const confirmed422State = JSON.parse(JSON.stringify(confirmed420State));
+        confirmed422State.version = {
+          _schemaVersion: 3, selectedMinor: '4.22', selectedPatch: '4.22.16', locked: true
+        };
+        confirmed422State.release = { channel: '4.22', patchVersion: '4.22.16', confirmed: true };
+
+        await fetch(`${baseUrl}/api/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(confirmed422State)
+        });
+
+        const res = await fetch(`${baseUrl}/api/generate`);
+        assert.strictEqual(res.status, 200, 'GET /api/generate must succeed for a valid 4.22 state');
+        const files = JSON.stringify(await res.json());
+        assert.match(files, /stable-4\.22/, '4.22 generation must name its own channel');
+        assert.doesNotMatch(files, /stable-4\.21/, 'no fallback to 4.21');
+        assert.doesNotMatch(files, /stable-4\.20/, 'no fallback to 4.20');
       } finally {
         await closeTestServer(server);
       }
@@ -282,15 +316,15 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
   });
 
   describe('POST /api/generate', () => {
-    it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
+    it('rejects confirmed 4.23 state with 422 UNSUPPORTED_VERSION', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: confirmed422State })
+          body: JSON.stringify({ state: confirmed423State })
         });
-        assert.strictEqual(res.status, 422, 'POST /api/generate must return 422 for 4.22');
+        assert.strictEqual(res.status, 422, 'POST /api/generate must return 422 for 4.23');
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
@@ -298,18 +332,18 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
       }
     });
 
-    it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
+    it('rejects unconfirmed 4.23 state with 422 UNSUPPORTED_VERSION', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: unconfirmed422State })
+          body: JSON.stringify({ state: unconfirmed423State })
         });
         assert.strictEqual(
           res.status,
           422,
-          'POST /api/generate must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.22'
+          'POST /api/generate must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.23'
         );
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
@@ -372,15 +406,15 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
   });
 
   describe('POST /api/bundle.prepare', () => {
-    it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION and does not issue token', async () => {
+    it('rejects confirmed 4.23 state with 422 UNSUPPORTED_VERSION and does not issue token', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.prepare`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: confirmed422State })
+          body: JSON.stringify({ state: confirmed423State })
         });
-        assert.strictEqual(res.status, 422, 'POST /api/bundle.prepare must return 422 for 4.22');
+        assert.strictEqual(res.status, 422, 'POST /api/bundle.prepare must return 422 for 4.23');
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
         assert.strictEqual(body.token, undefined, 'Must not issue token for unsupported version');
@@ -389,18 +423,18 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
       }
     });
 
-    it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
+    it('rejects unconfirmed 4.23 state with 422 UNSUPPORTED_VERSION', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.prepare`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: unconfirmed422State })
+          body: JSON.stringify({ state: unconfirmed423State })
         });
         assert.strictEqual(
           res.status,
           422,
-          'POST /api/bundle.prepare must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.22'
+          'POST /api/bundle.prepare must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.23'
         );
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
@@ -464,15 +498,15 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
   });
 
   describe('POST /api/bundle.zip', () => {
-    it('rejects confirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
+    it('rejects confirmed 4.23 state with 422 UNSUPPORTED_VERSION', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.zip`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: confirmed422State })
+          body: JSON.stringify({ state: confirmed423State })
         });
-        assert.strictEqual(res.status, 422, 'POST /api/bundle.zip must return 422 for 4.22');
+        assert.strictEqual(res.status, 422, 'POST /api/bundle.zip must return 422 for 4.23');
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
       } finally {
@@ -480,18 +514,18 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
       }
     });
 
-    it('rejects unconfirmed 4.22 state with 422 UNSUPPORTED_VERSION', async () => {
+    it('rejects unconfirmed 4.23 state with 422 UNSUPPORTED_VERSION', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
         const res = await fetch(`${baseUrl}/api/bundle.zip`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: unconfirmed422State })
+          body: JSON.stringify({ state: unconfirmed423State })
         });
         assert.strictEqual(
           res.status,
           422,
-          'POST /api/bundle.zip must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.22'
+          'POST /api/bundle.zip must return 422 UNSUPPORTED_VERSION before confirmation check for unconfirmed 4.23'
         );
         const body = await res.json();
         assertUnsupportedVersionResponse(body);
@@ -554,18 +588,18 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
   });
 
   describe('HTTP error parity across routes', () => {
-    it('GET /api/generate and POST /api/generate return identical error shape for 4.22', async () => {
+    it('GET /api/generate and POST /api/generate return identical error shape for 4.23', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
-        // Seed 4.22 state directly via database (bypasses POST persistence boundary)
-        setState(confirmed422State);
+        // Seed 4.23 state directly via database (bypasses POST persistence boundary)
+        setState(confirmed423State);
         const getRes = await fetch(`${baseUrl}/api/generate`);
         const getBody = await getRes.json();
 
         const postRes = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: confirmed422State })
+          body: JSON.stringify({ state: confirmed423State })
         });
         const postBody = await postRes.json();
 
@@ -578,20 +612,20 @@ describe('Unsupported Version - HTTP Boundary Tests', () => {
       }
     });
 
-    it('POST /api/generate and POST /api/bundle.prepare return identical error shape for 4.22', async () => {
+    it('POST /api/generate and POST /api/bundle.prepare return identical error shape for 4.23', async () => {
       const { server, baseUrl } = await createTestServer(app);
       try {
         const genRes = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: confirmed422State })
+          body: JSON.stringify({ state: confirmed423State })
         });
         const genBody = await genRes.json();
 
         const bundleRes = await fetch(`${baseUrl}/api/bundle.prepare`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: confirmed422State })
+          body: JSON.stringify({ state: confirmed423State })
         });
         const bundleBody = await bundleRes.json();
 

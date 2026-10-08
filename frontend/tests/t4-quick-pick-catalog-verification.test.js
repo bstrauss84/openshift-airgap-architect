@@ -53,14 +53,25 @@ function quickPickObjects() {
   }));
 }
 
-/** `{ catalogId: [packageName, ...] }` for a flat Quick Pick. */
-function flatPicks(body) {
-  const picksBody = (body.match(/picks:\s*\{([\s\S]*?)\n\s*\}/) || [])[1] || "";
+/** `{ catalogId: [packageName, ...] }` from a `{ redhat: [...], certified: [...] }` body. */
+function parseCatalogLists(fragment) {
   const out = {};
-  for (const m of picksBody.matchAll(/(\w+):\s*\[([^\]]*)\]/g)) {
+  for (const m of fragment.matchAll(/(\w+):\s*\[([^\]]*)\]/g)) {
     out[m[1]] = m[2].split(",").map((x) => x.trim().replace(/"/g, "")).filter(Boolean);
   }
   return out;
+}
+
+/** `{ catalogId: [packageName, ...] }` for a flat Quick Pick. */
+function flatPicks(body) {
+  return parseCatalogLists((body.match(/picks:\s*\{([\s\S]*?)\n\s*\}/) || [])[1] || "");
+}
+
+/** The declared `"<minor>"` row of a version-aware Quick Pick, or null if absent. */
+function versionRow(body, minor) {
+  const re = new RegExp(`"${minor.replace(".", "\\.")}":\\s*\\{([^}]*)\\}`);
+  const m = body.match(re);
+  return m ? parseCatalogLists(m[1]) : null;
 }
 
 const ALL = quickPickObjects();
@@ -77,14 +88,16 @@ describe("T4 — Quick Pick inventory", () => {
     }
   });
 
-  it("there are 21 Quick Picks: 5 version-aware and 16 flat", () => {
+  it("there are 21 Quick Picks: 6 version-aware and 15 flat", () => {
     // The accepted Tranche 1 evidence says "20 Quick Picks ... 15 are flat".
-    // That is an off-by-one in the evidence document, not a code change: the
-    // `scenarios` array is byte-identical to its state at the Tranche 1 commit.
-    // Verifying only 15 would leave one Quick Pick unchecked.
+    // That is an off-by-one in the evidence document, not a code change.
+    //
+    // Tranche 5 moved ONE pick across the boundary: `openshift-ai` became
+    // version-aware so that 4.22 can omit `rhods-prometheus-operator` while
+    // 4.20/4.21 keep it. The total is unchanged; 5+16 became 6+15.
     expect(ALL).toHaveLength(21);
-    expect(VERSION_AWARE).toHaveLength(5);
-    expect(FLAT).toHaveLength(16);
+    expect(VERSION_AWARE).toHaveLength(6);
+    expect(FLAT).toHaveLength(15);
   });
 
   it("every flat Quick Pick yields a parseable package list", () => {
@@ -161,12 +174,10 @@ const RHOAI = JSON.parse(
  * fails too, so a disposition cannot outlive the fact it describes.
  */
 const DISPOSITIONED_ABSENCES = {
-  "rhods-prometheus-operator": {
-    finding: "B1",
-    absentAt: ["4.22"],
-    disposition: "omit-no-replacement",
-    owner: "Tranche 5 (S10)",
-  },
+  // `rhods-prometheus-operator` (B1) is no longer listed. Tranche 5 removed it
+  // from the 4.22 `openshift-ai` row, so no Quick Pick names it at 4.22 and
+  // there is no absence left to disposition. The registry below rejects unused
+  // entries, which is what forced this deletion rather than leaving it to rot.
   "jaeger-product": {
     finding: "B2",
     absentAt: ["4.20", "4.21", "4.22"],
@@ -211,8 +222,37 @@ describe("T4A — a required Quick Pick package cannot disappear silently", () =
     }
   }
 
+  // Post-flip the same invariant must cover version-aware picks, because a
+  // per-minor row can now name a package that minor's catalog does not carry —
+  // which is precisely the B1 failure mode, just one level down.
+  for (const p of VERSION_AWARE) {
+    for (const [idx, minor] of SCANNED) {
+      const row = versionRow(p.body, minor);
+      if (!row) continue;
+      const names = row[idx === "certified" ? "certified" : "redhat"];
+      if (!names || !names.length) continue;
+      it(`${p.id}/${idx}@${minor}: every package in the "${minor}" row exists or is dispositioned`, () => {
+        for (const name of names) {
+          const present = Object.prototype.hasOwnProperty.call(SCAN.packages[`${idx}-${minor}`], name);
+          if (!present) {
+            expect(
+              DISPOSITIONED_ABSENCES[name]?.absentAt,
+              `${p.id} names ${name} in its "${minor}" row, but ${idx} ${minor} does not carry it — ` +
+                `applyScenario would skip it silently`
+            ).toContain(minor);
+          }
+        }
+      });
+    }
+  }
+
   it("the disposition registry carries no entry for a package no Quick Pick names", () => {
-    const named = new Set(FLAT.flatMap((p) => Object.values(flatPicks(p.body)).flat()));
+    const named = new Set([
+      ...FLAT.flatMap((p) => Object.values(flatPicks(p.body)).flat()),
+      ...VERSION_AWARE.flatMap((p) =>
+        SCANNED.flatMap(([, minor]) => Object.values(versionRow(p.body, minor) || {}).flat())
+      ),
+    ]);
     for (const name of Object.keys(DISPOSITIONED_ABSENCES)) {
       expect(named, `${name} is dispositioned but unused — delete the entry`).toContain(name);
     }
@@ -251,28 +291,48 @@ describe("T4A — B1: rhods-prometheus-operator is omitted at 4.22 with no repla
     expect(JSON.stringify(RHOAI.disposition)).not.toMatch(/odf-prometheus-operator"\s*:/);
   });
 
-  it("the intended 4.22 openshift-ai package set is the current set minus that package", () => {
-    const ai = FLAT.find((p) => p.id === "openshift-ai");
-    const picks = flatPicks(ai.body);
-    const intended = Object.fromEntries(
-      Object.entries(picks).map(([cat, names]) => [cat, names.filter((n) => n !== "rhods-prometheus-operator")])
-    );
-    expect(intended).toEqual({ redhat: ["rhods-operator", "nfd"], certified: ["gpu-operator-certified"] });
-    for (const [cat, names] of Object.entries(intended)) {
-      for (const n of names) {
-        expect(
-          Object.prototype.hasOwnProperty.call(SCAN.packages[`${cat}-4.22`], n), n
-        ).toBe(true);
-      }
-    }
+  // S10 is wired. The pre-flip pin that asserted the opposite ("4.22 is NOT yet
+  // wired") is deleted rather than inverted in place: its job was to fail the
+  // moment the production change landed, and it did.
+  const AI = VERSION_AWARE.find((p) => p.id === "openshift-ai");
+
+  it("openshift-ai is version-aware, which is what lets 4.22 differ from 4.20/4.21", () => {
+    expect(AI, "openshift-ai must be a versionPicks Quick Pick after S10").toBeTruthy();
   });
 
-  it("4.22 is NOT yet wired: the production Quick Pick still names the package", () => {
-    // Tranche 4A researches; Tranche 5 edits. This pins that nothing was
-    // changed early, and fails the moment S10 lands so the pin is removed.
-    const ai = FLAT.find((p) => p.id === "openshift-ai");
-    expect(Object.values(flatPicks(ai.body)).flat()).toContain("rhods-prometheus-operator");
-    expect(ai.versionAware).toBe(false);
+  it("the 4.22 row is the shipped set minus that package, and nothing else changed", () => {
+    expect(versionRow(AI.body, "4.22")).toEqual({
+      redhat: ["rhods-operator", "nfd"],
+      certified: ["gpu-operator-certified"],
+    });
+  });
+
+  it("4.20 and 4.21 are preserved exactly — this flip changes no supported minor's set", () => {
+    // The evidence argues the package is independently wrong at 4.20/4.21 too,
+    // but removing it there alters currently-shipping behaviour on already
+    // supported minors. That is separate pre-release cleanup, deliberately NOT
+    // folded into the 4.22 support flip.
+    const shipped = {
+      redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"],
+      certified: ["gpu-operator-certified"],
+    };
+    expect(versionRow(AI.body, "4.20")).toEqual(shipped);
+    expect(versionRow(AI.body, "4.21")).toEqual(shipped);
+  });
+
+  it("no replacement Prometheus package was substituted at 4.22", () => {
+    // The disposition is "omit", not "swap". `odf-prometheus-operator` exists at
+    // 4.22 and has a similar name; a similar name is not evidence.
+    const row = Object.values(versionRow(AI.body, "4.22")).flat();
+    expect(row.filter((n) => /prometheus/i.test(n))).toEqual([]);
+  });
+
+  it("every package in the 4.22 row is real", () => {
+    for (const [cat, names] of Object.entries(versionRow(AI.body, "4.22"))) {
+      for (const n of names) {
+        expect(Object.prototype.hasOwnProperty.call(SCAN.packages[`${cat}-4.22`], n), n).toBe(true);
+      }
+    }
   });
 });
 
@@ -295,7 +355,38 @@ describe("T4 — version-aware Quick Pick packages exist at 4.22 (Tranche 5 inpu
     expect(Object.prototype.hasOwnProperty.call(SCAN.packages["redhat-4.22"], "ocs-tls-profiles")).toBe(true);
   });
 
-  it("no version-aware Quick Pick carries a 4.22 row yet", () => {
-    for (const p of VERSION_AWARE) expect(p.body).not.toMatch(/"4\.22":/);
+  it("every version-aware Quick Pick now carries a 4.22 row", () => {
+    for (const p of VERSION_AWARE) expect(p.body, p.id).toMatch(/"4\.22":/);
+  });
+
+  it("the ODF 4.22 rows add exactly the packages the ODF 4.22 chapter documents", () => {
+    // Totals from docs/minor-release/4.22/ODF_OPERATOR_EVIDENCE_4.22.md §1-§2:
+    // base 12 (11 + ocs-tls-profiles), +local-storage = 13, +4 DR = 16.
+    const row = (id) => versionRow(VERSION_AWARE.find((p) => p.id === id).body, "4.22").redhat;
+    expect(row("odf")).toHaveLength(12);
+    expect(row("odf-local-storage")).toHaveLength(13);
+    expect(row("odf-disaster-recovery")).toHaveLength(16);
+    expect(row("platform-plus")).toHaveLength(16); // 4 non-ODF + 12 ODF base
+
+    for (const id of ["odf", "odf-local-storage", "odf-disaster-recovery", "platform-plus"]) {
+      expect(row(id), id).toContain("ocs-tls-profiles");
+    }
+    expect(row("odf-disaster-recovery")).toContain("odr-volsync-plugin-operator");
+  });
+
+  it("each 4.22 row is its 4.21 row plus the documented additions, never a rewrite", () => {
+    const added = {
+      odf: ["ocs-tls-profiles"],
+      "odf-local-storage": ["ocs-tls-profiles"],
+      "odf-disaster-recovery": ["ocs-tls-profiles", "odr-volsync-plugin-operator"],
+      "platform-plus": ["ocs-tls-profiles"],
+    };
+    for (const [id, extra] of Object.entries(added)) {
+      const body = VERSION_AWARE.find((p) => p.id === id).body;
+      const prev = versionRow(body, "4.21").redhat;
+      const next = versionRow(body, "4.22").redhat;
+      expect(next.filter((n) => !prev.includes(n)), `${id} added`).toEqual(extra);
+      expect(prev.filter((n) => !next.includes(n)), `${id} removed`).toEqual([]);
+    }
   });
 });

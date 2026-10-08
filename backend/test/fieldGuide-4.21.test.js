@@ -422,11 +422,11 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
   });
 
   describe("unsupported version blocking (Slice 5F.2)", () => {
-    it("throws clear error for version 4.22 (future)", () => {
+    it("throws clear error for version 4.23 (future)", () => {
       assert.throws(
-        () => selectAndOrder("4.22", { platform: "Bare Metal", methodology: "IPI" }),
-        /OpenShift 4\.22 is not supported.*Supported versions:/,
-        "Should throw clear error for unsupported version 4.22"
+        () => selectAndOrder("4.23", { platform: "Bare Metal", methodology: "IPI" }),
+        /OpenShift 4\.23 is not supported.*Supported versions:/,
+        "Should throw clear error for unsupported version 4.23"
       );
     });
 
@@ -464,7 +464,7 @@ describe("Field Guide v4.21 (DOC-102 Slice 5F)", () => {
 
     it("does NOT silently fallback to v4.20 for unsupported versions", () => {
       try {
-        selectAndOrder("4.22", { platform: "Bare Metal", methodology: "IPI" });
+        selectAndOrder("4.23", { platform: "Bare Metal", methodology: "IPI" });
         assert.fail("Should have thrown an error, not returned v4.20 compartments");
       } catch (err) {
         assert(err.message.includes("not supported"), "Error should indicate version not supported");

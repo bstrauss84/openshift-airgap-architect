@@ -68,6 +68,22 @@ const INSTALLER_PINS = Object.freeze({
     branch: "release-4.21",
     supersededBranchTip: "1accb6487cf3784561665c08048dde20ad672c39",
   }),
+  // Transcribed from the committed Tranche 1 acquisition evidence,
+  // docs/minor-release/4.22/acquisition-manifest-4.22.json `installer`:
+  // resolved from the stable-4.22 Cincinnati channel (not the branch tip, not
+  // fast/candidate 4.22.17), checksum-verified against the mirror's own
+  // sha256sum.txt before use, and the commit is self-reported by that exact
+  // released binary. Required here because every supported minor must carry
+  // exact-release provenance.
+  "4.22": Object.freeze({
+    release: "4.22.16",
+    payloadDigest: "sha256:55a0c0c8f9a285fa468009511dd878d5492436ceb4f0207933b6403d19353876",
+    binarySha256: "62b3a91ca3f242dd6feec1aefec8f5f5e7af4e13982f65600eb84fc56ca71a33",
+    tarballSha256: "6f26860ba4ebaaf346ce7711be166105205e9edfff9993d9f15834c54a2e0fe5",
+    installerCommit: "92820966521d640aa5f0edfb69bcfd9c168c2210",
+    arch: "amd64",
+    branch: "release-4.22",
+  }),
 });
 
 /** Canonical form of an installer-source citation, already used 109× in-tree. */

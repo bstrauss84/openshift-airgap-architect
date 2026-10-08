@@ -3,12 +3,12 @@
  *
  * Deterministic provenance certification for Field Guide assembly inputs.
  * Fails closed before believable markdown is returned if version-specific
- * sources are unsupported, mixed between 4.20 and 4.21, inconsistent with
+ * sources are unsupported, mixed between supported minors, inconsistent with
  * the strictly resolved minor, unattributable, ambiguous because of duplicate
- * compartment IDs, or claim unsupported 4.22 provenance.
+ * compartment IDs, or claim provenance for a minor the product does not support.
  *
  * Input classifications (enforced, not merely labelled):
- *   VERSION_SPECIFIC — compartments from versioned v4.20/v4.21 exports,
+ *   VERSION_SPECIFIC — compartments from versioned v4.20/v4.21/v4.22 exports,
  *                      certified against stable identity inventory
  *   SHARED           — renderer and troubleshooting source, explicitly bound
  *                      and certified at the assembler boundary
@@ -21,6 +21,7 @@
 import { FIELD_GUIDE_SUPPORTED_MINORS } from "./versionResolution.js";
 import { compartments_v420 } from "./v4.20/index.js";
 import { compartments_v421 } from "./v4.21/index.js";
+import { compartments_v422 } from "./v4.22/index.js";
 
 class ProvenanceError extends Error {
   constructor(message, details = {}) {
@@ -41,13 +42,14 @@ const INPUT_CLASSIFICATION = Object.freeze({
 });
 
 function getAuthoritativeExport(minor) {
+  if (minor === '4.22') return compartments_v422;
   if (minor === '4.21') return compartments_v421;
   if (minor === '4.20') return compartments_v420;
   return null;
 }
 
 // Stable object-identity inventory captured at module initialization.
-// Derived from the original v4.20/v4.21 exports without hard-coded counts or IDs.
+// Derived from the original v4.20/v4.21/v4.22 exports without hard-coded counts or IDs.
 // Certification rejects any object not in this inventory as unattributable.
 const originalExportInventory = new Map();
 

@@ -11,8 +11,8 @@
  *   3. Fail-closed on unknown minor / scenario / architecture / malformed
  *      version / future minor, with NO fallback to another minor.
  *   4. The install method is part of the key and is never discarded.
- *   5. 4.22 data is enforceable internally while the PUBLIC adapter still
- *      refuses it, because 4.22 is not a supported minor.
+ *   5. the PUBLIC adapter answers for every SUPPORTED minor (4.22 included
+ *      since the v2.1 flip) and refuses any minor outside that set.
  *   6. The target-cluster axis stays separate from the export-binary axis.
  *
  * Canonical data is read from disk so the authority under test is the tracked
@@ -279,22 +279,29 @@ describe("cross-minor intersection (used before a release is chosen)", () => {
 });
 
 describe("frontend adapter — support gating", () => {
-  it("loads only SUPPORTED minors, even though 4.22 projection exists on disk", () => {
+  it("loads exactly the SUPPORTED minors, including 4.22 now that it is supported", () => {
     expect(availableArchSupportMinors()).toEqual([...SUPPORTED_MINORS].sort());
-    expect(hasArchSupportForMinor("4.22")).toBe(false);
-    expect(Object.keys(__archSupportDatasetForTests())).not.toContain("4.22");
+    expect(hasArchSupportForMinor("4.22")).toBe(true);
+    expect(Object.keys(__archSupportDatasetForTests())).toContain("4.22");
   });
 
-  it("refuses 4.22 through the public adapter", () => {
-    const got = resolveArchSupport({ minor: "4.22", scenarioId: "bare-metal-ipi", architecture: "x86_64" });
+  it("refuses an unsupported minor through the public adapter", () => {
+    const got = resolveArchSupport({ minor: "4.23", scenarioId: "bare-metal-ipi", architecture: "x86_64" });
     expect(got.offered).toBe(false);
     expect(got.unresolvedCause).toBe(UNRESOLVED.UNKNOWN_MINOR);
   });
 
-  it("a state locked to 4.22 offers no architecture and says why", () => {
-    const { cells } = listArchSupportForState(stateFor("4.22"), "bare-metal-ipi");
+  it("a state locked to an unsupported minor offers no architecture and says why", () => {
+    const { cells } = listArchSupportForState(stateFor("4.23"), "bare-metal-ipi");
     expect(cells.every((c) => !c.offered)).toBe(true);
-    expect(cells[0].summary).toMatch(/4\.22 is not supported/);
+    expect(cells[0].summary).toMatch(/4\.23 is not supported/);
+  });
+
+  it("4.22 resolves real architecture support through the public adapter", () => {
+    // The gate moved, it did not disappear: the same adapter that refuses 4.23
+    // now answers for 4.22 from the canonical dataset, with no 4.22 special case.
+    expect(offeredArchSupportForState(stateFor("4.22"), "bare-metal-ipi")).toEqual(["x86_64", "aarch64"]);
+    expect(offeredArchSupportForState(stateFor("4.22"), "vsphere-ipi")).toEqual(["x86_64"]);
   });
 
   it("resolves per-minor once a supported release is chosen", () => {

@@ -97,12 +97,14 @@ describe('real catalog behaviour for the AWS throughput field', () => {
 });
 
 describe('this genericity work enables no unsupported-version support', () => {
-  it('supported minors remain exactly 4.20 and 4.21', () => {
-    expect(SUPPORTED_MINORS).toEqual(['4.20', '4.21']);
+  it('supported minors are exactly 4.20, 4.21 and 4.22', () => {
+    expect(SUPPORTED_MINORS).toEqual(['4.20', '4.21', '4.22']);
   });
 
-  it('4.22 is still rejected as unsupported', () => {
-    expect(isSupportedMinor('4.22')).toBe(false);
+  it('4.23 is rejected as unsupported', () => {
+    // 4.22 became supported in the v2.1 atomic flip; 4.23 is now the first
+    // unsupported minor, and the genericity work still grants it nothing.
+    expect(isSupportedMinor('4.23')).toBe(false);
   });
 
   it('the hypothetical minor used above is not supported either', () => {
@@ -110,6 +112,6 @@ describe('this genericity work enables no unsupported-version support', () => {
   });
 
   it('catalog lookup still fails closed for an unsupported minor', () => {
-    expect(() => getCatalogForScenario('aws-govcloud-ipi', '4.22')).toThrow(/not supported/i);
+    expect(() => getCatalogForScenario('aws-govcloud-ipi', '4.23')).toThrow(/not supported/i);
   });
 });

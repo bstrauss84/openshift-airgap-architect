@@ -1,7 +1,7 @@
 /**
  * platform.baremetal.provisioningNetworkGateway — runtime prerequisite (Tranche 3).
  *
- * **4.22 IS STILL UNSUPPORTED.** `buildInstallConfig()` asserts a supported minor
+ * 4.22 became supported in the v2.1 Tranche 5 flip. `buildInstallConfig()` asserts a supported minor
  * before any of this is reached, so the emission rule is exercised through the
  * narrow exported seam `applyProvisioningNetworkGateway` rather than by widening
  * the supported-minor list. The last block below proves the public boundary is
@@ -346,28 +346,56 @@ describe("4.20 / 4.21 install-config is unchanged", () => {
   }
 });
 
-describe("the public support boundary is untouched", () => {
-  it("4.22 is still not a supported minor", () => {
-    assert.ok(!SUPPORTED_MINORS.includes("4.22"));
-  });
-
-  it("buildInstallConfig still rejects 4.22 outright", () => {
+// Before the flip these three tests pinned that 4.22 was unreachable, so the
+// emission rule could only be exercised through the exported `emit` seam. 4.22
+// is supported now, so the same rule is verified through the real public path —
+// which is what the seam was standing in for.
+describe("the gateway field reaches install-config through the public path at 4.22", () => {
+  const at422 = (inventory = {}) => {
     const state = bareMetalIpi({
       version: { selectedMinor: "4.22", selectedPatch: "4.22.16" },
       release: { channel: "4.22", patchVersion: "4.22.16" },
     });
+    state.hostInventory = { ...state.hostInventory, ...PROVISIONING, ...inventory };
+    return state;
+  };
+
+  it("4.22 is a supported minor", () => {
+    assert.ok(SUPPORTED_MINORS.includes("4.22"));
+  });
+
+  it("a valid gateway is emitted into real 4.22 install-config", () => {
+    const yaml = buildInstallConfig(at422({ provisioningNetworkGateway: "172.22.0.254" }));
+    assert.match(yaml, /provisioningNetworkGateway: 172\.22\.0\.254/);
+  });
+
+  it("an absent gateway emits nothing, and the rest of the file is unaffected", () => {
+    const without = buildInstallConfig(at422());
+    assert.doesNotMatch(without, /provisioningNetworkGateway/);
+  });
+
+  it("an invalid relationship is refused by the real builder, not silently dropped", () => {
+    // DHCP-range overlap: accepted by the 4.22.16 binary at validation time and
+    // then fails during provisioning, which is why this tool checks it.
     assert.throws(
-      () => buildInstallConfig(state),
-      (e) => e.code === "UNSUPPORTED_VERSION" && e.requestedVersion === "4.22"
+      () => buildInstallConfig(at422({ provisioningNetworkGateway: "172.22.0.50" })),
+      /falls inside the provisioning DHCP range/
+    );
+    assert.throws(
+      () => buildInstallConfig(at422({ provisioningNetworkGateway: "nope" })),
+      /must be a valid IP address/
     );
   });
 
-  it("the gateway field cannot reach install-config through the public path", () => {
+  it("an unsupported minor is still refused outright — the gate moved, it did not go", () => {
     const state = bareMetalIpi({
-      version: { selectedMinor: "4.22", selectedPatch: "4.22.16" },
-      release: { channel: "4.22", patchVersion: "4.22.16" },
+      version: { selectedMinor: "4.23", selectedPatch: "4.23.0" },
+      release: { channel: "4.23", patchVersion: "4.23.0" },
     });
     state.hostInventory = { ...state.hostInventory, ...PROVISIONING, provisioningNetworkGateway: "172.22.0.254" };
-    assert.throws(() => buildInstallConfig(state), /UNSUPPORTED_VERSION|not supported/);
+    assert.throws(
+      () => buildInstallConfig(state),
+      (e) => e.code === "UNSUPPORTED_VERSION" && e.requestedVersion === "4.23"
+    );
   });
 });

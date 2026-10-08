@@ -188,11 +188,11 @@ describe("the real gate, driven from a cold cache", () => {
 
 describe("fail-closed behaviour is retained", () => {
   test("an unsupported minor never loads and never mounts children", async () => {
-    currentState = stateFor("4.22");
+    currentState = stateFor("4.23");
     render(<Harness />);
     expect(screen.queryByTestId("child")).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent("Unsupported OpenShift Version");
-    expect(areCatalogsLoadedForMinor("4.22")).toBe(false);
-    expect(isDocsIndexResolvedForMinor("4.22")).toBe(false);
+    expect(areCatalogsLoadedForMinor("4.23")).toBe(false);
+    expect(isDocsIndexResolvedForMinor("4.23")).toBe(false);
   });
 });

@@ -74,14 +74,14 @@ describe("fail-closed version resolution", () => {
   });
 
   test("an unsupported minor is rejected before any fetch is attempted", async () => {
-    await expect(ensureCatalogsForMinor("4.22")).rejects.toBeInstanceOf(UnsupportedVersionError);
-    expect(areCatalogsLoadedForMinor("4.22")).toBe(false);
+    await expect(ensureCatalogsForMinor("4.23")).rejects.toBeInstanceOf(UnsupportedVersionError);
+    expect(areCatalogsLoadedForMinor("4.23")).toBe(false);
   });
 
   test("an unsupported minor is still rejected after other minors are resident", async () => {
     await ensureCatalogsForMinor(NEWEST);
-    await expect(ensureCatalogsForMinor("4.22")).rejects.toBeInstanceOf(UnsupportedVersionError);
-    expect(() => getCatalogForScenario("bare-metal-agent", "4.22")).toThrow(UnsupportedVersionError);
+    await expect(ensureCatalogsForMinor("4.23")).rejects.toBeInstanceOf(UnsupportedVersionError);
+    expect(() => getCatalogForScenario("bare-metal-agent", "4.23")).toThrow(UnsupportedVersionError);
   });
 
   test("loading one minor does not make another readable", async () => {
@@ -192,9 +192,9 @@ describe("docs-index follows the same per-minor model", () => {
   test("an unsupported minor never loads", async () => {
     // Resolves null (not the minor) and records nothing: an unsupported minor must not
     // reach "resolved" even as resolved-absent.
-    await expect(ensureDocsIndexForMinor("4.22")).resolves.toBeNull();
-    expect(isDocsIndexResolvedForMinor("4.22")).toBe(false);
-    expect(getDocsIndexForState(stateFor("4.22"))).toBeNull();
+    await expect(ensureDocsIndexForMinor("4.23")).resolves.toBeNull();
+    expect(isDocsIndexResolvedForMinor("4.23")).toBe(false);
+    expect(getDocsIndexForState(stateFor("4.23"))).toBeNull();
   });
 
   test("each loaded index points at its own minor's documentation", async () => {

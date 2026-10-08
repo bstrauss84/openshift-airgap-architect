@@ -22,11 +22,11 @@ describe("validateManualOpenShiftRelease", () => {
     expect(r.errors[0]).toContain("not supported");
   });
 
-  it("rejects 4.22 as unsupported", () => {
-    const r = validateManualOpenShiftRelease("4.22", "4.22.0");
+  it("rejects 4.23 as unsupported", () => {
+    const r = validateManualOpenShiftRelease("4.23", "4.23.0");
     expect(r.ok).toBe(false);
     expect(r.errors.length).toBeGreaterThan(0);
-    expect(r.errors[0]).toContain("4.22");
+    expect(r.errors[0]).toContain("4.23");
     expect(r.errors[0]).toContain("not supported");
   });
 

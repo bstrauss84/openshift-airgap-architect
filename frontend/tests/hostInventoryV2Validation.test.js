@@ -272,15 +272,15 @@ describe("Slice 5I: catalog-version threading", () => {
     });
   });
 
-  describe("explicit unsupported 4.22", () => {
-    it("throws UnsupportedVersionError identifying 4.22 and supported versions", () => {
+  describe("explicit unsupported 4.23", () => {
+    it("throws UnsupportedVersionError identifying 4.23 and supported versions", () => {
       const state = {
         hostInventory: {
           nodes: [{ role: "master", hostname: "m-0", primary: {} }],
           apiVip: "1.2.3.4",
           ingressVip: "1.2.3.5"
         },
-        version: { selectedMinor: "4.22" },
+        version: { selectedMinor: "4.23" },
         blueprint: { platform: "Bare Metal" },
         methodology: { method: "Agent-Based Installer" }
       };
@@ -292,19 +292,20 @@ describe("Slice 5I: catalog-version threading", () => {
         thrownError = e;
       }
       expect(thrownError).toBeInstanceOf(UnsupportedVersionError);
-      expect(thrownError.requestedVersion).toBe("4.22");
+      expect(thrownError.requestedVersion).toBe("4.23");
       expect(thrownError.supportedVersions).toContain("4.20");
       expect(thrownError.supportedVersions).toContain("4.21");
+      expect(thrownError.supportedVersions).toContain("4.22");
     });
 
-    it("does not return a validation result for 4.22", () => {
+    it("does not return a validation result for 4.23", () => {
       const state = {
         hostInventory: {
           nodes: [{ role: "master", hostname: "m-0", primary: {} }],
           apiVip: "1.2.3.4",
           ingressVip: "1.2.3.5"
         },
-        version: { selectedMinor: "4.22" },
+        version: { selectedMinor: "4.23" },
         blueprint: { platform: "Bare Metal" },
         methodology: { method: "Agent-Based Installer" }
       };

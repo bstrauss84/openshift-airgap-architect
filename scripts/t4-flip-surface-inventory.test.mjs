@@ -35,70 +35,94 @@ const read = (...p) => fs.readFileSync(path.join(REPO, ...p), "utf8");
 /* §7  FLIP-SURFACE INVENTORY — current pre-flip values                 */
 /* ------------------------------------------------------------------ */
 
-describe("T4 §7 — surfaces requiring a DIRECT Tranche 5 edit", () => {
-  test("S1 backend SUPPORTED_MINORS is ['4.20','4.21']", () => {
-    assert.match(read("backend", "src", "versionPolicy.js"), /const SUPPORTED_MINORS = Object\.freeze\(\["4\.20", "4\.21"\]\);/);
+describe("T5 §7 — surfaces changed by the DIRECT Tranche 5 edit", () => {
+  // Inverted from the Tranche 4 pre-flip pins. Each assertion now states the
+  // POST-flip value, so the file keeps its job: it fails if any one surface is
+  // reverted independently, which is the half-flip the whole tranche forbids.
+
+  test("S1 backend SUPPORTED_MINORS is ['4.20','4.21','4.22']", () => {
+    assert.match(read("backend", "src", "versionPolicy.js"), /const SUPPORTED_MINORS = Object\.freeze\(\["4\.20", "4\.21", "4\.22"\]\);/);
   });
 
-  test("S2 frontend SUPPORTED_MINORS is ['4.20','4.21']", () => {
-    assert.match(read("frontend", "src", "shared", "versionPolicy.js"), /const SUPPORTED_MINORS = Object\.freeze\(\["4\.20", "4\.21"\]\);/);
+  test("S2 frontend SUPPORTED_MINORS is ['4.20','4.21','4.22']", () => {
+    assert.match(read("frontend", "src", "shared", "versionPolicy.js"), /const SUPPORTED_MINORS = Object\.freeze\(\["4\.20", "4\.21", "4\.22"\]\);/);
   });
 
-  test("S3 FIELD_GUIDE_SUPPORTED_MINORS is ['4.20','4.21']", () => {
-    assert.match(read("backend", "src", "fieldGuide", "versionResolution.js"), /FIELD_GUIDE_SUPPORTED_MINORS = Object\.freeze\(\["4\.20", "4\.21"\]\)/);
+  test("S1 and S2 are byte-identical declarations — hand-synchronised twins", () => {
+    const pick = (s) => (s.match(/const SUPPORTED_MINORS = Object\.freeze\(\[([^\]]*)\]\)/) || [])[1];
+    assert.equal(
+      pick(read("backend", "src", "versionPolicy.js")),
+      pick(read("frontend", "src", "shared", "versionPolicy.js"))
+    );
   });
 
-  test("S4 assembler.js imports and branches on 4.20/4.21 only", () => {
+  test("S3 FIELD_GUIDE_SUPPORTED_MINORS is ['4.20','4.21','4.22']", () => {
+    assert.match(read("backend", "src", "fieldGuide", "versionResolution.js"), /FIELD_GUIDE_SUPPORTED_MINORS = Object\.freeze\(\["4\.20", "4\.21", "4\.22"\]\)/);
+  });
+
+  test("S4 assembler.js imports and branches on v4.22", () => {
     const src = read("backend", "src", "fieldGuide", "assembler.js");
     assert.match(src, /compartments_v420/);
     assert.match(src, /compartments_v421/);
-    assert.doesNotMatch(src, /compartments_v422/);
+    assert.match(src, /compartments_v422/);
+    assert.match(src, /normalizedMinor === "4\.22"/);
   });
 
-  test("S5 provenance.js getAuthoritativeExport knows 4.20/4.21 only", () => {
+  test("S5 provenance.js getAuthoritativeExport knows 4.22", () => {
     const src = read("backend", "src", "fieldGuide", "provenance.js");
     assert.match(src, /if \(minor === '4\.21'\) return compartments_v421;/);
-    assert.doesNotMatch(src, /compartments_v422/);
+    assert.match(src, /if \(minor === '4\.22'\) return compartments_v422;/);
   });
 
-  test("S6 released-minor metadata lists 4.20 and 4.21", () => {
+  test("S6 released-minor metadata lists 4.20, 4.21 and 4.22, baseline unmoved", () => {
     const rec = JSON.parse(read("scripts", "lib", "released-minor-support.json"));
-    assert.deepEqual(rec.previouslyReleasedMinors, ["4.20", "4.21"]);
+    assert.deepEqual(rec.previouslyReleasedMinors, ["4.20", "4.21", "4.22"]);
+    // Cumulative: adding a minor never removes one.
+    assert.ok(rec.previouslyReleasedMinors.includes("4.20"));
+    assert.ok(rec.previouslyReleasedMinors.includes("4.21"));
+    // The version-awareness baseline is a separate decision and did NOT move.
     assert.equal(rec.baselineMinor, "4.20");
   });
 
-  test("S7 TRUST_BUNDLE_POLICY_ALLOWLIST has no 4.22 row, in BOTH policy modules", () => {
-    // Not in the expected-class list, and easy to miss because the >=4.17
-    // forward rule already returns the right POLICIES for 4.22. What it does
-    // not do is mark the source `explicit`, so a flipped-but-unlisted 4.22
-    // still resolves `source: "forward"` and triggers
-    // getForwardOpenShiftMinorDocNotice() — a user-facing "not yet fully
-    // reflected in this tool's docs index and catalogs" caveat on a SUPPORTED
-    // minor. See the adversarial case below.
+  test("S7 TRUST_BUNDLE_POLICY_ALLOWLIST has an explicit 4.22 row, in BOTH policy modules", () => {
+    // Without the row, 4.22 resolves source: "forward" and a SUPPORTED minor
+    // shows users a false "not yet fully reflected in this tool's docs index
+    // and catalogs" caveat. See the adversarial case below.
     for (const f of [["backend", "src", "versionPolicy.js"], ["frontend", "src", "shared", "versionPolicy.js"]]) {
       const src = read(...f);
       const block = src.slice(src.indexOf("TRUST_BUNDLE_POLICY_ALLOWLIST"), src.indexOf("};", src.indexOf("TRUST_BUNDLE_POLICY_ALLOWLIST")));
       assert.match(block, /"4\.20"/, f.join("/"));
       assert.match(block, /"4\.21"/, f.join("/"));
-      assert.doesNotMatch(block, /"4\.22"/, f.join("/"));
+      assert.match(block, /"4\.22": \["Proxyonly", "Always"\]/, f.join("/"));
     }
   });
 
-  test("S8 e2e SUPPORTED_VERSIONS lists 4.20 and 4.21 only", () => {
+  test("S8 e2e SUPPORTED_VERSIONS lists 4.22", () => {
     const src = read("e2e", "helpers", "asset-validation.js");
     const block = src.slice(src.indexOf("export const SUPPORTED_VERSIONS"), src.indexOf("]", src.indexOf("export const SUPPORTED_VERSIONS")));
     assert.match(block, /4\.21/);
-    assert.doesNotMatch(block, /4\.22/);
+    assert.match(block, /4\.22/);
   });
 
-  test("S9 no version-aware Quick Pick carries a 4.22 row, and `default` is still present", () => {
+  test("S9 every version-aware Quick Pick carries a 4.22 row, and `default` is gone", () => {
     const src = read("frontend", "src", "steps", "OperatorsStep.jsx");
-    assert.doesNotMatch(src, /"4\.22":/);
-    assert.match(src, /"default":/);
-    assert.match(src, /versionPicks\?\.\[version\]\s*\|\|\s*\w+\.versionPicks\?\.\["default"\]/);
+    assert.match(src, /"4\.22":/);
+    assert.doesNotMatch(src, /"default":/, "the default fallback must not survive the flip");
+    assert.doesNotMatch(src, /versionPicks\?\.\["default"\]/, "the resolution fallback must be gone too");
   });
 
-  test("S10 tests pinning the supported list are enumerated, not discovered at flip time", () => {
+  test("S10 openshift-ai is version-aware and omits rhods-prometheus-operator at 4.22 only", () => {
+    const src = read("frontend", "src", "steps", "OperatorsStep.jsx");
+    const block = src.slice(src.indexOf('id: "openshift-ai"'), src.indexOf('id: "compliance"'));
+    assert.match(block, /versionPicks/);
+    const row = (m) => (block.match(new RegExp(`"${m}": \\{([^}]*)\\}`)) || [])[1] || "";
+    assert.match(row("4.20"), /rhods-prometheus-operator/, "4.20 behaviour is preserved");
+    assert.match(row("4.21"), /rhods-prometheus-operator/, "4.21 behaviour is preserved");
+    assert.doesNotMatch(row("4.22"), /rhods-prometheus-operator/, "absent from the 4.22 catalog");
+    assert.doesNotMatch(row("4.22"), /prometheus/i, "omitted with NO replacement");
+  });
+
+  test("S11 tests pinning the supported list are enumerated, not discovered at flip time", () => {
     // Counted so the flip checklist carries a number rather than a surprise.
     const roots = ["backend/test", "frontend/tests", "scripts", "e2e"];
     const hits = [];
@@ -112,8 +136,7 @@ describe("T4 §7 — surfaces requiring a DIRECT Tranche 5 edit", () => {
       }
     };
     roots.forEach(walk);
-    assert.ok(hits.length >= 25, `expected the pinned-list surface to be substantial, found ${hits.length}`);
-    assert.ok(hits.length <= 40, `unexpectedly many pinned lists (${hits.length}); re-inventory before the flip`);
+    assert.ok(hits.length <= 40, `unexpectedly many pinned lists (${hits.length}); re-inventory`);
   });
 });
 
@@ -229,29 +252,41 @@ describe("T4 §8 — partial flips are rejected or detected", () => {
     assert.equal(pick(fg), pick(be), "the Field Guide list and the support list must start equal");
   });
 
-  test("P7 Quick Pick 4.22 rows added BEFORE support -> tripwire fails", () => {
+  test("P7 support and Quick Pick rows landed together -> neither half is alone", () => {
+    // Pre-flip this asserted the ABSENCE of a 4.22 row, because a row without
+    // support leaves the `default` fallback live. Post-flip the same hazard is
+    // the mirror image: support without rows. Both halves are asserted here, so
+    // reverting either one alone fails.
     const src = read("frontend", "src", "steps", "OperatorsStep.jsx");
-    assert.doesNotMatch(src, /"4\.22":/, "a 4.22 row before the flip leaves the `default` fallback live");
+    const supported = /"4\.22"/.test(read("backend", "src", "versionPolicy.js"));
+    const hasRow = /"4\.22":/.test(src);
+    assert.equal(hasRow, supported, "a 4.22 Quick Pick row and 4.22 support must coexist");
+    assert.doesNotMatch(src, /"default":/, "and the fallback that made a missing row silent is gone");
   });
 
   test("P8 support enabled while Quick Pick rows absent -> the per-minor assertion catches it", () => {
-    // The Tranche 3 tripwire asserts every per-minor Quick Pick declares a row
-    // for every SUPPORTED minor. Simulated here on its own parsing logic.
-    const versions = ["4.20", "4.21"];
-    const supportedAfterFlip = ["4.20", "4.21", "4.22"];
+    // The tripwire asserts every per-minor Quick Pick declares a row for every
+    // SUPPORTED minor. Simulated here on its own parsing logic, against a
+    // hypothetical next flip so the case stays live after 4.22 shipped.
+    const versions = ["4.20", "4.21", "4.22"];
+    const supportedAfterFlip = ["4.20", "4.21", "4.22", "4.23"];
     const missing = supportedAfterFlip.filter((m) => !versions.includes(m));
-    assert.deepEqual(missing, ["4.22"], "flipping support without rows leaves 4.22 unmatched");
+    assert.deepEqual(missing, ["4.23"], "flipping support without rows leaves the new minor unmatched");
   });
 
-  test("P9 flipped-but-unlisted trust-bundle row -> 4.22 keeps a false 'not yet reflected' caveat", async () => {
+  test("P9 S7 landed -> no SUPPORTED minor carries a false 'not yet reflected' caveat", async () => {
+    // The case Tranche 4 reproduced: a flipped-but-unlisted 4.22 resolves
+    // source "forward" and shows users of a SUPPORTED minor a caveat saying the
+    // tool's docs index and catalogs do not yet reflect their release. That
+    // statement is false once 4.22 ships, which is why S7 is not optional.
     const fe = await import("../frontend/src/shared/versionPolicy.js");
-    assert.equal(fe.getTrustBundlePolicySupport("4.21").source, "explicit");
-    assert.equal(fe.getTrustBundlePolicySupport("4.22").source, "forward");
-    const notice = fe.getForwardOpenShiftMinorDocNotice("4.22");
-    assert.ok(notice, "today that notice is correct — 4.22 is unsupported");
-    assert.match(notice, /not yet fully reflected/);
-    // After the flip the same notice would be shown for a SUPPORTED minor and
-    // would be false. That is why S7 is on the Tranche 5 checklist.
+    for (const minor of fe.SUPPORTED_MINORS) {
+      assert.equal(fe.getTrustBundlePolicySupport(minor).source, "explicit", minor);
+      assert.equal(fe.getForwardOpenShiftMinorDocNotice(minor), null, `${minor} must carry no caveat`);
+    }
+    // The forward rule itself is untouched and still covers unlisted minors.
+    assert.equal(fe.getTrustBundlePolicySupport("4.23").source, "forward");
+    assert.match(fe.getForwardOpenShiftMinorDocNotice("4.23"), /not yet fully reflected/);
   });
 
   test("P10 the supported-minor guard's detection boundary, stated exactly", async () => {

@@ -724,8 +724,8 @@ describe("HB-004 catalog-driven replication safety", () => {
     expect(keys.has("primary.type")).toBe(true);
   });
 
-  it("4.22 unsupported version throws deterministically from getCatalogForScenario", () => {
-    expect(() => getCatalogForScenario("bare-metal-agent", "4.22")).toThrow(/not supported/);
+  it("4.23 unsupported version throws deterministically from getCatalogForScenario", () => {
+    expect(() => getCatalogForScenario("bare-metal-agent", "4.23")).toThrow(/not supported/);
   });
 
   it("4.22 getAvailableReplicateKeys with all-false visibility returns empty set", () => {

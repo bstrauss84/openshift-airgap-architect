@@ -2,11 +2,11 @@
  * Test: Complete Unsupported Version Recovery (DOC-102 Slice 5F.13)
  *
  * Verifies all unsupported version boundaries work correctly:
- * 1. VersionSupportGate blocks AppShell mount for 4.22
- * 2. Manual 4.22 entry is rejected with clear error
+ * 1. VersionSupportGate blocks AppShell mount for 4.23
+ * 2. Manual 4.23 entry is rejected with clear error
  * 3. Cincinnati channel classification separates newer vs older
- * 4. Auto-selection never picks 4.22
- * 5. Persisted 4.22 shows recovery UI (not generic error)
+ * 4. Auto-selection never picks 4.23
+ * 5. Persisted 4.23 shows recovery UI (not generic error)
  */
 
 import React from 'react';
@@ -31,17 +31,17 @@ global.fetch = async (url) => {
   });
 
   if (url.includes('/api/state')) {
-    // Return 4.22 state for the persistence test
-    if (testContext === 'persisted-4.22') {
+    // Return 4.23 state for the persistence test
+    if (testContext === 'persisted-4.23') {
       return mockResponse({
         version: {
           _schemaVersion: 3,
-          selectedMinor: '4.22',
-          selectedPatch: '4.22.0',
-          selectedChannel: 'stable-4.22',
+          selectedMinor: '4.23',
+          selectedPatch: '4.23.0',
+          selectedChannel: 'stable-4.23',
           locked: true
         },
-        release: { channel: '4.22', patchVersion: '4.22.0', confirmed: true },
+        release: { channel: '4.23', patchVersion: '4.23.0', confirmed: true },
         blueprint: { platform: 'Bare Metal', arch: 'x86_64' },
         methodology: { method: 'IPI' }
       });
@@ -74,7 +74,7 @@ global.fetch = async (url) => {
   }
   if (url.includes('/api/cincinnati')) {
     return mockResponse({
-      channels: ['4.20', '4.21', '4.22'],
+      channels: ['4.20', '4.21', '4.22', '4.23'],
       timestamp: Date.now(),
     });
   }
@@ -96,26 +96,26 @@ describe('Complete unsupported version recovery', () => {
     vi.restoreAllMocks();
   });
 
-  it('Cincinnati classification: 4.17-4.19 = older, 4.20-4.21 = supported, 4.22 = newer', () => {
-    const upstream = ['4.17', '4.18', '4.19', '4.20', '4.21', '4.22'];
+  it('Cincinnati classification: 4.17-4.19 = older, 4.20-4.22 = supported, 4.23 = newer', () => {
+    const upstream = ['4.17', '4.18', '4.19', '4.20', '4.21', '4.22', '4.23'];
     const { supported, newerUnsupported, olderOutOfScope } = classifyChannels(upstream);
 
-    expect(supported).toEqual(['4.20', '4.21']);
-    expect(newerUnsupported).toEqual(['4.22']);
+    expect(supported).toEqual(['4.20', '4.21', '4.22']);
+    expect(newerUnsupported).toEqual(['4.23']);
     expect(olderOutOfScope).toEqual(['4.17', '4.18', '4.19']);
   });
 
-  it('Auto-selection picks 4.21 (newest supported), never 4.22', () => {
-    const upstream = ['4.20', '4.21', '4.22'];
+  it('Auto-selection picks 4.22 (newest supported), never 4.23', () => {
+    const upstream = ['4.20', '4.21', '4.22', '4.23'];
     const newest = getNewestSupportedChannel(upstream);
-    expect(newest).toBe('4.21');
+    expect(newest).toBe('4.22');
   });
 
-  it('Manual 4.22 entry rejected with clear error', () => {
-    const result = validateManualOpenShiftRelease('4.22', '4.22.0');
+  it('Manual 4.23 entry rejected with clear error', () => {
+    const result = validateManualOpenShiftRelease('4.23', '4.23.0');
     expect(result.ok).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain('OpenShift 4.22 is not supported');
+    expect(result.errors[0]).toContain('OpenShift 4.23 is not supported');
     expect(result.errors[0]).toContain(SUPPORTED_MINORS.join(', '));
   });
 
@@ -131,9 +131,9 @@ describe('Complete unsupported version recovery', () => {
     expect(result.errors).toEqual([]);
   });
 
-  it('Persisted 4.22 state shows recovery UI (not generic error)', async () => {
-    // Set test context so fetch mock returns 4.22 state
-    testContext = 'persisted-4.22';
+  it('Persisted 4.23 state shows recovery UI (not generic error)', async () => {
+    // Set test context so fetch mock returns 4.23 state
+    testContext = 'persisted-4.23';
 
     render(<App />);
 
@@ -158,7 +158,7 @@ describe('Complete unsupported version recovery', () => {
 
     // Should show recovery buttons - verify they are enabled and usable
     const startOverButton = screen.getByRole('button', { name: /Start Over/i });
-    const switchButton = screen.getByRole('button', { name: /Switch to 4\.21/i });
+    const switchButton = screen.getByRole('button', { name: /Switch to 4\.22/i });
 
     expect(startOverButton).toBeInTheDocument();
     expect(switchButton).toBeInTheDocument();

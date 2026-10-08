@@ -20,6 +20,7 @@ import http from "node:http";
 import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
 import { closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { SUPPORTED_MINORS } from "../src/versionPolicy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -309,43 +310,42 @@ describe('POST /api/state migration boundary validation', () => {
 
   // --- M02: Version-support persistence boundary tests ---
 
-  test('M02: v3 locked 4.22 returns HTTP 422 UNSUPPORTED_VERSION', async () => {
+  test('M02: v3 locked 4.23 returns HTTP 422 UNSUPPORTED_VERSION', async () => {
     await resetState();
 
     const postResult = await postState({
       version: {
         _schemaVersion: 3,
-        selectedMinor: '4.22',
-        selectedPatch: '4.22.1',
-        selectedChannel: 'stable-4.22',
+        selectedMinor: '4.23',
+        selectedPatch: '4.23.1',
+        selectedChannel: 'stable-4.23',
         locked: true
       },
       release: {
-        channel: '4.22',
-        patchVersion: '4.22.1',
+        channel: '4.23',
+        patchVersion: '4.23.1',
         confirmed: true
       }
     });
 
     assert.equal(postResult.status, 422,
-      'POST /api/state must return HTTP 422 for unsupported 4.22');
+      'POST /api/state must return HTTP 422 for unsupported 4.23');
 
     const body = typeof postResult.body === 'string'
       ? JSON.parse(postResult.body) : postResult.body;
     assert.equal(body.code, 'UNSUPPORTED_VERSION',
       'Response must include code: UNSUPPORTED_VERSION');
-    assert.equal(body.requestedVersion, '4.22',
-      'Response must include requestedVersion: 4.22');
+    assert.equal(body.requestedVersion, '4.23',
+      'Response must include requestedVersion: 4.23');
     assert.ok(Array.isArray(body.supportedVersions),
       'Response must include supportedVersions array');
-    assert.ok(
-      body.supportedVersions.includes('4.20') && body.supportedVersions.includes('4.21'),
-      'supportedVersions must include 4.20 and 4.21');
-    assert.equal(body.supportedVersions.length, 2,
-      'supportedVersions must contain exactly 2 entries');
+    // Derived from the policy rather than pinned to a count: this assertion
+    // went stale at the 4.22 flip precisely because it hard-coded 2.
+    assert.deepEqual([...body.supportedVersions].sort(), [...SUPPORTED_MINORS].sort(),
+      'supportedVersions must be exactly the supported set');
   });
 
-  test('M02: v1 legacy state resolving to 4.22 is rejected with HTTP 422', async () => {
+  test('M02: v1 legacy state resolving to 4.23 is rejected with HTTP 422', async () => {
     await resetState();
 
     // Seed a valid 4.20 state WITHOUT version.selectedMinor so the v1 patch's
@@ -367,34 +367,33 @@ describe('POST /api/state migration boundary validation', () => {
     assert.equal(seedState.release.channel, '4.20',
       'Seed must resolve to 4.20 via release.channel');
 
-    // Submit v1 legacy patch (release-only, no version object) that resolves to 4.22
+    // Submit v1 legacy patch (release-only, no version object) that resolves to 4.23
     const postResult = await postState({
       release: {
-        channel: 'stable-4.22',
-        patchVersion: '4.22.3',
+        channel: 'stable-4.23',
+        patchVersion: '4.23.3',
         confirmed: true
       }
     });
 
     assert.equal(postResult.status, 422,
-      'POST /api/state must return HTTP 422 for v1-legacy 4.22');
+      'POST /api/state must return HTTP 422 for v1-legacy 4.23');
 
     const body = typeof postResult.body === 'string'
       ? JSON.parse(postResult.body) : postResult.body;
     assert.equal(body.code, 'UNSUPPORTED_VERSION');
-    assert.equal(body.requestedVersion, '4.22');
+    assert.equal(body.requestedVersion, '4.23');
     assert.ok(Array.isArray(body.supportedVersions),
       'Response must include supportedVersions array');
-    assert.ok(
-      body.supportedVersions.includes('4.20') && body.supportedVersions.includes('4.21'),
-      'supportedVersions must include 4.20 and 4.21');
-    assert.equal(body.supportedVersions.length, 2,
-      'supportedVersions must contain exactly 2 entries');
+    // Derived from the policy rather than pinned to a count: this assertion
+    // went stale at the 4.22 flip precisely because it hard-coded 2.
+    assert.deepEqual([...body.supportedVersions].sort(), [...SUPPORTED_MINORS].sort(),
+      'supportedVersions must be exactly the supported set');
 
     // Verify prior state survived via GET
     const afterState = await getState();
     assert.equal(afterState.release.channel, '4.20',
-      'release.channel must remain 4.20 after v1-legacy 4.22 rejection');
+      'release.channel must remain 4.20 after v1-legacy 4.23 rejection');
     assert.equal(afterState.version.selectedPatch, '4.20.17',
       'Patch must remain 4.20.17');
     assert.equal(afterState.blueprint.clusterName, 'v1-legacy-survivor',
@@ -403,12 +402,12 @@ describe('POST /api/state migration boundary validation', () => {
     // Verify via direct database
     const dbState = getStateFromDatabase();
     assert.equal(dbState.release.channel, '4.20',
-      'Database release.channel must remain 4.20 after v1-legacy 4.22 rejection');
+      'Database release.channel must remain 4.20 after v1-legacy 4.23 rejection');
     assert.equal(dbState.version.selectedPatch, '4.20.17',
       'Database patch must remain 4.20.17');
   });
 
-  test('M02: v2 legacy state resolving to 4.22 is rejected with HTTP 422', async () => {
+  test('M02: v2 legacy state resolving to 4.23 is rejected with HTTP 422', async () => {
     await resetState();
 
     // Seed a distinguishable valid 4.21 state first
@@ -424,38 +423,37 @@ describe('POST /api/state migration boundary validation', () => {
     });
     assert.equal(seedResult.status, 200, 'Seeding 4.21 must succeed');
 
-    // Submit v2 legacy state that resolves to 4.22
+    // Submit v2 legacy state that resolves to 4.23
     const postResult = await postState({
       release: {
-        channel: '4.22',
-        patchVersion: '4.22.2',
+        channel: '4.23',
+        patchVersion: '4.23.2',
         confirmed: false
       },
       version: {
-        selectedMinor: '4.22',
-        selectedPatch: '4.22.2'
+        selectedMinor: '4.23',
+        selectedPatch: '4.23.2'
       }
     });
 
     assert.equal(postResult.status, 422,
-      'POST /api/state must return HTTP 422 for v2-legacy 4.22');
+      'POST /api/state must return HTTP 422 for v2-legacy 4.23');
 
     const body = typeof postResult.body === 'string'
       ? JSON.parse(postResult.body) : postResult.body;
     assert.equal(body.code, 'UNSUPPORTED_VERSION');
-    assert.equal(body.requestedVersion, '4.22');
+    assert.equal(body.requestedVersion, '4.23');
     assert.ok(Array.isArray(body.supportedVersions),
       'Response must include supportedVersions array');
-    assert.ok(
-      body.supportedVersions.includes('4.20') && body.supportedVersions.includes('4.21'),
-      'supportedVersions must include 4.20 and 4.21');
-    assert.equal(body.supportedVersions.length, 2,
-      'supportedVersions must contain exactly 2 entries');
+    // Derived from the policy rather than pinned to a count: this assertion
+    // went stale at the 4.22 flip precisely because it hard-coded 2.
+    assert.deepEqual([...body.supportedVersions].sort(), [...SUPPORTED_MINORS].sort(),
+      'supportedVersions must be exactly the supported set');
 
     // Verify prior state survived via GET
     const afterState = await getState();
     assert.equal(afterState.version.selectedMinor, '4.21',
-      'State must remain 4.21 after v2-legacy 4.22 rejection');
+      'State must remain 4.21 after v2-legacy 4.23 rejection');
     assert.equal(afterState.version.selectedPatch, '4.21.12',
       'Patch must remain 4.21.12');
     assert.equal(afterState.blueprint.clusterName, 'v2-legacy-survivor',
@@ -464,12 +462,12 @@ describe('POST /api/state migration boundary validation', () => {
     // Verify via direct database
     const dbState = getStateFromDatabase();
     assert.equal(dbState.version.selectedMinor, '4.21',
-      'Database must remain 4.21 after v2-legacy 4.22 rejection');
+      'Database must remain 4.21 after v2-legacy 4.23 rejection');
     assert.equal(dbState.version.selectedPatch, '4.21.12',
       'Database patch must remain 4.21.12');
   });
 
-  test('M02: prior valid 4.21 state survives 4.22 rejection (GET + database)', async () => {
+  test('M02: prior valid 4.21 state survives 4.23 rejection (GET + database)', async () => {
     await resetState();
 
     // Seed valid 4.21 state
@@ -488,28 +486,28 @@ describe('POST /api/state migration boundary validation', () => {
     const before = await getState();
     assert.equal(before.version.selectedMinor, '4.21');
 
-    // Attempt 4.22 — must be rejected
+    // Attempt 4.23 — must be rejected
     const rejectResult = await postState({
       version: {
         _schemaVersion: 3,
-        selectedMinor: '4.22',
-        selectedPatch: '4.22.1',
+        selectedMinor: '4.23',
+        selectedPatch: '4.23.1',
         locked: true
       }
     });
-    assert.equal(rejectResult.status, 422, '4.22 must be rejected');
+    assert.equal(rejectResult.status, 422, '4.23 must be rejected');
 
     // Verify via GET
     const afterState = await getState();
     assert.equal(afterState.version.selectedMinor, '4.21',
-      'State must remain 4.21 after 4.22 rejection');
+      'State must remain 4.21 after 4.23 rejection');
     assert.equal(afterState.version.selectedPatch, '4.21.5',
       'Patch must remain 4.21.5');
 
     // Verify via direct database
     const dbState = getStateFromDatabase();
     assert.equal(dbState.version.selectedMinor, '4.21',
-      'Database must remain 4.21 after 4.22 rejection');
+      'Database must remain 4.21 after 4.23 rejection');
   });
 
   test('M02: supported 4.20 write succeeds', async () => {
@@ -548,19 +546,19 @@ describe('POST /api/state migration boundary validation', () => {
     assert.equal(postResult.body.version.selectedMinor, '4.21');
   });
 
-  test('M02: 4.21 write succeeds after rejected 4.22 attempt', async () => {
+  test('M02: 4.21 write succeeds after rejected 4.23 attempt', async () => {
     await resetState();
 
-    // Attempt 4.22 — must be rejected
+    // Attempt 4.23 — must be rejected
     const rejectResult = await postState({
       version: {
         _schemaVersion: 3,
-        selectedMinor: '4.22',
-        selectedPatch: '4.22.1',
+        selectedMinor: '4.23',
+        selectedPatch: '4.23.1',
         locked: true
       }
     });
-    assert.equal(rejectResult.status, 422, '4.22 must be rejected');
+    assert.equal(rejectResult.status, 422, '4.23 must be rejected');
 
     // Follow with valid 4.21 — must succeed
     const acceptResult = await postState({
@@ -573,7 +571,7 @@ describe('POST /api/state migration boundary validation', () => {
       release: { channel: '4.21', patchVersion: '4.21.5', confirmed: true }
     });
     assert.equal(acceptResult.status, 200,
-      'POST /api/state must accept 4.21 after 4.22 rejection');
+      'POST /api/state must accept 4.21 after 4.23 rejection');
     assert.equal(acceptResult.body.version.selectedMinor, '4.21');
 
     // Verify persisted
@@ -581,7 +579,7 @@ describe('POST /api/state migration boundary validation', () => {
     assert.equal(state.version.selectedMinor, '4.21');
   });
 
-  test('M02: rejected 4.22 is not normalized or persisted as 4.21 or 4.20', async () => {
+  test('M02: rejected 4.23 is not normalized or persisted as 4.21 or 4.20', async () => {
     await resetState();
 
     // Seed known-good 4.20
@@ -596,25 +594,25 @@ describe('POST /api/state migration boundary validation', () => {
     });
     assert.equal(seedResult.status, 200, 'Seeding 4.20 must succeed');
 
-    // Attempt 4.22
+    // Attempt 4.23
     const rejectResult = await postState({
       version: {
         _schemaVersion: 3,
-        selectedMinor: '4.22',
-        selectedPatch: '4.22.1',
+        selectedMinor: '4.23',
+        selectedPatch: '4.23.1',
         locked: true
       }
     });
-    assert.equal(rejectResult.status, 422, '4.22 must be rejected');
+    assert.equal(rejectResult.status, 422, '4.23 must be rejected');
 
     // Verify state is still 4.20 — no silent normalization
     const dbState = getStateFromDatabase();
     assert.equal(dbState.version.selectedMinor, '4.20',
-      'State must remain 4.20 — no silent normalization of 4.22');
-    assert.ok(dbState.version.selectedMinor !== '4.22',
-      '4.22 must never be persisted');
+      'State must remain 4.20 — no silent normalization of 4.23');
+    assert.ok(dbState.version.selectedMinor !== '4.23',
+      '4.23 must never be persisted');
     assert.ok(dbState.version.selectedMinor !== '4.21',
-      '4.22 must not be silently normalized to 4.21');
+      '4.23 must not be silently normalized to 4.21');
   });
 
   after(async () => {

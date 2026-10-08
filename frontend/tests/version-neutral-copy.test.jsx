@@ -219,11 +219,12 @@ describe('DOC-107 T2: AboutModal docs link uses current supported version', () =
     expect(link.href).toContain(`openshift_container_platform/${newest}/`);
   });
 
-  it('OpenShift Documentation link reflects established 4.21 supported-minor policy', () => {
-    expect(getNewestSupportedMinor()).toBe('4.21');
+  it('OpenShift Documentation link reflects established 4.22 supported-minor policy', () => {
+    expect(getNewestSupportedMinor()).toBe('4.22');
     render(<AboutModal isOpen={true} onClose={() => {}} />);
     const link = screen.getByRole('link', { name: /OpenShift Documentation/i });
-    expect(link.href).toContain('openshift_container_platform/4.21/');
+    expect(link.href).toContain('openshift_container_platform/4.22/');
+    expect(link.href).not.toContain('openshift_container_platform/4.21/');
     expect(link.href).not.toContain('openshift_container_platform/4.20/');
   });
 });

@@ -88,7 +88,7 @@ const DEAD_BOOK_PATHS = [
   "/html/post-installation_configuration/",
 ];
 
-describe("Field Guide v4.22 — source tree (Tranche 2; 4.22 still unsupported)", () => {
+describe("Field Guide v4.22 — source tree and runtime wiring (Tranche 2 authored, Tranche 5 wired)", () => {
   describe("structural completeness", () => {
     it("the v4.22 module family matches the v4.21 family file for file", () => {
       assert.deepEqual(sourceFiles(V422_DIR), sourceFiles(V421_DIR));
@@ -302,30 +302,47 @@ describe("Field Guide v4.22 — source tree (Tranche 2; 4.22 still unsupported)"
     });
   });
 
-  describe("4.22 is NOT wired into any runtime path", () => {
-    it("FIELD_GUIDE_SUPPORTED_MINORS excludes 4.22", () => {
-      assert.ok(!FIELD_GUIDE_SUPPORTED_MINORS.includes("4.22"));
-      assert.deepEqual([...FIELD_GUIDE_SUPPORTED_MINORS], ["4.20", "4.21"]);
+  // Tranche 2 authored the v4.22 compartments but deliberately left them
+  // unreachable; this block pinned that. Tranche 5 wired them in as part of the
+  // atomic support flip, so every assertion here is inverted — S3, S4 and S5
+  // together, which is exactly the set that must never land apart.
+  describe("4.22 IS wired into every runtime path (S3, S4, S5)", () => {
+    it("S3: FIELD_GUIDE_SUPPORTED_MINORS includes 4.22", () => {
+      assert.ok(FIELD_GUIDE_SUPPORTED_MINORS.includes("4.22"));
+      assert.deepEqual([...FIELD_GUIDE_SUPPORTED_MINORS], ["4.20", "4.21", "4.22"]);
     });
 
-    it("getAuthoritativeExport('4.22') does not resolve to the v4.22 compartments", () => {
-      assert.notEqual(getAuthoritativeExport("4.22"), compartments_v422);
+    it("S5: getAuthoritativeExport('4.22') resolves to the v4.22 compartments", () => {
+      // Object identity, not deep equality: provenance certification keys off
+      // the identity of the authored export, so a copy would not be accepted.
+      assert.equal(getAuthoritativeExport("4.22"), compartments_v422);
     });
 
-    it("selectAndOrder rejects 4.22", () => {
-      assert.throws(() => selectAndOrder("4.22", {}), /4\.22/);
+    it("S4: selectAndOrder accepts 4.22 and returns the v4.22 compartments", () => {
+      const selected = selectAndOrder("4.22", {});
+      assert.ok(Array.isArray(selected));
+      assert.ok(selected.length > 0, "4.22 must select compartments, not an empty guide");
+      for (const c of selected) {
+        assert.equal(c.version, "4.22", `compartment ${c.id} is not a 4.22 compartment`);
+      }
     });
 
-    it("assembler.js does not import or branch on v4.22", () => {
+    it("S4: assembler.js imports and branches on v4.22", () => {
       const src = readFileSync(join(FG_DIR, "assembler.js"), "utf8");
-      assert.doesNotMatch(src, /v4\.22/);
-      assert.doesNotMatch(src, /compartments_v422/);
+      assert.match(src, /compartments_v422/);
+      assert.match(src, /normalizedMinor === "4\.22"/);
     });
 
-    it("provenance.js does not import or branch on v4.22", () => {
+    it("S5: provenance.js imports and branches on v4.22", () => {
       const src = readFileSync(join(FG_DIR, "provenance.js"), "utf8");
-      assert.doesNotMatch(src, /v4\.22\//);
-      assert.doesNotMatch(src, /compartments_v422/);
+      assert.match(src, /compartments_v422/);
+      assert.match(src, /minor === '4\.22'/);
+    });
+
+    it("an unsupported minor is still rejected — the gate moved, it did not go", () => {
+      assert.ok(!FIELD_GUIDE_SUPPORTED_MINORS.includes("4.23"));
+      assert.throws(() => selectAndOrder("4.23", {}), /4\.23/);
+      assert.equal(getAuthoritativeExport("4.23"), null);
     });
 
     it("the v4.21 tree is unchanged by the presence of v4.22", () => {

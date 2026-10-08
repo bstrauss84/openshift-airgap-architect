@@ -197,11 +197,14 @@ describe("cumulative minor-support guards", () => {
     });
   });
 
-  test("live repository: 4.20 and 4.21 supported, 4.20 is the baseline, 4.22 absent", async () => {
+  test("live repository: 4.20, 4.21 and 4.22 supported, 4.20 is still the baseline", async () => {
     const r = await validateSupportedMinors(REPO_ROOT);
     assert.strictEqual(r.ok, true, r.errors.join("\n"));
-    assert.deepStrictEqual([...r.supported], ["4.20", "4.21"]);
+    assert.deepStrictEqual([...r.supported], ["4.20", "4.21", "4.22"]);
+    // The version-awareness baseline is a separate, human-owned decision and
+    // deliberately did NOT move with the 4.22 flip: a field introduced in 4.21
+    // must still show no "New in OpenShift" badge at 4.22.
     assert.strictEqual(r.baselineMinor, "4.20");
-    assert.ok(!r.supported.includes("4.22"), "4.22 must remain unsupported during 0A-1");
+    assert.ok(!r.supported.includes("4.23"), "4.23 must remain unsupported");
   });
 });

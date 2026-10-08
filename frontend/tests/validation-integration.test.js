@@ -643,7 +643,7 @@ describe("Validation Integration - End-to-End Validation Flow", () => {
       expect(result.errors.some(e => e.includes("OpenShift 4.21"))).toBe(false);
     });
 
-    it("direct validation with explicit unsupported 4.22 cannot cause version-specific Nutanix messages", () => {
+    it("direct validation at a supported 4.22 cannot cause version-specific Nutanix messages", () => {
       const state = {
         ...makeNutanixState({ credentialsMode: "Passthrough", controlPlaneReplicas: 5 }),
         version: { selectedMinor: "4.22", selectedPatch: "4.22.0" },
@@ -840,12 +840,12 @@ describe("Validation Integration - End-to-End Validation Flow", () => {
       expect(result.errors.some(e => e.includes(`${label} doc`))).toBe(false);
     });
 
-    it("4.22 unsupported-version boundary preserved", () => {
+    it("unsupported-version boundary preserved — 4.23 after the 4.22 flip", () => {
       const partialRoles = AWS_SUBNET_ROLES_REQUIRED_EXTERNAL.slice(1);
       const entries = [{ id: "subnet-aaa", roles: partialRoles }];
       const state = {
         ...makeAwsState(entries),
-        version: { selectedMinor: "4.22", selectedPatch: "4.22.0" },
+        version: { selectedMinor: "4.23", selectedPatch: "4.23.0" },
       };
       let thrownError;
       try {
@@ -854,9 +854,10 @@ describe("Validation Integration - End-to-End Validation Flow", () => {
         thrownError = e;
       }
       expect(thrownError).toBeInstanceOf(UnsupportedVersionError);
-      expect(thrownError.requestedVersion).toBe("4.22");
+      expect(thrownError.requestedVersion).toBe("4.23");
       expect(thrownError.supportedVersions).toContain("4.20");
       expect(thrownError.supportedVersions).toContain("4.21");
+      expect(thrownError.supportedVersions).toContain("4.22");
     });
 
     it("validation result remains a flat array of strings", () => {

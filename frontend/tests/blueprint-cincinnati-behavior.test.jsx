@@ -89,7 +89,7 @@ describe("BlueprintStep Cincinnati", () => {
     return render(<Wrapper />);
   }
 
-  function assertNo422InUpdates(updates) {
+  function assertNo423InUpdates(updates) {
     expect(updates.length).toBeGreaterThan(0);
     const allValues = updates.flatMap(({ patch, state }) => {
       const fromPatch = [
@@ -114,15 +114,15 @@ describe("BlueprintStep Cincinnati", () => {
       ];
       return [...fromPatch, ...fromState];
     });
-    const contains422 = allValues.some((v) => {
+    const contains423 = allValues.some((v) => {
       const str = String(v || "");
-      return str === "4.22" || str.startsWith("4.22.") || str === "stable-4.22";
+      return str === "4.23" || str.startsWith("4.23.") || str === "stable-4.23";
     });
-    expect(contains422).toBe(false);
+    expect(contains423).toBe(false);
   }
 
   it("lists minor channels newest-first and defaults to newest on load", async () => {
-    const channelList = { channels: ["4.20", "4.21", "4.22"] };
+    const channelList = { channels: ["4.20", "4.21", "4.22", "4.23"] };
     mockCincinnatiApis(channelList);
 
     const initial = {
@@ -137,20 +137,20 @@ describe("BlueprintStep Cincinnati", () => {
     const minorSelect = await waitFor(() => screen.getByLabelText(/Minor channel/i));
     await waitFor(() => {
       const opts = [...minorSelect.querySelectorAll("option")].map((o) => o.value).filter(Boolean);
-      expect(opts).toEqual(["4.21", "4.20"]);
+      expect(opts).toEqual(["4.22", "4.21", "4.20"]);
     });
-    expect(minorSelect.value).toBe("4.21");
+    expect(minorSelect.value).toBe("4.22");
 
     const patchSelect = screen.getByLabelText(/Patch version/i);
     await waitFor(() => {
-      expect(patchSelect.value).toBe("4.21.1");
+      expect(patchSelect.value).toBe("4.22.1");
     });
 
-    assertNo422InUpdates(updates);
+    assertNo423InUpdates(updates);
   });
 
   it("Update keeps user-selected minor when followLatestMinor is false", async () => {
-    const channelList = { channels: ["4.20", "4.21", "4.22"] };
+    const channelList = { channels: ["4.20", "4.21", "4.22", "4.23"] };
     mockCincinnatiApis(channelList);
 
     const initial = {
@@ -165,7 +165,7 @@ describe("BlueprintStep Cincinnati", () => {
     const minorSelect = await waitFor(() => screen.getByLabelText(/Minor channel/i));
     await waitFor(() => expect(minorSelect.value).toBe("4.20"));
 
-    channelList.channels = ["4.20", "4.21", "4.22"];
+    channelList.channels = ["4.20", "4.21", "4.22", "4.23"];
     fireEvent.click(screen.getByRole("button", { name: /^Update$/i }));
 
     await waitFor(() => {
@@ -174,11 +174,11 @@ describe("BlueprintStep Cincinnati", () => {
     const patchSelect = screen.getByLabelText(/Patch version/i);
     await waitFor(() => expect(patchSelect.value).toBe("4.20.1"));
 
-    assertNo422InUpdates(updates);
+    assertNo423InUpdates(updates);
   });
 
   it("Update advances to newest minor when followLatestMinor is true", async () => {
-    const channelList = { channels: ["4.20", "4.21", "4.22"] };
+    const channelList = { channels: ["4.20", "4.21", "4.22", "4.23"] };
     mockCincinnatiApis(channelList);
 
     const initial = {
@@ -193,18 +193,18 @@ describe("BlueprintStep Cincinnati", () => {
     const minorSelect = await waitFor(() => screen.getByLabelText(/Minor channel/i));
     await waitFor(() => expect(minorSelect.value).toBe("4.20"));
 
-    channelList.channels = ["4.20", "4.21", "4.22"];
+    channelList.channels = ["4.20", "4.21", "4.22", "4.23"];
     fireEvent.click(screen.getByRole("button", { name: /^Update$/i }));
 
     await waitFor(() => {
-      expect(minorSelect.value).toBe("4.21");
+      expect(minorSelect.value).toBe("4.22");
     });
     const patchSelect = screen.getByLabelText(/Patch version/i);
     await waitFor(() => {
-      expect(patchSelect.value).toBe("4.21.1");
+      expect(patchSelect.value).toBe("4.22.1");
     });
 
-    assertNo422InUpdates(updates);
+    assertNo423InUpdates(updates);
   });
 
   it("clears patches loading when patch fetch rejects", async () => {

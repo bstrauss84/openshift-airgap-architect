@@ -122,17 +122,20 @@ describe("the generation boundary still gates on supported minor", () => {
     });
   }
 
-  test("4.22 is still rejected at the ImageSetConfig boundary", () => {
+  test("an unsupported minor is still rejected at the ImageSetConfig boundary", () => {
+    // DOC-166 holds after the 4.22 flip: the global ImageSetConfig schema is a
+    // property of oc-mirror, not of the target minor, and 4.22 generating is a
+    // consequence of the SUPPORT gate opening — not of the schema being global.
     assert.throws(
-      () => buildImageSetConfig(stateFor("4.22")),
-      (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.22"
+      () => buildImageSetConfig(stateFor("4.23")),
+      (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.23"
     );
   });
 
   test("a global schema does not mean a global generation boundary", () => {
     // The schema being minor-independent must not be read as "any minor may
     // generate". These are different questions and the gate owns the second.
-    for (const minor of ["4.19", "4.22", "4.23"]) {
+    for (const minor of ["4.19", "4.23", "4.24"]) {
       assert.throws(() => buildImageSetConfig(stateFor(minor)), (err) => err.code === "UNSUPPORTED_VERSION");
     }
   });

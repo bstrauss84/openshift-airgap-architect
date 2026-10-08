@@ -8,9 +8,9 @@
   "baselineMinor": "4.20",
   "_baselineMinorNote": "The version-awareness baseline: SUPPORTED_MINORS[0], and the minor that catalogFieldMeta.js compares against when deciding whether to show a contextual 'New in OpenShift X.Y' badge. A field introduced in 4.21 must show no badge at 4.22 while keeping its minVersion provenance, which is achieved by NOT moving this baseline. Changing it is a standalone human decision, not a consequence of adding minors.",
 
-  "previouslyReleasedMinors": ["4.20", "4.21"],
-  "_previouslyReleasedMinorsNote": "As shipped in v2.0.0. v2.1.0 will add 4.22; when it does, 4.22 is appended here in the same reviewed commit that widens SUPPORTED_MINORS. 4.20 and 4.21 remain.",
+  "previouslyReleasedMinors": ["4.20", "4.21", "4.22"],
+  "_previouslyReleasedMinorsNote": "4.20 and 4.21 as shipped in v2.0.0; 4.22 appended by the v2.1 Tranche 5 atomic support flip, in the same change that widens SUPPORTED_MINORS on both sides. 4.20 and 4.21 remain: adding a minor never removes one.",
 
-  "lastReviewed": "2026-10-06",
-  "lastReviewedContext": "Tranche 0A-1. Live SUPPORTED_MINORS is still exactly [4.20, 4.21]; 4.22 remains fail-closed."
+  "lastReviewed": "2026-10-08",
+  "lastReviewedContext": "Tranche 5 atomic support flip. Live SUPPORTED_MINORS is [4.20, 4.21, 4.22] on both backend and frontend; the bidirectional check:supported-minors invariant requires this record to match exactly. baselineMinor deliberately stays 4.20."
 }

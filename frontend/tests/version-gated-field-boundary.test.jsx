@@ -70,6 +70,18 @@ const VERSION_GATED_UI_FIELD_REGISTRY = [
     owningStep: "PlatformSpecificsStep",
   },
   {
+    // The only install-config parameter 4.22 adds that Red Hat documents as a
+    // supported, user-editable field. The other 8 new catalog paths are
+    // docs-only or hidden-not-applicable and deliberately have no control.
+    scenario: "bare-metal-ipi",
+    path: "platform.baremetal.provisioningNetworkGateway",
+    platform: "Bare Metal",
+    method: "IPI",
+    introductionMinor: "4.22",
+    controlQuery: /Provisioning network gateway/,
+    owningStep: "PlatformSpecificsStep",
+  },
+  {
     scenario: "azure-government-ipi",
     path: "platform.azure.subnets.name",
     platform: "Azure Government",

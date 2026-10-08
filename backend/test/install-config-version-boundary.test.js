@@ -112,16 +112,16 @@ describe("assertSupportedOpenShiftMinorForGeneration", () => {
     );
   });
 
-  it("rejects unsupported 4.22", () => {
+  it("rejects unsupported 4.23", () => {
     const state = makeState({
-      version: { selectedMinor: "4.22", selectedPatch: "4.22.1" },
-      release: { channel: "4.22", patchVersion: "4.22.1" },
+      version: { selectedMinor: "4.23", selectedPatch: "4.23.1" },
+      release: { channel: "4.23", patchVersion: "4.23.1" },
     });
     assert.throws(
       () => assertSupportedOpenShiftMinorForGeneration(state),
       (err) => {
         assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
-        assert.strictEqual(err.requestedVersion, "4.22");
+        assert.strictEqual(err.requestedVersion, "4.23");
         assert.deepStrictEqual(err.supportedVersions, SUPPORTED_MINORS);
         return true;
       }
@@ -205,10 +205,10 @@ describe("buildInstallConfig version boundary", () => {
     assert.strictEqual(result, undefined);
   });
 
-  it("rejects 4.22 with UNSUPPORTED_VERSION - no YAML returned", () => {
+  it("rejects 4.23 with UNSUPPORTED_VERSION - no YAML returned", () => {
     const state = makeState({
-      version: { selectedMinor: "4.22", selectedPatch: "4.22.1" },
-      release: { channel: "4.22", patchVersion: "4.22.1" },
+      version: { selectedMinor: "4.23", selectedPatch: "4.23.1" },
+      release: { channel: "4.23", patchVersion: "4.23.1" },
     });
     let result;
     assert.throws(
@@ -217,7 +217,7 @@ describe("buildInstallConfig version boundary", () => {
       },
       (err) => {
         assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
-        assert.strictEqual(err.requestedVersion, "4.22");
+        assert.strictEqual(err.requestedVersion, "4.23");
         assert.ok(
           err.supportedVersions.includes("4.20") && err.supportedVersions.includes("4.21")
         );
@@ -255,8 +255,8 @@ describe("buildInstallConfig version boundary", () => {
 
   it("error is not swallowed or converted to HTTP 500 shape", () => {
     const state = makeState({
-      version: { selectedMinor: "4.22", selectedPatch: "4.22.1" },
-      release: { channel: "4.22", patchVersion: "4.22.1" },
+      version: { selectedMinor: "4.23", selectedPatch: "4.23.1" },
+      release: { channel: "4.23", patchVersion: "4.23.1" },
     });
     try {
       buildInstallConfig(state);
@@ -269,11 +269,25 @@ describe("buildInstallConfig version boundary", () => {
   });
 
   it("SUPPORTED_MINORS is the only authority for supported versions", () => {
-    assert.deepStrictEqual(SUPPORTED_MINORS, ["4.20", "4.21"]);
+    assert.deepStrictEqual(SUPPORTED_MINORS, ["4.20", "4.21", "4.22"]);
     assert.strictEqual(isSupportedMinor("4.20"), true);
     assert.strictEqual(isSupportedMinor("4.21"), true);
-    assert.strictEqual(isSupportedMinor("4.22"), false);
+    assert.strictEqual(isSupportedMinor("4.22"), true);
+    assert.strictEqual(isSupportedMinor("4.23"), false);
     assert.strictEqual(isSupportedMinor("4.19"), false);
+  });
+
+  it("4.22 generates real install-config now that it is supported", () => {
+    // The direct half of the post-flip generation assertion: the boundary that
+    // used to reject 4.22 now produces YAML, with no fallback to 4.21.
+    const state = makeState({
+      version: { selectedMinor: "4.22", selectedPatch: "4.22.16" },
+      release: { channel: "4.22", patchVersion: "4.22.16" },
+    });
+    const result = buildInstallConfig(state);
+    assert.ok(result.includes("baseDomain: example.com"));
+    assert.ok(result.includes("name: test-cluster"));
+    assert.ok(result.includes("networkType: OVNKubernetes"));
   });
 
   it("4.20 YAML unchanged by version boundary (byte-equivalent content)", () => {
@@ -349,7 +363,7 @@ describe("HTTP install-config generation - missing and malformed version", () =>
     }
   });
 
-  it("POST /api/generate rejects 4.22 with 422 and supportedVersions", async () => {
+  it("POST /api/generate rejects 4.23 with 422 and supportedVersions", async () => {
     const { server, baseUrl } = await createTestServer(app);
     try {
       const res = await fetch(`${baseUrl}/api/generate`, {
@@ -357,15 +371,15 @@ describe("HTTP install-config generation - missing and malformed version", () =>
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           state: makeState({
-            version: { selectedMinor: "4.22", selectedPatch: "4.22.1" },
-            release: { channel: "4.22", patchVersion: "4.22.1" },
+            version: { selectedMinor: "4.23", selectedPatch: "4.23.1" },
+            release: { channel: "4.23", patchVersion: "4.23.1" },
           }),
         }),
       });
       assert.strictEqual(res.status, 422);
       const body = await res.json();
       assert.strictEqual(body.code, "UNSUPPORTED_VERSION");
-      assert.strictEqual(body.requestedVersion, "4.22");
+      assert.strictEqual(body.requestedVersion, "4.23");
       assert.ok(body.supportedVersions.includes("4.20"));
       assert.ok(body.supportedVersions.includes("4.21"));
     } finally {
@@ -373,14 +387,14 @@ describe("HTTP install-config generation - missing and malformed version", () =>
     }
   });
 
-  it("bundle path rejects 4.22 with UNSUPPORTED_VERSION via buildInstallConfig", () => {
+  it("bundle path rejects 4.23 with UNSUPPORTED_VERSION via buildInstallConfig", () => {
     const state = makeState({
-      version: { selectedMinor: "4.22", selectedPatch: "4.22.1" },
-      release: { channel: "4.22", patchVersion: "4.22.1" },
+      version: { selectedMinor: "4.23", selectedPatch: "4.23.1" },
+      release: { channel: "4.23", patchVersion: "4.23.1" },
     });
     assert.throws(
       () => buildInstallConfig(state),
-      (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.22"
+      (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.23"
     );
   });
 });
@@ -488,7 +502,7 @@ describe("fixture isolation", () => {
 describe("mirror-source pivot: imageDigestSources only", () => {
   const mirrorSources = [{ source: "quay.io/ocp", mirrors: ["registry.local:5000/ocp"] }];
 
-  for (const minor of ["4.20", "4.21"]) {
+  for (const minor of ["4.20", "4.21", "4.22"]) {
     it(`${minor} emits imageDigestSources, never imageContentSources`, () => {
       const state = makeState({
         version: { selectedMinor: minor, selectedPatch: `${minor}.8` },

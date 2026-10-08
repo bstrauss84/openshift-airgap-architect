@@ -252,11 +252,11 @@ describe('Import Integrity Validator', () => {
   });
 
   describe('unsupported openshift.selectedMinor', () => {
-    it('rejects 4.22 with UNSUPPORTED_VERSION', () => {
-      const manifest = validManifest({ openshift: { selectedMinor: '4.22', selectedPatch: '4.22.1', lockedVersion: true } });
+    it('rejects 4.23 with UNSUPPORTED_VERSION', () => {
+      const manifest = validManifest({ openshift: { selectedMinor: '4.23', selectedPatch: '4.23.1', lockedVersion: true } });
       assert.throws(() => validateArchiveManifest(manifest, {}), (err) => {
         assert.strictEqual(err.code, 'UNSUPPORTED_VERSION');
-        assert.strictEqual(err.details.received, '4.22');
+        assert.strictEqual(err.details.received, '4.23');
         assert.deepStrictEqual(err.details.supportedVersions, [...SUPPORTED_MINORS]);
         return true;
       });
@@ -289,9 +289,9 @@ describe('Import Integrity Validator', () => {
       });
     });
 
-    it('does not fall back from 4.22 to 4.21', () => {
+    it('does not fall back from 4.23 to 4.21', () => {
       const files = { 'install-config.yaml': 'content' };
-      const manifest = manifestWithFiles(files, { openshift: { selectedMinor: '4.22', selectedPatch: '4.22.1', lockedVersion: true } });
+      const manifest = manifestWithFiles(files, { openshift: { selectedMinor: '4.23', selectedPatch: '4.23.1', lockedVersion: true } });
       const archive = archiveFromStrings(files);
       assert.throws(() => validateArchiveManifest(manifest, archive), (err) => {
         assert.strictEqual(err.code, 'UNSUPPORTED_VERSION');
@@ -1094,11 +1094,11 @@ describe('Import Integrity Validator', () => {
       });
     });
 
-    it('well-formed unsupported selectedMinor 4.22 is UNSUPPORTED_VERSION', () => {
-      const manifest = validManifest({ openshift: { selectedMinor: '4.22', selectedPatch: '4.22.1', lockedVersion: true } });
+    it('well-formed unsupported selectedMinor 4.23 is UNSUPPORTED_VERSION', () => {
+      const manifest = validManifest({ openshift: { selectedMinor: '4.23', selectedPatch: '4.23.1', lockedVersion: true } });
       assert.throws(() => validateArchiveManifest(manifest, {}), (err) => {
         assert.strictEqual(err.code, 'UNSUPPORTED_VERSION');
-        assert.strictEqual(err.details.received, '4.22');
+        assert.strictEqual(err.details.received, '4.23');
         return true;
       });
     });
@@ -1690,10 +1690,10 @@ describe('Archive Buffer Validator (validateArchiveBuffer)', () => {
 
     it('propagates UNSUPPORTED_VERSION from manifest validation', () => {
       const files = { 'test.yaml': 'data' };
-      const zip = buildManifestZip(files, { openshift: { selectedMinor: '4.22', selectedPatch: '4.22.1', lockedVersion: true } });
+      const zip = buildManifestZip(files, { openshift: { selectedMinor: '4.23', selectedPatch: '4.23.1', lockedVersion: true } });
       assert.throws(() => validateArchiveBuffer(zip), err => {
         assert.strictEqual(err.code, 'UNSUPPORTED_VERSION');
-        assert.strictEqual(err.details.received, '4.22');
+        assert.strictEqual(err.details.received, '4.23');
         return true;
       });
     });

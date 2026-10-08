@@ -31,7 +31,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
 - **Reference**
   - [Screenshots](#screenshots)
   - [Architecture](#architecture)
-  - [Install-config references (4.20/4.21)](#install-config-references-420421)
+  - [Install-config references (4.20/4.21/4.22)](#install-config-references-420421)
   - [Release notes](#release-notes)
   - [License and contributing](#license-and-contributing)
   - [Documentation and governance map](#documentation-and-governance-map)
@@ -44,10 +44,10 @@ OpenShift Airgap Architect guides you through scenario-based configuration (Bare
 - **install-config.yaml** — Installer input for your chosen platform
 - **agent-config.yaml** — For Bare Metal + Agent-Based Installer only
 - **imageset-config.yaml** — oc-mirror v2 format for mirroring release and operator content
-- **FIELD_MANUAL.md** — A compartmentalized, scenario-specific field guide with numbered, actionable sections drawn from official OCP documentation for the selected version (4.20 or 4.21), tailored to your exact configuration (platform, connectivity, FIPS, proxy, NTP, mirroring, operators, and specific values like cluster name, VIPs, and registry FQDN). Each section cites official Red Hat doc sources with version-correct URLs.
+- **FIELD_MANUAL.md** — A compartmentalized, scenario-specific field guide with numbered, actionable sections drawn from official OCP documentation for the selected version (4.20, 4.21 or 4.22), tailored to your exact configuration (platform, connectivity, FIPS, proxy, NTP, mirroring, operators, and specific values like cluster name, VIPs, and registry FQDN). Each section cites official Red Hat doc sources with version-correct URLs.
 - **NTP MachineConfigs** — When NTP servers are set (e.g. `99-chrony-ntp-master.yaml`, `99-chrony-ntp-worker.yaml`)
 
-The app uses official OpenShift 4.20–4.21 parameter catalogs and aligns generated YAML with the docs for the selected version.
+The app uses official OpenShift 4.20–4.22 parameter catalogs and aligns generated YAML with the docs for the selected version.
 
 <a id="who-its-for"></a>
 ## Who it's for
@@ -60,7 +60,7 @@ The app uses official OpenShift 4.20–4.21 parameter catalogs and aligns genera
 ## Key features
 
 - **Scenario-driven UI** — Pick install method (e.g. Agent-Based, vSphere IPI); the wizard shows only relevant steps and fields
-- **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.20 or 4.21). Version-specific parameter catalogs, Field Guide content with version-correct documentation URLs, and metadata-driven annotations for fields introduced or deprecated across versions
+- **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.20, 4.21 or 4.22). Version-specific parameter catalogs, Field Guide content with version-correct documentation URLs, and metadata-driven annotations for fields introduced or deprecated across versions
 - **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion. Helpers generate pull secrets and SSH keypairs locally and are not stored (see [Identity & Access](#screenshots) and [Mirror secret helper](#screenshots)).
 - **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
@@ -919,9 +919,9 @@ kubectl top pod -l app=airgap-architect
 - **Supported build architectures:** x86_64 (amd64), aarch64 (arm64), ppc64le, s390x.
 - **Tool version policy (oc and oc-mirror differ deliberately):**
   - **`oc-mirror` → global latest.** Resolved from `clients/ocp/latest`, independent of the target OpenShift minor. Red Hat directs users to the latest oc-mirror v2 regardless of which releases are mirrored, and operator discovery needs it: `--v2 list operators` does not exist in 4.21.x.
-  - **`oc` → latest patch within the selected target minor.** Resolved from `clients/ocp/latest-<minor>`, so a 4.20 bundle gets the newest 4.20.z and a 4.21 bundle gets the newest 4.21.z. Never a different minor.
+  - **`oc` → latest patch within the selected target minor.** Resolved from `clients/ocp/latest-<minor>`, so a 4.20 bundle gets the newest 4.20.z and a 4.22 bundle gets the newest 4.22.z. Never a different minor.
   - No z-stream is hardcoded. Each artifact is verified against that channel's own `sha256sum.txt` before use, and the resolved version/digest is recorded. Acquisition fails closed on download, checksum-metadata, or integrity errors.
-  - A later rebuild may legitimately pick up a newer `oc-mirror`. That is intentional. **A tool binary from a newer stream does not extend supported target versions — Architect still targets 4.20 and 4.21 only.**
+  - A later rebuild may legitimately pick up a newer `oc-mirror`. That is intentional. **A tool binary from a newer stream does not extend supported target versions — Architect targets 4.20, 4.21 and 4.22 only.**
 - **Custom binary URLs:** Pass `--build-arg OCP_CLIENT_URL=<url> --build-arg OCP_CLIENT_SHA256=<hex>` and/or `--build-arg OCP_MIRROR_URL=<url> --build-arg OCP_MIRROR_SHA256=<hex>` to override the resolved download URLs at build time. The SHA256 arg is required when overriding a URL — the build fails without it. `--build-arg OC_CHANNEL=` / `OC_MIRROR_CHANNEL=` select a different release channel.
 - **Runtime override:** Set **`OC_MIRROR_BIN`** to a path to override the baked-in binary at runtime without rebuilding. For URL-based override, set **`OC_MIRROR_URL`** and **`OC_MIRROR_SHA256`** (both required).
 - **Mirror path pattern:** `https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/<channel>/` where `<channel>` is `latest` (oc-mirror) or `latest-<minor>` (oc). Supported `<arch>`: x86_64, amd64, aarch64, arm64, ppc64le, s390x.
@@ -1115,7 +1115,7 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 - **Data:** Parameter catalogs and doc index under `data/params` and `data/docs-index`; frontend copies under `frontend/src/data` for the build. See `docs/DATA_AND_FRONTEND_COPIES.md`.
 
 <a id="install-config-references-420421"></a>
-## Install-config references (4.20/4.21)
+## Install-config references (4.20/4.21/4.22)
 
 Use these official docs to validate `install-config.yaml` for supported platforms:
 

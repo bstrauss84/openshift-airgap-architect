@@ -10,7 +10,7 @@
 
 import { getMinorVersion, normalizeVersion } from '../../../shared/versionUtils.js';
 
-const FIELD_GUIDE_SUPPORTED_MINORS = Object.freeze(["4.20", "4.21"]);
+const FIELD_GUIDE_SUPPORTED_MINORS = Object.freeze(["4.20", "4.21", "4.22"]);
 
 const CHANNEL_PREFIX_RE = /^stable-/i;
 

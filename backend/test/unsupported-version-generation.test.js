@@ -1,7 +1,9 @@
 /**
  * Unsupported Version - Generation & Bundle Tests
  *
- * DOC-102 Slice 5F.13: assertSupportedOpenShiftVersion must reject 4.22 before builders execute.
+ * DOC-102 Slice 5F.13: assertSupportedOpenShiftVersion must reject an unsupported
+ * minor before builders execute. 4.22 became supported in the v2.1 flip, so 4.23
+ * carries the rejection cases here.
  */
 
 import assert from 'node:assert/strict';
@@ -12,8 +14,12 @@ import { buildInstallConfig } from '../src/generate.js';
 
 describe('Unsupported Version - Shared Assertion Logic', () => {
 
-  it('isSupportedMinor rejects 4.22', () => {
-    assert.strictEqual(isSupportedMinor('4.22'), false);
+  it('isSupportedMinor rejects 4.23', () => {
+    assert.strictEqual(isSupportedMinor('4.23'), false);
+  });
+
+  it('isSupportedMinor accepts 4.22', () => {
+    assert.strictEqual(isSupportedMinor('4.22'), true);
   });
 
   it('isSupportedMinor accepts 4.21', () => {
@@ -43,19 +49,19 @@ describe('Unsupported Version - Shared Assertion Logic', () => {
     assert.strictEqual(minor, '4.22');
   });
 
-  it('SUPPORTED_MINORS contains only 4.20 and 4.21', () => {
-    assert.deepStrictEqual(SUPPORTED_MINORS, ['4.20', '4.21']);
+  it('SUPPORTED_MINORS contains exactly 4.20, 4.21 and 4.22', () => {
+    assert.deepStrictEqual(SUPPORTED_MINORS, ['4.20', '4.21', '4.22']);
   });
 
-  it('SUPPORTED_MINORS does not include 4.22', () => {
-    assert.ok(!SUPPORTED_MINORS.includes('4.22'));
+  it('SUPPORTED_MINORS does not include 4.23', () => {
+    assert.ok(!SUPPORTED_MINORS.includes('4.23'));
   });
 });
 
 describe('Unsupported Version - Direct Error Parity', () => {
-  const state422 = {
-    version: { _schemaVersion: 3, selectedMinor: '4.22', selectedPatch: '4.22.1', locked: true },
-    release: { channel: '4.22', patchVersion: '4.22.1', confirmed: true },
+  const state423 = {
+    version: { _schemaVersion: 3, selectedMinor: '4.23', selectedPatch: '4.23.1', locked: true },
+    release: { channel: '4.23', patchVersion: '4.23.1', confirmed: true },
     blueprint: { platform: 'Bare Metal', baseDomain: 'example.com', clusterName: 'test-cluster' },
     methodology: { method: 'Agent-Based Installer' },
     credentials: { sshPublicKey: 'ssh-rsa test' },
@@ -64,9 +70,9 @@ describe('Unsupported Version - Direct Error Parity', () => {
   };
 
   it('assertSupportedOpenShiftMinorForGeneration error matches buildUnsupportedVersionError shape', () => {
-    const directErr = buildUnsupportedVersionError('4.22');
+    const directErr = buildUnsupportedVersionError('4.23');
     let assertionErr;
-    try { assertSupportedOpenShiftMinorForGeneration(state422); } catch (e) { assertionErr = e; }
+    try { assertSupportedOpenShiftMinorForGeneration(state423); } catch (e) { assertionErr = e; }
     assert.strictEqual(assertionErr.code, directErr.code);
     assert.strictEqual(assertionErr.requestedVersion, directErr.requestedVersion);
     assert.deepStrictEqual(assertionErr.supportedVersions, directErr.supportedVersions);
@@ -74,9 +80,9 @@ describe('Unsupported Version - Direct Error Parity', () => {
 
   it('buildInstallConfig throws same error shape as assertSupportedOpenShiftMinorForGeneration', () => {
     let genErr;
-    try { buildInstallConfig(state422); } catch (e) { genErr = e; }
+    try { buildInstallConfig(state423); } catch (e) { genErr = e; }
     assert.strictEqual(genErr.code, 'UNSUPPORTED_VERSION');
-    assert.strictEqual(genErr.requestedVersion, '4.22');
+    assert.strictEqual(genErr.requestedVersion, '4.23');
     assert.deepStrictEqual(genErr.supportedVersions, SUPPORTED_MINORS);
   });
 

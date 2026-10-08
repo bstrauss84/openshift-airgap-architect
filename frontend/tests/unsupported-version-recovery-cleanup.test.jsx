@@ -1,8 +1,9 @@
 /**
  * Unsupported Version Recovery - State Cleanup Test
  *
- * DOC-102 Slice 5F.13: After recovery, no canonical, derived, or legacy version field may retain 4.22.
- * Tests that "Switch to 4.21" produces clean canonical v3 state without legacy field pollution.
+ * DOC-102 Slice 5F.13: After recovery, no canonical, derived, or legacy version field may retain 4.23.
+ * Tests that the "Switch to <newest supported>" recovery action produces clean canonical
+ * v3 state without legacy field pollution. The target is 4.22 after the v2.1 support flip.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -14,14 +15,14 @@ import App from '../src/App.jsx';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Canonical v3 4.22 fixture
+// Canonical v3 4.23 fixture
 const POLLUTED_4_22_STATE = {
   version: {
     _schemaVersion: 3,
-    selectedMinor: '4.22',
-    selectedPatch: '4.22.1',
-    selectedChannel: 'stable-4.22',
-    selectedVersion: '4.22.1', // Legacy field
+    selectedMinor: '4.23',
+    selectedPatch: '4.23.1',
+    selectedChannel: 'stable-4.23',
+    selectedVersion: '4.23.1', // Legacy field
     versionConfirmed: true,    // Legacy field
     confirmedByUser: true,     // Legacy field
     locked: true,
@@ -29,9 +30,9 @@ const POLLUTED_4_22_STATE = {
     selectionTimestamp: 1234567890
   },
   release: {
-    channel: '4.22',
-    patchVersion: '4.22.1',
-    selectedVersion: '4.22.1', // Legacy field
+    channel: '4.23',
+    patchVersion: '4.23.1',
+    selectedVersion: '4.23.1', // Legacy field
     confirmed: true,
     followLatestMinor: true
   },
@@ -78,7 +79,7 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
 
       if (pathname.startsWith('/api/cincinnati')) {
         return Promise.resolve(mockResponse({
-          channels: ['4.20', '4.21', '4.22'],
+          channels: ['4.20', '4.21', '4.22', '4.23'],
           timestamp: Date.now()
         }));
       }
@@ -101,11 +102,11 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
     });
 
     // Verify button is enabled and has proper class (not disabled/white)
-    const switchButton = screen.getByRole('button', { name: /Switch to 4\.21/i });
+    const switchButton = screen.getByRole('button', { name: /Switch to 4\.22/i });
     expect(switchButton).not.toBeDisabled();
     expect(switchButton.className).toContain('ghost');
 
-    // Capture the POST /api/state call when Switch to 4.21 is clicked
+    // Capture the POST /api/state call when Switch to 4.22 is clicked
     let capturedState = null;
     mockFetch.mockImplementation((url, options) => {
       const pathname = new URL(String(url), 'http://localhost').pathname;
@@ -142,7 +143,7 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
       }
       if (pathname.startsWith('/api/cincinnati')) {
         return Promise.resolve(mockResponse({
-          channels: ['4.20', '4.21', '4.22'],
+          channels: ['4.20', '4.21', '4.22', '4.23'],
           timestamp: Date.now()
         }));
       }
@@ -150,7 +151,7 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
       return Promise.resolve(mockResponse({}, false, 404));
     });
 
-    // Click "Switch to 4.21" button
+    // Click "Switch to 4.22" button
     await userEvent.click(switchButton);
 
     // Wait for state update POST
@@ -160,25 +161,25 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
 
     // Assert: version object has clean canonical v3 state
     expect(capturedState.version._schemaVersion).toBe(3);
-    expect(capturedState.version.selectedMinor).toBe('4.21');
+    expect(capturedState.version.selectedMinor).toBe('4.22');
     expect(capturedState.version.selectedPatch).toBeNull();
-    expect(capturedState.version.selectedChannel).toBe('stable-4.21');
+    expect(capturedState.version.selectedChannel).toBe('stable-4.22');
     expect(capturedState.version.locked).toBe(false);
 
-    // CRITICAL: No legacy fields contain 4.22
+    // CRITICAL: No legacy fields contain 4.23
     expect(capturedState.version.selectedVersion).toBeNull();
     expect(capturedState.version.versionConfirmed).toBe(false);
     expect(capturedState.version.confirmedByUser).toBe(false);
 
     // Assert: release object has clean state
-    expect(capturedState.release.channel).toBe('4.21');
+    expect(capturedState.release.channel).toBe('4.22');
     expect(capturedState.release.patchVersion).toBeNull();
     expect(capturedState.release.confirmed).toBe(false);
     expect(capturedState.release.selectedVersion).toBeNull();
 
-    // Assert: NO field anywhere contains '4.22'
+    // Assert: NO field anywhere contains '4.23'
     const stateJson = JSON.stringify(capturedState);
-    expect(stateJson).not.toContain('4.22');
+    expect(stateJson).not.toContain('4.23');
   });
 
   it('recovery state passes version precedence test', async () => {
@@ -222,7 +223,7 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
       }
       if (pathname.startsWith('/api/cincinnati')) {
         return Promise.resolve(mockResponse({
-          channels: ['4.20', '4.21', '4.22'],
+          channels: ['4.20', '4.21', '4.22', '4.23'],
           timestamp: Date.now()
         }));
       }
@@ -230,7 +231,7 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
       return Promise.resolve(mockResponse({}, false, 404));
     });
 
-    const switchButton = screen.getByRole('button', { name: /Switch to 4\.21/i });
+    const switchButton = screen.getByRole('button', { name: /Switch to 4\.22/i });
     await userEvent.click(switchButton);
 
     await waitFor(() => {
@@ -251,6 +252,6 @@ describe('Unsupported Version Recovery - State Cleanup', () => {
     const { getOpenShiftMinorFromState } = await import('../src/shared/openShiftMinor.js');
     const resolvedMinor = getOpenShiftMinorFromState(testState);
 
-    expect(resolvedMinor).toBe('4.21'); // selectedMinor wins over release.channel
+    expect(resolvedMinor).toBe('4.22'); // selectedMinor wins over release.channel
   });
 });

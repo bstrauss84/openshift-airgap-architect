@@ -55,8 +55,8 @@ describe('getDocsIndexForState', () => {
     expect(getDocsIndexForState(null)).toBeNull();
   });
 
-  it('returns null for unsupported 4.22', () => {
-    const state = { version: { selectedMinor: '4.22' } };
+  it('returns null for unsupported 4.23', () => {
+    const state = { version: { selectedMinor: '4.23' } };
     expect(getDocsIndexForState(state)).toBeNull();
   });
 
@@ -66,13 +66,13 @@ describe('getDocsIndexForState', () => {
   });
 
   it('no resolver path silently returns 4.20', () => {
-    const unsupported422 = getDocsIndexForState({ version: { selectedMinor: '4.22' } });
+    const unsupported423 = getDocsIndexForState({ version: { selectedMinor: '4.23' } });
     const missing = getDocsIndexForState({});
     const nullState = getDocsIndexForState(null);
-    expect(unsupported422).not.toBe(docsIndex420);
+    expect(unsupported423).not.toBe(docsIndex420);
     expect(missing).not.toBe(docsIndex420);
     expect(nullState).not.toBe(docsIndex420);
-    expect(unsupported422).toBeNull();
+    expect(unsupported423).toBeNull();
     expect(missing).toBeNull();
     expect(nullState).toBeNull();
   });

@@ -15,12 +15,11 @@
  * serves the 4.21 package list — 11 packages instead of 12 — and the user
  * mirrors a set missing `ocs-tls-profiles` with no warning.
  *
- * Tranche 3 deliberately does NOT fix this: adding the rows now would leave the
- * fallback live for no benefit, and removing `default` now would break 4.20 and
- * 4.21. Both are forbidden by this tranche's scope. What Tranche 3 CAN do is
- * make the omission impossible to ship quietly — these assertions fail the
- * moment SUPPORTED_MINORS gains a minor that has no Quick Pick row, so the
- * enablement commit cannot be half-done.
+ * Tranche 5 performed that atomic flip: `default` is gone, every version-aware
+ * Quick Pick declares an explicit row for every supported minor, and resolution
+ * fails closed when a minor has no row. These assertions now guard the flip from
+ * both sides — they fail if SUPPORTED_MINORS gains a minor with no Quick Pick
+ * row, AND if `default` is ever reintroduced.
  *
  * The existing `version-aware-operator-quick-picks.test.js` is no substitute: it
  * re-declares a MOCK scenarios array and asserts the fallback is correct
@@ -72,21 +71,17 @@ describe("Quick Pick rows cover every supported minor", () => {
   });
 
   /**
-   * A Quick Pick is "per-minor" when it declares at least one X.Y row — i.e. its
-   * package list genuinely varies by OpenShift minor. `app-dev-suite` declares
-   * only `default` on purpose: its packages do not vary, so `default` is the
-   * correct and complete representation and it is not at risk.
-   *
-   * The dangerous state is the middle one: a pick that varies by minor but is
-   * missing a SUPPORTED minor, because that silently serves another minor's list.
+   * Post-flip every `versionPicks` block is per-minor. `default` is gone, so a
+   * block that declared only `default` (`app-dev-suite`) would now resolve to
+   * nothing at every minor; it declares explicit rows instead, even though its
+   * package list does not vary.
    */
   const perMinorBlocks = blocks
     .map((b, i) => ({ ...b, i }))
     .filter((b) => b.versions.length > 0);
 
-  it("distinguishes per-minor Quick Picks from genuinely version-independent ones", () => {
-    expect(perMinorBlocks.length).toBeGreaterThanOrEqual(4);
-    expect(perMinorBlocks.length).toBeLessThan(blocks.length);
+  it("every version-aware Quick Pick is declared per-minor, with no fallback block", () => {
+    expect(perMinorBlocks.length).toBe(blocks.length);
   });
 
   it.each(SUPPORTED_MINORS)(
@@ -101,29 +96,39 @@ describe("Quick Pick rows cover every supported minor", () => {
     }
   );
 
-  it("does not yet declare a 4.22 row, because 4.22 is not yet supported", () => {
-    // Not a style preference: a 4.22 row landing before the flip is the
-    // "adding rows first leaves the fallback live" half-step the evidence
-    // forbids. When 4.22 is enabled, this expectation flips together with
-    // SUPPORTED_MINORS — which is the point.
-    expect(SUPPORTED_MINORS).not.toContain("4.22");
-    for (const b of blocks) expect(b.versions).not.toContain("4.22");
+  it("declares a 4.22 row, because 4.22 is supported", () => {
+    // The other half of the atomic flip. 4.22 rows without support leave the
+    // fallback live; support without 4.22 rows used to serve the 4.21 list.
+    // Both halves are now asserted together, in both directions.
+    expect(SUPPORTED_MINORS).toContain("4.22");
+    for (const b of blocks) expect(b.versions).toContain("4.22");
   });
 
-  it("still carries the `default` key that 4.20 and 4.21 rely on", () => {
-    // Removing `default` before the flip would break the supported minors.
-    for (const b of blocks) expect(b.hasDefault).toBe(true);
+  it("carries no `default` key, so no minor can inherit another minor's list", () => {
+    // The hazard this file was written for. `default` is what made a missing
+    // row silently resolve to the previous minor's packages.
+    for (const b of blocks) expect(b.hasDefault).toBe(false);
   });
 
-  it("the only Quick Pick without per-minor rows is one whose packages do not vary", () => {
-    const flat = blocks.filter((b) => b.versions.length === 0);
-    // Recorded rather than asserted by name: if a NEW pick appears with only a
-    // `default`, that is a deliberate claim that its packages are
-    // minor-independent, and it should be reviewed as such.
-    expect(flat.every((b) => b.hasDefault)).toBe(true);
+  it("declares no row for a minor the product does not support", () => {
+    // A row for an unsupported minor is dead weight at best and an implied
+    // support claim at worst. Historical rows below the baseline are allowed:
+    // they predate the supported window and are unreachable, not claims.
+    const baseline = [...SUPPORTED_MINORS].sort()[0];
+    for (const b of blocks) {
+      const future = b.versions.filter((v) => v > baseline && !SUPPORTED_MINORS.includes(v));
+      expect(future, `block declares rows for unsupported minor(s): ${future.join(", ")}`).toEqual([]);
+    }
   });
 
-  it("the resolution order that makes this load-bearing is unchanged", () => {
-    expect(SRC).toMatch(/versionPicks\?\.\[version\]\s*\|\|\s*\w+\.versionPicks\?\.\["default"\]/);
+  it("resolution has no `default` fallback left in the code either", () => {
+    // Removing the data keys but keeping the fallback would re-arm the hazard
+    // the moment anyone re-added a `default` row.
+    expect(SRC).not.toMatch(/versionPicks\?\.\["default"\]/);
+    expect(SRC).toMatch(/scenario\?\.versionPicks\) return scenario\.versionPicks\[minor\] \|\| null;/);
+  });
+
+  it("an undefined Quick Pick fails closed instead of serving another minor", () => {
+    expect(SRC).toMatch(/is not defined for OpenShift/);
   });
 });

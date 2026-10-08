@@ -462,17 +462,17 @@ test("validateAllFiles: missing scenario with 4.21 produces catalog-not-found re
 // UNSUPPORTED VERSION
 // ===================================================================
 
-test("validateAllFiles: unsupported 4.22 throws UNSUPPORTED_VERSION", () => {
+test("validateAllFiles: unsupported 4.23 throws UNSUPPORTED_VERSION", () => {
   const files = {
     "install-config.yaml": VALID_BARE_METAL_IPI_INSTALL_CONFIG,
   };
 
   assert.throws(
-    () => validateAllFiles(files, "bare-metal-agent", "4.22"),
+    () => validateAllFiles(files, "bare-metal-agent", "4.23"),
     (err) => {
       assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
-      assert.strictEqual(err.requestedVersion, "4.22");
-      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21"]);
+      assert.strictEqual(err.requestedVersion, "4.23");
+      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
       return true;
     }
   );
@@ -653,11 +653,11 @@ test("bypass boundary: missing version with empty files throws CATALOG_VERSION_R
 
 test("bypass boundary: unsupported version with non-YAML-only files throws UNSUPPORTED_VERSION", () => {
   assert.throws(
-    () => validateAllFiles({ "README.md": "text" }, "bare-metal-agent", "4.22"),
+    () => validateAllFiles({ "README.md": "text" }, "bare-metal-agent", "4.23"),
     (err) => {
       assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
-      assert.strictEqual(err.requestedVersion, "4.22");
-      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21"]);
+      assert.strictEqual(err.requestedVersion, "4.23");
+      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
       return true;
     }
   );

@@ -2,7 +2,7 @@
  * Import unsupported version boundary tests.
  *
  * Verifies that POST /api/run/import rejects schemaVersion-2 bundles
- * containing unsupported OpenShift versions (e.g. 4.22) with HTTP 422
+ * containing unsupported OpenShift versions (e.g. 4.23) with HTTP 422
  * and the UNSUPPORTED_VERSION error contract, while accepting supported
  * versions (4.20, 4.21).
  *
@@ -94,13 +94,13 @@ describe("POST /api/run/import unsupported version boundary", () => {
     fs.rmSync(TEST_DATA_DIR, { recursive: true, force: true });
   });
 
-  test("schemaVersion-2 bundle with OCP 4.22 returns 422 UNSUPPORTED_VERSION", async () => {
-    const bundle = makeLegacyV2Bundle("4.22", "4.22.9");
+  test("schemaVersion-2 bundle with OCP 4.23 returns 422 UNSUPPORTED_VERSION", async () => {
+    const bundle = makeLegacyV2Bundle("4.23", "4.23.9");
     const result = await postImport(bundle);
 
     assert.equal(result.status, 422, "Expected HTTP 422");
     assert.equal(result.body.code, "UNSUPPORTED_VERSION");
-    assert.equal(result.body.requestedVersion, "4.22");
+    assert.equal(result.body.requestedVersion, "4.23");
     assert.ok(
       Array.isArray(result.body.supportedVersions),
       "supportedVersions must be an array"
@@ -142,13 +142,13 @@ describe("POST /api/run/import unsupported version boundary", () => {
     assert.equal(result.body.ok, true);
   });
 
-  test("rejected 4.22 import does not persist as current state", async () => {
+  test("rejected 4.23 import does not persist as current state", async () => {
     // First set a known good state
     const goodBundle = makeLegacyV2Bundle("4.20", "4.20.8");
     await postImport(goodBundle);
 
     // Attempt bad import
-    const badBundle = makeLegacyV2Bundle("4.22", "4.22.9");
+    const badBundle = makeLegacyV2Bundle("4.23", "4.23.9");
     const badResult = await postImport(badBundle);
     assert.equal(badResult.status, 422);
 
@@ -158,7 +158,7 @@ describe("POST /api/run/import unsupported version boundary", () => {
     assert.equal(
       currentState.version?.selectedMinor,
       "4.20",
-      "Current state must still be 4.20 after rejected 4.22 import"
+      "Current state must still be 4.20 after rejected 4.23 import"
     );
   });
 });

@@ -2,13 +2,17 @@
  * Test: Unsupported OpenShift Version Guard
  *
  * Cincinnati availability ≠ application support.
- * When Cincinnati exposes 4.22 but app supports only 4.20/4.21:
+ * When Cincinnati exposes 4.23 but the app supports only 4.20/4.21/4.22:
  *
- * 1. Auto-selection MUST select 4.21 (newest supported), never 4.22
- * 2. getCatalogForScenario("...", "4.22") MUST NOT return 4.21 catalogs (no silent fallback)
- * 3. getCatalogForScenario("...", "4.22") MUST throw UnsupportedVersionError (typed error)
+ * 1. Auto-selection MUST select 4.22 (newest supported), never 4.23
+ * 2. getCatalogForScenario("...", "4.23") MUST NOT return 4.22 catalogs (no silent fallback)
+ * 3. getCatalogForScenario("...", "4.23") MUST throw UnsupportedVersionError (typed error)
  * 4. Unsupported versions shown in UI as unsupported, not hidden
- * 5. 4.20 and 4.21 loading remains unchanged
+ * 5. 4.20, 4.21 and 4.22 loading remains unchanged
+ *
+ * The example minor moved from 4.22 to 4.23 when 4.22 became supported. The
+ * property under test is unchanged: the NEWEST Cincinnati channel is not
+ * automatically a supported one.
  *
  * ADR-005 requirement: No silent catalog fallback. Unsupported version = typed error.
  */
@@ -34,19 +38,19 @@ global.fetch = async (url) => {
 
   if (url.includes('/api/cincinnati/channels')) {
     return mockResponse({
-      channels: ['4.20', '4.21', '4.22'], // Cincinnati returns 4.22 (unsupported)
+      channels: ['4.20', '4.21', '4.22', '4.23'], // Cincinnati returns 4.23 (unsupported)
       timestamp: Date.now(),
     });
   }
   if (url.includes('/api/cincinnati/patches')) {
     return mockResponse({
-      versions: ['4.21.5', '4.21.4'],
+      versions: ['4.22.5', '4.22.4'],
       timestamp: Date.now(),
     });
   }
   if (url.includes('/api/cincinnati/update')) {
     return mockResponse({
-      channels: ['4.20', '4.21', '4.22'],
+      channels: ['4.20', '4.21', '4.22', '4.23'],
       timestamp: Date.now(),
     });
   }
@@ -69,21 +73,21 @@ describe('Unsupported OpenShift version guard', () => {
     localStorage.clear();
   });
 
-  it('Cincinnati returns 4.20, 4.21, 4.22 → auto-selection is 4.21 (newest supported)', async () => {
-    const upstreamChannels = ['4.20', '4.21', '4.22'];
+  it('Cincinnati returns 4.20-4.23 → auto-selection is 4.22 (newest supported)', async () => {
+    const upstreamChannels = ['4.20', '4.21', '4.22', '4.23'];
     const newest = cincinnatiChannels.getNewestSupportedChannel(upstreamChannels);
-    expect(newest).toBe('4.21');
+    expect(newest).toBe('4.22');
   });
 
   it('filterSupportedChannels separates supported and unsupported', () => {
-    const upstreamChannels = ['4.20', '4.21', '4.22'];
+    const upstreamChannels = ['4.20', '4.21', '4.22', '4.23'];
     const { supported, unsupported } = cincinnatiChannels.filterSupportedChannels(upstreamChannels);
 
-    expect(supported).toEqual(['4.20', '4.21']);
-    expect(unsupported).toEqual(['4.22']);
+    expect(supported).toEqual(['4.20', '4.21', '4.22']);
+    expect(unsupported).toEqual(['4.23']);
   });
 
-  it('Blueprint shows 4.22 as unsupported and does not auto-select it', async () => {
+  it('Blueprint shows 4.23 as unsupported and does not auto-select it', async () => {
     const initialState = {
       blueprint: {
         platform: 'Bare Metal',
@@ -108,34 +112,34 @@ describe('Unsupported OpenShift version guard', () => {
     // Wait for Cincinnati channels to load and auto-selection to happen
     await waitFor(() => {
       // Should show unsupported version warning
-      expect(document.body.textContent).toContain('OpenShift 4.22');
+      expect(document.body.textContent).toContain('OpenShift 4.23');
       expect(document.body.textContent).toContain('not yet supported');
       expect(document.body.textContent).toContain(`Supported versions: ${SUPPORTED_MINORS.join(", ")}`);
     }, { timeout: 3000 });
   });
 
-  it('getCatalogForScenario("bare-metal-agent", "4.22") throws UnsupportedVersionError', () => {
+  it('getCatalogForScenario("bare-metal-agent", "4.23") throws UnsupportedVersionError', () => {
     expect(() => {
-      catalogPaths.getCatalogForScenario('bare-metal-agent', '4.22');
+      catalogPaths.getCatalogForScenario('bare-metal-agent', '4.23');
     }).toThrow(catalogPaths.UnsupportedVersionError);
 
     try {
-      catalogPaths.getCatalogForScenario('bare-metal-agent', '4.22');
+      catalogPaths.getCatalogForScenario('bare-metal-agent', '4.23');
     } catch (error) {
       expect(error).toBeInstanceOf(catalogPaths.UnsupportedVersionError);
-      expect(error.requestedVersion).toBe('4.22');
+      expect(error.requestedVersion).toBe('4.23');
       expect(error.supportedVersions).toEqual(SUPPORTED_MINORS);
-      expect(error.message).toContain('OpenShift 4.22 is not supported');
+      expect(error.message).toContain('OpenShift 4.23 is not supported');
       expect(error.message).toContain(SUPPORTED_MINORS.join(', '));
     }
   });
 
-  it('getCatalogForScenario("bare-metal-agent", "4.22") does NOT return 4.21 parameters', () => {
+  it('getCatalogForScenario("bare-metal-agent", "4.23") does NOT return 4.22 parameters', () => {
     let threwError = false;
     let returnedParams = null;
 
     try {
-      returnedParams = catalogPaths.getCatalogForScenario('bare-metal-agent', '4.22');
+      returnedParams = catalogPaths.getCatalogForScenario('bare-metal-agent', '4.23');
     } catch (error) {
       threwError = true;
     }
@@ -156,12 +160,18 @@ describe('Unsupported OpenShift version guard', () => {
     expect(params.length).toBeGreaterThan(0);
   });
 
-  it('getLatestSupportedVersion returns 4.21 (policy-driven, not filesystem-driven)', () => {
-    const latest = catalogPaths.getLatestSupportedVersion();
-    expect(latest).toBe('4.21');
+  it('getCatalogForScenario("bare-metal-agent", "4.22") returns 4.22 parameters', () => {
+    const params = catalogPaths.getCatalogForScenario('bare-metal-agent', '4.22');
+    expect(Array.isArray(params)).toBe(true);
+    expect(params.length).toBeGreaterThan(0);
   });
 
-  it('SUPPORTED_MINORS contains exactly 4.20 and 4.21', () => {
-    expect(SUPPORTED_MINORS).toEqual(['4.20', '4.21']);
+  it('getLatestSupportedVersion returns 4.22 (policy-driven, not filesystem-driven)', () => {
+    const latest = catalogPaths.getLatestSupportedVersion();
+    expect(latest).toBe('4.22');
+  });
+
+  it('SUPPORTED_MINORS contains exactly 4.20, 4.21 and 4.22', () => {
+    expect(SUPPORTED_MINORS).toEqual(['4.20', '4.21', '4.22']);
   });
 });

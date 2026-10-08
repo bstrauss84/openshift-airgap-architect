@@ -1,7 +1,7 @@
 /**
  * `platform.baremetal.provisioningNetworkGateway` — 4.22 catalog asset (C1)
  *
- * **4.22 IS STILL UNSUPPORTED AND FAIL-CLOSED.** These are ASSET tests: they read
+ * These are ASSET tests: they read
  * the canonical catalog data and assert what it encodes. They deliberately do not
  * exercise generation or any resolver for 4.22, because no public boundary accepts
  * 4.22 — and the last block below proves that adding this asset did not change
@@ -242,10 +242,10 @@ describe("4.22 catalog asset — platform.baremetal.provisioningNetworkGateway",
     }
   });
 
-  describe("adding the asset did not open the support gate", () => {
-    it("4.22 is still not a supported minor", () => {
-      assert.ok(!SUPPORTED_MINORS.includes("4.22"));
-      assert.deepEqual([...SUPPORTED_MINORS], ["4.20", "4.21"]);
+  describe("the asset is now reachable, and only at 4.22 and later", () => {
+    it("4.22 is a supported minor", () => {
+      assert.ok(SUPPORTED_MINORS.includes("4.22"));
+      assert.deepEqual([...SUPPORTED_MINORS], ["4.20", "4.21", "4.22"]);
     });
 
     it("the field was NOT backfilled into 4.20 or 4.21", () => {
@@ -263,12 +263,13 @@ describe("4.22 catalog asset — platform.baremetal.provisioningNetworkGateway",
       }
     });
 
-    it("generation wiring exists but is version-gated, not reachable for 4.22 publicly", () => {
+    it("generation wiring is version-gated, and the gate is a >= comparison", () => {
       // Tranche 2 asserted the generator did not mention the field at all,
-      // because the wiring was explicitly deferred. Tranche 3 added it, so that
-      // assertion is obsolete by design. What must stay true is the gate: the
-      // emission helper is guarded by isVersionGTE(selectedMinor, "4.22") and
-      // buildInstallConfig() still refuses a 4.22 state outright.
+      // because the wiring was explicitly deferred. Tranche 3 added it and
+      // Tranche 5 made it reachable. What must stay true is the gate itself:
+      // the emission helper is guarded by isVersionGTE(selectedMinor, "4.22"),
+      // so 4.20 and 4.21 still emit nothing. End-to-end emission through the
+      // real builder is proven in provisioning-network-gateway.test.js.
       const gen = readFileSync(join(REPO, "backend/src/generate.js"), "utf8");
       assert.match(gen, /applyProvisioningNetworkGateway/);
       assert.match(gen, /isVersionGTE\(selectedMinor, "4\.22"\)/);

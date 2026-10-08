@@ -31,26 +31,37 @@ describe("trustBundlePolicy helpers", () => {
     expect(hasEffectiveTrustBundle({ mirrorRegistryCaPem: "garbage", proxyCaPem: "" })).toBe(false);
   });
 
-  it("getTrustBundlePolicySupport: 4.20 and 4.21 explicit, unsupported outside supported range", () => {
+  it("getTrustBundlePolicySupport: every supported minor is explicit, unsupported outside the range", () => {
     expect(getTrustBundlePolicySupport("4.20.5").source).toBe("explicit");
     expect(getTrustBundlePolicySupport("4.21.9")).toEqual({
       policies: ["Proxyonly", "Always"],
       source: "explicit",
       minorVersion: "4.21"
     });
-    expect(getTrustBundlePolicySupport("4.22.0").source).toBe("forward"); // 4.22 uses forward policy (not explicit yet)
+    // S7: 4.22 carries its own row now that it is supported. Relying on the
+    // >=4.17 forward rule would return the right policies but mark the source
+    // "forward", which drives a "not yet fully reflected" caveat that would be
+    // false for a supported minor.
+    expect(getTrustBundlePolicySupport("4.22.0")).toEqual({
+      policies: ["Proxyonly", "Always"],
+      source: "explicit",
+      minorVersion: "4.22"
+    });
+    // The forward rule itself is unchanged and still covers unlisted >=4.17 minors.
+    expect(getTrustBundlePolicySupport("4.23.0").source).toBe("forward");
     expect(getTrustBundlePolicySupport("4.16.1").source).toBe("unsupported");
     expect(getTrustBundlePolicySupport("3.11.1").source).toBe("unsupported");
   });
 
   it("getForwardOpenShiftMinorDocNotice uses minor only and generic wording", () => {
-    // 4.21 is now explicit (not forward), so it should return null
+    // Every SUPPORTED minor is explicit, so none of them carries the caveat.
     expect(getForwardOpenShiftMinorDocNotice("4.21.9")).toBeNull();
     expect(getForwardOpenShiftMinorDocNotice("4.20.1")).toBeNull();
-    // 4.22 uses forward policy (not explicit yet)
-    const n = getForwardOpenShiftMinorDocNotice("4.22.0");
-    expect(n).toContain("OpenShift 4.22");
-    expect(n).not.toContain("4.22.0");
+    expect(getForwardOpenShiftMinorDocNotice("4.22.0")).toBeNull();
+    // 4.23 is unlisted and still gets the forward notice.
+    const n = getForwardOpenShiftMinorDocNotice("4.23.0");
+    expect(n).toContain("OpenShift 4.23");
+    expect(n).not.toContain("4.23.0");
   });
 
   it("getTrustPolicyOptionsForScenario prefers catalog over empty version policy", () => {

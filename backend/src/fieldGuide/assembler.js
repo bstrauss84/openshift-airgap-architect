@@ -10,6 +10,7 @@
  */
 import { compartments_v420 } from "./v4.20/index.js";
 import { compartments_v421 } from "./v4.21/index.js";
+import { compartments_v422 } from "./v4.22/index.js";
 import { render } from "./template.js";
 import { getTroubleshootingRules } from "./troubleshootingRules.js";
 import { getMinorVersion } from "../versionPolicy.js";
@@ -48,6 +49,7 @@ const getCompartmentsForVersion = (minor) => {
   }
 
   // Return version-specific compartments
+  if (normalizedMinor === "4.22") return compartments_v422;
   if (normalizedMinor === "4.21") return compartments_v421;
   if (normalizedMinor === "4.20") return compartments_v420;
 

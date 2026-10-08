@@ -6,18 +6,22 @@ This file provides durable rules and current status for AI agents working on thi
 
 ## Product Scope
 
-**OpenShift Airgap Architect v2.0.0** supports exactly:
+**OpenShift Airgap Architect v2.1 (in progress)** supports exactly:
 
-- **4.20** (baseline)
-- **4.21** (current)
+- **4.20** (baseline — the version-awareness baseline, deliberately unmoved)
+- **4.21**
+- **4.22** (current)
 
-**4.22 is unsupported.** Cincinnati availability does not equal product support.
+4.22 was onboarded by the v2.1 Tranche 5 atomic support flip. **4.23 is unsupported.**
+Cincinnati availability does not equal product support.
 
-No fallback from 4.22 to 4.21 is allowed for catalogs, validation, preview, generated artifacts, bundle preparation, or bundle downloads.
+No fallback from an unsupported version to a supported one is allowed for catalogs, validation, preview, generated artifacts, bundle preparation, or bundle downloads.
+
+Adding a minor is **cumulative** and never removes one. Retiring a supported minor is a standalone, human-authorized decision, never a side effect of onboarding a newer minor.
 
 ### Tool version is not target support
 
-A CLI binary distributed from a newer Red Hat client stream does **not** extend Architect's target OpenShift support. Architect may ship or execute an `oc-mirror` labelled 4.22+ while still supporting only target 4.20 and 4.21.
+A CLI binary distributed from a newer Red Hat client stream does **not** extend Architect's target OpenShift support. Architect may ship or execute an `oc-mirror` labelled newer than any supported target while still supporting only the targets listed above.
 
 Target-version rejection must remain enforced independently of tool versions, at every boundary: release selection, imported state, catalog selection, generated configuration, preview, validation, Field Guide behavior, persisted state, and the operator workflow.
 
@@ -44,11 +48,11 @@ Unknown or future schema versions (`_schemaVersion > 3`) block.
 
 ### No Fallback Rule
 
-If the user selects 4.22 (or any unsupported version):
+If the user selects 4.23 (or any unsupported version):
 
 - Return HTTP 422 UNSUPPORTED_VERSION
-- Display recovery UI with clear "Switch to 4.21" button
-- Do not silently fall back to 4.21 in any pipeline
+- Display recovery UI with a clear "Switch to <newest supported minor>" button
+- Do not silently fall back to a supported version in any pipeline
 
 ### Shared Utilities Only
 
@@ -200,5 +204,9 @@ If the user asks for a new task and the working tree is dirty, stop and report s
 
 ---
 
-**Last Updated:** 2026-09-18
-**Revision:** v2.0.0 GA — removed stale next-step section, version awareness complete
+**Last Updated:** 2026-10-08
+**Revision:** v2.1 Tranche 5 — OpenShift 4.22 atomic support flip candidate. Product
+scope and the No Fallback Rule were updated here because they named 4.22 explicitly and
+would otherwise contradict the candidate. Everything else is unchanged: the baseline is
+still 4.20, tool version is still not target support, and the unsupported-version guard
+is unchanged in strength — only the boundary moved.
