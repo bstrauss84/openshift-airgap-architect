@@ -11,6 +11,7 @@
  *   - catalog   <-> frontend parity           (once per supported minor)
  *   - agent networkConfig path kebab guard    (canonical + frontend trees)
  *   - buildNmState generator guard
+ *   - architecture-support matrix             (all minors present on disk)
  *
  * Supported minors come from the canonical version policy, not from an
  * argument. Previously this took `process.argv[2] || "4.20"` and passed that
@@ -109,6 +110,17 @@ async function main() {
     label: "buildNmState generator guard",
     kind: KIND.MECHANISM,
     script: "scripts/validate-agent-nmstate-generator.js",
+  });
+
+  // Architecture-support matrix (D3 / DOC-156). Registered here rather than as a
+  // new npm script so it has a CI home from the commit that introduces the data:
+  // an unguarded data surface is how the platform-keyed arch table came to assert
+  // more than its evidence supported. Not minor-scoped — it validates every file
+  // in data/arch-support/, including minors that are not yet supported.
+  run(results, {
+    label: "architecture-support matrix (all minors)",
+    kind: KIND.DATA,
+    script: "scripts/validate-arch-support.js",
   });
 
   const failed = results.filter((r) => r.status !== 0);

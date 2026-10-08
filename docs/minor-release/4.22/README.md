@@ -45,7 +45,8 @@ inline pointers.
 - **23 additions, 0 removals**, 2 new deprecations, 1 enum change, 0 type or requiredness
   changes, and **zero agent-config deltas of any class**.
 - Exactly **one** `SUPPORTED-UI` candidate: `platform.baremetal.provisioningNetworkGateway`.
-  Everything else new is behind a non-default feature gate.
+  Everything else new is behind a non-default feature gate. *(Tranche 2: confirmed and
+  implemented — documentation re-verified in the 4.22 Provisioning APIs book.)*
 - **Four HUMAN-REVIEW-REQUIRED items**; none blocks Tranche 2.
 - **FQ-10 blocked Tranche 2 and is now closed** (Tranche 1.5): per-minor lazy loading
   took the eager bundle from 2,698 KB to 1,146 KB, and an explicit three-metric budget
@@ -60,8 +61,30 @@ Binaries, source clones, documentation HTML and probe scratch directories are **
 tracked**. They are under `/home/bistraus/oaa-v2.1-evidence/ocp-4.22/`, and deliverable 1
 carries hashes plus deterministic reproduction instructions for all of it.
 
-## What was deliberately not done
+## Tranche 2 — asset authoring
+
+| Document | Contents |
+|---|---|
+| [`TRANCHE_2_ASSET_AUTHORING_4.22.md`](TRANCHE_2_ASSET_AUTHORING_4.22.md) | the 4.22 catalogs, docs-index, architecture-support matrix and Field Guide, with acquisition-time URL validation, the citation section-heading remapping, and the fail-closed proof |
+
+Tranche 2 **supersedes** the Tranche 1 "deliberately not done" list below: those assets
+now exist. Classification **C1 stands as written** — its documentation citation was
+re-verified in the OCP 4.22 *Provisioning APIs* book (Chapter 13 §13.1.1 `.spec`), and
+`platform.baremetal.provisioningNetworkGateway` is authored as `supported-ui`.
+
+## What Tranche 1 deliberately did not do *(superseded by Tranche 2)*
+
+> **Historical.** Every line in this paragraph was true at the end of Tranche 1 and is
+> no longer true. It is retained as the Tranche 1 record, not as current status.
 
 No `data/params/4.22/**`. No frontend 4.22 mirror. No `data/docs-index/4.22.json`.
-No `backend/src/fieldGuide/v4.22/**`. No change to `SUPPORTED_MINORS`. No product UI or
-backend behaviour change. **Tranche 2 has not begun.**
+No `backend/src/fieldGuide/v4.22/**`.
+
+## Current status
+
+- **Tranche 2 assets are complete** — catalogs, docs-index, architecture-support matrix
+  and Field Guide source, all validated.
+- **4.22 remains UNSUPPORTED and fail-closed.** `SUPPORTED_MINORS` is unchanged and no
+  public boundary accepts 4.22.
+- **No product UI or backend behaviour changed.**
+- **Tranche 3 has not begun.**

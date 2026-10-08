@@ -25,6 +25,17 @@
 #
 # Previously unexempted findings in NetworkingV2Step.jsx (10) and
 # NodeDrawerAgentContent.jsx (1) have been resolved via production edits.
+#
+# OCP 4.22 (v2.1 Tranche 2): 4.22 assets now exist on disk under data/params/4.22,
+# data/docs-index/4.22.json, data/arch-support/, frontend/src/data/**/4.22 and
+# backend/src/fieldGuide/v4.22. NONE of them is in --check's scope, which is
+# frontend/src/**/*.{js,jsx} only; the JSON mirrors are data and the Field Guide is
+# backend. They are classified, with the guard that does cover each one, in
+# docs/VERSIONED_COPY_INVENTORY.md. No exemption was added here, because none was
+# needed — and in particular "OpenShift 4.22+" in frontend production copy REMAINS
+# a violation (fixture VIOLATE_thresh_4_22) while 4.22 is unsupported. That fixture
+# is re-pointed at the next unsupported minor only in the enablement tranche that
+# actually flips SUPPORTED_MINORS.
 
 set -euo pipefail
 
@@ -252,6 +263,7 @@ FIXTURE
 const EXEMPT_cdeflt = getOpenShiftMinorFromState(state) || "4.20";
   // EXEMPT_comment: This supports OpenShift 4.20 and 4.21
 const VIOLATE_new_step_copy = "Requires OpenShift 4.30 for full support";
+const VIOLATE_stale_prev_minor = "Requires OpenShift 4.21 for full support";
 FIXTURE
 
   # --- Fixture: SvgIconStep.jsx (SVGPATH exemption + adjacency regression) ---
@@ -324,6 +336,12 @@ FIXTURE
   assert_violation "VIOLATE_enumval_future"
   assert_violation "VIOLATE_quoted_copy"
   assert_violation "VIOLATE_new_step_copy"
+  # Stale PREVIOUS-minor copy is a real defect class, not just future-minor copy:
+  # a 4.22 asset that carries a leftover 4.21 statement is exactly the drift this
+  # onboarding exists to prevent. Proven here on the frontend surface the guard
+  # owns; the same rule is enforced for the new 4.22 assets outside that surface
+  # by the catalog citation guard and backend/test/fieldGuide-4.22.test.js.
+  assert_violation "VIOLATE_stale_prev_minor"
   # SVGPATH must not become an escape hatch: a real reference sharing a line
   # with SVG path data is still a violation.
   assert_violation "VIOLATE_svg_adjacent"
@@ -378,12 +396,13 @@ FIXTURE
   else
     vcount=0
   fi
-  # 11 original fixtures + 1 SVG-adjacency regression fixture.
-  if [ "$vcount" -eq 12 ]; then
-    echo "  PASS [structural]: exactly 12 violations found"
+  # 11 original fixtures + 1 SVG-adjacency regression fixture
+  # + 1 stale-previous-minor fixture (v2.1 Tranche 2).
+  if [ "$vcount" -eq 13 ]; then
+    echo "  PASS [structural]: exactly 13 violations found"
     pass_count=$((pass_count + 1))
   else
-    echo "  FAIL [structural]: expected 12 violations, got $vcount"
+    echo "  FAIL [structural]: expected 13 violations, got $vcount"
     fail_count=$((fail_count + 1))
   fi
 

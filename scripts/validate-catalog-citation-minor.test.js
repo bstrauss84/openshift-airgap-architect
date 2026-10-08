@@ -320,7 +320,12 @@ describe("catalog citation minor guard", () => {
   describe("live repository (read-only)", () => {
     test("4.20 carries no foreign provenance at all", () => {
       const { findings, scanned } = auditCitationMinors({ root: REPO_ROOT });
-      assert.deepStrictEqual(scanned.minors, ["4.20", "4.21"]);
+      // Pinned deliberately, so a directory that silently stops being scanned
+      // fails here rather than passing vacuously. This list is the set of
+      // catalog directories under data/params/, NOT the supported-minor list:
+      // v2.1 Tranche 2 authored data/params/4.22/** while 4.22 remains
+      // unsupported and fail-closed, so the two sets correctly differ.
+      assert.deepStrictEqual(scanned.minors, ["4.20", "4.21", "4.22"]);
       assert.strictEqual(
         findings.filter((f) => f.minor === "4.20").length,
         0,

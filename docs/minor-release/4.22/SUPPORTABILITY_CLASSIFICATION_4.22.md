@@ -29,6 +29,44 @@ Every row below is a *proposal* for Tranche 2 to implement after human acceptanc
 
 ## 2. C1 — `platform.baremetal.provisioningNetworkGateway` → **SUPPORTED-UI**
 
+> ### ✅ CONFIRMED and implemented in Tranche 2 — with a corrected citation
+>
+> **The classification stands.** The *citation* below was corrected: the documentation
+> is in the OCP 4.22 **Provisioning APIs** book, not the bare-metal installation book.
+>
+> Verified 2026-10-07 at
+> `…/4.22/html/provisioning_apis/provisioning-metal3-io-v1alpha1` (HTTP 200),
+> Chapter 13 *Provisioning [metal3.io/v1alpha1]* §13.1.1 `.spec`, verbatim:
+>
+> > "**provisioningNetworkGateway** string — ProvisioningNetworkGateway is the IP address
+> > of the default gateway for the provisioning network. This gateway is provided to
+> > baremetal hosts via DHCP to enable routing to external networks during inspection and
+> > provisioning. This field is optional and only used when ProvisioningNetwork is set to
+> > Managed. The gateway IP must be within the ProvisioningNetworkCIDR but outside of the
+> > ProvisioningDHCPRange and must not be the same as ProvisioningIP."
+>
+> The same chapter at **4.20 and 4.21 contains zero occurrences**, which independently
+> confirms `minVersion: 4.22` from each prior minor's own documentation.
+>
+> **The row below is wrong on one point and is corrected here:** the identifier does
+> **not** appear in the 4.22 bare-metal book §3.3.15. A full-text search of the
+> paginated chapter (4.3 MB, fully rendered — §3.3.15.1 is present and carries `apiVIPs`,
+> `ingressVIPs`, `provisioningNetwork`, `provisioningNetworkCIDR`) and of the 9.2 MB
+> `html-single` rendering of the whole book returns no match, and the sentence quoted in
+> the row's "Documentation" cell does not occur there. The catalog therefore cites the
+> Provisioning APIs chapter, which is where the text actually lives.
+>
+> **No policy requires an install-config path to appear verbatim in an installation-guide
+> table.** Runbook Rule 2.4 asks for "Red Hat **product and installation** documentation
+> for that same minor", and the Provisioning APIs book is Red Hat product documentation
+> for OCP 4.22. For scale: **57 of the 394** `supported-ui` rows already shipping at 4.21
+> carry *only* an installer-source citation, so a row with both installer-source evidence
+> **and** a same-minor product-API citation is better evidenced than rows already in
+> production.
+>
+> Implemented in `data/params/4.22/{bare-metal-ipi,bare-metal-agent}.json`. Evidence:
+> [`TRANCHE_2_ASSET_AUTHORING_4.22.md`](TRANCHE_2_ASSET_AUTHORING_4.22.md) §2.5.
+
 | | |
 |---|---|
 | **Mechanical** | New at 4.22.16. `pkg/types/baremetal/platform.go` `Platform.ProvisioningNetworkGateway`, `string`, `omitempty`, `+optional`, `+kubebuilder:validation:Format=ip`. **No feature gate.** |

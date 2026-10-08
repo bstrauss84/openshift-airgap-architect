@@ -56,6 +56,12 @@ data/cache/
 # tracked data, not runtime scratch: backend/test/imageset-config-schema.test.js reads it.
 !/data/oc-mirror-v2/
 !/data/oc-mirror-v2/**
+# Architecture-support matrix (D3 / DOC-156). Canonical tracked data:
+# scripts/validate-arch-support.js and its test read it, and it is referenced by
+# docs/minor-release/4.22/TRANCHE_2_ASSET_AUTHORING_4.22.md. Without this
+# re-inclusion the deny-by-default /data/* rule above would silently drop it.
+!/data/arch-support/
+!/data/arch-support/**
 **/openshift-install-*
 **/openshift-install-*.tar.gz
 # When DATA_DIR is backend/ (e.g. local dev)

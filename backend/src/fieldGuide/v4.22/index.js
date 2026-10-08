@@ -1,0 +1,123 @@
+/**
+ * OpenShift Airgap Architect - Field Guide v4.22 Compartments
+ *
+ * All v4.22 compartments, re-exported as a single flat array.
+ * Aggregates compartments from all platform-specific and global modules.
+ *
+ * @author Bill Strauss
+ *
+ * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
+ */
+import {
+  globalPrereqs,
+  proxyConfig,
+  fipsPrereqs,
+  ntpConfig,
+  trustBundle,
+  toolsAndCreds,
+  preInstallReadiness,
+  postInstallValidation,
+  day2Basics,
+} from "./global.js";
+
+import {
+  mirrorRegistrySetup,
+  ocMirrorLowSide,
+  airGapTransfer,
+  ocMirrorHighSide,
+  clusterResourcesApply,
+} from "./mirror.js";
+
+import {
+  vsphereIpiPrereqs,
+  vsphereIpiInstall,
+  vsphereUpiPrereqs,
+  vsphereUpiInstall,
+  vsphereAgentPrereqs,
+  vsphereAgentMethodologyContext,
+  vsphereAgentInstall,
+} from "./vsphere.js";
+
+import {
+  bmAgentPrereqs,
+  bmAgentInstall,
+  bmBmcVerifyCa,
+  bmIpiPrereqs,
+  bmIpiInstall,
+  bmUpiPrereqs,
+  bmUpiInstall,
+} from "./baremetal.js";
+
+import { nutanixIpiPrereqs, nutanixIpiInstall } from "./nutanix.js";
+
+import {
+  awsGovCloudPrereqs,
+  awsGovCloudInstall,
+  awsGovCloudUpiPrereqs,
+  awsGovCloudUpiInstall,
+} from "./aws.js";
+
+import {
+  azureGovPrereqs,
+  azureGovInstall,
+  azureGovUpiPrereqs,
+  azureGovUpiInstall,
+} from "./azure.js";
+
+import {
+  ibmCloudIpiPrereqs,
+  ibmCloudIpiInstall
+} from "./ibmcloud.js";
+
+const compartments_v422 = [
+  // Global
+  globalPrereqs,
+  proxyConfig,
+  fipsPrereqs,
+  ntpConfig,
+  trustBundle,
+  toolsAndCreds,
+  preInstallReadiness,
+  postInstallValidation,
+  day2Basics,
+  // Mirror
+  mirrorRegistrySetup,
+  ocMirrorLowSide,
+  airGapTransfer,
+  ocMirrorHighSide,
+  clusterResourcesApply,
+  // vSphere
+  vsphereIpiPrereqs,
+  vsphereIpiInstall,
+  vsphereUpiPrereqs,
+  vsphereUpiInstall,
+  vsphereAgentPrereqs,
+  vsphereAgentMethodologyContext,
+  vsphereAgentInstall,
+  // Bare Metal
+  bmAgentPrereqs,
+  bmAgentInstall,
+  bmBmcVerifyCa,
+  bmIpiPrereqs,
+  bmIpiInstall,
+  bmUpiPrereqs,
+  bmUpiInstall,
+  // Nutanix
+  nutanixIpiPrereqs,
+  nutanixIpiInstall,
+  // AWS GovCloud
+  awsGovCloudPrereqs,
+  awsGovCloudInstall,
+  awsGovCloudUpiPrereqs,
+  awsGovCloudUpiInstall,
+  // Azure Government
+  azureGovPrereqs,
+  azureGovInstall,
+  azureGovUpiPrereqs,
+  azureGovUpiInstall,
+  // IBM Cloud
+  ibmCloudIpiPrereqs,
+  ibmCloudIpiInstall,
+];
+
+export { compartments_v422 };

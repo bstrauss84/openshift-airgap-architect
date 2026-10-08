@@ -1,6 +1,7 @@
 # Versioned Copy Adjudication Ledger
 
-**Updated:** 2026-10-06 (Tranche 0A-1: decimal-fragment boundary + SVGPATH category)
+**Updated:** 2026-10-07 (v2.1 Tranche 2: OCP 4.22 asset surfaces classified)
+**Previously:** 2026-10-06 (Tranche 0A-1: decimal-fragment boundary + SVGPATH category)
 **Previously:** 2026-08-26 (DOC-107 narrow adjudication revision)
 **Tool:** `scripts/find-hardcoded-versions.sh --check`
 **Phase 0 inventory:** DOC-106 (verified_done, commit 94b5b14)
@@ -188,12 +189,60 @@ All 7 DOCSRC findings resolved via production edits in PlatformSpecificsStep.jsx
 
 ---
 
+## OCP 4.22 Asset Surfaces (v2.1 Tranche 2)
+
+> **4.22 is still unsupported and fail-closed.** The surfaces below exist on disk as
+> data and source; none of them is reachable through a public support boundary.
+
+Tranche 2 added five new 4.22-bearing surfaces. **None required a new exemption in
+`scripts/find-hardcoded-versions.sh`**, because `--check` scans
+`frontend/src/**/*.{js,jsx}` only and none of them is a frontend JS/JSX file. Leaving
+that unrecorded would be the defect — a reader would reasonably assume a surface with
+hundreds of version strings had been adjudicated and found exempt, rather than simply
+being out of scope. Each row therefore names the guard that *does* cover it.
+
+| Surface | In `--check` scope? | Guard that actually covers it |
+|---|---|---|
+| `data/params/4.22/**` (12 scenarios, 1,095 parameters) | No — `data/`, JSON | `node scripts/validate-catalog.js data/params/4.22` (schema) and `npm run check:citation-minor:strict`, which fails if any citation carries provenance from a minor other than the directory it sits in |
+| `frontend/src/data/catalogs/4.22/**` | No — `.json`, not `.js`/`.jsx` | `npm run sync-catalogs:check`. Generated mirror; never hand-edited (runbook Rule 3) |
+| `data/docs-index/4.22.json` + `frontend/src/data/docs-index/4.22.json` | No — JSON | `node scripts/validate-docs-index.js`, `npm run sync-docs-index:check` |
+| `data/arch-support/{4.20,4.21,4.22}.json` | No — JSON | `npm run check:arch-support` (`scripts/validate-arch-support.js`), which rejects a source URL carrying another minor's provenance |
+| `backend/src/fieldGuide/v4.22/**` (9 modules, 40 compartments) | No — `backend/`, and version-compartmented by directory | `backend/test/fieldGuide-4.22.test.js`: zero unclassified `4.21` copy, an exact Class-C cross-version allowlist, 4.22-only doc provenance, and no citation of a book path that does not exist at 4.22 |
+
+### Stale previous-minor copy is a violation, not just future-minor copy
+
+The original fixture set proved the guard catches **future** versions (`4.30+`). Onboarding
+a minor creates the opposite risk: a 4.22 asset that still carries a leftover 4.21
+statement. Tranche 2 adds the matching fixture, `VIOLATE_stale_prev_minor`
+(`"Requires OpenShift 4.21 for full support"` in a non-adjudicated step file), which must
+be reported. Expected violation count moved 12 → 13 and the assertion total 42 → 43.
+
+Outside the frontend surface the same rule is enforced structurally rather than by this
+shell guard: the catalog citation guard for `data/params/4.22/**`, and
+`backend/test/fieldGuide-4.22.test.js` for the Field Guide, where exactly **five**
+cross-version statements are allowlisted, each with a recorded rationale, and the
+allowlist is checked in both directions so a stale entry fails the test.
+
+### `OpenShift 4.22+` in frontend copy REMAINS a violation
+
+`VIOLATE_thresh_4_22` stays in the self-test as a **violation** fixture. While 4.22 is
+unsupported, 4.22 copy in production frontend code is exactly the defect the guard exists
+to catch, and Tranche 2 adds no UI copy. Runbook Phase 5's instruction to "re-point the
+unsupported-sentinel fixtures to the next unsupported minor" belongs to the enablement
+tranche that actually widens `SUPPORTED_MINORS`; doing it here would disarm the guard
+ahead of the flip.
+
+Likewise, the enumerated `THRESH` and `VGATED` adjudications still list only
+4.11/4.12/4.13/4.20/4.21. They are **not** widened to 4.22.
+
+---
+
 ## Excluded from DOC-107 Scope
 
 | Category | Rationale |
 |----------|-----------|
-| Field Guide (`backend/src/fieldGuide/v4.20/`, `v4.21/`) | Version-compartmented by directory. FG-DOCREF-MINOR is complete. |
-| Catalog citations (~1,900 `docs.redhat.com` URLs in `data/`) | Version-specific by design; versioned with their catalogs. |
+| Field Guide (`backend/src/fieldGuide/v4.20/`, `v4.21/`, `v4.22/`) | Version-compartmented by directory. FG-DOCREF-MINOR is complete; `v4.22` additionally carries a source-tree copy-classification test. |
+| Catalog citations (~3,000 `docs.redhat.com` URLs in `data/`) | Version-specific by design; versioned with their catalogs and enforced by the citation-minor guard. |
 | Documentation (`docs/*.md`) | Intentionally versioned reference material. |
 
 ### Backend Code Attributable Classifications
@@ -226,8 +275,8 @@ Key design properties:
 - **Object-key VMAP**: OperatorsStep version-map keys require trailing-colon syntax (`"4.XX":`); quoted versions in other positions are NOT exempted
 - **All user-facing violations resolved**: NetworkingV2Step.jsx (10 findings) and NodeDrawerAgentContent.jsx (1 finding) resolved via version-neutral wording — guard passes clean
 - **No decimal-fragment false positives**: the search pattern is left-anchored so a `4` preceded by a digit or dot is not a match; SVG path data is additionally handled by SVGPATH (see above). Neither change exempts any real version reference.
-- **Future-version guarantee**: `bash scripts/find-hardcoded-versions.sh --self-test` runs **42** deterministic assertions (12 violation, 28 exemption, 2 structural) against synthetic fixtures using the exact `classify_raw` function shared with `--check`. Violations proven: "OpenShift 4.30+", "OpenShift 4.22+", "required for OpenShift 4.30", "Deprecated in OpenShift 4.30+", "must use OpenShift 4.30", "OpenShift 4.30 supports multiple node subnets", "baselineCapability v4.30", "Requires OpenShift 4.30 or later", "OpenShift 4.30 introduces new lifecycle", "OpenShift 4.30 and later", user-facing copy in a non-adjudicated step file, and **a real version reference sharing a line with SVG path markup**. Exemptions proven: all 10 adjudication categories (INFRA, CDEFLT, COMMENT, LOGIC, FMT, THRESH, ENUMVAL, VMAP, VGATED, SVGPATH) with representative fixtures.
-  - *Assertion-count history:* 38 before Tranche 0A-1. All 36 original fixture assertions are retained unchanged; 0A-1 added 3 SVGPATH exemption fixtures and 1 SVG-adjacency violation fixture, so the structural expected-violation count moved 11 → 12.
+- **Future-version guarantee**: `bash scripts/find-hardcoded-versions.sh --self-test` runs **43** deterministic assertions (13 violation, 28 exemption, 2 structural) against synthetic fixtures using the exact `classify_raw` function shared with `--check`. Violations proven: "OpenShift 4.30+", "OpenShift 4.22+", "required for OpenShift 4.30", "Deprecated in OpenShift 4.30+", "must use OpenShift 4.30", "OpenShift 4.30 supports multiple node subnets", "baselineCapability v4.30", "Requires OpenShift 4.30 or later", "OpenShift 4.30 introduces new lifecycle", "OpenShift 4.30 and later", user-facing copy in a non-adjudicated step file, and **a real version reference sharing a line with SVG path markup**. Exemptions proven: all 10 adjudication categories (INFRA, CDEFLT, COMMENT, LOGIC, FMT, THRESH, ENUMVAL, VMAP, VGATED, SVGPATH) with representative fixtures.
+  - *Assertion-count history:* 38 before Tranche 0A-1. All 36 original fixture assertions are retained unchanged; 0A-1 added 3 SVGPATH exemption fixtures and 1 SVG-adjacency violation fixture, so the structural expected-violation count moved 11 → 12. v2.1 Tranche 2 added 1 stale-previous-minor violation fixture (`VIOLATE_stale_prev_minor`), moving the count 12 → 13 and the assertion total 42 → 43. No existing fixture or exemption was changed.
 - **Narrow patterns**: each exclusion matches specific text phrases, not file names; new hardcoded version copy in adjudicated files still fails
 - **CI execution**: `.github/workflows/validate-versioned-copy.yml` runs `--self-test` then `--check` in sequence; no dependency installation required
 
