@@ -342,9 +342,47 @@ Disposition categories:
 | GHSA-rgw5-rvv9-x895 | brace-expansion | High | Prod (same chain) | Reachable (low) — same path | F. HUMAN_ACCEPTED_NON_BLOCKING_RISK — bypass of prior CVE fix; same app-controlled patterns |
 | GHSA-hmw2-7cc7-3qxx | form-data | High | Dev (transitive: supertest→superagent→form-data) | Not reachable — dev-only dependency, not in production bundle | A. Dev-only |
 
-#### Frontend (build tooling / dev server — no production runtime)
+#### Frontend (build tooling / dev server)
 
-All frontend vulnerabilities are in build-time or dev-server dependencies. The frontend ships as static HTML/CSS/JS built by `vite build`; none of these packages run in the user's browser or in the production backend.
+> **CORRECTION (Tranche 7C, 2026-10-08) — the "Dev-only" dispositions below rest
+> on a premise no shipped path satisfies.**
+>
+> This section previously read: *"All frontend vulnerabilities are in build-time
+> or dev-server dependencies. The frontend ships as static HTML/CSS/JS built by
+> `vite build`; none of these packages run in the user's browser or in the
+> production backend."*
+>
+> `frontend/Containerfile` does not do that. It is a single stage that runs
+> `npm ci` **without** `--omit=dev` and whose production `CMD` is
+> `["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]`
+> — the Vite **dev server**, listening, as the container's main process. There
+> is no `vite build` and no static file server anywhere in the image.
+> (`backend/Containerfile` does correctly use `npm ci --omit=dev`.)
+>
+> Consequences for the table below:
+>
+> - The full devDependency tree **is** installed in the shipped frontend image,
+>   so "not shipped" is inaccurate for every row.
+> - `vite`, `postcss`, `esbuild` and `rollup` are not merely present — they are
+>   the **executing process**, so "build tool, not shipped" is inaccurate as a
+>   reachability statement too.
+> - A `npm ci` in that image reports **15 vulnerabilities (1 low, 4 moderate,
+>   8 high, 2 critical)**, observed in a 2026-10-08 `podman compose build`.
+> - `scripts/security/tranche-security-gate.sh` audits with `--omit=dev`, which
+>   is why the gate reports zero while the build log does not. The gate is
+>   measuring a dependency set the frontend image does not install.
+>
+> This is a **disposition defect, not a newly introduced vulnerability**: the
+> exposure is the one already tracked as **PROD-026** (p1, active) — "Replace
+> Vite dev server with production build and static file server". Tranche 7C
+> does not re-disposition these advisories and does not upgrade or remove any
+> package; it corrects the factual claim so the risk is not recorded as absent.
+>
+> Until PROD-026 is closed, the honest statement is: *these packages run in the
+> shipped frontend container.* The `A. Dev-only` labels below are retained
+> verbatim for traceability and are **superseded by this note**.
+
+The dispositions below were written against the static-build assumption corrected above.
 
 | Advisory | Package | Severity | Prod/Dev | Disposition |
 |----------|---------|----------|----------|-------------|

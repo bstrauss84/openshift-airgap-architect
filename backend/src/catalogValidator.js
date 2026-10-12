@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SUPPORTED_MINORS, isSupportedMinor } from "./versionPolicy.js";
+import { canonicalDataRoot } from "./canonicalDataRoot.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,7 +51,9 @@ function loadCatalogs(version) {
 
   if (catalogCache.has(version)) return catalogCache.get(version);
 
-  const catalogDir = path.resolve(__dirname, `../../data/params/${version}`);
+  // See canonicalDataRoot.js: `../../data` pointed into the writable runtime
+  // volume in the container, so this silently fell back to an empty catalog set.
+  const catalogDir = path.join(canonicalDataRoot(), "params", version);
 
   if (!fs.existsSync(catalogDir)) {
     console.error(`[catalogValidator] Catalog directory not found: ${catalogDir}`);

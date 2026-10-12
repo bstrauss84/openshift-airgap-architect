@@ -42,13 +42,15 @@ test.describe('Blueprint Step', () => {
   // Architecture filtering
   test('Nutanix only allows x86_64 architecture', async ({ page }) => {
     await selectCard(page, 'Nutanix');
-    // aarch64, ppc64le, s390x should be disabled
+    // aarch64 is modelled elsewhere in the product (bare metal), so it is
+    // drawn and disabled here. ppc64le and s390x have no OAA scenario at all,
+    // so DOC-215 stops drawing them rather than showing a dead control.
     const aarch64 = page.locator('button.select-card:has-text("aarch64")');
     const ppc64le = page.locator('button.select-card:has-text("ppc64le")');
     const s390x = page.locator('button.select-card:has-text("s390x")');
     await expect(aarch64).toBeDisabled();
-    await expect(ppc64le).toBeDisabled();
-    await expect(s390x).toBeDisabled();
+    await expect(ppc64le).toHaveCount(0);
+    await expect(s390x).toHaveCount(0);
     // x86_64 should be enabled and selected
     const x86 = page.locator('button.select-card:has-text("x86_64")');
     await expect(x86).toBeEnabled();

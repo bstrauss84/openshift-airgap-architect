@@ -11,6 +11,7 @@
  */
 import React from "react";
 import { useApp } from "../store.jsx";
+import { installMethodsForPlatform, reconcileMethodForPlatform } from "../../../shared/installMethods.js";
 
 const methods = [
   { value: "IPI", label: "IPI (Installer Provisioned)", sub: "Full stack automation." },
@@ -22,15 +23,6 @@ const methods = [
   }
 ];
 
-const supportedMethods = {
-  "Bare Metal": ["Agent-Based Installer", "IPI", "UPI"],
-  "VMware vSphere": ["IPI", "UPI", "Agent-Based Installer"],
-  Nutanix: ["IPI"],
-  "AWS GovCloud": ["IPI", "UPI"],
-  "Azure Government": ["IPI"],
-  "IBM Cloud": ["IPI"]
-};
-
 const MethodologyStep = ({ highlightErrors }) => {
   const { state, updateState } = useApp();
   const method = state.methodology?.method;
@@ -38,7 +30,10 @@ const MethodologyStep = ({ highlightErrors }) => {
   const connectivity = state.globalStrategy?.connectivity;
   const recommended = platform === "Bare Metal" ? "Agent-Based Installer" : null;
   const needsReview = state.reviewFlags?.methodology && state.ui?.visitedSteps?.methodology;
-  const allowed = supportedMethods[platform] || methods.map((m) => m.value);
+  // One table, shared with BlueprintStep so the two steps cannot disagree about
+  // which methods a platform offers. See shared/installMethods.js.
+  const allowedForPlatform = installMethodsForPlatform(platform);
+  const allowed = allowedForPlatform.length ? allowedForPlatform : methods.map((m) => m.value);
   const placeholdersEnabled = Boolean(state.ui?.placeholderValuesEnabled);
 
   // Decision guidance for disconnected vSphere
@@ -60,9 +55,14 @@ const MethodologyStep = ({ highlightErrors }) => {
     });
   };
 
+  // Repairs a stale method for users who reach this step with a pair that
+  // predates the BlueprintStep reconciliation (an imported run, or state saved
+  // by an earlier build). Both call sites use reconcileMethodForPlatform, so
+  // they always land on the same method.
   React.useEffect(() => {
-    if (method && !allowed.includes(method)) {
-      updateState({ methodology: { method: allowed[0] } });
+    const reconciled = reconcileMethodForPlatform(platform, method);
+    if (method && reconciled && reconciled !== method) {
+      updateState({ methodology: { method: reconciled } });
     }
   }, [platform]);
 

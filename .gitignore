@@ -62,6 +62,13 @@ data/cache/
 # re-inclusion the deny-by-default /data/* rule above would silently drop it.
 !/data/arch-support/
 !/data/arch-support/**
+# Platform x installation-methodology scenario surface (DOC-202). Canonical
+# tracked data: scripts/validate-scenario-support.js and its test read it, and
+# npm run validate-authority runs that guard. Same deny-by-default trap as the
+# matrix above — without this re-inclusion /data/* would silently drop it and
+# the guard would fail on a fresh clone.
+!/data/scenario-support/
+!/data/scenario-support/**
 **/openshift-install-*
 **/openshift-install-*.tar.gz
 # When DATA_DIR is backend/ (e.g. local dev)

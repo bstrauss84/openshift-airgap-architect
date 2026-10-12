@@ -28,15 +28,37 @@ RUN dnf install -y --setopt=install_weak_deps=false \
 #
 #   oc-mirror -> "latest"       global latest; required because operator listing
 #                               ("--v2 list operators") does not exist in 4.21.x.
-#   oc        -> "latest-4.21"  highest supported target minor; convenience only.
+#   oc        -> "latest-4.22"  highest supported target minor; convenience only.
 #                               Downloadable bundles resolve oc per selected
-#                               target minor at request time, not from this layer.
+#                               target minor at request time, not from this layer
+#                               (see getBinariesForExportArch in ocMirrorRuntime.js),
+#                               so this layer never determines what a user receives.
+#                               It read "latest-4.21" until Tranche 7C: that default
+#                               predated 4.22 support and made the build print
+#                               OC_RESOLVED_VERSION=4.21.36 while the product
+#                               supported 4.22, which read as a version defect.
 #
 # Supported architectures: x86_64, aarch64 (arm64), ppc64le, s390x.
 # Custom URL overrides require a matching SHA256 arg — never silently skip verification.
 # The resolved versions/digests are written to /app/tools-provenance.env.
-ARG OC_CHANNEL=latest-4.21
+ARG OC_CHANNEL=latest-4.22
 ARG OC_MIRROR_CHANNEL=latest
+# Each fetch is CAPTURED FIRST and parsed afterwards, never piped straight into
+# awk. Two reasons, both load-bearing:
+#   1. `curl ... | awk '/^Name:/{print $2; exit}'` made awk close the pipe after
+#      the first match, so curl died with EPIPE and printed
+#      "curl: (23) Failure writing output to destination" on every single build
+#      (observed: "passed 8192 returned 3583" against a 33 KB release.txt).
+#   2. Worse than the noise: in a pipeline without pipefail the exit status is
+#      awk's, so curl's status — 23, or a real 404/TLS/network failure — was
+#      DISCARDED and `set -e` never saw it. The [ -n "$var" ] guards below are a
+#      proxy for "did it work", and they cannot distinguish a TLS failure from a
+#      404. A plain assignment from a non-pipelined substitution takes curl's own
+#      status, so a genuine failure now aborts the build with curl's own message.
+# The sha256sum.txt fetches used the same idiom and only escaped (23) because
+# those files fit in the 64 KiB pipe buffer — latent, not safe. Do not
+# reintroduce `| awk '...; exit'`, `| head -1` or `| grep -m1` here: all three
+# close the pipe early and recreate this.
 RUN set -e && \
     _arch="$(uname -m)" && \
     case "$_arch" in \
@@ -55,14 +77,18 @@ RUN set -e && \
     _cbase="https://mirror.openshift.com/pub/openshift-v4/${_dir}/clients/ocp" && \
     _oc_base="${_cbase}/${OC_CHANNEL}" && \
     _mirror_base="${_cbase}/${OC_MIRROR_CHANNEL}" && \
-    _oc_ver="$(curl -fsSL "${_oc_base}/release.txt" | awk '/^Name:/{print $2; exit}')" && \
-    _mirror_ver="$(curl -fsSL "${_mirror_base}/release.txt" | awk '/^Name:/{print $2; exit}')" && \
+    _oc_rel="$(curl -fsSL "${_oc_base}/release.txt")" && \
+    _mirror_rel="$(curl -fsSL "${_mirror_base}/release.txt")" && \
+    _oc_ver="$(printf '%s\n' "${_oc_rel}" | awk '/^Name:/{v=$2} END{print v}')" && \
+    _mirror_ver="$(printf '%s\n' "${_mirror_rel}" | awk '/^Name:/{v=$2} END{print v}')" && \
     [ -n "${_oc_ver}" ] || { echo "FATAL: could not resolve oc version from ${_oc_base}"; exit 1; } && \
     [ -n "${_mirror_ver}" ] || { echo "FATAL: could not resolve oc-mirror version from ${_mirror_base}"; exit 1; } && \
     if [ -n "${OCP_CLIENT_SHA256}" ]; then _oc_check="${OCP_CLIENT_SHA256}"; else \
-      _oc_check="$(curl -fsSL "${_oc_base}/sha256sum.txt" | awk '$2=="openshift-client-linux.tar.gz"{print $1; exit}')"; fi && \
+      _oc_sums="$(curl -fsSL "${_oc_base}/sha256sum.txt")" && \
+      _oc_check="$(printf '%s\n' "${_oc_sums}" | awk '$2=="openshift-client-linux.tar.gz"{v=$1} END{print v}')"; fi && \
     if [ -n "${OCP_MIRROR_SHA256}" ]; then _mirror_check="${OCP_MIRROR_SHA256}"; else \
-      _mirror_check="$(curl -fsSL "${_mirror_base}/sha256sum.txt" | awk '$2=="oc-mirror.tar.gz"{print $1; exit}')"; fi && \
+      _mirror_sums="$(curl -fsSL "${_mirror_base}/sha256sum.txt")" && \
+      _mirror_check="$(printf '%s\n' "${_mirror_sums}" | awk '$2=="oc-mirror.tar.gz"{v=$1} END{print v}')"; fi && \
     [ -n "${_oc_check}" ] || { echo "FATAL: no SHA256 for openshift-client-linux.tar.gz"; exit 1; } && \
     [ -n "${_mirror_check}" ] || { echo "FATAL: no SHA256 for oc-mirror.tar.gz"; exit 1; } && \
     _oc_url="${OCP_CLIENT_URL:-${_oc_base}/openshift-client-linux.tar.gz}" && \
@@ -92,7 +118,16 @@ ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY backend/src ./src
 COPY backend/mock-data ./mock-data
+# Shipped read-only data (arch-support matrices, parameter catalogs). This is
+# NOT the runtime volume: docker-compose.yml mounts `backend-data` at /data and
+# sets DATA_DIR=/data for the database, tools and oc-mirror archives. The two
+# must stay distinct — the backend used to resolve this data as
+# `backend/src/../../data`, which in this image is `/data`, so it read the empty
+# runtime volume and reported "No architecture-support matrix is available" for
+# every supported minor. OAA_CANONICAL_DATA_DIR states the location explicitly;
+# see backend/src/canonicalDataRoot.js.
 COPY data ./data
+ENV OAA_CANONICAL_DATA_DIR=/app/data
 COPY shared /shared
 COPY backend/scripts/entrypoint.sh /app/entrypoint.sh
 COPY --from=build-info /tmp/build-env.sh /app/build-env.sh

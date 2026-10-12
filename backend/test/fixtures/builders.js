@@ -201,7 +201,15 @@ export const withBondNode = (state, nodeIndex = 0, config = {}) => {
           { name: "eno2", macAddress: "52:54:00:aa:bb:02" }
         ]
       },
-      mode: config.ipv4?.mode || config.ipv6?.mode || "static",
+      /* Default to DHCP, not static, when the caller supplied no address.
+         Several tests use these builders for a purely L2 concern (bond MTU,
+         VLAN id) and pass no addressing at all. Defaulting those to "static"
+         produced a primary interface in static mode with no address — an
+         incomplete configuration that the generator now correctly refuses
+         (see addIpConfig in backend/src/generate.js: incomplete is not the
+         same as intentionally disabled). DHCP is a complete, valid default
+         and leaves the L2 assertions untouched. */
+      mode: config.ipv4?.mode || config.ipv6?.mode || (config.ipv4?.cidr || config.ipv6?.cidr ? "static" : "dhcp"),
       ipv4Cidr: config.ipv4?.cidr,
       ipv4Gateway: config.ipv4?.gateway,
       ipv6Cidr: config.ipv6?.cidr,
@@ -240,7 +248,15 @@ export const withVlanNode = (state, nodeIndex = 0, config = {}) => {
         name: config.vlanName || "vlan100"
       },
       [config.onBond ? "bond" : "ethernet"]: baseIface,
-      mode: config.ipv4?.mode || config.ipv6?.mode || "static",
+      /* Default to DHCP, not static, when the caller supplied no address.
+         Several tests use these builders for a purely L2 concern (bond MTU,
+         VLAN id) and pass no addressing at all. Defaulting those to "static"
+         produced a primary interface in static mode with no address — an
+         incomplete configuration that the generator now correctly refuses
+         (see addIpConfig in backend/src/generate.js: incomplete is not the
+         same as intentionally disabled). DHCP is a complete, valid default
+         and leaves the L2 assertions untouched. */
+      mode: config.ipv4?.mode || config.ipv6?.mode || (config.ipv4?.cidr || config.ipv6?.cidr ? "static" : "dhcp"),
       ipv4Cidr: config.ipv4?.cidr,
       ipv4Gateway: config.ipv4?.gateway,
       ipv6Cidr: config.ipv6?.cidr,

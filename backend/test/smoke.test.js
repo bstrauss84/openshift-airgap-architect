@@ -105,9 +105,31 @@ test("buildInstallConfig for bare-metal-ipi emits provisioning network params wh
   assert.strictEqual(out.platform?.baremetal?.provisioningNetwork, "Unmanaged");
   assert.strictEqual(out.platform?.baremetal?.provisioningNetworkCIDR, "172.22.0.0/24");
   assert.strictEqual(out.platform?.baremetal?.provisioningNetworkInterface, "eth1");
-  assert.strictEqual(out.platform?.baremetal?.provisioningDHCPRange, "172.22.0.10,172.22.0.254");
   assert.strictEqual(out.platform?.baremetal?.clusterProvisioningIP, "172.22.0.3");
   assert.strictEqual(out.platform?.baremetal?.provisioningMACAddress, "52:54:00:00:00:01");
+  /* provisioningDHCPRange is NOT expected here. Corrected in Tranche 7C.4:
+     Red Hat documents it as "only applicable to a Managed provisioning
+     network", and cluster-baremetal-operator forcibly clears it for any
+     non-Managed mode, so emitting it under Unmanaged put dead text in the
+     user's install-config. Full mode matrix:
+     test/t7c4-provisioning-network-family.test.js. */
+  assert.strictEqual(out.platform?.baremetal?.provisioningDHCPRange, undefined);
+});
+
+test("buildInstallConfig for bare-metal-ipi emits the DHCP range under Managed", () => {
+  // The positive half of the rule corrected above.
+  const state = baseStates.bareMetalIpi({
+    hostInventory: {
+      provisioningNetwork: "Managed",
+      provisioningNetworkCIDR: "172.22.0.0/24",
+      provisioningNetworkInterface: "eth1",
+      provisioningDHCPRange: "172.22.0.10,172.22.0.254",
+      clusterProvisioningIP: "172.22.0.3"
+    }
+  });
+  const out = yaml.load(buildInstallConfig(state));
+  assert.strictEqual(out.platform?.baremetal?.provisioningDHCPRange, "172.22.0.10,172.22.0.254");
+  assert.strictEqual(out.platform?.baremetal?.provisioningNetworkInterface, "eth1");
 });
 
 test("buildInstallConfig for bare-metal-ipi emits apiVIPs/ingressVIPs (list format per 4.12+)", () => {

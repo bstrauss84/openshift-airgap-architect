@@ -17,7 +17,9 @@ import Button from "./Button.jsx";
 /**
  * Shared pull-secret / credential input: masked by default, show/hide toggle,
  * paste, drag-and-drop, file upload, consistent helper/error placement.
- * dropEffect is set to "copy" on dragover so sources are encouraged not to move/cut; behavior may still vary by source app.
+ * dropEffect is set to "copy" on dragenter/dragover so a source does not cut the dragged
+ * text. A source advertising move-only cannot be overridden — see src/dragDropCopyPolicy.js,
+ * which applies the same policy to every other text field in the app.
  * Use for all pull secret fields across Blueprint, Identity & Access, Operators, Global Strategy.
  * When hint or labelHint is provided, the (i) icon shows that text as a tooltip and notPersistedMessage is not shown below.
  * When getPullSecretUrl is provided, a link button to obtain the Red Hat pull secret is shown (Red Hat login required).
@@ -167,6 +169,7 @@ function SecretInput({
       ) : null}
       <div
         className={`pull-secret-field-wrap ${hasError ? "input-error" : ""}`}
+        onDragEnter={handleDragOver}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >

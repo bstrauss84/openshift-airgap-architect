@@ -10,8 +10,19 @@ import { join } from 'path';
 describe('Hint attribute syntax validation', () => {
   const platformSpecificsPath = join(__dirname, '../src/steps/PlatformSpecificsStep.jsx');
 
-  it('should not have any hint attributes using double-quote strings', () => {
-    const content = readFileSync(platformSpecificsPath, 'utf8');
+  /*
+   * The two generic syntax guards below now also cover the node editor, which
+   * carries the host-networking helper text. (The escaping guard further down
+   * stays scoped to PlatformSpecificsStep: the node editor's hints use
+   * deliberate ${...} interpolation to name the interface a field belongs to.)
+   */
+  const SYNTAX_GUARDED_FILES = [
+    ['PlatformSpecificsStep.jsx', platformSpecificsPath],
+    ['NodeDrawerAgentContent.jsx', join(__dirname, '../src/components/NodeDrawerAgentContent.jsx')]
+  ];
+
+  it.each(SYNTAX_GUARDED_FILES)('%s: should not have any hint attributes using double-quote strings', (_label, path) => {
+    const content = readFileSync(path, 'utf8');
 
     // Check for hint=" pattern (should use hint={` instead)
     const doubleQuoteHints = content.match(/hint="/g);
@@ -24,8 +35,8 @@ describe('Hint attribute syntax validation', () => {
     }
   });
 
-  it('should not have double closing braces after template literals', () => {
-    const content = readFileSync(platformSpecificsPath, 'utf8');
+  it.each(SYNTAX_GUARDED_FILES)('%s: should not have double closing braces after template literals', (_label, path) => {
+    const content = readFileSync(path, 'utf8');
 
     // Check for `}} pattern (common bug when converting from hint="..."}  )
     const lines = content.split('\n');

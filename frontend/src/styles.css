@@ -699,6 +699,31 @@ body[data-theme="dark"] .run-oc-mirror-badge {
   max-width: 280px;
 }
 
+/*
+ * Control-level width primitive for SHORT ENUMERATED choices.
+ *
+ * The `.field-short` / `.field-medium` / `.field-dropdown` classes above size
+ * the field WRAPPER. Inside `.field-grid`, where each field already owns a
+ * grid column, a `<select>` with no width of its own stretches to the full
+ * column — so a three-option dropdown ended up spanning most of a card while
+ * carrying a value like "IPv4". This sizes the CONTROL instead, which is what
+ * is needed when the wrapper is supplied by the grid.
+ *
+ * 280px matches the established `.field-dropdown select` width, so enum
+ * controls read consistently whichever layout they sit in. `width: 100%` keeps
+ * it responsive: on a narrow viewport or a narrow grid column it shrinks to
+ * the space available rather than overflowing the card.
+ *
+ * Use for short enumerated choices (mode, IP family, bond mode, IP
+ * assignment). Do NOT use for controls whose value is long and would be
+ * harmed by truncation — identifiers, paths, URLs, catalog values.
+ */
+.control-enum {
+  width: 100%;
+  max-width: 280px;
+  box-sizing: border-box;
+}
+
 /* Standard text input fields (~280-400px) */
 .field-standard {
   max-width: 400px;
@@ -4891,7 +4916,30 @@ body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summa
 }
 
 /* Full-width field cell inside a responsive field-grid (e.g. bare metal provisioning mode). */
-.platform-specifics .field-grid .field-with-info-row.field-grid-span-full {
+.platform-specifics .field-grid .field-with-info-row.field-grid-span-full,
+.platform-specifics .field-grid > .field-control-stack.field-grid-span-full {
+  grid-column: 1 / -1;
+}
+
+/*
+ * SAFETY NET — not a licence to skip the wrapper.
+ *
+ * The canonical contract (docs/DESIGN_SYSTEM.md "Field layout contract") is that
+ * supporting content — inline validation errors, helper text, and the
+ * "New in OpenShift X.Y" badge — lives inside
+ * .field-control-stack > .field-control-support, never as a direct child of
+ * .field-grid. A direct child of .field-grid consumes its own auto-fit COLUMN,
+ * so a stray error or badge renders to the RIGHT of its field and pushes every
+ * neighbouring control sideways.
+ *
+ * These two rules exist only so that a future mistake degrades into a
+ * full-width row instead of silently stealing a column and shifting the whole
+ * grid. frontend/tests/field-support-structure.test.jsx FAILS the build when
+ * markup relies on them.
+ */
+.platform-specifics .field-grid > .field-error,
+.platform-specifics .field-grid > .field-control-support,
+.platform-specifics .field-grid > [data-version-annotation] {
   grid-column: 1 / -1;
 }
 
@@ -4907,6 +4955,19 @@ body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summa
   font-size: 0.8em;
   color: var(--text-secondary, #666);
   margin-top: 2px;
+}
+
+/*
+ * Base inline-error treatment. Deliberately unscoped so that an inline error can
+ * never render as plain body text (the "ordinary white text" failure mode): the
+ * semantic colour is attached to the class itself, not to its position in the
+ * DOM. The .field-control-stack rule below keeps the historical specificity the
+ * structural tests assert against.
+ */
+.field-error {
+  color: var(--error-color, #d32f2f);
+  font-size: 0.85em;
+  margin-top: 4px;
 }
 
 .platform-specifics .field-control-stack .field-error {

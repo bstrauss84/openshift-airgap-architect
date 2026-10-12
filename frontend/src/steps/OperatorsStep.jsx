@@ -11,13 +11,19 @@
  */
 import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { apiFetch } from "../api.js";
+import { isJobGone, allJobsSettled } from "../shared/jobPolling.js";
 import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import {
   catalogImagesForMinor,
-  reconcileOperatorsForMinor
+  reconcileOperatorsForMinor,
+  isOperatorResolved
 } from "../shared/operatorMinorReconciliation.js";
+// Quick Pick membership is a VERSION-AWARE PRESET, and reconciliation needs to
+// read it too, so the table lives in shared/ rather than module-private here.
+// See shared/operatorQuickPicks.js for why.
+import { scenarios, resolveScenarioPicks } from "../shared/operatorQuickPicks.js";
 import { useCatalogScanProgress } from "../useCatalogScanProgress.js";
 import SecretInput from "../components/SecretInput.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
@@ -27,213 +33,9 @@ import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 
-const scenarios = [
-  {
-    id: "virtualization",
-    label: "Virtualization",
-    picks: {
-      redhat: ["kubevirt-hyperconverged", "mtv-operator", "kubernetes-nmstate-operator"]
-    }
-  },
-  {
-    id: "local-storage",
-    label: "Local Storage",
-    picks: { redhat: ["lvms-operator", "local-storage-operator"] }
-  },
-  {
-    id: "openshift-ai",
-    label: "OpenShift AI",
-    // Version-aware since the 4.22 flip: `rhods-prometheus-operator` is present in the
-    // redhat catalog at 4.20 and 4.21 but ABSENT at 4.22, and applyScenario skips a
-    // not-found package silently. 4.20/4.21 keep the shipped set unchanged; 4.22 omits
-    // the package with NO replacement — the 4.22 rhods-operator FBC declares no OLM
-    // dependency on it, never references it, and ships no Prometheus image.
-    // Evidence: docs/minor-release/4.22/rhoai-package-evidence-4.22.json (finding B1).
-    versionPicks: {
-      "4.20": { redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"], certified: ["gpu-operator-certified"] },
-      "4.21": { redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"], certified: ["gpu-operator-certified"] },
-      "4.22": { redhat: ["rhods-operator", "nfd"], certified: ["gpu-operator-certified"] }
-    }
-  },
-  {
-    id: "compliance",
-    label: "Compliance and Security",
-    description: "File integrity monitoring (AIDE) and compliance scanning",
-    picks: { redhat: ["compliance-operator", "file-integrity-operator"] }
-  },
-  {
-    id: "disconnected",
-    label: "Disconnected Update Support",
-    picks: { redhat: ["cincinnati-operator"] }
-  },
-  {
-    id: "qol",
-    label: "Quality of Life",
-    description: "Web Terminal, DevSpaces, and Red Hat Developer Hub (Backstage-based internal developer platform)",
-    picks: { redhat: ["web-terminal", "devspaces", "rhdh"] }
-  },
-  {
-    id: "node-health",
-    label: "Node Health and Maintenance",
-    picks: { redhat: ["self-node-remediation", "fence-agents-remediation", "node-healthcheck-operator", "node-maintenance-operator", "node-observability-operator"] }
-  },
-  {
-    id: "gitops",
-    label: "GitOps",
-    picks: { redhat: ["openshift-gitops-operator"] }
-  },
-  {
-    id: "cicd",
-    label: "CI/CD",
-    picks: { redhat: ["openshift-pipelines-operator-rh"] }
-  },
-  {
-    id: "odf",
-    label: "OpenShift Data Foundation (Base)",
-    description: "Persistent storage with file, block, and object support - base packages for disconnected mirroring",
-    versionPicks: {
-      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
-      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
-      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "4.22": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles"] }
-    }
-  },
-  {
-    id: "odf-local-storage",
-    label: "ODF + Local Storage",
-    description: "ODF base packages + local-storage-operator for internal mode deployments (Ceph on local disks)",
-    versionPicks: {
-      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "local-storage-operator"] },
-      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "local-storage-operator"] },
-      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
-      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
-      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
-      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
-      "4.22": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles", "local-storage-operator"] }
-    }
-  },
-  {
-    id: "odf-disaster-recovery",
-    label: "ODF + Disaster Recovery",
-    description: "ODF base packages + Regional-DR/Metro-DR operators for disaster recovery configurations",
-    versionPicks: {
-      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.22": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator", "odr-volsync-plugin-operator"] }
-    }
-  },
-  {
-    id: "platform-plus",
-    label: "OpenShift Platform Plus",
-    description: "Multi-cluster management (ACM + MCE), security (ACS), registry (Quay), and storage (ODF base stack)",
-    versionPicks: {
-      "4.16": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
-      "4.17": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
-      "4.18": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.19": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.20": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "4.21": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "4.22": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "ocs-tls-profiles"] }
-    }
-  },
-  {
-    id: "app-dev-suite",
-    label: "App Development Suite",
-    description: "GitOps, CI/CD pipelines, cloud IDE, and web terminal",
-    // The package set genuinely does not vary by minor, but it is still declared
-    // per-minor: with `default` removed there is no fallback, so a supported minor
-    // without a row has no Quick Pick at all.
-    versionPicks: {
-      "4.20": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] },
-      "4.21": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] },
-      "4.22": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] }
-    }
-  },
-  {
-    id: "logging",
-    label: "Logging Stack",
-    description: "Cluster logging with Loki log aggregation (Elasticsearch deprecated in 5.x+)",
-    picks: { redhat: ["cluster-logging", "loki-operator"] }
-  },
-  {
-    id: "service-mesh",
-    label: "Service Mesh",
-    // `jaeger-product` was removed here: Red Hat's own distributed-tracing
-    // documentation states the Jaeger Operator is removed from the
-    // redhat-operators catalog, support for Jaeger 3.5 ended 2025-11-03 —
-    // before any minor this tool supports — and the real `oc-mirror --v2 list
-    // operators` scan confirms it is absent at 4.20, 4.21 and 4.22 alike. It was
-    // therefore a stale reference that `applyScenario` skipped silently, so this
-    // Quick Pick promised three operators and mirrored two.
-    //
-    // NOT replaced by Tempo/OpenTelemetry. Service Mesh 3 no longer installs or
-    // manages tracing components at all, and the OSSM distributed-tracing
-    // chapter lists the Tempo and OpenTelemetry operators as prerequisites of an
-    // OPTIONAL tracing integration, not of Service Mesh. Offering a tracing
-    // Quick Pick is a separate product decision. See DOC-184.
-    description: "Istio-based service mesh with Kiali observability",
-    picks: { redhat: ["servicemeshoperator", "kiali-ossm"] }
-  },
-  {
-    id: "serverless",
-    label: "Serverless",
-    description: "Knative-based serverless workloads (Serving and Eventing)",
-    picks: { redhat: ["serverless-operator"] }
-  },
-  {
-    id: "network-observability",
-    label: "Network Observability",
-    description: "eBPF-based network traffic monitoring and analysis",
-    picks: { redhat: ["netobserv-operator"] }
-  },
-  {
-    id: "cost-management",
-    label: "Cost Management",
-    description: "Cluster cost tracking and resource usage metrics",
-    picks: { redhat: ["costmanagement-metrics-operator"] }
-  },
-  {
-    id: "quay",
-    label: "Red Hat Quay",
-    description: "Enterprise container registry with enhanced RBAC",
-    picks: { redhat: ["quay-operator"] }
-  },
-  {
-    id: "quay-bridge",
-    label: "Quay + OpenShift Integration",
-    description: "Quay as default OpenShift registry with namespace sync and ImageStream mirroring",
-    picks: { redhat: ["quay-operator", "quay-bridge-operator"] }
-  }
-];
 
 const catalogImages = catalogImagesForMinor;
 
-/**
- * Resolve a Quick Pick's package set for one OpenShift minor.
- *
- * There is deliberately NO `default` fallback. A version-aware Quick Pick that
- * has no row for the selected minor returns `null` and fails closed, because
- * the alternative is worse than no Quick Pick: resolution used to fall through
- * to `default`, so enabling a new minor without authoring its rows made every
- * ODF Quick Pick silently serve the previous minor's package list, and
- * `applyScenario` skips a not-found package without warning. The user would
- * mirror a short set and be told nothing.
- *
- * Flat Quick Picks keep their minor-independent `picks`.
- *
- * @returns {Object|null} `{ catalogId: string[] }`, or null when undefined for this minor
- */
-const resolveScenarioPicks = (scenario, minor) => {
-  if (scenario?.versionPicks) return scenario.versionPicks[minor] || null;
-  return scenario?.picks || null;
-};
 
 const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const { state, updateState, setState } = useApp();
@@ -243,6 +45,9 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const [jobStatuses, setJobStatuses] = useState({});
   const { displayProgress, start, complete, fail } = useCatalogScanProgress();
   const prevStatusesRef = useRef({});
+  // Job ids this mount has proved terminal (404). Survives re-renders, so a
+  // late re-seed from persisted state cannot resurrect them inside one mount.
+  const clearedJobIdsRef = useRef(new Set());
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
   const [pullSecretInput, setPullSecretInput] = useState("");
   const [scanError, setScanError] = useState("");
@@ -394,7 +199,14 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   useEffect(() => {
     const fromState = state.operators?.scanJobs;
     if (fromState && typeof fromState === "object" && Object.keys(fromState).length > 0) {
-      setJobs((prev) => (Object.keys(prev).length === 0 ? { ...fromState } : prev));
+      // Belt and braces for the terminal-404 clear below: a job id this mount
+      // has already proved gone must never be seeded back, even if a slower
+      // GET /api/state answers with the pre-clear scanJobs.
+      const seedable = Object.fromEntries(
+        Object.entries(fromState).filter(([, jobId]) => !clearedJobIdsRef.current.has(jobId))
+      );
+      if (Object.keys(seedable).length === 0) return;
+      setJobs((prev) => (Object.keys(prev).length === 0 ? seedable : prev));
     }
   }, [state.operators?.scanJobs]);
 
@@ -420,7 +232,16 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
 
   useEffect(() => {
     if (!confirmed || !version) return;
-    if (state.operators?.version === version && catalogs.redhat.length) return;
+    // Unresolved intent must keep this effect eligible. The old guard skipped
+    // whenever the minor was stamped and ANY catalog was present, which meant an
+    // imported run whose selections were intent-only could never be reconciled
+    // once a catalog list existed — the metadata stayed "unknown" and the
+    // ImageSet stayed empty until the user removed and re-picked everything.
+    const selectedNow = state.operators?.selected || [];
+    const pendingNow = state.operators?.pendingScenarios || {};
+    const hasUnresolvedIntent =
+      selectedNow.some((op) => !isOperatorResolved(op)) || Object.keys(pendingNow).length > 0;
+    if (state.operators?.version === version && catalogs.redhat.length && !hasUnresolvedIntent) return;
     setLoadingCatalogs(true);
     apiFetch(`/api/operators/status?version=${version}`)
       .then((data) => {
@@ -607,17 +428,72 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     }
   };
 
+  /**
+   * One or more catalog scan jobs answered 404: they are gone for good.
+   *
+   * Drop every reference that could cause it to be requested again — the local
+   * `jobs` map the poller iterates, and the persisted `operators.scanJobs` the
+   * seeding effect re-reads on mount — and mark the operator results stale so
+   * the existing banner explains why the catalog tables are not current.
+   *
+   * What is deliberately KEPT is `operators.expiredScans`: a purely
+   * informational "this catalog's scan expired, at this time" record. It
+   * carries no job id, precisely so that nothing downstream can turn it back
+   * into a request. This mirrors RunOcMirrorStep's
+   * `updateMirrorWorkflow({ lastRunJobId: null })`.
+   */
+  const forgetGoneScanJobs = (catalogIds) => {
+    if (!catalogIds.length) return;
+    setJobs((prev) => {
+      if (!catalogIds.some((catalogId) => catalogId in prev)) return prev;
+      const next = { ...prev };
+      for (const catalogId of catalogIds) delete next[catalogId];
+      return next;
+    });
+    setState((prev) => {
+      const prevOperators = prev.operators || {};
+      const nextScanJobs = { ...(prevOperators.scanJobs || {}) };
+      const nextExpired = { ...(prevOperators.expiredScans || {}) };
+      const expiredAt = new Date().toISOString();
+      for (const catalogId of catalogIds) {
+        delete nextScanJobs[catalogId];
+        nextExpired[catalogId] = { expiredAt };
+      }
+      return {
+        ...prev,
+        operators: { ...prevOperators, scanJobs: nextScanJobs, expiredScans: nextExpired, stale: true }
+      };
+    });
+  };
+
   useEffect(() => {
-    const ids = Object.values(jobs);
+    // A job id already proved terminal in this mount is never requested again,
+    // even if `jobs` has not re-rendered yet. The clear below is applied once
+    // per request round rather than per job precisely so that a mid-round
+    // re-render cannot re-arm polling for the jobs that have not answered yet.
+    const ids = Object.values(jobs).filter((id) => !clearedJobIdsRef.current.has(id));
     if (!ids.length) return;
     let cancelled = false;
     let prevPolledStatuses = {};
+    // Jobs that answered 404. A missing job is TERMINAL — it will not come
+    // back — so it must stop counting against "all done". Without this the
+    // catch below swallowed the 404, no status was recorded, `allDone` could
+    // never become true, and the loop re-armed every 4 seconds until the
+    // 150-iteration cap ten minutes later. A human saw exactly that as a wall
+    // of `404 Job not found` in the browser console.
+    const goneIds = new Set();
     let pollCount = 0;
+    let retryTimer = null;
     const MAX_POLLS = 150; // 150 * 4s = 10 minutes max polling time
     const startTime = Date.now();
     const MAX_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
     const poll = async () => {
+      // An already-scheduled tick must not fire after unmount. `cancelled` was
+      // only consulted around the state writers, so the request round itself
+      // still went out and a full set of /api/jobs/<id> calls was issued by a
+      // component that no longer exists.
+      if (cancelled) return;
       pollCount++;
       const elapsed = Date.now() - startTime;
 
@@ -630,6 +506,8 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       }
 
       const nextStatuses = {};
+      /** Catalogs whose job answered 404 during THIS round. */
+      const goneCatalogIds = [];
       for (const id of ids) {
         try {
           const job = await apiFetch(`/api/jobs/${id}`);
@@ -654,26 +532,67 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           if (job.status === "completed" || job.status === "failed") {
             const data = await apiFetch(`/api/operators/status?version=${version}`);
             if (!cancelled) {
-              setState((prev) => ({
-                ...prev,
-                operators: { ...prev.operators, catalogs: normalizeCatalogs(data), version }
-              }));
+              setState((prev) => {
+                const nextCatalogs = normalizeCatalogs(data);
+                // RECONCILE HERE TOO. This writer used to assign catalogs and
+                // nothing else, so operator metadata was only ever re-derived by
+                // the mount-time effect. A user who imported a run and THEN
+                // scanned got populated catalog tables beside selections still
+                // reading "Default channel: unknown", with those operators
+                // missing from imageset-config.yaml — recoverable only by
+                // removing and re-picking each one. reconcileOperatorsForMinor
+                // returns null when there is nothing to do, so calling it on
+                // every catalog write is safe.
+                const reconciled = reconcileOperatorsForMinor(prev.operators, nextCatalogs, version);
+                return {
+                  ...prev,
+                  operators: {
+                    ...prev.operators,
+                    ...(reconciled || {}),
+                    catalogs: nextCatalogs,
+                    version
+                  }
+                };
+              });
             }
           }
-        } catch {
-          // ignore
+        } catch (err) {
+          if (isJobGone(err)) {
+            // Terminal. Record it so `allDone` can settle, and surface it on
+            // the matching catalog row rather than leaving the UI claiming a
+            // scan is still in flight.
+            goneIds.add(id);
+            // `goneIds` is a local of THIS effect run, so it dies on unmount.
+            // Without also dropping the id from component state AND from the
+            // persisted `operators.scanJobs`, the seeding effect re-read it on
+            // the next mount and the whole round of 404s started again — which
+            // is exactly what a human saw on every return to this step. Same
+            // remedy RunOcMirrorStep already applies to
+            // `mirrorWorkflow.lastRunJobId`.
+            clearedJobIdsRef.current.add(id);
+            const catalogId = Object.entries(jobs).find(([, jobId]) => jobId === id)?.[0];
+            if (catalogId) {
+              nextStatuses[catalogId] = { id, status: "failed", error: "Scan job no longer exists." };
+              goneCatalogIds.push(catalogId);
+            }
+          }
+          // Anything else is transient; the next tick retries.
         }
       }
+
+      // One clear for the whole round: see the note on `ids` above.
+      forgetGoneScanJobs(goneCatalogIds);
 
       // Update previous statuses for next poll
       prevPolledStatuses = { ...nextStatuses };
       if (!cancelled) {
         setJobStatuses(nextStatuses);
       }
-      const allDone = ids.every((jobId) => {
-        const status = Object.values(nextStatuses).find((item) => item?.id === jobId);
-        return status && (status.status === "completed" || status.status === "failed");
-      });
+      const allDone = allJobsSettled(
+        ids,
+        (jobId) => Object.values(nextStatuses).find((item) => item?.id === jobId)?.status,
+        goneIds
+      );
       const anyFailed = Object.values(nextStatuses).some((item) => item?.status === "failed");
       if (allDone && !anyFailed) {
         setState((prev) => ({
@@ -685,12 +604,16 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
 
       // Stop polling if all jobs are done or cancelled
       if (!cancelled && !allDone) {
-        setTimeout(poll, 4000);
+        retryTimer = setTimeout(poll, 4000);
       }
     };
     poll();
     return () => {
       cancelled = true;
+      // The handle was never captured, so cleanup could not cancel an armed
+      // tick. Compare RunOcMirrorStep, which uses setInterval/clearInterval.
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
     };
   }, [jobs, version]);
 

@@ -14,6 +14,7 @@
 import React, { useEffect, useCallback } from "react";
 import { useApp } from "../store.jsx";
 import { apiFetch, API_BASE } from "../api.js";
+import { isJobGone, isTerminalJobStatus } from "../shared/jobPolling.js";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
@@ -195,22 +196,47 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
     if (!lastRunJobId) return;
     apiFetch(`/api/jobs/${lastRunJobId}`)
       .then((job) => setLastRunJob(job))
-      .catch(() => setLastRunJob(null));
+      .catch((err) => {
+        setLastRunJob(null);
+        // The persisted mirrorWorkflow.lastRunJobId outlives the backend's job
+        // history, so drop the reference once the job is provably gone instead
+        // of re-requesting it on every mount.
+        if (isJobGone(err)) updateMirrorWorkflow({ lastRunJobId: null });
+      });
   }, [lastRunJobId]);
 
   useEffect(() => {
     if (!runningJobId) return;
     const interval = setInterval(() => {
-      apiFetch(`/api/jobs/${runningJobId}`).then((job) => {
-        setLastRunJob(job);
-        if (["completed", "completed_with_warnings", "failed", "cancelled"].includes(job.status)) {
-          setRunningJobId(null);
-          updateMirrorWorkflow({ lastRunJobId: job.id });
-          let completeMeta = null;
-          try { completeMeta = job.metadata_json ? JSON.parse(job.metadata_json) : null; } catch {}
-          setOcMirrorCompleteModal({ job, meta: completeMeta });
-        }
-      });
+      apiFetch(`/api/jobs/${runningJobId}`)
+        .then((job) => {
+          setLastRunJob(job);
+          if (isTerminalJobStatus(job.status)) {
+            setRunningJobId(null);
+            updateMirrorWorkflow({ lastRunJobId: job.id });
+            let completeMeta = null;
+            try { completeMeta = job.metadata_json ? JSON.parse(job.metadata_json) : null; } catch {}
+            setOcMirrorCompleteModal({ job, meta: completeMeta });
+          }
+        })
+        .catch((err) => {
+          // A 404 is terminal: the job is gone (backend restarted, history
+          // cleared, run pruned) and asking again cannot change that. This
+          // interval previously had NO catch, so a missing job produced an
+          // unhandled rejection every 2 seconds for as long as the step stayed
+          // mounted. Clearing runningJobId ends the interval through the
+          // effect's own cleanup rather than by cancelling it from inside.
+          if (isJobGone(err)) {
+            setRunningJobId(null);
+            setLastRunJob(null);
+            return;
+          }
+          // Anything else — network blip, 5xx — is transient. Keep polling,
+          // but do not leave the rejection unhandled.
+          if (typeof window !== "undefined" && window.console?.debug) {
+            window.console.debug("[AirgapArchitect] transient job poll error", err?.message);
+          }
+        });
     }, 2000);
     return () => clearInterval(interval);
   }, [runningJobId, updateMirrorWorkflow]);
@@ -694,7 +720,25 @@ Keep archives after a successful run — they are the input for disk-to-mirror
 
 **Example:**
 /data/archive`
-                    : `Source directory containing tar archives from a previous mirror-to-disk run. Must contain the working-dir structure written by oc-mirror. Container-internal path under /data.
+                    : `Source directory containing the tar archives written by a previous mirror-to-disk run.
+
+**What is this:**
+The directory oc-mirror reads from in disk-to-mirror mode. It is the same directory the earlier mirror-to-disk run wrote into, carried across the air gap.
+
+**When it applies:**
+Disk-to-mirror only. In mirror-to-disk this same field is the DESTINATION instead.
+
+**Format:**
+A container-internal absolute path under /data.
+
+**Valid values:**
+A directory that already contains the archives AND the \`working-dir\` structure oc-mirror wrote alongside them. Both halves are required — archives on their own are not enough.
+
+**How it is used:**
+Passed to oc-mirror as the source for this run. Its contents are read, not modified.
+
+**Important:**
+⚠️ Copy the whole directory across the air gap, not just the tar files. A missing \`working-dir\` is the usual reason a disk-to-mirror run fails immediately.
 
 **Example:**
 /data/archive`}

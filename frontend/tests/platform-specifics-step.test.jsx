@@ -117,7 +117,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
   it("when scenario is bare-metal-agent, Platform Specifics shows Agent options and bootArtifactsBaseURL is read/written", () => {
     const state = stateForPlatformSpecificsStep();
     expect(getScenarioId(state)).toBe("bare-metal-agent");
-    const meta = getParamMeta("bare-metal-agent", "bootArtifactsBaseURL", "agent-config.yaml");
+    const meta = getParamMeta("bare-metal-agent", "bootArtifactsBaseURL", "agent-config.yaml", state);
     expect(meta?.required).toBe(false);
     expect(meta?.description).toBeDefined();
     const result = validateStep(state, "platform-specifics");
@@ -151,7 +151,7 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
   it("when scenario is bare-metal-ipi, Platform Specifics shows Provisioning network section (Prompt J)", () => {
     const state = stateForPlatformSpecificsStep({ methodology: { method: "IPI" } });
     expect(getScenarioId(state)).toBe("bare-metal-ipi");
-    const meta = getParamMeta("bare-metal-ipi", "platform.baremetal.provisioningNetwork", "install-config.yaml");
+    const meta = getParamMeta("bare-metal-ipi", "platform.baremetal.provisioningNetwork", "install-config.yaml", state);
     expect(meta?.allowed).toBeDefined();
     const result = validateStep(state, "platform-specifics");
     expect(result.errors).toHaveLength(0);

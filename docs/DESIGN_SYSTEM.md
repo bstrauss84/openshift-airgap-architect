@@ -281,7 +281,9 @@ Inside `@supports (grid-template-rows: subgrid)`:
 
 ### Supporting content (`.field-control-support`)
 
-Error messages, helper text, and warnings live inside a `.field-control-support` wrapper in normal document flow (row 3 of the subgrid). **Never use absolute positioning** for supporting content — it prevents dynamic height expansion and causes overlaps with content below.
+Error messages, the `New in OpenShift X.Y` badge, helper text, and warnings live inside a `.field-control-support` wrapper in normal document flow (row 3 of the subgrid). **Never use absolute positioning** for supporting content — it prevents dynamic height expansion and causes overlaps with content below.
+
+See **[Field Supporting-Content Contract (NORMATIVE)](#field-supporting-content-contract-normative--binds-every-new-field)** for the binding rules (R1–R5) and the test that enforces them. That section wins over any looser phrasing here.
 
 ### `.field-control-stack`
 
@@ -292,6 +294,120 @@ Groups a control with its supporting content. Inside the subgrid, it uses `displ
 Outer `<label>` wrappers use `display: contents` so the inner `.field-with-info-row` becomes the grid participant directly.
 
 ---
+
+## Field Supporting-Content Contract (NORMATIVE — binds every new field)
+
+> This section is normative and supersedes any looser phrasing elsewhere in this
+> document. It binds **every newly added field**, and in particular every
+> **version-gated** field, with no exceptions and no "as appropriate" latitude.
+> It is enforced mechanically by `frontend/tests/field-support-structure.test.jsx`.
+> If that test fails, the markup is wrong — not the test.
+
+### The one shape
+
+Supporting content means **all three** of these, not just errors:
+
+1. the inline validation message (`.field-error`),
+2. the `New in OpenShift X.Y` badge (`[data-version-annotation="introduced"]`),
+3. helper / range / advisory text (`.field-helper`, `.note.warning`).
+
+Every field that renders **any** supporting content uses exactly this shape:
+
+```jsx
+<div className="field-control-stack">            {/* THE grid cell — mandatory */}
+  <FieldLabelWithInfo label="…" hint="…">        {/* row 1 label, row 2 control */}
+    <input … />
+  </FieldLabelWithInfo>
+  <div className="field-control-support">        {/* row 3 — the ONLY support slot */}
+    {showError && <span id="error-x" className="field-error" role="alert">{err}</span>}
+    {annotation.isIntroduced && (
+      <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+    )}
+    <div className="field-helper">optional range / hint text</div>
+  </div>
+</div>
+```
+
+### The five hard rules
+
+| # | Rule | Why it exists |
+|---|---|---|
+| **R1** | `.field-control-support` MUST have `.field-control-stack` as its **direct parent**. `.field-with-info-row` on its own is permitted **only** when the field renders zero supporting content. | The old wording said "`.field-with-info-row` **or** `.field-control-stack` … as appropriate". That "or" is the loophole the 4.22 `provisioningNetworkGateway` field walked through: the author used `FieldLabelWithInfo` (allowed by the "or") and then bolted a support div onto it with no stack. |
+| **R2** | A conditionally rendered field MUST be wrapped in the real `<div className="field-control-stack">`. **Never a React fragment.** `{cond ? (<>…</>) : null}` *looks* wrapped and is not — `<>` emits no DOM node, so each child becomes a separate `.field-grid` item. | Both 4.22 bare-metal defects were fragments. No previous revision of this document mentioned fragments at all. |
+| **R3** | The `New in OpenShift X.Y` badge is **supporting content** and lives inside `.field-control-support`, like an error. It is never a sibling of the field, never a sibling of the grid, and never positioned with ad-hoc inline `style`. | The previous text described *when* to show the badge in detail and never once said *where in the DOM* it goes. That is the literal gap that produced the "blue label to the right of the field" defect. |
+| **R4** | Band order inside `.field-control-support` is pinned: **validation message → version badge → helper/range text.** | Two "correct" reference fields previously shipped badge-before-error and the spec pinned nothing, so there was no order to copy. The message that tells the user they must act goes closest to the control they must act on. |
+| **R5** | A version-gated field's `hint` MUST open with the provenance prefix, read from catalog metadata, never a literal: `hint={"Introduced in OpenShift " + fieldIntroducedIn(path, INSTALL_CONFIG) + ". …"}`. | Provenance was previously *permitted* ("hint copy that states provenance must read `introducedInMinor`") but never *required*, so the 4.22 field simply omitted it. |
+
+### Why it breaks when you get it wrong
+
+`.platform-specifics .field-grid` is
+`grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr))`.
+**Every direct child consumes one column.** A support div or error span that is a
+direct child of the grid therefore renders *to the right of its own field* and
+pushes every neighbouring control sideways. Under the subgrid branch only
+`> .field-with-info-row` and `> .field-control-stack` are granted the
+`grid-row: span 3` cell, so a stray element also desynchronises the
+label/control/support bands of every following field in the row.
+
+### Enforcement (this is the part that was missing)
+
+Prose did not prevent this defect; the identical defect was fixed once for
+vSphere "Server" and recurred on the next new field, because the guard added at
+the time (`frontend/tests/vsphere-server-error-presentation.test.jsx`) was
+hardcoded to one field.
+
+`frontend/tests/field-support-structure.test.jsx` is the permanent, data-driven
+replacement. It renders every modelled scenario × variant × supported minor with
+all validation messages forced visible, and fails the build if **any** rendered
+`.field-error`, `.field-control-support` or `[data-version-annotation]` is
+outside the `.field-control-stack` → `.field-control-support` chain, or is a
+direct child of a `.field-grid`. It also scans the source for fragment-wrapped
+support content. It is keyed to **no field list**, so a field added for a future
+minor is covered the moment it renders — no test edit required.
+
+A defensive CSS rule in `styles.css` makes a stray support element span the full
+row rather than steal a column. **It is a blast shield, not a licence**: markup
+that relies on it still fails the structural test.
+
+---
+
+## Control Width — short enumerated choices
+
+**Added in v2.1 Tranche 7C.4B.** A `<select>` with no width of its own fills its
+grid column. Inside `.field-grid`, where every field already owns a column, that
+made three-option dropdowns such as *Provisioning network* and *Provisioning
+network IP family* span most of a card while displaying a value like `IPv4`.
+
+Use the control-level primitive:
+
+```jsx
+<select className="control-enum" value={...} onChange={...}>
+```
+
+```css
+.control-enum { width: 100%; max-width: 280px; box-sizing: border-box; }
+```
+
+`280px` is the same width as the existing `.field-dropdown select`, so enum
+controls read identically whichever layout they are in. `width: 100%` keeps it
+responsive — in a narrow column or viewport it shrinks rather than overflowing
+the card.
+
+**When to use it.** Short enumerated choices: mode, IP family, bond mode, IP
+assignment, and anything else whose value is one of a handful of fixed labels.
+
+**When NOT to use it.** Controls whose value is long and would be harmed by
+truncation: identifiers, filesystem paths, URLs, catalog image references,
+free-text names. These keep their wider or full-width treatment.
+
+**Relationship to the wrapper classes.** `.field-short`, `.field-medium`,
+`.field-dropdown` and `.field-standard` size the field WRAPPER and remain the
+right choice outside a grid. `.control-enum` sizes the CONTROL, which is what is
+needed when the grid supplies the wrapper. Do not apply both to the same field.
+
+Nothing about the vertical contract changes: the label, control, validation
+message, version badge and helper text all stay in the same field wrapper, in
+the order fixed by the Field Supporting-Content Contract above.
 
 ## Validation Lifecycle (Truth vs Presentation)
 
@@ -329,13 +445,13 @@ Field-level errors belong in the support row (row 3) of the 3-row subgrid. Use t
   </FieldLabelWithInfo>
   <div className="field-control-support">
     {showFieldErrors && fieldErrors.x && (
-      <span id="error-x" className="field-error">{fieldErrors.x}</span>
+      <span id="error-x" className="field-error" role="alert">{fieldErrors.x}</span>
     )}
   </div>
 </div>
 ```
 
-NEVER render an error span as a standalone grid child in `.field-grid` — it floats into the wrong column.
+NEVER render an error span as a standalone grid child in `.field-grid` — it floats into the wrong column. NEVER wrap a conditionally rendered field in a React fragment (`<>…</>`): a fragment emits no DOM node, so the error span becomes a standalone grid child anyway. See **[Field Supporting-Content Contract (NORMATIVE)](#field-supporting-content-contract-normative--binds-every-new-field)**, rules R1–R4.
 
 ### Accessibility
 
@@ -389,6 +505,12 @@ Three concepts are separate and must not be conflated. `getFieldAnnotationInfo` 
 The visible `New in OpenShift X.Y` badge is contextual, not provenance. A field introduced in 4.21 is badged only while 4.21 is the locked target; once the locked target moves past 4.21 the badge disappears, and a field introduced in that later minor receives it instead. Fields introduced in the baseline minor are never badged — everything is new at the baseline, so the badge would carry no information.
 
 The rule is data-driven and contains no hardcoded minor, so onboarding a later supported minor requires no change here. Hint/tooltip copy that states provenance ("Introduced in OpenShift X.Y.") must read `introducedInMinor`, never the locked target minor — otherwise the hint silently misreports history as the target changes.
+
+**Provenance in the hint is REQUIRED, not optional (R5).** Every version-gated field's `hint` opens with
+`"Introduced in OpenShift " + fieldIntroducedIn(path, INSTALL_CONFIG) + ". …"`.
+The previous phrasing only constrained hints that *chose* to state provenance, so a new field could legitimately omit it — and the 4.22 `provisioningNetworkGateway` hint did exactly that. The value always comes from catalog metadata; a literal minor in hint copy is a defect even when it currently reads correctly.
+
+**The badge's DOM position is governed by R3**, not by this section. This section says *when* to badge; [Field Supporting-Content Contract (NORMATIVE)](#field-supporting-content-contract-normative--binds-every-new-field) says *where* the badge goes. Both apply.
 
 ### Visibility test contract
 
@@ -451,12 +573,16 @@ Rules:
 
 ### Field layout contract
 
-Version-gated fields participate in the same paired-field layout as all other Platform Specifics fields. They must:
+Version-gated fields participate in the same paired-field layout as all other Platform Specifics fields, and are bound by **[Field Supporting-Content Contract (NORMATIVE)](#field-supporting-content-contract-normative--binds-every-new-field)**. Restated here in binding form — note that the earlier "`.field-with-info-row` **or** `.field-control-stack` … as appropriate" wording is **withdrawn**; it was the loophole that produced the 4.22 gateway defect:
 
-- Use `.field-with-info-row` or `.field-control-stack` wrappers
-- Not appear as direct children of `.field-grid` without proper wrappers
-- Place all supporting content inside `.field-control-support`
-- Not introduce layout shifts when toggling visibility
+- Use `.field-control-stack` whenever the field renders **any** supporting content (inline error, `New in OpenShift X.Y` badge, helper text). `.field-with-info-row` alone is allowed **only** for a field with no supporting content at all. *(R1)*
+- Wrap a conditionally rendered field in a real `<div className="field-control-stack">`, never a React fragment. *(R2)*
+- Never appear as a direct child of `.field-grid` without that wrapper — a direct child consumes its own column and pushes neighbouring fields sideways.
+- Place all supporting content inside `.field-control-support`, in the pinned order validation message → version badge → helper text. *(R3, R4)*
+- Open the `hint` with `"Introduced in OpenShift " + fieldIntroducedIn(path, INSTALL_CONFIG)`, read from catalog metadata, never a hardcoded minor. *(R5)*
+- Not introduce layout shifts when toggling visibility.
+
+Enforced by `frontend/tests/field-support-structure.test.jsx`, which is data-driven over scenarios and minors rather than over a field list.
 
 ### Responsive verification
 
@@ -497,7 +623,7 @@ When a mode toggle (e.g., FD ↔ legacy) reveals new required fields, those fiel
 
 ### Field error layout
 
-Every inline error MUST be inside the same `field-control-stack` as its control:
+Every inline error MUST be inside the same `field-control-stack` as its control, and MUST be the first item in `.field-control-support` (above the version badge and helper text — see R4):
 
 ```
 <div className="field-control-stack">
@@ -505,12 +631,14 @@ Every inline error MUST be inside the same `field-control-stack` as its control:
     <input/select/textarea />
   </FieldLabelWithInfo>
   <div className="field-control-support">
-    {error && <span className="field-error">...</span>}
+    {error && <span className="field-error" role="alert">...</span>}
+    {isIntroduced && <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>}
+    {helper && <div className="field-helper">...</div>}
   </div>
 </div>
 ```
 
-Errors must NEVER be free-standing siblings in `.field-grid`. The `field-control-stack` wrapper ensures the error appears directly beneath its own control regardless of grid column layout.
+Errors must NEVER be free-standing siblings in `.field-grid`, and a React fragment does not count as a wrapper. The `field-control-stack` wrapper ensures the error appears directly beneath its own control regardless of grid column layout. Full binding rules: **[Field Supporting-Content Contract (NORMATIVE)](#field-supporting-content-contract-normative--binds-every-new-field)**.
 
 ### Error color tokens
 

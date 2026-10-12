@@ -23,6 +23,12 @@ import * as catalogPathsModule from "../src/catalogPaths.js";
 import * as catalogResolver from "../src/catalogResolver.js";
 
 const baseState = {
+  // An explicit minor. These steps are only reachable after version lock-in,
+  // so a real run always carries one; the fixture used to omit it and rely on
+  // the implicit 4.20 default in the catalog readers, which Tranche 7C.1
+  // removed (a versionless state must not silently read baseline metadata).
+  version: { selectedMinor: "4.20", selectedPatch: "4.20.40", selectedChannel: "stable-4.20", locked: true },
+  release: { channel: "4.20", patchVersion: "4.20.40", confirmed: true },
   blueprint: { platform: "Bare Metal" },
   methodology: { method: "Agent-Based Installer" },
   hostInventory: {
@@ -2091,7 +2097,11 @@ describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
       hostInventory: { ...baseState.hostInventory, nodes: [nodeWithRoutes] }
     });
     openDrawer();
-    fireEvent.click(screen.getByLabelText("Expand Advanced"));
+    /* The primary Advanced panel now opens by itself for a node that ALREADY
+       has routes (the discoverability fix: imported routes must not sit behind
+       a collapsed panel). Click only if it is still collapsed. */
+    const advToggle = screen.queryByLabelText("Expand Advanced");
+    if (advToggle) fireEvent.click(advToggle);
     expect(screen.getByPlaceholderText("1500")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("1500").value).toBe("9000");
     expect(screen.getByDisplayValue("10.0.0.0/24")).toBeInTheDocument();
@@ -2131,12 +2141,13 @@ describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
     expect(screen.getByText("Interface 1")).toBeInTheDocument();
     const ifaceSection = screen.getByText("Interface 1").closest("section");
     expect(ifaceSection).toBeTruthy();
-    const typeLabel = within(ifaceSection).getByText("Type");
-    expect(typeLabel).toBeInTheDocument();
-    const typeSelect = typeLabel.closest("label").querySelector("select");
+    /* These controls now carry a FieldLabelWithInfo help label, so the label
+       text is split across elements and the control is a SIBLING of the label
+       rather than wrapped by it. Query by accessible name instead. */
+    const typeSelect = within(ifaceSection).getByLabelText("Type");
     expect(typeSelect).toBeTruthy();
     expect(typeSelect.value).toBe("ethernet");
-    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("IP Assignment")).toBeInTheDocument();
     expect(within(ifaceSection).getByPlaceholderText("eth2")).toBeInTheDocument();
     expect(within(ifaceSection).getByPlaceholderText("52:54:00:aa:11:03")).toBeInTheDocument();
     expect(screen.queryByText("Primary Network")).not.toBeInTheDocument();
@@ -2219,8 +2230,10 @@ describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
       setCurrentFn(prev => ({ ...prev, version: { selectedMinor: "4.21" } }));
     });
     expect(screen.getByText("Primary Network")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("bond0")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("bond0").value).toBe("bond0");
+    /* "bond0" is now also the placeholder of the route next-hop interface,
+       because the Advanced panel auto-opens for a node that already has
+       routes. Address the bond name control by its own label. */
+    expect(screen.getByLabelText("Bond name").value).toBe("bond0");
     const bondModeSelect = document.querySelector(".bond-mode-select");
     expect(bondModeSelect).toBeTruthy();
     expect(bondModeSelect.value).toBe("802.3ad");
@@ -2229,7 +2242,8 @@ describe("DOC-102 Slice 5H H3 H7 H8 Primary Networking visibility", () => {
     expect(screen.getByLabelText(/IPv4 gateway/).value).toBe("192.168.1.1");
     expect(screen.getByLabelText(/IPv6 CIDR/).value).toBe("fd00::14/64");
     expect(screen.getByLabelText(/IPv6 gateway/).value).toBe("fd00::1");
-    fireEvent.click(screen.getByLabelText("Expand Advanced"));
+    const advToggle2 = screen.queryByLabelText("Expand Advanced");
+    if (advToggle2) fireEvent.click(advToggle2);
     expect(screen.getByPlaceholderText("1500").value).toBe("9000");
     expect(screen.getByDisplayValue("10.0.0.0/24")).toBeInTheDocument();
     expect(screen.getByDisplayValue("192.168.1.254")).toBeInTheDocument();
@@ -2491,9 +2505,8 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     expect(screen.getByText("Interface 1")).toBeInTheDocument();
     const ifaceSection = screen.getByText("Interface 1").closest("section");
     expect(ifaceSection).toBeTruthy();
-    const typeLabel = within(ifaceSection).getByText("Type");
-    expect(typeLabel).toBeInTheDocument();
-    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("Type")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("IP Assignment")).toBeInTheDocument();
   });
 
   // --- C. All 19 controls are inside the gate ---
@@ -2522,13 +2535,12 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     });
     const ifaceSection = screen.getByText("Interface 1").closest("section");
     expect(ifaceSection).toBeTruthy();
-    const typeLabel = within(ifaceSection).getByText("Type");
-    const typeSelect = typeLabel.closest("label").querySelector("select");
+    const typeSelect = within(ifaceSection).getByLabelText("Type");
     expect(typeSelect).toBeTruthy();
     expect(typeSelect.value).toBe("ethernet");
-    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
-    expect(within(ifaceSection).getByText("Ethernet Interface Name")).toBeInTheDocument();
-    expect(within(ifaceSection).getByText("Ethernet MAC Address")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("IP Assignment")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("Ethernet Interface Name")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("Ethernet MAC Address")).toBeInTheDocument();
   });
 
   it("C2: Bond — HI-041 Bond name, HI-042 Bond mode, HI-043 member name, HI-044 member MAC", async () => {
@@ -2560,11 +2572,11 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     openDrawer();
     const ifaceSection = screen.getByText("Interface 1").closest("section");
     expect(ifaceSection).toBeTruthy();
-    expect(within(ifaceSection).getByText("Bond Name")).toBeInTheDocument();
-    expect(within(ifaceSection).getByText("Bond Mode")).toBeInTheDocument();
-    const memberIfaceLabels = within(ifaceSection).getAllByText("Bond Member Interface");
+    expect(within(ifaceSection).getByLabelText("Bond Name")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("Bond Mode")).toBeInTheDocument();
+    const memberIfaceLabels = within(ifaceSection).getAllByLabelText("Bond Member Interface");
     expect(memberIfaceLabels.length).toBeGreaterThanOrEqual(1);
-    const memberMacLabels = within(ifaceSection).getAllByText("Bond Member MAC");
+    const memberMacLabels = within(ifaceSection).getAllByLabelText("Bond Member MAC");
     expect(memberMacLabels.length).toBeGreaterThanOrEqual(1);
     expect(within(ifaceSection).getByDisplayValue("bond1")).toBeInTheDocument();
     expect(within(ifaceSection).getByDisplayValue("52:54:00:c1:c2:c3")).toBeInTheDocument();
@@ -2652,12 +2664,13 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     expect(ifaceSection).toBeTruthy();
     fireEvent.click(within(ifaceSection).getByLabelText("Expand Advanced Networking"));
     expect(within(ifaceSection).getByDisplayValue("9000")).toBeInTheDocument();
-    const sriovCheckboxes = within(ifaceSection).getAllByRole("checkbox");
-    const sriovCheckbox = sriovCheckboxes.find(cb => cb.closest("label")?.textContent?.includes("SR-IOV"));
+    const sriovCheckbox = within(ifaceSection).getByLabelText("SR-IOV");
     expect(sriovCheckbox).toBeTruthy();
     expect(sriovCheckbox.checked).toBe(true);
     expect(within(ifaceSection).getByDisplayValue("32")).toBeInTheDocument();
-    const vrfCheckbox = sriovCheckboxes.find(cb => cb.closest("label")?.textContent?.includes("VRF"));
+    /* "VRF" also matches the split label prefix of "VRF Name", so pick the
+       checkbox out of the matches rather than requiring a unique label. */
+    const vrfCheckbox = within(ifaceSection).getAllByLabelText("VRF").find((el) => el.type === "checkbox");
     expect(vrfCheckbox).toBeTruthy();
     expect(vrfCheckbox.checked).toBe(true);
     expect(within(ifaceSection).getByDisplayValue("vrf-adv")).toBeInTheDocument();
@@ -2736,11 +2749,15 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     openDrawer();
     expect(screen.getByText("Interface 1")).toBeInTheDocument();
     const ifaceSection = screen.getByText("Interface 1").closest("section");
-    expect(within(ifaceSection).getByDisplayValue("eno99")).toBeInTheDocument();
+    /* "eno99" is now shown twice on purpose: once as the ethernet interface
+       name, and once as the next-hop interface of this interface's imported
+       route, which previously had no editor at all. */
+    expect(within(ifaceSection).getAllByDisplayValue("eno99").length).toBeGreaterThanOrEqual(1);
     expect(within(ifaceSection).getByDisplayValue("52:54:00:ff:ee:dd")).toBeInTheDocument();
     expect(within(ifaceSection).getByDisplayValue("10.10.10.5/24")).toBeInTheDocument();
     expect(within(ifaceSection).getByDisplayValue("fd01::5/64")).toBeInTheDocument();
-    fireEvent.click(within(ifaceSection).getByLabelText("Expand Advanced Networking"));
+    const advNetToggle = within(ifaceSection).queryByLabelText("Expand Advanced Networking");
+    if (advNetToggle) fireEvent.click(advNetToggle);
     expect(within(ifaceSection).getByDisplayValue("9216")).toBeInTheDocument();
     expect(within(ifaceSection).getByDisplayValue("16")).toBeInTheDocument();
     expect(within(ifaceSection).getByDisplayValue("vrf-test")).toBeInTheDocument();
@@ -2762,11 +2779,9 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     const restored = screen.getByText("Interface 1").closest("section");
     expect(restored).toBeTruthy();
 
-    const typeLabel = within(restored).getByText("Type");
-    const typeSelect = typeLabel.closest("label").querySelector("select");
-    expect(typeSelect.value).toBe("ethernet");
+    expect(within(restored).getByLabelText("Type").value).toBe("ethernet");
 
-    expect(within(restored).getByDisplayValue("eno99")).toBeInTheDocument();
+    expect(within(restored).getAllByDisplayValue("eno99").length).toBeGreaterThanOrEqual(1);
     expect(within(restored).getByDisplayValue("10.10.10.5/24")).toBeInTheDocument();
     expect(within(restored).getByDisplayValue("fd01::5/64")).toBeInTheDocument();
     const advBtn = within(restored).queryByLabelText("Expand Advanced Networking") || within(restored).queryByLabelText("Collapse Advanced Networking");
@@ -2813,11 +2828,10 @@ describe("DOC-102 Slice 5H H6/H7/H8-V Additional Interfaces visibility", () => {
     });
     const ifaceSection = screen.getByText("Interface 1").closest("section");
     expect(ifaceSection).toBeTruthy();
-    const typeLabel = within(ifaceSection).getByText("Type");
-    const typeSelect = typeLabel.closest("label").querySelector("select");
+    const typeSelect = within(ifaceSection).getByLabelText("Type");
     expect(typeSelect).toBeTruthy();
     expect(typeSelect.value).toBe("ethernet");
-    expect(within(ifaceSection).getByText("IP Assignment")).toBeInTheDocument();
+    expect(within(ifaceSection).getByLabelText("IP Assignment")).toBeInTheDocument();
   });
 
   // --- G. Unsupported version regression: the unsupported-minor test runs unchanged ---

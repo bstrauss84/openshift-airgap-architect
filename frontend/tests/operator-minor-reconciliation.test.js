@@ -9,7 +9,19 @@ import {
   catalogImagesForMinor,
 } from '../src/shared/operatorMinorReconciliation.js';
 
-const resolvedOp = (name, minor, catalog = 'redhat', sources = ['odf']) => ({
+/**
+ * The quick-pick id here is deliberately SYNTHETIC (`unit-pick`), not a real
+ * Quick Pick id.
+ *
+ * `reconcileOperatorsForMinor` now also re-evaluates Quick Pick MEMBERSHIP
+ * against the destination minor's row, and it declines to infer membership for
+ * an id that has no definition. Using a synthetic id therefore isolates the two
+ * behaviours this file has always covered — metadata re-resolution and
+ * pending → active promotion — from the membership pass, which has its own
+ * file (`operator-quick-pick-cross-minor-membership.test.js`) driven by the
+ * real shipped Quick Pick table.
+ */
+const resolvedOp = (name, minor, catalog = 'redhat', sources = ['unit-pick']) => ({
   name,
   id: `${name}-${catalog}`,
   displayName: `${name} display`,
@@ -22,8 +34,8 @@ const operatorsAt = (minor) => ({
   selected: [resolvedOp('odf-operator', minor), resolvedOp('local-storage-operator', minor)],
   catalogs: { redhat: [{ id: 'x' }], certified: [], community: [] },
   version: minor,
-  scenarios: { odf: true },
-  scenarioAdded: { 'odf-operator-redhat': { odf: true } },
+  scenarios: { 'unit-pick': true },
+  scenarioAdded: { 'odf-operator-redhat': { 'unit-pick': true } },
   scanJobs: { redhat: 'job-1' },
   cachedAt: 123,
   stale: false,
@@ -88,13 +100,13 @@ describe('computeOperatorMinorInvalidation', () => {
     });
 
     it('retains quick-pick intent separately', () => {
-      expect(next.pendingScenarios).toEqual({ odf: true });
+      expect(next.pendingScenarios).toEqual({ 'unit-pick': true });
     });
 
     it('retains package intent and provenance', () => {
       expect(next.selected.map((op) => op.name)).toEqual(['odf-operator', 'local-storage-operator']);
-      expect(next.selected[0].sources).toEqual(['odf']);
-      expect(next.scenarioAdded).toEqual({ 'odf-operator-redhat': { odf: true } });
+      expect(next.selected[0].sources).toEqual(['unit-pick']);
+      expect(next.scenarioAdded).toEqual({ 'odf-operator-redhat': { 'unit-pick': true } });
     });
 
     it('keeps display names so preserved intent stays readable', () => {
@@ -103,9 +115,9 @@ describe('computeOperatorMinorInvalidation', () => {
   });
 
   it('merges already-pending intent rather than dropping it on a second transition', () => {
-    const ops = { ...operatorsAt('4.21'), scenarios: { ai: true }, pendingScenarios: { odf: true } };
+    const ops = { ...operatorsAt('4.21'), scenarios: { ai: true }, pendingScenarios: { 'unit-pick': true } };
     const next = computeOperatorMinorInvalidation(ops, '4.20');
-    expect(next.pendingScenarios).toEqual({ odf: true, ai: true });
+    expect(next.pendingScenarios).toEqual({ 'unit-pick': true, ai: true });
   });
 });
 
@@ -147,7 +159,7 @@ describe('reconcileOperatorsForMinor', () => {
     });
 
     it('restores the quick pick to an active selection', () => {
-      expect(next.scenarios).toEqual({ odf: true });
+      expect(next.scenarios).toEqual({ 'unit-pick': true });
       expect(next.pendingScenarios).toEqual({});
     });
 
@@ -170,8 +182,8 @@ describe('reconcileOperatorsForMinor', () => {
     });
 
     it('keeps the owning quick pick pending rather than silently activating it', () => {
-      expect(next.scenarios.odf).toBeUndefined();
-      expect(next.pendingScenarios).toEqual({ odf: true });
+      expect(next.scenarios['unit-pick']).toBeUndefined();
+      expect(next.pendingScenarios).toEqual({ 'unit-pick': true });
     });
   });
 
@@ -187,13 +199,13 @@ describe('reconcileOperatorsForMinor', () => {
     const orphaned = { ...invalidated, selected: [] };
     const next = reconcileOperatorsForMinor(orphaned, catalogs420, '4.20');
     expect(next.pendingScenarios).toEqual({});
-    expect(next.scenarios.odf).toBeUndefined();
+    expect(next.scenarios['unit-pick']).toBeUndefined();
   });
 
   it('does not disturb entries already resolved for the current minor', () => {
     const mixed = {
-      selected: [resolvedOp('already-ok', '4.20'), { name: 'odf-operator', id: 'odf-operator-redhat', sources: ['odf'] }],
-      pendingScenarios: { odf: true },
+      selected: [resolvedOp('already-ok', '4.20'), { name: 'odf-operator', id: 'odf-operator-redhat', sources: ['unit-pick'] }],
+      pendingScenarios: { 'unit-pick': true },
     };
     const next = reconcileOperatorsForMinor(mixed, catalogs420, '4.20');
     expect(next.selected[0]).toEqual(mixed.selected[0]);

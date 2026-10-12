@@ -1,6 +1,18 @@
 /**
  * App-level cover for the operator cross-minor transition contract (R5).
  *
+ * FIXTURE NOTE. The quick pick used throughout is `gitops`, a REAL shipped
+ * Quick Pick whose package set is exactly one operator and does not vary by
+ * minor. That matters since reconciliation began re-evaluating Quick Pick
+ * MEMBERSHIP against the destination minor's row: a fixture naming a
+ * many-package pick (such as `odf`) while supplying a one-package catalog
+ * would now be an incoherent state — the pick would legitimately stay pending
+ * because ten of its eleven 4.20 packages are missing from the fixture. Using
+ * a pick whose real membership matches the fixture keeps every assertion in
+ * this file meaning exactly what it meant before. Membership variation across
+ * minors is covered by
+ * `operator-quick-pick-cross-minor-membership.test.js`.
+ *
  * The live path is: unlock release → pick another minor → re-lock via the Core
  * Lock modal ("Yes, lock selections"). That path previously left the Operators
  * step unflagged and left quick picks rendered as actively selected, even though
@@ -9,6 +21,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent, act } from '@testing-library/react';
 import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import App from '../src/App.jsx';
 
 const mockFetch = vi.fn();
@@ -36,18 +51,18 @@ const STATE_RELOCKING_ONTO_420 = {
   operators: {
     selected: [
       {
-        name: 'odf-operator',
-        id: 'odf-operator-redhat',
-        displayName: 'OpenShift Data Foundation',
+        name: 'openshift-gitops-operator',
+        id: 'openshift-gitops-operator-redhat',
+        displayName: 'Red Hat OpenShift GitOps',
         catalogImage: V421_CATALOG,
         defaultChannel: 'stable-4.21',
-        sources: ['odf'],
+        sources: ['gitops'],
       },
     ],
-    catalogs: { redhat: [{ id: 'odf-operator-redhat', name: 'odf-operator' }], certified: [], community: [] },
+    catalogs: { redhat: [{ id: 'openshift-gitops-operator-redhat', name: 'openshift-gitops-operator' }], certified: [], community: [] },
     version: '4.21',
-    scenarios: { odf: true },
-    scenarioAdded: { 'odf-operator-redhat': { odf: true } },
+    scenarios: { gitops: true },
+    scenarioAdded: { 'openshift-gitops-operator-redhat': { gitops: true } },
     scanJobs: { redhat: 'job-421' },
     cachedAt: 1700000000000,
     stale: true,
@@ -218,8 +233,8 @@ describe('Operator cross-minor transition — review state and quick-pick semant
 
     const operators = (await waitForInvalidationPersisted()).operators;
     expect(operators.scenarios).toEqual({});
-    expect(operators.pendingScenarios).toEqual({ odf: true });
-    expect(operators.selected.map((op) => op.name)).toEqual(['odf-operator']);
+    expect(operators.pendingScenarios).toEqual({ gitops: true });
+    expect(operators.selected.map((op) => op.name)).toEqual(['openshift-gitops-operator']);
   });
 
   it('renders the preserved quick pick as pending, not selected, on the Operators step', async () => {
@@ -267,7 +282,7 @@ describe('Operator cross-minor transition — review state and quick-pick semant
     const persisted = await waitForInvalidationPersisted();
     expect(persisted.reviewFlags.operators).toBe(true);
     expect(persisted.operators.scenarios).toEqual({});
-    expect(persisted.operators.pendingScenarios).toEqual({ odf: true });
+    expect(persisted.operators.pendingScenarios).toEqual({ gitops: true });
     for (const op of persisted.operators.selected) {
       expect(op.catalogImage).toBeUndefined();
     }
@@ -278,9 +293,9 @@ describe('Operator cross-minor transition — review state and quick-pick semant
       catalogStatus: {
         redhat: [
           {
-            id: 'odf-operator-redhat',
-            name: 'odf-operator',
-            displayName: 'OpenShift Data Foundation',
+            id: 'openshift-gitops-operator-redhat',
+            name: 'openshift-gitops-operator',
+            displayName: 'Red Hat OpenShift GitOps',
             defaultChannel: 'stable-4.20',
           },
         ],
@@ -296,7 +311,7 @@ describe('Operator cross-minor transition — review state and quick-pick semant
     // rather than re-reading a value that may have advanced since the wait.
     const reconciledOperators = await waitFor(() => {
       const operators = latestPersisted()?.operators;
-      expect(operators?.scenarios).toEqual({ odf: true });
+      expect(operators?.scenarios).toEqual({ gitops: true });
       expect(operators?.pendingScenarios).toEqual({});
       return operators;
     });
@@ -325,9 +340,9 @@ describe('Operator cross-minor transition — review state and quick-pick semant
     const catalogStatus = {
       redhat: [
         {
-          id: 'odf-operator-redhat',
-          name: 'odf-operator',
-          displayName: 'OpenShift Data Foundation',
+          id: 'openshift-gitops-operator-redhat',
+          name: 'openshift-gitops-operator',
+          displayName: 'Red Hat OpenShift GitOps',
           defaultChannel: `stable-${targetMinor}`,
         },
       ],
@@ -341,18 +356,18 @@ describe('Operator cross-minor transition — review state and quick-pick semant
       await lockOntoNewMinor();
       await openOperatorsStep();
       await waitFor(() => {
-        expect(latestPersisted()?.operators?.scenarios).toEqual({ odf: true });
+        expect(latestPersisted()?.operators?.scenarios).toEqual({ gitops: true });
       });
     }
 
     it('shows the reconciled operator in the Selected Operators section', async () => {
       await reconcileAndOpen();
-      expect(await screen.findByText('OpenShift Data Foundation')).toBeInTheDocument();
+      expect(await screen.findByText('Red Hat OpenShift GitOps')).toBeInTheDocument();
     });
 
     it('does not leave the Selected Operators section collapsed', async () => {
       await reconcileAndOpen();
-      await screen.findByText('OpenShift Data Foundation');
+      await screen.findByText('Red Hat OpenShift GitOps');
       // No unselect/reselect cycle anywhere in this test.
       await waitFor(() => {
         const wrapper = document.querySelector('.selected-grid-wrapper');
@@ -373,7 +388,7 @@ describe('Operator cross-minor transition — review state and quick-pick semant
       await reconcileAndOpen();
       const selected = latestPersisted().operators.selected;
       expect(selected).toHaveLength(1);
-      expect(selected[0].name).toBe('odf-operator');
+      expect(selected[0].name).toBe('openshift-gitops-operator');
       expect(selected[0].catalogImage).toBe(
         `registry.redhat.io/redhat/redhat-operator-index:v${targetMinor}`
       );
@@ -387,7 +402,8 @@ describe('Operator cross-minor transition — review state and quick-pick semant
   });
 
   it('does not fabricate a Selected Operator for intent unavailable in the new minor', async () => {
-    // 4.20 catalogs return results, but odf-operator is not among them. Results
+    // 4.20 catalogs return results, but openshift-gitops-operator is not among
+    // them. Results
     // must be non-empty: an empty scan cannot distinguish "unavailable" from
     // "not scanned yet", and the conflict banner is correctly gated on results.
     installFetchMock({
@@ -408,7 +424,7 @@ describe('Operator cross-minor transition — review state and quick-pick semant
 
     // Intent is retained and explicitly pending — never promoted to active.
     expect(operators.scenarios).toEqual({});
-    expect(operators.pendingScenarios).toEqual({ odf: true });
+    expect(operators.pendingScenarios).toEqual({ gitops: true });
     expect(operators.selected.every((op) => !op.catalogImage)).toBe(true);
     expect(document.querySelector('.scenario-pick[data-selection-state="active"]')).toBeNull();
 
@@ -417,8 +433,197 @@ describe('Operator cross-minor transition — review state and quick-pick semant
     await waitFor(() => {
       const text = document.body.textContent.replace(/\s+/g, ' ');
       expect(text).toContain('not available in the OpenShift 4.20 catalogs');
-      expect(text).toContain('OpenShift Data Foundation');
+      expect(text).toContain('Red Hat OpenShift GitOps');
       expect(text).toContain('excluded from the generated ImageSet configuration');
     });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Imported intent reconciles once catalogs exist (v2.1 Tranche 7C.3)   */
+/* ------------------------------------------------------------------ */
+
+describe('T7C.3 — preserved operator intent reconciles against available catalogs', () => {
+  /**
+   * WHAT A HUMAN SAW during the 2026-10-09 blocker retest:
+   *
+   *   - imported a saved run containing Quick Picks and selected operators;
+   *   - the Quick Picks showed the dotted "pending review" state;
+   *   - the selected operators read "Default channel: unknown";
+   *   - imageset-config.yaml contained none of them;
+   *   - after supplying a pull secret and successfully scanning, the catalog
+   *     tables populated — but the selections STILL read "unknown" and were
+   *     STILL absent from the ImageSet;
+   *   - only removing and re-picking each one recovered it.
+   *
+   * MECHANISM. Reconciliation (`reconcileOperatorsForMinor`) existed and was
+   * correct, but had exactly one call site: a `useEffect` keyed on
+   * `${version}-${confirmed}`, guarded by
+   * `if (operators.version === version && catalogs.redhat.length) return;`.
+   * Completing a scan changes neither key, and the scan-completion writer
+   * assigned `catalogs` with no reconcile step. So intent was only ever
+   * resolved by catalogs that were already present at mount.
+   *
+   * Two independent locks, hence two fixes: the guard now stays eligible while
+   * unresolved intent exists, and the scan-completion writer reconciles too.
+   *
+   * These tests cover the guard half, which is reachable by mounting. The
+   * scan-completion half is covered by a wiring assertion plus item D3 of the
+   * human delta retest, because the Scan control sits inside a collapsed
+   * section behind credential gating that a mounted test cannot usefully drive.
+   */
+  beforeEach(() => {
+    persistedStates = [];
+    vi.clearAllMocks();
+  });
+  afterEach(() => cleanup());
+
+  /** An imported run: catalogs present for the locked minor, intent unresolved. */
+  function importedIntentOnlyState(minor = '4.21') {
+    const catalogImage = `registry.redhat.io/redhat/redhat-operator-index:v${minor}`;
+    return {
+      ...STATE_RELOCKING_ONTO_420,
+      version: {
+        _schemaVersion: 3,
+        selectedMinor: minor,
+        selectedPatch: `${minor}.9`,
+        selectedChannel: `stable-${minor}`,
+        locked: true,
+        confirmedByUser: true,
+      },
+      release: { channel: minor, patchVersion: `${minor}.9`, confirmed: true, followLatestMinor: false },
+      blueprint: { platform: 'Bare Metal', arch: 'x86_64', confirmed: true },
+      operators: {
+        // Intent only: no catalogImage, no defaultChannel. This is exactly what
+        // buildInvalidatedOperatorState produces and what an export preserves.
+        selected: [{ name: 'openshift-gitops-operator', id: 'openshift-gitops-operator-redhat', sources: ['gitops'] }],
+        catalogs: { redhat: [], certified: [], community: [] },
+        version: null,
+        scenarios: {},
+        pendingScenarios: { gitops: true },
+        scenarioAdded: { 'openshift-gitops-operator-redhat': { gitops: true } },
+        scanJobs: {},
+        stale: true,
+        fastMode: false,
+      },
+      ui: { ...STATE_RELOCKING_ONTO_420.ui, activeStepId: 'operators' },
+      __catalogImage: catalogImage,
+    };
+  }
+
+  const scannedCatalog = (minor) => ({
+    redhat: {
+      results: [
+        {
+          id: 'openshift-gitops-operator-redhat',
+          name: 'openshift-gitops-operator',
+          displayName: 'Red Hat OpenShift GitOps',
+          defaultChannel: `stable-${minor}`,
+        },
+      ],
+      updatedAt: 1700000001000,
+    },
+    certified: { results: [], updatedAt: null },
+    community: { results: [], updatedAt: null },
+  });
+
+  it('resolves intent-only selections when the catalog status returns results', async () => {
+    installFetchMock({ loadedState: importedIntentOnlyState('4.21'), catalogStatus: scannedCatalog('4.21') });
+    render(<App />);
+
+    await waitFor(() => {
+      const ops = latestPersisted()?.operators;
+      const sel = ops?.selected?.find((o) => o.name === 'openshift-gitops-operator');
+      expect(sel?.defaultChannel, 'defaultChannel was never resolved').toBe('stable-4.21');
+    });
+
+    const ops = latestPersisted().operators;
+    const sel = ops.selected.find((o) => o.name === 'openshift-gitops-operator');
+    // Both fields the ImageSet generator requires.
+    expect(sel.catalogImage, 'catalogImage was never stamped').toBeTruthy();
+    expect(sel.catalogImage).toContain('v4.21');
+    // And the Quick Pick must leave the dotted pending state.
+    expect(ops.scenarios?.gitops, 'the Quick Pick stayed pending').toBe(true);
+    expect(ops.pendingScenarios?.gitops).toBeFalsy();
+  });
+
+  it('a reconciled selection is emitted by the ImageSet generator', async () => {
+    // Closes the loop the human actually cared about: the artifact.
+    installFetchMock({ loadedState: importedIntentOnlyState('4.21'), catalogStatus: scannedCatalog('4.21') });
+    render(<App />);
+    await waitFor(() => {
+      expect(latestPersisted()?.operators?.selected?.[0]?.defaultChannel).toBe('stable-4.21');
+    });
+    const sel = latestPersisted().operators.selected[0];
+    // buildImageSetConfig skips any operator missing either field.
+    expect(Boolean(sel.catalogImage && sel.defaultChannel), 'generator would skip this operator').toBe(true);
+  });
+
+  it('an operator that is genuinely gone stays pending rather than being invented', async () => {
+    // Fail closed: no fabricated channel, and it must not reach the ImageSet.
+    const emptyScan = { redhat: { results: [], updatedAt: 1700000001000 }, certified: { results: [], updatedAt: null }, community: { results: [], updatedAt: null } };
+    installFetchMock({ loadedState: importedIntentOnlyState('4.21'), catalogStatus: emptyScan });
+    render(<App />);
+
+    await waitFor(() => expect(latestPersisted()?.operators?.version).toBe('4.21'));
+    const ops = latestPersisted().operators;
+    const sel = ops.selected.find((o) => o.name === 'openshift-gitops-operator');
+    expect(sel?.defaultChannel, 'a channel was invented for a missing package').toBeFalsy();
+    expect(sel?.catalogImage, 'a catalog image was invented for a missing package').toBeFalsy();
+    expect(ops.scenarios?.gitops, 'a Quick Pick was activated without its packages').toBeFalsy();
+  });
+
+  it('reconciles even when catalogs for this minor are ALREADY present', async () => {
+    /**
+     * The guard half, isolated. This is the fixture the old guard skipped:
+     *   operators.version === the locked minor  AND  catalogs.redhat is
+     *   non-empty  AND  the selections are still intent-only.
+     * `if (operators.version === version && catalogs.redhat.length) return;`
+     * fired before reconciliation could run, so the run stayed at
+     * "Default channel: unknown" with an empty ImageSet forever.
+     *
+     * Note the other tests in this block use `version: null`, which the old
+     * guard did NOT skip — they pass either way and do not prove this fix.
+     */
+    const base = importedIntentOnlyState('4.21');
+    const loadedState = {
+      ...base,
+      operators: {
+        ...base.operators,
+        version: '4.21',
+        catalogs: {
+          redhat: [
+            {
+              id: 'openshift-gitops-operator-redhat',
+              name: 'openshift-gitops-operator',
+              displayName: 'Red Hat OpenShift GitOps',
+              defaultChannel: 'stable-4.21',
+            },
+          ],
+          certified: [],
+          community: [],
+        },
+      },
+    };
+    installFetchMock({ loadedState, catalogStatus: scannedCatalog('4.21') });
+    render(<App />);
+
+    await waitFor(() => {
+      const sel = latestPersisted()?.operators?.selected?.find((o) => o.name === 'openshift-gitops-operator');
+      expect(sel?.defaultChannel, 'the stale guard skipped reconciliation again').toBe('stable-4.21');
+    });
+    const ops = latestPersisted().operators;
+    expect(ops.selected[0].catalogImage).toContain('v4.21');
+    expect(ops.scenarios?.gitops, 'the Quick Pick stayed pending').toBe(true);
+  });
+
+  it('the scan-completion writer reconciles too, not just the mount-time effect', () => {
+    // The second lock. Source-level because the Scan control is behind a
+    // collapsed section and credential gating; the behaviour is delta-retest D3.
+    const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/steps/OperatorsStep.jsx'), 'utf8');
+    const writer = src.slice(src.indexOf('job.status === "completed" || job.status === "failed"'));
+    const block = writer.slice(0, writer.indexOf('const allDone'));
+    expect(block, 'the scan-completion writer must reconcile, not just assign catalogs')
+      .toMatch(/reconcileOperatorsForMinor\s*\(/);
   });
 });

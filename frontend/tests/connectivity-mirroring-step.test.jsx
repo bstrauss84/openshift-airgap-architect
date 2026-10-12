@@ -202,8 +202,8 @@ describe("Connectivity & Mirroring replacement step (Phase 5 Prompt H)", () => {
   it("when scenario is bare-metal-agent, getScenarioId and getParamMeta return expected mirroring/NTP meta", () => {
     const state = stateForConnectivityMirroringStep();
     expect(getScenarioId(state)).toBe("bare-metal-agent");
-    const imageDigestMeta = getParamMeta("bare-metal-agent", "imageDigestSources", "install-config.yaml");
-    const ntpMeta = getParamMeta("bare-metal-agent", "additionalNTPSources", "agent-config.yaml");
+    const imageDigestMeta = getParamMeta("bare-metal-agent", "imageDigestSources", "install-config.yaml", state);
+    const ntpMeta = getParamMeta("bare-metal-agent", "additionalNTPSources", "agent-config.yaml", state);
     expect(imageDigestMeta?.required).toBe(false);
     expect(ntpMeta?.required).toBe(false);
   });

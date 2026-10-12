@@ -104,16 +104,27 @@ describe("T5 §7 — surfaces changed by the DIRECT Tranche 5 edit", () => {
     assert.match(block, /4\.22/);
   });
 
+  /* The Quick Pick table moved from `frontend/src/steps/OperatorsStep.jsx` to
+     `frontend/src/shared/operatorQuickPicks.js` in v2.1 Tranche 7C.4, so the
+     cross-minor reconciler could read the destination minor's membership
+     instead of inferring it from the already-selected operators. These three
+     checks follow the data; every assertion is unchanged. */
   test("S9 every version-aware Quick Pick carries a 4.22 row, and `default` is gone", () => {
-    const src = read("frontend", "src", "steps", "OperatorsStep.jsx");
+    const src = read("frontend", "src", "shared", "operatorQuickPicks.js");
     assert.match(src, /"4\.22":/);
     assert.doesNotMatch(src, /"default":/, "the default fallback must not survive the flip");
     assert.doesNotMatch(src, /versionPicks\?\.\["default"\]/, "the resolution fallback must be gone too");
   });
 
   test("S10 openshift-ai is version-aware and omits rhods-prometheus-operator at 4.22 only", () => {
-    const src = read("frontend", "src", "steps", "OperatorsStep.jsx");
-    const block = src.slice(src.indexOf('id: "openshift-ai"'), src.indexOf('id: "compliance"'));
+    const src = read("frontend", "src", "shared", "operatorQuickPicks.js");
+    const start = src.indexOf('id: "openshift-ai"');
+    const end = src.indexOf('id: "compliance"');
+    // Anchor guard (DOC-224): a missing anchor makes the slice "" and every
+    // doesNotMatch below pass vacuously. Fail on the anchor, not on the claim.
+    assert.ok(start > -1, 'anchor \'id: "openshift-ai"\' not found');
+    assert.ok(end > start, 'anchor \'id: "compliance"\' not found after openshift-ai');
+    const block = src.slice(start, end);
     assert.match(block, /versionPicks/);
     const row = (m) => (block.match(new RegExp(`"${m}": \\{([^}]*)\\}`)) || [])[1] || "";
     assert.match(row("4.20"), /rhods-prometheus-operator/, "4.20 behaviour is preserved");
@@ -257,7 +268,7 @@ describe("T4 §8 — partial flips are rejected or detected", () => {
     // support leaves the `default` fallback live. Post-flip the same hazard is
     // the mirror image: support without rows. Both halves are asserted here, so
     // reverting either one alone fails.
-    const src = read("frontend", "src", "steps", "OperatorsStep.jsx");
+    const src = read("frontend", "src", "shared", "operatorQuickPicks.js");
     const supported = /"4\.22"/.test(read("backend", "src", "versionPolicy.js"));
     const hasRow = /"4\.22":/.test(src);
     assert.equal(hasRow, supported, "a 4.22 Quick Pick row and 4.22 support must coexist");

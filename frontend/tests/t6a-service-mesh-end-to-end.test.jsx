@@ -26,6 +26,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
+import { scenarios as QUICK_PICKS } from "../src/shared/operatorQuickPicks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, "..", "..");
@@ -35,16 +36,15 @@ const SCAN = JSON.parse(
   readFileSync(join(REPO, "docs", "minor-release", "4.22", "operator-catalog-scan-4.22.json"), "utf8")
 );
 
-/** The Service Mesh pick, read from the real source. */
+/**
+ * The Service Mesh pick, read from the real exported Quick Pick table.
+ * It used to be regex-parsed out of OperatorsStep.jsx; the table moved to
+ * shared/operatorQuickPicks.js so cross-minor reconciliation can re-evaluate
+ * pick membership. `SRC` still points at the step for the `applyScenario`
+ * assertions below, which are about code that did not move.
+ */
 function serviceMeshPicks() {
-  const start = SRC.indexOf('id: "service-mesh"');
-  const body = SRC.slice(start, SRC.indexOf("},", SRC.indexOf("picks:", start)));
-  const m = body.match(/picks:\s*\{([\s\S]*?)\}/);
-  const out = {};
-  for (const g of (m?.[1] || "").matchAll(/(\w+):\s*\[([^\]]*)\]/g)) {
-    out[g[1]] = g[2].split(",").map((x) => x.trim().replace(/"/g, "")).filter(Boolean);
-  }
-  return out;
+  return QUICK_PICKS.find((p) => p.id === "service-mesh").picks;
 }
 
 /**
@@ -150,25 +150,28 @@ describe("T6A §2 — the regression this closes is reproducible", () => {
     // earlier draft of this sweep cross-checked every row against every minor
     // and produced six false positives, all of them version-aware rows doing
     // exactly what they should.
-    const start = SRC.search(/const\s+scenarios\s*=\s*\[/);
-    let i = SRC.indexOf("[", start), depth = 0;
-    for (; i < SRC.length; i++) {
-      if (SRC[i] === "[") depth++;
-      else if (SRC[i] === "]") { depth--; if (depth === 0) break; }
+    // Reads the real exported Quick Pick table rather than regex-parsing the
+    // step source: the table moved to shared/operatorQuickPicks.js so
+    // cross-minor reconciliation can re-evaluate a pick's membership. The
+    // "own minor only" rule below is unchanged.
+    const rows = [];
+    for (const pick of QUICK_PICKS) {
+      if (pick.versionPicks) {
+        for (const [rowKey, lists] of Object.entries(pick.versionPicks)) {
+          for (const [catalogId, names] of Object.entries(lists)) {
+            rows.push({ catalogId, names, applicable: [rowKey] });
+          }
+        }
+      } else {
+        for (const [catalogId, names] of Object.entries(pick.picks || {})) {
+          rows.push({ catalogId, names, applicable: SUPPORTED_MINORS });
+        }
+      }
     }
-    const arr = SRC.slice(start, i + 1);
 
     const skipped = [];
     let checked = 0;
-    for (const g of arr.matchAll(/(redhat|certified):\s*\[([^\]]*)\]/g)) {
-      const catalogId = g[1];
-      const names = g[2].split(",").map((x) => x.trim().replace(/"/g, "")).filter(Boolean);
-
-      // The nearest preceding `"X.Y":` key is this list's own minor; absent one,
-      // the list is a flat pick that applies at every supported minor.
-      const rowKey = [...arr.slice(0, g.index).matchAll(/"(\d+\.\d+)":/g)].pop()?.[1];
-      const applicable = rowKey ? [rowKey] : SUPPORTED_MINORS;
-
+    for (const { catalogId, names, applicable } of rows) {
       for (const minor of applicable) {
         if (!SUPPORTED_MINORS.includes(minor)) continue; // historical rows below the baseline
         const key = `${catalogId}-${minor}`;

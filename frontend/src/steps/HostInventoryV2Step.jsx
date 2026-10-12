@@ -24,7 +24,7 @@ import {
   DEFAULT_SECTION_ORDER,
   SCENARIO_SECTION_ORDER,
   createInterfaceConfig,
-  getNextEnoName
+  createAdditionalInterfaceConfig
 } from "../hostInventoryV2Helpers.js";
 import { getCatalogPaths } from "../catalogPaths.js";
 import { getCatalogForScenario } from "../catalogResolver.js";
@@ -130,15 +130,26 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const supported = isScenarioSupported(platform, method);
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
   const ipStackMode = inventory.ipStackMode || 'ipv4';
+  /* Host addressing is CLUSTER-STACK-COUPLED: buildNmState derives exactly
+     these two booleans from the same setting and writes `enabled: false` for
+     the family the cluster does not run, DISCARDING any address entered for
+     it. The node editor must therefore offer the same families the generator
+     will keep — otherwise it invites input it then throws away. */
+  const enableIpv4 = ipStackMode === 'ipv4' || ipStackMode === 'dual-stack';
   const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
 
   const sectionOrder = useMemo(
     () => getSectionOrderForRender(true, scenarioId),
     [scenarioId]
   );
-  const version = getOpenShiftMinorFromState(state) || '4.20';
-  const catalogPaths = useMemo(() => getCatalogPaths(scenarioId, version), [scenarioId, version]);
-  const catalogParams = useMemo(() => getCatalogForScenario(scenarioId, version), [scenarioId, version]);
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const version = getOpenShiftMinorFromState(state);
+  const catalogPaths = useMemo(() => (version ? getCatalogPaths(scenarioId, version) : []), [scenarioId, version]);
+  const catalogParams = useMemo(() => (version ? getCatalogForScenario(scenarioId, version) : []), [scenarioId, version]);
   const isCatalogFieldVisible = (path, outputFile) => {
     const param = catalogParams.find(
       (entry) => entry.path === path && entry.outputFile === outputFile
@@ -155,7 +166,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const showAdditionalInterfaces = isCatalogFieldVisible("hosts[].networkConfig.interfaces", AGENT_CONFIG);
   const sectionOrderSet = useMemo(() => new Set(sectionOrder), [sectionOrder]);
 
-  const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT, version), [scenarioId, version]);
+  const roleMeta = useMemo(() => (version ? getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT, version) : null), [scenarioId, version]);
   const ROLE_LABELS = { master: "Control plane", worker: "Worker", arbiter: "Arbiter" };
   const roleOptions = useMemo(() => {
     if (Array.isArray(roleMeta?.allowed) && roleMeta.allowed.length > 0) {
@@ -375,16 +386,17 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     });
 
   const addAdditionalInterface = (nodeIndex) =>
-    updateNode(nodeIndex, (node) => {
-      const nextName = getNextEnoName(node);
-      return {
-        ...node,
-        additionalInterfaces: [
-          ...(node.additionalInterfaces || []),
-          createInterfaceConfig({ type: "ethernet", ethernet: { name: nextName, macAddress: "" } })
-        ]
-      };
-    });
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: [
+        ...(node.additionalInterfaces || []),
+        /* Allocates EVERY default name on the new row against the names
+           already used on this node — ethernet, bond, both bond members and
+           VRF — not just the ethernet name. See
+           createAdditionalInterfaceConfig for why the others matter. */
+        createAdditionalInterfaceConfig(node)
+      ]
+    }));
 
   const removeAdditionalInterface = (nodeIndex, ifaceIndex) =>
     updateNode(nodeIndex, (node) => ({
@@ -392,11 +404,58 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       additionalInterfaces: (node.additionalInterfaces || []).filter((_, i) => i !== ifaceIndex)
     }));
 
-  const primaryBaseIface = (node) => {
-    if (node.primary?.type === "bond" || node.primary?.type === "vlan-on-bond") return node.primary.bond?.name || "bond0";
-    return node.primary?.ethernet?.name || "eno0";
-  };
-  const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
+  /* Routes on an ADDITIONAL interface. `advanced.routes` has always been seeded
+     into every interface row by createInterfaceConfig, but for additional
+     interfaces nothing wrote it and nothing read it — an imported run's routes
+     were invisible here and discarded at generation. These three handlers plus
+     the generator's addExtraRoutes close that round trip. */
+  const updateAdditionalRoute = (nodeIndex, ifaceIndex, routeIndex, patch) =>
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: (node.additionalInterfaces || []).map((iface, i) =>
+        i !== ifaceIndex
+          ? iface
+          : {
+            ...iface,
+            advanced: {
+              ...iface.advanced,
+              routes: (iface.advanced?.routes || []).map((route, r) => (r === routeIndex ? { ...route, ...patch } : route))
+            }
+          }
+      )
+    }));
+
+  const addAdditionalRoute = (nodeIndex, ifaceIndex) =>
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: (node.additionalInterfaces || []).map((iface, i) =>
+        i !== ifaceIndex
+          ? iface
+          : {
+            ...iface,
+            advanced: {
+              ...iface.advanced,
+              routes: [...(iface.advanced?.routes || []), { destination: "", nextHopAddress: "", nextHopInterface: "" }]
+            }
+          }
+      )
+    }));
+
+  const removeAdditionalRoute = (nodeIndex, ifaceIndex, routeIndex) =>
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: (node.additionalInterfaces || []).map((iface, i) =>
+        i !== ifaceIndex
+          ? iface
+          : {
+            ...iface,
+            advanced: {
+              ...iface.advanced,
+              routes: (iface.advanced?.routes || []).filter((_, r) => r !== routeIndex)
+            }
+          }
+      )
+    }));
 
   const isArbiterDrawer = (selectedNode?.role || "").trim() === "arbiter";
   /** Bulk replicate must not target arbiter nodes (role-specific inventory). */
@@ -447,6 +506,28 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [drawerOpen, isNodeEditorFocused, showReplicate]);
 
+  /* DISCOVERABILITY (routes / default gateway). The Advanced accordion holds
+     "Additional Routes" and defaults to collapsed, which is why a user looking
+     for route configuration could not find it. Collapsed-by-default is kept —
+     it is the accepted layout — but a node that ALREADY has routes opens with
+     them visible, so an imported run never hides data behind a closed panel.
+     Keyed on the selected node so re-opening a different node re-evaluates,
+     while a deliberate collapse within one node is left alone. */
+  useEffect(() => {
+    if (selectedIndex == null) return;
+    if ((nodes[selectedIndex]?.primary?.advanced?.routes || []).length > 0) {
+      setAdvancedOpen(true);
+    }
+    const withRoutes = {};
+    (nodes[selectedIndex]?.additionalInterfaces || []).forEach((iface, i) => {
+      if ((iface?.advanced?.routes || []).length > 0) withRoutes[i] = true;
+    });
+    if (Object.keys(withRoutes).length) {
+      setAdditionalAdvancedOpen((prev) => ({ ...withRoutes, ...prev }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIndex]);
+
   const showBasicDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_BASIC);
   const showAdvancedDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_ADVANCED);
   const badgeBasicDrawer = null;
@@ -457,6 +538,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     nodes.forEach((node, idx) => {
       const result = validateNode({
         node,
+        enableIpv4,
         enableIpv6,
         machineCidr,
         platform,
@@ -465,7 +547,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       out[idx] = result;
     });
     return out;
-  }, [nodes, enableIpv6, machineCidr, platform, method]);
+  }, [nodes, enableIpv4, enableIpv6, machineCidr, platform, method]);
 
   const catalogValidation = useMemo(
     () => getCatalogValidationForInventoryV2(state, scenarioId),
@@ -969,7 +1051,9 @@ wipefs -a /dev/sdX`}</pre>
                           updateNode={updateNode}
                           selectedIndex={selectedIndex}
                           mergedNodeValidation={mergedNodeValidation}
+                          enableIpv4={enableIpv4}
                           enableIpv6={enableIpv6}
+                          ipStackMode={ipStackMode}
                           showHostname={showAgentHostname}
                           showDns={showAgentDns}
                           showRootDeviceHints={showAgentRootDeviceHints}
@@ -1000,8 +1084,9 @@ wipefs -a /dev/sdX`}</pre>
                           updateAdditionalInterface={updateAdditionalInterface}
                           addAdditionalInterface={addAdditionalInterface}
                           removeAdditionalInterface={removeAdditionalInterface}
-                          primaryBaseIface={primaryBaseIface}
-                          suggestedVlanName={suggestedVlanName}
+                          updateAdditionalRoute={updateAdditionalRoute}
+                          addAdditionalRoute={addAdditionalRoute}
+                          removeAdditionalRoute={removeAdditionalRoute}
                           formatMACAsYouType={formatMACAsYouType}
                           normalizeMAC={normalizeMAC}
                           isDefaultHostname={isDefaultHostname}

@@ -22,68 +22,41 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
+import { scenarios, resolveScenarioPicks } from "../src/shared/operatorQuickPicks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, "..", "..");
 
-const SRC = readFileSync(join(REPO, "frontend", "src", "steps", "OperatorsStep.jsx"), "utf8");
+/**
+ * The Quick Pick table moved out of `OperatorsStep.jsx` into a shared module so
+ * cross-minor reconciliation can re-evaluate pick MEMBERSHIP against the
+ * destination minor's row. This file used to regex-parse the step source; it
+ * now reads the real exported data and the real exported resolver, which is
+ * strictly stronger. Every assertion below still means what it meant.
+ */
+const PICKS_SRC = readFileSync(join(REPO, "frontend", "src", "shared", "operatorQuickPicks.js"), "utf8");
 const SCAN = JSON.parse(
   readFileSync(join(REPO, "docs", "minor-release", "4.22", "operator-catalog-scan-4.22.json"), "utf8")
 );
-
-/* ---------- parse the real Quick Pick table out of the real source ---------- */
-
-function quickPickObjects() {
-  const start = SRC.search(/const\s+scenarios\s*=\s*\[/);
-  let i = SRC.indexOf("[", start);
-  let depth = 0;
-  for (; i < SRC.length; i++) {
-    if (SRC[i] === "[") depth++;
-    else if (SRC[i] === "]") { depth--; if (depth === 0) break; }
-  }
-  const arr = SRC.slice(start, i + 1);
-  const objs = [];
-  let d = 0, s = -1;
-  for (let k = 0; k < arr.length; k++) {
-    if (arr[k] === "{") { if (d === 0) s = k; d++; }
-    else if (arr[k] === "}") { d--; if (d === 0) objs.push(arr.slice(s, k + 1)); }
-  }
-  return objs.map((body) => ({
-    id: (body.match(/id:\s*"([^"]+)"/) || [])[1],
-    versionAware: /versionPicks:/.test(body),
-    body,
-  }));
-}
 
 /** Source text with // and block comments removed, for "is it actually requested" checks. */
 const stripComments = (src) =>
   src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
 
-const parseLists = (fragment) => {
-  const out = {};
-  for (const m of fragment.matchAll(/(\w+):\s*\[([^\]]*)\]/g)) {
-    out[m[1]] = m[2].split(",").map((x) => x.trim().replace(/"/g, "")).filter(Boolean);
-  }
-  return out;
-};
+const flatPicks = (pick) => pick.picks || {};
+const versionRow = (pick, minor) => pick.versionPicks?.[minor] || null;
 
-const flatPicks = (body) => parseLists((body.match(/picks:\s*\{([\s\S]*?)\n\s*\}/) || [])[1] || "");
-const versionRow = (body, minor) => {
-  const m = body.match(new RegExp(`"${minor.replace(".", "\\.")}":\\s*\\{([^}]*)\\}`));
-  return m ? parseLists(m[1]) : null;
-};
-
-const ALL = quickPickObjects();
+const ALL = scenarios.map((pick) => ({ ...pick, versionAware: Boolean(pick.versionPicks) }));
 const VERSION_AWARE = ALL.filter((p) => p.versionAware);
 const FLAT = ALL.filter((p) => !p.versionAware);
 
 /**
- * What the application would hand to `applyScenario` at `minor`.
- * Mirrors the production resolver: per-minor row, else flat picks, else null.
- * There is deliberately no `default` branch — Tranche 5 removed it.
+ * What the application would hand to `applyScenario` at `minor`. This IS the
+ * production resolver now, not a mirror of it: per-minor row, else flat picks,
+ * else null. There is deliberately no `default` branch — Tranche 5 removed it.
  */
 function resolve(pick, minor) {
-  return pick.versionAware ? versionRow(pick.body, minor) : flatPicks(pick.body);
+  return resolveScenarioPicks(pick, minor);
 }
 
 /**
@@ -135,8 +108,8 @@ describe("T6 §12 — the Quick Pick inventory after the atomic flip", () => {
   });
 
   it("the legacy `default` fallback is gone from data and from resolution", () => {
-    expect(SRC).not.toMatch(/"default":/);
-    expect(SRC).not.toMatch(/versionPicks\?\.\["default"\]/);
+    expect(PICKS_SRC).not.toMatch(/"default":/);
+    expect(PICKS_SRC).not.toMatch(/versionPicks\?\.\["default"\]/);
   });
 });
 
@@ -190,32 +163,32 @@ describe("T6 §12 — OpenShift AI, exactly", () => {
   });
 
   it("4.20 preserves the pre-Tranche-5 package set", () => {
-    expect(versionRow(AI.body, "4.20")).toEqual({
+    expect(versionRow(AI, "4.20")).toEqual({
       redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"],
       certified: ["gpu-operator-certified"],
     });
   });
 
   it("4.21 preserves the pre-Tranche-5 package set", () => {
-    expect(versionRow(AI.body, "4.21")).toEqual({
+    expect(versionRow(AI, "4.21")).toEqual({
       redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"],
       certified: ["gpu-operator-certified"],
     });
   });
 
   it("4.22 is exactly rhods-operator + nfd (redhat) and gpu-operator-certified (certified)", () => {
-    expect(versionRow(AI.body, "4.22")).toEqual({
+    expect(versionRow(AI, "4.22")).toEqual({
       redhat: ["rhods-operator", "nfd"],
       certified: ["gpu-operator-certified"],
     });
   });
 
   it("4.22 does NOT request rhods-prometheus-operator", () => {
-    expect(Object.values(versionRow(AI.body, "4.22")).flat()).not.toContain("rhods-prometheus-operator");
+    expect(Object.values(versionRow(AI, "4.22")).flat()).not.toContain("rhods-prometheus-operator");
   });
 
   it("4.22 substitutes no replacement Prometheus package", () => {
-    const row = Object.values(versionRow(AI.body, "4.22")).flat();
+    const row = Object.values(versionRow(AI, "4.22")).flat();
     expect(row.filter((n) => /prometheus/i.test(n))).toEqual([]);
     expect(row).not.toContain("odf-prometheus-operator");
   });
@@ -227,7 +200,7 @@ describe("T6 §12 — OpenShift AI, exactly", () => {
   });
 
   it("every package the 4.22 row names resolves in the real 4.22 catalogs", () => {
-    for (const [cat, names] of Object.entries(versionRow(AI.body, "4.22"))) {
+    for (const [cat, names] of Object.entries(versionRow(AI, "4.22"))) {
       for (const n of names) {
         expect(Object.prototype.hasOwnProperty.call(SCAN.packages[`${cat}-4.22`], n), `${n} @ ${cat}-4.22`).toBe(true);
       }
@@ -242,13 +215,13 @@ describe("T6 §12 — the other version-aware Quick Picks", () => {
     expect(OTHERS).toHaveLength(5);
     for (const p of OTHERS) {
       for (const minor of SUPPORTED_MINORS) {
-        expect(versionRow(p.body, minor), `${p.id} has no "${minor}" row`).toBeTruthy();
+        expect(versionRow(p, minor), `${p.id} has no "${minor}" row`).toBeTruthy();
       }
     }
   });
 
   it("the ODF family matches the documented 4.22 package counts", () => {
-    const n = (id) => versionRow(VERSION_AWARE.find((p) => p.id === id).body, "4.22").redhat.length;
+    const n = (id) => versionRow(VERSION_AWARE.find((p) => p.id === id), "4.22").redhat.length;
     expect(n("odf")).toBe(12);
     expect(n("odf-local-storage")).toBe(13);
     expect(n("odf-disaster-recovery")).toBe(16);
@@ -256,8 +229,8 @@ describe("T6 §12 — the other version-aware Quick Picks", () => {
   });
 
   it("app-dev-suite does not vary by minor, and says so by repeating the row", () => {
-    const body = VERSION_AWARE.find((p) => p.id === "app-dev-suite").body;
-    const rows = SUPPORTED_MINORS.map((m) => JSON.stringify(versionRow(body, m)));
+    const pick = VERSION_AWARE.find((p) => p.id === "app-dev-suite");
+    const rows = SUPPORTED_MINORS.map((m) => JSON.stringify(versionRow(pick, m)));
     expect(new Set(rows).size).toBe(1);
   });
 });
@@ -266,17 +239,17 @@ describe("T6A §2 — DOC-184 closed: the stale Jaeger reference is gone", () =>
   const MESH = FLAT.find((p) => p.id === "service-mesh");
 
   it("the Service Mesh Quick Pick names exactly servicemeshoperator and kiali-ossm", () => {
-    expect(flatPicks(MESH.body)).toEqual({ redhat: ["servicemeshoperator", "kiali-ossm"] });
+    expect(flatPicks(MESH)).toEqual({ redhat: ["servicemeshoperator", "kiali-ossm"] });
   });
 
   it("jaeger-product is named in no Quick Pick's package data", () => {
     // Comments are stripped before matching: the removal comment legitimately
     // names the package to explain WHY it is gone, and must not be mistaken
     // for the package still being requested.
-    const code = stripComments(SRC);
+    const code = stripComments(PICKS_SRC);
     expect(code).not.toContain("jaeger-product");
     // And the comment explaining the removal is still there, deliberately.
-    expect(SRC).toContain("jaeger-product");
+    expect(PICKS_SRC).toContain("jaeger-product");
   });
 
   it("both remaining packages exist at every supported minor", () => {
@@ -300,7 +273,7 @@ describe("T6A §2 — DOC-184 closed: the stale Jaeger reference is gone", () =>
     // tracing components. Adding them would be a new product capability, not a
     // stale-reference fix. They ARE in the catalog, so this is a deliberate
     // omission rather than an unavailable one.
-    const names = Object.values(flatPicks(MESH.body)).flat();
+    const names = Object.values(flatPicks(MESH)).flat();
     expect(names).not.toContain("tempo-product");
     expect(names).not.toContain("opentelemetry-product");
     expect(Object.prototype.hasOwnProperty.call(SCAN.packages["redhat-4.22"], "tempo-product")).toBe(true);
@@ -308,7 +281,7 @@ describe("T6A §2 — DOC-184 closed: the stale Jaeger reference is gone", () =>
   });
 
   it("the user-visible description no longer promises distributed tracing", () => {
-    const description = (MESH.body.match(/description:\s*"([^"]*)"/) || [])[1] || "";
+    const description = MESH.description || "";
     expect(description).toBe("Istio-based service mesh with Kiali observability");
     expect(description).not.toMatch(/Jaeger/i);
     expect(description).not.toMatch(/tracing/i);

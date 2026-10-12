@@ -23,10 +23,23 @@ import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventory
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
+import { validateProvisioningNetworkFamily } from "../../shared/provisioningNetworkFamily.js";
+/* Family-agnostic BigInt address primitives. The provisioning-network checks
+   below used 32-bit integer maths, which cannot represent an IPv6 address, so
+   they silently refused an IPv6 provisioning network the installer accepts. */
+import {
+  parseIp as parseProvisioningIp,
+  parseCidr as parseProvisioningCidr
+} from "../../shared/provisioningNetworkGateway.js";
 import { isVersionGTE } from "../../shared/versionUtils.js";
 import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
 import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
 import { validateProvisioningNetworkGateway } from "../../shared/provisioningNetworkGateway.js";
+import {
+  resolveEffectiveInterfaceName,
+  resolveVlanInterfaceName,
+  PRIMARY_NAME_FALLBACKS
+} from "../../shared/interfaceNaming.js";
 
 /**
  * vCenter server address validity, mirroring the OpenShift installer contract.
@@ -487,8 +500,16 @@ const ipv6InCidr = (ipAddr, cidr) => {
   return ipBig >= range.start && ipBig <= range.end;
 };
 
-/** Validates a single host-inventory node: hostname, BMC (bare-metal IPI), primary interface (ethernet/bond/vlan), static IP/MAC. */
-const validateNode = ({ node, enableIpv6, machineCidr, platform, method, includeCredentials }) => {
+/**
+ * Validates a single host-inventory node: hostname, BMC (bare-metal IPI),
+ * primary interface (ethernet/bond/vlan), static IP/MAC, and static routes.
+ *
+ * `enableIpv4` / `enableIpv6` come from the cluster IP stack mode. They default
+ * to the historical pair (IPv4 on, IPv6 off) when a caller omits them so the
+ * many existing call sites and fixtures keep their meaning.
+ */
+const validateNode = ({ node, enableIpv4, enableIpv6, machineCidr, platform, method, includeCredentials }) => {
+  const ipv4Enabled = enableIpv4 !== false;
   const errors = [];
   const warnings = [];
   const fieldErrors = {};
@@ -610,18 +631,32 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     }
 
     if (primary.mode === "static") {
-      if (!primary.ipv4Cidr) addError("primary.ipv4Cidr", "IPv4 address/CIDR is required for static mode.");
-      if (primary.ipv4Cidr && !isValidIpv4AddressWithPrefix(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
-      if (!primary.ipv4Gateway) addError("primary.ipv4Gateway", "IPv4 default gateway is required.");
-      if (primary.ipv4Gateway && !isValidIpv4(primary.ipv4Gateway)) addError("primary.ipv4Gateway", "IPv4 gateway must be a valid IPv4 address.");
-      if (primary.ipv4Cidr && machineCidr && !ipInCidr(primary.ipv4Cidr, machineCidr)) {
-        addWarning("primary.ipv4Cidr", `IPv4 is outside machine network (${machineCidr}).`);
+      /* IPv4 host addressing is CLUSTER-STACK-COUPLED. buildNmState derives
+         enableIpv4 from the cluster IP stack mode and writes
+         `ipv4: { enabled: false }` when it is off, discarding any address the
+         user typed. Requiring an IPv4 address in an IPv6-only cluster therefore
+         demanded a value that the generator would throw away. */
+      if (ipv4Enabled) {
+        if (!primary.ipv4Cidr) addError("primary.ipv4Cidr", "IPv4 address/CIDR is required for static mode.");
+        if (primary.ipv4Cidr && !isValidIpv4AddressWithPrefix(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
+        if (!primary.ipv4Gateway) addError("primary.ipv4Gateway", "IPv4 default gateway is required.");
+        if (primary.ipv4Gateway && !isValidIpv4(primary.ipv4Gateway)) addError("primary.ipv4Gateway", "IPv4 gateway must be a valid IPv4 address.");
+        if (primary.ipv4Cidr && machineCidr && !ipInCidr(primary.ipv4Cidr, machineCidr)) {
+          addWarning("primary.ipv4Cidr", `IPv4 is outside machine network (${machineCidr}).`);
+        }
       }
       if (enableIpv6 && primary.ipv6Cidr && !isValidIpv6Cidr(primary.ipv6Cidr)) {
         addError("primary.ipv6Cidr", "IPv6 CIDR is invalid.");
       }
       if (enableIpv6 && primary.ipv6Gateway && !primary.ipv6Cidr) {
         addError("primary.ipv6Cidr", "IPv6 CIDR is required when IPv6 gateway is provided.");
+      }
+      /* IPv6-only: the node has no IPv4 at all, so the IPv6 address becomes the
+         required one. Without this a static IPv6-only host passed validation
+         with no address of any family and generated an interface with both
+         families disabled. */
+      if (!ipv4Enabled && enableIpv6 && !primary.ipv6Cidr) {
+        addError("primary.ipv6Cidr", "IPv6 address/CIDR is required for static mode in an IPv6-only cluster.");
       }
     }
 
@@ -662,28 +697,56 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
         if (!derivedBase) addError(`${prefix}.vlan.baseIface`, "Additional VLAN base interface is required.");
       }
       if (iface.mode === "static") {
-        if (!iface.ipv4Cidr) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 address/CIDR is required for static mode.");
-        if (iface.ipv4Cidr && !isValidIpv4AddressWithPrefix(iface.ipv4Cidr)) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
-        if (enableIpv6 && iface.ipv6Cidr && !isValidIpv6Cidr(iface.ipv6Cidr)) {
+        /* A SECONDARY interface is NOT cluster-stack-coupled (7C.4A).
+           `hosts[].networkConfig` is delegated to the NMState Declarative
+           Network API, where `ipv4` and `ipv6` are independent per-interface
+           settings; nothing in the installer, assisted-service or Red Hat's
+           docs requires a storage/management NIC to match the cluster's
+           family, and Red Hat itself requires a separate storage network for
+           iSCSI boot with no family constraint. An earlier revision applied
+           the primary interface's rule here and refused a valid IPv4 storage
+           address in an IPv6-only cluster.
+
+           So: validate the FORMAT of whatever the user supplied, in either
+           family, and require that a static interface carries at least one
+           address — without dictating which family that must be. */
+        if (iface.ipv4Cidr && !isValidIpv4AddressWithPrefix(iface.ipv4Cidr)) {
+          addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
+        }
+        if (iface.ipv6Cidr && !isValidIpv6Cidr(iface.ipv6Cidr)) {
           addError(`${prefix}.ipv6Cidr`, "Additional IPv6 CIDR is invalid.");
+        }
+        /* No address at all on a SECONDARY interface is not an error.
+           The IP-assignment control offers only DHCP and Static, so an
+           unaddressed secondary is the only way to express a legitimate
+           L2-only NIC — one that exists for MTU, SR-IOV or as a bond
+           carrier — and `ipv4/ipv6: {enabled: false}` is the correct NMState
+           for that. A warning keeps it visible without blocking, because the
+           far more common cause is simply not having typed the address yet.
+           The PRIMARY is different and is required to be addressed: it
+           carries the node address. See addIpConfig in backend/src/generate.js. */
+        if (!iface.ipv4Cidr && !iface.ipv6Cidr) {
+          addWarning(
+            `${prefix}.ipv4Cidr`,
+            `Additional interface ${idx + 1} has no IPv4 or IPv6 address, so it will be generated as a layer-2 only interface.`
+          );
         }
       }
     });
 
-    // VRF cross-field validation: name required, table ID integer, no name collisions.
+    // Names every interface row contributes to the generated NMState document.
+    // Used by both the static-route next-hop check below and the VRF
+    // name-collision check further down.
     const normalizeGeneratedName = (value) => String(value ?? "").trim();
 
     const generatedNames = new Set();
     const vrfEntries = [];
 
-    const effectiveVlanName = (iface) => {
-      const activeBaseName =
-        iface.type === "vlan-on-bond"
-          ? iface.bond?.name
-          : iface.ethernet?.name;
-      const baseName = iface.vlan?.baseIface || activeBaseName;
-      return iface.vlan?.name || (baseName && iface.vlan?.id ? `${baseName}.${iface.vlan.id}` : "");
-    };
+    /* Delegated to shared/interfaceNaming.js. This implementation was already
+       correct and matched the backend; it is the basis of the shared contract
+       rather than a victim of it. Keeping a local copy would simply re-open the
+       drift. */
+    const effectiveVlanName = (iface) => resolveVlanInterfaceName(iface);
 
     const collectActiveNames = (iface) => {
       const names = [];
@@ -710,6 +773,110 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
       collectActiveNames(iface).forEach(n => generatedNames.add(n));
     });
 
+    /*
+     * Static route validation. Until now `advanced.routes` had none at all:
+     * no CIDR check on the destination, no IP check on the next hop, and no
+     * check that `nextHopInterface` names an interface the document will
+     * actually contain. A typo produced an NMState document the installer
+     * rejected at apply time, with nothing said in the wizard.
+     *
+     * Address family matters here, but it is keyed to the route's OWN next-hop
+     * interface, not to the cluster IP stack mode (7C.4A). nmstate rejects a
+     * route only when its family is disabled on that interface
+     * (`rust/src/lib/route.rs`: "The next hop interface of desired Route ...
+     * has been marked as IPv6 disabled"). An IPv4 route out of an IPv4
+     * secondary interface is valid in an IPv6-only cluster, and an earlier
+     * revision wrongly refused it.
+     */
+    const interfaceNamesInDocument = new Set(Array.from(generatedNames).filter(Boolean));
+
+    /* Families each interface will actually have, mirroring addIpConfig:
+       the PRIMARY path follows the cluster stack mode, every SECONDARY
+       interface follows only what the user configured on it. */
+    const interfaceFamilies = new Map();
+    const recordFamilies = (iface, names, clusterCoupled) => {
+      const v4 = clusterCoupled
+        ? ipv4Enabled && (iface?.mode === "dhcp" || Boolean(iface?.ipv4Cidr))
+        : iface?.mode === "dhcp" || Boolean(iface?.ipv4Cidr);
+      const v6 = clusterCoupled
+        ? Boolean(enableIpv6 && iface?.ipv6Cidr)
+        : Boolean(iface?.ipv6Cidr);
+      for (const n of names) if (n) interfaceFamilies.set(n, { ipv4: v4, ipv6: v6 });
+    };
+    recordFamilies(primary, collectActiveNames(primary), true);
+    additional.forEach((iface) => recordFamilies(iface, collectActiveNames(iface), false));
+
+    const validateRouteList = (routes, fieldPrefix, label, ownerInterfaceName) => {
+      (routes || []).forEach((route, ri) => {
+        const destination = String(route?.destination ?? "").trim();
+        const nextHopAddress = String(route?.nextHopAddress ?? "").trim();
+        const nextHopInterface = String(route?.nextHopInterface ?? "").trim();
+        // A wholly blank row is an unfinished repeatable entry, not an error;
+        // the generator skips it for the same reason.
+        if (!destination && !nextHopAddress && !nextHopInterface) return;
+        const field = (suffix) => `${fieldPrefix}.routes.${ri}.${suffix}`;
+
+        const destIsV6 = destination.includes(":");
+        if (!destination) {
+          addError(field("destination"), `${label} route ${ri + 1}: destination is required.`);
+        } else if (destIsV6 ? !isValidIpv6Cidr(destination) : !isValidIpv4Cidr(destination)) {
+          addError(field("destination"), `${label} route ${ri + 1}: destination must be a CIDR (e.g. 10.0.0.0/24 or 2001:db8::/64).`);
+        }
+
+        const hopIsV6 = nextHopAddress.includes(":");
+        if (!nextHopAddress) {
+          addError(field("nextHopAddress"), `${label} route ${ri + 1}: next hop address is required.`);
+        } else if (hopIsV6 ? !isValidIpv6(nextHopAddress) : !isValidIpv4(nextHopAddress)) {
+          addError(field("nextHopAddress"), `${label} route ${ri + 1}: next hop must be a valid IP address.`);
+        }
+
+        if (destination && nextHopAddress && destIsV6 !== hopIsV6) {
+          addError(field("nextHopAddress"), `${label} route ${ri + 1}: destination and next hop must be the same address family.`);
+        }
+
+        const routeIsV6 = destination ? destIsV6 : hopIsV6;
+        if (destination || nextHopAddress) {
+          const hopIface = nextHopInterface || ownerInterfaceName;
+          const families = hopIface ? interfaceFamilies.get(hopIface) : null;
+          const family = routeIsV6 ? "ipv6" : "ipv4";
+          if (families && families[family] !== true) {
+            addError(
+              field("destination"),
+              `${label} route ${ri + 1}: ${routeIsV6 ? "IPv6" : "IPv4"} is not enabled on "${hopIface}", ` +
+                `so this route cannot be applied. Give that interface ${routeIsV6 ? "an IPv6" : "an IPv4"} address, ` +
+                `or point the route at an interface that has one.`
+            );
+          }
+        }
+
+        if (nextHopInterface && interfaceNamesInDocument.size && !interfaceNamesInDocument.has(nextHopInterface)) {
+          addError(
+            field("nextHopInterface"),
+            `${label} route ${ri + 1}: next hop interface "${nextHopInterface}" is not one of this host's interfaces (${Array.from(interfaceNamesInDocument).sort().join(", ")}).`
+          );
+        }
+        if (!nextHopInterface && !ownerInterfaceName) {
+          addError(field("nextHopInterface"), `${label} route ${ri + 1}: next hop interface is required because this interface has no resolvable name yet.`);
+        }
+      });
+    };
+
+    validateRouteList(
+      primary.advanced?.routes,
+      "primary.advanced",
+      "Primary",
+      resolveEffectiveInterfaceName(primary, PRIMARY_NAME_FALLBACKS)
+    );
+    additional.forEach((iface, idx) => {
+      validateRouteList(
+        iface.advanced?.routes,
+        `additional.${idx}.advanced`,
+        `Additional interface ${idx + 1}`,
+        resolveEffectiveInterfaceName(iface)
+      );
+    });
+
+    // VRF cross-field validation: name required, table ID integer, no name collisions.
     if (primary.advanced?.vrf?.enabled) {
       const vrfName = normalizeGeneratedName(primary.advanced.vrf.name);
       const rawTableId = String(primary.advanced.vrf.tableId ?? "").trim();
@@ -763,6 +930,7 @@ const validateHostInventory = (state) => {
   const perNode = [];
   const inventory = state.hostInventory || {};
   const ipStackMode = inventory.ipStackMode || 'ipv4';
+  const enableIpv4 = ipStackMode === 'ipv4' || ipStackMode === 'dual-stack';
   const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
 
@@ -772,6 +940,7 @@ const validateHostInventory = (state) => {
   (inventory.nodes || []).forEach((node, idx) => {
     const result = validateNode({
       node,
+      enableIpv4,
       enableIpv6,
       machineCidr,
       platform: state.blueprint?.platform,
@@ -1235,13 +1404,18 @@ const validateNetworkingFormat = (state) => {
   const ingressVipList = parseVipList(ingressVip);
   if (apiVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("API VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
-  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) {
-    const msg = "Provisioning network CIDR must be a valid CIDR.";
+  /* The bare-metal provisioning network may be IPv4 OR IPv6, independently of
+     the cluster's IP Stack Mode. These checks were IPv4-only, so the UI
+     rejected an IPv6 provisioning network the backend and the installer both
+     accept — there was no way to enter one at all. Evidence and the
+     Managed-IPv6 /64 rule: shared/provisioningNetworkFamily.js. */
+  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR) && !isValidIpv6Cidr(provisioningCIDR)) {
+    const msg = "Provisioning network CIDR must be a valid IPv4 or IPv6 CIDR.";
     errors.push(msg);
     fieldErrors.provisioningNetworkCIDR = msg;
   }
-  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) {
-    const msg = "Cluster provisioning IP must be a valid IPv4 address.";
+  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP) && !isValidIpv6(clusterProvisioningIP)) {
+    const msg = "Cluster provisioning IP must be a valid IPv4 or IPv6 address.";
     errors.push(msg);
     fieldErrors.clusterProvisioningIP = msg;
   }
@@ -1256,17 +1430,24 @@ const validateNetworkingFormat = (state) => {
       fieldErrors.provisioningDHCPRange = msg;
     } else {
       const [startIP, endIP] = parts;
-      if (!isValidIpv4(startIP) || !isValidIpv4(endIP)) {
-        const msg = "Provisioning DHCP range: both start and end must be valid IPv4 addresses.";
+      /* BigInt comparison via the shared primitives, so the identical ordering
+         and containment rules apply to IPv6. The previous 32-bit integer path
+         could not represent an IPv6 address at all. */
+      const startParsed = parseProvisioningIp(startIP);
+      const endParsed = parseProvisioningIp(endIP);
+      if (!startParsed || !endParsed) {
+        const msg = "Provisioning DHCP range: both start and end must be valid IP addresses.";
         errors.push(msg);
         fieldErrors.provisioningDHCPRange = msg;
       } else {
-        // Convert IPs to integers for comparison
-        const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
-        const startInt = toInt(startIP);
-        const endInt = toInt(endIP);
+        const startInt = startParsed.value;
+        const endInt = endParsed.value;
 
-        if (startInt > endInt) {
+        if (startParsed.family !== endParsed.family) {
+          const msg = "Provisioning DHCP range: start and end must be the same address family.";
+          errors.push(msg);
+          fieldErrors.provisioningDHCPRange = msg;
+        } else if (startInt > endInt) {
           const msg = "Provisioning DHCP range: start IP must be less than or equal to end IP.";
           errors.push(msg);
           fieldErrors.provisioningDHCPRange = msg;
@@ -1274,8 +1455,8 @@ const validateNetworkingFormat = (state) => {
 
         // Validate both IPs are within provisioning CIDR
         if (provisioningCIDR) {
-          const range = cidrToRange(provisioningCIDR);
-          if (range) {
+          const range = parseProvisioningCidr(provisioningCIDR);
+          if (range && range.family === startParsed.family) {
             if (startInt < range.start || startInt > range.end) {
               const msg = `Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
               errors.push(msg);
@@ -1290,8 +1471,9 @@ const validateNetworkingFormat = (state) => {
         }
 
         // Validate cluster provisioning IP is NOT in DHCP range
-        if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP)) {
-          const clusterInt = toInt(clusterProvisioningIP);
+        const clusterParsed = parseProvisioningIp(clusterProvisioningIP);
+        if (clusterParsed && clusterParsed.family === startParsed.family) {
+          const clusterInt = clusterParsed.value;
           if (clusterInt >= startInt && clusterInt <= endInt) {
             const msg = `Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`;
             errors.push(msg);
@@ -1302,6 +1484,23 @@ const validateNetworkingFormat = (state) => {
         }
       }
     }
+  }
+
+  /* Provisioning-network address family and Managed-IPv6 prefix size.
+     The provisioning network is a single family (IPv4 or IPv6, never both) and
+     its family is independent of the cluster IP Stack Mode — both proven
+     against the installer in shared/provisioningNetworkFamily.js. Reported
+     per field so the message lands on the control the user must change. */
+  const provisioningFamilyResult = validateProvisioningNetworkFamily({
+    provisioningNetwork: hostInventory.provisioningNetwork,
+    cidr: provisioningCIDR,
+    dhcpRange,
+    clusterProvisioningIP,
+    gateway: hostInventory.provisioningNetworkGateway
+  });
+  for (const [field, msg] of Object.entries(provisioningFamilyResult.errors)) {
+    errors.push(msg);
+    if (!fieldErrors[field]) fieldErrors[field] = msg;
   }
 
   // platform.baremetal.provisioningNetworkGateway (new at OpenShift 4.22).

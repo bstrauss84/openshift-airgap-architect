@@ -208,3 +208,58 @@ describe("cumulative minor-support guards", () => {
     assert.ok(!r.supported.includes("4.23"), "4.23 must remain unsupported");
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* No implicit supported-minor default (v2.1 Tranche 7C.1)              */
+/* ------------------------------------------------------------------ */
+
+describe("no implicit supported-minor default in production source", () => {
+  /**
+   * The check this exercises exists because `version = '4.20'` default
+   * parameters and `getOpenShiftMinorFromState(state) || '4.20'` fallbacks were
+   * invisible while catalogs were bundled eagerly, then became a cold-start
+   * CatalogNotLoadedError once catalogs were lazy-loaded per minor — and were a
+   * No Fallback Rule violation the whole time.
+   */
+  test("the tracked tree is clean", async () => {
+    const r = await validateSupportedMinors(REPO_ROOT);
+    const check = r.checks.find((c) => c.id === "no-implicit-minor-default");
+    assert.ok(check, "the no-implicit-minor-default check did not run");
+    assert.strictEqual(
+      check.ok,
+      true,
+      `implicit minor defaults found:\n${r.errors.filter((e) => /hardcoded OpenShift minor/.test(e)).join("\n")}`
+    );
+  });
+
+  test("a reintroduced default parameter fails the guard", async () => {
+    const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });
+    const target = path.join(root, "frontend", "src", "regression-probe.js");
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, "export function read(id, version = '4.20') { return [id, version]; }\n");
+    const r = await validateSupportedMinors(root);
+    const check = r.checks.find((c) => c.id === "no-implicit-minor-default");
+    assert.strictEqual(check.ok, false, "a `version = '4.20'` default parameter was not detected");
+  });
+
+  test("a reintroduced `|| \"4.20\"` fallback fails the guard", async () => {
+    const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });
+    const target = path.join(root, "frontend", "src", "regression-probe.js");
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, 'export const m = getOpenShiftMinorFromState(s) || "4.20";\n');
+    const r = await validateSupportedMinors(root);
+    const check = r.checks.find((c) => c.id === "no-implicit-minor-default");
+    assert.strictEqual(check.ok, false, 'a `|| "4.20"` fallback was not detected');
+  });
+
+  test("a comment mentioning the old default does not trip the guard", async () => {
+    // The production files explain the defect by name; explanation is not a defect.
+    const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });
+    const target = path.join(root, "frontend", "src", "regression-probe.js");
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, "// This used to read `version = '4.20'`, which was the bug.\nexport const x = 1;\n");
+    const r = await validateSupportedMinors(root);
+    const check = r.checks.find((c) => c.id === "no-implicit-minor-default");
+    assert.strictEqual(check.ok, true, "a comment was treated as a defect");
+  });
+});

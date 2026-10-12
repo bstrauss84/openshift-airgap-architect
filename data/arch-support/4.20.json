@@ -65,7 +65,7 @@
       "aarch64"
     ],
     "axis": "targetCluster",
-    "scope": "Cluster nodes only. This is NOT a statement about which openshift-install, oc or oc-mirror binaries Red Hat publishes — see architectureAxes.exportBinary.",
+    "scope": "Cluster nodes only. This is NOT a statement about which openshift-install, oc or oc-mirror binaries Red Hat publishes \u2014 see architectureAxes.exportBinary.",
     "provenance": [
       {
         "source": "overview:fips",
@@ -81,55 +81,55 @@
   },
   "sources": {
     "overview:table-2.1": {
-      "title": "OpenShift Container Platform 4.20 — Installation overview, §2.4 Supported installation methods for different platforms",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installation overview, \u00a72.4 Supported installation methods for different platforms",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-preparing",
       "retrieved": "2026-10-07",
       "note": "Table 2.1 Installer-provisioned infrastructure options. The table splits AWS, Azure, GCP and bare metal by architecture and does NOT split vSphere, Nutanix or IBM Cloud; absence of a split is not a support statement either way."
     },
     "overview:fips": {
-      "title": "OpenShift Container Platform 4.20 — Installation overview, Chapter 4 Support for FIPS cryptography",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installation overview, Chapter 4 Support for FIPS cryptography",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-fips",
       "retrieved": "2026-10-07",
       "note": "Cluster-node FIPS validation statement. Applies to the target-cluster architecture axis only."
     },
     "book:agent": {
-      "title": "OpenShift Container Platform 4.20 — Installing an on-premise cluster with the Agent-based Installer",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installing an on-premise cluster with the Agent-based Installer",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer/index",
       "retrieved": "2026-10-07",
       "note": "Table 1.1 Agent-based Installer supported architectures is NOT split by platform; it states what the installer supports, not which platform supports which architecture."
     },
     "book:bare-metal": {
-      "title": "OpenShift Container Platform 4.20 — Installing on bare metal",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installing on bare metal",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal/index",
       "retrieved": "2026-10-07",
       "note": "install-config controlPlane.architecture / compute[].architecture valid-value statement."
     },
     "book:vsphere": {
-      "title": "OpenShift Container Platform 4.20 — Installing on VMware vSphere",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installing on VMware vSphere",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere/index",
       "retrieved": "2026-10-07",
       "note": "install-config controlPlane.architecture / compute[].architecture valid-value statement."
     },
     "book:nutanix": {
-      "title": "OpenShift Container Platform 4.20 — Installing on Nutanix",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installing on Nutanix",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_nutanix/index",
       "retrieved": "2026-10-07",
       "note": "install-config controlPlane.architecture / compute[].architecture valid-value statement."
     },
     "book:aws-govcloud": {
-      "title": "OpenShift Container Platform 4.20 — Installing on AWS",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installing on AWS",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_aws/index",
       "retrieved": "2026-10-07",
       "note": "install-config controlPlane.architecture / compute[].architecture valid-value statement."
     },
     "book:azure-government": {
-      "title": "OpenShift Container Platform 4.20 — Installing on Azure",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installing on Azure",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_azure/index",
       "retrieved": "2026-10-07",
       "note": "install-config controlPlane.architecture / compute[].architecture valid-value statement."
     },
     "book:ibm-cloud": {
-      "title": "OpenShift Container Platform 4.20 — Installing on IBM Cloud",
+      "title": "OpenShift Container Platform 4.20 \u2014 Installing on IBM Cloud",
       "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud/index",
       "retrieved": "2026-10-07",
       "note": "install-config controlPlane.architecture / compute[].architecture valid-value statement."
@@ -155,7 +155,10 @@
               "source": "overview:table-2.1",
               "quote": "Table 2.1 Installer-provisioned infrastructure options splits bare metal into \"Bare metal (64-bit x86)\" and \"Bare metal (64-bit ARM)\", and AWS into \"AWS (64-bit x86)\" and \"AWS (64-bit ARM)\"; both bare-metal columns carry a checkmark on the Custom, Network customization and Restricted network rows."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         },
         "aarch64": {
           "disposition": "supported",
@@ -171,7 +174,10 @@
               "source": "overview:table-2.1",
               "quote": "Table 2.1 Installer-provisioned infrastructure options splits bare metal into \"Bare metal (64-bit x86)\" and \"Bare metal (64-bit ARM)\", and AWS into \"AWS (64-bit x86)\" and \"AWS (64-bit ARM)\"; both bare-metal columns carry a checkmark on the Custom, Network customization and Restricted network rows."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed. Corroborated by the overview matrix column \"Bare metal (64-bit ARM)\".",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -183,7 +189,10 @@
               "source": "book:bare-metal",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         },
         "s390x": {
           "disposition": "hidden",
@@ -195,7 +204,10 @@
               "source": "book:bare-metal",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         }
       }
     },
@@ -214,7 +226,10 @@
               "source": "book:bare-metal",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         },
         "aarch64": {
           "disposition": "supported",
@@ -230,7 +245,10 @@
               "source": "overview:table-2.1",
               "quote": "Table 2.1 Installer-provisioned infrastructure options splits bare metal into \"Bare metal (64-bit x86)\" and \"Bare metal (64-bit ARM)\", and AWS into \"AWS (64-bit x86)\" and \"AWS (64-bit ARM)\"; both bare-metal columns carry a checkmark on the Custom, Network customization and Restricted network rows."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed. Corroborated by the overview matrix column \"Bare metal (64-bit ARM)\".",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -242,7 +260,10 @@
               "source": "book:bare-metal",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         },
         "s390x": {
           "disposition": "hidden",
@@ -254,7 +275,10 @@
               "source": "book:bare-metal",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter enumerates exactly amd64 and arm64; the enumeration is closed.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal"
         }
       }
     },
@@ -275,9 +299,12 @@
             },
             {
               "source": "book:agent",
-              "quote": "Table 1.1. Agent-based Installer supported architectures — 64-bit x86 ✓ connected ✓ disconnected; 64-bit ARM ✓ ✓; ppc64le ✓ ✓; s390x ✓ ✓."
+              "quote": "Table 1.1. Agent-based Installer supported architectures \u2014 64-bit x86 \u2713 connected \u2713 disconnected; 64-bit ARM \u2713 \u2713; ppc64le \u2713 \u2713; s390x \u2713 \u2713."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "Agent book \"Create and boot the agent image\": \"Boot the agent.x86_64.iso , agent.aarch64.iso , or agent.s390x.iso image on the bare-metal machines.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer"
         },
         "aarch64": {
           "disposition": "supported",
@@ -287,19 +314,22 @@
           "provenance": [
             {
               "source": "book:agent",
-              "quote": "Table 1.1. Agent-based Installer supported architectures — 64-bit x86 ✓ connected ✓ disconnected; 64-bit ARM ✓ ✓; ppc64le ✓ ✓; s390x ✓ ✓."
+              "quote": "Table 1.1. Agent-based Installer supported architectures \u2014 64-bit x86 \u2713 connected \u2713 disconnected; 64-bit ARM \u2713 \u2713; ppc64le \u2713 \u2713; s390x \u2713 \u2713."
             },
             {
               "source": "book:bare-metal",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "Agent book \"Create and boot the agent image\": the same sentence names agent.aarch64.iso for bare-metal machines.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer"
         },
         "ppc64le": {
           "disposition": "hidden",
           "offered": false,
-          "summary": "Not offered: ppc64le agent-based installation is IBM Power installation — a separate platform Architect does not model.",
-          "reason": "Resolved: ppc64le agent-based installation is IBM Power installation, not bare-metal installation. The OCP 4.20 Agent-based Installer book lists ppc64le in its installer-wide supported-architectures table, but that table is not split by platform, and the book handles IBM Power through dedicated procedures — for s390x it documents adding IBM Z agents with z/VM, RHEL KVM or LPAR and restricts ISO boot to RHEL KVM, with PXE-only for z/VM and LPAR. Installing on IBM Power is a separate platform with its own book, out of Architect's modelled scenario set, and the Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for THIS platform. ppc64le is therefore not applicable to the bare-metal agent scenario and is not presented.",
+          "summary": "Not offered: ppc64le agent-based installation is IBM Power installation \u2014 a separate platform Architect does not model.",
+          "reason": "Resolved: ppc64le agent-based installation is IBM Power installation, not bare-metal installation. The OCP 4.20 Agent-based Installer book lists ppc64le in its installer-wide supported-architectures table, but that table is not split by platform, and the book handles IBM Power through dedicated procedures \u2014 for s390x it documents adding IBM Z agents with z/VM, RHEL KVM or LPAR and restricts ISO boot to RHEL KVM, with PXE-only for z/VM and LPAR. Installing on IBM Power is a separate platform with its own book, out of Architect's modelled scenario set, and the Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for THIS platform. ppc64le is therefore not applicable to the bare-metal agent scenario and is not presented.",
           "provenance": [
             {
               "source": "book:bare-metal",
@@ -307,33 +337,40 @@
             },
             {
               "source": "book:agent",
-              "quote": "Table 1.1. Agent-based Installer supported architectures — 64-bit x86 ✓ connected ✓ disconnected; 64-bit ARM ✓ ✓; ppc64le ✓ ✓; s390x ✓ ✓."
+              "quote": "Table 1.1. Agent-based Installer supported architectures \u2014 64-bit x86 \u2713 connected \u2713 disconnected; 64-bit ARM \u2713 \u2713; ppc64le \u2713 \u2713; s390x \u2713 \u2713."
             },
             {
               "source": "book:agent",
               "quote": "Currently, ISO boot support on IBM Z (s390x) is available only for Red Hat Enterprise Linux (RHEL) KVM, which provides the flexibility to choose either PXE or ISO-based installation. For installations with z/VM and Logical Partition (LPAR), only PXE boot is supported. [The book carries dedicated \"Adding IBM Z agents\" procedures for z/VM, RHEL KVM and LPAR.]"
             }
-          ]
+          ],
+          "upstreamSupport": "unknown-needs-review",
+          "upstreamReason": "Agent Table 1.1 lists ppc64le as an Agent architecture and \"Supported platforms\" lists baremetal, but the two lists are independent and NO sentence crosses ppc64le with bare metal. ppc64le is absent from the agent-ISO sentence. Artifact/global-list existence is not a platform-specific support statement (source-precedence rule 7).",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer"
         },
         "s390x": {
           "disposition": "hidden",
           "offered": false,
-          "summary": "Not offered: s390x agent-based installation is IBM Z installation — a separate platform Architect does not model.",
-          "reason": "Resolved: s390x agent-based installation is IBM Z installation, not bare-metal installation. The OCP 4.20 Agent-based Installer book lists s390x in its installer-wide supported-architectures table, but that table is not split by platform, and the book handles IBM Z through dedicated procedures — for s390x it documents adding IBM Z agents with z/VM, RHEL KVM or LPAR and restricts ISO boot to RHEL KVM, with PXE-only for z/VM and LPAR. Installing on IBM Z and IBM LinuxONE is a separate platform with its own book, out of Architect's modelled scenario set, and the Installing on bare metal book documents amd64 and arm64 as the valid install-config architectures for THIS platform. s390x is therefore not applicable to the bare-metal agent scenario and is not presented.",
+          "summary": "Not offered by Architect: upstream Red Hat DOES support s390x for a bare-metal agent install, but OpenShift on IBM Z is a platform Architect does not model.",
+          "reason": "CORRECTED IN TRANCHE 7C.2. The previous rationale cited the bare-metal book's \"Valid values are amd64 and arm64\", which governs the IPI and UPI install-config and is NOT the governing sentence for the Agent method; the Agent method's own install-config enumerates amd64, arm64, ppc64le and s390x. Red Hat's Agent book further states, verbatim and identically in 4.20, 4.21 and 4.22: \"Boot the agent.x86_64.iso , agent.aarch64.iso , or agent.s390x.iso image on the bare-metal machines.\" So upstream support is affirmative, and this cell is a deliberate Architect scope limitation rather than an absence of upstream support. Deliberate product scope, not a documentation disagreement. OpenShift on IBM Z/LinuxONE is a distinct platform with its own installation book and its own day-1 surface (z/VM, RHEL KVM and LPAR agent procedures, PXE-only outside RHEL KVM). Architect does not model IBM Z, so offering s390x under the bare-metal agent scenario would expose a path whose host inventory, networking and boot model Architect does not generate. Revisit only alongside first-class IBM Z support. Tracked as DOC-205.",
           "provenance": [
             {
-              "source": "book:bare-metal",
-              "quote": "Valid values are amd64 and arm64."
+              "source": "book:agent",
+              "quote": "Boot the agent.x86_64.iso , agent.aarch64.iso , or agent.s390x.iso image on the bare-metal machines."
             },
             {
               "source": "book:agent",
-              "quote": "Table 1.1. Agent-based Installer supported architectures — 64-bit x86 ✓ connected ✓ disconnected; 64-bit ARM ✓ ✓; ppc64le ✓ ✓; s390x ✓ ✓."
+              "quote": "Table 1.1. Agent-based Installer supported architectures \u2014 64-bit x86 / 64-bit ARM / ppc64le / s390x, each supported connected and disconnected."
             },
             {
               "source": "book:agent",
-              "quote": "Currently, ISO boot support on IBM Z (s390x) is available only for Red Hat Enterprise Linux (RHEL) KVM, which provides the flexibility to choose either PXE or ISO-based installation. For installations with z/VM and Logical Partition (LPAR), only PXE boot is supported. [The book carries dedicated \"Adding IBM Z agents\" procedures for z/VM, RHEL KVM and LPAR.]"
+              "quote": "Currently, ISO boot support on IBM Z (s390x) is available only for Red Hat Enterprise Linux (RHEL) KVM, which provides the flexibility to choose either PXE or ISO-based installation. For installations with z/VM and Logical Partition (LPAR), only PXE boot is supported."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "Agent book \"Create and boot the agent image\", verified verbatim in 4.20, 4.21 and 4.22: \"Boot the agent.x86_64.iso , agent.aarch64.iso , or agent.s390x.iso image on the bare-metal machines.\" This is the one sentence in the Agent book that crosses a platform with specific architectures. Qualified by \"ISO boot support on IBM Z ( s390x ) is available only for Red Hat Enterprise Linux (RHEL) KVM...\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer",
+          "oaaScopeDecision": "Deliberate product scope, not a documentation disagreement. OpenShift on IBM Z/LinuxONE is a distinct platform with its own installation book and its own day-1 surface (z/VM, RHEL KVM and LPAR agent procedures, PXE-only outside RHEL KVM). Architect does not model IBM Z, so offering s390x under the bare-metal agent scenario would expose a path whose host inventory, networking and boot model Architect does not generate. Revisit only alongside first-class IBM Z support. Tracked as DOC-205."
         }
       }
     },
@@ -352,7 +389,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "aarch64": {
           "disposition": "hidden",
@@ -364,7 +404,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -376,7 +419,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "s390x": {
           "disposition": "hidden",
@@ -388,7 +434,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         }
       }
     },
@@ -407,7 +456,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "aarch64": {
           "disposition": "hidden",
@@ -419,7 +471,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -431,7 +486,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "s390x": {
           "disposition": "hidden",
@@ -443,7 +501,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         }
       }
     },
@@ -464,15 +525,18 @@
             },
             {
               "source": "book:agent",
-              "quote": "Table 1.1. Agent-based Installer supported architectures — 64-bit x86 ✓ connected ✓ disconnected; 64-bit ARM ✓ ✓; ppc64le ✓ ✓; s390x ✓ ✓."
+              "quote": "Table 1.1. Agent-based Installer supported architectures \u2014 64-bit x86 \u2713 connected \u2713 disconnected; 64-bit ARM \u2713 \u2713; ppc64le \u2713 \u2713; s390x \u2713 \u2713."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
           "summary": "Not offered: the OCP 4.20 Installing on VMware vSphere book documents amd64 as the only valid architecture for this platform, on every install method.",
-          "reason": "Resolved in favour of the platform-specific authority. The OCP 4.20 Agent-based Installer book lists 64-bit ARM in its supported-architectures table, but that table describes what the INSTALLER supports and is not split by platform; the Installing on VMware vSphere book documents amd64 as the only valid install-config architecture for the vSphere platform, and the vSphere agent-based installer chapter contains no architecture statement at all. Platform applicability is governed by the platform's own documentation, so vSphere is amd64-only regardless of install method — which is also what the vsphere/ipi and vsphere/upi rows record. 64-bit ARM is not presented. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
+          "reason": "Resolved in favour of the platform-specific authority. The OCP 4.20 Agent-based Installer book lists 64-bit ARM in its supported-architectures table, but that table describes what the INSTALLER supports and is not split by platform; the Installing on VMware vSphere book documents amd64 as the only valid install-config architecture for the vSphere platform, and the vSphere agent-based installer chapter contains no architecture statement at all. Platform applicability is governed by the platform's own documentation, so vSphere is amd64-only regardless of install method \u2014 which is also what the vsphere/ipi and vsphere/upi rows record. 64-bit ARM is not presented. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
               "source": "book:vsphere",
@@ -480,13 +544,16 @@
             },
             {
               "source": "book:agent",
-              "quote": "Table 1.1. Agent-based Installer supported architectures — 64-bit x86 ✓ connected ✓ disconnected; 64-bit ARM ✓ ✓; ppc64le ✓ ✓; s390x ✓ ✓."
+              "quote": "Table 1.1. Agent-based Installer supported architectures \u2014 64-bit x86 \u2713 connected \u2713 disconnected; 64-bit ARM \u2713 \u2713; ppc64le \u2713 \u2713; s390x \u2713 \u2713."
             },
             {
               "source": "book:agent",
               "quote": "In the install-config.yaml file, specify the platform on which to perform the installation. The following platforms are supported: baremetal vsphere nutanix external none"
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -498,7 +565,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         },
         "s390x": {
           "disposition": "hidden",
@@ -510,7 +580,10 @@
               "source": "book:vsphere",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_vmware_vsphere"
         }
       }
     },
@@ -529,7 +602,10 @@
               "source": "book:nutanix",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_nutanix"
         },
         "aarch64": {
           "disposition": "hidden",
@@ -541,7 +617,10 @@
               "source": "book:nutanix",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_nutanix"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -553,7 +632,10 @@
               "source": "book:nutanix",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_nutanix"
         },
         "s390x": {
           "disposition": "hidden",
@@ -565,7 +647,10 @@
               "source": "book:nutanix",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_nutanix"
         }
       }
     },
@@ -584,13 +669,16 @@
               "source": "book:aws-govcloud",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "Overview Table 2.1 \"Installer-provisioned infrastructure options\", row \"Government regions\": checkmarked under \"AWS (64-bit x86)\".",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         },
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
-          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only — no statement covers AWS GovCloud regions.",
-          "reason": "Resolved against the OCP 4.20 Installing on AWS book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the AWS GovCloud (US) material covers Route 53 / Ingress Operator endpoints and the us-gov-east-1 disconnected restriction and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models AWS GovCloud (US) specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
+          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only \u2014 no statement covers AWS GovCloud regions.",
+          "reason": "Resolved against the OCP 4.20 Installing on AWS book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the AWS GovCloud (US) material covers Route 53 / Ingress Operator endpoints and the us-gov-east-1 disconnected restriction and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models AWS GovCloud (US) specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported \u2014 so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
               "source": "book:aws-govcloud",
@@ -600,7 +688,10 @@
               "source": "book:aws-govcloud",
               "quote": "[Verified absence, this minor] Every occurrence of the government-region term in this book was examined; none carries an ARM or arm64 token within 700 characters. The government-region sections address regions, service endpoints and disconnected restrictions only, and the tested-ARM-instance-type section carries no region qualification."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "Overview Table 2.1 row \"Government regions\" is BLANK under \"AWS (64-bit ARM)\"; the table legend makes a checkmark the support marker. The AWS book's \"Tested instance types for AWS on 64-bit ARM infrastructures\" does NOT override this: it occurs 5 times in the book with one identical body, i.e. a reused commercial-AWS module, and the GovCloud region section itself makes no architecture statement. Source-precedence rule 1 (region+method+architecture-specific matrix) beats rule 6 (generic architecture availability).",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -612,7 +703,10 @@
               "source": "book:aws-govcloud",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "AWS install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         },
         "s390x": {
           "disposition": "hidden",
@@ -624,7 +718,10 @@
               "source": "book:aws-govcloud",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "AWS install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         }
       }
     },
@@ -643,13 +740,16 @@
               "source": "book:aws-govcloud",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "AWS book user-provisioned chapters publish x86_64 RHCOS AMIs for us-gov-east-1 and us-gov-west-1, and the UPI procedure documents a government-region CNAME adjustment.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_aws"
         },
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
-          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only — no statement covers AWS GovCloud regions.",
-          "reason": "Resolved against the OCP 4.20 Installing on AWS book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the AWS GovCloud (US) material covers Route 53 / Ingress Operator endpoints and the us-gov-east-1 disconnected restriction and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models AWS GovCloud (US) specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
+          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only \u2014 no statement covers AWS GovCloud regions.",
+          "reason": "Resolved against the OCP 4.20 Installing on AWS book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the AWS GovCloud (US) material covers Route 53 / Ingress Operator endpoints and the us-gov-east-1 disconnected restriction and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models AWS GovCloud (US) specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported \u2014 so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
               "source": "book:aws-govcloud",
@@ -659,7 +759,10 @@
               "source": "book:aws-govcloud",
               "quote": "[Verified absence, this minor] Every occurrence of the government-region term in this book was examined; none carries an ARM or arm64 token within 700 characters. The government-region sections address regions, service endpoints and disconnected restrictions only, and the tested-ARM-instance-type section carries no region qualification."
             }
-          ]
+          ],
+          "upstreamSupport": "unknown-needs-review",
+          "upstreamReason": "Overview Table 2.2 has NO \"Government regions\" row in any supported minor, so UPI into a government region is not affirmatively documented at all. The only place a government region and ARM co-occur anywhere in the AWS book is inside the aarch64 RHCOS AMI tables themselves. Per the source-precedence rule, artifact existence is never product-support proof. No prose statement supports GovCloud + UPI + ARM. Fail closed pending Red Hat clarification (DOC-204).",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_aws"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -671,7 +774,10 @@
               "source": "book:aws-govcloud",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "AWS install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_aws"
         },
         "s390x": {
           "disposition": "hidden",
@@ -683,7 +789,10 @@
               "source": "book:aws-govcloud",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "AWS install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_aws"
         }
       }
     },
@@ -702,13 +811,16 @@
               "source": "book:azure-government",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "Overview Table 2.1 row \"Government regions\": checkmarked under \"Azure (64-bit x86)\". The Azure government chapter's tested-instance-types section states \"Choose a listed instance type when you install a cluster on 64-bit x86 infrastructure.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         },
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
-          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only — no statement covers Azure Government regions.",
-          "reason": "Resolved against the OCP 4.20 Installing on Azure book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the \"Supported Azure Government regions\" section enumerates usgovtexas and usgovvirginia and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models Azure Government specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
+          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only \u2014 no statement covers Azure Government regions.",
+          "reason": "Resolved against the OCP 4.20 Installing on Azure book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the \"Supported Azure Government regions\" section enumerates usgovtexas and usgovvirginia and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models Azure Government specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported \u2014 so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
               "source": "book:azure-government",
@@ -718,7 +830,10 @@
               "source": "book:azure-government",
               "quote": "[Verified absence, this minor] Every occurrence of the government-region term in this book was examined; none carries an ARM or arm64 token within 700 characters. The government-region sections address regions, service endpoints and disconnected restrictions only, and the tested-ARM-instance-type section carries no region qualification."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "Overview Table 2.1 row \"Government regions\" is BLANK under \"Azure (64-bit ARM)\", and the Azure government-region chapter is the only Azure installer-provisioned chapter with no 64-bit-ARM tested-instance-types subsection. Azure's documentation is internally consistent here, unlike AWS's.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -730,7 +845,10 @@
               "source": "book:azure-government",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "Azure install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         },
         "s390x": {
           "disposition": "hidden",
@@ -742,7 +860,10 @@
               "source": "book:azure-government",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "Azure install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installation_overview"
         }
       }
     },
@@ -761,13 +882,16 @@
               "source": "book:azure-government",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "Azure book user-provisioned chapters document \"Supported Azure Government regions\" (usgovtexas, usgovvirginia); the install-config default architecture is amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_azure"
         },
         "aarch64": {
           "disposition": "hidden",
           "offered": false,
-          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only — no statement covers Azure Government regions.",
-          "reason": "Resolved against the OCP 4.20 Installing on Azure book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the \"Supported Azure Government regions\" section enumerates usgovtexas and usgovvirginia and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models Azure Government specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported — so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
+          "summary": "Not offered: OCP 4.20 documents 64-bit ARM for the commercial platform only \u2014 no statement covers Azure Government regions.",
+          "reason": "Resolved against the OCP 4.20 Installing on Azure book: the 64-bit ARM material (tested ARM instance types) is generic and carries NO region qualification, while the \"Supported Azure Government regions\" section enumerates usgovtexas and usgovvirginia and says nothing about CPU architecture. Checked directly: every occurrence of the government-region term in that book was examined and NONE has an ARM or arm64 token within 700 characters, at this minor. Architect models Azure Government specifically, commercial-region support is not automatically government-region support, and under the documentation-veto rule absence of documentation never becomes supported \u2014 so 64-bit ARM is NOT presented for this scenario. Note: aarch64 is NOT among the architectures Red Hat states are FIPS-validated for cluster nodes at this minor. That is a cluster-node statement and says nothing about which client binaries Red Hat publishes.",
           "provenance": [
             {
               "source": "book:azure-government",
@@ -777,7 +901,10 @@
               "source": "book:azure-government",
               "quote": "[Verified absence, this minor] Every occurrence of the government-region term in this book was examined; none carries an ARM or arm64 token within 700 characters. The government-region sections address regions, service endpoints and disconnected restrictions only, and the tested-ARM-instance-type section carries no region qualification."
             }
-          ]
+          ],
+          "upstreamSupport": "unknown-needs-review",
+          "upstreamReason": "The Azure Government regions module is architecture-neutral and the 64-bit-ARM tested-instance-types module is region-neutral; no sentence crosses them. Overview Table 2.2 has no \"Government regions\" row at all. Fail closed (DOC-204).",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_azure"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -789,7 +916,10 @@
               "source": "book:azure-government",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "Azure install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_azure"
         },
         "s390x": {
           "disposition": "hidden",
@@ -801,7 +931,10 @@
               "source": "book:azure-government",
               "quote": "Valid values are amd64 and arm64."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "Azure install-config `architecture`: \"Valid values are amd64 and arm64.\"",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_azure"
         }
       }
     },
@@ -820,7 +953,10 @@
               "source": "book:ibm-cloud",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "supported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud"
         },
         "aarch64": {
           "disposition": "hidden",
@@ -832,7 +968,10 @@
               "source": "book:ibm-cloud",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud"
         },
         "ppc64le": {
           "disposition": "hidden",
@@ -844,7 +983,10 @@
               "source": "book:ibm-cloud",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud"
         },
         "s390x": {
           "disposition": "hidden",
@@ -856,7 +998,10 @@
               "source": "book:ibm-cloud",
               "quote": "Valid values are amd64 (the default)."
             }
-          ]
+          ],
+          "upstreamSupport": "unsupported",
+          "upstreamReason": "The platform book's install-config `architecture` parameter states \"Valid values are amd64 (the default).\" \u2014 a closed enumeration naming only amd64.",
+          "upstreamSource": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_ibm_cloud"
         }
       }
     }

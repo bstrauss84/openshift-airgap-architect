@@ -8,7 +8,8 @@ import { sortChannelsBySemverDescending, getNewestSupportedChannel, classifyChan
 import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
 import { parseMinorVersionCore } from "../shared/openShiftMinor.js";
 import { getScenarioId } from "../hostInventoryV2Helpers.js";
-import { listArchSupportForState } from "../archSupportResolver.js";
+import { listArchSupportForBlueprint, renderableArchitectures } from "../archSupportResolver.js";
+import { reconcileMethodForPlatform } from "../../../shared/installMethods.js";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -30,6 +31,27 @@ const archOptions = [
  * This is the TARGET-CLUSTER axis only. The `openshift-install` / `oc` /
  * `oc-mirror` download architecture on the Review step is a different axis and
  * is not governed by this matrix.
+ *
+ * WHICH CARDS EXIST, VERSUS WHICH ARE ENABLED (DOC-215)
+ *
+ * `archOptions` is the full set of architectures the product models. Two
+ * separate questions are asked about it, and they must not be collapsed:
+ *
+ *   - ENABLED: does the CURRENTLY selected platform x method x minor offer it?
+ *     `archSupportByValue` answers per card. A closed card still renders,
+ *     disabled, carrying the matrix's own reason — e.g. aarch64 on vSphere,
+ *     which the user can reach by switching to bare metal.
+ *   - RENDERED AT ALL: is there ANY currently supported scenario, on any
+ *     modelled platform x method pair at any supported minor, that offers it?
+ *     `renderableArchitectures()` answers this from the same canonical matrix.
+ *     An architecture with no such scenario can never be enabled by anything
+ *     the user does, so a permanently dead control is misleading noise.
+ *
+ * Today that hides ppc64le (IBM Power) and s390x (IBM Z), because OAA models
+ * no IBM Power or IBM Z platform. It is NOT a claim that OpenShift lacks
+ * support for them — the matrix's `upstreamSupport` evidence is untouched, and
+ * nothing here names an architecture. Onboard an IBM platform and mark a cell
+ * `supported` and the card returns with no change to this file.
  */
 
 const platformOptions = [
@@ -88,19 +110,59 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
     return r.valid ? "" : r.error;
   }, [blueprintPullSecretTrimmed]);
 
-  const archScenarioId = getScenarioId(blueprint?.platform, state.methodology?.method);
+  // Keyed by PLATFORM, not by the methodology in state. Methodology is a later
+  // step, so on Blueprint `state.methodology.method` is the shipped default or
+  // a stale choice from a previous platform. Keying on it made
+  // `getScenarioId` return null for every platform that does not offer that
+  // method — Nutanix, AWS GovCloud, Azure Government and IBM Cloud — and a null
+  // scenario resolves to "no answer", which renders as every architecture
+  // greyed out, x86_64 included. See listArchSupportForBlueprint.
   const archSupport = useMemo(
-    () => listArchSupportForState(state, archScenarioId),
+    () => listArchSupportForBlueprint(state),
     // Only the inputs the matrix is keyed by. Re-resolving on every state change
     // would rebuild the cells on each keystroke elsewhere in the step.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [archScenarioId, version?.selectedMinor, version?.selectedVersion, release?.channel, release?.patchVersion]
+    [blueprint?.platform, state.methodology?.method, version?.selectedMinor, version?.selectedVersion, release?.channel, release?.patchVersion]
   );
   const archSupportByValue = useMemo(
     () => new Map(archSupport.cells.map((c, i) => [c.architecture ?? archOptions[i].value, c])),
     [archSupport]
   );
   const allowedArchs = archSupport.cells.filter((c) => c.offered).map((c, i) => c.architecture ?? archOptions[i].value);
+
+  // Cards to render at all. Derived from the canonical matrix, not from a list
+  // of architecture names here: an architecture no supported minor offers on
+  // any modelled scenario cannot be enabled by any user action, so it is not
+  // drawn. Independent of the current platform — see the header comment.
+  const visibleArchOptions = useMemo(() => {
+    const renderable = new Set(renderableArchitectures());
+    return archOptions.filter((option) => renderable.has(option.value));
+  }, []);
+
+  /**
+   * Selecting a platform also reconciles the installation method.
+   *
+   * Without this, state can hold a (platform, method) pair the product does not
+   * model — e.g. Nutanix + Agent-Based Installer, reachable in one click from
+   * the shipped defaults. That pair has no scenarioId, so the architecture
+   * matrix, the step's own validation and the generator each have to invent an
+   * answer for it. Reconciling at the point of change keeps the three layers
+   * looking at the same scenario. The user's method is preserved whenever it is
+   * still valid for the new platform; `MethodologyStep` applies the identical
+   * rule from the same table.
+   */
+  const selectPlatform = (platform) => {
+    const method = reconcileMethodForPlatform(platform, state.methodology?.method);
+    // Same blueprint patch `updateBlueprint` applies, including clearing the
+    // confirmation — changing the platform must re-open the lock-in.
+    const patch = {
+      blueprint: { ...blueprint, platform, confirmed: false, confirmationTimestamp: null },
+    };
+    if (method && method !== state.methodology?.method) {
+      patch.methodology = { ...(state.methodology || {}), method };
+    }
+    updateState(patch);
+  };
 
   const updateBlueprint = (patch) => {
     if (locked) return;
@@ -419,7 +481,7 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
                 key={option.value}
                 className={`select-card ${blueprint?.platform === option.value ? "selected" : ""}`}
                 disabled={locked}
-                onClick={() => updateBlueprint({ platform: option.value })}
+                onClick={() => selectPlatform(option.value)}
               >
                 <div className="card-title">{option.label}</div>
                 <div className="card-sub">{option.rec}</div>
@@ -434,7 +496,7 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
             Target cluster host/node architecture (the machines that will run OpenShift). Not your local workstation or browser machine.
           </p>
           <div className="grid">
-            {archOptions.map((option) => {
+            {visibleArchOptions.map((option) => {
               const cell = archSupportByValue.get(option.value);
               const isSupported = Boolean(cell?.offered);
               return (

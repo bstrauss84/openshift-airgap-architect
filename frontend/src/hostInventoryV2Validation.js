@@ -68,8 +68,17 @@ export function getCatalogValidationForInventoryV2(state, scenarioId) {
 
   // API/Ingress VIPs are validated on the Networking step; not on Hosts page.
 
-  // Enum validation: role must be in catalog allowed list when catalog provides it
-  const roleMeta = getFieldMeta(scenarioId, ROLE_OUTPUT_AGENT, ROLE_PATH_AGENT, selectedMinor);
+  // Enum validation: role must be in catalog allowed list when catalog provides it.
+  //
+  // `selectedMinor` is undefined until the user picks a release, and the
+  // backend's cold-start state already resolves a scenarioId, so this line runs
+  // on the first render of a brand-new run. Passing undefined fell through to
+  // the `version = '4.20'` default parameter in catalogPaths and read a catalog
+  // that lazy loading had never fetched. With no version there is no catalog to
+  // enforce an enum from, so skip the read rather than invent a baseline.
+  const roleMeta = selectedMinor
+    ? getFieldMeta(scenarioId, ROLE_OUTPUT_AGENT, ROLE_PATH_AGENT, selectedMinor)
+    : null;
   const allowedRoles = Array.isArray(roleMeta?.allowed) ? roleMeta.allowed : null;
 
   nodes.forEach((node, idx) => {

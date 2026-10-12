@@ -201,9 +201,30 @@ export function getLatestSupportedVersion() {
  * @returns {object[]} parameters array
  * @throws {Error} when version is not supported or scenario not found
  */
-export function getCatalogForScenario(scenarioId, version = '4.20') {
+export function getCatalogForScenario(scenarioId, version) {
   if (!scenarioId || typeof scenarioId !== 'string') {
     throw new Error(`Invalid scenarioId: expected non-empty string, got ${typeof scenarioId}`);
+  }
+
+  // NO BASELINE DEFAULT. This parameter used to read `version = '4.20'`.
+  //
+  // That default was invisible while every catalog was bundled eagerly, and it
+  // became the enabler for the cold-start CatalogNotLoadedError once catalogs
+  // were lazy-loaded per minor: three separate callers omitted the version, and
+  // each silently read a 4.20 catalog that had never been fetched. It is also a
+  // No-Fallback-Rule violation on its own terms — a state with no selected
+  // version is not a 4.20 state, and answering as though it were hands the user
+  // another minor's parameter metadata.
+  //
+  // A caller must either know the minor or not read the catalog at all. There is
+  // no third option, and specifically no substituting the baseline, the latest,
+  // or the newest supported minor.
+  if (version === undefined || version === null || version === '') {
+    throw new Error(
+      `getCatalogForScenario("${scenarioId}") requires an explicit OpenShift minor. ` +
+        'Pass the selected minor, or skip the catalog read when no version is selected. ' +
+        'There is deliberately no baseline default.'
+    );
   }
 
   const minorVersion = getMinorVersion(version);
@@ -246,7 +267,7 @@ export function getCatalogForScenario(scenarioId, version = '4.20') {
  * @returns {object[]} parameters array
  * @throws {Error} when version is not supported or scenario not found
  */
-export function getCatalogParameters(scenarioId, version = '4.20') {
+export function getCatalogParameters(scenarioId, version) {
   return getCatalogForScenario(scenarioId, version);
 }
 
@@ -257,7 +278,7 @@ export function getCatalogParameters(scenarioId, version = '4.20') {
  * @returns {Set<string>} set of path strings
  * @throws {Error} when version is not supported or scenario not found
  */
-export function getCatalogPaths(scenarioId, version = '4.20') {
+export function getCatalogPaths(scenarioId, version) {
   const parameters = getCatalogParameters(scenarioId, version);
   if (!parameters.length) return new Set();
   return new Set(parameters.map((p) => p.path));

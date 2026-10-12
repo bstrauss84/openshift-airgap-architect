@@ -27,7 +27,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { run, validateFile, ARCHITECTURES } = require("./validate-arch-support.js");
+const { run, runSupportContract, validateFile, ARCHITECTURES } = require("./validate-arch-support.js");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const DATA_DIR = path.join(REPO_ROOT, "data", "arch-support");
@@ -236,5 +236,257 @@ describe("arch-support guard — rejects real defects", () => {
   test("a missing data directory is an error", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "oaa-arch-"));
     assert.strictEqual(run(root), 1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Support-contract guard (v2.1 Tranche 7C)                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Builds a throwaway repo root containing only what the support contract
+ * reads, so a fixture can express "this minor diverges by method" without
+ * touching tracked data.
+ */
+function fixtureRoot(docsByMinor, { projectAll = true } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "oaa-arch-contract-"));
+  const canonical = path.join(root, "data", "arch-support");
+  const projection = path.join(root, "frontend", "src", "data", "arch-support");
+  fs.mkdirSync(canonical, { recursive: true });
+  fs.mkdirSync(projection, { recursive: true });
+  const { project } = require("./sync-arch-support.js");
+  for (const [minor, doc] of Object.entries(docsByMinor)) {
+    fs.writeFileSync(path.join(canonical, `${minor}.json`), JSON.stringify(doc, null, 2));
+    if (projectAll) {
+      fs.writeFileSync(path.join(projection, `${minor}.json`), JSON.stringify(project(doc), null, 2));
+    }
+  }
+  return root;
+}
+
+/** Silence the guard's own console output while asserting its exit code. */
+function quietly(fn) {
+  const err = console.error;
+  const log = console.log;
+  const lines = [];
+  console.error = (...a) => lines.push(a.join(" "));
+  console.log = (...a) => lines.push(a.join(" "));
+  try {
+    return { status: fn(), output: lines.join("\n") };
+  } finally {
+    console.error = err;
+    console.log = log;
+  }
+}
+
+describe("arch-support support contract — tracked data", () => {
+  test("the tracked repository satisfies the contract for all supported minors", () => {
+    const { status } = quietly(() => runSupportContract(REPO_ROOT, MINORS));
+    assert.strictEqual(status, 0);
+  });
+
+  test("an empty supported-minor list fails rather than passing vacuously", () => {
+    const { status } = quietly(() => runSupportContract(REPO_ROOT, []));
+    assert.strictEqual(status, 1);
+  });
+
+  test("a supported minor with no canonical data fails closed", () => {
+    // 4.23 is unsupported and has no matrix; claiming it is supported must fail.
+    const { status, output } = quietly(() => runSupportContract(REPO_ROOT, [...MINORS, "4.23"]));
+    assert.strictEqual(status, 1);
+    assert.match(output, /4\.23 has no usable canonical matrix/);
+  });
+});
+
+describe("arch-support support contract — synthetic fixtures", () => {
+  test("a missing frontend projection fails closed", () => {
+    const root = fixtureRoot({ "4.22": mutable("4.22") }, { projectAll: false });
+    const { status, output } = quietly(() => runSupportContract(root, ["4.22"]));
+    assert.strictEqual(status, 1);
+    assert.match(output, /no usable frontend projection/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test("a stale frontend projection fails closed", () => {
+    const doc = mutable("4.22");
+    const root = fixtureRoot({ "4.22": doc });
+    // Drift the projection the way an un-synced edit would.
+    const projFile = path.join(root, "frontend", "src", "data", "arch-support", "4.22.json");
+    const proj = JSON.parse(fs.readFileSync(projFile, "utf8"));
+    proj.matrix[0].architectures.x86_64.offered = false;
+    fs.writeFileSync(projFile, JSON.stringify(proj, null, 2));
+
+    const { status, output } = quietly(() => runSupportContract(root, ["4.22"]));
+    assert.strictEqual(status, 1);
+    assert.match(output, /projection for 4\.22 is out of date/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test("a scenario offering zero architectures fails closed", () => {
+    // This is what "every architecture greyed out" looks like in the data.
+    const doc = mutable("4.22");
+    for (const arch of ARCHITECTURES) doc.matrix[0].architectures[arch].offered = false;
+    const root = fixtureRoot({ "4.22": doc });
+    const { status, output } = quietly(() => runSupportContract(root, ["4.22"]));
+    assert.strictEqual(status, 1);
+    assert.match(output, /offers NO architecture/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test("architecture that differs by install method fails closed, demanding a product decision", () => {
+    /**
+     * The guard that protects the CURRENT Blueprint design. Blueprint presents
+     * architecture at platform level, which is only correct while every install
+     * method for a platform agrees. Today they all do, at every supported minor.
+     * If a future onboarding ever changes that, this must stop the release
+     * rather than let the UI silently intersect the difference away.
+     */
+    const doc = mutable("4.22");
+    const ipi = doc.matrix.find((r) => r.scenarioId === "bare-metal-ipi");
+    const agent = doc.matrix.find((r) => r.scenarioId === "bare-metal-agent");
+    assert.ok(ipi && agent, "fixture needs both bare-metal rows");
+    // Make aarch64 available to the agent installer but not to IPI.
+    ipi.architectures.aarch64.offered = false;
+
+    const root = fixtureRoot({ "4.22": doc });
+    const { status, output } = quietly(() => runSupportContract(root, ["4.22"]));
+    assert.strictEqual(status, 1);
+    assert.match(output, /DIFFERS BY INSTALL METHOD/);
+    assert.match(output, /symmetric/);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test("the divergence check is not vacuous — the unmodified fixture passes", () => {
+    const root = fixtureRoot({ "4.22": mutable("4.22") });
+    const { status } = quietly(() => runSupportContract(root, ["4.22"]));
+    assert.strictEqual(status, 0);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Upstream vs OAA disposition (v2.1 Tranche 7C.2)                      */
+/* ------------------------------------------------------------------ */
+
+describe("arch-support — upstream support is recorded separately from Architect's", () => {
+  /**
+   * The point of the split: Red Hat supporting more than Architect exposes is
+   * a deliberate narrowing, not a defect. Only three things are defects —
+   * offering what the docs deny, offering what nobody has decided, and
+   * narrowing without writing down why.
+   */
+  test("every tracked cell declares an upstream status, a reason and its own minor's URL", () => {
+    for (const minor of MINORS) {
+      const doc = readTracked(minor);
+      for (const row of doc.matrix) {
+        for (const [arch, cell] of Object.entries(row.architectures)) {
+          const at = `${minor} ${row.scenarioId}.${arch}`;
+          assert.ok(
+            ["supported", "unsupported", "documentation-conflict", "unknown-needs-review"].includes(cell.upstreamSupport),
+            `${at}: bad upstreamSupport ${cell.upstreamSupport}`
+          );
+          assert.ok((cell.upstreamReason || "").length >= 40, `${at}: upstreamReason too short`);
+          assert.match(cell.upstreamSource || "", /^https:\/\/docs\.redhat\.com\/.*\/html-single\//, `${at}: bad upstreamSource`);
+          assert.ok((cell.upstreamSource || "").includes(`/${minor}/`), `${at}: upstreamSource cites another minor`);
+        }
+      }
+    }
+  });
+
+  test("nothing offered contradicts the documentation", () => {
+    for (const minor of MINORS) {
+      for (const row of readTracked(minor).matrix) {
+        for (const [arch, cell] of Object.entries(row.architectures)) {
+          if (cell.offered) {
+            assert.strictEqual(
+              cell.upstreamSupport,
+              "supported",
+              `${minor} ${row.scenarioId}.${arch} is offered but upstream is ${cell.upstreamSupport}`
+            );
+          }
+        }
+      }
+    }
+  });
+
+  test("the three DOC-205 cells carry their resolved dispositions", () => {
+    for (const minor of MINORS) {
+      const by = {};
+      for (const row of readTracked(minor).matrix) by[row.scenarioId] = row.architectures;
+
+      // Resolved: generic commercial-ARM boilerplate does not override the
+      // region-specific Government regions row.
+      assert.strictEqual(by["aws-govcloud-ipi"].aarch64.upstreamSupport, "unsupported", `${minor} govcloud-ipi/aarch64`);
+      assert.strictEqual(by["aws-govcloud-ipi"].aarch64.offered, false);
+
+      // Resolved: an AMI existing is not a support statement.
+      assert.strictEqual(by["aws-govcloud-upi"].aarch64.upstreamSupport, "unknown-needs-review", `${minor} govcloud-upi/aarch64`);
+      assert.strictEqual(by["aws-govcloud-upi"].aarch64.offered, false, "an undecided cell must fail closed");
+
+      // Resolved: upstream-supported, Architect narrows on purpose.
+      const s390x = by["bare-metal-agent"].s390x;
+      assert.strictEqual(s390x.upstreamSupport, "supported", `${minor} bare-metal-agent/s390x`);
+      assert.strictEqual(s390x.offered, false);
+      assert.ok((s390x.oaaScopeDecision || "").length >= 80, "a deliberate narrowing must explain itself");
+      assert.match(s390x.oaaScopeDecision, /DOC-205/);
+      // The corrected rationale must no longer imply Red Hat denies it.
+      assert.match(s390x.reason, /CORRECTED IN TRANCHE 7C\.2/);
+      assert.ok(
+        s390x.provenance.some((p) => /agent\.s390x\.iso image on the bare-metal machines/.test(p.quote)),
+        "the governing sentence must be cited"
+      );
+    }
+  });
+});
+
+describe("arch-support — upstream/OAA rules each fail closed", () => {
+  const caseFor = (minor, scenarioId, arch, patch) => {
+    const doc = mutable(minor);
+    const cell = doc.matrix.find((r) => r.scenarioId === scenarioId).architectures[arch];
+    Object.assign(cell, patch);
+    return errorsFor(minor, doc);
+  };
+
+  test("offering a cell the documentation calls unsupported fails", () => {
+    const errs = caseFor("4.22", "vsphere-ipi", "aarch64", { disposition: "supported", offered: true });
+    assert.ok(errs.some((e) => /OFFERED but upstream documentation says unsupported/.test(e)), errs.join("\n"));
+  });
+
+  test("offering an undecided cell fails", () => {
+    const errs = caseFor("4.22", "aws-govcloud-upi", "aarch64", { disposition: "supported", offered: true });
+    assert.ok(errs.some((e) => /upstream support is undecided/.test(e)), errs.join("\n"));
+  });
+
+  test("offering a cell where Red Hat's sources conflict fails", () => {
+    const errs = caseFor("4.22", "nutanix-ipi", "aarch64", {
+      disposition: "supported",
+      offered: true,
+      upstreamSupport: "documentation-conflict",
+    });
+    assert.ok(errs.some((e) => /sources conflict/.test(e)), errs.join("\n"));
+  });
+
+  test("narrowing below upstream support without a scope decision fails", () => {
+    const errs = caseFor("4.22", "bare-metal-agent", "s390x", { oaaScopeDecision: undefined });
+    assert.ok(errs.some((e) => /requires an explicit oaaScopeDecision/.test(e)), errs.join("\n"));
+  });
+
+  test("a scope decision on a cell that does not narrow fails", () => {
+    const errs = caseFor("4.22", "bare-metal-agent", "x86_64", {
+      oaaScopeDecision: "x".repeat(100),
+    });
+    assert.ok(errs.some((e) => /declares an oaaScopeDecision but is not/.test(e)), errs.join("\n"));
+  });
+
+  test("an upstreamSource citing another minor fails — cross-minor backfill", () => {
+    const errs = caseFor("4.22", "bare-metal-ipi", "x86_64", {
+      upstreamSource: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html-single/installing_on_bare_metal",
+    });
+    assert.ok(errs.some((e) => /does not cite this minor's own URL/.test(e)), errs.join("\n"));
+  });
+
+  test("an upstream status outside the vocabulary fails", () => {
+    const errs = caseFor("4.22", "bare-metal-ipi", "x86_64", { upstreamSupport: "probably" });
+    assert.ok(errs.some((e) => /upstreamSupport must be one of/.test(e)), errs.join("\n"));
   });
 });

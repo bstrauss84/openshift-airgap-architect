@@ -33,7 +33,7 @@ function isSpecified(value) {
  *   - allowed is array when catalog has JSON array; string otherwise if specified.
  *   - Returns null when scenarioId is null or parameter not found.
  */
-export function getFieldMeta(scenarioId, outputFile, path, version = '4.20') {
+export function getFieldMeta(scenarioId, outputFile, path, version) {
   if (!scenarioId) return null;
 
   const parameters = getCatalogForScenario(scenarioId, version);
@@ -80,7 +80,7 @@ export function getFieldMeta(scenarioId, outputFile, path, version = '4.20') {
  * Includes description field for compatibility.
  * @deprecated Use getFieldMeta with correct parameter order
  */
-export function getParamMeta(scenarioId, path, outputFile, version = '4.20') {
+export function getParamMeta(scenarioId, path, outputFile, version) {
   const meta = getFieldMeta(scenarioId, outputFile, path, version);
 
   if (!meta) {
@@ -182,7 +182,7 @@ export function getFieldAnnotationInfo(path, outputFile, catalogParams, selected
  * @param {string} version
  * @returns {boolean}
  */
-export function hasAllowedList(scenarioId, outputFile, path, version = '4.20') {
+export function hasAllowedList(scenarioId, outputFile, path, version) {
   const meta = getFieldMeta(scenarioId, outputFile, path, version);
   return Array.isArray(meta?.allowed) && meta.allowed.length > 0;
 }

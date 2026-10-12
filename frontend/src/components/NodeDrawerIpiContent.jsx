@@ -122,8 +122,23 @@ Transient kernel names like /dev/sdX or /dev/vdX (can change across reboots)
               label="Root device — hctl (optional)"
               hint={`SCSI address for the root disk.
 
+**What is this:**
+The HCTL (Host:Channel:Target:LUN) address that identifies one specific SCSI device on this machine. It is the most precise root-device hint available, because it names a physical slot rather than a property a second disk might share.
+
+**When it applies:**
+Optional. Use it when a machine has several similar disks and you must pin installation to one of them. Omit it and the installer picks the first suitable device.
+
 **Format:**
-host:channel:target:lun (four numbers separated by colons)
+Four numbers separated by colons — host:channel:target:lun.
+
+**Valid values:**
+Whatever \`lsscsi\` reports on that machine. The value must match the discovered address exactly; unlike vendor or model, this hint is not a substring match.
+
+**How it is used:**
+Becomes \`rootDeviceHints.hctl\` on the host. The installer refuses to provision if no device matches.
+
+**Important:**
+⚠️ The address is tied to the physical slot and controller ordering. Replacing a controller or moving the disk can change it, so prefer a WWN or serial hint if the hardware may be re-seated.
 
 **Example:**
 0:0:0:0`}
@@ -159,10 +174,25 @@ INTEL SSDPE...`}
               label="Root device — vendor (optional)"
               hint={`Device vendor/manufacturer identifier.
 
-**How matching works:**
-This hint can be a **substring** of the discovered value
+**What is this:**
+The vendor string the machine reports for a disk. It selects the root device by who made it, rather than by where it is plugged in.
 
-**Examples:**
+**When it applies:**
+Optional. Useful when every machine of a given role has one disk from a known vendor and the slot ordering is not stable.
+
+**Format:**
+Free text, case-sensitive.
+
+**Valid values:**
+Any value the hardware reports. Matching is a **substring** test, so \`Samsung\` matches \`Samsung SSD 980 PRO\`.
+
+**How it is used:**
+Becomes \`rootDeviceHints.vendor\` on the host. Combine it with another hint when more than one disk shares a vendor.
+
+**Important:**
+⚠️ On its own this is rarely specific enough — a machine with two disks from the same vendor will still be ambiguous.
+
+**Example:**
 ATA, NVMe, Samsung, Intel`}
             >
               <input
@@ -237,13 +267,28 @@ rootDeviceHints.minSizeGigabytes
               label="Root device — rotational (optional)"
               hint={`Filter by disk rotation type.
 
-**Options:**
-• false = non-rotational (SSD/NVMe)
-• true = rotational (HDD, spinning media)
-• Any = no preference
+**What is this:**
+Selects the root device by whether it is spinning media. The usual reason to set it is to keep the operating system off a slow disk in a machine that has both.
 
-**Use case:**
-Ensure OS is installed on SSD, not spinning disks`}
+**When it applies:**
+Optional, and often the only hint needed on a machine with one SSD and one HDD.
+
+**Format:**
+A three-way choice; leave it as Any to express no preference.
+
+**Valid values:**
+• **false** — non-rotational (SSD, NVMe)
+• **true** — rotational (HDD, spinning media)
+• **Any** — no preference
+
+**How it is used:**
+Becomes \`rootDeviceHints.rotational\` on the host, and is combined with any other hints you set.
+
+**Important:**
+⚠️ This narrows the candidates, it does not pick one. If a machine has two SSDs, add a more specific hint as well.
+
+**Example:**
+false, to install on the SSD rather than the spinning disk`}
             >
               <select
                 value={node.rootDeviceHintRotational ?? ""}

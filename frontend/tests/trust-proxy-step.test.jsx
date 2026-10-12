@@ -105,8 +105,8 @@ describe("Trust & Proxy replacement step (Phase 5 Prompt G)", () => {
   it("when scenario is bare-metal-agent, getScenarioId and getParamMeta return expected proxy/trust meta", () => {
     const state = stateForTrustProxyStep();
     expect(getScenarioId(state)).toBe("bare-metal-agent");
-    const httpMeta = getParamMeta("bare-metal-agent", "proxy.httpProxy", "install-config.yaml");
-    const policyMeta = getParamMeta("bare-metal-agent", "additionalTrustBundlePolicy", "install-config.yaml");
+    const httpMeta = getParamMeta("bare-metal-agent", "proxy.httpProxy", "install-config.yaml", state);
+    const policyMeta = getParamMeta("bare-metal-agent", "additionalTrustBundlePolicy", "install-config.yaml", state);
     expect(httpMeta?.required).toBe(false);
     expect(policyMeta?.required).toBe(false);
     expect(Array.isArray(policyMeta?.allowed) && policyMeta.allowed.includes("Proxyonly")).toBe(true);

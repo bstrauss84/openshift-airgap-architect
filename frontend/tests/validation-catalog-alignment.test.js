@@ -13,6 +13,12 @@
 import { describe, it, expect } from "vitest";
 import { validateNode, validateStep } from "../src/validation.js";
 import { getRequiredParamsForOutput } from "../src/catalogResolver.js";
+
+// Tranche 7C.1: these readers no longer default to 4.20. The minor is
+// explicit everywhere, which is what makes a missing one a loud failure
+// instead of a silent read of the baseline catalog.
+const V = "4.20";
+
 import { getParamMeta, hasAllowedList } from "../src/catalogFieldMeta.js";
 
 describe("A1: validateNode MAC normalization", () => {
@@ -89,7 +95,8 @@ describe("A1: validateNode MAC normalization", () => {
 
 describe("A1: getRequiredParamsForOutput matches catalog required", () => {
   it("returns only params with required true for install-config (bare-metal-agent)", () => {
-    const paths = getRequiredParamsForOutput("bare-metal-agent", "install-config.yaml");
+    // Version is explicit: the helper no longer defaults to 4.20 (Tranche 7C).
+    const paths = getRequiredParamsForOutput("bare-metal-agent", "install-config.yaml", { version: { selectedMinor: "4.20" } });
     expect(paths).toContain("baseDomain");
     expect(paths).toContain("pullSecret");
     expect(paths.every((p) => typeof p === "string")).toBe(true);
@@ -98,15 +105,15 @@ describe("A1: getRequiredParamsForOutput matches catalog required", () => {
 
 describe("A1: widget type from catalog (dropdown when allowed array)", () => {
   it("additionalTrustBundlePolicy has allowed list so UI should use dropdown", () => {
-    const meta = getParamMeta("bare-metal-agent", "additionalTrustBundlePolicy", "install-config.yaml");
-    expect(hasAllowedList("bare-metal-agent", "install-config.yaml", "additionalTrustBundlePolicy")).toBe(true);
+    const meta = getParamMeta("bare-metal-agent", "additionalTrustBundlePolicy", "install-config.yaml", V);
+    expect(hasAllowedList("bare-metal-agent", "install-config.yaml", "additionalTrustBundlePolicy", V)).toBe(true);
     expect(Array.isArray(meta.allowed)).toBe(true);
     expect(meta.allowed).toContain("Proxyonly");
     expect(meta.allowed).toContain("Always");
   });
 
   it("networking.networkType has single allowed OVNKubernetes in 4.20 catalog", () => {
-    const meta = getParamMeta("bare-metal-agent", "networking.networkType", "install-config.yaml");
+    const meta = getParamMeta("bare-metal-agent", "networking.networkType", "install-config.yaml", V);
     expect(meta.type).toBe("string");
     const allowed = Array.isArray(meta.allowed) ? meta.allowed : (meta.allowed ? [meta.allowed] : []);
     expect(allowed.length).toBeGreaterThanOrEqual(1);

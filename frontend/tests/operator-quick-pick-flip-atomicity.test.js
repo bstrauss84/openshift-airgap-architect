@@ -33,34 +33,27 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
+import { scenarios } from "../src/shared/operatorQuickPicks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SRC = readFileSync(join(__dirname, "..", "src", "steps", "OperatorsStep.jsx"), "utf8");
-
+const STEP_SRC = readFileSync(join(__dirname, "..", "src", "steps", "OperatorsStep.jsx"), "utf8");
 /**
- * Extract every `versionPicks: { ... }` block's declared version keys from the
- * real source. Parsing the source rather than importing avoids pulling the whole
- * step (and its API surface) into a data assertion.
+ * The Quick Pick table moved out of `OperatorsStep.jsx` into a shared module so
+ * that cross-minor reconciliation can re-evaluate pick MEMBERSHIP. This file
+ * now reads the real exported data instead of regex-parsing the step source —
+ * strictly stronger, and every assertion below still means what it meant.
  */
+const PICKS_SRC = readFileSync(join(__dirname, "..", "src", "shared", "operatorQuickPicks.js"), "utf8");
+
+/** Declared version keys of every `versionPicks` block, from the real data. */
 function versionPickBlocks() {
-  const blocks = [];
-  const re = /versionPicks:\s*\{/g;
-  let m;
-  while ((m = re.exec(SRC))) {
-    let i = re.lastIndex;
-    let depth = 1;
-    while (i < SRC.length && depth > 0) {
-      if (SRC[i] === "{") depth++;
-      else if (SRC[i] === "}") depth--;
-      i++;
-    }
-    const body = SRC.slice(re.lastIndex, i - 1);
-    blocks.push({
-      versions: [...body.matchAll(/"(\d+\.\d+)":/g)].map((x) => x[1]),
-      hasDefault: /"default":/.test(body),
-    });
-  }
-  return blocks;
+  return scenarios
+    .filter((s) => s.versionPicks)
+    .map((s) => ({
+      id: s.id,
+      versions: Object.keys(s.versionPicks).filter((k) => /^\d+\.\d+$/.test(k)),
+      hasDefault: Object.prototype.hasOwnProperty.call(s.versionPicks, "default"),
+    }));
 }
 
 describe("Quick Pick rows cover every supported minor", () => {
@@ -124,11 +117,11 @@ describe("Quick Pick rows cover every supported minor", () => {
   it("resolution has no `default` fallback left in the code either", () => {
     // Removing the data keys but keeping the fallback would re-arm the hazard
     // the moment anyone re-added a `default` row.
-    expect(SRC).not.toMatch(/versionPicks\?\.\["default"\]/);
-    expect(SRC).toMatch(/scenario\?\.versionPicks\) return scenario\.versionPicks\[minor\] \|\| null;/);
+    expect(PICKS_SRC).not.toMatch(/versionPicks\?\.\["default"\]/);
+    expect(PICKS_SRC).toMatch(/scenario\?\.versionPicks\) return scenario\.versionPicks\[minor\] \|\| null;/);
   });
 
   it("an undefined Quick Pick fails closed instead of serving another minor", () => {
-    expect(SRC).toMatch(/is not defined for OpenShift/);
+    expect(STEP_SRC).toMatch(/is not defined for OpenShift/);
   });
 });

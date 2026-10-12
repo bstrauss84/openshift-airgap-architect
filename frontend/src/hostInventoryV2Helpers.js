@@ -91,27 +91,91 @@ export function getSectionOrderForRender(scenarioAwareLayout, scenarioId) {
   return DEFAULT_SECTION_ORDER;
 }
 
-/** Collect all interface names (eno0, eno1, bond0, etc.) from primary and additionalInterfaces to compute next enoN. */
-export function getNextEnoName(node) {
+/**
+ * Every interface name already spoken for on this node.
+ *
+ * Deliberately EXHAUSTIVE and type-agnostic. A name only has to collide in the
+ * GENERATED NMState document to be a problem, and which names a row
+ * contributes changes the moment the user switches its type — so a scan that
+ * skips, say, the bond block of an ethernet row will hand out a name that
+ * becomes a duplicate one click later. `createInterfaceConfig` seeds a full
+ * bond block (`bond0`, slaves `eno0`/`eno1`) on every row regardless of type,
+ * which is exactly how that happens.
+ */
+export function collectUsedInterfaceNames(node) {
   const names = new Set();
-  const primary = node?.primary;
-  if (primary?.type === "ethernet" || primary?.type === "vlan-on-ethernet") {
-    if (primary.ethernet?.name) names.add(primary.ethernet.name);
-  }
-  if (primary?.bond?.name) names.add(primary.bond.name);
-  if (Array.isArray(primary?.bond?.slaves)) {
-    primary.bond.slaves.forEach((s) => { if (s?.name) names.add(s.name); });
-  }
-  (node?.additionalInterfaces || []).forEach((iface) => {
-    if (iface?.ethernet?.name) names.add(iface.ethernet.name);
-    if (iface?.bond?.name) names.add(iface.bond.name);
-    if (Array.isArray(iface?.bond?.slaves)) {
-      iface.bond.slaves.forEach((s) => { if (s?.name) names.add(s.name); });
-    }
-  });
+  const addName = (value) => {
+    const name = String(value ?? "").trim();
+    if (name) names.add(name);
+  };
+  const addInterface = (iface) => {
+    if (!iface) return;
+    addName(iface.ethernet?.name);
+    addName(iface.bond?.name);
+    (iface.bond?.slaves || []).forEach((slave) => addName(slave?.name));
+    addName(iface.vlan?.name);
+    addName(iface.advanced?.vrf?.name);
+  };
+  addInterface(node?.primary);
+  (node?.additionalInterfaces || []).forEach(addInterface);
+  return names;
+}
+
+/**
+ * Lowest `<prefix><n>` not already in `used`. Mutates `used` so a caller
+ * allocating several names in one go cannot hand out the same one twice.
+ */
+export function allocateInterfaceName(used, prefix) {
   let n = 0;
-  while (names.has(`eno${n}`)) n++;
-  return `eno${n}`;
+  while (used.has(`${prefix}${n}`)) n++;
+  const name = `${prefix}${n}`;
+  used.add(name);
+  return name;
+}
+
+/** Back-compat: the next free `enoN` for this node. */
+export function getNextEnoName(node) {
+  return allocateInterfaceName(collectUsedInterfaceNames(node), "eno");
+}
+
+/**
+ * A new additional interface whose EVERY default name is free on this node.
+ *
+ * The ethernet name alone used to be allocated, so adding a row to a host
+ * whose primary was a bond produced a row carrying the factory bond defaults
+ * — `bond0` and members `eno0`/`eno1` — which collided with that primary the
+ * instant the user switched the row's type to Bond, and generation failed with
+ * `Duplicate NMState interface name "eno0"`.
+ *
+ * Every name is allocated up front rather than renamed later, so switching the
+ * row's type only ever reveals values that were already unique. Nothing the
+ * user has typed is ever renamed.
+ */
+export function createAdditionalInterfaceConfig(node) {
+  const used = collectUsedInterfaceNames(node);
+  const ethernetName = allocateInterfaceName(used, "eno");
+  const bondName = allocateInterfaceName(used, "bond");
+  const slaveA = allocateInterfaceName(used, "eno");
+  const slaveB = allocateInterfaceName(used, "eno");
+  const vrfName = allocateInterfaceName(used, "vrf");
+
+  const config = createInterfaceConfig({
+    type: "ethernet",
+    ethernet: { name: ethernetName, macAddress: "" }
+  });
+  config.bond = {
+    ...config.bond,
+    name: bondName,
+    slaves: [
+      { name: slaveA, macAddress: "" },
+      { name: slaveB, macAddress: "" }
+    ]
+  };
+  config.advanced = {
+    ...config.advanced,
+    vrf: { ...config.advanced.vrf, name: vrfName }
+  };
+  return config;
 }
 
 export const createInterfaceConfig = (overrides = {}) => ({

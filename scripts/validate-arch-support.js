@@ -48,6 +48,35 @@ const path = require("path");
 const SCHEMA_ID = "oaa.archSupport/1";
 const ARCHITECTURES = Object.freeze(["x86_64", "aarch64", "ppc64le", "s390x"]);
 const DISPOSITIONS = Object.freeze(["supported", "locked", "hidden", "unknown"]);
+
+/**
+ * UPSTREAM support, recorded separately from Architect's own disposition
+ * (v2.1 Tranche 7C.2).
+ *
+ * WHY THE TWO MUST NOT SHARE A FIELD. A "45/48 cells match" metric conflated
+ * two different questions: what Red Hat supports, and what Architect chooses
+ * to expose. Those legitimately differ. `bare-metal-agent` / `s390x` is
+ * upstream SUPPORTED — the Agent book says "Boot the agent.x86_64.iso ,
+ * agent.aarch64.iso , or agent.s390x.iso image on the bare-metal machines." —
+ * and Architect still hides it, because OpenShift on IBM Z is a platform it
+ * does not model. That is a deliberate narrowing, not a defect, and reporting
+ * it as a mismatch buries the cells that ARE defects.
+ *
+ * A real defect is one of:
+ *   - Architect offers something upstream says is unsupported;
+ *   - Architect offers something upstream has not decided, or where Red Hat's
+ *     own sources conflict;
+ *   - Architect narrows without recording why.
+ */
+const UPSTREAM_SUPPORT = Object.freeze([
+  "supported",
+  "unsupported",
+  "documentation-conflict",
+  "unknown-needs-review",
+]);
+
+/** A scope decision has to actually explain itself, not merely exist. */
+const MIN_SCOPE_DECISION_LENGTH = 80;
 const INSTALL_METHODS = Object.freeze(["ipi", "upi", "agent"]);
 const MINOR_RE = /^\d+\.\d+$/;
 
@@ -194,6 +223,51 @@ function validateFile(file, raw, errors) {
           where(`${cid}.offered must be ${shouldOffer} for disposition "${cell.disposition}" — only a supported cell may be offered`)
         );
       }
+      // Rule 6 (Tranche 7C.2): upstream support is recorded SEPARATELY from
+      // Architect's disposition, and only genuine disagreements are failures.
+      if (!UPSTREAM_SUPPORT.includes(cell.upstreamSupport)) {
+        errors.push(where(`${cid}.upstreamSupport must be one of ${UPSTREAM_SUPPORT.join(", ")}`));
+      } else {
+        if (typeof cell.upstreamReason !== "string" || cell.upstreamReason.trim().length < MIN_REASON_LENGTH) {
+          errors.push(where(`${cid}.upstreamReason must state the governing documentation sentence`));
+        }
+        if (!/^https:\/\/docs\.redhat\.com\/.*\/html-single\//.test(cell.upstreamSource || "")) {
+          errors.push(where(`${cid}.upstreamSource must be an html-single docs.redhat.com URL`));
+        } else if (!(cell.upstreamSource || "").includes(`/${doc.minor}/`)) {
+          // Cross-minor backfill is how a 4.20-era reading becomes a 4.22 claim.
+          errors.push(where(`${cid}.upstreamSource does not cite this minor's own URL`));
+        }
+
+        // A REAL defect: offering what the documentation denies, or what nobody
+        // has decided. Fail closed in both directions.
+        if (cell.offered === true && cell.upstreamSupport === "unsupported") {
+          errors.push(where(`${cid} is OFFERED but upstream documentation says unsupported`));
+        }
+        if (cell.offered === true && cell.upstreamSupport === "unknown-needs-review") {
+          errors.push(where(`${cid} is OFFERED while upstream support is undecided — must fail closed until reviewed`));
+        }
+        if (cell.offered === true && cell.upstreamSupport === "documentation-conflict") {
+          errors.push(where(`${cid} is OFFERED while Red Hat's own sources conflict — must fail closed until reconciled`));
+        }
+
+        // NOT a defect, but it must be deliberate and written down: Red Hat
+        // supports more than Architect exposes.
+        if (cell.upstreamSupport === "supported" && cell.offered === false) {
+          const d = cell.oaaScopeDecision;
+          if (typeof d !== "string" || d.trim().length < MIN_SCOPE_DECISION_LENGTH) {
+            errors.push(
+              where(
+                `${cid} is upstream-supported but not offered, so it requires an explicit ` +
+                  `oaaScopeDecision (at least ${MIN_SCOPE_DECISION_LENGTH} characters) saying why Architect ` +
+                  "narrows here and what would change it"
+              )
+            );
+          }
+        } else if (cell.oaaScopeDecision !== undefined) {
+          errors.push(where(`${cid} declares an oaaScopeDecision but is not an upstream-supported, not-offered cell`));
+        }
+      }
+
       // Rule 1: explicit reason.
       if (typeof cell.reason !== "string" || cell.reason.trim().length < MIN_REASON_LENGTH) {
         errors.push(where(`${cid}.reason must be an explicit sentence (at least ${MIN_REASON_LENGTH} characters)`));
@@ -254,10 +328,154 @@ function run(root) {
   return 0;
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Support-contract checks (v2.1 Tranche 7C)                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cross-cutting guards that the per-file rules above cannot express, because
+ * they are about the matrix AS A WHOLE and about its relationship to the
+ * application's supported-minor list and to the frontend projection.
+ *
+ * Added after Tranche 7C, where three separate manual-QA blockers all came from
+ * nobody checking a relationship BETWEEN artifacts:
+ *
+ *   - the frontend projection existed but nothing gated it (`sync-arch-support.js
+ *     --check` had no npm script and no CI home, unlike its catalogs and
+ *     docs-index siblings);
+ *   - a supported minor could in principle have no matrix at all and every
+ *     consumer would simply fail closed, quietly;
+ *   - a platform/method row resolving to ZERO offered architectures renders as
+ *     "every architecture greyed out", which is what a user reported — and no
+ *     check anywhere said that was wrong.
+ *
+ * These take `supportedMinors` as an argument rather than reading it, so the
+ * function stays synchronous and testable against fixtures.
+ */
+function runSupportContract(root, supportedMinors) {
+  const errors = [];
+  const canonicalDir = path.join(root, "data", "arch-support");
+  const projectionDir = path.join(root, "frontend", "src", "data", "arch-support");
+
+  if (!Array.isArray(supportedMinors) || supportedMinors.length === 0) {
+    console.error("Support-contract guard: no supported minors supplied — refusing to pass vacuously.");
+    return 1;
+  }
+
+  const read = (file) => {
+    try {
+      return JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+
+  // The projection is generated by sync-arch-support.js. Re-using its `project`
+  // keeps ONE projection authority: this guard compares against what that
+  // script would emit, it does not define a second shape.
+  let project = null;
+  try {
+    ({ project } = require("./sync-arch-support.js"));
+  } catch {
+    errors.push("could not load scripts/sync-arch-support.js to verify the frontend projection");
+  }
+
+  for (const minor of supportedMinors) {
+    // 1. Every app-supported minor has canonical architecture data.
+    const canonicalFile = path.join(canonicalDir, `${minor}.json`);
+    const canonical = fs.existsSync(canonicalFile) ? read(canonicalFile) : null;
+    if (!canonical) {
+      errors.push(`supported minor ${minor} has no usable canonical matrix at data/arch-support/${minor}.json`);
+      continue;
+    }
+
+    // 2. The frontend projection exists for it.
+    const projectionFile = path.join(projectionDir, `${minor}.json`);
+    const projection = fs.existsSync(projectionFile) ? read(projectionFile) : null;
+    if (!projection) {
+      errors.push(`supported minor ${minor} has no usable frontend projection at frontend/src/data/arch-support/${minor}.json`);
+    } else if (project) {
+      // 3. The projection matches canonical.
+      const expected = JSON.stringify(project(canonical), null, 2).trim();
+      const actual = JSON.stringify(projection, null, 2).trim();
+      if (expected !== actual) {
+        errors.push(`frontend projection for ${minor} is out of date — run \`npm run sync-arch-support\``);
+      }
+    }
+
+    const rows = Array.isArray(canonical.matrix) ? canonical.matrix : [];
+    if (rows.length === 0) {
+      errors.push(`supported minor ${minor} has an empty matrix`);
+      continue;
+    }
+
+    const byPlatform = new Map();
+    for (const row of rows) {
+      const id = row.scenarioId || "";
+      const offered = ARCHITECTURES.filter((a) => row.architectures?.[a]?.offered === true).sort();
+
+      // 6. A modelled platform/method combination must not resolve to zero
+      //    architectures. That renders as every architecture greyed out.
+      if (offered.length === 0) {
+        errors.push(
+          `${minor} ${id} offers NO architecture — a modelled scenario that can never be selected. ` +
+            `If the combination is genuinely unsupported it must be removed from the matrix, not left empty.`
+        );
+      }
+
+      // Platform is derived from the data's own scenarioId, so this introduces
+      // no second platform/method table.
+      const method = INSTALL_METHODS.find((m) => id.endsWith(`-${m}`));
+      const platform = method ? id.slice(0, -(method.length + 1)) : id;
+      if (!byPlatform.has(platform)) byPlatform.set(platform, []);
+      byPlatform.get(platform).push({ id, method, offered: offered.join("+") });
+    }
+
+    // 8. Method-dependent architecture divergence must FAIL CLOSED.
+    for (const [platform, entries] of byPlatform) {
+      const distinct = new Set(entries.map((e) => e.offered));
+      if (distinct.size > 1) {
+        const detail = entries.map((e) => `${e.id}=[${e.offered || "none"}]`).join(", ");
+        errors.push(
+          `${minor} ${platform}: the offered architecture set DIFFERS BY INSTALL METHOD (${detail}). ` +
+            `This is not a data error to silence — it is a product decision. The Blueprint step currently ` +
+            `presents architecture at PLATFORM level (listArchSupportForBlueprint), which is only correct ` +
+            `while every method for a platform agrees. Before this can pass, implement symmetric ` +
+            `architecture/methodology gating (see DOC-199) so a chosen architecture constrains the ` +
+            `methodology list, rather than intersecting, unioning or hiding the difference.`
+        );
+      }
+    }
+  }
+
+  if (errors.length) {
+    console.error(`Architecture support-contract guard FAILED with ${errors.length} error(s):`);
+    for (const e of errors) console.error(`  ${e}`);
+    return 1;
+  }
+  console.log(
+    `Architecture support-contract guard OK: supported minors [${supportedMinors.join(", ")}] each have canonical data ` +
+      `and a matching frontend projection, no modelled scenario offers zero architectures, and no platform's ` +
+      `architecture set diverges by install method.`
+  );
+  return 0;
+}
+
 if (require.main === module) {
   const i = process.argv.indexOf("--root");
   const root = i !== -1 ? process.argv[i + 1] : path.resolve(__dirname, "..");
-  process.exit(run(root));
+  const cellStatus = run(root);
+  // The support contract needs the application's supported-minor list, which is
+  // only reachable asynchronously (ESM version policy). Both guards always run,
+  // so one failure never hides the other.
+  const { getSupportedMinors } = require("./lib/supported-minors");
+  getSupportedMinors()
+    .then((minors) => process.exit(Math.max(cellStatus, runSupportContract(root, minors))))
+    .catch((err) => {
+      console.error(`Could not read the supported-minor list: ${err.message}`);
+      process.exit(1);
+    });
 }
 
-module.exports = { run, validateFile, ARCHITECTURES, DISPOSITIONS, INSTALL_METHODS, SCHEMA_ID };
+module.exports = { run, runSupportContract, validateFile, ARCHITECTURES, DISPOSITIONS, UPSTREAM_SUPPORT, INSTALL_METHODS, SCHEMA_ID };

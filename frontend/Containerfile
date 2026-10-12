@@ -1,19 +1,94 @@
-# Red Hat UBI 9 Node.js 22 — frontend (Vite dev server in container)
-FROM registry.access.redhat.com/ubi9/nodejs-22
+# OpenShift Airgap Architect — frontend production image (PROD-026).
+#
+# WHAT THIS REPLACED, AND WHY IT WAS A RELEASE BLOCKER
+#
+# This file used to be a SINGLE stage that ran `npm ci` with no `--omit=dev`
+# and whose production CMD was:
+#
+#   CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]
+#
+# That is the Vite DEVELOPMENT SERVER, running as the long-lived production
+# process, with the complete devDependency tree resident in the shipped image.
+# So `vite`, `vitest`, `postcss`, `rollup`, `esbuild` and `jsdom` were not
+# "build-time only, not shipped" as docs/VERSION_AWARENESS_COMPLETION_MATRIX.md
+# claimed — they were installed in the image and vite was the listening
+# process. A container build reported 15 vulnerabilities (1 low, 4 moderate,
+# 8 high, 2 critical) while the security gate reported zero, because the gate
+# audited `--omit=dev` and the image did not.
+#
+# Two stages now: everything needed to BUILD stays in the builder and is
+# discarded; the runtime carries static assets and nginx, and no Node.js at all.
+#
+# CONTRACTS DELIBERATELY PRESERVED (see frontend/container/nginx-oaa.conf):
+#   - listens on 5173 (compose, Service, Deployment containerPort, and the
+#     liveness/readiness probes on `/`);
+#   - serves `/` and falls back to index.html so a reload cannot 404;
+#   - VITE_API_BASE stays a RUNTIME setting, via /runtime-config.js;
+#   - runs unprivileged and tolerates an arbitrary OpenShift UID with gid 0.
+#
+# NOT preserved, deliberately: HMR, module-graph serving and VITE_ALLOWED_HOSTS
+# are dev-server concepts. nginx serves pre-built files, so a Host allow-list is
+# not part of its threat model; the variable is accepted and ignored.
+#
+# There is no /api proxy here and there never was: the browser calls the backend
+# directly at VITE_API_BASE. Nothing in this image terminates or forwards API
+# traffic.
+
+# ---------------------------------------------------------------------------
+# Builder — produces frontend/dist, then is thrown away
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS builder
 
 USER root
-RUN mkdir -p /app && chown -R 1001:0 /app
-WORKDIR /app
+RUN mkdir -p /build && chown -R 1001:0 /build && chmod -R g+w /build
+WORKDIR /build
+
+# Manifests first so the dependency layer is cached independently of source.
 COPY --chown=1001:0 frontend/package.json frontend/package-lock.json ./frontend/
-WORKDIR /app/frontend
 USER 1001
+WORKDIR /build/frontend
+# Dev dependencies ARE required here — vite, the React plugin and postcss are
+# what perform the build. They stay in this stage.
 RUN npm ci
+
 USER root
-WORKDIR /app
+WORKDIR /build
 COPY --chown=1001:0 frontend/ ./frontend/
+# `shared/` is a sibling at build time because frontend sources import
+# ../../shared/*.js (archSupport, scenarioId, installMethods, versionUtils).
+# Vite resolves and bundles them, so the runtime image needs none of it.
 COPY --chown=1001:0 shared/ ./shared/
+
+USER 1001
+WORKDIR /build/frontend
+RUN npm run build && test -f dist/index.html
+
+# ---------------------------------------------------------------------------
+# Runtime — nginx and static assets only
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nginx-124:latest
+
+# Only the build output crosses the stage boundary. No node_modules, no
+# package.json, no Node.js runtime.
+COPY --from=builder --chown=1001:0 /build/frontend/dist/ /opt/app-root/src/
+
+COPY --chown=1001:0 frontend/container/nginx-oaa.conf /opt/app-root/etc/nginx.d/oaa.conf
+COPY --chown=1001:0 frontend/container/oaa-entrypoint.sh /opt/app-root/bin/oaa-entrypoint.sh
+
+USER root
+# `nginx -t` validates the config at BUILD time so a broken server block fails
+# the build instead of CrashLoopBackOff. It runs as root and leaves a
+# root-owned /run/nginx.pid behind, which then makes the real (uid 1001)
+# startup fail with `open() "/run/nginx.pid" failed (13: Permission denied)`.
+# Removing it is not cosmetic — without this the image does not start.
+RUN chmod 0755 /opt/app-root/bin/oaa-entrypoint.sh \
+    && chmod -R g+rX /opt/app-root/src \
+    && nginx -t -c /etc/nginx/nginx.conf \
+    && rm -f /run/nginx.pid
 USER 1001
 
 EXPOSE 5173
-WORKDIR /app/frontend
-CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]
+
+# Writes /runtime-config.js from the environment, then hands off to the base
+# image's own run script (arbitrary-UID setup plus stdout/stderr log wiring).
+CMD ["/opt/app-root/bin/oaa-entrypoint.sh"]

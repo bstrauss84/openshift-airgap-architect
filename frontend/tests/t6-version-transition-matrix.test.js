@@ -23,6 +23,7 @@ import { getCatalogForScenario, getAvailableCatalogScenarios, UnsupportedVersion
 import { getDocsIndexForState } from "../src/docsIndexResolver.js";
 import { offeredArchSupportForState, hasArchSupportForMinor } from "../src/archSupportResolver.js";
 import { hasCrossMinorOperatorState, getResolvedOperatorMinor } from "../src/shared/operatorMinorReconciliation.js";
+import { scenarios as QUICK_PICKS } from "../src/shared/operatorQuickPicks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SRC = readFileSync(join(__dirname, "..", "src", "steps", "OperatorsStep.jsx"), "utf8");
@@ -145,18 +146,14 @@ describe.each(ALL_EDGES)("T6 §13 — transition %s -> %s", (from, to) => {
   });
 
   it("every version-aware Quick Pick has an explicit row at the destination", () => {
-    const re = /versionPicks:\s*\{/g;
-    let m;
+    // Reads the real exported Quick Pick table. It used to regex-parse
+    // OperatorsStep.jsx, which no longer holds the data: it moved to
+    // shared/operatorQuickPicks.js so reconciliation can re-evaluate a pick's
+    // membership at the destination minor. Same assertion, stronger source.
     let blocks = 0;
-    while ((m = re.exec(SRC))) {
-      let i = re.lastIndex, depth = 1;
-      while (i < SRC.length && depth > 0) {
-        if (SRC[i] === "{") depth++;
-        else if (SRC[i] === "}") depth--;
-        i++;
-      }
-      const body = SRC.slice(re.lastIndex, i - 1);
-      expect(body, `a versionPicks block has no "${to}" row`).toContain(`"${to}":`);
+    for (const pick of QUICK_PICKS) {
+      if (!pick.versionPicks) continue;
+      expect(Object.keys(pick.versionPicks), `${pick.id} has no "${to}" row`).toContain(to);
       blocks++;
     }
     expect(blocks).toBeGreaterThanOrEqual(6);

@@ -305,16 +305,96 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Production dependency vulnerability gate
+# 7. Shipped dependency vulnerability gate
 #    Policy: Critical BLOCK, High BLOCK, Moderate/Low report-only.
 #    A nonzero npm exit caused only by Moderate/Low is NOT a gate failure.
+#
+#    SCOPE IS DERIVED FROM THE CONTAINERFILE, NOT ASSUMED (v2.1 Tranche 7C).
+#    This gate used to audit every component with `--omit=dev` and call the
+#    result "prod dependencies". For the backend that is accurate
+#    (`npm ci --omit=dev`). For the frontend it was not: frontend/Containerfile
+#    is a single stage that runs a bare `npm ci` and whose CMD is the Vite DEV
+#    SERVER, so the shipped image contains the full devDependency tree and
+#    executes it. A manual build printed "15 vulnerabilities (1 low,
+#    4 moderate, 8 high, 2 critical)" while this gate reported zero — both
+#    correct about different dependency sets, which is exactly the blind spot.
+#
+#    So: if a component's Containerfile installs dev dependencies into the
+#    shipped image, audit them. When PROD-026 replaces the dev server with a
+#    static build (`npm ci --omit=dev`, or a builder stage that does not ship
+#    node_modules), this narrows back to production scope automatically — no
+#    edit here, and no way to regress silently.
 # ---------------------------------------------------------------------------
-audit_prod() { # label, dir
-  local label="$1" dir="$2"
+
+# Echo the npm dependency surface of the FINAL image:
+#   prod   — the final stage installs production dependencies only
+#   all    — the final stage installs (or copies in) the full dev tree
+#   none   — the final stage has no npm dependency surface at all
+#
+# STAGE AWARENESS IS THE WHOLE POINT. A multi-stage build legitimately runs a
+# full `npm ci` in a BUILDER stage and then ships only build output. Counting
+# that builder install would report the frontend as shipping its dev tree when
+# it demonstrably does not, which is the mirror image of the bug this function
+# was written to fix. Only directives after the last FROM are considered, plus
+# any `COPY --from=` that drags node_modules into the final stage.
+#
+# Comments are stripped so the explanation above a directive cannot be
+# mistaken for the directive.
+shipped_install_scope() { # containerfile
+  local cf="$1"
+  [ -f "$cf" ] || { echo "unknown"; return; }
+
+  local body final_stage installs copied_modules
+  body="$(grep -vE '^[[:space:]]*#' "$cf")"
+
+  # Everything from the last FROM onwards is the shipped stage.
+  final_stage="$(printf '%s\n' "$body" | awk 'BEGIN{IGNORECASE=1} /^[[:space:]]*FROM[[:space:]]/{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}')"
+
+  copied_modules="$(printf '%s\n' "$final_stage" | grep -iE 'COPY[[:space:]]+--from=' | grep -E 'node_modules' || true)"
+  installs="$(printf '%s\n' "$final_stage" | grep -oE 'npm (ci|install|i)[^&|]*' || true)"
+
+  if [ -z "$installs" ] && [ -z "$copied_modules" ]; then echo "none"; return; fi
+  if [ -n "$copied_modules" ]; then echo "all"; return; fi
+  if printf '%s\n' "$installs" | grep -qvE -- '--omit=dev|--production|--only=prod'; then
+    echo "all"
+  else
+    echo "prod"
+  fi
+}
+
+audit_shipped() { # label, dir, containerfile
+  local label="$1" dir="$2" cf="$3"
   local out="$REPORT_DIR/audit-$label.json"
-  ( cd "$dir" && npm audit --omit=dev --json ) > "$out" 2>"$REPORT_DIR/audit-$label.err"
+  local scope; scope="$(shipped_install_scope "$cf")"
+  local name="${label^} shipped dependencies"
+
+  local -a omit=()
+  case "$scope" in
+    prod) omit=(--omit=dev); name="$name (prod only)" ;;
+    all)  omit=();           name="$name (image installs devDependencies)" ;;
+    none)
+      # The final stage ships no npm packages at all (e.g. a static build
+      # served by nginx). There is no runtime dependency surface to audit.
+      # Builder-stage findings are reported separately below as informational:
+      # they are real for the build host and must not be reported as shipped.
+      record "$name" "PASS" "scope=none (final image ships no npm dependency surface)"
+      local bout="$REPORT_DIR/audit-$label-builder.json"
+      ( cd "$dir" && npm audit --json ) > "$bout" 2>"$REPORT_DIR/audit-$label-builder.err"
+      if jq -e '.metadata.vulnerabilities' "$bout" >/dev/null 2>&1; then
+        local bc bh bt
+        bc=$(jq -r '.metadata.vulnerabilities.critical // 0' "$bout")
+        bh=$(jq -r '.metadata.vulnerabilities.high     // 0' "$bout")
+        bt=$(jq -r '.metadata.vulnerabilities.total    // 0' "$bout")
+        echo "    note: ${label} BUILDER-ONLY dependencies: critical=$bc high=$bh total=$bt (not shipped; see $bout)"
+      fi
+      return
+      ;;
+    *)    record "$name" "INCOMPLETE" "could not read $cf to determine shipped dependency scope"; return ;;
+  esac
+
+  ( cd "$dir" && npm audit "${omit[@]}" --json ) > "$out" 2>"$REPORT_DIR/audit-$label.err"
   if ! jq -e '.metadata.vulnerabilities' "$out" >/dev/null 2>&1; then
-    record "${label^} prod dependencies" "INCOMPLETE" "audit did not produce severity data (offline?)"
+    record "$name" "INCOMPLETE" "audit did not produce severity data (offline?)"
     return
   fi
   local c h m l t
@@ -323,15 +403,15 @@ audit_prod() { # label, dir
   m=$(jq -r '.metadata.vulnerabilities.moderate // 0' "$out")
   l=$(jq -r '.metadata.vulnerabilities.low      // 0' "$out")
   t=$(jq -r '.metadata.vulnerabilities.total    // 0' "$out")
-  local detail="critical=$c high=$h moderate=$m low=$l total=$t"
+  local detail="scope=$scope critical=$c high=$h moderate=$m low=$l total=$t"
   if [ "$c" -gt 0 ] || [ "$h" -gt 0 ]; then
-    record "${label^} prod dependencies" "RED" "$detail"
+    record "$name" "RED" "$detail"
   else
-    record "${label^} prod dependencies" "PASS" "$detail"
+    record "$name" "PASS" "$detail"
   fi
 }
-audit_prod backend  "$REPO_ROOT/backend"
-audit_prod frontend "$REPO_ROOT/frontend"
+audit_shipped backend  "$REPO_ROOT/backend"  "$REPO_ROOT/backend/Containerfile"
+audit_shipped frontend "$REPO_ROOT/frontend" "$REPO_ROOT/frontend/Containerfile"
 
 # ---------------------------------------------------------------------------
 # 8. Container / base-image applicability

@@ -104,12 +104,12 @@ describe("Networking replacement step (Phase 5 Prompt F)", () => {
   it("when scenario is bare metal (Agent), getScenarioId is bare-metal-agent and VIP params exist in catalog", () => {
     const state = stateForNetworkingStep();
     expect(getScenarioId(state)).toBe("bare-metal-agent");
-    const requiredInstall = getRequiredParamsForOutput("bare-metal-agent", "install-config.yaml");
+    const requiredInstall = getRequiredParamsForOutput("bare-metal-agent", "install-config.yaml", state);
     expect(Array.isArray(requiredInstall)).toBe(true);
     const apiVipPath = "platform.baremetal.apiVIP";
     const ingressVipPath = "platform.baremetal.ingressVIP";
-    const apiMeta = getParamMeta("bare-metal-agent", apiVipPath, "install-config.yaml");
-    const ingressMeta = getParamMeta("bare-metal-agent", ingressVipPath, "install-config.yaml");
+    const apiMeta = getParamMeta("bare-metal-agent", apiVipPath, "install-config.yaml", state);
+    const ingressMeta = getParamMeta("bare-metal-agent", ingressVipPath, "install-config.yaml", state);
     expect(apiMeta?.required).toBe(false);
     expect(ingressMeta?.required).toBe(false);
   });

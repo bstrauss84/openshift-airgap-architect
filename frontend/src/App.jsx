@@ -10,7 +10,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./store.jsx";
 import { getVersionLocked, detectUnknownSchema } from "./shared/versionHelpers.js";
 
@@ -371,9 +371,75 @@ export const VersionSupportGate = ({ children }) => {
   return children;
 };
 
+/**
+ * Wizard view state that has to outlive a VersionSupportGate data reload.
+ *
+ * The gate renders a loading placeholder INSTEAD of its children whenever the
+ * selected minor's catalogs are not resident yet (see `dataMinor !==
+ * selectedMinor` above). That is correct for data safety — nothing
+ * catalog-dependent may mount early — but it unmounts AppShell, and an
+ * unmounted component loses every `useState`. Changing the OpenShift minor
+ * therefore reset `showLanding` to its `true` initial value and dumped the user
+ * back on the landing page mid-wizard; importing a saved run whose minor was
+ * not yet resident did the same, discarding the `setShowLanding(false)` that
+ * `handleImport` had just performed. Patch changes never did this, because they
+ * do not change `selectedMinor` and so never make the gate block.
+ *
+ * Holding these two values above the gate makes the reload invisible: the
+ * provider never unmounts, so the user stays exactly where they were. Only the
+ * navigation state lives here — transient modal/toast state is deliberately
+ * left in AppShell, where resetting it across a version switch is harmless.
+ */
+const ShellViewContext = createContext(null);
+
+export const ShellViewProvider = ({ children }) => {
+  const [showLanding, setShowLanding] = useState(true);
+  const [active, setActive] = useState(0);
+  // The YAML drawer is here for the same reason: it is something the user
+  // explicitly opened, and a version-data reload used to slam it shut.
+  const [yamlDrawerOpen, setYamlDrawerOpen] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  /**
+   * Where the wizard's scroll container was, and which step that was for.
+   *
+   * A ref, not state: it must not re-render anything, and it must survive the
+   * gate unmounting AppShell to load a newly selected minor's catalogs. That
+   * unmount destroys the `<main>` element itself, so the remounted one starts
+   * at scrollTop 0 — which is why changing the OpenShift minor snapped the page
+   * to the top even after the landing-page reset was fixed. Patch changes never
+   * did it, because they do not make the gate block.
+   */
+  const scrollMemoryRef = useRef({ top: 0, forActive: 0 });
+  const value = useMemo(
+    () => ({
+      showLanding, setShowLanding,
+      active, setActive,
+      yamlDrawerOpen, setYamlDrawerOpen,
+      showPreview, setShowPreview,
+      scrollMemoryRef,
+    }),
+    [showLanding, active, yamlDrawerOpen, showPreview]
+  );
+  return <ShellViewContext.Provider value={value}>{children}</ShellViewContext.Provider>;
+};
+
+const useShellView = () => {
+  const ctx = useContext(ShellViewContext);
+  if (!ctx) throw new Error("useShellView must be used inside ShellViewProvider");
+  return ctx;
+};
+
 const AppShell = () => {
   const { state, loading, schemaError, startOver, updateState, setState } = useApp();
-  const [active, setActive] = useState(0);
+  // `active` and `showLanding` come from ShellViewProvider, which sits ABOVE
+  // VersionSupportGate so they survive the gate's per-minor data reload.
+  const {
+    active, setActive,
+    showLanding, setShowLanding,
+    yamlDrawerOpen, setYamlDrawerOpen,
+    showPreview, setShowPreview,
+    scrollMemoryRef,
+  } = useShellView();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showReleaseWarning, setShowReleaseWarning] = useState(false);
   const [showBlueprintWarning, setShowBlueprintWarning] = useState(false);
@@ -389,15 +455,28 @@ const AppShell = () => {
   const [highlightErrors, setHighlightErrors] = useState(false);
   const [pendingNavIndex, setPendingNavIndex] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem("airgap-theme") || "light");
-  const [showPreview, setShowPreview] = useState(false);
   const [previewFiles, setPreviewFiles] = useState({});
   const [previewError, setPreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  /* True when the rendered documents are the last generation that SUCCEEDED
+     and the current state does not generate. The documents are kept so the
+     drawer stays a YAML preview rather than turning into an error panel, but
+     they must be labelled as superseded and must not be downloadable. */
+  const [previewStale, setPreviewStale] = useState(false);
+  /* DOC-227: per-artifact generation errors, keyed by output filename. A
+     failure in one generated document is that document's problem only — it
+     must not stale-label or block the others. `previewError`/`previewStale`
+     above remain the GLOBAL signal, used only when nothing generated at all
+     (transport failure, schema migration, unsupported target version). */
+  const [previewFileErrors, setPreviewFileErrors] = useState({});
+  /* Last content that generated successfully, per filename. A document whose
+     own generation just failed keeps showing this, clearly labelled, per the
+     Tranche 7C.4 contract. */
+  const lastGoodPreviewFilesRef = useRef({});
   const previewRequestIdRef = useRef(0);
   const prevMethodologyRef = useRef(state?.methodology?.method);
   const importingRef = useRef(false);  // Track when import is in progress
   const [confirmingRelease, setConfirmingRelease] = useState(false);
-  const [showLanding, setShowLanding] = useState(true);
   const [showStartOverModal, setShowStartOverModal] = useState(false);
   const [startOverRunningJobs, setStartOverRunningJobs] = useState([]);
   const [startOverCheckingJobs, setStartOverCheckingJobs] = useState(false);
@@ -408,7 +487,6 @@ const AppShell = () => {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [jobsCount, setJobsCount] = useState(0);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
-  const [yamlDrawerOpen, setYamlDrawerOpen] = useState(false);
   const [lockToast, setLockToast] = useState("");
   const [updateInfo, setUpdateInfo] = useState(null);
   const [buildInfo, setBuildInfo] = useState(null);
@@ -424,10 +502,38 @@ const AppShell = () => {
   const prefsRef = useRef(null);
   const mainContentRef = useRef(null);
 
-  useEffect(() => {
+  /**
+   * Scroll to the top when the user CHANGES STEP, and restore the previous
+   * offset when the same step is merely re-mounted.
+   *
+   * The re-mount case is the version gate swapping AppShell out while it loads
+   * a newly selected minor's catalogs. Before this, every supported-minor
+   * change dumped the user at the top of the Blueprint page and they had to
+   * scroll back down to the release controls to change it again.
+   *
+   * useLayoutEffect, so the restore happens before paint rather than as a
+   * visible jump; and keyed on whether `active` actually changed rather than
+   * on a timer, so there is nothing to race.
+   */
+  useLayoutEffect(() => {
     const el = mainContentRef.current;
-    if (el && typeof el.scrollTop === "number") el.scrollTop = 0;
-  }, [active]);
+    if (!el || typeof el.scrollTop !== "number") return;
+    const memory = scrollMemoryRef.current;
+    if (memory.forActive === active && memory.top > 0) {
+      el.scrollTop = memory.top;
+    } else {
+      el.scrollTop = 0;
+      scrollMemoryRef.current = { top: 0, forActive: active };
+    }
+  }, [active, scrollMemoryRef]);
+
+  /** Remember where the user is, so a re-mount can put them back. */
+  const rememberScroll = () => {
+    const el = mainContentRef.current;
+    if (el && typeof el.scrollTop === "number") {
+      scrollMemoryRef.current = { top: el.scrollTop, forActive: active };
+    }
+  };
 
   useEffect(() => {
     apiFetch("/api/schema/stepMap")
@@ -762,6 +868,7 @@ const AppShell = () => {
     if (!confirmed) {
       // Show skeleton YAML before version confirmation
       setPreviewError("");
+      setPreviewFileErrors({});
       setPreviewFiles({
         "install-config.yaml": `apiVersion: v1
 baseDomain: example.com
@@ -801,9 +908,17 @@ metadata:
       // - GET /api/generate: reads from backend state (600ms behind due to debounce)
       // - POST /api/generate: accepts state in request body (immediate, current)
 
+      /* DOC-227: `isolateArtifacts` asks the backend to build each previewed
+         document inside its own boundary and report per-file errors, instead
+         of failing the whole response at the first generator that throws. The
+         preview drawer is the only consumer that wants this: an NMState error
+         belongs to agent-config.yaml, and must not stop imageset-config.yaml —
+         which reads no host networking at all — from being regenerated when
+         operators or Quick Picks change. Review/export deliberately do NOT
+         send it and stay all-or-nothing fail-closed. */
       const fetchPromise = apiFetch("/api/generate", {
         method: "POST",
-        body: JSON.stringify({ state }),
+        body: JSON.stringify({ state, isolateArtifacts: true }),
         signal: controller.signal
       });
 
@@ -814,7 +929,36 @@ metadata:
             // Only apply result if this is still the latest request
             if (currentRequestId === previewRequestIdRef.current) {
               logAction("generate_preview", { stepId: previewStepId });
-              setPreviewFiles(data.files || {});
+
+              /* DOC-227. The response is now per-artifact: `files` carries
+                 everything that generated, `fileErrors` names the documents
+                 that did not. Artifacts that succeeded are current; artifacts
+                 that failed keep their own last successful content so the
+                 drawer can label that one pane superseded (Tranche 7C.4)
+                 without touching the panes that are fine. */
+              const files = data.files || {};
+              const rawFileErrors = data.fileErrors || {};
+              const fileErrors = {};
+              for (const name of Object.keys(rawFileErrors)) {
+                const entry = rawFileErrors[name];
+                fileErrors[name] = typeof entry === "string" ? entry : String(entry?.message || entry);
+              }
+
+              const lastGood = { ...lastGoodPreviewFilesRef.current };
+              for (const [name, content] of Object.entries(files)) {
+                if (content && !fileErrors[name]) lastGood[name] = content;
+              }
+              lastGoodPreviewFilesRef.current = lastGood;
+
+              const merged = { ...files };
+              for (const name of Object.keys(fileErrors)) {
+                if (!merged[name] && lastGood[name]) merged[name] = lastGood[name];
+              }
+
+              setPreviewFiles(merged);
+              setPreviewFileErrors(fileErrors);
+              setPreviewError("");
+              setPreviewStale(false);
               setPreviewLoading(false);
             }
           })
@@ -823,16 +967,28 @@ metadata:
             if (error.name === 'AbortError') return;
             // Only show error if this is still the latest request
             if (currentRequestId === previewRequestIdRef.current) {
-              /* Fail closed. The previous files describe a state the user has
-                 already moved away from, so continuing to render them presents
-                 a stale configuration as the current one — and the YAML
-                 drawer's per-pane Download would hand that stale YAML over as
-                 current output. Invalidate them and let the error surface.
-                 Only generated output is dropped; `state` (everything the user
-                 typed) is untouched, and the next successful generation
-                 repopulates normally. Guarded by the request-id check above,
-                 so a late failure cannot clear a newer success. */
-              setPreviewFiles({});
+              /* DOC-160 refined (Tranche 7C.4). The hazard DOC-160 guarded
+                 against is a stale document PASSING AS CURRENT — on screen and,
+                 worse, through Download. Blanking the files closed that hole
+                 but turned the YAML preview into an error panel: a single
+                 validation sentence replaced the whole document, which is not
+                 what a preview drawer is for.
+
+                 Both hazards are still closed, without discarding the document:
+                 `previewStale` makes the drawer label it explicitly as the last
+                 generation that succeeded, and Download stays disabled while
+                 `error` is set, so stale YAML can still never leave as current
+                 output. Only generated output is affected; `state` (everything
+                 the user typed) is untouched, and the next success repopulates
+                 normally. Guarded by the request-id check above, so a late
+                 failure cannot mark a newer success stale. */
+              /* DOC-227: reaching here means NOTHING generated — transport
+                 failure, schema migration, or the unsupported-target-version
+                 boundary, which must fail closed for every artifact. That is
+                 the global signal, so any per-artifact errors from the
+                 previous response are cleared rather than compounded. */
+              setPreviewStale(true);
+              setPreviewFileErrors({});
               setPreviewError(String(error?.message || error));
               setPreviewLoading(false);
             }
@@ -1490,7 +1646,7 @@ metadata:
             </div>
           ) : null}
           <div className="main-layout" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <main className="main" id="main-content" aria-label="Wizard step content" ref={mainContentRef} style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+            <main className="main" id="main-content" aria-label="Wizard step content" ref={mainContentRef} onScroll={rememberScroll} style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
               <ErrorBoundary fallbackMessage="Something went wrong in this step; refresh or go back.">
                 <Current
                     previewControls={{ showPreview, setShowPreview }}
@@ -1536,6 +1692,8 @@ metadata:
                 showIncompleteWarning={!!errorFlags[previewStepId]}
                 loading={previewLoading}
                 error={previewError}
+                fileErrors={previewFileErrors}
+                stale={previewStale}
                 resetSizing={false}
               />
             )}
@@ -1820,9 +1978,11 @@ metadata:
 const App = () => (
   <AppProvider>
     <ErrorBoundary>
-      <VersionSupportGate>
-        <AppShell />
-      </VersionSupportGate>
+      <ShellViewProvider>
+        <VersionSupportGate>
+          <AppShell />
+        </VersionSupportGate>
+      </ShellViewProvider>
     </ErrorBoundary>
   </AppProvider>
 );

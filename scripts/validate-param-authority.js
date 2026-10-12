@@ -123,6 +123,48 @@ async function main() {
     script: "scripts/validate-arch-support.js",
   });
 
+  // Canonical -> frontend architecture projection. Registered here for the same
+  // reason as the matrix above: `sync-arch-support.js --check` already existed
+  // but had no npm script and no CI home, unlike its sync-catalogs and
+  // sync-docs-index siblings, so a stale projection could ship unnoticed.
+  // Tranche 7C.
+  run(results, {
+    label: "architecture-support projection parity (canonical -> frontend)",
+    kind: KIND.DATA,
+    script: "scripts/sync-arch-support.js",
+    args: ["--check"],
+  });
+
+  // Platform x installation-method scenario surface. A first-class onboarding
+  // axis: a newly supported combination (Nutanix + Agent) can appear with no
+  // change to fields or architectures, so no other guard here can see it.
+  // Tranche 7C.1.
+  run(results, {
+    label: "platform x methodology scenario surface (all supported minors)",
+    kind: KIND.DATA,
+    script: "scripts/validate-scenario-support.js",
+  });
+
+  // The human-readable evidence ledger is generated from the two authorities
+  // above, so a disposition change that is not reflected in the ledger means
+  // the research record has gone stale. Tranche 7C.2.
+  run(results, {
+    label: "architecture evidence ledger is in sync with the data",
+    kind: KIND.DATA,
+    script: "scripts/gen-architecture-evidence-ledger.js",
+    args: ["--check"],
+  });
+
+  // Frontend production runtime (PROD-026). Registered here for the same
+  // reason as the two above: the single-stage Vite-dev-server image shipped
+  // its whole devDependency tree for an entire release cycle because nothing
+  // in CI asserted what the final image actually runs. Tranche 7C.1.
+  run(results, {
+    label: "frontend production runtime (PROD-026)",
+    kind: KIND.MECHANISM,
+    script: "scripts/validate-frontend-runtime.js",
+  });
+
   const failed = results.filter((r) => r.status !== 0);
 
   console.log("\n=== validate-param-authority summary ===");

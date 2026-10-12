@@ -307,3 +307,96 @@ describe("T7B — structural guard: every generated NMState key is schema-valid"
     );
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* No YAML anchors/aliases in generated config (v2.1 Tranche 7C.3)      */
+/* ------------------------------------------------------------------ */
+
+describe("T7C.3 — generated YAML contains no anchors or aliases", () => {
+  /**
+   * WHAT A HUMAN SAW. Manual QA screenshots showed:
+   *
+   *     ethernet:
+   *       sr-iov: &ref_0
+   *         total-vfs: 12
+   *     ...
+   *     ethernet:
+   *       sr-iov: *ref_0
+   *
+   * which reads alarmingly like the DOC-192 defect returning, and cost a
+   * tester time deciding whether it was one. It was not: the nesting is
+   * correct and an alias resolves to the same mapping.
+   *
+   * MECHANISM. `sriovConfig` is built ONCE per host in buildNmState and then
+   * handed to every interface that needs it — both members of a bond, for
+   * instance. js-yaml serialises a repeated object identity as an anchor plus
+   * an alias. So the anchor count scaled with hosts (one &ref_N per host),
+   * which is the signature of shared object identity rather than of a data
+   * problem.
+   *
+   * FIX. `addEthernet` copies the block per interface, at the point the shared
+   * value becomes per-interface state. Global serialiser options were
+   * deliberately NOT changed: that would alter every generated document to fix
+   * one call site.
+   *
+   * WHY GUARD IT. Generated installation config should be explicit and
+   * diffable. An alias is legal YAML, but it is not something a reader of a
+   * cluster's agent-config should have to decode.
+   */
+  const ANCHOR_OR_ALIAS = /(^|\s)[&*]ref_\d+/;
+
+  const interfaceTypes = ["ethernet", "bond", "vlan-on-bond", "vlan-on-ethernet"];
+
+  for (const minor of SUPPORTED_MINORS) {
+    for (const [label, fixture] of AGENT_SCENARIOS) {
+      for (const type of interfaceTypes) {
+        it(`${minor} / ${label} / ${type}: no anchor or alias with SR-IOV enabled`, () => {
+          const out = buildAgentConfig(stateWithSriov(fixture, minor, { type }));
+          const found = out.match(/[&*]ref_\d+/g) || [];
+          assert.deepEqual(found, [], `anchors/aliases in generated agent-config: ${found.join(", ")}`);
+          assert.equal(ANCHOR_OR_ALIAS.test(out), false);
+        });
+      }
+    }
+  }
+
+  it("every host gets its OWN sr-iov mapping, not a shared reference", () => {
+    // The precise defect: three hosts produced &ref_0, &ref_1, &ref_2 because
+    // each host's two bond members shared one object.
+    const state = stateWithSriov(bareMetalAgent, "4.22", { type: "bond", totalVfs: "12" });
+    const doc = yaml.load(buildAgentConfig(state));
+    assert.equal(doc.hosts.length, 3, "fixture must have multiple hosts to be meaningful");
+
+    const blocks = [];
+    for (const host of doc.hosts) {
+      for (const iface of host.networkConfig.interfaces) {
+        if (iface.ethernet?.["sr-iov"]) blocks.push(iface.ethernet["sr-iov"]);
+      }
+    }
+    assert.ok(blocks.length >= 6, `expected at least 2 members x 3 hosts, got ${blocks.length}`);
+    // Every block must carry the right value...
+    for (const b of blocks) assert.equal(b["total-vfs"], 12);
+    // ...and be a DISTINCT object once parsed, so nothing is aliased.
+    assert.equal(new Set(blocks).size, blocks.length, "parsed sr-iov blocks share identity — an alias survived");
+  });
+
+  it("the parsed document is unchanged by the fix — semantics, not just text", () => {
+    // Guards against "fixing" the anchor by dropping or altering data.
+    const state = stateWithSriov(bareMetalAgent, "4.22", { type: "bond", totalVfs: "12" });
+    const doc = yaml.load(buildAgentConfig(state));
+    for (const host of doc.hosts) {
+      const eths = host.networkConfig.interfaces.filter((i) => i.type === "ethernet");
+      assert.equal(eths.length, 2, "a bond host should emit both member ethernets");
+      for (const e of eths) {
+        assert.deepEqual(e.ethernet, { "sr-iov": { "total-vfs": 12 } });
+        assert.equal("sriov" in e, false, "the DOC-192 top-level key must stay gone");
+      }
+    }
+  });
+
+  it("the guard is not vacuous — it detects an injected alias", () => {
+    const tampered = "a: &ref_0\n  x: 1\nb: *ref_0\n";
+    assert.ok((tampered.match(/[&*]ref_\d+/g) || []).length > 0);
+    assert.equal(ANCHOR_OR_ALIAS.test(tampered), true);
+  });
+});

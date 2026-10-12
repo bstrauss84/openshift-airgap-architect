@@ -27,6 +27,12 @@ import HostInventoryV2Step from "../src/steps/HostInventoryV2Step.jsx";
 import { generateNodesFromCounts } from "../src/hostInventoryV2Helpers.js";
 
 const baseState = {
+  // An explicit minor. These steps are only reachable after version lock-in,
+  // so a real run always carries one; the fixture used to omit it and rely on
+  // the implicit 4.20 default in the catalog readers, which Tranche 7C.1
+  // removed (a versionless state must not silently read baseline metadata).
+  version: { selectedMinor: "4.20", selectedPatch: "4.20.40", selectedChannel: "stable-4.20", locked: true },
+  release: { channel: "4.20", patchVersion: "4.20.40", confirmed: true },
   blueprint: { platform: "Bare Metal", baseDomain: "example.com" },
   methodology: { method: "Agent-Based Installer" },
   hostInventory: { nodes: generateNodesFromCounts(3, 2, 0), ipStackMode: "ipv4" },
@@ -169,8 +175,10 @@ describe("DOC-159 UI path: static routes", () => {
     openAdvanced();
     fireEvent.click(addRouteBtn());
 
-    const boxes = within(drawer()).getAllByRole("textbox");
-    const dest = boxes.find((i) => /destination/i.test(i.closest("label")?.textContent || ""));
+    /* Route fields now carry FieldLabelWithInfo help labels, so the control is
+       a sibling of its <label> rather than nested inside it. Address them by
+       accessible name. */
+    const dest = within(drawer()).getByLabelText("Destination");
     expect(dest).toBeTruthy();
     fireEvent.change(dest, { target: { value: "10.9.0.0/24" } });
     expect(routes()[0].destination).toBe("10.9.0.0/24");
@@ -185,15 +193,11 @@ describe("DOC-159 UI path: static routes", () => {
     expect(routes()).toHaveLength(2);
 
     // Tag them so removal is observable.
-    const destInputs = within(drawer())
-      .getAllByRole("textbox")
-      .filter((i) => /destination/i.test(i.closest("label")?.textContent || ""));
+    const destInputs = within(drawer()).getAllByLabelText("Destination");
     expect(destInputs).toHaveLength(2);
     fireEvent.change(destInputs[0], { target: { value: "10.1.0.0/24" } });
     fireEvent.change(
-      within(drawer())
-        .getAllByRole("textbox")
-        .filter((i) => /destination/i.test(i.closest("label")?.textContent || ""))[1],
+      within(drawer()).getAllByLabelText("Destination")[1],
       { target: { value: "10.2.0.0/24" } }
     );
     expect(routes().map((r) => r.destination)).toEqual(["10.1.0.0/24", "10.2.0.0/24"]);

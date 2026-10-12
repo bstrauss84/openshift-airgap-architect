@@ -23,6 +23,12 @@ import { resolveArchitectureSupport, ARCHITECTURES } from "../../shared/archSupp
 import { getScenarioId } from "../../shared/scenarioId.js";
 import { loadArchSupportDataset } from "./archSupportData.js";
 import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
+import {
+  PRIMARY_NAME_FALLBACKS,
+  resolveBaseInterfaceName,
+  resolveVlanInterfaceName,
+  resolveEffectiveInterfaceName
+} from "../../shared/interfaceNaming.js";
 import { stripProxyCredentials } from "../../shared/stateSanitizer.js";
 
 function validateAwsRootVolumeThroughput(value, volumeType) {
@@ -100,9 +106,19 @@ const buildRootDeviceHints = (node) => {
  * platform.baremetal.provisioningNetworkGateway (OpenShift 4.22+).
  *
  * Emitted only when the target minor carries the field AND the provisioning
- * network is Managed. openshift-install accepts the key with Unmanaged or
- * Disabled and then ignores it, so emitting it there would put a line in the
- * user's install-config that does nothing.
+ * network is Managed.
+ *
+ * DO NOT RELAX THE MANAGED GATE. openshift-install does accept the key with
+ * Unmanaged or Disabled and ignore it, but that is not the end of the story:
+ * the installer copies the value verbatim into the Provisioning CR with no
+ * mode gating (pkg/asset/manifests/openshift.go), and
+ * cluster-baremetal-operator then REJECTS it —
+ * api/v1alpha1/provisioning_validation.go: "provisioningNetworkGateway is only
+ * supported for Managed provisioning network". The result is a Degraded
+ * `baremetal` ClusterOperator after an otherwise successful install. Emitting
+ * this key outside Managed mode is therefore a cluster fault, not cosmetic
+ * noise. Verified against openshift/installer and cluster-baremetal-operator
+ * at the pinned 4.22 release commit.
  *
  * The documented relationships are enforced before emission because the shipped
  * 4.22.16 binary does not enforce them (shared/provisioningNetworkGateway.js).
@@ -576,9 +592,35 @@ const buildInstallConfig = (state) => {
       if (hi.provisioningNetwork && ["Managed", "Unmanaged", "Disabled"].includes(hi.provisioningNetwork)) {
         baremetal.provisioningNetwork = hi.provisioningNetwork;
       }
+      /* Provisioning-mode applicability (Tranche 7C.4). Verified against the
+         pinned installer commits for 4.20/4.21/4.22 and the Red Hat bare-metal
+         book; see docs/minor-release/4.22/PROVISIONING_MODE_APPLICABILITY.md.
+         Values are kept in state across a mode change — only emission is gated,
+         so returning to a mode restores the user's input.
+
+           provisioningNetworkCIDR   — emitted in EVERY mode. Red Hat: "If you
+             configure this setting, it must have a valid CIDR address even if
+             the provisioning network is Disabled." The installer itself
+             defaults it in Disabled mode from the machine network.
+           provisioningNetworkInterface — omitted when Disabled. Red Hat:
+             "Omit the provisioningInterface configuration setting if the
+             provisioning network is Disabled."
+           provisioningDHCPRange     — Managed only. Red Hat: "This setting is
+             only applicable to a Managed provisioning network. Omit this
+             configuration setting if the provisioning network is Disabled."
+             cluster-baremetal-operator forcibly clears it for any non-Managed
+             mode, so emitting it elsewhere is dead text in the user's file.
+           clusterProvisioningIP     — emitted in every mode; in Disabled it is
+             how the user supplies the bare-metal-network address the
+             provisioning services use. */
+      const provisioningMode = hi.provisioningNetwork;
       if (hi.provisioningNetworkCIDR) baremetal.provisioningNetworkCIDR = hi.provisioningNetworkCIDR;
-      if (hi.provisioningNetworkInterface) baremetal.provisioningNetworkInterface = hi.provisioningNetworkInterface;
-      if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
+      if (hi.provisioningNetworkInterface && provisioningMode !== "Disabled") {
+        baremetal.provisioningNetworkInterface = hi.provisioningNetworkInterface;
+      }
+      if (hi.provisioningDHCPRange && provisioningMode === "Managed") {
+        baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
+      }
       if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
       if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
       applyProvisioningNetworkGateway(baremetal, hi, selectedMinor);
@@ -1522,9 +1564,48 @@ const buildNmState = (node) => {
     return Number.isNaN(next) ? undefined : next;
   };
 
-  const addIpConfig = (iface, mode, addrV4, prefixV4, addrV6, prefixV6) => {
+  /* Which address families each emitted interface ends up with. Routes are
+     validated against THEIR OWN next-hop interface, which is what nmstate
+     actually enforces, so this has to be recorded as interfaces are built. */
+  const ipFamiliesByInterface = new Map();
+  /** Extra routes, held until every interface exists. See flushExtraRoutes. */
+  const pendingExtraRoutes = [];
+
+  /**
+   * Apply IPv4/IPv6 addressing to one interface.
+   *
+   * `allowV4` / `allowV6` are PARAMETERS, not closure reads, because the two
+   * call paths have genuinely different contracts (Tranche 7C.4A):
+   *
+   *   PRIMARY cluster/node endpoint path — cluster-stack-coupled. The host must
+   *   hold an address in every machine network (assisted-service
+   *   `belongs-to-machine-cidr`), and node-IP selection derives from the
+   *   default-route/VIP-routing interface with a cluster-derived `preferIPv6`
+   *   (baremetal-runtimecfg `node-ip.go`). So the cluster stack mode governs
+   *   here, and callers pass the cluster-derived flags.
+   *
+   *   ADDITIONAL / SECONDARY interfaces — independent. `hosts[].networkConfig`
+   *   is delegated wholesale to NMState by Red Hat ("The configuration must
+   *   match the Host Network Management API defined in the Declarative Network
+   *   API", ABI 4.20/4.21/4.22 §9.2.2 Table 9.8). `interfaces[].ipv4` and
+   *   `interfaces[].ipv6` are independent per-interface sub-objects; nothing in
+   *   the installer, assisted-service or the docs requires a secondary
+   *   interface to match the cluster stack, and Red Hat itself requires a
+   *   separate storage network for iSCSI boot (ABI §7.1) with no family
+   *   constraint. Verified empirically: an IPv4 primary with an IPv6-only
+   *   secondary ethernet and VLAN passes `nmstatectl gc` — the same binary the
+   *   installer shells out to in `ValidateStaticConfigParams`.
+   *
+   *   An earlier revision closed over the cluster flags for BOTH paths and
+   *   silently discarded a storage/management address that differed from the
+   *   cluster stack. That was a capability regression, not a Red Hat contract.
+   */
+  const addIpConfig = (iface, mode, addrV4, prefixV4, addrV6, prefixV6, allowV4, allowV6, isPrimaryL3 = false) => {
+    const permitV4 = allowV4 === undefined ? enableIpv4 : allowV4;
+    const permitV6 = allowV6 === undefined ? enableIpv6 : allowV6;
+
     // IPv4 configuration
-    if (enableIpv4) {
+    if (permitV4) {
       if (mode === "dhcp") {
         iface.ipv4 = { enabled: true, dhcp: true };
       } else if (addrV4) {
@@ -1537,10 +1618,63 @@ const buildNmState = (node) => {
     }
 
     // IPv6 configuration
-    if (enableIpv6 && addrV6) {
+    if (permitV6 && addrV6) {
       iface.ipv6 = { enabled: true, dhcp: false, address: [{ ip: addrV6, "prefix-length": prefixV6 }] };
     } else {
       iface.ipv6 = { enabled: false };
+    }
+
+    /* INCOMPLETE IS NOT THE SAME AS DISABLED.
+     *
+     * `enabled: false` is a statement of intent — "this interface
+     * deliberately carries no address of this family" — and NMState treats it
+     * that way: per the Declarative Network API, `enabled: false` removes the
+     * address, and for IPv6 the link-local address too.
+     *
+     * A static interface whose required address has simply not been typed yet
+     * is a DIFFERENT state. Falling through to `enabled: false` for both
+     * families silently rewrote "static IPv6 selected, address still missing"
+     * as "IPv6 intentionally off", and emitted a confident-looking document
+     * describing a node with no address of any family. That is how a
+     * vlan-on-bond primary in an IPv6-only cluster produced `bond0.90` with
+     * both families disabled, which in turn made every IPv4 route out of it
+     * un-appliable — a downstream symptom of the false state, not a separate
+     * fault.
+     *
+     * The repository's established contract for a current state that cannot
+     * be generated is to fail generation and let the preview keep the last
+     * valid document under an explicit banner (DOC-160 as refined, now
+     * per-artifact under DOC-227). `buildNmState` already does exactly this
+     * for an empty interface name. Do the same here rather than inventing a
+     * third representation.
+     *
+     * Note this is a completeness check, not a family check: ONE family is
+     * enough. A dual-stack host with only an IPv4 address is fine, and so is
+     * a secondary interface carrying only IPv6.
+     *
+     * SCOPED TO THE PRIMARY L3 CARRIER ON PURPOSE. The IP-assignment control
+     * offers only DHCP and Static — there is no "none" — so an unaddressed
+     * SECONDARY interface is the only way to express a legitimate L2-only NIC
+     * (one that exists for MTU, SR-IOV or as a bond carrier). For a secondary,
+     * `enabled: false` genuinely is the right NMState representation and
+     * refusing it would remove a capability. For the primary it is not: that
+     * interface carries the node address and must be in the machine network
+     * (assisted-service `belongs-to-machine-cidr`), so an unaddressed primary
+     * is unambiguously incomplete, never intentional.
+     */
+    if (isPrimaryL3 && mode === "static" && iface.ipv4.enabled !== true && iface.ipv6.enabled !== true) {
+      const wanted = permitV6 && !permitV4 ? "IPv6" : !permitV6 && permitV4 ? "IPv4" : "IPv4 or IPv6";
+      throw new Error(
+        `Interface "${iface?.name || "(unnamed)"}" is set to static addressing but has no ` +
+          `${wanted} address. Enter one, or set this interface to DHCP.`
+      );
+    }
+
+    if (iface?.name) {
+      ipFamiliesByInterface.set(iface.name, {
+        ipv4: iface.ipv4?.enabled === true,
+        ipv6: iface.ipv6?.enabled === true
+      });
     }
   };
 
@@ -1568,16 +1702,89 @@ const buildNmState = (node) => {
     });
   }
 
-  const extraRoutes = primary.advanced?.routes || [];
-  extraRoutes.forEach((route) => {
-    if (!route?.destination || !route?.nextHopAddress) return;
-    config.routes.config.push({
-      destination: route.destination,
-      "next-hop-address": route.nextHopAddress,
-      "next-hop-interface": route.nextHopInterface || primaryIfaceName,
-      "table-id": 254
+  /**
+   * Address family of a user-entered extra route.
+   *
+   * NMState routes are family-specific: a route whose next hop is reached over
+   * a family the interface has `enabled: false` for is not a no-op, it is an
+   * invalid desired state. `addIpConfig` disables IPv4 outright when the
+   * cluster IP stack mode is IPv6-only (and vice versa), so an extra route in
+   * the other family must not be emitted against it.
+   *
+   * The destination decides the family; the next hop is consulted only when the
+   * destination is unparseable, because the two must agree and the destination
+   * is the field NMState keys the route on. A ":" is sufficient to discriminate
+   * — it cannot appear in an IPv4 destination or address.
+   */
+  const routeAddressFamily = (route) => {
+    const destination = String(route?.destination ?? "");
+    const nextHop = String(route?.nextHopAddress ?? "");
+    if (destination.includes(":")) return "ipv6";
+    if (destination.includes(".")) return "ipv4";
+    return nextHop.includes(":") ? "ipv6" : "ipv4";
+  };
+
+  /**
+   * Emit the user's extra static routes for one interface.
+   *
+   * `defaultNextHopInterface` is that interface's own effective name, so a
+   * route left without an explicit next-hop interface attaches to the interface
+   * it was authored under rather than to the primary.
+   *
+   * NOTE — deliberately NOT gated on `mode === "static"`. A static route on a
+   * DHCP interface is a legitimate NMState desired state (DHCP supplies the
+   * default route; the extra route reaches somewhere DHCP does not advertise),
+   * and dropping routes the user explicitly entered would be the same silent
+   * data loss this change is removing. Out-of-FAMILY routes are dropped because
+   * they cannot be expressed at all; the UI reports those as validation errors
+   * rather than letting them disappear unexplained.
+   */
+  const addExtraRoutes = (routes, defaultNextHopInterface) => {
+    (routes || []).forEach((route) => {
+      const destination = String(route?.destination ?? "").trim();
+      const nextHopAddress = String(route?.nextHopAddress ?? "").trim();
+      if (!destination || !nextHopAddress) return;
+      const family = routeAddressFamily({ destination, nextHopAddress });
+      const nextHopInterface =
+        String(route?.nextHopInterface ?? "").trim() || defaultNextHopInterface;
+      if (!nextHopInterface) return;
+      /* nmstate rejects a route only when its family is disabled on the route's
+         OWN next-hop interface — `rust/src/lib/route.rs`: "The next hop
+         interface of desired Route '...' has been marked as IPv6 disabled".
+         It has no opinion about the cluster stack mode. An earlier revision
+         filtered on the cluster families, which silently dropped a legitimate
+         route out of a secondary storage/management interface. Only drop when
+         we KNOW the family is disabled on that interface; a free-text
+         next-hop naming an interface we did not emit is left to validation,
+         which checks the name against the generated interface set. */
+      pendingExtraRoutes.push({ destination, nextHopAddress, nextHopInterface, family });
     });
-  });
+  };
+
+  /**
+   * Emit the queued extra routes once every interface exists.
+   *
+   * Route emission is DEFERRED because the family test above is per next-hop
+   * interface, and the primary's routes are collected before any interface has
+   * been built. Testing at collection time would always find an empty map and
+   * fail open, emitting a route nmstate will reject.
+   */
+  const flushExtraRoutes = () => {
+    for (const route of pendingExtraRoutes) {
+      const families = ipFamiliesByInterface.get(route.nextHopInterface);
+      // Unknown interface: not ours to judge. Validation checks the name
+      // against the generated interface set and reports it there.
+      if (families && families[route.family] !== true) continue;
+      config.routes.config.push({
+        destination: route.destination,
+        "next-hop-address": route.nextHopAddress,
+        "next-hop-interface": route.nextHopInterface,
+        "table-id": 254
+      });
+    }
+  };
+
+  addExtraRoutes(primary.advanced?.routes, primaryIfaceName);
 
   /**
    * Add an ethernet interface to the NMState document.
@@ -1600,7 +1807,25 @@ const buildNmState = (node) => {
   const addEthernet = (name, mtu, sriov) => {
     const entry = { name, type: "ethernet", state: "up" };
     if (mtu) entry.mtu = mtu;
-    if (sriov) entry.ethernet = { ...entry.ethernet, "sr-iov": sriov };
+    // COPY the sr-iov block per interface. `sriovConfig` is built once per host
+    // and handed to every bond member, so assigning the reference directly made
+    // two interfaces share one object. js-yaml serialises a repeated object
+    // identity as a YAML anchor and alias, which produced:
+    //
+    //     ethernet:
+    //       sr-iov: &ref_0
+    //         total-vfs: 12
+    //     ...
+    //     ethernet:
+    //       sr-iov: *ref_0
+    //
+    // That parses to the right thing — aliases are resolved before any consumer
+    // sees them — but generated installation config should be explicit and
+    // diffable, and an unexplained anchor invites exactly the "is this the
+    // DOC-192 bug again?" question it got during manual QA. Copying here fixes
+    // it at the point the shared value becomes per-interface state, rather than
+    // by changing YAML serialisation globally for every generated document.
+    if (sriov) entry.ethernet = { ...entry.ethernet, "sr-iov": { ...sriov } };
     config.interfaces.push(entry);
     return entry;
   };
@@ -1640,15 +1865,29 @@ const buildNmState = (node) => {
     });
   };
 
-  const addVlan = (vlan, mtu) => {
-    const baseIface = vlan.baseIface;
-    const id = Number(vlan.id);
-    const name = vlan.name || (baseIface && vlan.id ? `${baseIface}.${vlan.id}` : "");
+  /**
+   * Add the VLAN interface for a row whose base interface has already been
+   * emitted.
+   *
+   * `emittedBaseName` is the name the base interface was ACTUALLY written with
+   * (after the primary's eth0/bond0 substitution), so the VLAN's `base-iface`
+   * can never name an interface that is not in the document.
+   *
+   * Naming is delegated to shared/interfaceNaming.js — the same function the
+   * node editor calls to render "VLAN Interface Name (auto)". Deriving it here
+   * a second time is what let the UI show `eno2.100` for a VLAN the generator
+   * named `bond0.100`.
+   */
+  const addVlan = (iface, emittedBaseName, mtu) => {
+    const fallbacks = { ethernet: emittedBaseName, bond: emittedBaseName };
     const entry = {
-      name,
+      name: resolveVlanInterfaceName(iface, fallbacks),
       type: "vlan",
       state: "up",
-      vlan: { "base-iface": baseIface, id }
+      vlan: {
+        "base-iface": resolveBaseInterfaceName(iface, fallbacks),
+        id: Number(iface?.vlan?.id)
+      }
     };
     if (mtu) entry.mtu = mtu;
     config.interfaces.push(entry);
@@ -1661,32 +1900,26 @@ const buildNmState = (node) => {
 
   if (primary.type === "ethernet") {
     const eth = addEthernet(primary.ethernet?.name || "eth0", baseMtu, sriovConfig);
-    addIpConfig(eth, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    addIpConfig(eth, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
   if (primary.type === "bond") {
     addBondMemberEthernets(primary.bond, baseMtu, sriovConfig);
     const bond = addBond(primary.bond || {}, baseMtu);
-    addIpConfig(bond, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    addIpConfig(bond, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
   if (primary.type === "vlan-on-ethernet") {
     const eth = addEthernet(primary.ethernet?.name || "eth0", baseMtu, sriovConfig);
-    const vlan = addVlan(
-      { ...primary.vlan, baseIface: primary.vlan.baseIface || eth.name },
-      baseMtu
-    );
-    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    const vlan = addVlan(primary, eth.name, baseMtu);
+    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
   if (primary.type === "vlan-on-bond") {
     addBondMemberEthernets(primary.bond, baseMtu, sriovConfig);
     const bond = addBond(primary.bond || {}, baseMtu);
-    const vlan = addVlan(
-      { ...primary.vlan, baseIface: primary.vlan.baseIface || bond.name },
-      baseMtu
-    );
-    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    const vlan = addVlan(primary, bond.name, baseMtu);
+    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
   const addVrfInterface = (vrfConfig, logicalIfaceName) => {
@@ -1747,6 +1980,12 @@ const buildNmState = (node) => {
     const ipv4Prefix = Number(iface.ipv4Cidr?.split("/")?.[1] || 24);
     const ipv6Addr = iface.ipv6Cidr?.split("/")?.[0];
     const ipv6Prefix = Number(iface.ipv6Cidr?.split("/")?.[1] || 64);
+    /* Secondary interfaces are NOT cluster-stack-coupled (see addIpConfig).
+       What the user configured is the request: an address enables its family,
+       no address disables it. `true, true` hands that decision to the existing
+       per-address logic below instead of to the cluster stack mode. */
+    const EXTRA_ALLOW_V4 = true;
+    const EXTRA_ALLOW_V6 = true;
     const baseMtu = toNumber(iface.advanced?.mtu);
     const sriovEnabled = iface.advanced?.sriov?.enabled && toNumber(iface.advanced?.sriov?.totalVfs);
     const sriovConfig = sriovEnabled ? { "total-vfs": toNumber(iface.advanced?.sriov?.totalVfs) } : null;
@@ -1754,38 +1993,40 @@ const buildNmState = (node) => {
 
     if (iface.type === "ethernet") {
       const eth = addEthernet(iface.ethernet?.name, baseMtu, sriovConfig);
-      addIpConfig(eth, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      addIpConfig(eth, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
       logicalIfaceName = eth.name;
     }
     if (iface.type === "bond") {
       addBondMemberEthernets(iface.bond, baseMtu, sriovConfig);
       const bond = addBond(iface.bond || {}, baseMtu);
-      addIpConfig(bond, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      addIpConfig(bond, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
       logicalIfaceName = bond.name;
     }
     if (iface.type === "vlan-on-ethernet") {
       const eth = addEthernet(iface.ethernet?.name, baseMtu, sriovConfig);
-      const vlan = addVlan(
-        { ...iface.vlan, baseIface: iface.vlan.baseIface || eth.name },
-        baseMtu
-      );
-      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      const vlan = addVlan(iface, eth.name, baseMtu);
+      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
       logicalIfaceName = vlan.name;
     }
     if (iface.type === "vlan-on-bond") {
       addBondMemberEthernets(iface.bond, baseMtu, sriovConfig);
       const bond = addBond(iface.bond || {}, baseMtu);
-      const vlan = addVlan(
-        { ...iface.vlan, baseIface: iface.vlan.baseIface || bond.name },
-        baseMtu
-      );
-      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      const vlan = addVlan(iface, bond.name, baseMtu);
+      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
       logicalIfaceName = vlan.name;
     }
     if (logicalIfaceName) {
       addVrfInterface(iface.advanced?.vrf, logicalIfaceName);
+      /* `additionalInterfaces[].advanced.routes` existed in state (seeded by
+         createInterfaceConfig) and was read by nothing: anything an imported
+         run carried there was discarded at generation without a word. It is
+         emitted here, keyed to this interface's own effective name, which is
+         the only next hop that is guaranteed to exist in the document. */
+      addExtraRoutes(iface.advanced?.routes, logicalIfaceName);
     }
   });
+
+  flushExtraRoutes();
 
   const seen = new Set();
   for (const iface of config.interfaces) {
@@ -1802,16 +2043,23 @@ const buildNmState = (node) => {
   return config;
 };
 
+/**
+ * The name of the primary interface that carries L3 — used as the default
+ * `next-hop-interface` for the default route and for any extra route the user
+ * did not pin to an interface.
+ *
+ * Delegates to shared/interfaceNaming.js so this agrees with `addVlan` and with
+ * the node editor by construction. One behaviour changed in doing so: a
+ * `vlan-on-bond` primary whose bond name is blank now falls back to **bond0**,
+ * not eth0. buildNmState emits that bond as `bond0`, so the old fallback
+ * produced a route pointing at an interface the document does not contain.
+ */
 const getPrimaryInterfaceName = (primary) => {
-  if (!primary) return "eth0";
-  if (primary.type === "vlan-on-ethernet" || primary.type === "vlan-on-bond") {
-    const base = primary.vlan?.baseIface
-      || (primary.type === "vlan-on-bond" ? primary.bond?.name : primary.ethernet?.name)
-      || "eth0";
-    return primary.vlan?.name || (primary.vlan?.id ? `${base}.${primary.vlan.id}` : base);
-  }
-  if (primary.type === "bond") return primary.bond?.name || "bond0";
-  return primary.ethernet?.name || "eth0";
+  if (!primary) return PRIMARY_NAME_FALLBACKS.ethernet;
+  return (
+    resolveEffectiveInterfaceName(primary, PRIMARY_NAME_FALLBACKS)
+    || PRIMARY_NAME_FALLBACKS.ethernet
+  );
 };
 
 const collectPhysicalInterfaces = (node) => {

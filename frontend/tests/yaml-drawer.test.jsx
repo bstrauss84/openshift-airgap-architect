@@ -100,9 +100,19 @@ metadata:
     expect(screen.getByLabelText('Close YAML Preview')).toBeInTheDocument();
   });
 
-  it('shows loading state when loading', () => {
-    render(<YamlDrawer {...defaultProps} loading={true} />);
+  it('shows loading state when there is nothing to show yet', () => {
+    render(<YamlDrawer {...defaultProps} previewFiles={{}} loading={true} />);
     expect(screen.getByText('Generating...')).toBeInTheDocument();
+  });
+
+  it('keeps the current document on screen while regenerating', () => {
+    /* Tranche 7C.4: the document used to be unmounted for the duration of
+       every regeneration. That collapsed the scroll container and the browser
+       reset scrollTop, so the preview jumped back to the top each time a field
+       was edited and blurred. It must stay mounted. */
+    render(<YamlDrawer {...defaultProps} loading={true} />);
+    expect(document.querySelector('pre.yaml-preview')).toBeTruthy();
+    expect(screen.queryByText('Generating...')).toBeNull();
   });
 
   it('shows error when error is provided', () => {

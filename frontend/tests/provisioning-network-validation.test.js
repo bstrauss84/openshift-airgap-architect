@@ -63,13 +63,17 @@ describe("Provisioning Network Validation", () => {
       expect(formatError).toBeDefined();
     });
 
-    it("rejects DHCP range with invalid IPv4 addresses", () => {
+    it("rejects DHCP range with a malformed address", () => {
+      /* Wording widened in Tranche 7C.4: the provisioning network may be IPv4
+         OR IPv6, so the message no longer names a family. The rejection is the
+         contract; "valid IPv4" was the old, family-specific phrasing.
+         Family-specific coverage: tests/provisioning-network-ip-family.test.js */
       const state = makeBaseState();
       state.hostInventory.provisioningDHCPRange = "172.22.0.999,172.22.0.254";
 
       const result = validateStep(state, "networking");
 
-      const ipError = result.errors.find(err => err.includes("valid IPv4"));
+      const ipError = result.errors.find(err => /must be valid IP addresses/i.test(err));
       expect(ipError).toBeDefined();
     });
   });

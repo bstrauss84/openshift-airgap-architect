@@ -10,7 +10,24 @@
  */
 import { generateRequestId, logError } from "./logger.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+/**
+ * Resolution order, most specific first:
+ *
+ *   1. window.__OAA_RUNTIME_CONFIG__.apiBase — written at container start from
+ *      the VITE_API_BASE environment variable. This exists because a Vite
+ *      production build inlines `import.meta.env` at BUILD time, so without it
+ *      the documented runtime override (docker-compose.yml `environment:`, and
+ *      the frontend Deployment's ConfigMap) would silently stop working the
+ *      moment the Vite dev server was replaced by a static build.
+ *   2. import.meta.env.VITE_API_BASE — the dev server, and any build that bakes
+ *      a value deliberately.
+ *   3. localhost:4000 — the documented same-host default.
+ *
+ * An empty string at step 1 means "not configured", not "use an empty origin".
+ */
+const runtimeApiBase =
+  typeof window !== "undefined" ? window.__OAA_RUNTIME_CONFIG__?.apiBase : undefined;
+const API_BASE = runtimeApiBase || import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 function isExpectedAbort(err, signal) {
   return !!err && err instanceof DOMException && err.name === "AbortError" && signal?.aborted === true;

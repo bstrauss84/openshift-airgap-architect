@@ -36,7 +36,8 @@ All retrieved **2026-10-07**. Offsets read are recorded in
 | Book / page | Used for |
 |---|---|
 | `release_notes` | deprecated+removed tables; TP tables §1.9.3/§1.9.5/§1.9.7; ARM-on-x86 bare metal |
-| `installing_on_bare_metal/installer-provisioned-infrastructure` | `provisioningNetworkGateway`, §3.3.15 |
+| `installing_on_bare_metal/installer-provisioned-infrastructure` | **negative result** — `provisioningNetworkGateway` is **NOT** documented here (see §3a) |
+| `provisioning_apis/provisioning-metal3-io-v1alpha1` | `provisioningNetworkGateway`, Ch.13 §13.1.1 `.spec` — the only Red Hat page that documents it |
 | `installation_overview/installing-preparing` | Table 2.1; FIPS architecture statement |
 | `.../agent-based-installer/preparing-to-install-with-agent-based-installer` | NMState examples §1.5.3, §1.8, §1.9 |
 | `.../agent-based-installer/installation-config-parameters-agent` | §9.2; NMState tokens verified **NOT PRESENT** |
@@ -94,6 +95,38 @@ Agent-based Installer or `agent-config.yaml` appears, and it contains **no** enu
 supported bond-mode list. Recorded explicitly so a future agent does not cite it as
 justification for an `agent-config.yaml` catalog row. See
 [`DOC165_GENERATED_CONFIG_COVERAGE_4.22.md`](DOC165_GENERATED_CONFIG_COVERAGE_4.22.md).
+
+## 3a. `provisioningNetworkGateway` is NOT in the bare-metal IPI install chapter
+
+**Corrected in Tranche 7C.4.** The §2 inventory previously claimed this book documented
+`provisioningNetworkGateway` at §3.3.15. That claim was false, and the acquisition record
+shows why: `docs-sources-4.22.json` recorded `"offsetsRead": [0, 100000]` for this URL, and
+the first ~100 kB of the page is site-wide navigation — the parameter tables were never
+read. The claim was recorded from the chrome.
+
+Re-verified by grepping the full raw HTML (4,325,432 bytes, fetched with `curl`, HTTP 200):
+
+| Page | 4.20 | 4.21 | 4.22 |
+|---|---|---|---|
+| `installing_on_bare_metal/installer-provisioned-infrastructure` | 0 | 0 | **0** |
+| `installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent` | 0 | 0 | 0 |
+| `provisioning_apis/provisioning-metal3-io-v1alpha1` | 0 | 0 | **2** |
+
+Controls on the same IPI page are identical across all three minors
+(`provisioningNetworkCIDR` 8, `provisioningNetworkInterface` 6, `provisioningDHCPRange` 2,
+`clusterProvisioningIP` 2, `bootstrapProvisioningIP` 2), so the zero is a real absence and
+not a truncated fetch.
+
+The field is real and is genuinely new at 4.22 — introduced by openshift/installer commit
+`3a247e3c116c8c1ebadb6c3a5709811066074232` (2026-03-12, PR #10387, OCPBUGS-78151), present
+on `release-4.22` and later only, with **zero** whole-tree occurrences at the pinned 4.20
+(`0c11c37e`) and 4.21 (`006669f5`) release commits. Only its *documentation* location was
+mis-recorded. The canonical catalog citation in `data/params/4.22/bare-metal-ipi.json` was
+always correct and is unchanged.
+
+**Lesson for the acquisition step:** an `offsetsRead` window that never reaches the
+parameter tables cannot support a positive claim about a parameter. Other entries in §2
+recorded with `[0, 100000]` on a long page should be re-checked the same way.
 
 ## 4. Compartment plan and what must change from 4.21
 

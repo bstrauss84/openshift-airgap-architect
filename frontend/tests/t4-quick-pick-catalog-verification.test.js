@@ -22,6 +22,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { scenarios } from "../src/shared/operatorQuickPicks.js";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, "..", "..");
 
@@ -30,51 +32,26 @@ const SCAN = JSON.parse(
 );
 const SRC = readFileSync(join(REPO, "frontend", "src", "steps", "OperatorsStep.jsx"), "utf8");
 
-/** Split the real `scenarios` array into its top-level Quick Pick objects. */
-function quickPickObjects() {
-  const start = SRC.search(/const\s+scenarios\s*=\s*\[/);
-  let i = SRC.indexOf("[", start);
-  let depth = 0;
-  for (; i < SRC.length; i++) {
-    if (SRC[i] === "[") depth++;
-    else if (SRC[i] === "]") { depth--; if (depth === 0) break; }
-  }
-  const arr = SRC.slice(start, i + 1);
-  const objs = [];
-  let d = 0, s = -1;
-  for (let k = 0; k < arr.length; k++) {
-    if (arr[k] === "{") { if (d === 0) s = k; d++; }
-    else if (arr[k] === "}") { d--; if (d === 0) objs.push(arr.slice(s, k + 1)); }
-  }
-  return objs.map((body) => ({
-    id: (body.match(/id:\s*"([^"]+)"/) || [])[1],
-    versionAware: /versionPicks:/.test(body),
-    body,
-  }));
-}
-
-/** `{ catalogId: [packageName, ...] }` from a `{ redhat: [...], certified: [...] }` body. */
-function parseCatalogLists(fragment) {
-  const out = {};
-  for (const m of fragment.matchAll(/(\w+):\s*\[([^\]]*)\]/g)) {
-    out[m[1]] = m[2].split(",").map((x) => x.trim().replace(/"/g, "")).filter(Boolean);
-  }
-  return out;
-}
+/**
+ * The Quick Pick table moved out of `OperatorsStep.jsx` into a shared module so
+ * cross-minor reconciliation can re-evaluate pick MEMBERSHIP against the
+ * destination minor's row. This file reads the real exported data instead of
+ * regex-parsing the step source — strictly stronger, same assertions. `SRC`
+ * stays pointed at the step for the assertions that are about `applyScenario`
+ * itself, which did not move.
+ */
 
 /** `{ catalogId: [packageName, ...] }` for a flat Quick Pick. */
-function flatPicks(body) {
-  return parseCatalogLists((body.match(/picks:\s*\{([\s\S]*?)\n\s*\}/) || [])[1] || "");
+function flatPicks(pick) {
+  return pick.picks || {};
 }
 
 /** The declared `"<minor>"` row of a version-aware Quick Pick, or null if absent. */
-function versionRow(body, minor) {
-  const re = new RegExp(`"${minor.replace(".", "\\.")}":\\s*\\{([^}]*)\\}`);
-  const m = body.match(re);
-  return m ? parseCatalogLists(m[1]) : null;
+function versionRow(pick, minor) {
+  return pick.versionPicks?.[minor] || null;
 }
 
-const ALL = quickPickObjects();
+const ALL = scenarios.map((pick) => ({ ...pick, versionAware: Boolean(pick.versionPicks) }));
 const FLAT = ALL.filter((p) => !p.versionAware);
 const VERSION_AWARE = ALL.filter((p) => p.versionAware);
 
@@ -102,7 +79,7 @@ describe("T4 — Quick Pick inventory", () => {
 
   it("every flat Quick Pick yields a parseable package list", () => {
     for (const p of FLAT) {
-      const picks = flatPicks(p.body);
+      const picks = flatPicks(p);
       expect(Object.keys(picks).length, p.id).toBeGreaterThan(0);
     }
   });
@@ -110,7 +87,7 @@ describe("T4 — Quick Pick inventory", () => {
 
 describe("T4 — every flat Quick Pick package against the real 4.22 catalog", () => {
   for (const p of FLAT) {
-    const picks = flatPicks(p.body);
+    const picks = flatPicks(p);
     for (const [catalogId, names] of Object.entries(picks)) {
       for (const name of names) {
         const present = Object.prototype.hasOwnProperty.call(catalogFor(catalogId, "4.22"), name);
@@ -151,7 +128,14 @@ describe("T4 — the two absent packages, characterised", () => {
 
   it("a missing package is skipped SILENTLY, which is what makes this matter", () => {
     expect(SRC).toMatch(/if \(!found\) return;/);
-    const applyScenario = SRC.slice(SRC.indexOf("const picks = scenario.versionPicks"), SRC.indexOf("const picks = scenario.versionPicks") + 1200);
+    // The anchor is the real `applyScenario` body. It used to be a string that
+    // no longer existed in the source, which made the slice empty and the
+    // assertion below vacuous; the claim is the same, it is now actually made.
+    const start = SRC.indexOf("const applyScenario =");
+    const end = SRC.indexOf("const removeScenarioOperators =");
+    expect(start, "applyScenario not found").toBeGreaterThan(-1);
+    expect(end, "removeScenarioOperators not found").toBeGreaterThan(start);
+    const applyScenario = SRC.slice(start, end);
     expect(applyScenario).not.toMatch(/warn|notFound|missingPackage/i);
   });
 });
@@ -195,7 +179,7 @@ describe("T4A — a required Quick Pick package cannot disappear silently", () =
   ];
 
   for (const p of FLAT) {
-    const picks = flatPicks(p.body);
+    const picks = flatPicks(p);
     for (const [catalogId, names] of Object.entries(picks)) {
       const index = catalogId === "certified" ? "certified" : "redhat";
       for (const [idx, minor] of SCANNED) {
@@ -229,7 +213,7 @@ describe("T4A — a required Quick Pick package cannot disappear silently", () =
   // which is precisely the B1 failure mode, just one level down.
   for (const p of VERSION_AWARE) {
     for (const [idx, minor] of SCANNED) {
-      const row = versionRow(p.body, minor);
+      const row = versionRow(p, minor);
       if (!row) continue;
       const names = row[idx === "certified" ? "certified" : "redhat"];
       if (!names || !names.length) continue;
@@ -257,9 +241,9 @@ describe("T4A — a required Quick Pick package cannot disappear silently", () =
 
   it("the disposition registry carries no entry for a package no Quick Pick names", () => {
     const named = new Set([
-      ...FLAT.flatMap((p) => Object.values(flatPicks(p.body)).flat()),
+      ...FLAT.flatMap((p) => Object.values(flatPicks(p)).flat()),
       ...VERSION_AWARE.flatMap((p) =>
-        SCANNED.flatMap(([, minor]) => Object.values(versionRow(p.body, minor) || {}).flat())
+        SCANNED.flatMap(([, minor]) => Object.values(versionRow(p, minor) || {}).flat())
       ),
     ]);
     for (const name of Object.keys(DISPOSITIONED_ABSENCES)) {
@@ -310,7 +294,7 @@ describe("T4A — B1: rhods-prometheus-operator is omitted at 4.22 with no repla
   });
 
   it("the 4.22 row is the shipped set minus that package, and nothing else changed", () => {
-    expect(versionRow(AI.body, "4.22")).toEqual({
+    expect(versionRow(AI, "4.22")).toEqual({
       redhat: ["rhods-operator", "nfd"],
       certified: ["gpu-operator-certified"],
     });
@@ -325,19 +309,19 @@ describe("T4A — B1: rhods-prometheus-operator is omitted at 4.22 with no repla
       redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"],
       certified: ["gpu-operator-certified"],
     };
-    expect(versionRow(AI.body, "4.20")).toEqual(shipped);
-    expect(versionRow(AI.body, "4.21")).toEqual(shipped);
+    expect(versionRow(AI, "4.20")).toEqual(shipped);
+    expect(versionRow(AI, "4.21")).toEqual(shipped);
   });
 
   it("no replacement Prometheus package was substituted at 4.22", () => {
     // The disposition is "omit", not "swap". `odf-prometheus-operator` exists at
     // 4.22 and has a similar name; a similar name is not evidence.
-    const row = Object.values(versionRow(AI.body, "4.22")).flat();
+    const row = Object.values(versionRow(AI, "4.22")).flat();
     expect(row.filter((n) => /prometheus/i.test(n))).toEqual([]);
   });
 
   it("every package in the 4.22 row is real", () => {
-    for (const [cat, names] of Object.entries(versionRow(AI.body, "4.22"))) {
+    for (const [cat, names] of Object.entries(versionRow(AI, "4.22"))) {
       for (const n of names) {
         expect(Object.prototype.hasOwnProperty.call(SCAN.packages[`${cat}-4.22`], n), n).toBe(true);
       }
@@ -365,13 +349,13 @@ describe("T4 — version-aware Quick Pick packages exist at 4.22 (Tranche 5 inpu
   });
 
   it("every version-aware Quick Pick now carries a 4.22 row", () => {
-    for (const p of VERSION_AWARE) expect(p.body, p.id).toMatch(/"4\.22":/);
+    for (const p of VERSION_AWARE) expect(Object.keys(p.versionPicks), p.id).toContain("4.22");
   });
 
   it("the ODF 4.22 rows add exactly the packages the ODF 4.22 chapter documents", () => {
     // Totals from docs/minor-release/4.22/ODF_OPERATOR_EVIDENCE_4.22.md §1-§2:
     // base 12 (11 + ocs-tls-profiles), +local-storage = 13, +4 DR = 16.
-    const row = (id) => versionRow(VERSION_AWARE.find((p) => p.id === id).body, "4.22").redhat;
+    const row = (id) => versionRow(VERSION_AWARE.find((p) => p.id === id), "4.22").redhat;
     expect(row("odf")).toHaveLength(12);
     expect(row("odf-local-storage")).toHaveLength(13);
     expect(row("odf-disaster-recovery")).toHaveLength(16);
@@ -391,9 +375,9 @@ describe("T4 — version-aware Quick Pick packages exist at 4.22 (Tranche 5 inpu
       "platform-plus": ["ocs-tls-profiles"],
     };
     for (const [id, extra] of Object.entries(added)) {
-      const body = VERSION_AWARE.find((p) => p.id === id).body;
-      const prev = versionRow(body, "4.21").redhat;
-      const next = versionRow(body, "4.22").redhat;
+      const pick = VERSION_AWARE.find((p) => p.id === id);
+      const prev = versionRow(pick, "4.21").redhat;
+      const next = versionRow(pick, "4.22").redhat;
       expect(next.filter((n) => !prev.includes(n)), `${id} added`).toEqual(extra);
       expect(prev.filter((n) => !next.includes(n)), `${id} removed`).toEqual([]);
     }

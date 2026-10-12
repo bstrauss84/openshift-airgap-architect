@@ -377,7 +377,9 @@ describe("the replaced platform-only table is gone", () => {
     // Only the explanatory comment may mention the old name.
     const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     expect(code).not.toMatch(/PLATFORM_ARCH_SUPPORT/);
-    expect(code).toMatch(/listArchSupportForState/);
+    // Renamed in Tranche 7C: BlueprintStep now resolves at PLATFORM level,
+    // because the methodology it used to key on is chosen on a later step.
+    expect(code).toMatch(/listArchSupportForBlueprint/);
   });
 
   it("no module outside the matrix declares a platform-to-architecture map", () => {

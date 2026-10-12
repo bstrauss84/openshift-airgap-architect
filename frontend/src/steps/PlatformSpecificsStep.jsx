@@ -19,6 +19,10 @@ import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
 import { validateAwsRootVolumeThroughput } from "../validation.js";
 import { formatMACAsYouType } from "../formatUtils.js";
 import { validateBmcVerifyCA } from "../../../shared/bmcVerifyCA.js";
+import {
+  selectedProvisioningFamily,
+  switchProvisioningFamily
+} from "../../../shared/provisioningNetworkFamily.js";
 import { isAgentSingleNodeTopology } from "../hostInventoryV2Helpers.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
@@ -79,8 +83,13 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || "";
   const arch = state.blueprint?.arch || "x86_64";
   const versionConfirmed = getVersionLocked(state);
-  const selectedMinor = getOpenShiftMinorFromState(state) || "4.20";
-  const catalogParams = getCatalogForScenario(scenarioId, selectedMinor) || [];
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const selectedMinor = getOpenShiftMinorFromState(state);
+  const catalogParams = (selectedMinor ? getCatalogForScenario(scenarioId, selectedMinor) : null) || [];
   const isCatalogFieldVisible = (path, outputFile) => {
     const param = catalogParams.find(
       (entry) => entry.path === path && entry.outputFile === outputFile
@@ -1166,13 +1175,13 @@ Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid fo
                         />
                       </FieldLabelWithInfo>
                       <div className="field-control-support">
-                        {fieldAnnotation("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG).isIntroduced && (
-                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
-                        )}
                         {awsThroughputError && (
                           <div id="aws-throughput-error" className="field-error" role="alert">
                             {awsThroughputError}
                           </div>
+                        )}
+                        {fieldAnnotation("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
                         )}
                         <div className="field-helper">
                           125–2000 MiB/s, gp3 only
@@ -1745,9 +1754,28 @@ Use a pre-existing Azure VNet and provide its network resource group and subnet 
                     </FieldLabelWithInfo>
                     <FieldLabelWithInfo
                       label="Network resource group"
-                      hint={`Name of the Azure resource group containing the existing VNet. This may be different from the cluster resource group specified above.
+                      hint={`Name of the Azure resource group containing the existing VNet.
 
-**Example:** my-networking-rg`}
+**What is this:**
+The resource group the VNet lives in. Azure organises networking separately from compute in most enterprise subscriptions, so this is frequently not the group the cluster itself is created in.
+
+**When it applies:**
+Required when installing into an existing (bring-your-own) VNet. Not used when the installer creates the networking for you.
+
+**Format:**
+An Azure resource group name — letters, numbers, underscore, hyphen, period, parentheses; no trailing period.
+
+**Valid values:**
+A resource group that already exists in the same subscription and region as the cluster, and that actually contains the named VNet.
+
+**How it is used:**
+Becomes \`platform.azure.networkResourceGroupName\` in install-config.yaml. The installer looks the VNet and its subnets up in this group rather than in the cluster resource group.
+
+**Important:**
+⚠️ This is usually **different** from the cluster resource group above. Pointing it at the cluster group is the common mistake and fails at validation because the VNet is not found there. The installer's service principal needs read access to this group.
+
+**Example:**
+my-networking-rg`}
                       required
                     >
                       <input
@@ -1775,11 +1803,11 @@ Use a pre-existing Azure VNet and provide its network resource group and subnet 
                         placeholder="Subnet name for control plane nodes"
                       />
                     </FieldLabelWithInfo>
-                    <div style={{ gridColumn: "1 / -1" }}>
+                    <div className="field-control-stack field-grid-span-full" style={{ gridColumn: "1 / -1" }}>
                       <FieldLabelWithInfo
                         label={canAddNodeSubnet ? "Node subnets" : "Node subnet"}
                         hint={canAddNodeSubnet
-                          ? `Names of existing subnets within the VNet for compute (worker) nodes. At least one node subnet is required. OpenShift 4.21 supports multiple node subnets.
+                          ? "Introduced in OpenShift " + fieldIntroducedIn("platform.azure.subnets.name", INSTALL_CONFIG) + `. Names of existing subnets within the VNet for compute (worker) nodes. At least one node subnet is required. Multiple node subnets are supported from this minor onward.
 
 **Requirements:**
 - Each subnet must exist within the specified VNet
@@ -1797,9 +1825,6 @@ Use a pre-existing Azure VNet and provide its network resource group and subnet 
 **Example:** worker-subnet`}
                         required
                       />
-                      {fieldAnnotation("platform.azure.subnets.name", INSTALL_CONFIG).isIntroduced && (
-                        <div className="field-helper" data-version-annotation="introduced" style={{ marginTop: 4 }}>New in OpenShift {selectedMinor}: multiple node subnets supported</div>
-                      )}
                       <div className="list" style={{ marginTop: 6 }}>
                         {nodeSubnetDisplay.map((subnetName, idx) => (
                           <div key={idx} className="list-item" style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1816,6 +1841,11 @@ Use a pre-existing Azure VNet and provide its network resource group and subnet 
                         ))}
                         {canAddNodeSubnet && (
                           <button type="button" className="ghost" onClick={addNodeSubnet} style={{ marginTop: 4 }}>Add node subnet</button>
+                        )}
+                      </div>
+                      <div className="field-control-support">
+                        {fieldAnnotation("platform.azure.subnets.name", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}: multiple node subnets supported</div>
                         )}
                       </div>
                     </div>
@@ -3822,6 +3852,7 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
                         <CollapsibleSection title="Advanced failure-domain options" defaultCollapsed={true}>
                           <div className="field-grid" style={{ marginTop: 4 }}>
                           {showFdTemplateField && (
+                            <div className="field-control-stack">
                             <FieldLabelWithInfo
                               label="Topology: RHCOS template (optional)"
                               hint={`Absolute path to a pre-deployed RHCOS (Red Hat CoreOS) OVA template in vSphere inventory that the installer will clone to create cluster VMs.
@@ -3860,23 +3891,24 @@ vCenter → select the VM → Summary tab → VM Path field
 **Example:**
 /Datacenter1/vm/rhcos-templates/rhcos-4.14.0-vmware`}
                             >
-                              <div>
-                                <input
-                                  value={fd.topology?.template || ""}
-                                  onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
-                                  onBlur={() => markTouched("fd_" + index + "_template")}
-                                  placeholder="/datacenter/vm/rhcos-template"
-                                  disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
-                                  aria-describedby={platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined}
-                                  className={fieldErrorVisible("fd_" + index + "_template") ? "input-error" : ""}
-                                  aria-invalid={fieldErrorVisible("fd_" + index + "_template") ? "true" : undefined}
-                                />
-                                {fieldErrorVisible("fd_" + index + "_template") && <span id={`error-fd-${index}-template`} className="field-error">{fieldErrors["fd_" + index + "_template"]}</span>}
-                                {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
-                                  <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
-                                )}
-                              </div>
+                              <input
+                                value={fd.topology?.template || ""}
+                                onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
+                                onBlur={() => markTouched("fd_" + index + "_template")}
+                                placeholder="/datacenter/vm/rhcos-template"
+                                disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
+                                aria-describedby={fieldErrorVisible("fd_" + index + "_template") ? `error-fd-${index}-template` : (platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined)}
+                                className={fieldErrorVisible("fd_" + index + "_template") ? "input-error" : ""}
+                                aria-invalid={fieldErrorVisible("fd_" + index + "_template") ? "true" : undefined}
+                              />
                             </FieldLabelWithInfo>
+                            <div className="field-control-support">
+                              {fieldErrorVisible("fd_" + index + "_template") && <span id={`error-fd-${index}-template`} className="field-error" role="alert">{fieldErrors["fd_" + index + "_template"]}</span>}
+                              {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
+                                <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
+                              )}
+                            </div>
+                            </div>
                           )}
                           <div className="field-control-stack">
                           <FieldLabelWithInfo
@@ -4492,7 +4524,50 @@ Value in MB (use multiples of 1024 for clean GB values):
 
         {showProvisioningNetworkSection && (() => {
           const provisioningMode = inventory.provisioningNetwork || (metaProvisioningNetwork?.default ?? "Managed");
-          const showDhcpRange = provisioningMode !== "Disabled";
+          /* UI/generation parity (Tranche 7C.4A). A control may only be
+             editable in a mode whose generated install-config will actually
+             carry it, otherwise the user types a value that is silently
+             dropped. These two gates mirror
+             backend/src/generate.js exactly:
+               provisioningDHCPRange       — Managed only (Red Hat: "only
+                 applicable to a Managed provisioning network"; CBO clears it
+                 for every non-Managed mode)
+               provisioningNetworkInterface — not Disabled (Red Hat: "Omit the
+                 provisioningInterface configuration setting if the
+                 provisioning network is Disabled")
+             Values stay in state across a mode change, so switching back
+             restores what the user typed. */
+          const showDhcpRange = provisioningMode === "Managed";
+          const showProvisioningInterface = provisioningMode !== "Disabled";
+
+          /* Provisioning-network address family.
+             This is DELIBERATELY NOT the Networking step's IP Stack Mode. The
+             bare-metal provisioning network is a separate network and the
+             installer treats its family as independent: validateNoOverlapMachineCIDR
+             compares the provisioning CIDR against a machine network only when
+             the two are the same family, so a cross-family provisioning network
+             passes. See shared/provisioningNetworkFamily.js for the evidence.
+             An existing CIDR wins over the stored choice so an imported run
+             shows the family it actually has. */
+          /* An explicit stored choice wins over the CIDR's own family, so
+             clearing the CIDR cannot snap the selector back. An imported run
+             with no stored choice still opens on the family it actually has.
+             See shared/provisioningNetworkFamily.js. */
+          const provisioningFamily = selectedProvisioningFamily(inventory);
+          const isV6Provisioning = provisioningFamily === "ipv6";
+          const exampleProvisioning = isV6Provisioning
+            ? {
+                cidr: "fd2e:6f44:5dd8:c956::/64",
+                dhcp: "fd2e:6f44:5dd8:c956::10,fd2e:6f44:5dd8:c956::100",
+                ip: "fd2e:6f44:5dd8:c956::3",
+                gateway: "fd2e:6f44:5dd8:c956::254"
+              }
+            : {
+                cidr: "172.22.0.0/24",
+                dhcp: "172.22.0.10,172.22.0.254",
+                ip: "172.22.0.3",
+                gateway: "172.22.0.254"
+              };
           return (
             <section className="card">
               <div className="card-header">
@@ -4525,20 +4600,76 @@ Value in MB (use multiples of 1024 for clean GB values):
                     required={metaProvisioningNetwork?.required}
                   >
                     <select
+                      className="control-enum"
                       value={provisioningMode}
                       onChange={(e) => updateInventory({ provisioningNetwork: e.target.value })}
-                      style={{ maxWidth: "100%", width: "100%", boxSizing: "border-box" }}
                     >
                       <option value="Managed">Managed — installer runs DHCP/TFTP</option>
                       <option value="Unmanaged">Unmanaged — you provide DHCP</option>
                       <option value="Disabled">Disabled — virtual media / no provisioning net</option>
                     </select>
                   </FieldLabelWithInfo>
+
+                  <div className="field-control-stack field-grid-span-full">
+                    <FieldLabelWithInfo
+                      label="Provisioning network IP family"
+                      hint={`Address family for the provisioning network's own addresses.
+
+**What is this:**
+Whether the provisioning network uses IPv4 or IPv6. It sets the expected format for the provisioning CIDR, DHCP range, cluster provisioning IP and gateway below.
+
+**When it applies:**
+Bare Metal with installer-provisioned infrastructure (IPI). It has no effect on any other platform or install method.
+
+**This is independent of the Networking step's IP Stack Mode:**
+The provisioning network is a separate network from the cluster's machine, pod and service networks. The installer only compares the provisioning CIDR against a machine network when the two are the same address family, so an IPv4 provisioning network in an IPv6-only cluster — or the reverse — is valid and is not flagged. Choosing Dual-stack on the Networking step does not change this field.
+
+**Valid values and relationships:**
+• IPv4 or IPv6 — **not both.** The provisioning network is a single address family. The installer models \`provisioningNetworkCIDR\`, \`clusterProvisioningIP\`, \`bootstrapProvisioningIP\` and \`provisioningDHCPRange\` as single scalar values — plus \`provisioningNetworkGateway\` where that field exists — unlike \`apiVIPs\`/\`ingressVIPs\`, which it models as lists precisely because those do support dual-stack.
+• Every provisioning field below must use the family selected here.
+
+**Important:**
+A **Managed** IPv6 provisioning network cannot be larger than a /64 — a dnsmasq limitation enforced by both the installer and the cluster-baremetal-operator. Unmanaged IPv6 networks may be larger. There is no IPv4 prefix-size constraint.
+
+**Example:**
+IPv4 — 172.22.0.0/24
+IPv6 — fd2e:6f44:5dd8:c956::/64
+
+**Red Hat documentation:**
+Provisioning [metal3.io/v1alpha1], §13.1.1 \`.spec\` — "When using IPv6 and in a network managed by the Baremetal IPI solution this cannot be a network larger than a /64."`}
+                    >
+                      <select
+                        className="control-enum"
+                        value={provisioningFamily}
+                        /* Parks the outgoing family's values and restores the
+                           incoming family's, so the fields are never left
+                           holding addresses of the family you just left. */
+                        onChange={(e) => {
+                          const patch = switchProvisioningFamily(inventory, e.target.value);
+                          if (patch) updateInventory(patch);
+                        }}
+                      >
+                        <option value="ipv4">IPv4</option>
+                        <option value="ipv6">IPv6</option>
+                      </select>
+                    </FieldLabelWithInfo>
+                    <div className="field-control-support">
+                      <div className="field-helper">
+                        Separate from the Networking step's IP Stack Mode. Single family only — the
+                        provisioning network cannot be dual-stack.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Provisioning network CIDR (optional)"
-                    hint={provisioningMode === "Disabled"
-                      ? "When Disabled, provisioning services use the bare-metal network; omit or use bare-metal CIDR if needed."
-                      : "CIDR (Classless Inter-Domain Routing) notation for the provisioning network's IP address range. Defines the subnet where the OpenShift installer runs provisioning services and assigns temporary IPs to nodes during bootstrap.\n\n**What is this:**\nIPv4 or IPv6 network range in CIDR format (e.g., 172.22.0.0/24) that defines the provisioning network's address space. The installer uses this subnet for DHCP assignments, bootstrap services, and node imaging.\n\n**Format:**\nNetwork address / prefix length\n• IPv4 example: 172.22.0.0/24 (256 addresses)\n• IPv6 example: fd00::/64\n\n**When to set:**\n• **Managed mode:** Optional but recommended - defines the provisioning subnet for DHCP and services\n• **Unmanaged mode:** Optional - documents your existing provisioning network CIDR\n• **Disabled mode:** Omit, or set to bare-metal network CIDR if provisioning services run on that network\n\n**Default behavior:**\nIf omitted in Managed mode, installer may use a default range (consult OpenShift docs for version-specific defaults)\n\n**Sizing guidelines:**\n• /24 (256 addresses) - Standard for small-medium clusters (up to 50 nodes)\n• /23 (512 addresses) - Large clusters or future expansion\n• /25 (128 addresses) - Small clusters (under 20 nodes)\n\n**Requirements:**\n• Must not overlap with Machine network, Cluster network, or Service network CIDRs (from Networking tab)\n• Must be routable only on the provisioning network segment (isolated from production traffic)\n• Enough addresses for all nodes + bootstrap + DHCP overhead (nodes × 2 recommended)\n\n**Relationship to other fields:**\n• **provisioningDHCPRange:** DHCP range must be within this CIDR\n• **clusterProvisioningIP:** Provisioning services IP must be within this CIDR\n\n**Example:**\n172.22.0.0/24 (common choice for isolated provisioning network)"}
+                    /* One hint for every mode. The gold-standard text below
+                       already carries a "When to set" section covering
+                       Managed, Unmanaged and Disabled, so the previous
+                       Disabled-only branch was both a downgrade — one line of
+                       unstructured prose where every other field gives the
+                       full template — and redundant with what it replaced. */
+                    hint={"CIDR (Classless Inter-Domain Routing) notation for the provisioning network's IP address range. Defines the subnet where the OpenShift installer runs provisioning services and assigns temporary IPs to nodes during bootstrap.\n\n**What is this:**\nIPv4 or IPv6 network range in CIDR format (e.g., 172.22.0.0/24) that defines the provisioning network's address space. The installer uses this subnet for DHCP assignments, bootstrap services, and node imaging.\n\n**Format:**\nNetwork address / prefix length\n• IPv4 example: 172.22.0.0/24 (256 addresses)\n• IPv6 example: fd00::/64\n\n**When to set:**\n• **Managed mode:** Optional but recommended - defines the provisioning subnet for DHCP and services\n• **Unmanaged mode:** Optional - documents your existing provisioning network CIDR\n• **Disabled mode:** Omit, or set to bare-metal network CIDR if provisioning services run on that network\n\n**Default behavior:**\nIf omitted in Managed mode, installer may use a default range (consult OpenShift docs for version-specific defaults)\n\n**Sizing guidelines:**\n• /24 (256 addresses) - Standard for small-medium clusters (up to 50 nodes)\n• /23 (512 addresses) - Large clusters or future expansion\n• /25 (128 addresses) - Small clusters (under 20 nodes)\n\n**Requirements:**\n• Must not overlap with Machine network, Cluster network, or Service network CIDRs (from Networking tab)\n• Must be routable only on the provisioning network segment (isolated from production traffic)\n• Enough addresses for all nodes + bootstrap + DHCP overhead (nodes × 2 recommended)\n\n**Relationship to other fields:**\n• **provisioningDHCPRange:** DHCP range must be within this CIDR\n• **clusterProvisioningIP:** Provisioning services IP must be within this CIDR\n\n**Example:**\n172.22.0.0/24 (common choice for isolated provisioning network)"}
                   >
                     <input
                       className={fieldErrorVisible("provisioningNetworkCIDR") ? "input-error" : ""}
@@ -4546,27 +4677,30 @@ Value in MB (use multiples of 1024 for clean GB values):
                       value={localProvisioningNetworkCIDR}
                       onChange={(e) => setLocalProvisioningNetworkCIDR(e.target.value)}
                       onBlur={() => { markTouched("provisioningNetworkCIDR"); updateInventory({ provisioningNetworkCIDR: localProvisioningNetworkCIDR.trim() }); }}
-                      placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : "e.g. 172.22.0.0/24"}
+                      placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : `e.g. ${exampleProvisioning.cidr}`}
                       aria-invalid={fieldErrorVisible("provisioningNetworkCIDR") ? "true" : undefined}
                       aria-describedby={fieldErrorVisible("provisioningNetworkCIDR") ? "error-provisioningNetworkCIDR" : undefined}
                     />
                   </FieldLabelWithInfo>
-                  {fieldErrorVisible("provisioningNetworkCIDR") && <span id="error-provisioningNetworkCIDR" className="field-error">{fieldErrors.provisioningNetworkCIDR}</span>}
+                  <div className="field-control-support">
+                    {fieldErrorVisible("provisioningNetworkCIDR") && <span id="error-provisioningNetworkCIDR" className="field-error" role="alert">{fieldErrors.provisioningNetworkCIDR}</span>}
+                  </div>
+                  </div>
+                  {showProvisioningInterface ? (
                   <FieldLabelWithInfo
                     label="Provisioning network interface (optional)"
-                    hint={provisioningMode === "Disabled"
-                      ? "When Disabled, there is no provisioning network; omit unless your setup requires it."
-                      : "Name of the network interface on the bootstrap/provisioning host that connects to the provisioning network. Identifies which NIC the installer binds provisioning services (DHCP, TFTP, HTTP) to.\n\n**What is this:**\nLinux network interface name (e.g., 'eth0', 'ens192', 'enp1s0') on the machine where you run openshift-install. The installer uses this interface to communicate with bare metal nodes during provisioning.\n\n**When to set:**\n• **Required when:** Bootstrap host has multiple network interfaces and you need to specify which one faces the provisioning network\n• **Optional when:** Single NIC system - installer auto-detects\n• **Not used when:** provisioningNetwork = 'Disabled'\n\n**How to find interface name:**\nOn the host where you'll run openshift-install:\n• Linux: `ip link show` or `ip addr show` (lists all interfaces)\n• Look for the interface connected to your provisioning VLAN/network\n\n**Common interface naming:**\n• **Predictable naming (systemd):** ens192, eno1, enp1s0\n• **Traditional naming:** eth0, eth1, eth2\n• **Bond interfaces:** bond0, bond1\n• **VLAN interfaces:** eth0.100, ens192.200\n\n**Requirements:**\n• Interface must be UP (enabled) before running openshift-install\n• Interface should have an IP address in the provisioning network CIDR\n• Interface must be physically connected to the same network segment as bare metal node BMCs and provisioning NICs\n\n**Relationship to provisioningMACAddress:**\nYou can specify interface by name (this field) OR by MAC address (provisioningMACAddress field) - either works, name is more human-readable\n\n**Example:**\neth1 (second NIC on traditional naming)\nens192 (typical VMware VM interface)\nenp2s0 (PCIe slot 2, port 0)"}
+                    hint={"Name of the network interface on the bootstrap/provisioning host that connects to the provisioning network. Identifies which NIC the installer binds provisioning services (DHCP, TFTP, HTTP) to.\n\n**What is this:**\nLinux network interface name (e.g., 'eth0', 'ens192', 'enp1s0') on the machine where you run openshift-install. The installer uses this interface to communicate with bare metal nodes during provisioning.\n\n**When to set:**\n• **Required when:** Bootstrap host has multiple network interfaces and you need to specify which one faces the provisioning network\n• **Optional when:** Single NIC system - installer auto-detects\n• **Not used when:** provisioningNetwork = 'Disabled'\n\n**How to find interface name:**\nOn the host where you'll run openshift-install:\n• Linux: `ip link show` or `ip addr show` (lists all interfaces)\n• Look for the interface connected to your provisioning VLAN/network\n\n**Common interface naming:**\n• **Predictable naming (systemd):** ens192, eno1, enp1s0\n• **Traditional naming:** eth0, eth1, eth2\n• **Bond interfaces:** bond0, bond1\n• **VLAN interfaces:** eth0.100, ens192.200\n\n**Requirements:**\n• Interface must be UP (enabled) before running openshift-install\n• Interface should have an IP address in the provisioning network CIDR\n• Interface must be physically connected to the same network segment as bare metal node BMCs and provisioning NICs\n\n**Relationship to provisioningMACAddress:**\nYou can specify interface by name (this field) OR by MAC address (provisioningMACAddress field) - either works, name is more human-readable\n\n**Example:**\neth1 (second NIC on traditional naming)\nens192 (typical VMware VM interface)\nenp2s0 (PCIe slot 2, port 0)"}
                   >
                     <input
                       value={localProvisioningNetworkInterface}
                       onChange={(e) => setLocalProvisioningNetworkInterface(e.target.value)}
                       onBlur={() => updateInventory({ provisioningNetworkInterface: localProvisioningNetworkInterface })}
-                      placeholder={provisioningMode === "Disabled" ? "omit" : "e.g. eth1"}
+                      placeholder="e.g. eth1"
                     />
                   </FieldLabelWithInfo>
+                  ) : null}
                   {showDhcpRange ? (
-                    <>
+                    <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Provisioning DHCP range (optional)"
                         hint={`IP address range for DHCP assignments on the provisioning network during bare metal node bootstrapping. Specifies the pool of IP addresses the installer's DHCP server uses when provisioning nodes.
@@ -4607,19 +4741,24 @@ Start IP, end IP (comma-separated, no spaces after comma)
                           value={localProvisioningDHCPRange}
                           onChange={(e) => setLocalProvisioningDHCPRange(e.target.value)}
                           onBlur={() => { markTouched("provisioningDHCPRange"); updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange }); }}
-                          placeholder="e.g. 172.22.0.10,172.22.0.254"
+                          placeholder={`e.g. ${exampleProvisioning.dhcp}`}
                           aria-invalid={fieldErrorVisible("provisioningDHCPRange") ? "true" : undefined}
                           aria-describedby={fieldErrorVisible("provisioningDHCPRange") ? "error-provisioningDHCPRange" : undefined}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrorVisible("provisioningDHCPRange") && <span id="error-provisioningDHCPRange" className="field-error">{fieldErrors.provisioningDHCPRange}</span>}
-                    </>
+                      <div className="field-control-support">
+                        {fieldErrorVisible("provisioningDHCPRange") && <span id="error-provisioningDHCPRange" className="field-error" role="alert">{fieldErrors.provisioningDHCPRange}</span>}
+                      </div>
+                    </div>
                   ) : null}
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Cluster provisioning IP (optional)"
-                    hint={provisioningMode === "Disabled"
-                      ? "When Disabled, one of two IPs on the bare-metal network for provisioning services (installer needs two IPs on bare-metal network when no dedicated provisioning network exists)."
-                      : "IPv4 or IPv6 address assigned to the provisioning host's interface where OpenShift installer provisioning services (DHCP, TFTP, HTTP) listen. This is the IP nodes contact to fetch boot images and configuration during installation.\n\n**What is this:**\nStatic IP address on the provisioning network that the installer binds its services to. Bare metal nodes PXE boot and download images from this IP during the bootstrap process.\n\n**Default behavior:**\nIf omitted, the installer typically uses the **third IP** of the provisioning subnet (catalog default). For example, if provisioningNetworkCIDR is 172.22.0.0/24, default might be 172.22.0.3.\n\n**When to set explicitly:**\n• When you need a specific IP for firewall rules or DNS entries\n• When the third IP of the subnet is already in use\n• When integrating with existing provisioning infrastructure that expects a particular IP\n\n**Requirements:**\n• **Managed/Unmanaged modes:** Must be within provisioningNetworkCIDR\n• **Disabled mode:** Must be on the bare-metal network (Machine network CIDR)\n• Must NOT conflict with provisioningDHCPRange\n• Must be statically assigned (not in DHCP dynamic range)\n• Must be reachable from bare metal node BMCs and boot interfaces\n\n**Provisioning mode specifics:**\n\n**Managed:** \nInstaller runs DHCP/TFTP on this IP on the provisioning network. Nodes receive this IP via DHCP options as their boot server.\n\n**Unmanaged:**\nYou run DHCP elsewhere, but installer HTTP/image services still bind to this IP. Configure your DHCP server to point nodes to this IP for image downloads.\n\n**Disabled:**\nNo dedicated provisioning network - installer services run on the bare-metal network. This IP is one of two IPs needed on the bare-metal network for provisioning (the other for bootstrap services).\n\n**How nodes use this IP:**\n• PXE boot: Fetch kernel/initrd via TFTP from this IP\n• Image download: Pull RHCOS images via HTTP from this IP\n• Ignition config: Retrieve bootstrap configuration from this IP\n\n**Example:**\n172.22.0.10 (Managed mode, within 172.22.0.0/24)\n10.0.0.100 (Disabled mode, on bare-metal network 10.0.0.0/24)"}
+                    /* One hint for every mode — the text below has a
+                       "Provisioning mode specifics" section that documents
+                       Managed, Unmanaged and Disabled, including the two
+                       bare-metal IPs the Disabled branch used to describe. */
+                    hint={"IPv4 or IPv6 address assigned to the provisioning host's interface where OpenShift installer provisioning services (DHCP, TFTP, HTTP) listen. This is the IP nodes contact to fetch boot images and configuration during installation.\n\n**What is this:**\nStatic IP address on the provisioning network that the installer binds its services to. Bare metal nodes PXE boot and download images from this IP during the bootstrap process.\n\n**Default behavior:**\nIf omitted, the installer typically uses the **third IP** of the provisioning subnet (catalog default). For example, if provisioningNetworkCIDR is 172.22.0.0/24, default might be 172.22.0.3.\n\n**When to set explicitly:**\n• When you need a specific IP for firewall rules or DNS entries\n• When the third IP of the subnet is already in use\n• When integrating with existing provisioning infrastructure that expects a particular IP\n\n**Requirements:**\n• **Managed/Unmanaged modes:** Must be within provisioningNetworkCIDR\n• **Disabled mode:** Must be on the bare-metal network (Machine network CIDR)\n• Must NOT conflict with provisioningDHCPRange\n• Must be statically assigned (not in DHCP dynamic range)\n• Must be reachable from bare metal node BMCs and boot interfaces\n\n**Provisioning mode specifics:**\n\n**Managed:** \nInstaller runs DHCP/TFTP on this IP on the provisioning network. Nodes receive this IP via DHCP options as their boot server.\n\n**Unmanaged:**\nYou run DHCP elsewhere, but installer HTTP/image services still bind to this IP. Configure your DHCP server to point nodes to this IP for image downloads.\n\n**Disabled:**\nNo dedicated provisioning network - installer services run on the bare-metal network. This IP is one of two IPs needed on the bare-metal network for provisioning (the other for bootstrap services).\n\n**How nodes use this IP:**\n• PXE boot: Fetch kernel/initrd via TFTP from this IP\n• Image download: Pull RHCOS images via HTTP from this IP\n• Ignition config: Retrieve bootstrap configuration from this IP\n\n**Example:**\n172.22.0.10 (Managed mode, within 172.22.0.0/24)\n10.0.0.100 (Disabled mode, on bare-metal network 10.0.0.0/24)"}
                   >
                     <input
                       className={fieldErrorVisible("clusterProvisioningIP") ? "input-error" : ""}
@@ -4627,17 +4766,20 @@ Start IP, end IP (comma-separated, no spaces after comma)
                       value={localClusterProvisioningIP}
                       onChange={(e) => setLocalClusterProvisioningIP(e.target.value)}
                       onBlur={() => { markTouched("clusterProvisioningIP"); updateInventory({ clusterProvisioningIP: localClusterProvisioningIP.trim() }); }}
-                      placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : "IP within provisioning subnet"}
+                      placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : `e.g. ${exampleProvisioning.ip}`}
                       aria-invalid={fieldErrorVisible("clusterProvisioningIP") ? "true" : undefined}
                       aria-describedby={fieldErrorVisible("clusterProvisioningIP") ? "error-clusterProvisioningIP" : undefined}
                     />
                   </FieldLabelWithInfo>
-                  {fieldErrorVisible("clusterProvisioningIP") && <span id="error-clusterProvisioningIP" className="field-error">{fieldErrors.clusterProvisioningIP}</span>}
+                  <div className="field-control-support">
+                    {fieldErrorVisible("clusterProvisioningIP") && <span id="error-clusterProvisioningIP" className="field-error" role="alert">{fieldErrors.clusterProvisioningIP}</span>}
+                  </div>
+                  </div>
                   {showProvisioningNetworkGateway && provisioningMode === "Managed" ? (
-                    <>
+                    <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Provisioning network gateway (optional)"
-                        hint={`Default gateway handed to bare-metal hosts over DHCP on the provisioning network, so they can route to external networks during inspection and provisioning.\n\n**When it applies:**\nOnly when provisioning network mode is **Managed** (installer-managed DHCP). openshift-install accepts the field with Unmanaged or Disabled but ignores it, so this tool omits it in those modes.\n\n**Requirements (Red Hat documented):**\n\u2022 Must be within the provisioning network CIDR\n\u2022 Must be OUTSIDE the provisioning DHCP range\n\u2022 Must not be the same address as the cluster provisioning IP\n\n**Verify these yourself.** openshift-install rejects a malformed IP, but its own DHCP-range overlap check does not fire against the shipped binary \u2014 an overlapping gateway is accepted at validation time and then fails during provisioning. This tool checks the relationships for you.\n\n**Example:**\n172.22.0.254 (for CIDR 172.22.0.0/24 with DHCP range 172.22.0.10,172.22.0.100)`}
+                        hint={"Introduced in OpenShift " + fieldIntroducedIn("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG) + `. Default gateway handed to bare-metal hosts over DHCP on the provisioning network, so they can route to external networks during inspection and provisioning.\n\n**When it applies:**\nOnly when provisioning network mode is **Managed** (installer-managed DHCP). openshift-install accepts the field with Unmanaged or Disabled but ignores it, so this tool omits it in those modes.\n\n**Format:**\nA single IPv4 or IPv6 address (not CIDR notation, not a range).\n\u2022 IPv4 example: 172.22.0.254\n\u2022 IPv6 example: fd00::fe\n\n**Valid values and relationships (Red Hat documented):**\n\u2022 Must be within the provisioning network CIDR\n\u2022 Must be OUTSIDE the provisioning DHCP range\n\u2022 Must not be the same address as the cluster provisioning IP\n\u2022 Must be the same IP family as the provisioning network CIDR\n\n**How it is used:**\nEmitted to \`platform.baremetal.provisioningNetworkGateway\` in install-config.yaml. The installer hands it to hosts as the default route in the DHCP lease it serves on the provisioning network.\n\n**Important:**\nVerify these relationships yourself. openshift-install rejects a malformed IP, but its own DHCP-range overlap check does not fire against the shipped binary \u2014 an overlapping gateway is accepted at validation time and then fails during provisioning. This tool checks the relationships for you.\n\n**Example:**\n172.22.0.254 (for CIDR 172.22.0.0/24 with DHCP range 172.22.0.10,172.22.0.100)\n\n**Availability:** Introduced in OpenShift ` + fieldIntroducedIn("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG) + `. Not present on earlier supported targets, where this tool hides the field and omits the key. Source: Red Hat OpenShift installation documentation for the bare-metal install-config \`platform.baremetal\` schema.`}
                       >
                         <input
                           className={fieldErrorVisible("provisioningNetworkGateway") ? "input-error" : ""}
@@ -4645,18 +4787,21 @@ Start IP, end IP (comma-separated, no spaces after comma)
                           value={localProvisioningNetworkGateway}
                           onChange={(e) => setLocalProvisioningNetworkGateway(e.target.value)}
                           onBlur={() => { markTouched("provisioningNetworkGateway"); updateInventory({ provisioningNetworkGateway: localProvisioningNetworkGateway.trim() }); }}
-                          placeholder="e.g. 172.22.0.254"
+                          placeholder={`e.g. ${exampleProvisioning.gateway}`}
                           aria-invalid={fieldErrorVisible("provisioningNetworkGateway") ? "true" : undefined}
                           aria-describedby={fieldErrorVisible("provisioningNetworkGateway") ? "error-provisioningNetworkGateway" : undefined}
                         />
                       </FieldLabelWithInfo>
                       <div className="field-control-support">
+                        {fieldErrorVisible("provisioningNetworkGateway") && <span id="error-provisioningNetworkGateway" className="field-error" role="alert">{fieldErrors.provisioningNetworkGateway}</span>}
                         {fieldAnnotation("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG).isIntroduced && (
                           <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
                         )}
+                        <div className="field-helper">
+                          Inside the provisioning CIDR, outside the DHCP range
+                        </div>
                       </div>
-                      {fieldErrorVisible("provisioningNetworkGateway") && <span id="error-provisioningNetworkGateway" className="field-error">{fieldErrors.provisioningNetworkGateway}</span>}
-                    </>
+                    </div>
                   ) : null}
                   <FieldLabelWithInfo
                     label="Provisioning MAC address (optional)"
@@ -4702,8 +4847,22 @@ On the host where you'll run openshift-install:
                   </FieldLabelWithInfo>
                 </div>
                 {provisioningMode === "Disabled" && (
+                  /* Why fields remain here at all. "Disabled" turns off the
+                     DEDICATED provisioning network, not provisioning itself:
+                     the services still run and still need addressing, just on
+                     the bare-metal network. Red Hat's own Table 3.10 says the
+                     CIDR "must have a valid CIDR address even if the
+                     provisioning network is Disabled", and requires two IPs on
+                     the bare-metal network. The fields Red Hat tells you to
+                     OMIT in this mode — the provisioning interface and the
+                     DHCP range — are the ones actually hidden above. */
                   <p className="note subtle" style={{ marginTop: 12, marginBottom: 0 }}>
-                    When Disabled, reserve two IPs on the bare-metal network for provisioning services; BMCs must be reachable on that network.
+                    <strong>Disabled turns off the dedicated provisioning network, not provisioning itself.</strong>{" "}
+                    The installer still runs provisioning services, so reserve two IPs on the bare-metal
+                    network for them and make sure BMCs are reachable there. That is why a cluster
+                    provisioning IP and a CIDR are still offered — Red Hat documents the CIDR as needing a
+                    valid value even in this mode. The settings Red Hat tells you to omit when Disabled —
+                    the provisioning interface and the DHCP range — are hidden automatically.
                   </p>
                 )}
 
@@ -4799,12 +4958,10 @@ external-br (descriptive name)`}
                 <div className="field-control-stack field-grid-span-full">
                 <FieldLabelWithInfo
                   label="BMC verify CA certificate"
-                  hint={`Optional PEM-encoded CA certificate or certificate bundle used by the OpenShift installer to verify BMC (Baseboard Management Controller) TLS certificates during bare metal provisioning.
+                  hint={"Introduced in OpenShift " + fieldIntroducedIn("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG) + `. Optional PEM-encoded CA certificate or certificate bundle used by the OpenShift installer to verify BMC (Baseboard Management Controller) TLS certificates during bare metal provisioning.
 
 **What this is:**
 A CA certificate (or chain of certificates) in PEM format. When provided, the installer uses this to verify the TLS certificates presented by BMC endpoints (Redfish/IPMI over HTTPS). This is useful when BMCs use certificates signed by an internal or private CA.
-
-**Availability:** Introduced in OpenShift ` + fieldIntroducedIn("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG) + `.
 
 **What the installer does with this value:**
 When non-empty, the installer writes:
@@ -4853,11 +5010,11 @@ Emitted to \`platform.baremetal.bmcVerifyCA\` in install-config.yaml.`}
                   />
                 </FieldLabelWithInfo>
                 <div className="field-control-support">
+                  {bmcVerifyCAError && (
+                    <div className="field-error" role="alert">{bmcVerifyCAError}</div>
+                  )}
                   {fieldAnnotation("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG).isIntroduced && (
                     <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
-                  )}
-                  {bmcVerifyCAError && (
-                    <p className="note error" role="alert">{bmcVerifyCAError}</p>
                   )}
                   {!bmcVerifyCAError && bmcVerifyCAAdvisory && (
                     <p className="note warning" role="status">{bmcVerifyCAAdvisory}</p>

@@ -34,8 +34,26 @@ describe('Catalog versioning (ADR-005)', () => {
       });
     });
 
-    it('uses 4.20 as default when version not specified', () => {
-      const params = getCatalogForScenario('bare-metal-agent');
+    /**
+     * REPLACED IN TRANCHE 7C.1. This test asserted the defect.
+     *
+     * It pinned `getCatalogForScenario('bare-metal-agent')` — no version —
+     * returning the 4.20 catalog. That default was harmless while every
+     * catalog was bundled eagerly, and became the enabler for the cold-start
+     * CatalogNotLoadedError once catalogs were lazy-loaded per minor: three
+     * callers omitted the version and each silently read a 4.20 catalog that
+     * had never been fetched. It also contradicted the No Fallback Rule, which
+     * forbids answering for a minor the user did not select.
+     *
+     * The contract is now the opposite: a missing minor is an error.
+     */
+    it('refuses to answer when the version is not specified', () => {
+      expect(() => getCatalogForScenario('bare-metal-agent'))
+        .toThrow(/requires an explicit OpenShift minor/);
+    });
+
+    it('returns the 4.20 catalog only when 4.20 is asked for explicitly', () => {
+      const params = getCatalogForScenario('bare-metal-agent', '4.20');
       expect(Array.isArray(params)).toBe(true);
       expect(params.length).toBeGreaterThan(0);
     });
@@ -65,14 +83,37 @@ describe('Catalog versioning (ADR-005)', () => {
         .toThrow(/Invalid version format/);
     });
 
-    it('throws clear error for empty version', () => {
+    // Tranche 7C.1: the `version = '4.20'` default parameter was removed, so a
+    // missing minor is now a named, actionable failure rather than a silent
+    // read of the baseline catalog. The error must say what the caller has to
+    // do, because the three callers that triggered the cold-start crash all
+    // simply forgot to pass it.
+    it('throws an explicit-minor error for empty version', () => {
       expect(() => getCatalogForScenario('bare-metal-agent', ''))
-        .toThrow(/Invalid version/);
+        .toThrow(/requires an explicit OpenShift minor/);
     });
 
-    it('throws clear error for null version', () => {
+    it('throws an explicit-minor error for null version', () => {
       expect(() => getCatalogForScenario('bare-metal-agent', null))
-        .toThrow(/Invalid version/);
+        .toThrow(/requires an explicit OpenShift minor/);
+    });
+
+    it('throws an explicit-minor error when the version is omitted entirely', () => {
+      // The exact shape of the defect: the argument simply is not passed.
+      expect(() => getCatalogForScenario('bare-metal-agent'))
+        .toThrow(/requires an explicit OpenShift minor/);
+    });
+
+    it('never silently answers from the baseline when the minor is missing', () => {
+      // Guards against a future "helpful" default being reintroduced: a
+      // missing minor must not return 4.20 data.
+      let threw = false;
+      try {
+        getCatalogForScenario('bare-metal-agent');
+      } catch {
+        threw = true;
+      }
+      expect(threw, 'a missing minor returned data instead of throwing').toBe(true);
     });
   });
 

@@ -97,6 +97,7 @@ import {
 } from "./trustAnalysis/index.js";
 import { validateAllFiles } from "./yamlValidator.js";
 import { detectScenarioId } from "./catalogValidator.js";
+import { assertCanonicalDataAvailable } from "./canonicalDataIntegrity.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -639,13 +640,36 @@ function applyReleaseChannelNormalization(patch) {
 }
 
 // Deep merge helper for state updates - preserves nested object fields
+//
+// CLEARING SEMANTICS. A recursive merge can only ever ADD or OVERWRITE keys, so
+// before this an explicitly empty object was indistinguishable from "no change"
+// and a map could never be emptied server-side. That broke two real clears:
+//
+//   - OperatorsStep drops a catalog scan job that answered 404 by writing
+//     `operators.scanJobs = {}`;
+//   - operatorMinorReconciliation's cross-minor invalidation writes
+//     `scanJobs: {}`, `catalogs: {}` and `scenarios: {}`.
+//
+// Both looked fine in the browser and were silently resurrected by the next
+// GET /api/state after a reload, so the stale job ids came back and were
+// re-polled all over again.
+//
+// The rule is therefore: an explicitly provided EMPTY object replaces, it does
+// not merge. An omitted key still means "leave alone", which is what keeps
+// genuine partial patches working - the distinction is between "absent" and
+// "present and empty", not between "small" and "large".
+//
+// Arrays already replaced wholesale (isObject excludes them) and still do.
 function deepMerge(target, source) {
   const output = { ...target };
 
   if (isObject(target) && isObject(source)) {
     Object.keys(source).forEach(key => {
       if (isObject(source[key])) {
-        if (!(key in target)) {
+        if (Object.keys(source[key]).length === 0) {
+          // Explicit clear.
+          output[key] = {};
+        } else if (!(key in target)) {
           output[key] = source[key];
         } else {
           output[key] = deepMerge(target[key], source[key]);
@@ -3145,7 +3169,109 @@ function assertSupportedOpenShiftVersion(v3State) {
   assertSupportedOpenShiftMinorForGeneration(v3State);
 }
 
-const buildPreviewFiles = (state) => {
+/* ---------------------------------------------------------------------------
+ * Per-artifact generation isolation (DOC-227).
+ *
+ * THE DEFECT THIS REPLACES. The preview set used to be built as one straight
+ * sequence of generator calls. The first generator to throw aborted the whole
+ * request, so a host-networking problem — "NMState interface name must not be
+ * empty.", raised inside buildAgentConfig → buildNmState — stopped
+ * imageset-config.yaml from being produced at all, even though the imageset
+ * document does not read a single host-networking field. The user saw their
+ * operator and Quick Pick work frozen behind an unrelated Agent error.
+ *
+ * THE MODEL. Each previewed output declares what it is and what state it
+ * consumes, and is generated inside its own boundary. An output either
+ * succeeds with content or fails with ITS OWN error; one failure never
+ * suppresses another output. This is deliberately a registry rather than a
+ * rule about any particular filename: a future artifact gets isolation by
+ * being added here, not by anyone special-casing an error message.
+ *
+ * `dependsOn` is the derived dependency statement for each output — the
+ * top-level state slices its generator actually reads, read out of
+ * backend/src/generate.js rather than assumed. It is asserted against real
+ * generator behaviour in backend/test/per-artifact-generation-isolation.test.js
+ * (mutating a slice an artifact does NOT depend on must not change its bytes),
+ * so it cannot quietly drift away from the code.
+ *
+ * GLOBAL vs ARTIFACT failures are still distinct. Schema migration, the
+ * unsupported-target-version boundary and the trust-analysis guards run BEFORE
+ * any artifact and still throw for the whole request: those are not one
+ * artifact's problem, and CLAUDE.md's No Fallback Rule requires the whole
+ * response to fail closed for an unsupported target.
+ * ------------------------------------------------------------------------- */
+const PREVIEW_ARTIFACTS = [
+  {
+    id: "install-config.yaml",
+    outputs: ["install-config.yaml"],
+    // buildInstallConfig: version/release (support gate), blueprint, methodology,
+    // globalStrategy (mirroring/networking/ntp), hostInventory (replica counts,
+    // rendezvous IP), platformConfig, credentials, trust, exportOptions.
+    dependsOn: [
+      "version", "release", "blueprint", "methodology", "globalStrategy",
+      "hostInventory", "platformConfig", "credentials", "trust", "exportOptions"
+    ],
+    build: (state) => ({ "install-config.yaml": buildInstallConfig(state) })
+  },
+  {
+    id: "agent-config.yaml",
+    outputs: ["agent-config.yaml"],
+    // buildAgentConfig: blueprint (baseDomain/clusterName), hostInventory
+    // (nodes, NMState, root device hints, IP stack mode, boot artifacts),
+    // globalStrategy.ntpServers. Applicability also reads methodology.
+    dependsOn: ["blueprint", "methodology", "hostInventory", "globalStrategy"],
+    applies: (state) =>
+      state.methodology?.method === "Agent-Based Installer" &&
+      (state.blueprint?.platform === "Bare Metal" || state.blueprint?.platform === "VMware vSphere"),
+    // Preserves the historical shape: the key is present and null when the
+    // scenario is not agent-based.
+    absent: () => ({ "agent-config.yaml": null }),
+    build: (state) => ({ "agent-config.yaml": buildAgentConfig(state) })
+  },
+  {
+    id: "imageset-config.yaml",
+    outputs: ["imageset-config.yaml"],
+    // buildImageSetConfig: release.patchVersion + the resolved supported minor,
+    // blueprint.arch (mirror architectures), imagesetConfig (graph, archive
+    // size, additional images, kubeVirtContainer) and operators.selected with
+    // their catalog metadata. It reads NO host networking, NO BMC fields and
+    // NO platform-specifics.
+    dependsOn: ["version", "release", "blueprint", "imagesetConfig", "operators"],
+    build: (state) => ({ "imageset-config.yaml": buildImageSetConfig(state) })
+  },
+  {
+    id: "ntp-machine-configs",
+    // One generator, two outputs; an error is attributed to both.
+    outputs: ["99-chrony-ntp-master.yaml", "99-chrony-ntp-worker.yaml"],
+    dependsOn: ["globalStrategy"],
+    build: (state) => buildNtpMachineConfigs(state)
+  },
+  {
+    id: "FIELD_MANUAL.md",
+    outputs: ["FIELD_MANUAL.md"],
+    dependsOn: [
+      "version", "release", "blueprint", "methodology", "globalStrategy",
+      "hostInventory", "trust", "operators", "docs"
+    ],
+    build: (state, ctx) => ({ "FIELD_MANUAL.md": buildFieldManual(state, ctx.links) })
+  }
+];
+
+/**
+ * Build every previewed artifact.
+ *
+ * @param {object} state raw (possibly v1/v2) wizard state
+ * @param {{isolate?: boolean}} options
+ *   isolate=false (default, legacy): the first artifact error is rethrown
+ *   unchanged, so every existing caller — GET /api/generate, the plain POST
+ *   used by Review/export, and their status-code mapping — behaves exactly as
+ *   before, including `code` and error-class identity.
+ *   isolate=true: artifacts that succeed are returned, and artifacts that
+ *   failed are reported individually in `fileErrors`.
+ * @returns {null|{files: object, fileErrors: object}} null when the version is
+ *   not yet confirmed (unchanged signal).
+ */
+const buildPreviewArtifacts = (state, { isolate = false } = {}) => {
   // DOC-101 Phase 1 Slice 5: State schema migration at generation boundary
   // Migrate v1/v2 state to v3 before generation
   const stateMigrationResult = migrateStateToV3(state);
@@ -3179,21 +3305,36 @@ const buildPreviewFiles = (state) => {
     }
   };
 
-  const installConfig = buildInstallConfig(previewState);
-  const wantsAgentConfig =
-    previewState.methodology?.method === "Agent-Based Installer" &&
-    (previewState.blueprint?.platform === "Bare Metal" || previewState.blueprint?.platform === "VMware vSphere");
-  const agentConfig = wantsAgentConfig ? buildAgentConfig(previewState) : null;
-  const imageSetConfig = buildImageSetConfig(previewState);
-  const ntpMachineConfigs = buildNtpMachineConfigs(previewState);
-  const fieldManual = buildFieldManual(previewState, links);
-  return {
-    "install-config.yaml": installConfig,
-    "agent-config.yaml": agentConfig,
-    "imageset-config.yaml": imageSetConfig,
-    "FIELD_MANUAL.md": fieldManual,
-    ...ntpMachineConfigs
-  };
+  const ctx = { links, version };
+  const files = {};
+  const fileErrors = {};
+
+  for (const artifact of PREVIEW_ARTIFACTS) {
+    if (artifact.applies && !artifact.applies(previewState)) {
+      Object.assign(files, artifact.absent ? artifact.absent() : {});
+      continue;
+    }
+    try {
+      Object.assign(files, artifact.build(previewState, ctx) || {});
+    } catch (error) {
+      // Legacy mode: this request fails as a whole, exactly as it used to, and
+      // with the original error object so route-level `code`/instanceof
+      // mapping is untouched.
+      if (!isolate) throw error;
+      const message = String(error?.message || error);
+      for (const output of artifact.outputs) {
+        fileErrors[output] = { message, ...(error?.code ? { code: error.code } : {}), artifact: artifact.id };
+      }
+    }
+  }
+
+  return { files, fileErrors };
+};
+
+/** Back-compatible wrapper: files only, first error rethrown. */
+const buildPreviewFiles = (state) => {
+  const result = buildPreviewArtifacts(state, { isolate: false });
+  return result === null ? null : result.files;
 };
 
 app.post("/api/trust/analyze", validateBody(trustAnalyzeSchema), (req, res) => {
@@ -3251,9 +3392,18 @@ app.get("/api/generate", (req, res) => {
 app.post("/api/generate", validateBody(generateSchema), (req, res) => {
   const parsed = parseOptionalClientState(req.body?.state, ensureState);
   if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+  /* DOC-227. Opt-in per-artifact isolation. The YAML preview drawer asks for
+     it, because a preview pane must update whenever ITS OWN artifact is
+     generatable; Review/export and every existing API consumer do not, and
+     keep the all-or-nothing fail-closed contract their tests pin (an invalid
+     install-config still yields 400 with no files there). Global boundaries
+     — unsupported target version, schema migration, trust guards — fail the
+     whole response in BOTH modes. */
+  const isolateArtifacts = req.body?.isolateArtifacts === true;
   try {
-    const files = buildPreviewFiles(parsed.state);
-    if (!files) return res.status(400).json({ error: "Version not confirmed." });
+    const result = buildPreviewArtifacts(parsed.state, { isolate: isolateArtifacts });
+    if (!result) return res.status(400).json({ error: "Version not confirmed." });
+    const { files, fileErrors } = result;
 
     // Validate generated YAML against parameter catalogs (advisory, non-blocking)
     const scenarioId = detectScenarioId(parsed.state);
@@ -3282,7 +3432,9 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
       }
     }
 
-    res.json({ files });
+    /* `fileErrors` is only ever present in isolation mode, so the legacy
+       response body is byte-identical for every other caller. */
+    res.json(isolateArtifacts ? { files, fileErrors } : { files });
   } catch (error) {
     if (error.code === 'UNSUPPORTED_VERSION') {
       return res.status(422).json({
@@ -3804,6 +3956,17 @@ app.post("/api/bundle.zip", validateBody(bundleZipSchema), async (req, res) => {
 
 let server;
 if (process.env.NODE_ENV !== "test") {
+  // Refuse to serve a mispackaged build. Every data loader fails closed, so a
+  // missing canonical data root would otherwise start normally and surface as
+  // "No architecture-support matrix is available" inside a user's YAML
+  // preview. See backend/src/canonicalDataIntegrity.js.
+  try {
+    assertCanonicalDataAvailable();
+  } catch (err) {
+    console.error(`\nFATAL: ${err.message}\n`);
+    process.exit(1);
+  }
+
   server = app.listen(port, () => {
     // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
     const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
@@ -3900,6 +4063,11 @@ function clearUpdateInfoCache() {
 
 export {
   app,
+  // DOC-227: exported so the dependency model can be asserted directly rather
+  // than only through HTTP.
+  PREVIEW_ARTIFACTS,
+  buildPreviewArtifacts,
+  buildPreviewFiles,
   clearUpdateInfoCache,
   resolveOcMirrorArtifactsBaseDir,
   parseSignatureErrors,

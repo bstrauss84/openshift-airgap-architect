@@ -16,10 +16,13 @@
 
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ARCH_SUPPORT_DIR = path.resolve(__dirname, "../../data/arch-support");
+import { canonicalDataRoot } from "./canonicalDataRoot.js";
+
+// Resolved per call, not frozen at module load, so a test can point
+// OAA_CANONICAL_DATA_DIR at a fixture directory. See canonicalDataRoot.js for
+// why `path.resolve(__dirname, "../../data")` was wrong in the container.
+const archSupportDir = () => path.join(canonicalDataRoot(), "arch-support");
 
 /** minor -> parsed document. Built once; the files are tracked build inputs. */
 let cache = null;
@@ -27,9 +30,10 @@ let cache = null;
 function loadArchSupportDataset() {
   if (cache) return cache;
   const dataset = {};
+  const dir = archSupportDir();
   let entries = [];
   try {
-    entries = fs.readdirSync(ARCH_SUPPORT_DIR);
+    entries = fs.readdirSync(dir);
   } catch {
     // No directory: every lookup resolves closed. Deliberately not thrown here,
     // so the failure surfaces at the architecture assertion with context rather
@@ -41,7 +45,7 @@ function loadArchSupportDataset() {
     if (!file.endsWith(".json")) continue;
     const minor = file.replace(/\.json$/, "");
     try {
-      const doc = JSON.parse(fs.readFileSync(path.join(ARCH_SUPPORT_DIR, file), "utf8"));
+      const doc = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
       if (doc && Array.isArray(doc.matrix)) dataset[minor] = doc;
     } catch {
       // A malformed file contributes nothing. Same fail-closed outcome.
@@ -56,4 +60,4 @@ function __resetArchSupportCacheForTests() {
   cache = null;
 }
 
-export { loadArchSupportDataset, __resetArchSupportCacheForTests, ARCH_SUPPORT_DIR };
+export { loadArchSupportDataset, __resetArchSupportCacheForTests, archSupportDir };

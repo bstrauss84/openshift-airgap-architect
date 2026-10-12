@@ -52,6 +52,12 @@ function rule(selector) {
 }
 
 const initialState = {
+  // An explicit minor. These steps are only reachable after version lock-in,
+  // so a real run always carries one; the fixture used to omit it and rely on
+  // the implicit 4.20 default in the catalog readers, which Tranche 7C.1
+  // removed (a versionless state must not silently read baseline metadata).
+  version: { selectedMinor: "4.20", selectedPatch: "4.20.40", selectedChannel: "stable-4.20", locked: true },
+  release: { channel: "4.20", patchVersion: "4.20.40", confirmed: true },
   blueprint: { platform: "Bare Metal", baseDomain: "example.com" },
   methodology: { method: "Agent-Based Installer" },
   hostInventory: {

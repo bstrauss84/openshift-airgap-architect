@@ -97,7 +97,7 @@
         "s390x": {
           "disposition": "hidden",
           "offered": false,
-          "summary": "Not offered: s390x agent-based installation is IBM Z installation — a separate platform Architect does not model."
+          "summary": "Not offered by Architect: upstream Red Hat DOES support s390x for a bare-metal agent install, but OpenShift on IBM Z is a platform Architect does not model."
         }
       }
     },

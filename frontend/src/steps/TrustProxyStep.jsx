@@ -136,8 +136,13 @@ function PemField({ label, required, value, onChange, onBlur, onFiles, error, pl
 export default function TrustProxyStep({ highlightErrors }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
-  const selectedMinor = getOpenShiftMinorFromState(state) || "4.20";
-  const catalogParams = getCatalogForScenario(scenarioId, selectedMinor) || [];
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const selectedMinor = getOpenShiftMinorFromState(state);
+  const catalogParams = (selectedMinor ? getCatalogForScenario(scenarioId, selectedMinor) : null) || [];
 
   const isCatalogFieldVisible = (path, outputFile) => {
     const param = catalogParams.find(

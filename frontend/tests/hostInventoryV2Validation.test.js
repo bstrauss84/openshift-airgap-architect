@@ -42,7 +42,10 @@ describe("Phase 4.3: getCatalogValidationForInventoryV2", () => {
         ingressVip: "1.2.3.5"
       },
       blueprint: { platform: "Bare Metal" },
-      methodology: { method: "Agent-Based Installer" }
+      methodology: { method: "Agent-Based Installer" },
+      // The allowed-role list is catalog-derived, so the catalog to read has to
+      // be named. This used to be omitted and implicitly resolved to 4.20.
+      version: { selectedMinor: "4.20" }
     };
     const result = getCatalogValidationForInventoryV2(state, "bare-metal-agent");
     expect(result.perNode[0].errors).toEqual([]);
@@ -231,7 +234,26 @@ describe("Slice 5I: catalog-version threading", () => {
   });
 
   describe("legacy state (no version fields)", () => {
-    it("supplies undefined to getFieldMeta when state has no version fields", () => {
+    /**
+     * REWRITTEN IN TRANCHE 7C. These two tests asserted the defect.
+     *
+     * The old pair pinned "passes undefined to getFieldMeta" and "preserves
+     * 4.20 behavior through the getFieldMeta default parameter". That default
+     * was harmless only while every catalog was eagerly bundled. Once catalogs
+     * became lazy-loaded per minor, passing undefined fell through to
+     * `version = '4.20'` in catalogPaths and read a catalog nobody had
+     * fetched — a CatalogNotLoadedError on the first render of a brand-new run,
+     * because the backend's cold-start state already resolves a scenarioId
+     * while carrying no version.
+     *
+     * It was also a No-Fallback-Rule violation in its own right: a state with
+     * no version is not a 4.20 state.
+     *
+     * The contract now: no version means no catalog read, so no catalog-derived
+     * enum is enforced. Validation that does not depend on the catalog is
+     * unaffected.
+     */
+    it("does not read any catalog when the state carries no version", () => {
       const spy = vi.spyOn(catalogFieldMeta, "getFieldMeta");
       const state = {
         hostInventory: {
@@ -245,11 +267,10 @@ describe("Slice 5I: catalog-version threading", () => {
       getCatalogValidationForInventoryV2(state, "bare-metal-agent");
 
       const fieldMetaCalls = spy.mock.calls.filter(c => c[0] === "bare-metal-agent");
-      expect(fieldMetaCalls.length).toBeGreaterThan(0);
-      expect(fieldMetaCalls[0][3]).toBeUndefined();
+      expect(fieldMetaCalls, "a versionless state must not consult the catalog").toEqual([]);
     });
 
-    it("preserves 4.20 behavior through getFieldMeta default parameter (integration)", () => {
+    it("still validates, and simply enforces no catalog enum (integration)", () => {
       const state = {
         hostInventory: {
           nodes: [
@@ -264,11 +285,33 @@ describe("Slice 5I: catalog-version threading", () => {
       };
       const result = getCatalogValidationForInventoryV2(state, "bare-metal-agent");
 
+      // The invalid role is NOT flagged: the allowed-role list comes from the
+      // catalog, and there is no version with which to choose one. It is caught
+      // as soon as a release is selected — see the versioned cases above.
       expect(result.perNode[0].errors).toEqual([]);
-      expect(result.perNode[1].fieldErrors.role).toMatch(/must be one of/i);
+      expect(result.perNode[1].fieldErrors.role).toBeUndefined();
       expect(result).toHaveProperty("errors");
       expect(result).toHaveProperty("warnings");
       expect(result).toHaveProperty("perNode");
+    });
+
+    it("the same state WITH a version does flag the invalid role", () => {
+      // Proves the test above documents a version-gap, not a lost check.
+      const state = {
+        hostInventory: {
+          nodes: [
+            { role: "master", hostname: "m-0", primary: {} },
+            { role: "invalid-role", hostname: "w-0", primary: {} }
+          ],
+          apiVip: "1.2.3.4",
+          ingressVip: "1.2.3.5"
+        },
+        blueprint: { platform: "Bare Metal" },
+        methodology: { method: "Agent-Based Installer" },
+        version: { selectedMinor: "4.21" }
+      };
+      const result = getCatalogValidationForInventoryV2(state, "bare-metal-agent");
+      expect(result.perNode[1].fieldErrors.role).toMatch(/must be one of/i);
     });
   });
 

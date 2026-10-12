@@ -13,6 +13,12 @@ import React from "react";
 import { useApp } from "../store.jsx";
 import { validateNode } from "../validation.js";
 import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "../hostInventoryV2Helpers.js";
+import {
+  PRIMARY_NAME_FALLBACKS,
+  resolveBaseInterfaceName,
+  resolveEffectiveInterfaceName,
+  resolveVlanInterfaceName
+} from "../../../shared/interfaceNaming.js";
 
 const PRIMARY_TYPES = [
   { id: "ethernet", label: "Single NIC ethernet" },
@@ -153,6 +159,10 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
           },
           vlan: {
             id: node.primary?.vlan?.id || "",
+            /* baseIface was dropped here, so every consumer of this mirror lost
+               an explicitly imported VLAN base and silently fell back to the
+               type-derived one. Mirrored now, like every other field. */
+            baseIface: node.primary?.vlan?.baseIface || "",
             name: node.primary?.vlan?.name || ""
           },
           advanced: {
@@ -186,6 +196,7 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
           },
           vlan: {
             id: iface.vlan?.id || "",
+            baseIface: iface.vlan?.baseIface || "",
             name: iface.vlan?.name || ""
           },
           ipv4Cidr: iface.ipv4Cidr || "",
@@ -425,11 +436,15 @@ const HostInventoryStep = ({ previewControls, previewEnabled, highlightErrors })
     }
   }, []);
 
-  const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
-  const primaryBaseIface = (node) => {
-    if (node.primary.type === "bond" || node.primary.type === "vlan-on-bond") return node.primary.bond.name || "bond0";
-    return node.primary.ethernet.name || "eth0";
-  };
+  /* Interface naming comes from shared/interfaceNaming.js — the same module the
+     generator uses. The two local derivations that used to live here had the
+     same defects as the v2 editor's: they ignored `vlan.baseIface` entirely, so
+     an imported run carrying an explicit base rendered one name and generated
+     another, and the additional-interface derivation preferred `ethernet.name`
+     over `bond.name` and so showed a bond MEMBER nic for a VLAN on a bond. */
+  const primaryBaseIface = (node) => resolveBaseInterfaceName(node?.primary, PRIMARY_NAME_FALLBACKS);
+  const primaryVlanName = (node) => resolveVlanInterfaceName(node?.primary, PRIMARY_NAME_FALLBACKS);
+  const primaryEffectiveName = (node) => resolveEffectiveInterfaceName(node?.primary, PRIMARY_NAME_FALLBACKS);
 
   const applyReplicate = () => {
     const source = nodes[replicateSource];
@@ -750,8 +765,9 @@ wipefs -a /dev/sdX</pre>
 
         {sortedNodes.map(({ node, index }, displayIndex) => {
           const baseIface = primaryBaseIface(node);
-          const vlanNameSuggestion = suggestedVlanName(node.primary.vlan.baseIface || baseIface, node.primary.vlan.id);
+          const vlanNameSuggestion = primaryVlanName(node);
           const vlanName = node.primary.vlan.name || vlanNameSuggestion;
+          const effectiveIfaceName = primaryEffectiveName(node);
           const advKey = `${index}`;
           const advOpen = Boolean(advancedOpen[advKey]);
           const primaryMode = node.primary.mode;
@@ -1103,7 +1119,7 @@ wipefs -a /dev/sdX</pre>
                     <label>
                       VLAN Interface Name (auto)
                       <input
-                        value={localNodeFields[index]?.primary?.vlan?.name ?? vlanName}
+                        value={localNodeFields[index]?.primary?.vlan?.name || vlanName}
                         onChange={(e) => updateLocalNodeField(index, 'primary.vlan.name', e.target.value)}
                         onBlur={(e) => {
                           const newValue = e.target.value.trim();
@@ -1422,7 +1438,7 @@ wipefs -a /dev/sdX</pre>
                                 updatePrimaryRoute(index, routeIndex, { nextHopInterface: newValue });
                               }
                             }}
-                            placeholder={vlanName || baseIface}
+                            placeholder={effectiveIfaceName}
                           />
                         </label>
                         <label>
@@ -1629,7 +1645,7 @@ wipefs -a /dev/sdX</pre>
                           <label>
                             VLAN Interface Name (auto)
                             <input
-                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.vlan?.name ?? iface.vlan.name ?? suggestedVlanName(iface.vlan.baseIface || iface.ethernet.name || iface.bond.name, iface.vlan.id)}
+                              value={localNodeFields[index]?.additionalInterfaces?.[ifaceIndex]?.vlan?.name || iface.vlan.name || resolveVlanInterfaceName(iface)}
                               onChange={(e) => {
                                 setLocalNodeFields(prev => {
                                   const updated = { ...prev };

@@ -64,10 +64,21 @@ describe("trustBundlePolicy helpers", () => {
     expect(n).not.toContain("4.23.0");
   });
 
-  it("getTrustPolicyOptionsForScenario prefers catalog over empty version policy", () => {
-    const opts = getTrustPolicyOptionsForScenario("bare-metal-agent", "");
+  it("getTrustPolicyOptionsForScenario prefers the catalog's allowed list", () => {
+    // Tranche 7C: the version is now explicit. Passing "" used to fall through
+    // to a `|| '4.20'` default and read a catalog for a minor nobody selected,
+    // which crashed once catalogs became lazy-loaded.
+    const opts = getTrustPolicyOptionsForScenario("bare-metal-agent", "4.20");
     expect(opts).toContain("Proxyonly");
     expect(opts).toContain("Always");
+  });
+
+  it("getTrustPolicyOptionsForScenario reads no catalog without a version", () => {
+    // No version selected is a real state on a cold start. There is no catalog
+    // to consult, so the answer falls through to the version-policy list
+    // rather than inventing a baseline minor.
+    expect(() => getTrustPolicyOptionsForScenario("bare-metal-agent", "")).not.toThrow();
+    expect(Array.isArray(getTrustPolicyOptionsForScenario("bare-metal-agent", ""))).toBe(true);
   });
 
   it("trustBundleInferTier classifies mirror vs proxy-only", () => {

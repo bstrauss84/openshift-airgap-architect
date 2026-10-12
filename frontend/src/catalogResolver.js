@@ -40,7 +40,9 @@ export { getCatalogForScenario };
  * @returns {object|null} field metadata with description
  */
 export function getParamMeta(scenarioId, path, outputFile, state) {
-  const version = state ? (getOpenShiftMinorFromState(state) || '4.20') : '4.20';
+  // NO BASELINE DEFAULT. See getRequiredParamsForOutput below for why.
+  const version = getOpenShiftMinorFromState(state);
+  if (!version) return null;
   return getParamMetaFromCatalog(scenarioId, path, outputFile, version);
 }
 
@@ -54,7 +56,33 @@ export function getParamMeta(scenarioId, path, outputFile, state) {
  */
 export function getRequiredParamsForOutput(scenarioId, outputFile, state) {
   if (!scenarioId) return [];
-  const version = getOpenShiftMinorFromState(state) || '4.20';
+
+  /*
+   * NO BASELINE DEFAULT.
+   *
+   * This used to read `getOpenShiftMinorFromState(state) || '4.20'`. That
+   * default was written when every minor's catalog was bundled eagerly, so
+   * reading 4.20 always succeeded and the lie was invisible. Once catalogs
+   * became lazy-loaded per minor, the same line became a crash: on a cold
+   * start — and after Start Over — no version is selected yet, so
+   * `VersionSupportGate` passes through without loading anything (it has no
+   * minor to load), AppShell still validates every step, and this defaulted to
+   * a 4.20 catalog that was never loaded. `getCatalogForScenario` fails closed,
+   * correctly, and the whole app fell into the ErrorBoundary.
+   *
+   * The honest answer when no version is selected is "there are no
+   * version-specific required fields yet", not "assume the baseline". That is
+   * what is returned here.
+   *
+   * This is NOT a silent empty-catalog fallback: if a version IS selected and
+   * its catalog is not resident, the read below still throws
+   * CatalogNotLoadedError. Fail-closed is preserved exactly where it means
+   * something — a real version whose data is missing — and removed only where
+   * it was inventing a version the user had not chosen.
+   */
+  const version = getOpenShiftMinorFromState(state);
+  if (!version) return [];
+
   const parameters = getCatalogParameters(scenarioId, version);
   return parameters
     .filter((p) => p.outputFile === outputFile && p.required === true)

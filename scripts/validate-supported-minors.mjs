@@ -27,7 +27,7 @@
  *
  * No network access. Exit 0 pass, 1 fail.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -159,6 +159,134 @@ export async function validateSupportedMinors(root) {
         "  for contextual 'New in OpenShift X.Y' badges. Moving it changes badge semantics for every\n" +
         "  already-supported minor, so it is a standalone human decision recorded in\n" +
         "  scripts/lib/released-minor-support.json — not something an onboarding change may do."
+    );
+  }
+
+  // 5. NO IMPLICIT SUPPORTED-MINOR DEFAULT IN PRODUCTION SOURCE.
+  //
+  // Added in v2.1 Tranche 7C.1. Version-aware readers used to carry
+  // `version = '4.20'` default parameters, and UI steps used to write
+  // `getOpenShiftMinorFromState(state) || '4.20'`. Both were invisible while
+  // every catalog was bundled eagerly. Once catalogs became lazy-loaded per
+  // minor the same lines became a cold-start crash
+  // (CatalogNotLoadedError for a version the user never chose), and they
+  // violated the No Fallback Rule regardless: a state with no selected minor
+  // is not a 4.20 state, and answering as though it were serves another
+  // minor's metadata.
+  //
+  // A caller must know the minor or skip the read. This check belongs here
+  // because the thing being protected is the supported-minor contract itself.
+  const IMPLICIT_DEFAULT_PATTERNS = [
+    // `version = "4.20"` / `selectedMinor = '4.21'` default parameters.
+    { re: /\b[A-Za-z_$]*(?:[Vv]ersion|[Mm]inor)[A-Za-z_$]*\s*=\s*["']4\.\d+["']/, what: "implicit minor default parameter" },
+    // `... || "4.20"` / `... ?? '4.21'` fallbacks.
+    { re: /(?:\|\||\?\?)\s*["']4\.\d+["']/, what: "fallback to a hardcoded minor" },
+  ];
+  // KNOWN, TRACKED EXCEPTIONS — each must name an owning backlog item.
+  //
+  // These are a different and lower-severity family than the catalog defaults
+  // this check was created for: they fabricate a DOCUMENTATION version for a
+  // docs.redhat.com URL and a docs cache key, not a parameter catalog to read.
+  // "4.0" is not a supported minor and never was, so it cannot be mistaken for
+  // real support — but it does produce a documentation link for a release that
+  // does not exist. Tracked as DOC-203 rather than fixed inside a blocker
+  // recovery tranche, because correcting it changes docs-link behaviour across
+  // four backend endpoints.
+  //
+  // Keyed by FILE + EXACT SOURCE TEXT, not by line number.
+  //
+  // These were pinned as `file:line` until v2.1 Tranche 7C.4, when ordinary
+  // edits elsewhere in `backend/src/index.js` shifted all four sites and the
+  // guard failed on its own known exceptions. A line number is not a stable
+  // identity for a tracked exception, and a guard that cries wolf on every
+  // unrelated edit is one that gets "fixed" by widening it.
+  //
+  // Matching on the exact trimmed source line is STRICTER than matching on
+  // position: the text must be byte-identical, so a genuinely new fallback —
+  // even on one of these very lines — is not silently absorbed. The per-file
+  // budget below keeps the original property that an ADDITIONAL occurrence
+  // fails, which a text-keyed set alone would not.
+  const TRACKED_EXCEPTIONS = new Map([
+    ["frontend/src/steps/GlobalStrategyStep.jsx", new Set([
+      'const docsVersion = (selectedVersion || "4.0").split(".").slice(0, 2).join(".");', // DOC-203
+    ])],
+    ["backend/src/index.js", new Set([
+      'const version = getOpenShiftMinorFromState(state) || "4.0";',   // DOC-203
+      'const version = getOpenShiftMinorFromState(v3State) || "4.0";', // DOC-203
+    ])],
+  ]);
+  // How many exempt occurrences each file is allowed. Exceeding the budget
+  // fails even when every line matches a tracked text, so a sixth DOC-203
+  // fallback cannot be added for free.
+  const TRACKED_EXCEPTION_BUDGET = new Map([
+    ["frontend/src/steps/GlobalStrategyStep.jsx", 1],
+    ["backend/src/index.js", 4],
+  ]);
+  const SOURCE_ROOTS = ["frontend/src", "backend/src", "shared"];
+  const offenders = [];
+  const exemptCounts = new Map();
+  const scannedFiles = new Set();
+  const walk = (dir) => {
+    let entries = [];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name !== "node_modules" && e.name !== "data") walk(full);
+      } else if (/\.(js|jsx|mjs)$/.test(e.name) && !/\.(test|spec)\./.test(e.name)) {
+        const text = readFileSync(full, "utf8");
+        scannedFiles.add(full.replace(root + "/", ""));
+        text.split("\n").forEach((line, i) => {
+          const code = line.replace(/\/\/.*$/, "");
+          if (/^\s*\*/.test(line) || /^\s*\/\//.test(line)) return; // comment lines
+          for (const { re, what } of IMPLICIT_DEFAULT_PATTERNS) {
+            if (re.test(code)) {
+              const rel = full.replace(root + "/", "");
+              const where = `${rel}:${i + 1}`;
+              if (TRACKED_EXCEPTIONS.get(rel)?.has(line.trim())) {
+                exemptCounts.set(rel, (exemptCounts.get(rel) || 0) + 1);
+                continue;
+              }
+              offenders.push(`${where}  ${what} -> ${line.trim()}`);
+            }
+          }
+        });
+      }
+    }
+  };
+  for (const r of SOURCE_ROOTS) walk(join(root, r));
+  // A tracked exception must not quietly grow. Over budget is an offence;
+  // UNDER budget means a DOC-203 site was fixed or removed, so the budget
+  // should be lowered rather than left as unearned headroom.
+  for (const [file, budget] of TRACKED_EXCEPTION_BUDGET) {
+    // Only meaningful for a root that actually contains the file. The unit
+    // tests run this validator against synthetic fixture roots holding just a
+    // version-policy module, and an absent file has no exceptions to budget.
+    if (!scannedFiles.has(file)) continue;
+    const seen = exemptCounts.get(file) || 0;
+    if (seen > budget) {
+      offenders.push(
+        `${file}  tracked-exception budget exceeded -> ${seen} exempt occurrences, budget ${budget} (DOC-203)`
+      );
+    } else if (seen < budget) {
+      offenders.push(
+        `${file}  tracked-exception budget is now too generous -> ${seen} exempt occurrences, budget ${budget}. ` +
+          "Lower the budget so the remaining sites stay pinned (DOC-203)."
+      );
+    }
+  }
+  checks.push({ id: "no-implicit-minor-default", ok: offenders.length === 0 });
+  if (offenders.length) {
+    errors.push(
+      `Production source substitutes a hardcoded OpenShift minor in ${offenders.length} place(s):\n` +
+        offenders.map((o) => `    ${o}`).join("\n") +
+        "\n  A version-aware API must require an explicit minor. When no version is\n" +
+        "  selected, skip the version-specific read instead of defaulting to the\n" +
+        "  baseline, the latest, or the newest supported minor."
     );
   }
 
