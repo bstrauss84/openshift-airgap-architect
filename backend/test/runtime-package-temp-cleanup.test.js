@@ -10,23 +10,25 @@
  *
  * OWNERSHIP CONTRACT PINNED HERE
  *
- * `createIntegrityTracker.file()` reads each member with `fs.readFileSync` and
- * hands archiver a Buffer, so archiver holds no reference to the staged path
- * once registration returns. Staging is therefore released by the block that
- * created it, inside a `finally`, before `archive.finalize()` — not by a
- * response or stream listener.
+ * Revised by L2. Runtime-package members are now registered with
+ * `tracked.streamFile()`, so archiver opens the staged paths itself while the
+ * response drains; the files must outlive registration. Staging is therefore
+ * released after the archive stream settles, in the `finally` around
+ * `await archiveDone` in `buildBundleZip` — not at registration time, which is
+ * where L1 originally put it while members were still buffered eagerly.
  *
  * Two consequences are asserted below, and both must keep holding:
- *   1. by the time a client has the complete bundle, staging is already gone
- *      (no polling, no grace period); and
- *   2. the bundle still validates in full — every runtime-package entry is
- *      present, CRC-correct and covered by its manifest sha256.
+ *   1. staging is released once the export's stream has settled — on
+ *      completion and on client disconnect alike. Because the client can hold
+ *      the last byte before the server's stream promise settles, this is
+ *      asserted with a bounded wait rather than instantaneously; and
+ *   2. the bundle validates in full — every runtime-package entry is present,
+ *      CRC-correct and covered by its manifest sha256.
  *
- * (2) is what makes (1) safe to keep. If `createIntegrityTracker` ever streams
- * large members instead of buffering them (open finding L2), releasing this
- * early would drop or corrupt entries and `validateArchiveBuffer` would fail
- * here with MISSING_FILE or CHECKSUM_MISMATCH rather than shipping a quietly
- * incomplete bundle.
+ * (2) is the proof that (1) is not premature. Under streaming, a staging
+ * directory released too early makes archiver drop the member with an ENOENT
+ * `warning` and ship a quietly incomplete bundle; `validateArchiveBuffer` then
+ * fails here with MISSING_FILE instead of letting it through.
  */
 
 import { describe, it, before, after } from "node:test";
@@ -313,26 +315,27 @@ describe("Bundle export releases runtime package staging", () => {
       ...init
     });
 
-  it("releases staging before the bundle is complete, and the bundle still validates in full", async () => {
+  it("releases staging once the export stream settles, with the bundle intact", async () => {
     const before = stagingDirs();
 
     const res = await postBundle(bundleState());
     assert.equal(res.status, 200);
     const bytes = Buffer.from(await res.arrayBuffer());
 
-    // No polling and no grace period. Staging is released inside the export
-    // block, before finalize, so a client holding the complete bundle proves
-    // the release has already happened.
+    // Bounded wait, not instantaneous: the release is anchored to the server's
+    // stream promise, which can settle fractionally after the client has the
+    // final byte. Asserting it with no wait would pass on timing luck.
     assert.deepEqual(
-      newStagingDirs(before),
+      await waitForStagingRelease(before),
       [],
-      "staging must already be released once the client holds the whole bundle"
+      "staging must be released once the export stream has settled"
     );
 
-    // ...and releasing that early cost the bundle nothing. validateArchiveBuffer
-    // parses the central directory, inflates every entry, checks each CRC32,
-    // requires manifest/archive name coverage in both directions, and verifies
-    // every entry's sha256 against the manifest.
+    // ...and nothing was released too early. validateArchiveBuffer parses the
+    // central directory, inflates every entry, checks each CRC32, requires
+    // manifest/archive name coverage in both directions, and verifies every
+    // entry's sha256 against the manifest — so a staged member deleted before
+    // archiver read it cannot pass here.
     const validated = validateArchiveBuffer(bytes);
     assert.equal(validated.valid, true);
     assert.equal(validated.selectedMinor, "4.22");
@@ -364,7 +367,11 @@ describe("Bundle export releases runtime package staging", () => {
       assert.equal(res.status, 200);
       const bytes = Buffer.from(await res.arrayBuffer());
       assert.equal(validateArchiveBuffer(bytes).valid, true, `export ${i + 1} produced an invalid bundle`);
-      assert.deepEqual(newStagingDirs(before), [], `export ${i + 1} left staging behind`);
+      assert.deepEqual(
+        await waitForStagingRelease(before),
+        [],
+        `export ${i + 1} left staging behind`
+      );
     }
   });
 

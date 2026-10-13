@@ -15,6 +15,7 @@ import cors from "cors";
 import fs from "node:fs";
 import path from "node:path";
 import { ZipArchive } from "archiver";
+import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
 import logger, { generateErrorId } from "./logger.js";
@@ -3528,10 +3529,62 @@ const buildBundleZip = async (state, res) => {
   res.setHeader("Content-Disposition", `attachment; filename=${bundleName}`);
 
   const archive = new ZipArchive({ zlib: { level: 9 } });
-  archive.on("error", (err) => {
-    res.status(500).end(String(err));
-  });
-  archive.pipe(res);
+
+  // One owner for every way this export can fail, so the response is
+  // terminated exactly once and a failure can never be served as a complete
+  // archive.
+  let bundleFailure = null;
+  const failBundleStream = (err) => {
+    if (bundleFailure) return;
+    bundleFailure = err instanceof Error ? err : new Error(String(err));
+    const clientGone = bundleFailure.code === "ERR_STREAM_PREMATURE_CLOSE";
+    logger[clientGone ? "warn" : "error"]({
+      err: bundleFailure,
+      tag: "bundle:stream",
+      code: bundleFailure.code,
+      headersSent: res.headersSent
+    }, clientGone ? "Bundle transfer ended before completion" : "Bundle export failed");
+    if (res.headersSent) {
+      // Bytes are already on the wire. The only honest ending is a truncated
+      // transfer: the client's decoder fails instead of receiving a
+      // well-formed archive. Never write an error string into ZIP output, and
+      // never try to send a second response.
+      res.destroy(bundleFailure);
+    } else {
+      res.status(500).end(String(err));
+    }
+    try {
+      archive.abort();
+    } catch (abortErr) {
+      logger.debug({ err: abortErr, tag: "bundle:stream" }, "Archive abort after failure threw");
+    }
+  };
+
+  archive.on("error", failBundleStream);
+  // Archiver downgrades an unreadable entry SOURCE to a warning, decrements the
+  // entry count and finalizes a ZIP that is simply missing that member. Only
+  // streamFile() members are stat'ed by archiver — append(Buffer) members
+  // cannot produce a warning — so any warning here means a streamed member was
+  // silently dropped, which must fail the export rather than ship a smaller
+  // archive that still looks successful. The warning necessarily precedes
+  // finalization, because the stat queue must drain before archiver finalizes.
+  archive.on("warning", failBundleStream);
+
+  // pipeline(), not pipe(): streamed members (see tracked.streamFile below) are
+  // opened by archiver while the response drains, so the staging that owns them
+  // can only be released once this settles. pipeline's promise always settles —
+  // it resolves on completion and rejects with ERR_STREAM_PREMATURE_CLOSE
+  // within milliseconds of a client disconnect, tearing the archive down with
+  // it. archive.finalize()'s own promise is NOT a usable anchor here: on a
+  // disconnect it never settles at all, even after archive.abort().
+  const archiveDone = pipeline(archive, res);
+  // Observed the moment it exists. A client can disconnect while the awaits
+  // below are still running, which rejects this long before the final await is
+  // reached; without an immediate handler that is an unhandled rejection. The
+  // outcome is still awaited at the end — marking a rejection handled does not
+  // consume it.
+  archiveDone.catch(() => {});
+
   const tracked = createIntegrityTracker(archive);
   tracked.append(installConfig, { name: "install-config.yaml" });
   if (agentConfig) {
@@ -3709,9 +3762,15 @@ const buildBundleZip = async (state, res) => {
   }
 
   // High-side runtime package export (DOC-083)
+  //
+  // Released by the archive-stream `finally` at the end of this function, not
+  // here: L2 streams these members, so archiver opens the staged paths while
+  // the response drains. Releasing them at registration time (what L1 did,
+  // correctly, while members were buffered) would now delete the files out
+  // from under archiver, which reports a missing source as a `warning` and
+  // silently omits the entry.
+  let releaseRuntimePackageStaging = null;
   if (v3State.exportOptions?.includeHighSideRuntimePackage) {
-    // Declared outside the try so the finally below releases the staging
-    // directory even when registration throws part-way through.
     let runtimePackage = null;
     try {
       // SECURITY: Sanitize state in runPayload to prevent credential leakage
@@ -3740,9 +3799,23 @@ const buildBundleZip = async (state, res) => {
       });
 
       if (runtimePackage.included) {
-        // Add all runtime package files to archive under runtime-package/ directory
+        // Add all runtime package files to archive under runtime-package/ directory.
+        //
+        // streamFile, not file: these include `podman save` / `docker save`
+        // image archives, and tracked.file() would hold every one of them in
+        // memory at once — registration is a single synchronous pass, so the
+        // Buffers accumulate rather than alternate. Measured on the reference
+        // host: 590 MB of staged members (podman oci-archive, layers already
+        // compressed) grew peak RSS by 628 MB eagerly versus 71 MB streamed.
+        // The `docker save` path stages uncompressed layers instead — 1.67 GB
+        // for the same two images — so it is the worse of the two. streamFile's
+        // precondition
+        // holds here and nowhere else in this function: the staging directory
+        // is a private 0700 mkdtemp this request created moments ago, nothing
+        // else can reach it, and it is released only after the archive stream
+        // settles.
         for (const entry of runtimePackage.entries) {
-          tracked.file(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
+          tracked.streamFile(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
         }
         logger.info({
           tag: "runtime-package",
@@ -3772,35 +3845,47 @@ const buildBundleZip = async (state, res) => {
         stack: error?.stack
       }, "Runtime package creation failed");
     } finally {
-      // The staging directory is dead the moment registration above returns:
-      // createIntegrityTracker.file() reads each member with readFileSync and
-      // hands archiver a Buffer, so nothing reopens the staged path during
-      // finalize. Releasing here — rather than when the response ends — keeps
-      // ownership in the block that created it and covers success, a partial
-      // or missing package, and a throw part-way through, with no listener
-      // that a hard process exit could skip.
-      //
-      // DEPENDENCY: if createIntegrityTracker ever streams large members
-      // instead of buffering them (the open L2 finding), this release becomes
-      // too early and must move to the end of the archive stream. The
-      // runtime-package manifest/checksum assertions in
-      // test/runtime-package-temp-cleanup.test.js fail loudly if it does.
-      if (runtimePackage) {
-        const release = runtimePackage.cleanup();
-        if (!release.released) {
-          logger.warn({
-            err: release.error,
-            tag: "runtime-package",
-            stagingRoot: release.stagingRoot
-          }, "Runtime package staging directory could not be removed");
-        }
-      }
+      // Hand ownership to the archive-stream finally below. cleanup() is
+      // idempotent and never throws, so running it there once is enough, and
+      // it still runs when nothing was staged or staging threw part-way.
+      if (runtimePackage) releaseRuntimePackageStaging = runtimePackage.cleanup;
     }
   }
 
-  const versionManifest = tracked.buildManifest(v3State);
-  archive.append(JSON.stringify(versionManifest, null, 2), { name: MANIFEST_FILENAME });
-  archive.finalize();
+  try {
+    const versionManifest = tracked.buildManifest(v3State);
+    archive.append(JSON.stringify(versionManifest, null, 2), { name: MANIFEST_FILENAME });
+    // finalize() resolves only on a clean end; on a disconnect it never
+    // settles, so archiveDone owns the outcome. Its rejection is routed
+    // through the same single failure owner rather than discarded, so an
+    // aborted archive cannot finish quietly.
+    archive.finalize().catch(failBundleStream);
+    await archiveDone;
+
+    // Post-condition. Archiver drops an unreadable streamed member with a
+    // warning rather than an error, so prove the archive actually carries
+    // every member the manifest claims. failBundleStream above is the fast
+    // path that truncates the response while that is still possible; this is
+    // the backstop that guarantees a silent omission can never be recorded as
+    // a successful export.
+    const missing = tracked.missingStreamedMembers();
+    if (missing.length > 0) {
+      failBundleStream(new Error(`Bundle omitted streamed members: ${missing.join(", ")}`));
+    }
+  } catch (error) {
+    failBundleStream(error);
+  } finally {
+    if (releaseRuntimePackageStaging) {
+      const release = releaseRuntimePackageStaging();
+      if (!release.released) {
+        logger.warn({
+          err: release.error,
+          tag: "runtime-package",
+          stagingRoot: release.stagingRoot
+        }, "Runtime package staging directory could not be removed");
+      }
+    }
+  }
 };
 
 // Path traversal protection: whitelist allowed base directories for filesystem operations

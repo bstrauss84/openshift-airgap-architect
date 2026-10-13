@@ -54,6 +54,33 @@ function computeSha256(content) {
   return `sha256:${hash.digest('hex')}`;
 }
 
+/** Reused read window for streamed hashing. Never scales with file size. */
+const STREAM_HASH_CHUNK_BYTES = 64 * 1024;
+
+/**
+ * sha256 a file without ever holding more than one chunk of it.
+ *
+ * Synchronous on purpose: the tracker's callers register entries in one
+ * synchronous pass and then build the manifest from the collected checksums,
+ * so a digest that is not ready by the time registration returns would have to
+ * be awaited somewhere, and the manifest-last ordering would become event
+ * choreography.
+ */
+function computeSha256File(filePath) {
+  const hash = crypto.createHash('sha256');
+  const window = Buffer.allocUnsafe(STREAM_HASH_CHUNK_BYTES);
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    let bytesRead;
+    while ((bytesRead = fs.readSync(fd, window, 0, STREAM_HASH_CHUNK_BYTES, null)) > 0) {
+      hash.update(window.subarray(0, bytesRead));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return `sha256:${hash.digest('hex')}`;
+}
+
 function getAppIdentity() {
   const commit = (process.env.APP_GIT_SHA || 'unknown').trim();
   const buildTime = (process.env.APP_BUILD_TIME || 'unknown').trim();
@@ -115,17 +142,72 @@ function buildVersionManifest(v3State, fileChecksums) {
 
 function createIntegrityTracker(archive) {
   const checksums = {};
+  // Members archiver opens later, and the ones it has actually written. Only
+  // streamFile() members can go missing: an append(Buffer) member is already
+  // in memory, while a streamed source can vanish or become unreadable
+  // between registration and consumption, which archiver reports as a
+  // `warning` and then silently omits.
+  const streamedMembers = new Set();
+  const archivedMembers = new Set();
+  archive.on('entry', (data) => {
+    if (data?.name) archivedMembers.add(data.name);
+  });
 
   return {
     append(content, options) {
       archive.append(content, options);
       checksums[options.name] = computeSha256(content);
     },
+    /**
+     * Snapshot a file into the archive.
+     *
+     * Reads the whole file into memory on purpose: the Buffer handed to
+     * archiver and the bytes hashed are the same bytes, so a file that is
+     * mutated after registration cannot make the manifest disagree with the
+     * archive. That atomicity is asserted by the "file mutation after tracking
+     * cannot cause checksum/content divergence (TOCTOU)" test and is why this
+     * method stays eager for files the caller does not exclusively own.
+     *
+     * Memory cost is the file's size, and costs accumulate across members
+     * because registration is one synchronous pass. Use `streamFile` for large
+     * members whose exclusive ownership the caller can guarantee.
+     */
     file(filePath, options) {
       const content = fs.readFileSync(filePath);
       const { mode } = fs.statSync(filePath);
       archive.append(content, { ...options, mode });
       checksums[options.name] = computeSha256(content);
+    },
+    /**
+     * Add a file to the archive without ever buffering it.
+     *
+     * Peak memory is one 64 KB hash window plus archiver's own deflate state,
+     * independent of the file's size. The digest is computed up front so the
+     * manifest can still be built synchronously and appended last.
+     *
+     * CALLER PRECONDITION — exclusive ownership. Unlike `file`, this takes no
+     * snapshot: archiver opens the path later, while the archive streams. The
+     * caller must guarantee that nothing mutates or removes the file until the
+     * archive stream has ended, otherwise the manifest checksum can disagree
+     * with the archived bytes, or the entry can vanish entirely (archiver
+     * reports a missing source as a `warning` and silently omits it). Only use
+     * this for files the caller created and solely controls.
+     */
+    streamFile(filePath, options) {
+      const { mode } = fs.statSync(filePath);
+      checksums[options.name] = computeSha256File(filePath);
+      streamedMembers.add(options.name);
+      archive.file(filePath, { ...options, mode });
+    },
+    /**
+     * Streamed members the manifest claims but the archive does not contain.
+     *
+     * Meaningful once the archive has finished: a non-empty result means the
+     * ZIP is incomplete relative to its own manifest, and the export must be
+     * reported as failed rather than served.
+     */
+    missingStreamedMembers() {
+      return [...streamedMembers].filter((name) => !archivedMembers.has(name));
     },
     directory(dirPath, prefix) {
       for (const entry of walkDirectorySync(dirPath, prefix)) {
@@ -805,6 +887,7 @@ export {
   CHECKSUM_PATTERN,
   ZIP_LIMITS,
   computeSha256,
+  computeSha256File,
   crc32,
   getAppIdentity,
   buildVersionManifest,
