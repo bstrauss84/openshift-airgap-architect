@@ -99,22 +99,41 @@ if (!fs.existsSync(composeFile)) {
   }
 }
 
-// 2. Verify both Containerfile and Dockerfile have equivalent structure
+// 2. Verify the SUPPORTED build file encodes the sibling layout that makes
+//    `../../shared/*` resolve, and that the shipped stage is not a dev server.
+//
+// WHAT THIS SECTION USED TO ASSERT, AND WHY IT WAS WRONG (v2.1 Tranche 8B).
+//
+// It required `WORKDIR /app/frontend` and byte-equivalence between
+// frontend/Containerfile and frontend/Dockerfile. Both assumptions predate
+// PROD-026 and are now objectively invalid:
+//
+//   - `/app/frontend` was the SINGLE-STAGE DEV-SERVER layout. The supported
+//     Containerfile is multi-stage: the builder works in `/build/frontend` and
+//     the runtime is nginx serving `/opt/app-root/src`. No `/app/frontend`
+//     exists in the shipped image, by design.
+//
+//   - The parity check demanded the Containerfile match frontend/Dockerfile,
+//     whose CMD is `node node_modules/vite/bin/vite.js` — the Vite DEV SERVER.
+//     Satisfying that assertion would have REINTRODUCED the exact release
+//     blocker PROD-026 removed. It was not merely stale; it required the defect.
+//
+// Neither check is deleted. The legitimate contract they were reaching for —
+// "the build resolves shared/* imports, and we do not ship a dev server" — is
+// asserted directly below, against properties that actually hold.
 const containerfile = path.join(repoRoot, "frontend/Containerfile");
 const dockerfile = path.join(repoRoot, "frontend/Dockerfile");
 
 if (!fs.existsSync(containerfile)) {
   fail("frontend/Containerfile not found");
 }
-if (!fs.existsSync(dockerfile)) {
-  fail("frontend/Dockerfile not found");
-}
 
-if (fs.existsSync(containerfile) && fs.existsSync(dockerfile)) {
+if (fs.existsSync(containerfile)) {
   const containerfileContent = fs.readFileSync(containerfile, "utf8");
-  const dockerfileContent = fs.readFileSync(dockerfile, "utf8");
 
-  // Exact required instructions (anchored patterns)
+  // THE RESOLUTION CONTRACT. frontend sources import `../../shared/*.js`, so
+  // `frontend/` and `shared/` must be copied as SIBLINGS under one build root,
+  // and the build must run from inside the frontend directory beneath it.
   const requiredInstructions = [
     {
       pattern: /^COPY --chown=1001:0 frontend\/package\.json frontend\/package-lock\.json \.\/frontend\/$/m,
@@ -126,15 +145,17 @@ if (fs.existsSync(containerfile) && fs.existsSync(dockerfile)) {
     },
     {
       pattern: /^COPY --chown=1001:0 shared\/ \.\/shared\/$/m,
-      desc: "COPY --chown=1001:0 shared/ ./shared/",
+      desc: "COPY --chown=1001:0 shared/ ./shared/ (sibling of frontend/, so ../../shared resolves)",
     },
     {
       pattern: /^RUN npm ci$/m,
       desc: "RUN npm ci",
     },
     {
-      pattern: /^WORKDIR \/app\/frontend$/m,
-      desc: "WORKDIR /app/frontend",
+      // Asserts the PROPERTY, not a hardcoded legacy path: the build runs from
+      // `<build-root>/frontend`, whatever the root is named.
+      pattern: /^WORKDIR \/\S+\/frontend$/m,
+      desc: "WORKDIR <build-root>/frontend",
     },
   ];
 
@@ -142,39 +163,53 @@ if (fs.existsSync(containerfile) && fs.existsSync(dockerfile)) {
     if (!pattern.test(containerfileContent)) {
       fail(`frontend/Containerfile missing: ${desc}`);
     }
-    if (!pattern.test(dockerfileContent)) {
-      fail(`frontend/Dockerfile missing: ${desc}`);
-    }
   }
 
   // Reject npm install (with or without arguments)
   if (/^RUN npm install\b/m.test(containerfileContent)) {
     fail("frontend/Containerfile contains 'RUN npm install' (must use 'npm ci')");
   }
-  if (/^RUN npm install\b/m.test(dockerfileContent)) {
-    fail("frontend/Dockerfile contains 'RUN npm install' (must use 'npm ci')");
+
+  // The build root must be coherent: the directory holding `frontend/` and
+  // `shared/` must be the parent of the build WORKDIR, or the relative import
+  // cannot resolve no matter what the COPY lines say.
+  const buildWorkdirs = [...containerfileContent.matchAll(/^WORKDIR (\/\S+)$/gm)].map((m) => m[1]);
+  const frontendWorkdir = buildWorkdirs.find((w) => w.endsWith("/frontend"));
+  if (frontendWorkdir) {
+    const buildRoot = path.posix.dirname(frontendWorkdir);
+    if (!buildWorkdirs.includes(buildRoot)) {
+      fail(
+        `frontend/Containerfile builds in ${frontendWorkdir} but never sets WORKDIR ${buildRoot}, ` +
+          "where frontend/ and shared/ are copied as siblings"
+      );
+    } else {
+      console.log(`✅ Build root ${buildRoot} holds frontend/ and shared/ as siblings`);
+    }
   }
 
-  // Verify Containerfile and Dockerfile have equivalent effective instructions
-  const extractInstructions = (content) => {
-    return content
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#"))
-      .join("\n");
-  };
+  // PROD-026: the SHIPPED stage must not be the Vite dev server. Only the final
+  // stage is judged — a builder stage legitimately runs vite to build.
+  const stages = containerfileContent.split(/^FROM /m);
+  const finalStageCmd = stages[stages.length - 1].match(/^\s*CMD .*/m)?.[0] ?? "";
+  if (/vite/i.test(finalStageCmd)) {
+    fail("frontend/Containerfile final stage CMD runs the Vite dev server (PROD-026 regression)");
+  } else {
+    console.log("✅ Shipped stage does not run a development server");
+  }
+}
 
-  const containerfileInstructions = extractInstructions(containerfileContent);
-  const dockerfileInstructions = extractInstructions(dockerfileContent);
-
-  if (containerfileInstructions !== dockerfileInstructions) {
+// The legacy Dockerfile must not masquerade as the supported path. It is NOT
+// required to match the Containerfile — it deliberately differs — but a reader
+// must be able to tell which file actually builds the product.
+if (fs.existsSync(dockerfile)) {
+  const dockerfileContent = fs.readFileSync(dockerfile, "utf8");
+  if (!/LEGACY|UNSUPPORTED|DO NOT USE|DEPRECATED/i.test(dockerfileContent)) {
     fail(
-      "frontend/Containerfile and frontend/Dockerfile have different effective instructions"
+      "frontend/Dockerfile sits beside frontend/Containerfile but is not marked legacy/unsupported; " +
+        "a reader cannot tell which file is the supported build path"
     );
   } else {
-    console.log(
-      "✅ Both Containerfile and Dockerfile have equivalent effective instructions"
-    );
+    console.log("✅ frontend/Dockerfile is marked as not the supported build path");
   }
 }
 

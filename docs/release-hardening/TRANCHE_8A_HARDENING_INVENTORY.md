@@ -58,6 +58,13 @@ scope. It is the reason this tranche adds a `ci-integrity` axis: a gate nobody r
 not a gate, so the CI conclusion for the exact candidate commit is now certified in its
 own right rather than assumed.
 
+> **CLOSED BY 8B.** All three workflow defects are fixed (§5.1–§5.3) and every gate
+> listed above now runs and passes from a pristine clone. The section above is retained
+> as the historical record of what was wrong and for how long — it is **not** a
+> statement of current state. Remote CI will show green from the first commit that
+> carries these fixes; until that commit exists, `ci-integrity` honestly reports
+> INCOMPLETE rather than asserting a result it cannot have.
+
 ---
 
 ## 2. Baseline proof
@@ -130,25 +137,44 @@ resource probes · compatibility matrix evidence · dependency scanning in CI ·
 Status is the **certified status of the candidate today**, as produced by the new
 harness. `INCOMPLETE` means the proof could not be performed — it is not a pass.
 
-15 axes, all required. Verdict of the full run on the 8A.1 working tree: **RED**.
+15 axes, all required. **Current verdict after Tranche 8B: RED**, attributable to a
+single unresolved axis (`dependencies-builder`) plus axes awaiting later tranches.
 
-| axis | §  | status | gap | owner | closes |
-| --- | --- | --- | --- | --- | --- |
-| `identity` | 6 | **PASS** | — | — | — |
-| `repo-hygiene` | 14 | **FAIL** | `frontend/Dockerfile` drift (§5.4) | — | 8B |
-| `docs` | 15 | **FAIL** | evidence-ledger drift; `package.json` repo URL (§5.5, §5.6) | — | 8B |
-| `dependencies-shipped` | 8 | **PASS** | backend `prod` scope, frontend ships no npm tree | — | — |
-| `dependencies-builder` | 8 | **FAIL** | frontend builder 2 critical / 8 high, unresolved | DOC-207 | **8G** |
-| `secrets` | 8 | INCOMPLETE | canary suites need installed deps on the cert host | — | 8B |
-| `tests` | 11 | INCOMPLETE | no deps installed in this worktree | — | 8B |
-| `ci-integrity` | — | INCOMPLETE | candidate dirty; CI cannot certify uncommitted bytes. The CI defects themselves are §5.1–§5.3 | — | **8B** |
-| `containers` | 10 | INCOMPLETE | no image carries candidate provenance (§5.11) | — | **8D** |
-| `image-vulnerabilities` | 8 | INCOMPLETE | **named Tranche 8 blocker** — no provenance, no scanner. NON-WAIVABLE | PROD-020 / PROD-044 | **8D** |
-| `component-inventory` | 9 | INCOMPLETE | no provenance, no generator. NON-WAIVABLE | PROD-023 | **8D** |
-| `lifecycle` | 12 | INCOMPLETE | no probes; one confirmed leak (§6) | PROD-036 / PROD-012 | 8C |
-| `compatibility` | 16 | INCOMPLETE | only the local host exercised | PROD-046 | 8E |
-| `connectivity` | 17 | INCOMPLETE | no profile harness | PROD-043 | 8E |
-| `artifacts` | 18 | INCOMPLETE | no release bundle defined | PROD-042 / PROD-046 | 8F |
+Two columns: what 8A found, and where the axis stands now. Historical findings are
+preserved in §5 regardless of present status.
+
+| axis | §  | FOUND AT 8A | CURRENT | gap remaining | owner | closes |
+| --- | --- | --- | --- | --- | --- | --- |
+| `identity` | 6 | PASS | **PASS** | — | — | — |
+| `repo-hygiene` | 14 | FAIL | **PASS** ✅ 8B | — | — | — |
+| `docs` | 15 | FAIL | **PASS** ✅ 8B | — | — | — |
+| `dependencies-shipped` | 8 | PASS | **PASS** | — | — | — |
+| `dependencies-builder` | 8 | FAIL | **FAIL** | frontend builder 2 critical / 8 high, **unresolved** | DOC-207 | **8G** |
+| `secrets` | 8 | INCOMPLETE | **PASS** ✅ 8B | — | — | — |
+| `tests` | 11 | INCOMPLETE | **PASS** ✅ 8B | — | — | — |
+| `ci-integrity` | — | INCOMPLETE | INCOMPLETE | candidate is dirty/uncommitted, so no remote CI evidence can exist for it yet. The CI *defects* (§5.1–§5.3) are closed | — | needs a qualifying remote run (§13a) |
+| `containers` | 10 | INCOMPLETE | INCOMPLETE | no image carries candidate provenance (§5.11) | — | **8D** |
+| `image-vulnerabilities` | 8 | INCOMPLETE | INCOMPLETE | **named Tranche 8 blocker** — no provenance, no scanner. NON-WAIVABLE | PROD-020 / PROD-044 | **8D** |
+| `component-inventory` | 9 | INCOMPLETE | INCOMPLETE | no provenance, no generator. NON-WAIVABLE | PROD-023 | **8D** |
+| `lifecycle` | 12 | INCOMPLETE | INCOMPLETE | no probes; one confirmed leak (§6) | PROD-036 / PROD-012 | 8C |
+| `compatibility` | 16 | INCOMPLETE | INCOMPLETE | only the local host exercised | PROD-046 | 8E |
+| `connectivity` | 17 | INCOMPLETE | INCOMPLETE | no profile harness | PROD-043 | 8E |
+| `artifacts` | 18 | INCOMPLETE | INCOMPLETE | no release bundle defined | PROD-042 / PROD-046 | 8F |
+
+**Deterministic test baseline after 8B — zero known failures:**
+
+| suite | total | pass | fail |
+| --- | --- | --- | --- |
+| `npm run test:tooling` | 701 | 701 | **0** |
+| `npm run test:release-certify` | 141 | 141 | **0** |
+| `cd backend && npm test` | 2914 | 2909 (+5 TODO) | **0** |
+| `cd frontend && npm test` | 4380 | 4379 (+1 skipped) | **0** |
+
+The 10 tooling failures recorded in §1 and §5.2 are **closed**; `test:tooling` is
+701/701 from a pristine clone after the declared bootstrap.
+
+The remaining 5 backend TODOs and 1 frontend skip are recorded in full in §14c. All are
+justified; the one invalid skip found by the audit was closed by 8B.4 (§5.12).
 
 Three entries changed meaning in 8A.1 and are worth reading twice:
 
@@ -169,6 +195,26 @@ Not separately axed, tracked against existing backlog items: signing and attesta
 ## 5. Findings queue
 
 Recorded, **not fixed in 8A**. Severity is release impact.
+
+> **Tranche 8B disposition.** §5.1–§5.6 are **CLOSED**; the detail below is kept as the
+> historical record of what was wrong and why. §5.7 (runtimePackage temp leak → 8C),
+> §5.8 (repository governance → human), §5.9 (mutable tags → 8F), §5.10 (file size,
+> informational) and §5.11 (image provenance → 8D) remain **OPEN** and unchanged.
+> DOC-207 builder advisories remain open and are now enforced by the
+> `dependencies-builder` axis until 8G.
+>
+> §5.5 was mis-diagnosed in 8A. The ledger content was never stale and the canonical
+> inputs had not changed: `gen-architecture-evidence-ledger.js` pushed a trailing empty
+> line, so the **generator** disagreed with its own committed output permanently. 8B
+> removed the stray `w("")`, after which the generator reproduces the committed ledger
+> byte-for-byte — the ledger file itself needed no change.
+>
+> 8B also corrected `scripts/validate-frontend-container-layout.mjs`, which CI had never
+> reached. It required `WORKDIR /app/frontend` (the pre-PROD-026 dev-server path) and
+> byte-equivalence between `frontend/Containerfile` and `frontend/Dockerfile` — an
+> assertion that, if satisfied, would have reintroduced the PROD-026 dev-server blocker.
+> Both assertions were replaced with the contract they were reaching for; none was
+> deleted.
 
 ### 5.1 — CI `build-and-test` has never run since 2026-05-27 · blocking
 
@@ -274,6 +320,42 @@ INCOMPLETE by design. Closure is a product change owed to 8D/8F: add
 `backend/Containerfile`) plus `io.oaa.candidate-id` for dirty candidates, or emit
 `release-certification/release-build-manifest.json`. Both proofs are already implemented
 and tested on the verification side in `scripts/release/lib/provenance.mjs`.
+
+### 5.12 — Bare-metal UPI "no installer-managed provisioning" copy was unreachable · **CLOSED by 8B.4**
+
+*(Found by Tranche 8B.3 while attempting to correct a skipped test.)*
+`PlatformSpecificsStep.jsx` rendered a `bare-metal-upi`-specific message only when no
+other section applied, but `showAdvancedSection` was unconditionally true for that
+scenario, so the branch never executed. A test skipped since the initial public release
+had asserted it.
+
+**Proof of unreachability (8B.4).** Reaching the block requires `!showAdvancedSection`.
+`showAdvancedSection` is the disjunction of compute/controlPlane hyperthreading,
+capabilities, `cpuPartitioningMode`, `featureSet`, `minimalISO`, `bootArtifactsBaseURL`
+and the vSphere IPI section. A static read of the tracked catalogs shows the
+`bare-metal-upi` catalog declaring six of those — `compute[].hyperthreading`,
+`controlPlane[].hyperthreading`, `capabilities.baselineCapabilitySet`,
+`capabilities.additionalEnabledCapabilities`, `cpuPartitioningMode`, `featureSet` — as
+`supported-ui`, each with a minVersion at the baseline and no maxVersion, in **every**
+supported minor. Visibility is a pure function of scenario, minor and catalog content,
+with no mutable wizard state in the predicate, so the result is constant and the arm
+could not be selected by any user action.
+
+**Closure.** The unreachable ternary arm was removed; the surrounding block and its
+generic message are unchanged. The skipped test was **replaced, not deleted**, by
+executing per-minor tests asserting what `bare-metal-upi` actually does — Advanced
+section present, IPI provisioning section absent, and the removed copy absent — so
+neither the real surface nor the dead arm can change unnoticed.
+
+The enumeration reads `SUPPORTED_MINORS` from the canonical authority
+`frontend/src/shared/versionPolicy.js`, the same source the other frontend
+version-aware tests consume. 8B.4 had hardcoded `["4.20","4.21","4.22"]`, which
+delivered none of the forward protection the test claims: a newly onboarded minor would
+have gone unexercised, which is exactly how the dead arm survived unnoticed in the first
+place. Onboarding a minor now extends this test automatically.
+
+No reachable behaviour changed: the block never rendered for `bare-metal-upi` before or
+after, and every scenario that does reach it already took the generic arm.
 
 ### 5.10 — `backend/src/index.js` is 4,075 lines · low
 
@@ -672,18 +754,60 @@ rewritten**; the stale 1.7.0 version strings at that commit stay as they are.
 
 ## 13. Human decisions required
 
+Still open:
+
 1. **Approve and pin the scanner and SBOM generator digests** (§9 step 1) — or approve
    installing `trivy`/`syft` as host packages instead. Candidate digests are recorded
    there; they were resolved, not remembered, but they are offered for approval rather
    than adopted. Blocks the named release blocker.
-2. **Authorize 8B**, the bounded CI-correctness tranche (§5.1, §5.2, §5.3, §5.4, §5.5,
-   §5.6). CI cannot gate anything until these land.
-3. **Adjudicate the 34 `operatorQuickPicks.js` version references** (§5.3) — version-derived,
-   legitimately-literal keyed data, or a guard-classification change.
-4. **Repository governance** (§5.8): enable branch protection on `main`/`develop`, enable
+2. **Repository governance** (§5.8): enable branch protection on `main`/`develop`, enable
    Dependabot, add `SECURITY.md` (PROD-045)? All are account-level changes an agent must
    not make.
-5. **Define the release unit** (§18 / PROD-042) before 8F automates its lifecycle.
+3. **Define the release unit** (§18 / PROD-042) before 8F automates its lifecycle.
+
+Closed by Tranche 8B, retained so the decision trail is not lost:
+
+- ~~Authorize 8B, the bounded CI-correctness tranche~~ — **authorized and executed.**
+  §5.1–§5.6 are closed.
+- ~~Adjudicate the 34 `operatorQuickPicks.js` version references~~ — **adjudicated as
+  legitimate machine-readable version authority.** All 34 are strict `"4.x":` object
+  keys in `versionPicks` maps; the module contains no version-bearing user-facing copy.
+  The data had been moved verbatim out of `OperatorsStep.jsx`, where the same pattern
+  was already adjudicated, and the guard rule simply had not followed the move. 8B.2
+  narrowed the shared module's exemption to the object-key pattern alone — the
+  `not OpenShift 4.`, `minVersion` and `maxVersion` patterns inherited from
+  `OperatorsStep.jsx` were not required by any of the 34 findings and are **not**
+  exempt there. Copy sharing a line with a map key is still caught, by stripping the
+  key and re-testing the remainder.
+
+---
+
+## 13a. What `ci-integrity` actually requires
+
+A commit alone is **not** sufficient, and earlier wording in this document ("resolves on
+commit") was wrong. Both workflows trigger only on:
+
+```yaml
+push:         [master, main, develop]
+pull_request: [master, main, develop]
+```
+
+`work/v2.1-release-hardening` appears in neither list, so pushing the hardening branch
+produces **no workflow run at all** — and `ci-integrity` fails closed on a required
+workflow that never ran, exactly as designed.
+
+The contract, precisely:
+
+1. the candidate must be **committed** (a dirty tree can have no remote evidence);
+2. that exact commit must then receive an **applicable required remote CI run** — both
+   `CI` and `Versioned Copy Guard`;
+3. for this branch, **a pull request targeting `develop`** is the appropriate qualifying
+   event, since `pull_request` fires on the target branch;
+4. until such a run exists **for that exact commit**, `ci-integrity` stays INCOMPLETE.
+
+Opening the PR is a **human-owned GitHub mutation** and is deliberately not automated.
+`workflow_dispatch` was considered and deliberately not added: the PR path works, and
+adding a manual trigger to make a gate satisfiable is the wrong instinct.
 
 ---
 
@@ -691,7 +815,7 @@ rewritten**; the stale 1.7.0 version strings at that commit stay as they are.
 
 | tranche | scope | gate |
 | --- | --- | --- |
-| **8B** | CI correctness: backend reporter argv; `tooling-gates` dependency; versioned-copy adjudication; evidence-ledger regeneration; `frontend/Dockerfile`; `package.json` repo URL | `ci-integrity`, `tests`, `docs`, `repo-hygiene` all green |
+| ~~**8B**~~ **DONE** | CI correctness: backend reporter argv; declared root bootstrap; versioned-copy adjudication; evidence-ledger generator; `frontend/Dockerfile`; `package.json` repo URL | `tests`, `docs`, `repo-hygiene`, `secrets` green; `ci-integrity` needs a qualifying remote run (§13a) |
 | **8C** | Lifecycle: fix §5.7 temp leak; build resource probes | `lifecycle` PASS |
 | **8D** | **Close the container-scan blocker**: candidate-image provenance labels (§5.11), approve and pin digests, seed the advisory DB, scan, SBOM, triage base-layer CVEs | `containers`, `image-vulnerabilities`, `component-inventory` PASS — these two are non-waivable |
 | **8E** | Connectivity profiles and compatibility matrix | `connectivity`, `compatibility` |
@@ -751,6 +875,91 @@ Four remaining correctness issues, all found by the same independent review.
 `axes.test.mjs`, all passing (49 at 8A → 124 at 8A.1 → 141 at 8A.2). Repository
 `test:tooling` goes from 609 to 701 tests with the same 10 pre-existing failures (§5.2)
 and no new ones.
+
+## 14c. TODO / skip audit (Tranche 8B.1, corrected by 8B.3)
+
+Every non-executing test in the repository, with its disposition. "Pre-existing" is a
+provenance label, not a disposition, and is not used as one here.
+
+**None of the seven was introduced, newly skipped, deleted, weakened or quarantined by
+8B, 8B.2 or 8B.3.** Suppression counts are identical to checkpoint `db1a4b6`.
+
+### Backend — 5 TODOs, all DEFERRED_WITH_OWNER
+
+All in `backend/test/nic-bond-vlan-ipv6.test.js`; introduced by `8cb036d` (2026-07-28,
+*"DOC-102: Complete backend test integrity"*) as declarations of unimplemented
+capability, not as suppressions of working behavior. Five TODOs across four backlog
+items (DOC-123 owns two).
+
+| line | test | owner |
+| --- | --- | --- |
+| 249 | multiple bonds on same node | DOC-123 `deferred`/p2 |
+| 251 | multiple VLANs on same bond | DOC-123 `deferred`/p2 |
+| 287 | asymmetric VIPs (IPv4 ingress only) | DOC-124 `deferred`/p2 |
+| 289 | static IPv4 + DHCP IPv6 on one interface | DOC-125 `deferred`/p2 |
+| 291 | IPv6 route destinations | DOC-126 `deferred`/p2 |
+
+These are not honour-system. `backend/test/test-integrity.test.js` mechanically enforces
+that each `test.todo` has no executable callback, matches `[BACKLOG-ID] description -
+reason`, names an ID that exists in `docs/BACKLOG_STATUS.md`, and is not already
+resolved — "todo should be implemented or removed".
+
+### Frontend — 2 skips
+
+**`HostInventoryV2Phase42.test.jsx` — "compare toggle calls updateState only with ui"
+→ OBSOLETE; test DELETED by 8B.5.**
+
+8B.1 classified this JUSTIFIED_NON_GATING, which kept a permanently-skipped test in the
+suite. 8B.5 re-examined it and concluded the stronger disposition is correct: the test
+is not deferred coverage, it is coverage of behaviour that no longer exists, and a skip
+is the wrong container for that.
+
+Evidence, re-verified before deletion: `compareMode` has **zero** occurrences in
+`frontend/src`, `backend/src`, `shared/`, `schema/` and `docs/STATE_SCHEMA.md`, and
+`HostInventoryV2Step.jsx` hardcodes `sectionCompareBadge = null`. There is no toggle and
+no `ui.compareMode` state, so the asserted contract cannot exist.
+
+Deleted rather than replaced. No active supported contract loses coverage; a stub
+asserting the feature's absence would test nothing actionable, and re-skipping it would
+have preserved the suppression this audit exists to remove. A residual inert
+`CompareBadge` component remains in product code — recorded as an observation only,
+untouched, and not owned by 8B.
+
+**`platform-specifics-step.test.jsx` — "shows UPI message (integration)"
+→ RESOLVED by 8B.4. No longer a suppression.**
+
+Its history is worth keeping, because the classification changed twice:
+
+- **8B.1** flagged it INVALID_TEST_TO_CORRECT, judging that it guarded a real
+  user-facing contract with no executing coverage.
+- **8B.3** disproved that. An empirical probe showed `upiMessagePresent = false` with
+  `advancedButtonPresent = true` for a `bare-metal-upi` state: the asserted contract did
+  not exist, and the skip's stated reason ("store sometimes receives default mock
+  state") had misread a deterministic failure as flakiness. Writing an executing test
+  would have required asserting something the product does not do, or changing product
+  behaviour to satisfy a test. It was escalated as §5.12 instead of forced.
+- **8B.4** proved unreachability across every supported minor, removed the dead arm, and
+  replaced the skipped test with three executing per-minor tests. See §5.12.
+
+### Current intentional suppression inventory
+
+| kind | count |
+| --- | --- |
+| backend TODO (`deferred`/p2, backlog-owned; DOC-123 ×2, DOC-124, DOC-125, DOC-126) | 5 |
+| frontend skipped tests | **0** |
+| unresolved invalid skips | **0** |
+
+The five backend TODOs are **not** resolved and are **not** completed — they remain
+deferred product-capability declarations owned by their backlog entries, and the
+`test-integrity` meta-guard will fail if any of those IDs is later marked resolved while
+the TODO still stands.
+
+The frontend now carries **no** skipped tests. The two it had were dispositioned on
+their merits rather than by age: one described an unreachable contract and was replaced
+with executing per-minor coverage (§5.12); the other described a removed feature and was
+deleted.
+
+---
 
 ## 15. Deferred work — confirmed untouched
 

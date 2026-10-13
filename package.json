@@ -4,6 +4,8 @@
   "description": "OpenShift Airgap Installation Configuration Generator",
   "private": true,
   "scripts": {
+    "bootstrap:tooling": "npm ci --no-audit --no-fund",
+    "bootstrap": "npm ci --no-audit --no-fund && npm ci --no-audit --no-fund --prefix backend && npm ci --no-audit --no-fund --prefix frontend",
     "sync-catalogs": "node scripts/sync-catalogs.js",
     "sync-catalogs:check": "node scripts/sync-catalogs.js --check",
     "sync-catalogs:preview": "node scripts/sync-catalogs.js --dry-run",
@@ -38,7 +40,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/billstrauss/openshift-airgap-architect.git"
+    "url": "https://github.com/bstrauss84/openshift-airgap-architect.git"
   },
   "author": "Bill Strauss",
   "license": "MIT",

@@ -32,10 +32,27 @@
 # frontend/src/**/*.{js,jsx} only; the JSON mirrors are data and the Field Guide is
 # backend. They are classified, with the guard that does cover each one, in
 # docs/VERSIONED_COPY_INVENTORY.md. No exemption was added here, because none was
-# needed — and in particular "OpenShift 4.22+" in frontend production copy REMAINS
-# a violation (fixture VIOLATE_thresh_4_22) while 4.22 is unsupported. That fixture
-# is re-pointed at the next unsupported minor only in the enablement tranche that
-# actually flips SUPPORTED_MINORS.
+# needed.
+#
+# WHY A LITERAL "OpenShift 4.22+" IN FRONTEND COPY IS STILL A VIOLATION
+# (rationale corrected in v2.1 Tranche 8B.2).
+#
+# It is NOT because 4.22 is unsupported. 4.22 IS supported by v2.1 — the Tranche 5
+# atomic flip added it to SUPPORTED_MINORS, and the earlier wording here, written
+# before that flip, has been stale ever since.
+#
+# The reason is unchanged by support status: version-dependent USER-FACING COPY
+# must be DERIVED from the selected minor or GATED on it, never hardcoded. A
+# literal minor in a string is wrong for every reader whose selected minor is a
+# different supported one, and it silently rots the moment the supported set
+# moves again. That is why the violation fixtures below deliberately include
+# BOTH a future minor (4.30, not yet supported) and a currently-supported minor
+# (4.22): the guard must catch hardcoded copy regardless of whether the minor
+# named happens to be supported today. Support status was never the test.
+#
+# Consequence for maintenance: these fixtures do NOT need re-pointing at "the
+# next unsupported minor" when SUPPORTED_MINORS moves. They are correct as they
+# stand.
 
 set -euo pipefail
 
@@ -135,13 +152,52 @@ classify_raw() {
   f=$(echo "$f" | grep -v -E 'PlatformSpecificsStep\.jsx:.*baselineCapabilityOptions.*v4\.(11|12|20)' || true)
   [ -z "$f" ] && return 0
 
-  # Step 9: VMAP — OperatorsStep version-keyed data maps and format examples
+  # Step 9: VMAP — operator Quick Pick version-keyed data maps and format examples
   # Object keys like "4.20": { ... } (quoted version followed by colon),
   # counter-example "not OpenShift 4.20", and hint examples with minVersion/maxVersion.
   # The object-key pattern requires a trailing colon to avoid exempting arbitrary
   # user-facing strings that happen to contain a quoted 4.x version.
+  #
+  # TWO FILES, SCOPED SEPARATELY AND DELIBERATELY DIFFERENTLY.
+  #
+  # v2.1 lifted the Quick Pick version maps out of OperatorsStep.jsx into
+  # shared/operatorQuickPicks.js VERBATIM, so shared/operatorMinorReconciliation.js
+  # could re-evaluate pick membership on a minor change. This rule did not follow
+  # the move, which is why the guard went red at 21529ae: 34 already-adjudicated
+  # map keys reappeared as "new" findings at a new path.
+  #
+  # The exemption follows the data, but NO FURTHER THAN THE EVIDENCE. All 34
+  # adjudicated findings in operatorQuickPicks.js are strict quoted-version
+  # object keys; not one of them needed the "not OpenShift 4.", minVersion or
+  # maxVersion patterns. Granting those to the new file as well would have been
+  # inherited breadth with nothing adjudicated behind it, so the shared data
+  # module gets ONLY the object-key pattern (8B.2).
+  #
+  # The OperatorsStep.jsx adjudications stay independently scoped: that file
+  # still carries the counter-example copy and the minVersion/maxVersion hint
+  # examples, which are a different, separately reviewed class.
+  #
+  # Neither file is broadly excluded. A user-facing string in either is still a
+  # violation, and the self-test asserts that for both.
+  #
+  # The shared module is filtered by STRIPPING the object keys and re-testing the
+  # remainder, not by dropping the whole line — the same technique Step 1.5 uses
+  # for SVG path data, and for the same reason. A line-level exclusion would let
+  # user-facing copy ride along with a map key on one line
+  # (`{ label: "Needs OpenShift 4.22", picks: { "4.22": [...] } }`) and escape
+  # unseen. The reported text is always the untouched original line.
+  f=$(echo "$f" | awk -v pat="$SEARCH_PATTERN_AWK" '
+    {
+      stripped = $0
+      if ($0 ~ /shared\/operatorQuickPicks\.js:/) {
+        gsub(/"4\.[0-9]+"[[:space:]]*:/, "", stripped)
+      }
+      if (stripped ~ pat) print $0
+    }
+  ' || true)
+  [ -z "$f" ] && return 0
   f=$(echo "$f" | grep -v -E \
-    'OperatorsStep\.jsx:.*("4\.[0-9]+"[[:space:]]*:|not OpenShift 4\.|minVersion|maxVersion)' || true)
+    'steps/OperatorsStep\.jsx:.*("4\.[0-9]+"[[:space:]]*:|not OpenShift 4\.|minVersion|maxVersion)' || true)
   [ -z "$f" ] && return 0
 
   # Step 10: VGATED — PlatformSpecificsStep version-gated delta descriptions
@@ -223,7 +279,7 @@ const EXEMPT_vgated_later = "OpenShift 4.21 and later.";
 const EXEMPT_vgated_single = "4.20 supports only one node subnet.";
 const EXEMPT_rhcos = "different RHCOS than 4.20";
 const VIOLATE_thresh_future = "New feature (OpenShift 4.30+):";
-const VIOLATE_thresh_4_22 = "New feature (OpenShift 4.22+):";
+const VIOLATE_thresh_4_22_supported_minor = "New feature (OpenShift 4.22+):";
 const VIOLATE_deprecated_future = "Deprecated in OpenShift 4.30+";
 const VIOLATE_vgated_required_future = "required for OpenShift 4.30";
 const VIOLATE_vgated_must_future = "must use OpenShift 4.30";
@@ -240,6 +296,20 @@ const EXEMPT_map_key2 = { "4.21": { redhat: ["ocs-operator"] } };
 const EXEMPT_not_ocp = "not OpenShift 4.20 lifecycle";
 const EXEMPT_minver = "minVersion: 4.20";
 const VIOLATE_quoted_copy = "Requires OpenShift 4.30 or later";
+FIXTURE
+
+  # --- Fixture: shared/operatorQuickPicks.js (VMAP after the v2.1 data move) ---
+  # The version maps moved here verbatim from OperatorsStep.jsx. The exemption
+  # followed the data, so the same key pattern is adjudicated at the new path —
+  # and the last two lines prove the file is NOT broadly excluded.
+  cat > "$SYNTH_DIR/frontend/src/shared/operatorQuickPicks.js" << 'FIXTURE'
+const EXEMPT_moved_map_key = { "4.20": { redhat: ["rhods-operator"] } };
+const EXEMPT_moved_map_key2 = { "4.22": { redhat: ["ocs-tls-profiles"] } };
+const VIOLATE_moved_userfacing = "Requires OpenShift 4.30 or later";
+const VIOLATE_moved_stale_copy = "New in OpenShift 4.22";
+const VIOLATE_moved_minver = "minVersion: 4.21";
+const VIOLATE_moved_not_ocp = "not OpenShift 4.20 lifecycle";
+const VIOLATE_moved_copy_beside_data = { label: "Needs OpenShift 4.22", picks: { "4.22": ["x"] } };
 FIXTURE
 
   # --- Fixture: validation.js (LOGIC + FMT exemptions) ---
@@ -326,7 +396,11 @@ FIXTURE
   # Must-violate assertions (future-version / unrelated user-facing copy)
   echo "Violation assertions (must be caught by classifier):"
   assert_violation "VIOLATE_thresh_future"
-  assert_violation "VIOLATE_thresh_4_22"
+  # Hardcoded copy naming a CURRENTLY-SUPPORTED minor is still a violation:
+  # the defect is the hardcoding, not the minor's support status. Renamed in
+  # 8B.2 from VIOLATE_thresh_4_22, whose old rationale ("while 4.22 is
+  # unsupported") went stale at the Tranche 5 flip.
+  assert_violation "VIOLATE_thresh_4_22_supported_minor"
   assert_violation "VIOLATE_deprecated_future"
   assert_violation "VIOLATE_vgated_required_future"
   assert_violation "VIOLATE_vgated_must_future"
@@ -345,6 +419,19 @@ FIXTURE
   # SVGPATH must not become an escape hatch: a real reference sharing a line
   # with SVG path data is still a violation.
   assert_violation "VIOLATE_svg_adjacent"
+  # The VMAP exemption followed the Quick Pick data to shared/operatorQuickPicks.js.
+  # It must remain a PATTERN exemption, not a file exemption: user-facing copy in
+  # that file — future-minor or stale-current-minor — is still a violation.
+  assert_violation "VIOLATE_moved_userfacing"
+  assert_violation "VIOLATE_moved_stale_copy"
+  # 8B.2 narrowed the shared module to the object-key pattern ONLY. The three
+  # patterns inherited from OperatorsStep.jsx were never required by any of the
+  # 34 adjudicated findings there, so they must NOT be exempt in this file.
+  assert_violation "VIOLATE_moved_minver"
+  assert_violation "VIOLATE_moved_not_ocp"
+  # Copy sharing a line with a machine-readable key must still be caught: the
+  # filter strips the key and re-tests the remainder.
+  assert_violation "VIOLATE_moved_copy_beside_data"
   echo ""
 
   # Must-exempt assertions (reviewed 4.20/4.21 exclusions)
@@ -368,6 +455,8 @@ FIXTURE
   assert_exemption "EXEMPT_map_key2"
   assert_exemption "EXEMPT_not_ocp"
   assert_exemption "EXEMPT_minver"
+  assert_exemption "EXEMPT_moved_map_key"
+  assert_exemption "EXEMPT_moved_map_key2"
   assert_exemption "EXEMPT_logic"
   assert_exemption "EXEMPT_fmt"
   assert_exemption "EXEMPT_placeholder"
@@ -397,12 +486,20 @@ FIXTURE
     vcount=0
   fi
   # 11 original fixtures + 1 SVG-adjacency regression fixture
-  # + 1 stale-previous-minor fixture (v2.1 Tranche 2).
-  if [ "$vcount" -eq 13 ]; then
-    echo "  PASS [structural]: exactly 13 violations found"
+  # + 1 stale-previous-minor fixture (v2.1 Tranche 2)
+  # + 2 operatorQuickPicks.js fixtures proving the relocated VMAP exemption is a
+  #   PATTERN exemption and not a file escape (v2.1 Tranche 8B)
+  # + 3 more operatorQuickPicks.js fixtures (v2.1 Tranche 8B.2): minVersion and
+  #   "not OpenShift 4.x" are NOT exempt in the shared data module, and copy
+  #   sharing a line with a machine-readable key is still caught.
+  #
+  # This total exists so a new fixture cannot be added without the author also
+  # declaring whether it should be caught. Update it deliberately.
+  if [ "$vcount" -eq 18 ]; then
+    echo "  PASS [structural]: exactly 18 violations found"
     pass_count=$((pass_count + 1))
   else
-    echo "  FAIL [structural]: expected 13 violations, got $vcount"
+    echo "  FAIL [structural]: expected 18 violations, got $vcount"
     fail_count=$((fail_count + 1))
   fi
 

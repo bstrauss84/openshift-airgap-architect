@@ -6,16 +6,26 @@ on:
     branches: [master, main, develop]
 
 jobs:
-  # Hermetic repository gates. No dependency install, no network, no containers.
+  # Repository gates. No containers, no backend/frontend dependency trees.
   #
-  # NO `npm ci` ON PURPOSE. Every script invoked below uses Node built-ins only
-  # (node:fs, node:path, node:crypto, node:url, node:child_process, node:test).
-  # The two guards that need SUPPORTED_MINORS read it by dynamically importing
-  # backend/src/versionPolicy.js and frontend/src/shared/versionPolicy.js, both
-  # of which import only relative modules. Verified by running this exact
-  # sequence with node_modules/, backend/node_modules/ and frontend/node_modules/
-  # all removed: 8/8 steps exit 0. If a future step needs a package, add
-  # `npm ci` here rather than assuming a warm cache.
+  # DEPENDENCY CONTRACT: `npm ci` AT THE ROOT, AND NOTHING ELSE.
+  #
+  # This job previously declared itself fully hermetic and installed nothing, on
+  # the stated grounds that every script used Node built-ins only. That claim
+  # became false and nobody noticed: scripts/t6a-e2e-helper-loadable.test.mjs
+  # imports e2e/helpers/asset-validation.js, which imports `js-yaml` — a ROOT
+  # devDependency. `npm run test:tooling` therefore failed 10 tests with
+  # ERR_MODULE_NOT_FOUND on every run, and because the claim was in a comment
+  # rather than in a check, it kept being believed.
+  #
+  # The contract is now explicit and declared rather than asserted in prose:
+  # this job installs the ROOT lockfile and depends on nothing else. Root
+  # `npm ci` is 5 packages in well under a second, so the job stays fast. If a
+  # future step needs backend or frontend packages it belongs in build-and-test,
+  # not here.
+  #
+  # Verified from a pristine clone with no node_modules anywhere:
+  # `npm ci` at the root alone makes `npm run test:tooling` report 701/701.
   #
   # Kept in its own job so a failure in the catalog-data gate below cannot mask
   # these, and so results are attributable at a glance.
@@ -28,6 +38,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      # The declared bootstrap for this job. `npm ci` fails closed if
+      # package-lock.json and package.json disagree, so the installed tree is
+      # exactly what the lockfile pins — no global packages, no NODE_PATH, no
+      # undeclared transitive resolution.
+      - name: Bootstrap root tooling dependencies
+        run: npm run bootstrap:tooling
 
       - name: Application version synchronized (VERSION + 4 manifests + 3 lockfiles)
         run: npm run check:app-version
@@ -87,19 +104,49 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          # No root package-lock.json; backend and frontend have their own. Omit cache to avoid lockfile lookup error.
+          # Caching is omitted by choice, not by necessity, and not for either
+          # reason previously claimed here.
+          #
+          # It is NOT because "there is no root package-lock.json" — there is
+          # one, and tooling-gates installs from it. It is also NOT because
+          # setup-node can only cache a single path: `cache-dependency-path`
+          # accepts a glob or a newline-separated list, so all three lockfiles
+          # (root, backend, frontend) could be cached together.
+          #
+          # Installs here are already fast (root 5 packages, backend ~0.6s,
+          # frontend ~5s from a cold clone), so caching would add configuration
+          # and a cache-invalidation failure mode for very little. Correctness
+          # does not depend on it. Enable it deliberately if install time
+          # becomes a problem.
 
+      # `npm test`, with NO trailing `-- <flag>`.
+      #
+      # This step used to run `npm test -- --reporter=spec`. npm appends forwarded
+      # arguments to the END of the script, producing
+      #   node --test --test-concurrency=1 test/ --reporter=spec
+      # and Node's test runner treats a trailing non-flag-position argument as a
+      # TEST FILE PATH, so every run died with
+      #   Could not find '.../backend/--reporter=spec'
+      # before a single test executed. `--reporter=spec` is not even a Node flag
+      # (the runner's option is `--test-reporter`). The whole job short-circuited
+      # here from 2026-05-27 onward, so the frontend suite, the production build,
+      # the bundle budget, the param-authority gate, the container-layout
+      # validator and the container smoke test never ran in CI at all.
+      #
+      # The reporter belongs to the package script, not to the caller. The
+      # default TAP output is deliberate: it is machine-readable, and the release
+      # certification harness parses its `# tests/pass/fail` counters.
       - name: Backend install and test
         run: |
           cd backend
           echo "Installing backend dependencies..."
           npm ci
           echo "Running backend tests..."
-          npm test -- --reporter=spec 2>&1 | tee test-output.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+          if ! npm test 2>&1 | tee test-output.log; then
             echo "::error::Backend tests failed. See test-output.log for details."
             exit 1
           fi
+        shell: bash -o pipefail -e {0}
 
       - name: Frontend install, build, test
         run: |
@@ -109,11 +156,11 @@ jobs:
           echo "Building frontend..."
           npm run build
           echo "Running frontend tests..."
-          npm test 2>&1 | tee test-output.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+          if ! npm test 2>&1 | tee test-output.log; then
             echo "::error::Frontend tests failed. See test-output.log for details."
             exit 1
           fi
+        shell: bash -o pipefail -e {0}
 
       # FQ-10. Gates metric A (eager app JS+CSS) and metric B (largest lazy chunk)
       # against the production build just produced; metric C (total dist) is reported

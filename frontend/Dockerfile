@@ -1,5 +1,21 @@
+# ============================================================================
+# LEGACY / UNSUPPORTED — DO NOT USE FOR BUILDS OR FOR PRODUCTION
+# ============================================================================
+# Retained for local development reference only. It builds the VITE DEV SERVER
+# as the long-lived process, with the full devDependency tree resident in the
+# image — the exact configuration PROD-026 removed, and the one that made a
+# container build report 15 vulnerabilities while the dependency gate reported
+# zero (see the header of frontend/Containerfile).
+#
+# The previous comment here claimed "Kept in sync with Containerfile", which
+# was false: the Containerfile has been a two-stage nginx build since PROD-026
+# and these two files deliberately differ. Anyone who trusted that line and
+# built from this file reintroduced the release blocker.
+#
+# The SUPPORTED build path is:  frontend/Containerfile  (used by docker-compose.yml)
+# ============================================================================
+#
 # Red Hat UBI 9 Node.js 22 — frontend (Vite dev server in container)
-# Kept in sync with Containerfile; compose uses Containerfile.
 FROM registry.access.redhat.com/ubi9/nodejs-22
 
 USER root

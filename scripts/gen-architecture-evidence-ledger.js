@@ -124,7 +124,13 @@ function build(root, minors) {
       }
     }
   }
-  w("");
+  // No trailing `w("")`. The joined lines already get exactly one closing
+  // newline below. Pushing an empty element produced a trailing BLANK line,
+  // which `git diff --check` reports as a whitespace defect — and which was
+  // the actual cause of the "ledger out of date" gate failure at 21529ae: the
+  // canonical inputs had not changed and the committed content was correct,
+  // the GENERATOR had drifted by one blank line and so disagreed with its own
+  // committed output forever.
   return `${L.join("\n")}\n`;
 }
 
