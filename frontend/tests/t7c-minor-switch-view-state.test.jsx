@@ -54,6 +54,19 @@ vi.mock("../src/store.jsx", async (importOriginal) => {
   const { makeStoreMock } = await import("./helpers/store-harness.jsx");
   return makeStoreMock(actual, harness);
 });
+// This suite renders the whole App, so BlueprintStep's mount effect fires
+// `apiFetch("/api/cincinnati/channels")`. Unmocked, that reached the real
+// network: the run passed its assertions but logged three unhandled
+// `fetch failed` rejections from api.js, because the requests outlived the
+// tests that started them. A test that depends on a reachable backend is not
+// hermetic, and in CI it is a flake waiting to happen.
+//
+// Resolving `{}` is sufficient and deliberate — BlueprintStep reads
+// `data.channels || []`, so an empty object exercises the no-channels path
+// without inventing fixture data this suite does not assert on.
+vi.mock("../src/api.js", () => ({
+  apiFetch: vi.fn(() => Promise.resolve({})),
+}));
 const { default: App } = await import("../src/App.jsx");
 
 const PATCH = { "4.20": "4.20.40", "4.21": "4.21.35", "4.22": "4.22.16" };
