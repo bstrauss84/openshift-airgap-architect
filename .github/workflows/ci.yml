@@ -89,7 +89,11 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
+      # The backend history-baseline integrity test intentionally resolves
+      # registered content identities against historical Git blob objects.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Reject committed junk (node_modules, caches, tools)
         run: |
