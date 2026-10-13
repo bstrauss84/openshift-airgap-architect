@@ -3710,6 +3710,9 @@ const buildBundleZip = async (state, res) => {
 
   // High-side runtime package export (DOC-083)
   if (v3State.exportOptions?.includeHighSideRuntimePackage) {
+    // Declared outside the try so the finally below releases the staging
+    // directory even when registration throws part-way through.
+    let runtimePackage = null;
     try {
       // SECURITY: Sanitize state in runPayload to prevent credential leakage
       // High-side runtime package is written to bundle.zip which may be transferred/stored
@@ -3729,7 +3732,7 @@ const buildBundleZip = async (state, res) => {
         method: v3State.methodology?.method
       };
 
-      const runtimePackage = createRuntimePackageArtifacts({
+      runtimePackage = createRuntimePackageArtifacts({
         state: v3State, // createRuntimePackageArtifacts needs full state for other purposes
         exportOptions: v3State.exportOptions,
         runPayload, // But runPayload uses sanitized state
@@ -3768,6 +3771,30 @@ const buildBundleZip = async (state, res) => {
         error: error?.message || String(error),
         stack: error?.stack
       }, "Runtime package creation failed");
+    } finally {
+      // The staging directory is dead the moment registration above returns:
+      // createIntegrityTracker.file() reads each member with readFileSync and
+      // hands archiver a Buffer, so nothing reopens the staged path during
+      // finalize. Releasing here — rather than when the response ends — keeps
+      // ownership in the block that created it and covers success, a partial
+      // or missing package, and a throw part-way through, with no listener
+      // that a hard process exit could skip.
+      //
+      // DEPENDENCY: if createIntegrityTracker ever streams large members
+      // instead of buffering them (the open L2 finding), this release becomes
+      // too early and must move to the end of the archive stream. The
+      // runtime-package manifest/checksum assertions in
+      // test/runtime-package-temp-cleanup.test.js fail loudly if it does.
+      if (runtimePackage) {
+        const release = runtimePackage.cleanup();
+        if (!release.released) {
+          logger.warn({
+            err: release.error,
+            tag: "runtime-package",
+            stagingRoot: release.stagingRoot
+          }, "Runtime package staging directory could not be removed");
+        }
+      }
     }
   }
 

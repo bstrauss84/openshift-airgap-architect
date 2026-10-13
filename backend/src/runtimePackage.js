@@ -205,24 +205,39 @@ const archiveNameFor = (engine, role) => {
   return `${role}.container-archive.tar`;
 };
 
-const createRuntimePackageArtifacts = ({
+/**
+ * Release a staging directory.
+ *
+ * Non-throwing by contract: callers run this from a `finally`, where a throw
+ * would mask the original failure. It reports the outcome instead of
+ * swallowing it — `{ released, stagingRoot, error }` — so a removal that
+ * actually failed is visible rather than silently assumed.
+ *
+ * Idempotent, and only a *successful* removal latches: a failed attempt leaves
+ * the handle retryable rather than marking a directory released that is still
+ * on disk.
+ */
+const createStagingCleanup = (tempRoot) => {
+  let released = false;
+  return () => {
+    if (released) return { released: true, stagingRoot: tempRoot, error: null };
+    try {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+      released = true;
+      return { released: true, stagingRoot: tempRoot, error: null };
+    } catch (error) {
+      return { released: false, stagingRoot: tempRoot, error };
+    }
+  };
+};
+
+const stageRuntimePackage = ({
   state,
   exportOptions,
   runPayload,
-  dataDir
+  dataDir,
+  tempRoot
 }) => {
-  const requested = Boolean(exportOptions?.includeHighSideRuntimePackage);
-  if (!requested) {
-    return {
-      requested,
-      included: false,
-      entries: [],
-      notes: ["Runtime package export not requested."],
-      imageEntries: []
-    };
-  }
-
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "airgap-runtime-package-"));
   const packageRoot = path.join(tempRoot, "runtime-package");
   const imagesDir = path.join(packageRoot, "images");
   const composeDir = path.join(packageRoot, "compose");
@@ -380,7 +395,6 @@ const createRuntimePackageArtifacts = ({
   ];
 
   return {
-    requested,
     included,
     entries,
     notes,
@@ -389,6 +403,54 @@ const createRuntimePackageArtifacts = ({
       payloadFileName
     }
   };
+};
+
+/**
+ * Stage the high-side runtime package under a fresh temporary directory.
+ *
+ * The staged files — including `podman save` / `docker save` image archives,
+ * ~1.7 GB for the two runtime images — are still referenced by `entries` when
+ * this function returns, so it cannot release them itself. Ownership passes to
+ * the caller: invoke the returned `cleanup()` once it has finished reading
+ * `entries`. It is idempotent and never throws, so a `finally` may call it.
+ *
+ * Any failure *before* the caller receives the handle is owned here: the
+ * staging directory is released before the error propagates.
+ */
+const createRuntimePackageArtifacts = ({
+  state,
+  exportOptions,
+  runPayload,
+  dataDir
+}) => {
+  const requested = Boolean(exportOptions?.includeHighSideRuntimePackage);
+  if (!requested) {
+    return {
+      requested,
+      included: false,
+      entries: [],
+      notes: ["Runtime package export not requested."],
+      imageEntries: [],
+      // Nothing was staged, so callers can still release unconditionally.
+      cleanup: () => ({ released: true, stagingRoot: null, error: null })
+    };
+  }
+
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "airgap-runtime-package-"));
+  const cleanup = createStagingCleanup(tempRoot);
+  try {
+    const artifacts = stageRuntimePackage({
+      state,
+      exportOptions,
+      runPayload,
+      dataDir,
+      tempRoot
+    });
+    return { requested, ...artifacts, stagingRoot: tempRoot, cleanup };
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
 };
 
 export {
