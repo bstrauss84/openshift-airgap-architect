@@ -54,6 +54,7 @@ import {
 } from "./lib/status.mjs";
 import { resolveShippingImages, ImageArchives } from "./lib/images.mjs";
 import { loadBuildManifest } from "./lib/provenance.mjs";
+import { ScanInputs } from "./provenance/scanInput.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
@@ -237,13 +238,20 @@ export async function certify(argv = [], { repoRoot = REPO_ROOT, now = new Date(
   const shippingImages = needsImages ? resolveShippingImages() : { engine: null, images: [] };
   const buildManifest = loadBuildManifest(repoRoot);
   const archives = needsImages && shippingImages.engine ? new ImageArchives(shippingImages.engine) : { archiveFor: () => ({ ok: false, reason: "no container engine" }), cleanup() {} };
+  // Scanner inputs are the SAME artifact one step further on: each run-scoped
+  // OCI archive extracted into a validated OCI layout directory, because
+  // Trivy's `--input` cannot read an OCI archive tar at all (see
+  // provenance/scanInput.mjs). Converted at most once per image per run and
+  // torn down in the same `finally` as the archives, so the roughly-doubled
+  // peak disk never outlives the run — including when an axis throws.
+  const scanInputs = needsImages && shippingImages.engine ? new ScanInputs() : { layoutFor: () => ({ ok: false, reason: "no container engine" }), cleanup() {} };
 
   const files = candidateFiles(repoRoot);
   const results = [];
 
   try {
     for (const axis of selected) {
-      const ctx = { repoRoot, store, candidate, shippingImages, buildManifest, archives, now };
+      const ctx = { repoRoot, store, candidate, shippingImages, buildManifest, archives, scanInputs, now };
       const { digest: inputs } = inputDigest(repoRoot, axis.inputs, files);
       const { key: ctxKey, digest: ctxDigest } = axisContext(axis, ctx);
       const reuseClass = axis.reuse ?? REUSE.CONTEXT;
@@ -282,9 +290,14 @@ export async function certify(argv = [], { repoRoot = REPO_ROOT, now = new Date(
       results.push(res);
     }
   } finally {
-    // Multi-gigabyte OCI archives must not outlive the run, including when an
-    // axis throws.
-    archives.cleanup();
+    // Multi-gigabyte OCI archives and their extractions must not outlive the
+    // run, including when an axis throws. Both are cleaned even if the first
+    // cleanup fails, so one leaked directory cannot strand the other.
+    try {
+      archives.cleanup();
+    } finally {
+      scanInputs.cleanup();
+    }
   }
 
   const verdict = releaseVerdict({ results, missingRequiredAxes, governanceErrors: waiverErrors });

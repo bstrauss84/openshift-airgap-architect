@@ -13,9 +13,24 @@
  * with the right tag" proves nothing about the candidate: a stale image
  * satisfies every structural check while containing none of the source being
  * certified. So the complete shipping set must be present AND provably built
- * from this candidate before a single assertion is evaluated. Until the
- * Containerfiles carry provenance labels or a release build emits a manifest
- * (8D/8F), this axis is INCOMPLETE by design — see lib/provenance.mjs.
+ * from this candidate before a single assertion is evaluated. The Containerfiles
+ * still carry no provenance labels (proof A), so the only binding available is
+ * the build manifest (proof B) that `scripts/release/buildImages.mjs` emits —
+ * see lib/provenance.mjs and lib/buildManifest.mjs. With no manifest present,
+ * INCOMPLETE is the designed outcome.
+ *
+ * TWO PROVENANCE IMPLEMENTATIONS, BOTH CONSULTED, NEITHER SILENTLY PREFERRED.
+ *
+ * `lib/provenance.mjs verifyImageProvenance()` is the gate of record.
+ * `provenance/candidateBinding.mjs bindImageToCandidate()` is an independent
+ * reference implementation with a richer inherited-base classifier
+ * (imageIdentity.revisionLabelProvenance(): three signals, not one). They do
+ * not always agree, and which one is "right" is not this axis's call to make
+ * quietly — so BOTH are evaluated, the comparison is recorded in the evidence,
+ * and the gate is their CONJUNCTION. The conjunction can only ever be stricter
+ * than the current gate, so consulting the second implementation cannot turn
+ * anything green; a disagreement surfaces in the result detail instead of
+ * being resolved by whichever import happened to come first.
  *
  * Assertions are declarative so the evidence names each property and its
  * outcome individually, instead of collapsing to one boolean.
@@ -24,7 +39,8 @@
 import { pass, fail, incomplete } from "../lib/status.mjs";
 import { REUSE } from "../lib/evidence.mjs";
 import { runInImage, REQUIRED_ROLES } from "../lib/images.mjs";
-import { verifyShippingSet } from "../lib/provenance.mjs";
+import { verifyImageProvenance, verifyShippingSet } from "../lib/provenance.mjs";
+import { bindImageToCandidate } from "../provenance/candidateBinding.mjs";
 
 const ID = "containers";
 
@@ -157,6 +173,62 @@ function configAssertions(img, entrypointText, dropTargetUid) {
   return out;
 }
 
+/**
+ * Run both provenance implementations over the required roles and report
+ * where they differ.
+ *
+ * Pure, so every divergence is testable from fixtures. `bound` is the
+ * CONJUNCTION — an image is accepted only when both implementations bind it.
+ *
+ * The divergences are real and constructible, not theoretical:
+ *
+ *   - An image with a revision label, NO `vcs-ref`, four or more other
+ *     base-image labels and no candidate label. lib/provenance.mjs's single
+ *     signal (revision === vcs-ref) does not fire, so it treats the label as
+ *     this build's and returns "built from a different revision" WITHOUT ever
+ *     consulting the manifest. candidateBinding classifies it inherited and
+ *     falls through to the manifest, which can bind it. Here the strict
+ *     implementation is the more PERMISSIVE one, and the conjunction keeps the
+ *     conservative answer.
+ *   - The mirror case: a base image whose `vcs-ref` coincidentally equalled
+ *     the candidate's HEAD. lib/provenance.mjs would bind on the label;
+ *     candidateBinding refuses it as inherited. Here the conjunction keeps the
+ *     SAFE answer, which is the reason the gate is a conjunction at all.
+ */
+export function crossCheckBinding(images, candidate, manifestResult, requiredRoles = REQUIRED_ROLES) {
+  const rows = images
+    .filter((img) => requiredRoles.includes(img.role))
+    .map((img) => {
+      const gate = verifyImageProvenance(img, candidate, manifestResult);
+      const strict = bindImageToCandidate(img, candidate, manifestResult);
+      return {
+        role: img.role,
+        gate: { bound: gate.bound, method: gate.method ?? null, reason: gate.reason },
+        strict: { bound: strict.bound, method: strict.method ?? null, reason: strict.reason },
+        agree: gate.bound === strict.bound && (gate.method ?? null) === (strict.method ?? null),
+        bound: gate.bound && strict.bound,
+      };
+    });
+
+  const disagreements = rows.filter((r) => !r.agree);
+  const rejectedByStrictOnly = rows.filter((r) => r.gate.bound && !r.strict.bound);
+
+  return {
+    ok: rows.length > 0 && rows.every((r) => r.bound),
+    rows,
+    disagreements,
+    reason: rejectedByStrictOnly.length
+      ? `the two provenance implementations disagree and the stricter one refuses: ${rejectedByStrictOnly
+          .map((r) => `${r.role} (${r.strict.reason})`)
+          .join("; ")}`
+      : null,
+    note:
+      disagreements.length && !rejectedByStrictOnly.length
+        ? `${disagreements.length} role(s) bound by different reasoning in the two implementations; see provenance.json`
+        : null,
+  };
+}
+
 export default {
   id: ID,
   title: "Shipping container images: provenance, structure and runtime posture",
@@ -183,10 +255,21 @@ export default {
 
     // Complete set + candidate binding, before any assertion is evaluated.
     const set = verifyShippingSet(images, candidate, buildManifest, REQUIRED_ROLES);
-    const provenanceArtifact = store.writeArtifact(ID, "provenance.json", set);
+    const crossCheck = crossCheckBinding(images, candidate, buildManifest, REQUIRED_ROLES);
+    const provenanceArtifact = store.writeArtifact(ID, "provenance.json", { gate: set, crossCheck });
     if (!set.ok) {
       return incomplete(ID, set.reason, {
-        evidence: { provenance: set, requiredRoles: REQUIRED_ROLES },
+        evidence: { provenance: set, crossCheck, requiredRoles: REQUIRED_ROLES },
+        artifacts: [provenanceArtifact],
+      });
+    }
+    if (!crossCheck.ok) {
+      // The gate of record accepted these images and the independent
+      // implementation did not. That is not a tie to be broken in favour of
+      // whichever is more convenient: an unresolved disagreement about
+      // provenance is unproven provenance.
+      return incomplete(ID, crossCheck.reason ?? "provenance implementations disagree about at least one shipping image", {
+        evidence: { provenance: set, crossCheck, requiredRoles: REQUIRED_ROLES },
         artifacts: [provenanceArtifact],
       });
     }
@@ -225,6 +308,7 @@ export default {
         sizeBytes: img.size,
         created: img.created,
         provenance: set.perImage.find((p) => p.role === img.role),
+        binding: crossCheck.rows.find((r) => r.role === img.role) ?? null,
         assertions,
       });
     }
@@ -241,9 +325,10 @@ export default {
 
     const ids = report.map((r) => `${r.role}=${String(r.id).replace(/^sha256:/, "").slice(0, 12)}`).join(" ");
     const total = report.reduce((n, r) => n + r.assertions.length, 0);
-    return pass(ID, `${total} assertions passed against ${report.length} candidate-bound images (${ids})`, {
-      evidence: { report, provenance: set },
-      artifacts,
-    });
+    return pass(
+      ID,
+      `${total} assertions passed against ${report.length} candidate-bound images (${ids})${crossCheck.note ? ` — ${crossCheck.note}` : ""}`,
+      { evidence: { report, provenance: set, crossCheck }, artifacts },
+    );
   },
 };
