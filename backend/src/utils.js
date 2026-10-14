@@ -13,6 +13,8 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { db, dataDir } from "./db.js";
 import logger from "./logger.js";
+import { trackTempArtifact, untrackTempArtifact } from "./tempArtifacts.js";
+import { isTerminalJobStatus } from "./jobStatus.js";
 import { recordJobStart, recordJobComplete, recordJobError, stateOperationsTotal } from "./metrics.js";
 
 const now = () => Date.now();
@@ -154,6 +156,24 @@ const updateJobMetadata = (id, patch) => {
 
 const getJob = (id) => db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
 
+/**
+ * Write a job's outcome only if it does not already have one.
+ *
+ * Opt-in at the writer rather than inside `updateJob`, which must stay able
+ * to amend a finished job (progress ticks, message rewrites). Use this
+ * wherever a LATE callback could land after the job's fate was already
+ * recorded — a child's `error`/`close` arriving after a stop or a shutdown
+ * wrote `cancelled`, which otherwise comes back as `failed` because a
+ * SIGTERMed child reports `code === null`.
+ *
+ * Returns the row it wrote, or null when it declined.
+ */
+const updateJobUnlessTerminal = (id, patch) => {
+  const current = getJob(id);
+  if (current && isTerminalJobStatus(current.status)) return null;
+  return updateJob(id, patch);
+};
+
 const listJobs = () => db.prepare("SELECT * FROM jobs ORDER BY created_at DESC").all();
 
 const listJobsByType = (type) => db.prepare("SELECT * FROM jobs WHERE type = ?").all(type);
@@ -178,9 +198,16 @@ const cleanupOldJobs = (options = {}) => {
   const retentionDays = options.retentionDays ?? 7;
   const maxCount = options.maxCount ?? 100;
 
-  // Calculate cutoff timestamp (jobs older than this will be deleted)
+  // Calculate cutoff timestamp (jobs older than this will be deleted).
+  //
+  // Compared as a NUMBER. `updated_at` is `INTEGER NOT NULL` in every schema
+  // version and is written as `Date.now()`, but this cutoff used to be
+  // converted with `.toISOString()`. SQLite sorts every INTEGER before every
+  // TEXT value, so `updated_at < '<iso string>'` was unconditionally true and
+  // the retention window was never applied: each sweep deleted the operator's
+  // ENTIRE completed/failed/cancelled job history instead of the part older
+  // than `retentionDays`. Found by the Tranche 8C lifecycle probe.
   const cutoffTime = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
-  const cutoffIso = new Date(cutoffTime).toISOString();
 
   // Delete jobs that are:
   // 1. In terminal state (completed, failed, cancelled)
@@ -189,7 +216,7 @@ const cleanupOldJobs = (options = {}) => {
     `DELETE FROM jobs
      WHERE status IN ('completed', 'failed', 'cancelled')
      AND updated_at < ?`
-  ).run(cutoffIso);
+  ).run(cutoffTime);
 
   const ageDeleted = ageBasedDelete.changes;
 
@@ -257,7 +284,10 @@ const writeTempAuth = (contents) => {
   const dir = ensureTempDir();
   const filePath = path.join(dir, `registry-auth-${nanoid()}.json`);
   fs.writeFileSync(filePath, contents, { mode: 0o600, encoding: "utf8" });
-  return filePath;
+  // A registry pull secret on a persistent volume. Its owner unlinks it from
+  // the child's `close` handler, which a terminating process never reaches,
+  // so shutdown needs to know it exists.
+  return trackTempArtifact(filePath, "file", "registry-auth");
 };
 
 const mergePullSecrets = (a, b) => {
@@ -269,8 +299,20 @@ const mergePullSecrets = (a, b) => {
 const safeUnlink = (filePath) => {
   try {
     fs.unlinkSync(filePath);
-  } catch {
-    // Intentionally suppressed - best-effort cleanup; file may already be deleted
+    // Gone, so nothing is left for shutdown to clean. Deregistering here is
+    // what keeps every existing owner-side cleanup path accurate without
+    // touching any of its call sites; it is a no-op for untracked paths.
+    untrackTempArtifact(filePath);
+  } catch (err) {
+    // ENOENT means something else already removed it — also gone.
+    if (err?.code === "ENOENT") {
+      untrackTempArtifact(filePath);
+      return;
+    }
+    // Any other failure (EACCES, EPERM, EBUSY) means the file is STILL ON
+    // DISK. Best-effort cleanup may give up, but tracking must not: a
+    // registry pull secret that outlived its owner has to stay registered so
+    // shutdown gets another attempt at it.
   }
 };
 
@@ -288,6 +330,7 @@ export {
   setCache,
   createJob,
   updateJob,
+  updateJobUnlessTerminal,
   updateJobMetadata,
   getJob,
   listJobs,

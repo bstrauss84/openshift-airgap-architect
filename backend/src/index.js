@@ -24,7 +24,7 @@ import { metricsMiddleware } from "./middleware/metrics.js";
 import { getMetrics, getMetricsContentType } from "./metrics.js";
 import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
 import { runCincinnatiBackgroundJob } from "./cincinnatiJob.js";
-import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
+import { authAvailable, getCatalogs, getResults, runScanJob, createSharedAuthRelease } from "./operators.js";
 import { resolveOcMirrorBinary, getRuntimeArch, getLocalBinaryArch, getBinariesForExportArch } from "./ocMirrorRuntime.js";
 import { db, dataDir } from "./db.js";
 import { ensureInstaller, getAwsAmi, getAwsRegions, installerPathFor, warmInstallerStream } from "./installer.js";
@@ -44,6 +44,7 @@ import {
   safeUnlink,
   createJob,
   updateJob,
+  updateJobUnlessTerminal,
   updateJobMetadata,
   appendJobOutput
 } from "./utils.js";
@@ -55,6 +56,9 @@ import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
 import { createIntegrityTracker, MANIFEST_FILENAME, validateArchiveBuffer, ZIP_LIMITS } from "./exportIntegrity.js";
+import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts } from "./tempArtifacts.js";
+import { createShutdownHandler } from "./shutdown.js";
+import { activeProcesses } from "./processRegistry.js";
 import { sanitizeStateForPersistence } from "./stateSanitizer.js";
 import {
   validateBody,
@@ -184,6 +188,53 @@ if (process.env.NODE_ENV !== "test") {
 
 markStaleJobs();
 
+/**
+ * Collect temporary artifacts a previous run left behind.
+ *
+ * The shutdown sequence releases everything this process owns, but it only
+ * runs for SIGTERM/SIGINT. A SIGKILL — which is what the compose profile
+ * delivers if an export is mid-`podman save`, and what an OOM or a host loss
+ * delivers always — leaves registry pull secrets, ssh key material,
+ * registries.d directories and generated imageset configs on the /data
+ * volume indefinitely. `markStaleJobs()` above reconciles the job rows; this
+ * reconciles the files, and it is the only thing that ever retries an
+ * artifact whose removal failed during a previous shutdown.
+ *
+ * Boot is the one moment when nothing of ours is in flight, so this is safe
+ * by construction. Scoped to DATA_DIR/tmp and to our own filename prefixes on
+ * purpose: DATA_DIR is single-instance (one SQLite writer), whereas
+ * os.tmpdir() is shared, and sweeping that by pattern could destroy a
+ * concurrent process's live staging. The temp-artifact registry makes the
+ * same promise for the same reason.
+ */
+const OWNED_TEMP_PREFIXES = /^(registry-auth-|airgap-key-|registries\.d-|imageset-)/;
+const sweepAbandonedTempArtifacts = () => {
+  const tmpDir = path.join(dataDir, "tmp");
+  let removed = 0;
+  let failed = 0;
+  try {
+    if (!fs.existsSync(tmpDir)) return;
+    for (const name of fs.readdirSync(tmpDir)) {
+      if (!OWNED_TEMP_PREFIXES.test(name)) continue;
+      try {
+        fs.rmSync(path.join(tmpDir, name), { recursive: true, force: true });
+        removed += 1;
+      } catch (err) {
+        failed += 1;
+        logger.warn({ err, tag: "startup", name }, "Abandoned temp artifact could not be removed");
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, tag: "startup" }, "Abandoned temp artifact sweep failed");
+    return;
+  }
+  if (removed > 0 || failed > 0) {
+    logger.info({ tag: "startup", removed, failed }, "Swept temp artifacts from a previous run");
+  }
+};
+
+sweepAbandonedTempArtifacts();
+
 // Only trust X-Forwarded-For header from known proxy IPs to prevent spoofing
 const TRUSTED_PROXIES = (process.env.TRUSTED_PROXIES || "").split(",").filter(Boolean);
 
@@ -248,7 +299,6 @@ const warmCincinnatiCache = async () => {
 
 warmCincinnatiCache();
 
-const activeProcesses = new Map();
 const pendingBundleStates = new Map();
 const BUNDLE_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -827,6 +877,10 @@ const generateSshKeypair = (algorithm = "ed25519") => new Promise((resolve, reje
   const tmpDir = path.join(dataDir, "tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const keyPath = path.join(tmpDir, `airgap-key-${nanoid()}`);
+  // Private key material. Short-lived, but it must not survive an exit that
+  // lands between ssh-keygen writing it and the handler unlinking it.
+  trackTempArtifact(keyPath, "file", "ssh-key");
+  trackTempArtifact(`${keyPath}.pub`, "file", "ssh-key");
   const args = ["-N", "", "-f", keyPath];
   if (alg === "rsa") {
     args.unshift("-b", "4096", "-t", "rsa");
@@ -1394,7 +1448,10 @@ app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
       const fullPath = path.join(tmpDir, file);
       try {
         const realPath = fs.realpathSync(fullPath); // Resolve symlinks
-        if (realPath.startsWith(tmpDir)) { // Ensure within tmpDir
+        // Same boundary fix: `${tmpDir}evil/x` is not inside tmpDir. This
+        // check matters more here than elsewhere because the path has
+        // already been symlink-resolved, so a pass deletes the TARGET.
+        if (realPath.startsWith(tmpDir + path.sep)) {
           safeUnlink(realPath);
         } else {
           logger.debug({ realPath, tmpDir }, "Skipping file outside tmpDir");
@@ -1733,16 +1790,29 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
       });
       jobs[catalog.id] = jobId;
     }
+    // No scan was started, so nothing will ever settle and release the
+    // credential this request wrote. Without this the pull secret sits on the
+    // /data volume for the lifetime of the process. (The temp-artifact
+    // registry would still catch it at shutdown — that is defence in depth,
+    // not a reason to leak it.)
+    if (tempAuthFile) safeUnlink(tempAuthFile);
     return res.json({ jobs });
   }
-  for (const catalog of getCatalogs()) {
+  // One pull secret is shared by every catalog in this request, so it is
+  // released when the LAST scan settles. Letting each child unlink it meant
+  // the first one to finish deleted the credential the other two were still
+  // passing to --authfile.
+  const catalogsToScan = getCatalogs();
+  const releaseScanAuth = createSharedAuthRelease(tempAuthFile, catalogsToScan.length);
+  for (const catalog of catalogsToScan) {
     const jobId = runScanJob({
       version: catalogMinor,
       catalogId: catalog.id,
       catalogImage: catalog.image(catalogMinor),
       authFile: tempAuthFile,
       jobType: "operator-scan",
-      ocMirrorPath: resolved.path
+      ocMirrorPath: resolved.path,
+      onSettled: releaseScanAuth
     });
     jobs[catalog.id] = jobId;
 
@@ -1898,7 +1968,10 @@ app.post("/api/jobs/:id/stop", validateBody(jobStopSchema), (req, res) => {
   if (!proc) return res.status(404).json({ error: "Job not running." });
   proc.kill("SIGTERM");
   activeProcesses.delete(jobId);
-  updateJob(jobId, { status: "cancelled", message: "Stopped by user.", progress: 0 });
+  // Guarded: a job can still be in the registry after reaching a terminal
+  // state (a timed-out scan awaiting SIGKILL), and "cancelled" must not
+  // overwrite the real outcome.
+  updateJobUnlessTerminal(jobId, { status: "cancelled", message: "Stopped by user.", progress: 0 });
   res.json({ ok: true });
 });
 
@@ -2450,6 +2523,9 @@ function writeRegistriesDConfigs(signatureOptions) {
 
   try {
     fs.mkdirSync(registriesDDir, { recursive: true });
+    // Removed by the oc-mirror child's close handler, which a terminating
+    // process never reaches.
+    trackTempArtifact(registriesDDir, "dir", "registries-d");
 
     for (const hostname of hostnames) {
       // Sanitize hostname for filename (replace : and / with -)
@@ -2473,6 +2549,7 @@ function cleanupRegistriesDDir(registriesDDir) {
   if (!registriesDDir) return;
   try {
     fs.rmSync(registriesDDir, { recursive: true, force: true });
+    untrackTempArtifact(registriesDDir);
   } catch (err) {
     logger.error({ err }, "Failed to cleanup registries.d directory");
   }
@@ -2519,6 +2596,9 @@ function writePerImageRegistriesDConfigs(imagePathsArray) {
 
   try {
     fs.mkdirSync(registriesDDir, { recursive: true });
+    // Removed by the oc-mirror child's close handler, which a terminating
+    // process never reaches.
+    trackTempArtifact(registriesDDir, "dir", "registries-d");
 
     for (const imagePath of imagePathsArray) {
       // Sanitize image path for filename
@@ -2647,7 +2727,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
 
   child.on("error", (err) => {
     appendJobOutput(retryJobId, `\n${String(err)}\n`);
-    updateJob(retryJobId, { status: "failed", message: "oc-mirror retry failed to start." });
+    updateJobUnlessTerminal(retryJobId, { status: "failed", message: "oc-mirror retry failed to start." });
     activeProcesses.delete(retryJobId);
     cleanupRegistriesDDir(registriesDDir);
   });
@@ -2700,7 +2780,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
     if (releaseResult) message += ` Release: ${releaseResult.succeeded}/${releaseResult.total}.`;
     if (operatorResult) message += ` Operators: ${operatorResult.succeeded}/${operatorResult.total}.`;
 
-    updateJob(retryJobId, { status, progress: 100, message });
+    updateJobUnlessTerminal(retryJobId, { status, progress: 100, message });
     updateJobMetadata(retryJobId, {
       ...getJob(retryJobId)?.metadata,
       finishedAt,
@@ -2807,6 +2887,8 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   }
 
   let configPathToUse = null;
+  // Only a config this backend generated is ours to remove.
+  let configPathIsOurs = false;
   const tmpDir = path.join(dataDir, "tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
@@ -2830,7 +2912,18 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       throw error;
     }
     const configContents = buildImageSetConfig(v3State);
-    configPathToUse = path.join(tmpDir, `imageset-${jobId}.yaml`);
+    // This backend generated it, so this backend may delete it. The external
+    // branch below does NOT set this: that path is an operator-supplied file
+    // on their own disk, and unlinking it destroys user data.
+    configPathIsOurs = true;
+    // Sits in DATA_DIR/tmp beside the auth file and registries.d dir and is
+    // cleaned by the same child `close` handler, so it needs the same
+    // shutdown ownership. Carries mirror FQDNs and the operator selection.
+    configPathToUse = trackTempArtifact(
+      path.join(tmpDir, `imageset-${jobId}.yaml`),
+      "file",
+      "imageset-config"
+    );
     fs.writeFileSync(configPathToUse, configContents, "utf8");
   } else {
     try {
@@ -2874,7 +2967,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     }
   } catch (err) {
     updateJob(jobId, { status: "failed", message: "Invalid pull secret JSON.", progress: 100 });
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     return res.json({ jobId });
   }
 
@@ -2892,7 +2985,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       message: resolved.error,
       output: resolved.rawStderr || resolved.error
     });
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
     return res.json({ jobId });
   }
@@ -2903,7 +2996,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     if (cachePath && mode !== "mirrorToMirror") fs.mkdirSync(path.resolve(cachePath), { recursive: true });
   } catch (err) {
     updateJob(jobId, { status: "failed", message: String(err?.message || err), progress: 100 });
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
     return res.json({ jobId });
   }
@@ -2958,10 +3051,11 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   child.stderr.on("data", (data) => appendJobOutput(jobId, data.toString()));
   child.on("error", (err) => {
     appendJobOutput(jobId, `\n${String(err)}\n`);
-    updateJob(jobId, { status: "failed", message: "oc-mirror failed to start." });
+    // Guarded: a stop or a shutdown may already have recorded this job.
+    updateJobUnlessTerminal(jobId, { status: "failed", message: "oc-mirror failed to start." });
     activeProcesses.delete(jobId);
     if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
   child.on("close", (code) => {
@@ -3040,14 +3134,24 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       message = `oc-mirror exited with code ${code}.`;
     }
 
-    updateJob(jobId, {
+    // Guarded: a SIGTERMed child reports code === null, which this block
+    // turns into "failed" — relabelling a job that was deliberately cancelled.
+    const outcomeRecorded = updateJobUnlessTerminal(jobId, {
       status,
       progress: status === "completed" ? 100 : status === "completed_with_warnings" ? 100 : 0,
       message
     });
 
-    // Trigger smart retry if signature failures detected
-    if (status === "completed_with_warnings" && signatureFailures.length > 0) {
+    // Trigger smart retry if signature failures detected.
+    //
+    // Gated on the write above having been ACCEPTED. `status` is computed
+    // locally from the exit code and output, not read back from the job: a
+    // SIGTERMed child reports code === null, and if the partial output already
+    // showed every release image mirrored it is classified
+    // `completed_with_warnings`. So a run the operator explicitly stopped
+    // could reach here, spawn a brand-new oc-mirror child, and overwrite
+    // "Stopped by user." — restarting work that was deliberately cancelled.
+    if (outcomeRecorded && status === "completed_with_warnings" && signatureFailures.length > 0) {
       const currentMetadata = getJob(jobId)?.metadata || {};
       const originalRequestBody = currentMetadata.requestBody;
 
@@ -3065,7 +3169,9 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
 
               // Update message to inform user about auto-retry
               const opFailed = operatorResult ? operatorResult.total - operatorResult.succeeded : "?";
-              updateJob(jobId, {
+              // Guarded too: this lands after an await, so a stop can have
+              // been recorded in the meantime.
+              updateJobUnlessTerminal(jobId, {
                 message: `oc-mirror completed with ${opFailed} operator image(s) failed (${signatureFailures.length} signature error(s)). Auto-retry launched (job ${retryJobId}).`
               });
               logger.info({ tag: "smart-retry", retryJobId, originalJobId: jobId }, "Launched retry job");
@@ -3081,7 +3187,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
 
     activeProcesses.delete(jobId);
     if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
   res.json({ jobId });
@@ -3896,7 +4002,12 @@ const ALLOWED_BASE_PATHS = [
 
 function isPathAllowed(requestedPath) {
   const resolved = path.resolve(requestedPath);
-  return ALLOWED_BASE_PATHS.some(base => resolved.startsWith(base));
+  // Boundary-aware, not a bare string prefix: `/datax` and `/tmpfoo` are
+  // siblings of the allowed roots, not children of them, and a bare
+  // startsWith admitted both. The root itself stays allowed.
+  return ALLOWED_BASE_PATHS.some(
+    (base) => resolved === base || resolved.startsWith(base.endsWith(path.sep) ? base : base + path.sep)
+  );
 }
 
 app.get("/api/fs/ls", (req, res) => {
@@ -4118,8 +4229,9 @@ if (process.env.NODE_ENV !== "test") {
     const maxJobCount = parseInt(process.env.JOB_MAX_COUNT, 10) || 100;
     const cleanupIntervalMs = 24 * 60 * 60 * 1000; // 24 hours
 
-    // Run initial cleanup on startup (after 60 seconds to allow any startup jobs to complete)
-    setTimeout(() => {
+    // Run initial cleanup on startup (after 60 seconds to allow any startup
+    // jobs to complete). Stored globally so shutdown can clear it too.
+    global.startupCleanupTimeout = setTimeout(() => {
       try {
         const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
         if (result.totalDeleted > 0) {
@@ -4142,29 +4254,24 @@ if (process.env.NODE_ENV !== "test") {
       }
     }, cleanupIntervalMs);
   });
-  const shutdown = (signal) => {
-    // Clear cleanup interval if it exists
-    if (global.cleanupInterval) {
-      clearInterval(global.cleanupInterval);
-      global.cleanupInterval = null;
-    }
-    logger.info({ tag: "shutdown", signal }, "Shutting down");
-    // Kill any active child processes (oc-mirror runs, scan jobs).
-    for (const [, child] of activeProcesses.entries()) {
-      try {
-        child.kill("SIGTERM");
-      } catch (err) {
-        logger.debug({ err }, "Kill child process failed during shutdown");
+  const shutdown = createShutdownHandler({
+    getServer: () => server,
+    activeProcesses,
+    updateJob,
+    getJob,
+    releaseAllTempArtifacts,
+    clearTimers: () => {
+      if (global.cleanupInterval) {
+        clearInterval(global.cleanupInterval);
+        global.cleanupInterval = null;
       }
-    }
-    activeProcesses.clear();
-    // Exit immediately. Waiting on server.close() hangs because Node's built-in
-    // fetch() uses undici connection pools with ref'd TCP sockets for outgoing
-    // requests (Cincinnati API, GitHub) that outlive the express server itself —
-    // server.close() never calls back. SQLite (better-sqlite3) flushes
-    // synchronously via process.on('exit') so there is no data-loss risk.
-    process.exit(0);
-  };
+      if (global.startupCleanupTimeout) {
+        clearTimeout(global.startupCleanupTimeout);
+        global.startupCleanupTimeout = null;
+      }
+    },
+    logger
+  });
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 }

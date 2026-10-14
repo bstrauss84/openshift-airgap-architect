@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { trackTempArtifact, untrackTempArtifact } from "./tempArtifacts.js";
 
 const DEFAULT_BACKEND_IMAGE = "localhost/openshift-airgap-architect-backend:latest";
 const DEFAULT_FRONTEND_IMAGE = "localhost/openshift-airgap-architect-frontend:latest";
@@ -224,8 +225,11 @@ const createStagingCleanup = (tempRoot) => {
     try {
       fs.rmSync(tempRoot, { recursive: true, force: true });
       released = true;
+      untrackTempArtifact(tempRoot);
       return { released: true, stagingRoot: tempRoot, error: null };
     } catch (error) {
+      // Stays tracked, so shutdown still knows about a directory that is
+      // genuinely still on disk.
       return { released: false, stagingRoot: tempRoot, error };
     }
   };
@@ -437,6 +441,10 @@ const createRuntimePackageArtifacts = ({
   }
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "airgap-runtime-package-"));
+  // L2 streams these members, so the export's own release runs only after the
+  // archive stream settles. A process told to exit mid-export never gets
+  // there, which would strand the staged image archives.
+  trackTempArtifact(tempRoot, "dir", "runtime-package-staging");
   const cleanup = createStagingCleanup(tempRoot);
   try {
     const artifacts = stageRuntimePackage({

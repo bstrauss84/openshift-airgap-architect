@@ -263,7 +263,14 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           };
         });
       })
-      .finally(() => setLoadingCatalogs(false));
+      .finally(() => setLoadingCatalogs(false))
+      // Same shape as the initial Cincinnati channel load: apiFetch rejects on
+      // a network failure and on any non-2xx, and `.finally` re-raises what it
+      // was handed, so an unreachable backend on this step produced an
+      // unhandled rejection. Behaviour is otherwise unchanged — the loading
+      // flag is already cleared above and the existing catalogs are left
+      // alone rather than being replaced with an empty set.
+      .catch(() => {});
   }, [selectionsKey]);
 
   useEffect(() => {

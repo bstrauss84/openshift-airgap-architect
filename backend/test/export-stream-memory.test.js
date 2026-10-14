@@ -366,28 +366,63 @@ describe("Bundle export resource hygiene under streaming", () => {
     }
   });
 
-  it("repeated exports leak no file descriptors", async () => {
-    // Warm up first: the first request through a route allocates sockets and
+  it("file descriptor use does not scale with the number of exports", async () => {
+    // Warm up: the first request through a route allocates sockets and
     // lazily-opened resources that are not per-export.
     await (await postBundle()).arrayBuffer();
 
-    const before = openFdCount();
-    if (before === null) {
-      // /proc is unavailable; the rest of this assertion has no meaning here.
+    if (openFdCount() === null) {
+      // /proc is unavailable; this assertion has no meaning on this platform.
       return;
     }
 
-    for (let i = 0; i < 5; i += 1) {
-      const res = await postBundle();
-      assert.equal(res.status, 200);
-      await res.arrayBuffer();
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    /**
+     * Read the descriptor count once it has stopped moving, rather than after
+     * a fixed delay. Closing a socket is asynchronous, so a wall-clock sleep
+     * is a guess that is simultaneously too long on a fast host and too short
+     * on a loaded one.
+     */
+    const settledFdCount = async (timeoutMs = 5000) => {
+      const deadline = Date.now() + timeoutMs;
+      let previous = openFdCount();
+      for (;;) {
+        await new Promise((resolve) => setImmediate(resolve));
+        const current = openFdCount();
+        if (current === previous) return current;
+        if (Date.now() >= deadline) return current;
+        previous = current;
+      }
+    };
 
-    const after = openFdCount();
+    const runExports = async (count) => {
+      for (let i = 0; i < count; i += 1) {
+        const res = await postBundle();
+        assert.equal(res.status, 200);
+        await res.arrayBuffer();
+      }
+      return settledFdCount();
+    };
+
+    const baseline = await settledFdCount();
+    const afterFew = await runExports(5);
+    const afterMany = await runExports(15);
+
+    // The property that matters is shape, not an absolute slack: a per-export
+    // descriptor leak is necessarily proportional to the export count, so 15
+    // further exports would cost three times what the first 5 did. A constant
+    // pool of keep-alive sockets — which is legitimate and which a fixed
+    // tolerance was really there to absorb — does not grow at all.
+    const firstBatchGrowth = afterFew - baseline;
+    const secondBatchGrowth = afterMany - afterFew;
     assert.ok(
-      after <= before + 4,
-      `file descriptors grew across 5 exports: ${before} -> ${after}`
+      secondBatchGrowth <= Math.max(firstBatchGrowth, 0) + 2,
+      `descriptors scaled with export count: baseline ${baseline} -> ${afterFew} after 5 ` +
+        `-> ${afterMany} after 15 more (batch growth ${firstBatchGrowth} then ${secondBatchGrowth})`
+    );
+    // And in absolute terms 20 exports must not have cost 20 descriptors.
+    assert.ok(
+      afterMany - baseline < 20,
+      `20 exports grew descriptors by ${afterMany - baseline}`
     );
   });
 

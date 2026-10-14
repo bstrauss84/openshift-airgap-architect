@@ -65,10 +65,25 @@ const platformOptions = [
 
 const JOB_TERMINAL = new Set(["completed", "failed", "cancelled"]);
 
-async function pollJobUntilTerminal(jobId, { timeoutMs = 120000 } = {}) {
+/**
+ * Poll a job until it reaches a terminal status.
+ *
+ * `signal` is REQUIRED to be honoured, not optional politeness: without it the
+ * loop ran for up to `timeoutMs` (two minutes) after the step was unmounted,
+ * calling `/api/jobs/<id>` every 400 ms and then writing to the shared app
+ * store from a component that no longer exists. Navigating away from Blueprint
+ * unmounts the step but NOT `AppProvider`, so those writes landed in live
+ * state.
+ *
+ * The check is at the top of each iteration AND the signal is handed to
+ * `apiFetch` (which spreads `options` into `fetch`), so an abort both cancels
+ * the in-flight request and stops the next one from being issued.
+ */
+async function pollJobUntilTerminal(jobId, { timeoutMs = 120000, signal } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const job = await apiFetch(`/api/jobs/${jobId}`);
+    if (signal?.aborted) throw new DOMException("Cincinnati refresh polling cancelled.", "AbortError");
+    const job = await apiFetch(`/api/jobs/${jobId}`, { signal });
     if (JOB_TERMINAL.has(job.status)) return job;
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -102,6 +117,46 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   const channelPatchAutoFetchSuppressRef = useRef(0);
   const prevAdvancedOpenRef = useRef(false);
   const patchFetchGenerationRef = useRef(0);
+  /**
+   * Unmount guard.
+   *
+   * Every async path in this step (`refresh`, `fetchPatches`, the two mount
+   * effects) resumes after an `await` and then calls `setState` and/or
+   * `updateState`. `updateState` reaches `AppProvider`, which OUTLIVES this
+   * step — navigating away unmounts only the step — so an unguarded resume is
+   * not a harmless React no-op: it mutates live application state and triggers
+   * a persistence POST. `mountedRef` gates those resumes; `abortRef` cancels
+   * the requests themselves.
+   */
+  const mountedRef = useRef(true);
+  const abortRef = useRef(null);
+  /** Handle of the 5 s "Channels updated." banner timer, so it can be cleared. */
+  const updatedMessageTimerRef = useRef(null);
+
+  // MUST be the first effect in this component: React runs effects, and their
+  // cleanups, in declaration order, so this is what guarantees `abortRef`
+  // is populated before any later effect reads it and aborted before any later
+  // cleanup runs. `mountedRef` is re-armed on mount rather than only cleared on
+  // unmount, because StrictMode (src/main.jsx) mounts, unmounts and remounts.
+  useEffect(() => {
+    mountedRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    return () => {
+      mountedRef.current = false;
+      controller.abort();
+      clearTimeout(updatedMessageTimerRef.current);
+      updatedMessageTimerRef.current = null;
+    };
+  }, []);
+
+  /** Show the transient "Channels updated." banner, replacing any pending hide. */
+  const showUpdatedMessage = () => {
+    if (!mountedRef.current) return;
+    setUpdatedMessage(true);
+    clearTimeout(updatedMessageTimerRef.current);
+    updatedMessageTimerRef.current = setTimeout(() => setUpdatedMessage(false), 5000);
+  };
   const blueprintPullSecretRaw = state.blueprint?.blueprintPullSecretEphemeral ?? "";
   const blueprintPullSecretTrimmed = blueprintPullSecretRaw.trim();
   const blueprintPullSecretError = useMemo(() => {
@@ -187,10 +242,13 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   // Check for a mounted Red Hat pull secret and pre-populate if the field is empty and not locked.
   useEffect(() => {
     if (locked || blueprintPullSecretTrimmed) return;
-    apiFetch("/api/secrets/rh-pull-secret")
+    const signal = abortRef.current?.signal;
+    apiFetch("/api/secrets/rh-pull-secret", { signal })
       .then((d) => {
+        if (!mountedRef.current) return;
         if (!d.available) return;
-        return apiFetch("/api/secrets/rh-pull-secret/content").then((c) => {
+        return apiFetch("/api/secrets/rh-pull-secret/content", { signal }).then((c) => {
+          if (!mountedRef.current) return;
           if (c.pullSecret) {
             updateBlueprint({ blueprintPullSecretEphemeral: c.pullSecret });
             setMountedSecretBadge(true);
@@ -224,9 +282,16 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   };
 
   useEffect(() => {
+    const signal = abortRef.current?.signal;
     setLoading(true);
-    apiFetch("/api/cincinnati/channels")
+    apiFetch("/api/cincinnati/channels", { signal })
       .then((data) => {
+        // Resumed after an await. Everything below writes component state or
+        // the SHARED store, so a dead step must write nothing. This is a
+        // suppression of post-unmount writes only: while mounted the branch
+        // logic — including the No-Fallback behaviour, which never synthesises
+        // or clears a selection on a failed load — is unchanged.
+        if (!mountedRef.current) return;
         const { supported, newerUnsupported } = classifyChannels(data.channels || []);
         setChannels(sortChannelsBySemverDescending(supported));
         setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
@@ -248,9 +313,11 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
         }
       })
       .finally(() => {
+        if (!mountedRef.current) return;
         setLoading(false);
-        apiFetch("/api/cincinnati/update", { method: "POST" })
+        apiFetch("/api/cincinnati/update", { method: "POST", signal })
           .then((data) => {
+            if (!mountedRef.current) return;
             if (data.channels?.length) {
               const { supported, newerUnsupported } = classifyChannels(data.channels);
               setChannels(sortChannelsBySemverDescending(supported));
@@ -258,7 +325,15 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
             }
           })
           .catch(() => {});
-      });
+      })
+      // apiFetch rejects on a network failure and on any non-2xx, and
+      // `.finally` re-raises whatever it was handed, so the initial channel
+      // load produced an unhandled rejection whenever the backend was
+      // unreachable. Behaviour is otherwise unchanged and deliberately so:
+      // `loading` is already cleared in the `.finally` above, `channels`
+      // stays empty, and a previously selected channel is left untouched —
+      // no fallback to an unverified version.
+      .catch(() => {});
   }, []);
 
   const fetchPatches = async (channel, force = false) => {
@@ -270,10 +345,12 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
     setPatchesLoading(true);
     setPatches([]);
     const endpoint = force ? "/api/cincinnati/patches/update" : "/api/cincinnati/patches";
+    const signal = abortRef.current?.signal;
     try {
       const data = force
-        ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }) })
-        : await apiFetch(`${endpoint}?channel=${encodeURIComponent(channel)}`);
+        ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }), signal })
+        : await apiFetch(`${endpoint}?channel=${encodeURIComponent(channel)}`, { signal });
+      if (!mountedRef.current) return;
       if (gen !== patchFetchGenerationRef.current) return;
       setPatches(data.versions || []);
       if (releaseLocked) {
@@ -296,7 +373,7 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
         });
       }
     } finally {
-      setPatchesLoading(false);
+      if (mountedRef.current) setPatchesLoading(false);
     }
   };
 
@@ -306,7 +383,9 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
       channelPatchAutoFetchSuppressRef.current -= 1;
       return;
     }
-    fetchPatches(release.channel).catch(() => setPatchesLoading(false));
+    fetchPatches(release.channel).catch(() => {
+      if (mountedRef.current) setPatchesLoading(false);
+    });
   }, [release?.channel]);
 
   useEffect(() => {
@@ -339,16 +418,20 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   };
 
   const refresh = async () => {
+    const signal = abortRef.current?.signal;
     setRefreshing(true);
     setRefreshError("");
     setRefreshNote("Queuing Cincinnati refresh…");
     try {
       const { jobId } = await apiFetch("/api/cincinnati/refresh-job", {
         method: "POST",
-        body: JSON.stringify({ preferredChannel: release?.channel || null })
+        body: JSON.stringify({ preferredChannel: release?.channel || null }),
+        signal
       });
+      if (!mountedRef.current) return;
       setRefreshNote("Refresh running—Operations shows live progress…");
-      const job = await pollJobUntilTerminal(jobId);
+      const job = await pollJobUntilTerminal(jobId, { signal });
+      if (!mountedRef.current) return;
       if (job.status !== "completed") {
         const outLines = job.output ? String(job.output).trim().split("\n").filter(Boolean) : [];
         const msg =
@@ -359,15 +442,15 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
         updateState({ ui: { ...(state.ui || {}), highlightJobId: jobId } });
         return;
       }
-      const chRes = await apiFetch("/api/cincinnati/channels");
+      const chRes = await apiFetch("/api/cincinnati/channels", { signal });
+      if (!mountedRef.current) return;
       const { supported, newerUnsupported } = classifyChannels(chRes.channels || []);
       const newChannels = sortChannelsBySemverDescending(supported);
       setChannels(newChannels);
       setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
 
       if (newChannels.length === 0) {
-        setUpdatedMessage(true);
-        setTimeout(() => setUpdatedMessage(false), 5000);
+        showUpdatedMessage();
         return;
       }
       const newestChannel = getNewestSupportedChannel(chRes.channels);
@@ -382,14 +465,18 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
         channelToLoad = cur && newChannels.includes(cur) ? cur : newestChannel;
       }
       await fetchPatches(channelToLoad, false);
-      setUpdatedMessage(true);
-      setTimeout(() => setUpdatedMessage(false), 5000);
+      if (!mountedRef.current) return;
+      showUpdatedMessage();
     } catch (e) {
+      if (!mountedRef.current) return;
       setPatchesLoading(false);
       setRefreshError(e?.message || String(e));
     } finally {
-      setRefreshNote("");
-      setRefreshing(false);
+      // Reached by the early `return`s above as well, so it needs its own guard.
+      if (mountedRef.current) {
+        setRefreshNote("");
+        setRefreshing(false);
+      }
     }
   };
 
