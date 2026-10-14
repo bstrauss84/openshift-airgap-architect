@@ -29,7 +29,7 @@
     "check:app-version": "node scripts/validate-app-version.mjs",
     "set:app-version": "node scripts/set-app-version.mjs",
     "test:app-version": "node --test scripts/validate-app-version.test.mjs",
-    "test:tooling": "node --test scripts/*.test.js scripts/*.test.mjs scripts/minor/**/*.test.js scripts/release/*.test.mjs",
+    "test:tooling": "node --test scripts/*.test.js scripts/*.test.mjs scripts/minor/**/*.test.js scripts/release/*.test.mjs scripts/release/provenance/*.test.mjs scripts/release/vex/*.test.mjs",
     "release:certify": "node scripts/release/certify.mjs",
     "release:certify:list": "node scripts/release/certify.mjs --list",
     "test:release-certify": "node --test scripts/release/*.test.mjs",

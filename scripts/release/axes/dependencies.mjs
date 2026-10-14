@@ -35,14 +35,37 @@ import { REUSE } from "../lib/evidence.mjs";
 import { run } from "../lib/exec.mjs";
 
 /**
+ * Shared vocabulary for npm install commands and production-only flags.
+ *
+ * There are TWO independent implementations of this classification — this one
+ * and `shipped_install_scope()` in scripts/security/tranche-security-gate.sh.
+ * They disagreed on `--only=prod` and on the `npm i` short form, which was
+ * masked while both returned "all" unconditionally for a copied tree. Once
+ * both started resolving the builder stage the flag set became load-bearing
+ * and the drift became live, with the shell gate on the PERMISSIVE side.
+ * Keep these two lists and that function in step; parity cases are asserted
+ * in scripts/release/axes.test.mjs and scripts/validate-frontend-runtime.test.js.
+ *
+ * `[^\n&|]*` rather than `[^\n]*`: a chained `RUN npm ci --omit=dev && npm ci`
+ * must be read as TWO installs. Swallowing the whole line matched only the
+ * first, found `--omit=dev` in it, and reported "prod" for a stage that then
+ * installed the full dev tree. The shell splits on `&&`/`|` for the same
+ * reason, so this also keeps the two in step.
+ */
+const NPM_INSTALL_RE = /(?:RUN|&&|\|\|?|^)[^\n&|]*\bnpm\s+(ci|install|i)\b[^\n&|]*/g;
+const PROD_ONLY_FLAG_RE = /--omit=dev|--production|--only=prod/;
+
+/**
  * Does the FINAL stage of a Containerfile install npm packages?
  *
  * Stage awareness is the whole point: a multi-stage build legitimately runs a
  * full `npm ci` in a builder and ships only its output. Only directives after
  * the last FROM count, plus any `COPY --from=` that drags node_modules into
- * the final stage. Comments are stripped first so an explanation above a
- * directive cannot be mistaken for the directive.
+ * the final stage, and the final stage's OWN installs on top of it. Comments
+ * are stripped first so an explanation above a directive cannot be mistaken
+ * for the directive.
  */
+
 export function shippedInstallScope(containerfileText) {
   const lines = containerfileText
     .split("\n")
@@ -51,10 +74,73 @@ export function shippedInstallScope(containerfileText) {
   const fromIdx = lines.lastIndexOf("\nFROM ");
   const finalStage = fromIdx === -1 ? lines : lines.slice(fromIdx);
 
-  if (/COPY\s+--from=[^\n]*node_modules/.test(finalStage)) return "all";
-  const install = finalStage.match(/RUN[^\n]*npm\s+(ci|install)[^\n]*/g) ?? [];
-  if (!install.length) return "none";
-  return install.every((cmd) => /--omit=dev|--production/.test(cmd)) ? "prod" : "all";
+  // `--from=` need not be the first flag: `COPY --chown=1001:0 --from=builder`
+  // is idiomatic, and requiring `--from` to come first classified it as "none"
+  // — "ships no npm dependency surface" — for a stage that ships the whole
+  // tree. In the shell gate "none" is an unconditional PASS, so that shape
+  // silently skipped the audit entirely.
+  const copied = finalStage.match(/COPY(?:\s+--\S+)*\s+--from=(\S+)[^\n]*node_modules/);
+  const ownInstalls = finalStage.match(NPM_INSTALL_RE) ?? [];
+
+  if (copied) {
+    // A copied tree ships whatever the stage that BUILT it installed. Reading
+    // this as unconditionally "all" was accurate only while every such copy
+    // came from a bare `npm ci`: a builder that ran `--omit=dev` ships a
+    // production-only tree, and reporting it as "all" makes the dependencies
+    // axis audit dev advisories as though they were shipped.
+    //
+    // Unresolvable source => "all". That is the safe direction: this value
+    // decides whether dev advisories count against the release, so an unknown
+    // provenance must over-report, never under-report.
+    const fromStage = installScopeOfStage(lines, copied[1]);
+    // The final stage may ALSO install on top of what it copied. Returning the
+    // builder's scope alone made `COPY --from=builder …` + `RUN npm i express`
+    // report "prod" for a stage that installs the full dev tree — strictly
+    // weaker than the pre-8D behaviour, which returned "all" for any copy.
+    // Both sources ship, so the result is the weaker of the two.
+    if (!ownInstalls.length) return fromStage;
+    return fromStage === "prod" && installScopeOf(ownInstalls) === "prod" ? "prod" : "all";
+  }
+  if (!ownInstalls.length) return "none";
+  return installScopeOf(ownInstalls);
+}
+
+/** "prod" only when every install in the list omits dev dependencies. */
+function installScopeOf(installCommands) {
+  if (!installCommands.length) return "none";
+  return installCommands.every((cmd) => PROD_ONLY_FLAG_RE.test(cmd)) ? "prod" : "all";
+}
+
+/**
+ * Scope of the npm installs inside a named build stage.
+ *
+ * @param {string} text  comment-stripped Containerfile
+ * @param {string} stage the `--from=` target: a stage name, or an index
+ */
+function installScopeOfStage(text, stage) {
+  // `(?:--\S+\s+)*` skips FROM flags. Without it `FROM --platform=linux/amd64
+  // node AS builder` bound "--platform=linux/amd64" as the image and never saw
+  // the alias, so the stage was unresolvable and the result fell back to "all"
+  // while the shell implementation resolved it to "prod". Safe direction, but
+  // a divergence, and the comment above claims these two are in step.
+  const stageStarts = [...text.matchAll(/^FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?/gim)].map((m) => ({
+    index: m.index,
+    alias: m[2] ? m[2].toLowerCase() : null,
+  }));
+  if (!stageStarts.length) return "all";
+
+  let which = stageStarts.findIndex((s) => s.alias && s.alias === String(stage).toLowerCase());
+  if (which === -1 && /^\d+$/.test(String(stage))) which = Number(stage);
+  if (which === -1 || which >= stageStarts.length) return "all"; // unknown source
+
+  const start = stageStarts[which].index;
+  const end = which + 1 < stageStarts.length ? stageStarts[which + 1].index : text.length;
+  const body = text.slice(start, end);
+  const installs = body.match(NPM_INSTALL_RE) ?? [];
+  // A stage that copies node_modules but installs nothing itself cannot be
+  // vouched for from here.
+  if (!installs.length) return "all";
+  return installScopeOf(installs);
 }
 
 function audit(repoRoot, dir, omitDev) {

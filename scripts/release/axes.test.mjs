@@ -112,6 +112,111 @@ describe("shipped-vs-builder dependency scope", () => {
     assert.equal(shippedInstallScope(cf), "all");
   });
 
+  test("a copied tree is scoped by the install that BUILT it, not by the copy", () => {
+    // A builder that omitted dev ships a production-only tree. Reporting it
+    // as "all" would audit dev advisories as though they shipped.
+    const cf = [
+      "FROM node AS builder",
+      "RUN npm ci --omit=dev",
+      "",
+      "FROM node",
+      "COPY --from=builder /app/node_modules /app/node_modules",
+      ""
+    ].join("\n");
+    assert.equal(shippedInstallScope(cf), "prod");
+  });
+
+  test("an unresolvable copy source over-reports rather than under-reports", () => {
+    // Unknown provenance must never quietly exclude dev advisories.
+    const unknownStage = ["FROM node", "COPY --from=somewhere-else /app/node_modules /app/node_modules", ""].join("\n");
+    assert.equal(shippedInstallScope(unknownStage), "all");
+
+    const stageWithNoInstall = [
+      "FROM node AS builder",
+      "COPY node_modules /app/node_modules",
+      "",
+      "FROM node",
+      "COPY --from=builder /app/node_modules /app/node_modules",
+      ""
+    ].join("\n");
+    assert.equal(shippedInstallScope(stageWithNoInstall), "all");
+  });
+
+  test("the flag and command vocabulary matches the shell gate", () => {
+    // These two spellings are where the JS and shell classifiers silently
+    // diverged: the shell accepted them, this one did not. Asserted in both
+    // test files so neither implementation can drift alone.
+    const onlyProd = ["FROM node AS builder", "RUN npm ci --only=prod", "", "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", ""].join("\n");
+    assert.equal(shippedInstallScope(onlyProd), "prod");
+
+    const shortForm = ["FROM node AS builder", "RUN npm i --omit=dev", "", "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", ""].join("\n");
+    assert.equal(shippedInstallScope(shortForm), "prod");
+
+    // ...and the short form without a prod flag still ships everything.
+    assert.equal(shippedInstallScope('FROM node\nRUN npm i\nCMD ["node"]\n'), "all");
+  });
+
+  test("a final stage that copies a prod tree AND installs on top ships everything", () => {
+    // The one place the stage-resolution change was WEAKER than what it
+    // replaced. Pre-8D any `COPY --from=… node_modules` returned "all";
+    // resolving the builder and returning its scope alone reported "prod"
+    // for a stage that then installed the full dev tree. Both sources ship,
+    // so the answer is the weaker of the two.
+    const copyThenInstall = [
+      "FROM node AS builder", "RUN npm ci --omit=dev", "",
+      "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", "RUN npm i express", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(copyThenInstall), "all");
+
+    // ...but a prod install on top of a prod tree is still prod.
+    const copyThenProdInstall = [
+      "FROM node AS builder", "RUN npm ci --omit=dev", "",
+      "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", "RUN npm i --omit=dev express", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(copyThenProdInstall), "prod");
+  });
+
+  test("a chained `&&` install is read as two installs, not one", () => {
+    // `[^\n]*` swallowed the whole RUN line as a single match, found
+    // --omit=dev in it and reported "prod" for a line that then ran a bare
+    // `npm ci`. The shell splits on && for this reason; so must this.
+    assert.equal(shippedInstallScope("FROM node\nRUN npm ci --omit=dev && npm ci\n"), "all");
+    assert.equal(shippedInstallScope("FROM node\nRUN npm ci --omit=dev && npm i --omit=dev\n"), "prod");
+  });
+
+  test("FROM flags do not hide the stage alias", () => {
+    // `FROM --platform=… node AS builder` bound the flag as the image name,
+    // so the alias was never seen and the stage read as unresolvable.
+    const platform = [
+      "FROM --platform=linux/amd64 node AS builder", "RUN npm ci --omit=dev", "",
+      "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(platform), "prod");
+  });
+
+  test("a COPY whose --from is not the first flag is still seen", () => {
+    // `COPY --chown=1001:0 --from=builder …` is idiomatic, and classifying it
+    // as "none" claims the image ships no npm surface at all — which in the
+    // shell gate is an unconditional PASS.
+    const chown = [
+      "FROM node AS builder", "RUN npm ci", "",
+      "FROM node", "COPY --chown=1001:0 --from=builder /app/node_modules ./node_modules", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(chown), "all");
+  });
+
+  test("a numeric --from index resolves to that stage", () => {
+    const cf = [
+      "FROM node AS builder",
+      "RUN npm ci --omit=dev",
+      "",
+      "FROM node",
+      "COPY --from=0 /app/node_modules /app/node_modules",
+      ""
+    ].join("\n");
+    assert.equal(shippedInstallScope(cf), "prod");
+  });
+
   test("a commented-out install is not mistaken for a real one", () => {
     assert.equal(shippedInstallScope('FROM nginx\n# RUN npm ci\nCMD ["nginx"]\n'), "none");
   });
@@ -119,7 +224,10 @@ describe("shipped-vs-builder dependency scope", () => {
   test("the repository's real Containerfiles classify as expected", () => {
     const backend = fs.readFileSync(path.join(REPO_ROOT, "backend", "Containerfile"), "utf8");
     const frontend = fs.readFileSync(path.join(REPO_ROOT, "frontend", "Containerfile"), "utf8");
-    assert.equal(shippedInstallScope(backend), "prod", "backend installs --omit=dev in its single stage");
+    // Message deliberately shape-neutral: the backend was single-stage and is
+    // now builder + minimal runtime. What must hold is the SCOPE, not the
+    // stage count — a message naming the shape goes stale on restructure.
+    assert.equal(shippedInstallScope(backend), "prod", "backend ships a production-only dependency tree");
     assert.equal(shippedInstallScope(frontend), "none", "frontend ships nginx and static assets only (PROD-026)");
   });
 });
@@ -247,7 +355,17 @@ describe("scanner and SBOM generator selection", () => {
   test("AN ENGINE ALONE IS NOT ENOUGH WHILE THE SCANNER IMAGE IS UNPINNED", () => {
     // An unpinned floating tag would make every run scan with whatever was
     // published most recently. 8A.1 also found the tag 8A named did not exist.
-    assert.equal(selectStrategy({ nativeTrivy: false, nativeGrype: false, engine: "podman" }).kind, null);
+    //
+    // The unpinned scanner is now INJECTED rather than read from the live
+    // CONTAINERIZED_SCANNER constant. Reading the constant meant this
+    // guarantee quietly stopped being tested the moment 8D approved a real
+    // digest — i.e. exactly when an accidental un-pinning would do the most
+    // damage. selectGenerator covers syft, which remains genuinely unpinned.
+    const unpinned = { tool: "trivy", image: "docker.io/aquasec/trivy", tag: null, digest: null };
+    assert.equal(
+      selectStrategy({ nativeTrivy: false, nativeGrype: false, engine: "podman", scanner: unpinned }).kind,
+      null,
+    );
     assert.equal(selectGenerator({ nativeSyft: false, engine: "podman" }).kind, null);
   });
 

@@ -45,6 +45,14 @@ export const REVISION_LABEL = "org.opencontainers.image.revision";
 /** Project-specific label binding an image to a full candidate id (dirty-safe). */
 export const CANDIDATE_LABEL = "io.oaa.candidate-id";
 
+/**
+ * Red Hat's UBI base images set this to the same value as
+ * `org.opencontainers.image.revision`, and a derived image inherits both.
+ * Equality between the two is therefore the signal that a revision label
+ * describes the BASE's build, not ours.
+ */
+export const VCS_REF_LABEL = "vcs-ref";
+
 export const MANIFEST_FILENAME = "release-build-manifest.json";
 
 /**
@@ -152,7 +160,22 @@ export function verifyImageProvenance(image, candidate, manifestResult = { prese
     };
   }
 
-  if (observed.revisionLabel) {
+  // An INHERITED revision label is not evidence about OAA. Red Hat's UBI base
+  // images set org.opencontainers.image.revision AND vcs-ref to their own
+  // build commit, and a derived image inherits both — verified on the real
+  // images: backend e573c607…, frontend 24d2029e…, neither of which exists in
+  // this repository (`git cat-file -t` fails for both). Treating that as
+  // Proof A returned a verdict about Red Hat's commit and returned BEFORE the
+  // build manifest was ever consulted, which made Proof B dead code for the
+  // only two images this harness certifies. An inherited label is therefore
+  // treated as absent, so evaluation falls through to the manifest.
+  const revisionIsInherited =
+    Boolean(observed.revisionLabel) &&
+    observed.revisionLabel !== head &&
+    labels[VCS_REF_LABEL] === observed.revisionLabel;
+  observed.revisionLabelInherited = revisionIsInherited;
+
+  if (observed.revisionLabel && !revisionIsInherited) {
     if (dirty) {
       return {
         role: image.role,
@@ -205,13 +228,20 @@ export function verifyImageProvenance(image, candidate, manifestResult = { prese
     return { role: image.role, bound: true, method: "build-manifest", reason: "build manifest binds this image id to this candidate", observed };
   }
 
-  return {
-    role: image.role,
-    bound: false,
-    method: null,
-    reason: `no provenance: image carries neither ${REVISION_LABEL} nor ${CANDIDATE_LABEL}, and no build manifest was found`,
-    observed,
-  };
+  // Two different situations, and reporting them with one sentence misleads.
+  // An image that inherited the base's revision label DOES carry
+  // `org.opencontainers.image.revision` — saying it "carries neither" sends
+  // the reader looking for a missing label instead of at the real problem,
+  // which is that the label describes Red Hat's build and not ours.
+  // `observed.revisionLabelInherited` already records this; the human-readable
+  // line has to agree with it.
+  const reason = revisionIsInherited
+    ? `no provenance: ${REVISION_LABEL} is inherited from the base image ` +
+      `(it equals ${VCS_REF_LABEL}, so it describes the BASE's build, not this candidate), ` +
+      `${CANDIDATE_LABEL} is absent, and no build manifest was found`
+    : `no provenance: image carries neither ${REVISION_LABEL} nor ${CANDIDATE_LABEL}, and no build manifest was found`;
+
+  return { role: image.role, bound: false, method: null, reason, observed };
 }
 
 /**
