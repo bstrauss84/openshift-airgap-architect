@@ -214,6 +214,22 @@ oaa_explain_manifest() { # baseline path [repo_root] [scope]
   return $rc
 }
 
+# The candidate id of the source tree, via the certification harness's own
+# definition — sha256(head | trackedDiff | stagedDiff | untrackedDigest).
+# Reusing describeCandidate() rather than recomputing it keeps the gate and
+# the release harness from ever disagreeing about what "this candidate" means.
+oaa_candidate_id() { # repo_root
+  node --input-type=module -e "
+    import { describeCandidate } from '$1/scripts/release/lib/candidate.mjs';
+    process.stdout.write(describeCandidate('$1').candidateId);
+  " 2>/dev/null || true
+}
+
+# The candidate id an image says it was built from.
+oaa_image_candidate_label() { # image_ref
+  podman image inspect "$1" --format '{{index .Config.Labels "io.oaa.candidate-id"}}' 2>/dev/null || true
+}
+
 # Resolve the config digest of a locally present image, or print nothing.
 #
 # podman's `.Id` IS the config digest — proven, not assumed: `podman save`
@@ -255,6 +271,19 @@ oaa_container_scan_verdict() { # [repo_root]
   local evdir="${OAA_SCAN_EVIDENCE_DIR:-$root/release-certification/scan-evidence}"
   local roles="${OAA_SHIPPING_ROLES:-backend frontend}"
   local role ref ev digest reason failures=0 detail="" blocking=""
+  local want_candidate img_candidate
+  # Computed once. Empty means the harness could not be consulted — no node, or
+  # a tree without scripts/release/lib/candidate.mjs.
+  #
+  # That case REFUSES rather than skipping. An earlier revision skipped the
+  # binding check when the candidate was unknowable, on the reasoning that a
+  # tree without the release harness is broken in bigger ways. But "I could
+  # not determine what this candidate is" is precisely the state in which a
+  # binding claim is unprovable, and a gate whose strictest check silently
+  # switches itself off under an error condition is the shape of every
+  # fail-open defect. Verified that refusing here leaves both existing suites
+  # at 28/28, so nothing is paid for the stricter posture.
+  want_candidate="$(oaa_candidate_id "$root")"
 
   for role in $roles; do
     case "$role" in
@@ -269,6 +298,33 @@ oaa_container_scan_verdict() { # [repo_root]
     if [ -z "$digest" ]; then
       detail="${detail}${role}: image ${ref} not present locally; "; failures=$((failures+1)); continue
     fi
+    # CANDIDATE BINDING. Matching the scan report to the image proves the
+    # report describes THAT image; it says nothing about whether the image
+    # was built from the source being gated. Both halves are needed, and the
+    # gap between them is reachable: an image built from an earlier candidate
+    # keeps its config digest, so stale-but-matching evidence sailed through
+    # and only a non-zero finding count made the verdict RED. With zero
+    # findings it would have read PASS for an image that does not contain the
+    # source under test.
+    #
+    # Absent label => refuse. An unlabelled image cannot be shown to be this
+    # candidate's, and "cannot show" is not "is".
+    if [ -z "$want_candidate" ]; then
+      detail="${detail}${role}: this candidate's id could not be determined (no node, or scripts/release/lib/candidate.mjs is missing), so image-to-source binding is unprovable; "
+      failures=$((failures+1)); continue
+    fi
+    if [ -n "$want_candidate" ]; then
+      img_candidate="$(oaa_image_candidate_label "$ref")"
+      if [ -z "$img_candidate" ]; then
+        detail="${detail}${role}: image carries no io.oaa.candidate-id, so it cannot be shown to be built from this candidate; "
+        failures=$((failures+1)); continue
+      fi
+      if [ "$img_candidate" != "$want_candidate" ]; then
+        detail="${detail}${role}: image was built from a DIFFERENT candidate (${img_candidate:0:12}…, expected ${want_candidate:0:12}…); "
+        failures=$((failures+1)); continue
+      fi
+    fi
+
     ev="$evdir/${role}.json"
     if ! reason="$(oaa_scan_evidence_ok "$ev" "$digest" "${OAA_SCAN_MAX_DB_AGE_H:-24}" 2>&1)"; then
       detail="${detail}${role}: ${reason}; "; failures=$((failures+1)); continue
