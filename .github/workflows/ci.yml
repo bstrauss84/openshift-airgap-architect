@@ -25,10 +25,13 @@ jobs:
   # not here.
   #
   # Verified from a pristine clone with no node_modules anywhere:
-  # `npm ci` at the root alone makes `npm run test:tooling` report 1050/1050.
-  # (It was 701/701 until the 8D glob picked up scripts/release/provenance and
-  # scripts/release/vex; those suites also need nothing beyond the root
-  # lockfile, which is what keeps this contract true.)
+  # `npm ci` at the root alone makes `npm run test:tooling` report 1055/1055.
+  # (701/701 before the 8D glob picked up scripts/release/provenance and
+  # scripts/release/vex; 1050/1050 before scripts/shell-tests.test.mjs began
+  # bridging the shell security suites in. All of them need nothing beyond the
+  # root lockfile, which is what keeps this contract true — the shell suites
+  # do need `jq` and GNU `date`, which the runner image provides and which
+  # shell-tests.test.mjs asserts up front rather than failing obscurely.)
   #
   # Kept in its own job so a failure in the catalog-data gate below cannot mask
   # these, and so results are attributable at a glance.
