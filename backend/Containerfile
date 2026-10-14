@@ -7,8 +7,37 @@ RUN BT=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
     echo "export APP_GIT_SHA=\"${APP_GIT_SHA}\"" > /tmp/build-env.sh && \
     echo "export APP_BUILD_TIME=\"$BT\"" >> /tmp/build-env.sh
 
-# Red Hat UBI 9 Node.js 22 — backend (Express API, oc/oc-mirror, better-sqlite3)
-FROM registry.access.redhat.com/ubi9/nodejs-22
+# ---------------------------------------------------------------------------
+# Builder — fetches oc/oc-mirror and compiles better-sqlite3, then is discarded
+# ---------------------------------------------------------------------------
+#
+# WHY THIS STAGE EXISTS, AND WHAT THE REAL PROBLEM TURNED OUT TO BE
+#
+# This file used to be a SINGLE stage on ubi9/nodejs-22 whose runtime therefore
+# carried the complete C/C++ build toolchain. The obvious theory was that the
+# `dnf install ... python3 make gcc-c++ ...` line below was pulling that
+# toolchain (and its `kernel-headers` dependency) into the shipped image.
+#
+# THAT THEORY IS WRONG, and the correction matters for future maintenance:
+# `registry.access.redhat.com/ubi9/nodejs-22` is an S2I BUILDER image and
+# already ships gcc, gcc-c++, cpp, make, python3, glibc-devel, libstdc++-devel,
+# openssl-devel and kernel-headers out of the box. Measured on the pre-change
+# image (ImageID sha256:7252836047c2…, built 2026-10-12): `rpm -qa` returned the
+# same 302 packages as the bare base image, with IDENTICAL %{INSTALLTIME}
+# values (2026-10-06/2026-10-08, i.e. Red Hat's base build, not ours). The dnf
+# layer installed exactly ZERO new packages. Deleting that line, or moving it
+# into a builder stage, would on its own have changed nothing at all.
+#
+# `kernel-headers` alone accounted for 141 of the backend's 200 OS-package HIGH
+# findings, and it is a base-image package. The only way to drop it is to change
+# the RUNTIME BASE IMAGE — hence the split below: build on the S2I builder
+# image, ship on ubi9/nodejs-22-minimal (Red Hat's supported Node.js 22 runtime
+# image, no toolchain). This mirrors frontend/Containerfile, which builds on
+# ubi9/nodejs-22 and ships on ubi9/nginx-124.
+#
+# Do NOT "simplify" this back to a single stage, and do not assume a dnf line is
+# responsible for a base-image package. Check %{INSTALLTIME} first.
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS builder
 
 USER root
 # Override these ARGs to force a specific binary URL (optional — auto-detected by default).
@@ -18,8 +47,13 @@ ARG OCP_CLIENT_SHA256=""
 ARG OCP_MIRROR_URL=""
 ARG OCP_MIRROR_SHA256=""
 
+# All of these are already present in the ubi9/nodejs-22 base (see above), so
+# this is in practice a no-op assertion that the builder has what it needs:
+# curl/tar for the binary fetch, python3+make+gcc-c++ for node-gyp. It is kept
+# because the builder stage genuinely depends on them and a future base-image
+# slim-down must fail HERE, in the builder, rather than silently at `npm ci`.
 RUN dnf install -y --setopt=install_weak_deps=false \
-    ca-certificates tar python3 make gcc-c++ gpgme openssh-clients util-linux \
+    ca-certificates tar python3 make gcc-c++ \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
@@ -113,7 +147,101 @@ RUN set -e && \
 
 WORKDIR /app
 COPY backend/package.json backend/package-lock.json* ./
+# --omit=dev is preserved verbatim. better-sqlite3 is compiled from source here
+# (the resulting tree contains build/Release/obj.target and sqlite3.a, not a
+# downloaded prebuild), which is the whole reason a toolchain is needed at all.
+# The compiled better_sqlite3.node links only libstdc++/libm/libgcc_s/libc, all
+# of which the minimal runtime image provides, so the tree is portable across
+# the stage boundary. Both stages are nodejs-22 from the same RHEL 9.8 module
+# stream (node v22.23.2, NODE_MODULE_VERSION 127), so the native ABI matches.
 RUN npm ci --omit=dev
+
+# ---------------------------------------------------------------------------
+# Runtime — Red Hat's Node.js 22 runtime image: no gcc, no kernel-headers
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nodejs-22-minimal
+
+USER root
+# The minimal image already provides node, npm, bash, shadow-utils (useradd),
+# findutils, which, tar, gzip, gpgme and ca-certificates. Two of those names
+# are not the package you would guess, and a future slim-down that checks the
+# obvious name will get a misleading answer:
+#
+#   df, chmod  -> coreutils-SINGLE, not coreutils. `rpm -q coreutils` reports
+#                 "not installed" in this image even though /usr/bin/df exists.
+#                 index.js spawns `df` by name (runDf) and installer.js spawns
+#                 `chmod`, so coreutils-single is a hard runtime dependency.
+#   curl       -> curl-MINIMAL. Sufficient: installer.js and
+#                 openshiftInstaller.js only ever do `curl -fsSL <https url>`.
+#   gzip       -> a separate package from tar. `tar -xzf` forks /usr/bin/gzip,
+#                 and every tarball this app extracts (oc, oc-mirror,
+#                 openshift-install) is .tar.gz, so tar alone is not enough.
+#
+# Exactly two runtime dependencies are missing from the base image:
+#
+#   util-linux      -> /sbin/runuser. backend/scripts/entrypoint.sh drops from
+#                      root to UID 1001 with `runuser -u appuser`. runuser is in
+#                      util-linux proper, NOT util-linux-core, so the full
+#                      package is required. Removing this breaks startup.
+#   openssh-clients -> ssh-keygen, spawned by backend/src/index.js for the
+#                      SSH key generation endpoint.
+#
+# Nothing else from the old single-stage install list is needed at runtime:
+# tar/gpgme/ca-certificates are already present, and python3/make/gcc-c++ were
+# only ever build inputs.
+# nodejs-nodemon is a DEVELOPMENT file-watcher that Red Hat ships inside the
+# runtime base image. This container runs `node src/index.js` and never invokes
+# nodemon, so it is pure attack surface (2 of the remaining OS HIGH findings).
+# It is a leaf package: `microdnf remove --assumeno nodejs-nodemon` reports
+# "Removing: 1 packages" with nothing else cascading. The `node --version`
+# assertion immediately after is NOT decoration — if a future base image ever
+# makes nodemon a dependency of the nodejs module, the removal would cascade
+# and this RUN must fail the build rather than ship a Node-less image.
+#
+# The removal is guarded by `rpm -q` rather than run unconditionally. Measured:
+# `microdnf remove -y nodejs-nodemon` against an image where it is already gone
+# exits 1 with "error: No installed package matches 'nodejs-nodemon'", so an
+# unconditional remove would break this build outright the day Red Hat stops
+# shipping nodemon in the base — failing on the very change we want, with an
+# error that reads like a typo rather than an instruction.
+#
+# Fail-loud is NOT weakened by that guard, because the contract asserted here
+# is the END STATE, not the exit status of one command:
+#   ! rpm -q nodejs-nodemon   nodemon must be absent, however it got that way.
+#   node --version            a cascading removal that took Node with it fails
+#                             the build instead of shipping a Node-less image.
+# Both assertions are stronger than the bare `microdnf remove` they replace,
+# which only ever proved that one invocation returned 0.
+RUN microdnf install -y --nodocs --setopt=install_weak_deps=0 \
+    util-linux openssh-clients \
+    && if rpm -q nodejs-nodemon >/dev/null 2>&1; then microdnf remove -y nodejs-nodemon; fi \
+    && ! rpm -q nodejs-nodemon >/dev/null 2>&1 \
+    && node --version && npm --version \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum /var/cache/dnf
+
+# oc, oc-mirror and their recorded provenance cross the stage boundary as
+# already-verified bytes. Verification (sha256sum --check --strict against each
+# channel's own sha256sum.txt) happened in the builder and is NOT weakened here:
+# a COPY of a file the builder refused to produce cannot happen, because the
+# builder's RUN would have failed the build first.
+COPY --from=builder /usr/local/bin/oc /usr/local/bin/oc-mirror /usr/local/bin/
+COPY --from=builder /app/tools-provenance.env /app/tools-provenance.env
+
+WORKDIR /app
+# Only the production dependency tree crosses over — it was installed with
+# `npm ci --omit=dev` in the builder.
+#
+# NOTE for the release gate. An earlier revision of this comment warned that
+# shippedInstallScope() inspected only the FINAL stage and would therefore
+# classify this copy as scope "all", auditing the backend WITH devDependencies.
+# That is no longer true: both classifiers — scripts/release/axes/dependencies.mjs
+# and shipped_install_scope() in scripts/security/tranche-security-gate.sh —
+# now resolve the `--from=` stage and read ITS install flags, so this image
+# classifies as "prod", which is what it actually ships. An unresolvable copy
+# source still reports "all", because unknown provenance must over-report.
+COPY --from=builder /app/node_modules ./node_modules
+COPY backend/package.json ./
 ARG CACHE_BUST=1
 RUN echo "cache bust ${CACHE_BUST}" >/dev/null
 COPY backend/src ./src
@@ -133,6 +261,30 @@ COPY backend/scripts/entrypoint.sh /app/entrypoint.sh
 COPY --from=build-info /tmp/build-env.sh /app/build-env.sh
 RUN chmod +x /app/entrypoint.sh && chown -R 1001:0 /app \
     && useradd -r -u 1001 -g 0 -o -M -d /app appuser 2>/dev/null || true
+
+# --- PROOF A: bind the shipped image to the source candidate --------------
+#
+# Without these, the only provenance an image carries is
+# org.opencontainers.image.revision INHERITED from the UBI base — which
+# describes Red Hat's build commit (e573c607…, not a commit in this
+# repository), not ours. The certification harness detects that inheritance
+# (the label equals the base's `vcs-ref`) and refuses it, so every container
+# axis reports INCOMPLETE until these labels exist.
+#
+# ARGs are PER-STAGE: the `ARG APP_GIT_SHA` near the top lives in the
+# build-info stage and does not reach here, so it must be redeclared.
+#
+# The defaults are EMPTY STRINGS, not "unknown". An empty label value reads as
+# absent to both provenance implementations, so an ad-hoc `podman build`
+# behaves exactly as it does today — unbound, falling through to the build
+# manifest — rather than stamping a fictitious revision that someone would
+# later have to diagnose. scripts/release/buildImages.mjs supplies real values.
+ARG APP_GIT_SHA=""
+ARG OAA_CANDIDATE_ID=""
+ARG OAA_BUILD_SUPPLIED_REVISION="false"
+LABEL org.opencontainers.image.revision="$APP_GIT_SHA" \
+      io.oaa.candidate-id="$OAA_CANDIDATE_ID" \
+      io.oaa.build-supplied-revision="$OAA_BUILD_SUPPLIED_REVISION"
 
 ENV NODE_ENV=production
 EXPOSE 4000
