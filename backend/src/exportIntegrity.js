@@ -114,7 +114,7 @@ function walkDirectorySync(dirPath, prefix) {
   return results;
 }
 
-function buildVersionManifest(v3State, fileChecksums) {
+function buildVersionManifest(v3State, fileChecksums, requestedDeliverables = []) {
   return {
     manifestSchemaVersion: MANIFEST_SCHEMA_VERSION,
     generated: {
@@ -131,6 +131,23 @@ function buildVersionManifest(v3State, fileChecksums) {
       minimumManifestSchemaVersion: MANIFEST_SCHEMA_VERSION,
       stateFormatCompatible: [3],
       warnings: []
+    },
+    // What the operator explicitly ASKED for, beside what the archive carries.
+    //
+    // Additive on purpose, and `manifestSchemaVersion` is deliberately NOT
+    // bumped: validateArchiveManifest compares it by EXACT equality (see the
+    // UNSUPPORTED_MANIFEST_SCHEMA check below), so a bump would reject every
+    // bundle that already exists as well as every new one. The validator is
+    // field-by-field with no unknown-key rejection, so an added section is
+    // backward compatible in both directions.
+    //
+    // A delivered bundle always has every entry here fulfilled, because an
+    // unfulfilled request terminates the export before the manifest is built.
+    // The unfulfilled shape is therefore only ever observed by the producer
+    // and by tests — it exists so the promise is machine-checkable without
+    // unpacking and hashing the tools themselves.
+    delivery: {
+      requested: requestedDeliverables.map((entry) => ({ ...entry }))
     },
     integrity: {
       algorithm: 'sha-256',
@@ -152,6 +169,36 @@ function createIntegrityTracker(archive) {
   archive.on('entry', (data) => {
     if (data?.name) archivedMembers.add(data.name);
   });
+
+  // Deliverables the operator EXPLICITLY requested via exportOptions, keyed by
+  // the option name, each carrying the exact member names that fulfil it.
+  //
+  // Orthogonal to streamedMembers above. That set catches a member archiver
+  // LOST after registration; this map catches a member the producer never
+  // managed to register AT ALL — a requested tool whose download failed. Both
+  // end the same way, because both yield an archive that does not contain what
+  // it promised, and the operator only discovers it on the far side of the air
+  // gap, where the mirror is unreachable by definition.
+  //
+  // Documented degraded modes are deliberately NOT registered here. The
+  // high-side runtime package is absent by design when no container engine is
+  // present (the shipped image contains none), and that behaviour is pinned as
+  // REQUIRED by backend/test/image-runtime-parity/parity-check.sh. Declaring a
+  // deliverable is precisely what makes its absence fatal, so not declaring one
+  // is how a degradation stays a degradation.
+  const requested = new Map();
+  const hasMember = (name) => Object.prototype.hasOwnProperty.call(checksums, name);
+  const deliveryRecord = () =>
+    [...requested.values()].map((entry) => {
+      const included = entry.members.filter(hasMember);
+      return {
+        option: entry.option,
+        requested: [...entry.members],
+        included,
+        fulfilled: included.length === entry.members.length,
+        ...(entry.reason === null ? {} : { failureReason: entry.reason })
+      };
+    });
 
   return {
     append(content, options) {
@@ -209,6 +256,43 @@ function createIntegrityTracker(archive) {
     missingStreamedMembers() {
       return [...streamedMembers].filter((name) => !archivedMembers.has(name));
     },
+    /**
+     * Declare a requested deliverable and every member name that fulfils it.
+     *
+     * Call this BEFORE attempting the work, so the promise survives a throw —
+     * a request recorded only on success could never detect a failure. Every
+     * declared name must be registered for the request to count as kept: an
+     * option promising two binaries is not satisfied by one of them.
+     */
+    requestDeliverable(option, members) {
+      requested.set(option, { option, members: [...members], reason: null });
+    },
+    /**
+     * Record WHY a declared deliverable could not be produced. Deliberately
+     * never adds a member: a note inside the archive, standing where a binary
+     * was requested, is exactly the failure mode this replaces.
+     */
+    failDeliverable(option, reason) {
+      const entry = requested.get(option);
+      if (entry) entry.reason = String(reason?.message || reason);
+    },
+    /**
+     * Requested deliverables missing at least one declared member.
+     *
+     * Meaningful as soon as registration is complete, i.e. before the manifest
+     * is built. Non-empty means the export did not deliver what was asked for
+     * and must be failed rather than served with an explanation in place of a
+     * binary.
+     */
+    unfulfilledRequests() {
+      return [...requested.values()]
+        .map((entry) => ({
+          option: entry.option,
+          missing: entry.members.filter((name) => !hasMember(name)),
+          reason: entry.reason
+        }))
+        .filter((entry) => entry.missing.length > 0);
+    },
     directory(dirPath, prefix) {
       for (const entry of walkDirectorySync(dirPath, prefix)) {
         const content = fs.readFileSync(entry.path);
@@ -218,7 +302,7 @@ function createIntegrityTracker(archive) {
       }
     },
     buildManifest(v3State) {
-      return buildVersionManifest(v3State, checksums);
+      return buildVersionManifest(v3State, checksums, deliveryRecord());
     },
     getChecksums() {
       return { ...checksums };

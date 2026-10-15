@@ -3219,11 +3219,54 @@ app.post("/api/docs/update", validateBody(docsUpdateSchema), async (req, res) =>
   res.json({ jobId: job.jobId, links: job.validated });
 });
 
+/**
+ * Gate an AWS installer-backed request on a well-formed, SUPPORTED version.
+ *
+ * Two separate holes closed here, both reachable from `?version=`:
+ *
+ *   1. NO FALLBACK RULE. These three endpoints never consulted
+ *      isSupportedMinor, so an unsupported minor (4.23) was passed straight to
+ *      the mirror fetch and the downloaded binary was then EXECUTED
+ *      (installer.js: `openshift-install coreos print-stream-json`). The
+ *      project rule is 422 UNSUPPORTED_VERSION at every boundary — release
+ *      selection, imported state, catalogs, preview, generation — and this was
+ *      a boundary that had been missed.
+ *
+ *   2. The value is interpolated into a mirror URL and into
+ *      `path.join(toolsDir, \`openshift-install-${version}\`)`
+ *      (installer.js:45, :57) with no format check, so `../` traverses. The
+ *      strict x.y.z shape removes that whole class rather than escaping it.
+ *
+ * Returns true when the caller has already responded.
+ */
+const rejectUnsupportedInstallerVersion = (version, res) => {
+  if (!/^\d+\.\d+\.\d+$/.test(String(version))) {
+    res.status(400).json({
+      error: "Version must be an exact OpenShift patch version, e.g. 4.22.17.",
+      code: "MALFORMED_VERSION"
+    });
+    return true;
+  }
+  const minor = String(version).split(".").slice(0, 2).join(".");
+  if (!isSupportedMinor(minor)) {
+    const vErr = buildUnsupportedVersionError(minor);
+    res.status(422).json({
+      error: vErr.message,
+      code: vErr.code,
+      requestedVersion: vErr.requestedVersion,
+      supportedVersions: vErr.supportedVersions
+    });
+    return true;
+  }
+  return false;
+};
+
 app.post("/api/aws/warm-installer", validateBody(awsWarmInstallerSchema), (req, res) => {
   const version = req.body?.version || req.query.version;
   if (!version) {
     return res.status(400).json({ error: "Version is required." });
   }
+  if (rejectUnsupportedInstallerVersion(version, res)) return;
   warmInstallerStream(version);
   res.status(202).json({ status: "started", version });
 });
@@ -3240,6 +3283,7 @@ app.get("/api/aws/regions", async (req, res) => {
   if (!version || !arch) {
     return res.status(400).json({ error: "Version and architecture are required." });
   }
+  if (rejectUnsupportedInstallerVersion(version, res)) return;
   try {
     const regions = await getAwsRegions(version, arch, force);
     res.json({ version, arch, regions });
@@ -3261,6 +3305,7 @@ app.get("/api/aws/ami", async (req, res) => {
   if (!version || !arch || !region) {
     return res.status(400).json({ error: "Version, architecture, and region are required." });
   }
+  if (rejectUnsupportedInstallerVersion(version, res)) return;
   try {
     const ami = await getAwsAmi(version, arch, region, force);
     if (!ami) {
@@ -3708,6 +3753,11 @@ const buildBundleZip = async (state, res) => {
     );
   }
   if (v3State.exportOptions?.includeClientTools) {
+    // One option, two promised binaries. Declared BEFORE the attempt so the
+    // promise survives a throw, and declared by name so the `fs.existsSync`
+    // guards below can no longer drop a binary silently: an unregistered
+    // member now fails the export whether or not anything threw.
+    tracked.requestDeliverable("includeClientTools", ["tools/oc", "tools/oc-mirror"]);
     try {
       const exportArch = v3State.exportOptions?.exportBinaryArch || getLocalBinaryArch();
       // oc must match the selected target minor; oc-mirror is global-latest.
@@ -3760,44 +3810,49 @@ const buildBundleZip = async (state, res) => {
         );
       }
     } catch (e) {
-      tracked.append(
-        `Failed to include oc/oc-mirror: ${String(e?.message || e)}\n`,
-        { name: "tools/oc-mirror.ERROR.txt" }
-      );
+      // Deliberately no `.ERROR.txt` member. A text file standing where a
+      // verified binary was requested is a broken promise the operator can
+      // only discover across the air gap, with the mirror unreachable by
+      // definition. Record the reason; the fatal check before the manifest
+      // ends the export through the single failure owner.
+      tracked.failDeliverable("includeClientTools", e);
     }
   }
   if (v3State.exportOptions?.includeInstaller) {
+    // Hoisted out of the try: the member name is part of the promise and has
+    // to be known before the attempt, not only after it succeeds.
+    const useFips = v3State.exportOptions?.installerUseFips || false;
+    // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
+    const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
+    tracked.requestDeliverable("includeInstaller", [`tools/${binaryName}`]);
     try {
       const version = v3State.release?.patchVersion;
       if (!version) {
         throw new Error("Version not selected.");
       }
 
-      const useFips = v3State.exportOptions?.installerUseFips || false;
       const platformArch = v3State.exportOptions?.installerPlatformArch || ""; // "" means default
 
       // Download (or retrieve from cache) the requested binary variant
       const installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
 
       if (fs.existsSync(installerPath)) {
-        // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
-        const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
         tracked.file(installerPath, { name: `tools/${binaryName}` });
       } else {
         throw new Error("Binary not found after download");
       }
     } catch (error) {
-      tracked.append(
-        `Failed to include openshift-install: ${String(error?.message || error)}\n`,
-        { name: "tools/openshift-install.ERROR.txt" }
-      );
+      tracked.failDeliverable("includeInstaller", error);
     }
   }
   if (v3State.exportOptions?.includeMirrorRegistry) {
+    // Hoisted: the promised member name, and the manual-download URL the
+    // failure reason quotes, were previously recomputed verbatim in the catch.
+    const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
+    const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
+    const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
+    tracked.requestDeliverable("includeMirrorRegistry", [`tools/${mirrorRegistryFilename}`]);
     try {
-      const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
-      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
-      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
       const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
 
       // Ensure cache directory exists
@@ -3834,14 +3889,15 @@ const buildBundleZip = async (state, res) => {
         } else {
           throw new Error("Cached file is 0 bytes (corrupt)");
         }
+      } else {
+        // Previously fell through with no member and no note at all — the
+        // quietest of the three omission paths.
+        throw new Error(`Cached file is missing after download: ${mirrorRegistryPath}`);
       }
     } catch (error) {
-      const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
-      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
-      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
-      tracked.append(
-        `Failed to include mirror-registry: ${String(error?.message || error)}\nDownload manually from: ${mirrorRegistryUrl}\n`,
-        { name: "tools/mirror-registry.ERROR.txt" }
+      tracked.failDeliverable(
+        "includeMirrorRegistry",
+        `${String(error?.message || error)} — download manually from ${mirrorRegistryUrl}`
       );
     }
   }
@@ -3959,6 +4015,29 @@ const buildBundleZip = async (state, res) => {
   }
 
   try {
+    // Pre-condition, and the counterpart to the missingStreamedMembers()
+    // post-condition below. That one catches a member archiver LOST; this one
+    // catches a requested member the producer never registered at all.
+    //
+    // A tool the operator explicitly ticked and this export could not produce
+    // is a promise broken on the far side of the air gap — they carry the
+    // archive across and find a text file where a binary should be, with the
+    // mirror unreachable by definition. It must terminate through the same
+    // single failure owner, never ship as a note inside an otherwise valid
+    // archive. Checked BEFORE the manifest is written, so no manifest ever
+    // records an unfulfilled request.
+    //
+    // Documented degraded modes are not registered as deliverables and are
+    // deliberately unaffected (see the runtime-package note in
+    // exportIntegrity.js).
+    const unfulfilled = tracked.unfulfilledRequests();
+    if (unfulfilled.length > 0) {
+      throw new Error(
+        `Bundle omitted requested members: ${unfulfilled
+          .map((r) => `${r.option} [${r.missing.join(", ")}]${r.reason ? `: ${r.reason}` : ""}`)
+          .join("; ")}`
+      );
+    }
     const versionManifest = tracked.buildManifest(v3State);
     archive.append(JSON.stringify(versionManifest, null, 2), { name: MANIFEST_FILENAME });
     // finalize() resolves only on a clean end; on a disconnect it never

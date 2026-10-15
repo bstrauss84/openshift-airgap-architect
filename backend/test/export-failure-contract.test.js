@@ -29,7 +29,7 @@ import path from "node:path";
 import { Writable } from "node:stream";
 import { ZipArchive } from "archiver";
 
-import { createIntegrityTracker, MANIFEST_FILENAME, validateArchiveBuffer } from "../src/exportIntegrity.js";
+import { createIntegrityTracker, MANIFEST_FILENAME, MANIFEST_SCHEMA_VERSION, validateArchiveBuffer } from "../src/exportIntegrity.js";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
@@ -529,5 +529,204 @@ describe("Archive error before the response is committed", () => {
     assert.equal(statusCode, 500, "a pre-commit failure must answer with 500");
     assert.equal(endCalls, 1, "exactly one response may be sent");
     assert.match(String(ended), /simulated archive failure/);
+  });
+});
+
+/**
+ * Tranche 8F W1 — a tool the operator REQUESTED that could not be produced.
+ *
+ * Distinct from the streamed-member hazard above. There, archiver lost a
+ * member it had already been handed; here the producer never had the member
+ * at all, because a download failed. Both end the same way, because both
+ * yield an archive that does not contain what was asked for — and the
+ * operator only finds out across the air gap, where the mirror is unreachable
+ * by definition.
+ *
+ * Baseline measured against the pre-fix code at the real HTTP/ZIP boundary:
+ * HTTP 200 with a structurally valid, manifest-valid ZIP carrying
+ * `tools/<tool>.ERROR.txt` in place of the binary.
+ */
+describe("Requested deliverables are tracked, and absence is fatal", () => {
+  const buildTracked = (register) => {
+    const archive = new ZipArchive({ zlib: { level: 1 } });
+    archive.on("error", () => {});
+    const tracked = createIntegrityTracker(archive);
+    register(tracked);
+    return tracked;
+  };
+
+  it("a declared deliverable whose member was never registered is unfulfilled", () => {
+    const tracked = buildTracked((t) => {
+      t.requestDeliverable("includeClientTools", ["tools/oc", "tools/oc-mirror"]);
+      t.failDeliverable("includeClientTools", new Error("mirror unreachable"));
+    });
+    assert.deepEqual(tracked.unfulfilledRequests(), [
+      { option: "includeClientTools", missing: ["tools/oc", "tools/oc-mirror"], reason: "mirror unreachable" }
+    ]);
+  });
+
+  it("a PARTIALLY fulfilled request is still unfulfilled", () => {
+    // The real hazard: index.js guards each binary with its own existsSync,
+    // so oc could land while oc-mirror silently did not — previously with no
+    // note of any kind.
+    const tracked = buildTracked((t) => {
+      t.requestDeliverable("includeClientTools", ["tools/oc", "tools/oc-mirror"]);
+      t.append("oc bytes", { name: "tools/oc" });
+    });
+    assert.deepEqual(tracked.unfulfilledRequests(), [
+      { option: "includeClientTools", missing: ["tools/oc-mirror"], reason: null }
+    ]);
+  });
+
+  it("every declared member registered means nothing is outstanding", () => {
+    const tracked = buildTracked((t) => {
+      t.requestDeliverable("includeInstaller", ["tools/openshift-install"]);
+      t.append("installer bytes", { name: "tools/openshift-install" });
+    });
+    assert.deepEqual(tracked.unfulfilledRequests(), []);
+  });
+
+  it("a documented degradation is not a request, so it stays non-fatal", () => {
+    // The shipped image contains no podman/docker by design, and
+    // backend/test/image-runtime-parity/parity-check.sh pins HTTP 200 plus
+    // RUNTIME_PACKAGE_NOT_INCLUDED.txt as REQUIRED behaviour. Declaring a
+    // deliverable is what makes absence fatal; not declaring one is how a
+    // degradation stays a degradation.
+    const tracked = buildTracked((t) => {
+      t.append("no container engine on this host\n", {
+        name: "runtime-package/RUNTIME_PACKAGE_NOT_INCLUDED.txt"
+      });
+    });
+    assert.deepEqual(tracked.unfulfilledRequests(), []);
+  });
+
+  it("the manifest records requested versus included, without bumping the schema", () => {
+    const tracked = buildTracked((t) => {
+      t.requestDeliverable("includeMirrorRegistry", ["tools/mirror-registry-amd64.tar.gz"]);
+      t.append("tarball", { name: "tools/mirror-registry-amd64.tar.gz" });
+      t.requestDeliverable("includeInstaller", ["tools/openshift-install"]);
+      t.failDeliverable("includeInstaller", "Version not selected.");
+    });
+    const manifest = tracked.buildManifest(bundleState());
+    assert.deepEqual(manifest.delivery.requested, [
+      {
+        option: "includeMirrorRegistry",
+        requested: ["tools/mirror-registry-amd64.tar.gz"],
+        included: ["tools/mirror-registry-amd64.tar.gz"],
+        fulfilled: true
+      },
+      {
+        option: "includeInstaller",
+        requested: ["tools/openshift-install"],
+        included: [],
+        fulfilled: false,
+        failureReason: "Version not selected."
+      }
+    ]);
+    // Importers compare manifestSchemaVersion by EXACT equality, so this
+    // section must stay additive. A bump would reject every existing bundle.
+    assert.equal(manifest.manifestSchemaVersion, MANIFEST_SCHEMA_VERSION);
+  });
+});
+
+describe("A requested tool that cannot be produced fails the export", () => {
+  let server;
+  let baseUrl;
+  const realFetch = globalThis.fetch;
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+
+  /**
+   * Hermetic: only mirror.openshift.com is made unreachable; this suite's own
+   * requests to the test server use the real fetch. No network, no podman —
+   * every state below disables the high-side runtime package.
+   *
+   * `includeInstaller` is deliberately NOT exercised over HTTP here.
+   * backend/src/openshiftInstaller.js downloads via runCmd("curl", ...), so a
+   * globalThis.fetch stub does NOT intercept it: the request escapes to the
+   * real mirror and pulls a 717 MiB binary. Measured, not assumed. That
+   * option's contract is covered at the tracker level above until the path is
+   * made stubbable.
+   */
+  const offlineMirror = (input, init) => {
+    const url = typeof input === "string" ? input : String(input?.url ?? input);
+    if (url.includes("mirror.openshift.com")) {
+      return Promise.reject(new Error("offline: mirror.openshift.com is unreachable"));
+    }
+    return realFetch(input, init);
+  };
+
+  before(async () => {
+    process.on("unhandledRejection", onUnhandled);
+    globalThis.fetch = offlineMirror;
+    ({ server, baseUrl } = await createTestServer(app));
+  });
+
+  after(async () => {
+    globalThis.fetch = realFetch;
+    await closeTestServer(server);
+    process.off("unhandledRejection", onUnhandled);
+  });
+
+  const post = (exportOptions) => {
+    const state = bundleState();
+    state.exportOptions = { ...state.exportOptions, includeHighSideRuntimePackage: false, ...exportOptions };
+    return realFetch(`${baseUrl}/api/bundle.zip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state })
+    });
+  };
+
+  /**
+   * Response headers are committed at the top of buildBundleZip, before the
+   * tool blocks run, so a clean 5xx is not available at this failure point —
+   * the honest ending is a torn-down exchange. Three shapes are accepted and
+   * all are failures; what is never acceptable, and is exactly what the
+   * pre-fix code did, is a complete manifest-valid 200 carrying a *.ERROR.txt
+   * where a binary was requested.
+   */
+  const assertExportFailed = async (label, run) => {
+    let res;
+    try {
+      res = await run();
+    } catch {
+      return; // exchange torn down outright
+    }
+    if (res.status !== 200) {
+      assert.ok(res.status >= 500, `${label}: expected a server error, got ${res.status}`);
+      return;
+    }
+    let body = null;
+    let transferError = null;
+    try { body = Buffer.from(await res.arrayBuffer()); } catch (err) { transferError = err; }
+    assert.ok(transferError, `${label}: completed with ${body?.length} bytes instead of failing`);
+  };
+
+  it("includeClientTools: an unreachable mirror fails rather than shipping tools/oc-mirror.ERROR.txt", async () => {
+    unhandled.length = 0;
+    await assertExportFailed("includeClientTools", () =>
+      post({ includeClientTools: true, exportBinaryArch: "x86_64" }));
+    assert.deepEqual(unhandled.map((r) => String(r?.message || r)), []);
+  });
+
+  it("includeMirrorRegistry: an unreachable mirror fails the export", async () => {
+    unhandled.length = 0;
+    await assertExportFailed("includeMirrorRegistry", () =>
+      post({ includeMirrorRegistry: true, mirrorRegistryArch: "amd64" }));
+    assert.deepEqual(unhandled.map((r) => String(r?.message || r)), []);
+  });
+
+  it("an export requesting no tools is unchanged, and the server stays healthy", async () => {
+    const res = await post({});
+    assert.equal(res.status, 200);
+    const validated = validateArchiveBuffer(Buffer.from(await res.arrayBuffer()));
+    assert.equal(validated.valid, true);
+    assert.ok(
+      !Object.keys(validated.entries).some((name) => name.endsWith(".ERROR.txt")),
+      "a healthy export carries no error notes"
+    );
+    const health = await realFetch(`${baseUrl}/api/health`);
+    assert.equal(health.status, 200);
   });
 });
