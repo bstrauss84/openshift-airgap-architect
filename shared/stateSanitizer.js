@@ -81,6 +81,14 @@ export function sanitizeCredentialFields(obj) {
     "pullsecretplaceholder",
     "mirrorregistrypullsecret",
     "operatorpullsecret",
+    // The oc-mirror run request spells these differently from the state
+    // document, and the omission was load-bearing: `rhPullSecret` from
+    // POST /api/ocmirror/run was reaching job metadata in plaintext and
+    // being served by the unauthenticated GET /api/jobs. Matching is exact
+    // and case-insensitive, so a near-miss name is simply not covered —
+    // every spelling has to be listed.
+    "rhpullsecret",
+    "mirrorpullsecret",
     "sshprivatekey",
     "bmcpassword",
     "bmcusername",

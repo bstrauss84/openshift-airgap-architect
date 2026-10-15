@@ -745,9 +745,9 @@ services:
       - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
 ```
 
-`REGISTRY_AUTH_FILE` is intentionally NOT set in `docker-compose.yml`. The backend reads `REGISTRY_AUTH_FILE` from its own environment to locate the auth JSON, then passes credentials to oc-mirror via `--authfile=<path>` — the env var itself is stripped from the child oc-mirror process because oc-mirror v2's embedded cache registry (distribution/distribution v3) interprets `REGISTRY_*` env vars as registry config keys, causing a goroutine panic at startup (`registry/handlers/app.go NewApp`). Set `REGISTRY_AUTH_FILE` only in a `compose.override.yml` alongside the file mount. This also satisfies the "retain Red Hat pull secret" option in the Blueprint tab — the mounted file is available to both the Operators scan and the Run oc-mirror tab.
+`REGISTRY_AUTH_FILE` is intentionally NOT set in `docker-compose.yml`. The backend reads `REGISTRY_AUTH_FILE` from its own environment to locate the auth JSON, then passes credentials to oc-mirror via `--authfile=<path>` — the env var itself is stripped from the child oc-mirror process because oc-mirror v2's embedded cache registry (distribution/distribution v3) interprets `REGISTRY_*` env vars as registry config keys, causing a goroutine panic at startup (`registry/handlers/app.go NewApp`). Set `REGISTRY_AUTH_FILE` only in a `compose.override.yml` alongside the file mount. A mounted `REGISTRY_AUTH_FILE` is used by both the Operators scan and the Run oc-mirror tab, so you do not need to retain a pull secret from Blueprint for those operations. (`REGISTRY_AUTH_FILE` and the mounted *pull secret* described under [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret) are separate mechanisms: operator scans read only the former.)
 
-Alternatively, on the Blueprint step check **"Retain pull secret for this session"** after entering your Red Hat pull secret. The session-retained secret is then available as a one-click option in the Run oc-mirror Authentication section for the mirror-to-disk and mirror-to-mirror workflows.
+Alternatively, on the Blueprint step tick **"Retain pull secret for use on subsequent pages"** after entering your Red Hat pull secret. The session-retained secret is then available as a one-click option in the Run oc-mirror Authentication section for the mirror-to-disk and mirror-to-mirror workflows.
 
 ### Running oc-mirror without Compose (local / standalone)
 
@@ -964,7 +964,7 @@ See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Po
 <a id="mounted-red-hat-pull-secret"></a>
 ## Mounted Red Hat pull secret
 
-In pipeline or hardened-container environments you can pre-mount a Red Hat pull secret file into the backend container instead of pasting it in the UI each session.
+In pipeline or hardened-container environments you can pre-mount a Red Hat pull secret file into the backend container instead of pasting it in the UI each session. The file is read by the backend only; **its contents are never sent to the browser**.
 
 **Detection priority (first match wins):**
 1. `PULL_SECRET_FILE` env var — explicit path override
@@ -975,9 +975,16 @@ In pipeline or hardened-container environments you can pre-mount a Red Hat pull 
 The file must be valid JSON with an `.auths` key containing at least one Red Hat registry entry (`registry.redhat.io`, `quay.io`, `cloud.openshift.com`, or `registry.connect.redhat.com`).
 
 When a mounted secret is detected:
-- **Blueprint step** — the pull secret field is pre-populated automatically (you can override or clear it).
-- **Run oc-mirror step** — a "Use mounted Red Hat pull secret" option appears in the Authentication section for `mirrorToDisk` and `mirrorToMirror` modes.
-- The secret is **never stored to disk or database** — it is held in memory only for the lifetime of the backend process.
+- **Blueprint step** — an informational badge reports that a mounted secret is present on the server. The pull secret field is left **empty**, and the credential's contents are never sent to the browser. Paste a secret there only if you want to use a *different* one.
+- **Run oc-mirror step** — a "Use mounted Red Hat pull secret" option appears in the Authentication section for `mirrorToDisk` and `mirrorToMirror` modes. The backend authenticates with the mounted file server-side.
+- **Operator catalog scans** authenticate separately, through `REGISTRY_AUTH_FILE` — a mounted *pull secret* does not feed a scan. See [Mounting a Red Hat pull secret for oc-mirror](#mounting-a-red-hat-pull-secret-for-oc-mirror-persistent-no-paste-required).
+- The secret is **never stored to disk or database, and never transmitted to the browser** — it is held in backend memory only, for the lifetime of the backend process.
+
+> Prior releases pre-populated the Blueprint field from the mounted file. That required an
+> endpoint which returned the raw credential to any caller, so it was withdrawn in v2.1
+> (`GET /api/secrets/rh-pull-secret/content` now returns `410 ENDPOINT_WITHDRAWN`). Only a
+> non-sensitive `{ available: boolean }` probe remains. Nothing else about the mounted-secret
+> workflow changed: server-side mirror operations still use it.
 
 **Example `compose.override.yml`** to mount a pull secret:
 ```yaml
@@ -1071,7 +1078,7 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 
 ![Landing page: Install, Upgrade, Operator mirroring cards](docs/images/landing.png?v=2)
 
-**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret. Check "Retain pull secret for this session" to make it available for operator scan and Run oc-mirror without re-pasting.
+**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret. Tick "Retain pull secret for use on subsequent pages" to make it available for operator scan and Run oc-mirror without re-pasting.
 
 ![Blueprint: platform, architecture, release, pull secret](docs/images/blueprint.png?v=2)
 

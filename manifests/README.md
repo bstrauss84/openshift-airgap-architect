@@ -49,8 +49,15 @@ podman build -t localhost/openshift-airgap-architect-frontend:latest \
   -f frontend/Containerfile .
 
 # 2. Populate the Secret with your pull secret
-#    Edit manifests/base/secret.yaml and paste your pull secret JSON into
-#    the pull-secret.json field.
+#    Prefer creating it out of tree rather than pasting a live credential into
+#    the tracked manifests/base/secret.yaml:
+#      kubectl create secret generic airgap-architect-secrets \
+#        --from-file=pull-secret.json=/path/to/pull-secret.json \
+#        --dry-run=client -o yaml | kubectl apply -f -
+#    NOTE (PROD-035): the backend Deployment does not yet reference this Secret,
+#    so this step has no effect on the running backend today.
+#    A mounted pull secret is read server-side only; its contents are never sent
+#    to the browser.
 
 # 3. Validate (dry-run)
 kubectl apply --dry-run=client -k manifests/

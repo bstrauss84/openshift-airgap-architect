@@ -1288,24 +1288,32 @@ Checks if Red Hat pull secret is available.
 
 ---
 
-### `GET /api/secrets/rh-pull-secret/content`
+### `GET /api/secrets/rh-pull-secret/content` — WITHDRAWN (v2.1)
 
-Retrieves Red Hat pull secret content.
+Previously returned the raw mounted Red Hat pull secret. **Withdrawn**: it
+disclosed the credential to unauthenticated callers, and the OpenShift overlay
+publishes the backend on a Route with no authentication.
 
 **Response:**
 ```json
 {
-  "pullSecret": "{\"auths\":{...}}"
+  "error": "Raw mounted pull secret retrieval has been withdrawn.",
+  "code": "ENDPOINT_WITHDRAWN"
 }
 ```
 
 **Status Codes:**
-- `200 OK` - Pull secret available
-- `404 Not Found` - Pull secret not found
+- `410 Gone` — for every method that reaches the route: `GET`, `POST`, `PUT`,
+  `DELETE`, `PATCH`, `HEAD`
+- `204 No Content` — for `OPTIONS`. The CORS middleware is registered ahead of
+  this route and answers the preflight itself, so the route never runs. A
+  preflight carries no body and discloses nothing; it is not a bypass.
 
-**Security:**
-- Exposes sensitive credential data
-- Should be protected by authentication in untrusted deployments
+**Migration:** nothing needs the secret in the browser. Use
+`GET /api/secrets/rh-pull-secret` for the `{ available: boolean }` indication,
+and `rhAuthSource: "mounted"` on `/api/ocmirror/preflight` and
+`/api/ocmirror/run` to authenticate server-side without transferring the
+credential. Operator catalog scans authenticate via `REGISTRY_AUTH_FILE`.
 
 ---
 
@@ -1340,16 +1348,29 @@ The backend **does not implement authentication** by default. The security model
 
 ### Sensitive Endpoints
 
+**There is no authentication on any endpoint.** Every route below is reachable
+by anyone who can reach the API, and `app.use(cors())` is unrestricted, so any
+web page the operator visits can read them cross-origin. Compose binds
+`127.0.0.1:4000`; the OpenShift overlay publishes the backend on a Route with
+no authentication, which is a materially different exposure.
+
 Endpoints that expose sensitive data or operations:
-- `GET /api/secrets/rh-pull-secret/content` - Exposes pull secret
-- `GET /api/fs/ls` - Directory traversal risk
-- `POST /api/ocmirror/run` - Executes arbitrary oc-mirror operations
-- `POST /api/ssh/keypair` - Generates SSH keys
+- `GET /api/secrets/rh-pull-secret/content` - **WITHDRAWN in v2.1** (410); used to return the pull secret
+- `POST`/`GET /api/bundle.zip` - archives a caller-supplied `mirrorWorkflow.archivePath`; **restricted in v2.1** to subdirectories of the data dir and `/tmp`, excluding credential files
+- `GET /api/jobs`, `GET /api/jobs/:id`, `GET /api/jobs/:id/stream` - return whole job rows; request bodies are **credential-stripped before storage as of v2.1**
+- `GET /api/state`, `GET /api/run/export` - sanitized, but `POST /api/run/import` persists through the weaker export sanitizer (**open issue**)
+- `POST /api/ocmirror/run`, `POST /api/ocmirror/preflight` - execute oc-mirror, optionally using the mounted pull secret, for an unauthenticated caller
+- `POST /api/operators/scan`, `POST /api/operators/prefetch` - use the mounted `REGISTRY_AUTH_FILE`
+- `GET /api/fs/ls` - directory listing (allowlisted to the data dir and `/tmp`)
+- `POST /api/system/path-check` - spawns `df` on a caller-supplied path, no allowlist
+- `POST /api/ssh/keypair` - returns a generated private key
+- `POST /api/start-over`, `POST /api/jobs/:id/stop`, `DELETE /api/jobs` - destructive, unauthenticated
 
 **Recommendations:**
-- Deploy behind authentication in untrusted environments
-- Implement path whitelisting for `/api/fs/ls`
-- Consider disabling or protecting sensitive endpoints via middleware
+- Do not expose the backend directly. Prefer a same-origin reverse proxy via the
+  frontend, with the backend Route removed, and authentication in front of it.
+- Implement path whitelisting for `POST /api/system/path-check`
+- Treat anyone who can reach the API as fully privileged until authentication exists
 
 ---
 

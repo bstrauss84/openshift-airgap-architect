@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)
 >
-> Code complete and certified by automated testing. Final human QA and release tagging
-> are outstanding, so this version is not yet released.
+> **Not released, and not certified.** The automated test suites pass, but release
+> certification is **RED/INCOMPLETE**: the container-image security scan is bound to a
+> stale candidate, and the API has no authentication while the OpenShift overlay
+> publishes the backend on a public Route. Human QA, an access-control decision, a
+> candidate-bound image scan and release tagging are all outstanding.
 
 ### Added
 
@@ -75,6 +78,75 @@ not support, such as vSphere on arm64.
 - Error responses for invalid configurations verified to contain no credentials, server
   file paths or stack traces.
 - Production dependency audits clean for backend and frontend.
+
+**Removed: `POST /api/bundle.import`** (now `410 ENDPOINT_WITHDRAWN`). The archive
+validation endpoint was an unauthenticated decompression denial of service: the only
+ingress exempt from the 10 MB JSON cap, it accepted 512 MiB and inflated every entry
+into memory synchronously, so a small compressed body cost roughly a gigabyte of RSS
+and seconds of blocked event loop, starving the `/api/health` liveness probe. No UI,
+CLI or documented workflow used it, so there is no user-visible loss. The validator
+itself is unchanged and still covered by tests; re-exposing it is tracked as DOC-127
+and requires much lower limits, a compression-ratio cap and a concurrency bound.
+
+**Removed: `GET /api/secrets/rh-pull-secret/content`** (now `410 ENDPOINT_WITHDRAWN`).
+It returned the operator's full mounted Red Hat pull secret to any caller, and the
+OpenShift overlay publishes the backend on a Route with no authentication. The secret
+is no longer sent to the browser at all. The `{ available: boolean }` probe is kept, so
+the UI still reports that a mounted secret exists; mirror operations authenticate with
+it server-side via `rhAuthSource: "mounted"`.
+
+**Fixed: directory read via bundle export.** `mirrorWorkflow.archivePath` (or
+`.outputPath`) from the request body was archived verbatim into the returned ZIP with no
+boundary check, which could exfiltrate the data directory — where a mounted pull secret
+lives — `/run/secrets`, or a service-account token directory.
+
+The export boundary is now a filesystem boundary rather than a string comparison. Every
+path is canonicalised with `realpath` before comparison, the target must be a strict
+subdirectory of the **application data directory**, and the whole tree is walked: any
+symbolic link and any file whose name looks like credential material is refused. An
+unsafe path now fails the request with a `400` **before any response headers commit**,
+instead of returning a ZIP with a silent omission.
+
+Two deliberate narrowings, which may affect existing setups:
+
+- `/tmp` is no longer an exportable root. It is still browsable, but recursively
+  archiving a world-writable directory into an unauthenticated download is not
+  defensible. Point `mirrorWorkflow.archivePath` at a subdirectory of the data
+  directory (the product default already does).
+- A mirror-output directory that contains credential-shaped filenames is refused
+  outright, naming the offending entry, rather than being exported without it.
+
+The earlier changelog entry for this claimed "arbitrary directory read" was closed by a
+lexical prefix check plus a four-name blacklist. That was not accurate: a symlink
+lexically inside an allowed root, a symlinked parent, and any differently-named
+credential all defeated it. Each is now covered by an end-to-end test that inspects the
+returned bytes.
+
+**Fixed: pull secrets stored in plaintext and served by `/api/jobs`.** The oc-mirror run
+request body was persisted verbatim into job metadata in SQLite — contradicting the
+"pull secrets never persisted to disk" contract — and `GET /api/jobs` and
+`GET /api/jobs/:id` returned the whole row to unauthenticated callers. Request bodies
+are now credential-stripped before storage, and the shared sanitiser now recognises the
+`rhPullSecret` and `mirrorPullSecret` spellings it previously missed.
+
+**Fixed: JSON Run import persisted credentials.** `POST /api/run/import` sanitised with
+the *export* sanitiser before persisting, which only blanks four `credentials.*` fields.
+An imported run therefore wrote `credentials.sshPrivateKey`, every `platformConfig.*`
+password, `hostInventory.nodes[].bmc.password` and userinfo embedded in a proxy URL into
+stored state, from which `GET /api/state`, `GET /api/run/export` and
+`POST /api/run/duplicate` served them back. It now uses the same persistence-grade
+sanitiser as `POST /api/state`. This matters for upgrades specifically, because the
+recommended path is Export Run → upgrade → Import Run.
+
+Consequence for operators: **a re-imported run no longer carries credentials, so
+credentials must be re-entered after importing.** Non-sensitive configuration, proxy
+*endpoints* (minus any embedded userinfo) and v1/v2 → v3 migration are unaffected.
+
+> **Not fixed, and release-blocking:** the backend still has **no authentication on any
+> route** and unrestricted CORS, while the OpenShift overlay publishes it on a public
+> Route. Several endpoints remain able to run privileged work with mounted credentials
+> for an anonymous caller. See the Tranche 8 handoff; this requires a deployment-topology
+> decision and is not closed by the fixes above.
 
 ### Known limitations
 

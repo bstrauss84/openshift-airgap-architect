@@ -140,6 +140,18 @@ than it used to be, that is because a test proved the stronger wording was not t
   receives it only when you initiate generate/export and have opted in, or for a
   user-initiated operator scan at lock.
 
+- **A backend-mounted pull secret never reaches the browser.** A pull secret supplied
+  to the deployment (`PULL_SECRET_FILE`, a Docker/Podman secret, or a file in the data
+  directory) is held in backend memory and used server-side only — by
+  `POST /api/ocmirror/preflight` and `POST /api/ocmirror/run` when the request selects
+  `rhAuthSource: "mounted"`. Through v2.0 the Blueprint field was pre-populated from it,
+  which required an endpoint that returned the raw credential to any caller; because the
+  backend has no authentication, that endpoint was a disclosure. It is withdrawn in v2.1
+  — `GET /api/secrets/rh-pull-secret/content` returns `410 ENDPOINT_WITHDRAWN`, and only
+  the non-sensitive `GET /api/secrets/rh-pull-secret` → `{ available: boolean }` probe
+  remains. This is distinct from a *manually entered* or *session-retained* secret: those
+  are supplied by the operator in the browser and follow the retention rules above.
+
 - **Proxy credentials follow the same opt-in rule as every other credential.** A proxy
   URL may embed `user:password`. That userinfo is treated as a credential: generated
   `install-config.yaml` and the Field Guide carry the proxy **endpoint** (scheme, host,

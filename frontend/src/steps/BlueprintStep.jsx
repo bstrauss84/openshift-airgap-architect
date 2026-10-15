@@ -239,21 +239,24 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedArchs.join(","), locked]);
 
-  // Check for a mounted Red Hat pull secret and pre-populate if the field is empty and not locked.
+  // Report whether a mounted Red Hat pull secret exists on the server.
+  //
+  // This used to follow up with /api/secrets/rh-pull-secret/content and
+  // pre-fill the textarea below with the raw credential. That endpoint is
+  // withdrawn: the backend has no authentication, so it handed the operator's
+  // pull secret to anyone who could reach the API. The secret no longer
+  // enters the browser at all.
+  //
+  // Only the boolean is fetched now, and it drives an informational badge.
+  // The field is deliberately left empty — a mounted secret being present is
+  // not the same as the operator having chosen to use it here.
   useEffect(() => {
-    if (locked || blueprintPullSecretTrimmed) return;
+    if (locked) return;
     const signal = abortRef.current?.signal;
     apiFetch("/api/secrets/rh-pull-secret", { signal })
       .then((d) => {
         if (!mountedRef.current) return;
-        if (!d.available) return;
-        return apiFetch("/api/secrets/rh-pull-secret/content", { signal }).then((c) => {
-          if (!mountedRef.current) return;
-          if (c.pullSecret) {
-            updateBlueprint({ blueprintPullSecretEphemeral: c.pullSecret });
-            setMountedSecretBadge(true);
-          }
-        });
+        setMountedSecretBadge(Boolean(d.available));
       })
       .catch(() => {});
   }, []);
@@ -745,7 +748,7 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
 
         <section className="card pull-secret-section">
           <h3>Red Hat pull secret</h3>
-          {mountedSecretBadge && blueprintPullSecretTrimmed && (
+          {mountedSecretBadge && !blueprintPullSecretTrimmed && (
             <div style={{
               display: "inline-block",
               marginBottom: 10,
@@ -756,7 +759,10 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
               border: "1px solid var(--border-color)",
               color: "var(--text-subtle)"
             }}>
-              Pre-populated from a mounted pull secret file — you can override or clear this.
+              A mounted pull secret was detected on the server. Its contents are
+              never sent to the browser. The mirror steps can authenticate with it
+              directly — choose &ldquo;mounted&rdquo; there. Paste one here only to use a
+              different secret.
             </div>
           )}
           <div className="pull-secret-layout">
@@ -764,7 +770,10 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
               <SecretInput
                 value={blueprintPullSecretRaw}
                 onChange={(v) => {
-                  if (!v.trim()) setMountedSecretBadge(false);
+                  // The badge now reports a server-side fact — whether a
+                  // mounted secret exists — so it is no longer cleared by
+                  // editing this field. Its visibility is driven by whether
+                  // the field is empty, at the render site above.
                   updateBlueprint({ blueprintPullSecretEphemeral: v });
                 }}
                 label="Pull secret (JSON)"

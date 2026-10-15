@@ -18,7 +18,7 @@ import { ZipArchive } from "archiver";
 import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
-import logger, { generateErrorId } from "./logger.js";
+import logger from "./logger.js";
 import { loggingMiddleware } from "./middleware/logging.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 import { getMetrics, getMetricsContentType } from "./metrics.js";
@@ -55,11 +55,16 @@ import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
-import { createIntegrityTracker, MANIFEST_FILENAME, validateArchiveBuffer, ZIP_LIMITS } from "./exportIntegrity.js";
+// validateArchiveBuffer and ZIP_LIMITS are intentionally not imported here: the
+// only route that used them was the withdrawn /api/bundle.import (see below).
+// They remain exported from exportIntegrity.js for its own unit tests and for
+// the eventual DOC-127 validator UI.
+import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js";
 import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts } from "./tempArtifacts.js";
 import { createShutdownHandler } from "./shutdown.js";
 import { activeProcesses } from "./processRegistry.js";
-import { sanitizeStateForPersistence } from "./stateSanitizer.js";
+import { sanitizeStateForPersistence, sanitizeCredentialFields } from "./stateSanitizer.js";
+import { assertExportableMirrorOutput, MirrorOutputPolicyError } from "./mirrorOutputPolicy.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -109,70 +114,40 @@ const port = process.env.PORT || 4000;
 
 app.use(cors());
 
-const BUNDLE_IMPORT_COMPATIBILITY_CODES = new Set([
-  'UNSUPPORTED_VERSION', 'UNSUPPORTED_MANIFEST_SCHEMA',
-  'INCOMPATIBLE_STATE_SCHEMA', 'INCOMPATIBLE_MANIFEST_SCHEMA', 'UNLOCKED_VERSION'
-]);
-
-app.post("/api/bundle.import",
-  (req, res, next) => {
-    const mediaType = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    if (mediaType !== 'application/zip' && mediaType !== 'application/octet-stream') {
-      return res.status(415).json({ error: 'Unsupported media type', code: 'WRONG_MEDIA_TYPE' });
-    }
-    next();
-  },
-  (req, res, next) => {
-    express.raw({
-      type: ['application/zip', 'application/octet-stream'],
-      limit: ZIP_LIMITS.MAX_ARCHIVE_BYTES
-    })(req, res, (err) => {
-      if (err) {
-        if (err.type === 'entity.too.large') {
-          return res.status(413).json({
-            error: 'Request body exceeds maximum archive size',
-            code: 'PAYLOAD_TOO_LARGE'
-          });
-        }
-        const errorId = generateErrorId();
-        logger.error({ err, errorId }, 'Unexpected error parsing archive upload');
-        return res.status(500).json({
-          error: 'Internal validation error',
-          code: 'INTERNAL_ERROR',
-          errorId
-        });
-      }
-      next();
-    });
-  },
-  (req, res) => {
-    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ error: 'Empty or missing request body', code: 'EMPTY_BODY' });
-    }
-    try {
-      const result = validateArchiveBuffer(req.body);
-      return res.json({
-        valid: true,
-        manifestSchemaVersion: result.manifestSchemaVersion,
-        stateSchemaVersion: result.stateSchemaVersion,
-        selectedMinor: result.selectedMinor,
-        fileCount: result.fileCount
-      });
-    } catch (err) {
-      if (err.code) {
-        const status = BUNDLE_IMPORT_COMPATIBILITY_CODES.has(err.code) ? 422 : 400;
-        return res.status(status).json({ error: err.message, code: err.code });
-      }
-      const errorId = generateErrorId();
-      logger.error({ err, errorId }, 'Unexpected error during archive validation');
-      return res.status(500).json({
-        error: 'Internal validation error',
-        code: 'INTERNAL_ERROR',
-        errorId
-      });
-    }
-  }
-);
+// POST /api/bundle.import is WITHDRAWN in v2.1. See DOC-127.
+//
+// The endpoint was an unauthenticated archive validator. It was the only
+// ingress that escaped the 10 MB JSON cap (it accepted 512 MiB), and
+// validateArchiveBuffer inflates every entry into memory, CRC32s it in a
+// per-byte JS loop and SHA-256s it again — all synchronously, with no
+// concurrency cap. A small compressed body therefore bought ~1 GiB of RSS and
+// seconds of blocked event loop, which starved the /api/health liveness probe.
+// No frontend, CLI, e2e test or documented workflow ever called it, so the
+// whole surface was a liability with no user.
+//
+// This handler MUST stay here — after cors(), before express.json() below —
+// and MUST remain terminal (never call next()). It replies without reading the
+// request body, so no bytes are buffered, inflated or hashed; Node drains the
+// unread remainder in streaming fashion when the response finishes. Moving it
+// below a body parser, or restoring the old handlers, reopens the DoS.
+//
+// app.all, not app.post, so no other verb can reach a differently-shaped path.
+// 410 rather than 404: a 404 here is indistinguishable from a routing or
+// reverse-proxy misconfiguration during incident triage, and Express's default
+// 404 would emit HTML, breaking the JSON error contract every other route
+// keeps. The endpoint is already named in published docs, so 410 leaks nothing.
+//
+// The validator itself (exportIntegrity.js) is deliberately NOT deleted: the
+// export path shares it, and DOC-127 will reintroduce validation behind a real
+// UI. Its unit tests stay green as the regression net for that future work.
+// Before any such reintroduction the resource limits must come down and gain a
+// compression-ratio cap and a concurrency bound — see the Findings Queue.
+app.all("/api/bundle.import", (req, res) => {
+  res.status(410).json({
+    error: "The bundle validation endpoint has been withdrawn.",
+    code: "ENDPOINT_WITHDRAWN"
+  });
+});
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -1401,9 +1376,30 @@ app.get("/api/secrets/rh-pull-secret", (req, res) => {
   res.json({ available: Boolean(mountedRhPullSecret) });
 });
 
-app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
-  if (!mountedRhPullSecret) return res.status(404).json({ error: "No mounted pull secret." });
-  res.json({ pullSecret: mountedRhPullSecret });
+// Raw disclosure of the mounted pull secret is WITHDRAWN.
+//
+// This endpoint returned the operator's full Red Hat pull secret to any
+// caller. The backend has no authentication on any route, and the shipped
+// OpenShift overlay (manifests/openshift/route-backend.yaml) publishes it on
+// an edge-TLS Route with no auth, so anyone who could reach that Route could
+// read the cluster's pull secret. Compose binds 127.0.0.1 and was contained.
+//
+// It existed only to pre-fill the Blueprint pull-secret textarea in the
+// browser. Nothing else needed it: the operations that genuinely use the
+// mounted credential — /api/ocmirror/preflight and /api/ocmirror/run —
+// resolve it server-side via rhAuthSource: "mounted" and never send it to the
+// client, and the operator catalog scan authenticates through the separate
+// REGISTRY_AUTH_FILE mechanism. So the credential never has to reach the
+// browser at all, and now does not.
+//
+// The availability probe above is kept deliberately: { available: boolean }
+// discloses nothing and is what the UI now uses to tell the operator a
+// mounted secret is present.
+app.all("/api/secrets/rh-pull-secret/content", (req, res) => {
+  res.status(410).json({
+    error: "Raw mounted pull secret retrieval has been withdrawn.",
+    code: "ENDPOINT_WITHDRAWN"
+  });
 });
 
 app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
@@ -1631,7 +1627,21 @@ app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
     }
   }
 
-  const sanitized = sanitizeStateForExport(v3State, { ...(v3State.exportOptions || {}), includeCredentials: false });
+  // Persistence-grade, not export-grade.
+  //
+  // This used sanitizeStateForExport, which only blanks four `credentials.*`
+  // fields and the Blueprint ephemeral. It left `credentials.sshPrivateKey`,
+  // every `platformConfig.*` password, `hostInventory.nodes[].bmc.password`
+  // and userinfo embedded in a proxy URL untouched — and this value is both
+  // PERSISTED and returned, so an imported run laundered those credentials
+  // into stored state, from which GET /api/state, GET /api/run/export and
+  // POST /api/run/duplicate served them back.
+  //
+  // POST /api/state has always persisted through sanitizeStateForPersistence,
+  // which additionally runs a recursive sweep over credential-shaped keys.
+  // Both write paths now agree; the import surface was the odd one out, and
+  // it is the one the update banner tells operators to use when upgrading.
+  const sanitized = sanitizeStateForPersistence(v3State);
   setState(sanitized);
   res.json({ ok: true, state: sanitized, migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2 });
 });
@@ -3012,7 +3022,19 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     configSourceType,
     configPath: configPathExternal || "",
     startedAt,
-    requestBody: body, // Store entire request for potential retry
+    // Credential-stripped. This used to store `body` verbatim, which put the
+    // operator's rhPullSecret and mirrorPullSecret in plaintext into SQLite —
+    // contradicting this module's own "Pull secrets never persisted to disk"
+    // contract (utils.js) — and then served them to anyone, because
+    // GET /api/jobs and GET /api/jobs/:id return the whole row unauthenticated
+    // and updateJobMetadata performs no redaction.
+    //
+    // Nothing is lost. The only consumer is the smart-retry path, which reads
+    // `getJob(jobId)?.metadata` — a property that does not exist, because
+    // getJob returns the raw row carrying `metadata_json` and nothing in this
+    // file ever parses it. That retry is already inert; see the handoff.
+    // Restoring it must not restore plaintext credential storage.
+    requestBody: sanitizeCredentialFields(body),
     authFile // Store authFile path for retry
   };
   updateJobMetadata(jobId, meta);
@@ -3675,6 +3697,27 @@ const buildBundleZip = async (state, res) => {
   const ntpMachineConfigs = buildNtpMachineConfigs(v3State);
   const fieldManual = buildFieldManual(v3State, links);
 
+  // Validate the caller-supplied mirror-output directory HERE, while a clean
+  // JSON error is still possible. Everything below this point runs after the
+  // response headers commit, where the only honest ending is a truncated
+  // transfer — and answering an unsafe path with a 200 and a silent omission
+  // would be worse than either: it tells the operator the export succeeded.
+  //
+  // The roots here are deliberately NARROWER than ALLOWED_BASE_PATHS, which
+  // also contains /tmp. /tmp is a reasonable place to let an operator BROWSE
+  // (GET /api/fs/ls) and a terrible one to recursively archive into an
+  // unauthenticated download: it is world-writable and full of other
+  // processes' scratch files, including this server's own staged auth files.
+  // Mirror output belongs under the data directory — that is where the
+  // product puts it by default (mirrorWorkflow.archivePath above) and where
+  // the README tells operators to mount a large drive.
+  let mirrorOutputRealPath = null;
+  const requestedMirrorOutput =
+    v3State.mirrorWorkflow?.archivePath || v3State.mirrorWorkflow?.outputPath;
+  if (v3State.mirrorWorkflow?.includeInExport && requestedMirrorOutput) {
+    mirrorOutputRealPath = assertExportableMirrorOutput(requestedMirrorOutput, [dataDir]);
+  }
+
   const bundleName = `airgap-${v3State.release?.patchVersion || "unknown"}-install-configs-bundle.zip`;
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename=${bundleName}`);
@@ -3702,6 +3745,14 @@ const buildBundleZip = async (state, res) => {
       // never try to send a second response.
       res.destroy(bundleFailure);
     } else {
+      // Nothing is on the wire yet, but the ZIP headers were already set at the
+      // top of buildBundleZip and Express does not clear an explicitly-set
+      // Content-Type: res.json() on this response yields
+      // "application/zip; charset=utf-8" with the attachment header intact, so
+      // the browser would save this error as bundle.zip. Drop both so the
+      // failure arrives as a failure.
+      res.removeHeader("Content-Disposition");
+      res.removeHeader("Content-Type");
       res.status(500).end(String(err));
     }
     try {
@@ -3901,26 +3952,19 @@ const buildBundleZip = async (state, res) => {
       );
     }
   }
-  const mirrorOutputPath = v3State.mirrorWorkflow?.archivePath || v3State.mirrorWorkflow?.outputPath;
-  if (v3State.mirrorWorkflow?.includeInExport && mirrorOutputPath) {
-    const rawPath = mirrorOutputPath;
-    try {
-      const resolved = path.resolve(rawPath);
-      const stat = fs.statSync(resolved);
-      if (stat.isDirectory()) {
-        tracked.directory(resolved, "mirror-output");
-      } else {
-        tracked.append(
-          `Mirror output path is not a directory: ${resolved}\n`,
-          { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
-        );
-      }
-    } catch (error) {
-      tracked.append(
-        `Mirror output could not be included: ${String(error?.message || error)}. Path: ${rawPath}\n`,
-        { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
-      );
-    }
+  if (mirrorOutputRealPath) {
+    // Already canonicalised and tree-verified before the headers committed,
+    // so there is no second decision to make here and no path from the
+    // request body left to trust.
+    //
+    // The symlink filter is deliberate belt-and-braces against the window
+    // between validation and streaming: a link planted in that interval would
+    // otherwise be followed. `false` omits the entry rather than resolving it,
+    // and the integrity tracker's post-conditions fail the transfer if a
+    // member it was promised never arrives.
+    tracked.directory(mirrorOutputRealPath, "mirror-output", (entry) =>
+      entry.stats?.isSymbolicLink?.() ? false : entry
+    );
   }
 
   // High-side runtime package export (DOC-083)
@@ -4089,6 +4133,14 @@ function isPathAllowed(requestedPath) {
   );
 }
 
+// The mirror-output export boundary used to live here as isExportableDirectory,
+// a lexical prefix test plus a four-name credential blacklist. It was bypassed
+// by a symlink lexically inside an allowed root, by a symlinked parent, and by
+// any credential file named something the blacklist did not list. It now lives
+// in ./mirrorOutputPolicy.js, which canonicalises with realpath and walks the
+// tree, and is applied before the response headers commit so an unsafe path
+// fails as a 400 instead of producing a ZIP with a silent omission.
+
 app.get("/api/fs/ls", (req, res) => {
   const reqPath = (req.query.path || "/").toString();
   if (!isPathAllowed(reqPath)) {
@@ -4136,6 +4188,22 @@ app.get("/api/fs/ls", (req, res) => {
 });
 
 const handleBundleZipError = (res, error) => {
+  // Every branch below answers with JSON, but buildBundleZip may already have
+  // set Content-Type: application/zip and Content-Disposition: attachment.
+  // Express does not replace an explicitly-set Content-Type, so res.json()
+  // would ship "application/zip; charset=utf-8" and the browser would save the
+  // error object as bundle.zip. Clear both before any of the responses below.
+  //
+  // Guarded, not unconditional: removeHeader throws ERR_HTTP_HEADERS_SENT once
+  // the headers are on the wire, which would turn a handled error into a
+  // second, unhandled one. Reaching here post-flush is not believed possible
+  // (that path truncates through failBundleStream), but this handler is the
+  // error path and must not be the thing that throws.
+  if (!res.headersSent) {
+    res.removeHeader("Content-Disposition");
+    res.removeHeader("Content-Type");
+  }
+
   // DOC-102 Slice 5F.13: Handle unsupported version errors from bundle generation
   //
   // FIELD_GUIDE_VERSION_ERROR is mapped alongside CONFIGURATION_VALIDATION
@@ -4171,6 +4239,13 @@ const handleBundleZipError = (res, error) => {
     });
   }
   if (error.code === 'CONFIGURATION_VALIDATION' || error.code === 'FIELD_GUIDE_VERSION_ERROR') {
+    return res.status(400).json({ error: error.message, code: error.code });
+  }
+  // A refused mirror-output directory is caller input, not a server fault.
+  // Answered as a clean 400 because the check runs before headers commit;
+  // the message names the offending entry but never the resolved absolute
+  // path, so this cannot be used as a filesystem oracle.
+  if (error instanceof MirrorOutputPolicyError) {
     return res.status(400).json({ error: error.message, code: error.code });
   }
   return res.status(500).json({ error: String(error?.message || error) });

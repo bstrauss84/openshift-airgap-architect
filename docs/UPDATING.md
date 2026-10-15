@@ -2,6 +2,36 @@
 
 This document describes how to update the app when a newer version is available (e.g. when the Landing page or Tools → About shows "Update available").
 
+## Before you update: save your work
+
+Updating replaces the running application. Save your configuration first:
+
+1. **Tools → Export Run** and keep the downloaded **JSON** file.
+2. Update using one of the procedures below.
+3. **Tools → Import Run** and select that JSON file.
+4. **Re-enter your credentials.**
+
+**Credentials are deliberately not carried across.** As of v2.1 an imported run
+is stripped of credential material before it is stored — Red Hat and mirror
+pull secrets, SSH private keys, platform and BMC passwords, and any username
+and password embedded in a proxy URL. Everything else, including proxy
+endpoints and the rest of your configuration, is preserved. Earlier versions
+persisted some of those credentials on import; that was a disclosure defect,
+not a feature.
+
+**A JSON Run is not the same thing as a generated bundle ZIP.** Only the JSON
+file from Tools → Export Run can be imported back into the application. The
+generated artifact ZIP from the Assets & Guide step contains install-config
+and Field Guide output for your cluster — it is not a restorable run, and the
+endpoint that used to validate uploaded ZIPs was withdrawn in v2.1.
+
+> Cross-version import is **not** guaranteed. Importing a run exported by one
+> version into a different version has not been verified by automated
+> source-version → target-version tests, so treat the exported JSON as a
+> convenience, not a migration guarantee, and keep it until the updated
+> instance is working. Imports from v1.x and v2.x into the current schema are
+> migrated and are covered by tests.
+
 ## Git clone vs tarball builds
 
 - **Built from a git clone** (with a `.git` directory): The backend image can determine the current commit and build time during `podman compose up --build`. Tools → About shows real build metadata, and the app can tell you if an update is available. This is the normal case.

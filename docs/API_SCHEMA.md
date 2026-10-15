@@ -410,8 +410,14 @@ Lists files in a directory. Query param: `?path=/data`
 ### GET /api/secrets/rh-pull-secret
 Returns whether a Red Hat pull secret is available.
 
-### GET /api/secrets/rh-pull-secret/content
-Returns the pull secret content.
+### GET /api/secrets/rh-pull-secret/content — WITHDRAWN (v2.1)
+Returns `410 Gone` with `code: ENDPOINT_WITHDRAWN` for every method that reaches
+the route (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`). `OPTIONS` is answered
+`204` by the CORS middleware registered ahead of it — a preflight carries no body
+and is not a bypass. It used to
+return the raw mounted pull secret to unauthenticated callers. The credential
+is no longer sent to the browser; use `rhAuthSource: "mounted"` so the backend
+authenticates server-side.
 
 ---
 
