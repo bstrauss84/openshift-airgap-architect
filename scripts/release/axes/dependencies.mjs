@@ -156,10 +156,32 @@ function audit(repoRoot, dir, omitDev) {
   }
 }
 
-const COMPONENTS = [
+/**
+ * Components that produce a shipping image. Each MUST name a Containerfile,
+ * because the shipped axis decides its audit scope by reading that file's
+ * install directives.
+ */
+export const COMPONENTS = [
   { name: "backend", dir: "backend", containerfile: "backend/Containerfile" },
   { name: "frontend", dir: "frontend", containerfile: "frontend/Containerfile" },
 ];
+
+/**
+ * Trees that run on the BUILD HOST and never enter any image.
+ *
+ * The repository root was a blind spot: it is a real npm tree — the release
+ * harness, the validators and the e2e helpers all resolve from it — but it
+ * appeared in neither axis, so an advisory there was invisible to the whole
+ * certification. A HIGH in `js-yaml` sat in it unreported while both axes
+ * said what they were asked.
+ *
+ * It belongs to the BUILDER axis ONLY, and deliberately has no
+ * `containerfile`: there is no root image, so a shipped scope cannot be
+ * derived for it and claiming one would be a lie in the safe-sounding
+ * direction. Adding it to COMPONENTS instead would make the shipped axis look
+ * for a Containerfile that does not exist and report INCOMPLETE forever.
+ */
+export const BUILDER_ONLY_COMPONENTS = [{ name: "tooling", dir: "." }];
 
 const DEP_INPUTS = [
   "backend/package.json",
@@ -168,6 +190,10 @@ const DEP_INPUTS = [
   "frontend/package.json",
   "frontend/package-lock.json",
   "frontend/Containerfile",
+  // The root tree is an input to the builder axis, so a change to it must
+  // invalidate a cached result just as a component change does.
+  "package.json",
+  "package-lock.json",
 ];
 
 const sev = (c) => (c?.critical ?? 0) + (c?.high ?? 0);
@@ -235,8 +261,12 @@ export const builder = {
 
   async run({ repoRoot, store }) {
     const findings = [];
-    for (const c of COMPONENTS) {
-      findings.push({ component: c.name, ...audit(repoRoot, c.dir, false) });
+    // Image-producing components PLUS the build-host-only trees. The latter
+    // never reach a runtime image, which bounds the blast radius without
+    // removing the exposure — they still execute with access to the source
+    // tree and to the artifact being produced.
+    for (const c of [...COMPONENTS, ...BUILDER_ONLY_COMPONENTS]) {
+      findings.push({ component: c.name, builderOnly: !c.containerfile, ...audit(repoRoot, c.dir, false) });
     }
 
     const artifacts = [store.writeArtifact(builder.id, "builder-advisories.json", findings)];

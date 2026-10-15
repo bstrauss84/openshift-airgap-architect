@@ -14,7 +14,7 @@ import path from "node:path";
 import { AXES, AXIS_IDS, REQUIRED_AXIS_IDS, NON_WAIVABLE_AXIS_IDS, CONTAINER_AXES, axisById } from "./axes/index.mjs";
 import { INCOMPLETE } from "./lib/status.mjs";
 import { REUSE } from "./lib/evidence.mjs";
-import { shippedInstallScope } from "./axes/dependencies.mjs";
+import { shippedInstallScope, COMPONENTS, BUILDER_ONLY_COMPONENTS } from "./axes/dependencies.mjs";
 import { repoSlug } from "./axes/docs.mjs";
 import { normalizeWorkflowRuns, REQUIRED_WORKFLOWS } from "./axes/ci-integrity.mjs";
 import { provesPrivilegeDrop, stripShellComments } from "./axes/containers.mjs";
@@ -174,6 +174,42 @@ describe("shipped-vs-builder dependency scope", () => {
       "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", "RUN npm i --omit=dev express", "",
     ].join("\n");
     assert.equal(shippedInstallScope(copyThenProdInstall), "prod");
+  });
+
+  test("the repository root is audited as a builder-only tree", () => {
+    // It was in neither axis, so a HIGH advisory in the root tree (js-yaml)
+    // was invisible to the whole certification while both axes truthfully
+    // reported on what they had been asked about. A blind spot is not a pass.
+    const builderNames = [...COMPONENTS, ...BUILDER_ONLY_COMPONENTS].map((c) => c.name);
+    assert.ok(builderNames.includes("tooling"), "the root tree must be in the BUILDER surface");
+    assert.deepEqual(
+      BUILDER_ONLY_COMPONENTS.map((c) => c.dir),
+      ["."],
+      "the root tree is the repository root",
+    );
+  });
+
+  test("the root tree is NOT claimed as a shipped surface", () => {
+    // There is no root image. Giving it a containerfile would make the
+    // shipped axis derive an install scope for an image that does not exist —
+    // a false statement in the comfortable direction.
+    assert.ok(!COMPONENTS.some((c) => c.name === "tooling"), "root must not be a shipped component");
+    for (const c of BUILDER_ONLY_COMPONENTS) {
+      assert.equal(c.containerfile, undefined, `${c.name} must declare no Containerfile`);
+    }
+    for (const c of COMPONENTS) {
+      assert.ok(c.containerfile, `${c.name} ships an image and must name its Containerfile`);
+    }
+  });
+
+  test("adding the root tree did not disturb multi-stage shipped classification", () => {
+    // The real backend image is builder + minimal runtime; the real frontend
+    // ships nginx with no npm surface at all. Both must be unchanged by the
+    // builder-surface widening.
+    const backend = fs.readFileSync(path.join(REPO_ROOT, "backend", "Containerfile"), "utf8");
+    const frontend = fs.readFileSync(path.join(REPO_ROOT, "frontend", "Containerfile"), "utf8");
+    assert.equal(shippedInstallScope(backend), "prod", "backend ships a production-only dependency tree");
+    assert.equal(shippedInstallScope(frontend), "none", "frontend ships no npm dependency surface");
   });
 
   test("a chained `&&` install is read as two installs, not one", () => {
