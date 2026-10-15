@@ -49,6 +49,38 @@ const fixtureBinary = (name, body) => {
   return shimPath;
 };
 
+/**
+ * A stand-in oc-mirror that IGNORES SIGTERM, ready in single-digit milliseconds.
+ *
+ * WHY THIS IS NOT A NODE SCRIPT. The escalation test gives the child 50ms
+ * before SIGTERM. A node fixture cannot install `process.on('SIGTERM')` until
+ * the runtime has booted, and node's boot does not fit in 50ms on a loaded
+ * machine — so SIGTERM arrived while the default disposition was still in
+ * effect, the child died of SIGTERM, and the test reported "expected SIGKILL,
+ * received SIGTERM" as though the production escalation were broken. It is
+ * not: measured over 20 runs with every core saturated, the node fixture lost
+ * this race 5 times, and 0 times idle.
+ *
+ * A POSIX shell installs `trap` before it has done anything else. Measured
+ * under the same saturated load: ready in 3-8ms, 0/20 races. The margin is
+ * ~6x rather than negative.
+ *
+ * The fixture also touches a sentinel file the moment the trap is armed, so
+ * readiness is OBSERVED by the test rather than assumed. If this ever regresses
+ * the suite says "the fixture never became ready", which is the true cause,
+ * instead of blaming the signal escalation it was written to prove.
+ */
+const stubbornFixture = (name) => {
+  const readyPath = path.join(scratch, `${name}.ready`);
+  const shimPath = path.join(scratch, name);
+  fs.writeFileSync(
+    shimPath,
+    `#!/bin/sh\ntrap '' TERM\n: > "${readyPath}"\nwhile :; do sleep 1; done\n`,
+    { mode: 0o755 },
+  );
+  return { shimPath, readyPath };
+};
+
 const waitFor = async (predicate, description, timeoutMs = 15000) => {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -171,10 +203,7 @@ describe("Operator scan process ownership", () => {
     // while mid-write, and nothing else in the codebase escalates. Without
     // escalation the job says `failed` while the child keeps running, and
     // shutdown only re-sends the same ignored signal.
-    const stubborn = fixtureBinary(
-      "ignores-sigterm",
-      "process.on('SIGTERM', () => {});\nsetInterval(() => {}, 1000);\n"
-    );
+    const { shimPath: stubborn, readyPath } = stubbornFixture("ignores-sigterm");
     const jobId = startScan({
       ocMirrorPath: stubborn,
       timeoutMs: 50,
@@ -183,6 +212,12 @@ describe("Operator scan process ownership", () => {
     const child = activeProcesses.get(jobId);
     assert.ok(child, "precondition: the scan is registered");
     const exited = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
+
+    // OBSERVED readiness, not an assumed head start. The whole test is
+    // meaningless if SIGTERM lands before the child is ignoring it, so that
+    // precondition is proven rather than hoped for — and if it ever stops
+    // holding, this is the assertion that fails, naming the real cause.
+    await waitFor(() => fs.existsSync(readyPath), "the stubborn fixture to arm its SIGTERM trap", 5000);
 
     const job = await waitForTerminal(jobId);
     assert.equal(job.status, "failed");
