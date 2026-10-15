@@ -230,6 +230,49 @@ oaa_image_candidate_label() { # image_ref
   podman image inspect "$1" --format '{{index .Config.Labels "io.oaa.candidate-id"}}' 2>/dev/null || true
 }
 
+# Resolve the scan-evidence file for a role, across both spellings.
+#
+# THE MISMATCH THIS CLOSES. The certification axis writes
+# `<run>/image-vulnerabilities/<role>.scan.json`
+# (scripts/release/axes/image-vulnerabilities.mjs), while this gate read
+# `<evdir>/<role>.json`. Pointing OAA_SCAN_EVIDENCE_DIR straight at a real
+# certification run therefore reported "scan evidence does not exist" and went
+# INCOMPLETE with the correct files sitting right there. It failed closed, so
+# it was never a false GREEN — but it made a manual copy-and-rename a de facto
+# release step, and a release step that exists only in someone's head is a
+# release step that eventually gets done wrong.
+#
+# `<role>.scan.json` is treated as canonical because it is what the producer
+# emits; `<role>.json` stays supported because existing operator evidence
+# directories use it.
+#
+# BOTH PRESENT IS NOT A PREFERENCE QUESTION. Two files claiming to describe the
+# same image are either the same evidence or a contradiction. Byte-identical is
+# fine. Otherwise one of them is stale, and silently preferring either is how a
+# gate ends up reporting on an image nobody shipped — so it refuses and says
+# which two files disagree.
+#
+# Prints the resolved path on success. On ambiguity prints nothing and returns
+# 2, so the caller can distinguish "conflict" from "absent" (return 1).
+oaa_resolve_scan_evidence() { # evdir role
+  local evdir="$1" role="$2"
+  local canonical="$evdir/${role}.scan.json"
+  local legacy="$evdir/${role}.json"
+
+  if [ -f "$canonical" ] && [ -f "$legacy" ]; then
+    local a b
+    a="$(sha256sum "$canonical" 2>/dev/null | cut -d' ' -f1)"
+    b="$(sha256sum "$legacy" 2>/dev/null | cut -d' ' -f1)"
+    if [ -n "$a" ] && [ "$a" = "$b" ]; then printf '%s' "$canonical"; return 0; fi
+    return 2
+  fi
+  [ -f "$canonical" ] && { printf '%s' "$canonical"; return 0; }
+  [ -f "$legacy" ]    && { printf '%s' "$legacy";    return 0; }
+  # Neither exists. Hand back the canonical name so the downstream refusal
+  # names the file an operator should actually produce.
+  printf '%s' "$canonical"; return 1
+}
+
 # Resolve the config digest of a locally present image, or print nothing.
 #
 # podman's `.Id` IS the config digest — proven, not assumed: `podman save`
@@ -325,7 +368,11 @@ oaa_container_scan_verdict() { # [repo_root]
       fi
     fi
 
-    ev="$evdir/${role}.json"
+    ev="$(oaa_resolve_scan_evidence "$evdir" "$role")"
+    if [ "$?" -eq 2 ]; then
+      detail="${detail}${role}: both ${role}.scan.json and ${role}.json exist and differ; one is stale and choosing either could report on an image that was never shipped; "
+      failures=$((failures+1)); continue
+    fi
     if ! reason="$(oaa_scan_evidence_ok "$ev" "$digest" "${OAA_SCAN_MAX_DB_AGE_H:-24}" 2>&1)"; then
       detail="${detail}${role}: ${reason}; "; failures=$((failures+1)); continue
     fi
